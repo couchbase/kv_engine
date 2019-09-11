@@ -79,7 +79,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     {
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -783,7 +783,7 @@ TEST_P(DurabilityActiveStreamTest,
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -807,7 +807,7 @@ TEST_P(DurabilityActiveStreamTest,
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();

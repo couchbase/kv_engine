@@ -92,7 +92,7 @@ void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
     // Note: need to go through VBucket::set make sure we call
     // ADM::checkForCommit
     item.setPendingSyncWrite(req);
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, set(item));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, set(item));
 
     vb->processResolvedSyncWrites();
 }
@@ -142,7 +142,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
 
     mutation_descr_t mutation_descr;
     auto cHandle = vb->lockCollections(item.getKey());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
               vb->deleteItem(cas,
                              cookie,
                              *engine,

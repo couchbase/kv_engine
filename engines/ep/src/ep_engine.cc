@@ -2199,7 +2199,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
         }
         break;
 
-    case ENGINE_EWOULDBLOCK:
+    case ENGINE_SYNC_WRITE_PENDING:
         if (durability) {
             // Record the fact that we are blocking to wait for SyncDelete
             // completion; so the next call to this function should return
@@ -2208,6 +2208,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
             // (just store non-null value to indicate this).
             storeEngineSpecific(cookie, reinterpret_cast<void*>(cas));
         }
+        ret = ENGINE_EWOULDBLOCK;
         break;
 
     case ENGINE_SUCCESS:
@@ -2481,7 +2482,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             return {cb::engine_errc::temporary_failure, cas};
         }
         break;
-    case ENGINE_EWOULDBLOCK:
+    case ENGINE_SYNC_WRITE_PENDING:
         if (item.isPending()) {
             // Record the fact that we are blocking to wait for SyncWrite
             // completion; so the next call to this function should return
@@ -2490,6 +2491,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             // can return it to the client later.
             storeEngineSpecific(cookie, reinterpret_cast<void*>(item.getCas()));
         }
+        status = ENGINE_EWOULDBLOCK;
         break;
     default:
         break;

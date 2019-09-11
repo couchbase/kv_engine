@@ -613,7 +613,7 @@ TEST_F(DCPLoopbackStreamTest, TakeoverWithExpiry) {
 void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
         uint32_t flags, bool completeFinalSnapshot) {
     // First checkpoint 1..2: PRE(a), CMT(a)
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
     EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
 
     // Second checkpoint 3..5: SET(b), PRE(a), SET(c)
@@ -625,7 +625,7 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     // Add 4:PRE(a), 5:SET(c), 6:SET(d)
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
     EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
     EXPECT_EQ(ENGINE_SUCCESS, storeSet("d"));
 
@@ -732,7 +732,7 @@ TEST_F(DCPLoopbackStreamTest,
 TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // First checkpoint 1..2:
     //     1:PRE(a)
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
 
     // Setup: Create DCP connections; and stream the first 2 items (SNAP, 1:PRE)
     auto route0_1 = createDcpRoute(Node0, Node1);
@@ -754,7 +754,7 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
 
     //     4:PRE(a)
     //     5:SET(c)
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, storePrepare("a"));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
     EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
 
     // Trigger cursor dropping; then remove (now unreferenced) first checkpoint.

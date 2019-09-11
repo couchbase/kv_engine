@@ -956,7 +956,7 @@ TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
     auto key = makeStoredDocKey("key");
     ASSERT_EQ(ENGINE_SUCCESS,
               store->set(*makeCommittedItem(key, "value1"), cookie));
-    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test
@@ -979,7 +979,7 @@ TEST_P(KVBucketParamTest, UnlockWithPreparedSyncWrite) {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "value1");
     ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
-    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test
@@ -1004,7 +1004,7 @@ TEST_P(KVBucketParamTest, GetAndUpdateTtlWithPreparedSyncWrite) {
     auto key = makeStoredDocKey("key");
     ASSERT_EQ(ENGINE_SUCCESS,
               store->set(*makeCommittedItem(key, "value1"), cookie));
-    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test

@@ -223,7 +223,7 @@ protected:
      */
     void setupAbortedSyncWrite(const StoredDocKey& key) {
         auto prepared = makePendingItem(key, "value");
-        ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepared, cookie));
+        ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepared, cookie));
         auto& vb = *store->getVBucket(vbid);
         ASSERT_EQ(ENGINE_SUCCESS,
                   vb.abort(key,
@@ -241,7 +241,7 @@ protected:
         using namespace cb::durability;
         auto reqs = Requirements(Level::Majority, {});
         mutation_descr_t delInfo;
-        ASSERT_EQ(ENGINE_EWOULDBLOCK,
+        ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
                   store->deleteItem(
                           key, cas, vbid, cookie, reqs, nullptr, delInfo));
         auto& vb = *store->getVBucket(vbid);
@@ -287,7 +287,7 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     if (docState == DocumentState::Deleted) {
         pending->setDeleted(DeleteSource::Explicit);
     }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     ASSERT_EQ(1, ckptMgr.getNumItemsForPersistence());
@@ -360,7 +360,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     if (docState == DocumentState::Deleted) {
         pending->setDeleted(DeleteSource::Explicit);
     }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     // A Prepare doesn't account in curr-items
     ASSERT_EQ(0, vb.getNumItems());
 
@@ -439,7 +439,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     // First prepare (always a SyncWrite) and abort.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
                        pending->getBySeqno(),
@@ -451,7 +451,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     if (docState == DocumentState::Deleted) {
         pending2->setDeleted(DeleteSource::Explicit);
     }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending2, cookie));
 
     // We do not deduplicate Prepare and Abort (achieved by inserting them into
     // different checkpoints)
@@ -499,7 +499,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     // First prepare and abort.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
                        pending->getBySeqno(),
@@ -511,7 +511,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     if (docState == DocumentState::Deleted) {
         pending2->setDeleted(DeleteSource::Explicit);
     }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending2, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending2, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.abort(key,
                        pending2->getBySeqno(),
@@ -566,7 +566,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     // prepare SyncWrite and commit.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
                         pending->getBySeqno(),
@@ -593,7 +593,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
     ASSERT_EQ(2, ckptList.size());
@@ -635,7 +635,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     // prepare SyncWrite and commit.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
                         pending->getBySeqno(),
@@ -670,7 +670,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
         EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
     }
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
     checkForSyncWriteInProgess(*pending);
@@ -719,7 +719,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
     // Setup: Persist SyncDelete prepare.
@@ -734,7 +734,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
 
     // Setuo: Prepare SyncWrite
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     // Test: flush items to disk. The flush of the Committed SyncDelete will
     // attempt to remove that item from the HashTable; check the correct item
@@ -764,7 +764,7 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     // prepare SyncWrite and commit.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
                         pending->getBySeqno(),
@@ -854,7 +854,7 @@ void DurabilityEPBucketTest::performPrepareSyncWrite(
         uint64_t expectedCollectedCount) {
     auto cID = pendingItem->getKey().getCollectionID();
     // First prepare SyncWrite and commit for test_doc.
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pendingItem, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pendingItem, cookie));
     verifyOnDiskItemCount(vb, expectedDiskCount);
     verifyCollectionItemCount(vb, cID, expectedCollectedCount);
 }
@@ -869,7 +869,7 @@ void DurabilityEPBucketTest::performPrepareSyncDelete(
     auto reqs =
             cb::durability::Requirements(cb::durability::Level::Majority, {});
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
     verifyOnDiskItemCount(vb, expectedDiskCount);
@@ -1294,7 +1294,7 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     for (uint8_t seqno = 1; seqno <= 3; seqno++) {
         auto item = makePendingItem(
                 makeStoredDocKey("key" + std::to_string(seqno)), "value", reqs);
-        ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+        ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
     }
 
     const auto& vb = store->getVBucket(vbid);
@@ -1575,7 +1575,7 @@ TEST_P(DurabilityBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
     // Setup: Add the first prepared SyncWrite.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->add(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->add(*pending, cookie));
 
     // Test: Attempt to add a second prepared SyncWrite (different cookie i.e.
     // client).
@@ -1599,7 +1599,7 @@ TEST_P(DurabilityBucketTest, DeleteIfDeleteInProgressSyncWriteInProgress) {
     mutation_descr_t mutInfo;
     cb::durability::Requirements reqs{cb::durability::Level::Majority, {}};
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, mutInfo));
 
     // Test: Attempt to perform a second SyncDelete (different cookie i.e.
@@ -1621,7 +1621,7 @@ TEST_P(DurabilityBucketTest, DeleteIfSyncWriteInProgressSyncWriteInProgress) {
     // Setup: start a SyncWrite.
     auto key = makeStoredDocKey("key");
     auto committed = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*committed, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*committed, cookie));
 
     // Test: Attempt to perform a second SyncDelete (different cookie i.e.
     // client).
@@ -1646,7 +1646,7 @@ TEST_P(DurabilityBucketTest, SyncAddAfterAbortedSyncWrite) {
     // Test: Attempt to perform a SyncAdd. Should succeed as initial SyncWrite
     // was aborted.
     auto prepared2 = makePendingItem(key, "value2");
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->add(*prepared2, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->add(*prepared2, cookie));
     auto& vb = *store->getVBucket(vbid);
     EXPECT_EQ(
             ENGINE_SUCCESS,
@@ -1684,7 +1684,7 @@ TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncDelete) {
     // Test: Attempt to perform a SyncReplace. Should succeed as SyncDelete was
     // aborted (so item still exists).
     auto prepared2 = makePendingItem(key, "value2");
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(*prepared2, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->replace(*prepared2, cookie));
     auto& vb = *store->getVBucket(vbid);
     EXPECT_EQ(
             ENGINE_SUCCESS,
@@ -1711,7 +1711,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
 
     // Test: Should be able to Commit also.
@@ -1733,9 +1733,9 @@ TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
     auto pending = makePendingItem(key, "value");
 
     // Store it
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
-    // We don't send EWOULDBLOCK to clients
+    // We don't send ENGINE_SYNC_WRITE_PENDING to clients
     auto mockCookie = cookie_to_mock_object(cookie);
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
 
@@ -1774,9 +1774,9 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         auto pending = makePendingItem(key, "value");
 
         // Store it
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
-        // We don't send EWOULDBLOCK to clients
+        // We don't send ENGINE_SYNC_WRITE_PENDING to clients
         auto mockCookie = cookie_to_mock_object(cookie);
         EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
 
@@ -1850,6 +1850,61 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             DocumentState::Alive));
 }
 
+// Test a durable set with CAS works when evicted. This checks that the set
+// requires at least 3 attempst.
+// 1) set -> ewouldblock, set needs item meta for cas check
+// 2) set -> ewouldblock, set pending durability
+// 3) set -> success (not included in the test)
+TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
+    if (!fullEviction()) {
+        return;
+    }
+
+    setVBucketToActiveWithValidTopology();
+
+    // 1) Non durable store with CAS
+    auto key = makeStoredDocKey("key");
+    auto committed = makeCommittedItem(key, "value-1");
+    uint64_t cas = 0;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->store(cookie,
+                            committed.get(),
+                            cas,
+                            OPERATION_SET,
+                            {},
+                            DocumentState::Alive));
+
+    // flush so that the hash-table allows eviction
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // and evict the key
+    evict_key(vbid, key);
+
+    // 2 Now do a durable SET with CAS
+    auto pending = makePendingItem(key, "value-2");
+    pending->setCas(cas);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->store(cookie,
+                            pending.get(),
+                            cas,
+                            OPERATION_SET,
+                            pending->getDurabilityReqs(),
+                            DocumentState::Alive));
+
+    // Must fetch at least the meta-data to process the SET with CAS
+    runBGFetcherTask();
+
+    // Now the set is accepted and pending durability
+    // Prior to the resolution of MB-35932 this was returning SUCCESS
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->store(cookie,
+                            pending.get(),
+                            cas,
+                            OPERATION_SET,
+                            pending->getDurabilityReqs(),
+                            DocumentState::Alive));
+}
+
 TEST_P(DurabilityBucketTest,
        TakeoverDestinationHandlesPreparedSyncWriteMajority) {
     testTakeoverDestinationHandlesPreparedSyncWrites(
@@ -1914,7 +1969,7 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     auto pending = makePendingItem(key, "value", req);
     pending->setDeleted(DeleteSource::Explicit);
     // expiry time is set *now*
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
@@ -1955,7 +2010,7 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     auto key = makeStoredDocKey("key");
     auto req = Requirements(Level::Majority, Timeout(1000));
     auto pending = makePendingItem(key, "value", req);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     auto vb = store->getVBucket(vbid);
     vb->commit(key,
@@ -2001,7 +2056,7 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     auto key = makeStoredDocKey("key");
     auto req = Requirements(Level::Majority, Timeout(1000));
     auto pending = makePendingItem(key, "value", req);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     // Flush prepare
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2057,7 +2112,7 @@ void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
     // prepare SyncWrite and commit.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     EXPECT_EQ(ENGINE_SUCCESS, func(vb, key));
 
@@ -2112,7 +2167,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     item->setExpTime(system_clock::to_time_t(expiry));
 
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb->commit(key,
@@ -2172,9 +2227,9 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     auto key = makeStoredDocKey("crikey");
     auto pending = makePendingItem(key, "pending");
 
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
     ASSERT_EQ(
-            ENGINE_EWOULDBLOCK,
+            ENGINE_SYNC_WRITE_PENDING,
             store->set(*makePendingItem(makeStoredDocKey("crikey2"), "value2"),
                        cookie));
 
@@ -2219,7 +2274,7 @@ TEST_P(DurabilityBucketTest, CasCheckMadeForNewPrepare) {
     EXPECT_EQ(ENGINE_KEY_EEXISTS, store->set(*pending, cookie));
 
     pending->setCas(committed->getCas());
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(*pending, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 }
 
 TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {

@@ -1573,9 +1573,11 @@ ENGINE_ERROR_CODE VBucket::set(
                                                  storeIfStatus,
                                                  maybeKeyExists);
 
-        // For pending SyncWrites we initially return EWOULDBLOCK; will notify
-        // client when request is committed / aborted later.
-        ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+        // For pending SyncWrites we initially return ENGINE_SYNC_WRITE_PENDING;
+        // will notify client when request is committed / aborted later. This is
+        // effectively EWOULDBLOCK, but needs to be distinguishable by the
+        // ep-engine caller (storeIfInner) from EWOULDBLOCK for bg-fetch
+        ret = itm.isPending() ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
         switch (status) {
         case MutationStatus::NoMem:
             ret = ENGINE_ENOMEM;
@@ -1685,9 +1687,12 @@ ENGINE_ERROR_CODE VBucket::replace(
                                                         storeIfStatus);
             }
 
-            // For pending SyncWrites we initially return EWOULDBLOCK; will
-            // notify client when request is committed / aborted later.
-            ret = itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+            // For pending SyncWrites we initially return
+            // ENGINE_SYNC_WRITE_PENDING; will notify client when request is
+            // committed / aborted later. This is effectively EWOULDBLOCK, but
+            // needs to be distinguishable by the ep-engine caller
+            // (storeIfInner) from EWOULDBLOCK for bg-fetch
+            ret = itm.isPending() ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
             switch (mtype) {
             case MutationStatus::NoMem:
                 ret = ENGINE_ENOMEM;
@@ -2008,9 +2013,11 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         }
     }
 
-    // For pending SyncDeletes we initially return EWOULDBLOCK; will notify
-    // client when request is committed / aborted later.
-    ENGINE_ERROR_CODE ret = durability ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    // For pending SyncDeletes we initially return ENGINE_SYNC_WRITE_PENDING;
+    // will notify client when request is committed / aborted later. This is
+    // effectively EWOULDBLOCK, but needs to be distinguishable by the
+    // ep-engine caller (itemDelete) from EWOULDBLOCK for bg-fetch
+    auto ret = durability ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
 
     { // HashBucketLock scope
         auto htRes = ht.findForCommit(cHandle.getKey());
@@ -2463,9 +2470,11 @@ ENGINE_ERROR_CODE VBucket::add(
         }
     }
 
-    // For pending SyncWrites we initially return EWOULDBLOCK; will notify
-    // client when request is committed / aborted later.
-    return itm.isPending() ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    // For pending SyncWrites we initially return ENGINE_SYNC_WRITE_PENDING;
+    // will notify client when request is committed / aborted later. This is
+    // effectively EWOULDBLOCK, but needs to be distinguishable by the
+    // ep-engine caller (storeIfInner) from EWOULDBLOCK for bg-fetch
+    return itm.isPending() ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
 }
 
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(

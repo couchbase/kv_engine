@@ -731,7 +731,7 @@ void DurabilityWarmupTest::testPendingSyncWrite(
         if (docState == DocumentState::Deleted) {
             item->setDeleted(DeleteSource::Explicit);
         }
-        ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+        ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
         flush_vbucket_to_disk(vbid);
 
         // Set the state that we want to test
@@ -886,7 +886,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
     }
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
 
     flush_vbucket_to_disk(vbid, 2);
 
@@ -968,7 +968,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     auto key = makeStoredDocKey("key");
     store_item(vbid, key, "A");
     auto item = makePendingItem(key, "B");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid, 2);
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
@@ -1067,7 +1067,7 @@ TEST_P(DurabilityWarmupTest, WarmupCommit) {
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
         // simulate the prepare, but not commit landing on disk
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     flush_vbucket_to_disk(vbid, 1);
@@ -1096,7 +1096,7 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Queue a Prepare
     auto key = makeStoredDocKey("key");
     auto prepare = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepare, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
 
     // Check the Prepared
     const int64_t preparedSeqno = 1;
@@ -1164,7 +1164,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // Queue a Prepare
     auto key = makeStoredDocKey("key");
     auto prepare = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*prepare, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
 
     // Not flushed yet
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
@@ -1213,7 +1213,7 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
     // restart.
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "pending_value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
     resetEngineAndWarmup();
 
@@ -1237,7 +1237,7 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
 TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     auto key = makeStoredDocKey("okey");
     auto item = makePendingItem(key, "dokey");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
     {
         auto vb = engine->getVBucket(vbid);
@@ -1270,8 +1270,8 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     // ordering them a -> b, the opposite order to their seqnos.
     auto itemB = makePendingItem(makeStoredDocKey("b"), "value");
     auto itemA = makePendingItem(makeStoredDocKey("a"), "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*itemB, cookie));
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*itemA, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*itemB, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*itemA, cookie));
     SCOPED_TRACE("A");
     flush_vbucket_to_disk(vbid, 2);
     {
@@ -1337,7 +1337,7 @@ TEST_P(DurabilityWarmupTest, ImpossibleTopology) {
     // Store a prepared SyncWrite.
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, store->set(*item, cookie));
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
 
     // Change topology to one with a missing replica (e.g. simulating a node
