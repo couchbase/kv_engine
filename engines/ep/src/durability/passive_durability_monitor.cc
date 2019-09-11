@@ -138,7 +138,7 @@ void PassiveDurabilityMonitor::addSyncWrite(
         // Remove any trackedWrites with the same key.
         auto itr = s->trackedWrites.begin();
         while (itr != s->trackedWrites.end() &&
-               itr->getKey() != item->getKey()) {
+               (itr->getKey() != item->getKey() || itr->isCompleted())) {
             itr = s->getIteratorNext(itr);
         }
         if (itr != s->trackedWrites.end()) {

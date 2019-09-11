@@ -2094,6 +2094,85 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromPDM) {
     ASSERT_EQ(0, pdm.getNumTracked());
 }
 
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       ReceiveDuplicateDcpPrepareRemoveIgnoresCompletedPrepares) {
+    // Recreates the behaviour seen in MB-35933. Test to ensure a valid
+    // duplicate prepare will replace the correct SyncWrite in trackedWrites, in
+    // the presence of older completed prepares which have not yet been removed
+    // because they have not been persisted.
+
+    // Consumer receives prepare, abort, prepare ||| prepare for same key at
+    // seqnos 1, 2, 3, 5 with a disconnect/reconnect at |||. This is a valid
+    // sequence of ops, as the completion of the prepare at seqno 3 may have
+    // been deduped. The prepare at seqno 5 needs to correctly erase the prepare
+    // at seqno 3 in trackedWrites, but should NOT touch seqno 1.
+
+    // All prepares are PersistToMajority
+
+    auto vb = engine->getVBucket(vbid);
+    const auto& dm = vb->getDurabilityMonitor();
+    const auto key = makeStoredDocKey("key");
+
+    EXPECT_EQ(0, dm.getNumTracked());
+
+    // first prepare
+    uint64_t cas = 999;
+    using namespace cb::durability;
+    makeAndReceiveDcpPrepare(key, cas, 1, Level::PersistToMajority);
+
+    EXPECT_EQ(1, dm.getNumTracked());
+    // abort. Completes the first prepare, but the prepare will *not* be removed
+    // from tracked writes as it will not be persisted (vbucket not flushed
+    // during test)
+    uint32_t opaque = 0;
+
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            2 /*snapStart*/,
+            2 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+    stream->messageReceived(
+            std::make_unique<AbortSyncWrite>(opaque, vbid, key, 1, 2));
+
+    EXPECT_EQ(1, dm.getNumTracked());
+
+    // second prepare
+    makeAndReceiveDcpPrepare(key, cas, 3, Level::PersistToMajority);
+
+    EXPECT_EQ(2, dm.getNumTracked());
+
+    auto* sv = vb->ht.findOnlyPrepared(key).storedValue;
+
+    // confirm the second prepare is present in the hashtable
+    ASSERT_TRUE(sv);
+    ASSERT_EQ(sv->getBySeqno(), 3);
+
+    // The consumer now "disconnects" then "re-connects" and misses a
+    // commit/abort for the given key at seqno 4. It instead receives a snapshot
+    // starting with *another* prepare for the given key - the commit/abort was
+    // deduped. Importantly, this sets up the valid window for replacing the old
+    // prepare.
+    consumer->closeAllStreams();
+    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    stream->acceptStream(cb::mcbp::Status::Success, opaque);
+
+    ASSERT_TRUE(stream->isActive());
+
+    // third prepare
+    // receiving this prepare failed an `Expects` prior to the fix for MB-35933
+    // as it attempted to replace the first, completed prepare in error.
+    EXPECT_NO_THROW(
+            makeAndReceiveDcpPrepare(key, cas, 5, Level::PersistToMajority));
+
+    EXPECT_EQ(2, dm.getNumTracked());
+}
+
 TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
     testReceiveDcpPrepare();
 
