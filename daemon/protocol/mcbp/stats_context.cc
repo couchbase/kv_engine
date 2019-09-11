@@ -701,7 +701,8 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
 
 static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
                                         Cookie& cookie) {
-    auto ret = bucket_get_stats(cookie, arg, appendStatsFn);
+    auto value = cookie.getRequest().getValue();
+    auto ret = bucket_get_stats(cookie, arg, value, appendStatsFn);
     if (ret == ENGINE_SUCCESS) {
         ret = server_stats(appendStatsFn, cookie);
     }
@@ -710,7 +711,8 @@ static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
 
 static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
                                            Cookie& cookie) {
-    return bucket_get_stats(cookie, arg, appendStatsFn);
+    auto value = cookie.getRequest().getValue();
+    return bucket_get_stats(cookie, arg, value, appendStatsFn);
 }
 
 /***************************** STAT HANDLERS *****************************/

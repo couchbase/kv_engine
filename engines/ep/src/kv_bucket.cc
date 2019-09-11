@@ -1145,8 +1145,8 @@ static void add_stat(const char* key,
 void KVBucket::snapshotStats() {
     snapshot_stats_t snap;
     snap.engine = &engine;
-    bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
-              engine.getStats(&snap, "dcp", 3, add_stat) == ENGINE_SUCCESS;
+    bool rv = engine.getStats(&snap, {}, {}, add_stat) == ENGINE_SUCCESS &&
+              engine.getStats(&snap, "dcp", {}, add_stat) == ENGINE_SUCCESS;
 
     if (rv && stats.isShutdown) {
         snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";

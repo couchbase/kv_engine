@@ -1190,12 +1190,36 @@ static Status delete_validator(Cookie& cookie) {
 }
 
 static Status stat_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Any,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        PROTOCOL_BINARY_RAW_BYTES);
+    auto ret = McbpValidator::verify_header(
+            cookie,
+            0,
+            ExpectedKeyLen::Any,
+            ExpectedValueLen::Any,
+            ExpectedCas::NotSet,
+            PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
+    if (ret != Status::Success) {
+        return ret;
+    }
+
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto value = req.getValue();
+    if (!value.empty()) {
+        // The value must be JSON
+        if ((uint8_t(req.getDatatype()) & PROTOCOL_BINARY_DATATYPE_JSON) == 0) {
+            cookie.setErrorContext("Datatype must be JSON");
+            return Status::Einval;
+        }
+
+        // Validate that the value is JSON
+        try {
+            nlohmann::json::parse(value);
+        } catch (const std::exception&) {
+            cookie.setErrorContext("value is not valid JSON");
+            return Status::Einval;
+        }
+    }
+
+    return Status::Success;
 }
 
 static Status arithmetic_validator(Cookie& cookie) {

@@ -514,12 +514,14 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @param cookie The cookie provided by the frontend
      * @param key optional argument to stats
+     * @param value optional value for the given stat group
      * @param add_stat callback to feed results to the output
      *
      * @return ENGINE_SUCCESS if all goes well
      */
     virtual ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                         cb::const_char_buffer key,
+                                        cb::const_char_buffer value,
                                         const AddStatFn& add_stat) = 0;
 
     /**

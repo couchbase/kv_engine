@@ -337,9 +337,14 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
 
 ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
                                    cb::const_char_buffer key,
+                                   cb::const_byte_buffer value,
                                    const AddStatFn& add_stat) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->get_stats(&cookie, key, add_stat);
+    auto ret = c.getBucketEngine()->get_stats(
+            &cookie,
+            key,
+            {reinterpret_cast<const char*>(value.data()), value.size()},
+            add_stat);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} bucket_get_stats return ENGINE_DISCONNECT",
                     c.getId(),

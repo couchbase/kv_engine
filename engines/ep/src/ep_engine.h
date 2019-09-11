@@ -181,6 +181,7 @@ public:
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
+                                cb::const_char_buffer value,
                                 const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
@@ -473,8 +474,8 @@ public:
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
-                               const char* stat_key,
-                               int nkey,
+                               cb::const_char_buffer stat_key,
+                               cb::const_char_buffer value,
                                const AddStatFn& add_stat);
 
     void resetStats();

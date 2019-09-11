@@ -1163,6 +1163,10 @@ class StatValidatorTest : public ::testing::WithParamInterface<bool>,
                           public ValidatorTest {
 public:
     StatValidatorTest() : ValidatorTest(GetParam()) {
+        // Build a legal packet
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::Stat);
     }
 
 protected:
@@ -1177,8 +1181,8 @@ TEST_P(StatValidatorTest, CorrectMessage) {
 }
 
 TEST_P(StatValidatorTest, WithKey) {
-    request.message.header.request.setKeylen(21);
-    request.message.header.request.setBodylen(21);
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setKey("statkey");
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
@@ -1188,18 +1192,27 @@ TEST_P(StatValidatorTest, InvalidMagic) {
 }
 
 TEST_P(StatValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(21);
-    request.message.header.request.setBodylen(21);
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setExtras({reinterpret_cast<const uint8_t*>("foo"), 3});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(StatValidatorTest, InvalidBodylen) {
-    request.message.header.request.setBodylen(100);
+TEST_P(StatValidatorTest, ValuePresent) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    builder.setValue(R"({ "foo" : "bar" })");
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(StatValidatorTest, ValuePresent_NotJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setValue("body");
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(StatValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+TEST_P(StatValidatorTest, ValuePresent_Json_Missing_Datatype) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setValue(R"({ "foo" : "bar" })");
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

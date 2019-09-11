@@ -1353,7 +1353,7 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
 
     const auto* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {}, add_stats),
+            h->get_stats(cookie, {}, {}, add_stats),
             "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
 
@@ -1465,6 +1465,7 @@ std::string get_stat(EngineIface* h,
     ENGINE_ERROR_CODE err =
             h->get_stats(cookie,
                          {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                         {},
                          add_individual_stat);
     testHarness->destroy_cookie(cookie);
 
@@ -1581,6 +1582,7 @@ static void get_histo_stat(EngineIface* h,
     const auto* cookie = testHarness->create_cookie();
     auto err = h->get_stats(cookie,
                             {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                            {},
                             add_individual_histo_stat);
     testHarness->destroy_cookie(cookie);
 
@@ -1597,6 +1599,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
     const auto* cookie = testHarness->create_cookie();
     auto err = h->get_stats(cookie,
                             {statset, statset == NULL ? 0 : strlen(statset)},
+                            {},
                             add_stats);
     testHarness->destroy_cookie(cookie);
 
@@ -1926,9 +1929,10 @@ void reset_stats(gsl::not_null<EngineIface*> h) {
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
+                            cb::const_char_buffer value,
                             const AddStatFn& callback) {
     const auto* cookie = testHarness->create_cookie();
-    auto ret = h->get_stats(cookie, key, callback);
+    auto ret = h->get_stats(cookie, key, value, callback);
     testHarness->destroy_cookie(cookie);
     return ret;
 }

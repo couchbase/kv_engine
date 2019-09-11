@@ -357,6 +357,7 @@ auto makeExitBorderGuard = [](auto&& wrapped) {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
         gsl::not_null<const void*> cookie,
         cb::const_char_buffer key,
+        cb::const_char_buffer value,
         const AddStatFn& add_stat) {
     // The AddStatFn callback may allocate memory (temporary buffers for
     // stat data) which will be de-allocated inside the server, after the
@@ -367,10 +368,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
     // the input add_stat function.
     auto addStatExitBorderGuard = makeExitBorderGuard(std::cref(add_stat));
 
-    return acquireEngine(this)->getStats(cookie,
-                                         key.data(),
-                                         gsl::narrow_cast<int>(key.size()),
-                                         addStatExitBorderGuard);
+    return acquireEngine(this)->getStats(
+            cookie, key, value, addStatExitBorderGuard);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
@@ -4178,12 +4177,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         const void* cookie,
-        const char* stat_key,
-        int nkey,
+        cb::const_char_buffer request_stat_key,
+        cb::const_char_buffer value,
         const AddStatFn& add_stat) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats.getStatsCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
+
+    // @todo cleanup this method to avoid copying the data to a new
+    // buffer, and start adding support for the provided json value
+    auto* stat_key = request_stat_key.data();
+    int nkey = gsl::narrow_cast<int>(request_stat_key.size());
 
     const std::string statKey(stat_key, nkey);
 

@@ -155,7 +155,7 @@ static enum test_result test_replace_with_eviction(EngineIface* h) {
             "Failed to replace existing value.");
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "full_eviction") {
@@ -1986,17 +1986,17 @@ static enum test_result test_stats_seqno(EngineIface* h) {
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            get_stats(h, "vbucket-seqno 2"_ccb, add_stats),
+            get_stats(h, "vbucket-seqno 2"_ccb, {}, add_stats),
             "Expected not my vbucket");
 
     // Check bad vbucket parameter (not numeric)
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "vbucket-seqno tt2"_ccb, add_stats),
+            get_stats(h, "vbucket-seqno tt2"_ccb, {}, add_stats),
             "Expected invalid");
 
     // Check extra spaces at the end
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "vbucket-seqno    "_ccb, add_stats),
+            get_stats(h, "vbucket-seqno    "_ccb, {}, add_stats),
             "Expected invalid");
 
     return SUCCESS;
@@ -2032,15 +2032,15 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
           "VB 1 data size should be greater than 0");
 
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "diskinfo "_ccb, add_stats),
+            get_stats(h, "diskinfo "_ccb, {}, add_stats),
             "Expected invalid");
 
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "diskinfo detai"_ccb, add_stats),
+            get_stats(h, "diskinfo detai"_ccb, {}, add_stats),
             "Expected invalid");
 
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "diskinfo detaillll"_ccb, add_stats),
+            get_stats(h, "diskinfo detaillll"_ccb, {}, add_stats),
             "Expected invalid");
 
     return SUCCESS;
@@ -2049,7 +2049,7 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
 static enum test_result test_uuid_stats(EngineIface* h) {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, "uuid"_ccb, add_stats),
+            get_stats(h, "uuid"_ccb, {}, add_stats),
             "Failed to get stats.");
     checkeq(cb::const_char_buffer("foobar"),
             static_cast<cb::const_char_buffer>(vals["uuid"]), "Incorrect uuid");
@@ -2096,7 +2096,7 @@ static enum test_result test_item_stats(EngineIface* h) {
 static enum test_result test_stats(EngineIface* h) {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     checklt(size_t{10}, vals.size(), "Kind of expected more stats than that.");
 
@@ -2421,7 +2421,7 @@ static enum test_result test_key_stats(EngineIface* h) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
+            h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2432,7 +2432,7 @@ static enum test_result test_key_stats(EngineIface* h) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey2, strlen(statkey2)}, add_stats),
+            h->get_stats(cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2472,7 +2472,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
+            h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2484,7 +2484,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey2, strlen(statkey2)}, add_stats),
+            h->get_stats(cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2496,7 +2496,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey3, strlen(statkey3)}, add_stats),
+            h->get_stats(cookie, {statkey3, strlen(statkey3)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2508,7 +2508,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey4, strlen(statkey4)}, add_stats),
+            h->get_stats(cookie, {statkey4, strlen(statkey4)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2520,7 +2520,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey5, strlen(statkey5)}, add_stats),
+            h->get_stats(cookie, {statkey5, strlen(statkey5)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2772,7 +2772,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
     cb_assert(5 == get_int_stat(h, "curr_items"));
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
@@ -2880,7 +2880,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             "Expected no bgFetch attempts");
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
@@ -3156,7 +3156,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
 
     // Create a unique access log path by combining with the db path.
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string dbname = vals.find("ep_dbname")->second;
 
@@ -3240,7 +3240,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
 
     // Create a unique access log path by combining with the db path.
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     const auto dbname = vals.find("ep_dbname")->second;
 
@@ -3273,7 +3273,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
             "Failed to set alog_task_time to 2 hours in the future");
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string name = vals.find("ep_alog_path")->second;
 
@@ -3667,7 +3667,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 static enum test_result test_workload_stats(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, "workload"_ccb, add_stats),
+            h->get_stats(cookie, "workload"_ccb, {}, add_stats),
             "Falied to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3706,7 +3706,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 static enum test_result test_max_workload_stats(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, "workload"_ccb, add_stats),
+            h->get_stats(cookie, "workload"_ccb, {}, add_stats),
             "Failed to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3744,7 +3744,7 @@ static enum test_result test_max_workload_stats(EngineIface* h) {
 
 static enum test_result test_worker_stats(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, "dispatcher"_ccb, add_stats),
+            get_stats(h, "dispatcher"_ccb, {}, add_stats),
             "Failed to get worker stats");
 
     std::set<std::string> tasklist;
@@ -4051,7 +4051,7 @@ static enum test_result test_value_eviction(EngineIface* h) {
             "Failed to evict key.");
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "value_only") {
@@ -4454,7 +4454,7 @@ static enum test_result test_regression_mb4314(EngineIface* h) {
 
 static enum test_result test_mb3466(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
     check(vals.find("mem_used") != vals.end(),
@@ -5283,7 +5283,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
     checkeq(ENGINE_KEY_ENOENT,
-            h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
+            h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Expected not found.");
 
     stop_persistence(h);
@@ -5294,7 +5294,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
 
     // Check to make sure a non-persisted item is 'dirty'
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
+            h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Failed to get stats.");
     checkeq("dirty"s, vals.find("key_valid")->second, "Expected 'dirty'");
 
@@ -5302,14 +5302,14 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     start_persistence(h);
     wait_for_stat_to_be(h, "ep_total_persisted", 1);
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
+            h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
 
     // Check that an evicted key still returns valid
     evict_key(h, "key", Vbid(0), "Ejected.");
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, "vkey key 0"_ccb, add_stats),
+            h->get_stats(cookie, "vkey key 0"_ccb, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
 
@@ -5696,7 +5696,9 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
 
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         EngineIface* h) {
-    checkeq(ENGINE_SUCCESS, get_stats(h, {}, add_stats), "Failed to get stats");
+    checkeq(ENGINE_SUCCESS,
+            get_stats(h, {}, {}, add_stats),
+            "Failed to get stats");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     checkeq(std::string{"full_eviction"},
             eviction_policy,
@@ -5861,7 +5863,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
+            h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -7517,6 +7519,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 get_stats(h,
                           {entry.first.empty() ? nullptr : entry.first.data(),
                            entry.first.size()},
+                          {},
                           add_stats),
                 ("Failed to get stats: "s + entry.first).c_str());
 
@@ -7669,8 +7672,10 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
     for (const auto& entry : statsKeys) {
         vals.clear();
         checkeq(ENGINE_SUCCESS,
-                get_stats(
-                        h, {entry.first.data(), entry.first.size()}, add_stats),
+                get_stats(h,
+                          {entry.first.data(), entry.first.size()},
+                          {},
+                          add_stats),
                 ("Failed to get stats: "s + entry.first).c_str());
 
         // Verify that the stats we expected is there..
@@ -7694,7 +7699,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
 
 static enum test_result test_mb20697(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
     std::string dbname = vals["ep_dbname"];

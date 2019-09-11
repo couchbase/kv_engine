@@ -127,6 +127,7 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie);
 
 ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
                                    cb::const_char_buffer key,
+                                   cb::const_byte_buffer value,
                                    const AddStatFn& add_stat);
 
 /**

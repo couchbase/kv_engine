@@ -538,12 +538,13 @@ public:
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
+                                cb::const_char_buffer value,
                                 const AddStatFn& add_stat) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::GET_STATS, cookie, err)) {
             return err;
         } else {
-            return real_engine->get_stats(cookie, key, add_stat);
+            return real_engine->get_stats(cookie, key, value, add_stat);
         }
     }
 

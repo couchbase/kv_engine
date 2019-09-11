@@ -476,7 +476,7 @@ static enum test_result lru_test(EngineIface* h) {
                            OPERATION_SET,
                            {},
                            DocumentState::Alive) == ENGINE_SUCCESS);
-        cb_assert(h->get_stats(cookie, {}, eviction_stats_handler) ==
+        cb_assert(h->get_stats(cookie, {}, {}, eviction_stats_handler) ==
                   ENGINE_SUCCESS);
         if (evictions == 2) {
             break;

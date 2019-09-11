@@ -281,16 +281,17 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                            vbid,
                                            fakeDcpAddFailoverLog));
 
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
-                  engine->get_stats(statsCookie1, "vbucket", dummyAddStats));
+        EXPECT_EQ(
+                ENGINE_EWOULDBLOCK,
+                engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
 
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   engine->get_stats(
-                          statsCookie2, "vbucket-details", dummyAddStats));
+                          statsCookie2, "vbucket-details", {}, dummyAddStats));
 
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   engine->get_stats(
-                          statsCookie3, "vbucket-seqno", dummyAddStats));
+                          statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   engine->deleteVBucket(vbid, true, delVbCookie));
@@ -319,14 +320,15 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                        fakeDcpAddFailoverLog));
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->get_stats(statsCookie1, "vbucket", dummyAddStats));
-
-    EXPECT_EQ(
-            ENGINE_SUCCESS,
-            engine->get_stats(statsCookie2, "vbucket-details", dummyAddStats));
+              engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->get_stats(statsCookie3, "vbucket-seqno", dummyAddStats));
+              engine->get_stats(
+                      statsCookie2, "vbucket-details", {}, dummyAddStats));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->get_stats(
+                      statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
     EXPECT_EQ(ENGINE_SUCCESS, engine->deleteVBucket(vbid, false, delVbCookie));
 

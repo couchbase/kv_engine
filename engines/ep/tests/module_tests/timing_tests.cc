@@ -135,8 +135,9 @@ static int get_int_stat(EngineIface* h,
     vals.clear();
     const auto* cookie = testHarness->create_cookie();
     check(h->get_stats(cookie,
-                        {statkey, statkey == NULL ? 0 : strlen(statkey)},
-                        add_stats) == ENGINE_SUCCESS,
+                       {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                       {},
+                       add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
     std::string s = vals[statname];

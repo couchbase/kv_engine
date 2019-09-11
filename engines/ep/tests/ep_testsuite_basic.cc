@@ -193,7 +193,7 @@ static enum test_result test_whitespace_db(EngineIface* h) {
     vals.clear();
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
     std::string dbname;
@@ -216,7 +216,7 @@ static enum test_result test_whitespace_db(EngineIface* h) {
 
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
     if (vals["ep_dbname"] != dbname) {
@@ -662,7 +662,7 @@ static enum test_result test_unl(EngineIface* h) {
     Vbid vbucketId = Vbid(0);
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
     std::string eviction_policy;
@@ -1613,7 +1613,7 @@ static enum test_result test_delete_set(EngineIface* h) {
 
 static enum test_result test_get_delete_missing_file(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, {}, add_stats),
+            get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
     const char *key = "key";

@@ -1586,7 +1586,7 @@ Request:
 
 * MUST NOT have extras.
 * MAY have key.
-* MUST NOT have value.
+* MAY have value.
 
 Response:
 
@@ -1600,6 +1600,12 @@ information is returned in its own packet (key contains the name of the
 statistical item and the body contains the value in ASCII format). The
 sequence of return packets is terminated with a packet that contains no key
 and no value.
+
+If a value is present it must be a JSON payload (and the JSON datatype set)
+which adds additional parameters and arguments to the stats call. It is up
+to each stat subgroup to define the schema. As long as the provided payload
+is _valid json_, the server will silently (from the clients perspective)
+ignore unknown elements in the provided JSON.
 
 #### Example
 

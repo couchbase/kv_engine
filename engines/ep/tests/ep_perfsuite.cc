@@ -1384,13 +1384,14 @@ static void perf_stat_latency_core(EngineIface* h,
                 auto start = std::chrono::steady_clock::now();
                 if (stat.first.compare("engine") == 0) {
                     checkeq(ENGINE_SUCCESS,
-                            h->get_stats(cookie, {}, add_stats),
+                            h->get_stats(cookie, {}, {}, add_stats),
                             "Failed to get engine stats");
                 } else {
                     checkeq(ENGINE_SUCCESS,
                             h->get_stats(cookie,
                                          {stat.second.key.c_str(),
                                           stat.second.key.length()},
+                                         {},
                                          add_stats),
                             (std::string("Failed to get stat:") +
                              stat.second.key)
