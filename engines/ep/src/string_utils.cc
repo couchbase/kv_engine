@@ -30,3 +30,11 @@ bool cb_stob(const std::string& s) {
 bool cb_isPrefix(const std::string& input, const std::string& prefix) {
     return (input.compare(0, prefix.length(), prefix) == 0);
 }
+
+bool cb_isPrefix(cb::const_char_buffer input, const std::string& prefix) {
+    if (prefix.size() > input.size()) {
+        return false;
+    }
+
+    return std::memcmp(input.data(), prefix.data(), prefix.size()) == 0;
+}

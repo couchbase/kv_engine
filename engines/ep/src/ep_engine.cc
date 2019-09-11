@@ -4175,203 +4175,290 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
             *kvBucket, cookie, add_stat, statKey);
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer statKey) {
+    std::string key;
+    std::string vbid;
+    std::string s_key(statKey.data() + 4, statKey.size() - 4);
+    std::stringstream ss(s_key);
+    ss >> key;
+    ss >> vbid;
+    uint16_t vbucket_id(0);
+    parseUint16(vbid.c_str(), &vbucket_id);
+    Vbid vbucketId = Vbid(vbucket_id);
+    // Non-validating, non-blocking version
+    // @todo MB-30524: Collection - getStats needs DocNamespace
+    return doKeyStats(cookie,
+                      add_stat,
+                      vbucketId,
+                      DocKey(reinterpret_cast<const uint8_t*>(key.data()),
+                             key.size(),
+                             DocKeyEncodesCollectionId::No),
+                      false);
+}
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doVKeyStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer statKey) {
+    std::string key;
+    std::string vbid;
+    std::string s_key(statKey.data() + 5, statKey.size() - 5);
+    std::stringstream ss(s_key);
+    ss >> key;
+    ss >> vbid;
+    uint16_t vbucket_id(0);
+    parseUint16(vbid.c_str(), &vbucket_id);
+    Vbid vbucketId = Vbid(vbucket_id);
+    // Validating version; blocks
+    // @todo MB-30524: Collection - getStats needs DocNamespace
+    return doKeyStats(cookie,
+                      add_stat,
+                      vbucketId,
+                      DocKey(reinterpret_cast<const uint8_t*>(key.data()),
+                             key.size(),
+                             DocKeyEncodesCollectionId::No),
+                      true);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpVbTakeoverStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer statKey) {
+    std::string tStream;
+    std::string vbid;
+    std::string buffer(statKey.data() + 15, statKey.size() - 15);
+    std::stringstream ss(buffer);
+    ss >> vbid;
+    ss >> tStream;
+    uint16_t vbucket_id(0);
+    parseUint16(vbid.c_str(), &vbucket_id);
+    Vbid vbucketId = Vbid(vbucket_id);
+    return doDcpVbTakeoverStats(cookie, add_stat, tStream, vbucketId);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doFailoversStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer key) {
+    const std::string statKey(key.data(), key.size());
+    if (key.size() == 9) {
+        return doAllFailoverLogStats(cookie, add_stat);
+    }
+
+    if (statKey.compare(std::string("failovers").length(),
+                        std::string(" ").length(),
+                        " ") == 0) {
+        std::string vbid;
+        std::string s_key(statKey.substr(10, key.size() - 10));
+        std::stringstream ss(s_key);
+        ss >> vbid;
+        uint16_t vbucket_id(0);
+        parseUint16(vbid.c_str(), &vbucket_id);
+        Vbid vbucketId = Vbid(vbucket_id);
+        return doVbIdFailoverLogStats(cookie, add_stat, vbucketId);
+    }
+
+    return ENGINE_KEY_ENOENT;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer key) {
+    const std::string statKey(key.data(), key.size());
+    if (key.size() == 8) {
+        return kvBucket->getFileStats(cookie, add_stat);
+    }
+    if ((key.size() == 15) &&
+        (statKey.compare(std::string("diskinfo").length() + 1,
+                         std::string("detail").length(),
+                         "detail") == 0)) {
+        return kvBucket->getPerVBucketDiskStats(cookie, add_stat);
+    }
+
+    return ENGINE_EINVAL;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
+        const void* cookie,
+        const AddStatFn& add_stat,
+        cb::const_char_buffer key) {
+    // Privileged stats - need Stats priv (and not just SimpleStats).
+    switch (getServerApi()->cookie->check_privilege(
+            cookie, cb::rbac::Privilege::Stats)) {
+    case cb::rbac::PrivilegeAccess::Fail:
+    case cb::rbac::PrivilegeAccess::Stale:
+        return ENGINE_EACCESS;
+
+    case cb::rbac::PrivilegeAccess::Ok:
+        if (cb_isPrefix(key, "_checkpoint-dump")) {
+            const size_t keyLen = strlen("_checkpoint-dump");
+            cb::const_char_buffer keyArgs(key.data() + keyLen,
+                                          key.size() - keyLen);
+            return doCheckpointDump(cookie, add_stat, keyArgs);
+        }
+
+        if (cb_isPrefix(key, "_hash-dump")) {
+            const size_t keyLen = strlen("_hash-dump");
+            cb::const_char_buffer keyArgs(key.data() + keyLen,
+                                          key.size() - keyLen);
+            return doHashDump(cookie, add_stat, keyArgs);
+        }
+
+        if (cb_isPrefix(key, "_durability-dump")) {
+            const size_t keyLen = strlen("_durability-dump");
+            cb::const_char_buffer keyArgs(key.data() + keyLen,
+                                          key.size() - keyLen);
+            return doDurabilityMonitorDump(cookie, add_stat, keyArgs);
+        }
+
+        return ENGINE_KEY_ENOENT;
+    }
+
+    throw std::runtime_error(
+            "doPrivilegedStats(): Invalid value returned from check_privilege");
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         const void* cookie,
-        cb::const_char_buffer request_stat_key,
+        cb::const_char_buffer key,
         cb::const_char_buffer value,
         const AddStatFn& add_stat) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats.getStatsCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
 
-    // @todo cleanup this method to avoid copying the data to a new
-    // buffer, and start adding support for the provided json value
-    auto* stat_key = request_stat_key.data();
-    int nkey = gsl::narrow_cast<int>(request_stat_key.size());
-
-    const std::string statKey(stat_key, nkey);
-
-    if (statKey.size()) {
-        EP_LOG_DEBUG("stats {}", stat_key);
-    } else {
+    if (key.empty()) {
         EP_LOG_DEBUG("stats engine");
+    } else {
+        EP_LOG_DEBUG("stats {}", key);
     }
 
-    ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
-    if (statKey.empty()) {
-        rv = doEngineStats(cookie, add_stat);
-    } else if (nkey > 7 && cb_isPrefix(statKey, "dcpagg ")) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7);
-    } else if (statKey == "dcp") {
-        rv = doDcpStats(cookie, add_stat);
-    } else if (statKey == "eviction") {
-        rv = doEvictionStats(cookie, add_stat);
-    } else if (statKey == "hash") {
-        rv = doHashStats(cookie, add_stat);
-    } else if (statKey == "vbucket") {
-        rv = doVBucketStats(cookie, add_stat, stat_key, nkey, false, false);
-    } else if (cb_isPrefix(statKey, "vbucket-details")) {
-        rv = doVBucketStats(cookie, add_stat, stat_key, nkey, false, true);
-    } else if (cb_isPrefix(statKey, "vbucket-seqno")) {
-        rv = doSeqnoStats(cookie, add_stat, stat_key, nkey);
-    } else if (statKey == "prev-vbucket") {
-        rv = doVBucketStats(cookie, add_stat, stat_key, nkey, true, false);
-    } else if (cb_isPrefix(statKey, "checkpoint")) {
-        rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
-    } else if (cb_isPrefix(statKey, "durability-monitor")) {
-        rv = doDurabilityMonitorStats(cookie, add_stat, stat_key, nkey);
-    } else if (statKey == "timings") {
-        rv = doTimingStats(cookie, add_stat);
-    } else if (statKey == "dispatcher") {
-        rv = doDispatcherStats(cookie, add_stat);
-    } else if (statKey == "tasks") {
-        rv = doTasksStats(cookie, add_stat);
-    } else if (statKey == "scheduler") {
-        rv = doSchedulerStats(cookie, add_stat);
-    } else if (statKey == "runtimes") {
-        rv = doRunTimeStats(cookie, add_stat);
-    } else if (statKey == "memory") {
-        rv = doMemoryStats(cookie, add_stat);
-    } else if (statKey == "uuid") {
+    if (key.empty()) {
+        return doEngineStats(cookie, add_stat);
+    }
+    if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
+        return doConnAggStats(cookie, add_stat, key.data() + 7, key.size() - 7);
+    }
+    if (key == "dcp"_ccb) {
+        return doDcpStats(cookie, add_stat);
+    }
+    if (key == "eviction"_ccb) {
+        return doEvictionStats(cookie, add_stat);
+    }
+    if (key == "hash"_ccb) {
+        return doHashStats(cookie, add_stat);
+    }
+    if (key == "vbucket"_ccb) {
+        return doVBucketStats(
+                cookie, add_stat, key.data(), key.size(), false, false);
+    }
+    if (cb_isPrefix(key, "vbucket-details")) {
+        return doVBucketStats(
+                cookie, add_stat, key.data(), key.size(), false, true);
+    }
+    if (cb_isPrefix(key, "vbucket-seqno")) {
+        return doSeqnoStats(cookie, add_stat, key.data(), key.size());
+    }
+    if (key == "prev-vbucket"_ccb) {
+        return doVBucketStats(
+                cookie, add_stat, key.data(), key.size(), true, false);
+    }
+    if (cb_isPrefix(key, "checkpoint")) {
+        return doCheckpointStats(cookie, add_stat, key.data(), key.size());
+    }
+    if (cb_isPrefix(key, "durability-monitor")) {
+        return doDurabilityMonitorStats(
+                cookie, add_stat, key.data(), key.size());
+    }
+    if (key == "timings"_ccb) {
+        return doTimingStats(cookie, add_stat);
+    }
+    if (key == "dispatcher"_ccb) {
+        return doDispatcherStats(cookie, add_stat);
+    }
+    if (key == "tasks"_ccb) {
+        return doTasksStats(cookie, add_stat);
+    }
+    if (key == "scheduler"_ccb) {
+        return doSchedulerStats(cookie, add_stat);
+    }
+    if (key == "runtimes"_ccb) {
+        return doRunTimeStats(cookie, add_stat);
+    }
+    if (key == "memory"_ccb) {
+        return doMemoryStats(cookie, add_stat);
+    }
+    if (key == "uuid"_ccb) {
         add_casted_stat("uuid", configuration.getUuid(), add_stat, cookie);
-        rv = ENGINE_SUCCESS;
-    } else if (nkey > 4 && cb_isPrefix(statKey, "key ")) {
-        std::string key;
-        std::string vbid;
-        std::string s_key(statKey.substr(4, nkey - 4));
-        std::stringstream ss(s_key);
-        ss >> key;
-        ss >> vbid;
-        uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
-        Vbid vbucketId = Vbid(vbucket_id);
-        // Non-validating, non-blocking version
-        // @todo MB-30524: Collection - getStats needs DocNamespace
-        rv = doKeyStats(cookie,
-                        add_stat,
-                        vbucketId,
-                        DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                               key.size(),
-                               DocKeyEncodesCollectionId::No),
-                        false);
-    } else if (nkey > 5 && cb_isPrefix(statKey, "vkey ")) {
-        std::string key;
-        std::string vbid;
-        std::string s_key(statKey.substr(5, nkey - 5));
-        std::stringstream ss(s_key);
-        ss >> key;
-        ss >> vbid;
-        uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
-        Vbid vbucketId = Vbid(vbucket_id);
-        // Validating version; blocks
-        // @todo MB-30524: Collection - getStats needs DocNamespace
-        rv = doKeyStats(cookie,
-                        add_stat,
-                        vbucketId,
-                        DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                               key.size(),
-                               DocKeyEncodesCollectionId::No),
-                        true);
-    } else if (statKey == "kvtimings") {
+        return ENGINE_SUCCESS;
+    }
+    if (key.size() > 4 && cb_isPrefix(key, "key ")) {
+        return doKeyStats(cookie, add_stat, key);
+    }
+    if (key.size() > 5 && cb_isPrefix(key, "vkey ")) {
+        return doVKeyStats(cookie, add_stat, key);
+    }
+    if (key == "kvtimings"_ccb) {
         getKVBucket()->addKVStoreTimingStats(add_stat, cookie);
-        rv = ENGINE_SUCCESS;
-    } else if (nkey >= 7 && cb_isPrefix(statKey, "kvstore")) {
-        std::string args(statKey.substr(7, nkey - 7));
+        return ENGINE_SUCCESS;
+    }
+    if (key.size() >= 7 && cb_isPrefix(key, "kvstore")) {
+        std::string args(key.data() + 7, key.size() - 7);
         getKVBucket()->addKVStoreStats(add_stat, cookie, args);
-        rv = ENGINE_SUCCESS;
-    } else if (statKey == "warmup") {
+        return ENGINE_SUCCESS;
+    }
+    if (key == "warmup"_ccb) {
         const auto* warmup = getKVBucket()->getWarmup();
         if (warmup != nullptr) {
             warmup->addStats(add_stat, cookie);
-            rv = ENGINE_SUCCESS;
+            return ENGINE_SUCCESS;
         }
-
-    } else if (statKey == "info") {
+        return ENGINE_KEY_ENOENT;
+    }
+    if (key == "info"_ccb) {
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
-        rv = ENGINE_SUCCESS;
-    } else if (statKey == "allocator") {
+        return ENGINE_SUCCESS;
+    }
+    if (key == "allocator"_ccb) {
         char buffer[64 * 1024];
         MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
                 getDetailedStats(buffer, sizeof(buffer));
         add_casted_stat("detailed", buffer, add_stat, cookie);
-        rv = ENGINE_SUCCESS;
-    } else if (statKey == "config") {
+        return ENGINE_SUCCESS;
+    }
+    if (key == "config"_ccb) {
         configuration.addStats(add_stat, cookie);
-        rv = ENGINE_SUCCESS;
-    } else if (nkey > 15 && cb_isPrefix(statKey, "dcp-vbtakeover")) {
-        std::string tStream;
-        std::string vbid;
-        std::string buffer(statKey.substr(15, nkey - 15));
-        std::stringstream ss(buffer);
-        ss >> vbid;
-        ss >> tStream;
-        uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
-        Vbid vbucketId = Vbid(vbucket_id);
-        rv = doDcpVbTakeoverStats(cookie, add_stat, tStream, vbucketId);
-    } else if (statKey == "workload") {
+        return ENGINE_SUCCESS;
+    }
+    if (key.size() > 15 && cb_isPrefix(key, "dcp-vbtakeover")) {
+        return doDcpVbTakeoverStats(cookie, add_stat, key);
+    }
+    if (key == "workload"_ccb) {
         return doWorkloadStats(cookie, add_stat);
-    } else if (cb_isPrefix(statKey, "failovers")) {
-        if (nkey == 9) {
-            rv = doAllFailoverLogStats(cookie, add_stat);
-        } else if (statKey.compare(std::string("failovers").length(),
-                                   std::string(" ").length(),
-                                   " ") == 0) {
-            std::string vbid;
-            std::string s_key(statKey.substr(10, nkey - 10));
-            std::stringstream ss(s_key);
-            ss >> vbid;
-            uint16_t vbucket_id(0);
-            parseUint16(vbid.c_str(), &vbucket_id);
-            Vbid vbucketId = Vbid(vbucket_id);
-            rv = doVbIdFailoverLogStats(cookie, add_stat, vbucketId);
-        }
-    } else if (cb_isPrefix(statKey, "diskinfo")) {
-        if (nkey == 8) {
-            return kvBucket->getFileStats(cookie, add_stat);
-        } else if ((nkey == 15) &&
-                (statKey.compare(std::string("diskinfo").length() + 1,
-                                 std::string("detail").length(),
-                                 "detail") == 0)) {
-            return kvBucket->getPerVBucketDiskStats(cookie, add_stat);
-        } else {
-            return ENGINE_EINVAL;
-        }
-    } else if (cb_isPrefix(statKey, "collections")) {
-        rv = doCollectionStats(cookie, add_stat, std::string(stat_key, nkey));
-    } else if (cb_isPrefix(statKey, "scopes")) {
-        rv = doScopeStats(cookie, add_stat, std::string(stat_key, nkey));
-    } else if (statKey[0] == '_') {
-        // Privileged stats - need Stats priv (and not just SimpleStats).
-        switch (getServerApi()->cookie->check_privilege(
-                cookie, cb::rbac::Privilege::Stats)) {
-        case cb::rbac::PrivilegeAccess::Fail:
-        case cb::rbac::PrivilegeAccess::Stale:
-            return ENGINE_EACCESS;
-
-        case cb::rbac::PrivilegeAccess::Ok:
-            if (cb_isPrefix(statKey, "_checkpoint-dump")) {
-                const size_t keyLen = strlen("_checkpoint-dump");
-                cb::const_char_buffer keyArgs(statKey.data() + keyLen,
-                                              statKey.size() - keyLen);
-                rv = doCheckpointDump(cookie, add_stat, keyArgs);
-            } else if (cb_isPrefix(statKey, "_hash-dump")) {
-                const size_t keyLen = strlen("_hash-dump");
-                cb::const_char_buffer keyArgs(statKey.data() + keyLen,
-                                              statKey.size() - keyLen);
-                rv = doHashDump(cookie, add_stat, keyArgs);
-            } else if (cb_isPrefix(statKey, "_durability-dump")) {
-                const size_t keyLen = strlen("_durability-dump");
-                cb::const_char_buffer keyArgs(statKey.data() + keyLen,
-                                              statKey.size() - keyLen);
-                rv = doDurabilityMonitorDump(cookie, add_stat, keyArgs);
-            }
-            break;
-        }
+    }
+    if (cb_isPrefix(key, "failovers")) {
+        return doFailoversStats(cookie, add_stat, key);
+    }
+    if (cb_isPrefix(key, "diskinfo")) {
+        return doDiskinfoStats(cookie, add_stat, key);
+    }
+    if (cb_isPrefix(key, "collections")) {
+        return doCollectionStats(
+                cookie, add_stat, std::string(key.data(), key.size()));
+    }
+    if (cb_isPrefix(key, "scopes")) {
+        return doScopeStats(
+                cookie, add_stat, std::string(key.data(), key.size()));
+    }
+    if (key[0] == '_') {
+        return doPrivilegedStats(cookie, add_stat, key);
     }
 
-    return rv;
+    // Unknown stat requested
+    return ENGINE_KEY_ENOENT;
 }
 
 void EventuallyPersistentEngine::resetStats() {

@@ -474,7 +474,7 @@ public:
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
-                               cb::const_char_buffer stat_key,
+                               cb::const_char_buffer key,
                                cb::const_char_buffer value,
                                const AddStatFn& add_stat);
 
@@ -919,6 +919,30 @@ protected:
     ENGINE_ERROR_CODE doScopeStats(const void* cookie,
                                    const AddStatFn& add_stat,
                                    const std::string& statKey);
+
+    ENGINE_ERROR_CODE doKeyStats(const void* cookie,
+                                 const AddStatFn& add_stat,
+                                 cb::const_char_buffer statKey);
+
+    ENGINE_ERROR_CODE doVKeyStats(const void* cookie,
+                                  const AddStatFn& add_stat,
+                                  cb::const_char_buffer statKey);
+
+    ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void* cookie,
+                                           const AddStatFn& add_stat,
+                                           cb::const_char_buffer statKey);
+
+    ENGINE_ERROR_CODE doFailoversStats(const void* cookie,
+                                       const AddStatFn& add_stat,
+                                       cb::const_char_buffer statKey);
+
+    ENGINE_ERROR_CODE doDiskinfoStats(const void* cookie,
+                                      const AddStatFn& add_stat,
+                                      cb::const_char_buffer statKey);
+
+    ENGINE_ERROR_CODE doPrivilegedStats(const void* cookie,
+                                        const AddStatFn& add_stat,
+                                        cb::const_char_buffer statKey);
 
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 
