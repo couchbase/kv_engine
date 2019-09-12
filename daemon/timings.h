@@ -20,6 +20,7 @@
 
 #include <mcbp/protocol/opcode.h>
 
+#include <platform/corestore.h>
 #include <utilities/hdrhistogram.h>
 #include <array>
 #include <mutex>
@@ -72,5 +73,9 @@ private:
     // histogram class
     std::array<std::atomic<Hdr1sfMicroSecHistogram*>, MAX_NUM_OPCODES> timings;
     std::mutex histogram_mutex;
-    std::array<cb::sampling::Interval, MAX_NUM_OPCODES> interval_counters;
+
+    // Sharded by core as cache contention was observed due to the number of
+    // threads attempting to update the same timings stats.
+    CoreStore<std::array<cb::sampling::Interval, MAX_NUM_OPCODES>>
+            interval_counters;
 };

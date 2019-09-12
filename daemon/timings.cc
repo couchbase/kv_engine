@@ -51,8 +51,10 @@ void Timings::collect(cb::mcbp::ClientOpcode opcode,
     get_or_create_timing_histogram(
             std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode))
             .add(duration_cast<microseconds>(nsec));
-    auto& interval = interval_counters
-            [std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)];
+    auto& interval =
+            interval_counters
+                    .get()[std::underlying_type<cb::mcbp::ClientOpcode>::type(
+                            opcode)];
     interval.count++;
     interval.duration_ns += nsec.count();
 }
@@ -170,19 +172,21 @@ void Timings::sample(std::chrono::seconds sample_interval) {
     cb::sampling::Interval interval_lookup, interval_mutation;
 
     for (auto op : timings_mutations) {
-        interval_mutation += interval_counters
-                [std::underlying_type<cb::mcbp::ClientOpcode>::type(op)];
-        interval_counters[std::underlying_type<cb::mcbp::ClientOpcode>::type(
-                                  op)]
-                .reset();
+        for (auto intervals : interval_counters) {
+            interval_mutation += intervals
+                    [std::underlying_type<cb::mcbp::ClientOpcode>::type(op)];
+            intervals[std::underlying_type<cb::mcbp::ClientOpcode>::type(op)]
+                    .reset();
+        }
     }
 
     for (auto op : timings_retrievals) {
-        interval_lookup += interval_counters
-                [std::underlying_type<cb::mcbp::ClientOpcode>::type(op)];
-        interval_counters[std::underlying_type<cb::mcbp::ClientOpcode>::type(
-                                  op)]
-                .reset();
+        for (auto intervals : interval_counters) {
+            interval_mutation += intervals
+                    [std::underlying_type<cb::mcbp::ClientOpcode>::type(op)];
+            intervals[std::underlying_type<cb::mcbp::ClientOpcode>::type(op)]
+                    .reset();
+        }
     }
 
     {
