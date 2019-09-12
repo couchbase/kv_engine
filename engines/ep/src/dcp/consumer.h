@@ -20,6 +20,7 @@
 #include "vb_ready_queue.h"
 
 #include <collections/collections_types.h>
+#include <folly/Synchronized.h>
 #include <memcached/dcp_stream_id.h>
 #include <relaxed_atomic.h>
 
@@ -551,8 +552,7 @@ protected:
     VBReadyQueue vbReady;
     std::atomic<bool> processorNotification;
 
-    std::mutex readyMutex;
-    std::list<Vbid> ready;
+    folly::Synchronized<std::list<Vbid>, std::mutex> ready;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
     using PassiveStreamMap =

@@ -343,9 +343,7 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                high_seqno,
                                vb_manifest_uid);
     registerStream(stream);
-
-    std::lock_guard<std::mutex> lh(readyMutex);
-    ready.push_back(vbucket);
+    ready.lock()->push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
 
@@ -1427,12 +1425,12 @@ std::string DcpConsumer::getProcessorTaskStatusStr() const {
 }
 
 std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
-    std::lock_guard<std::mutex> lh(readyMutex);
+    auto locked = ready.lock();
 
     unPause();
-    while (!ready.empty()) {
-        Vbid vbucket = ready.front();
-        ready.pop_front();
+    while (!locked->empty()) {
+        Vbid vbucket = locked->front();
+        locked->pop_front();
 
         auto stream = findStream(vbucket);
         if (!stream) {
@@ -1457,7 +1455,7 @@ std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
                     response->to_string());
         }
 
-        ready.push_back(vbucket);
+        locked->push_back(vbucket);
         return response;
     }
     pause(PausedReason::ReadyListEmpty);
@@ -1467,13 +1465,13 @@ std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
 
 void DcpConsumer::notifyStreamReady(Vbid vbucket) {
     {
-        std::lock_guard<std::mutex> lh(readyMutex);
-        auto iter = std::find(ready.begin(), ready.end(), vbucket);
-        if (iter != ready.end()) {
+        auto locked = ready.lock();
+        auto iter = std::find(locked->begin(), locked->end(), vbucket);
+        if (iter != locked->end()) {
             return;
         }
 
-        ready.push_back(vbucket);
+        locked->push_back(vbucket);
     }
 
     scheduleNotify();
