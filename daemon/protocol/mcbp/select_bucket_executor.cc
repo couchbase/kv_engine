@@ -52,19 +52,6 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
         return ENGINE_ENOTSUP;
     }
 
-    // We can't switch bucket if we've got multiple commands in flight
-    if (connection.getNumberOfCookies() > 1) {
-        LOG_INFO(
-                "{}: select_bucket failed - multiple commands in flight. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
-                bucketname);
-        return ENGINE_ENOTSUP;
-    }
-
     auto oldIndex = connection.getBucketIndex();
 
     try {
@@ -117,7 +104,28 @@ void select_bucket_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     cookie.logCommand();
-    auto ret = connection.remapErrorCode(select_bucket(cookie, bucketname));
+
+    ENGINE_ERROR_CODE code = ENGINE_SUCCESS;
+
+    // We can't switch bucket if we've got multiple commands in flight
+    if (connection.getNumberOfCookies() > 1) {
+        LOG_INFO(
+                "{}: select_bucket failed - multiple commands in flight. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
+                connection.getId(),
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
+        code = ENGINE_ENOTSUP;
+    } else if (bucketname == "@no bucket@") {
+        // unselect bucket!
+        associate_bucket(connection, "");
+    } else {
+        code = select_bucket(cookie, bucketname);
+    }
+
+    auto ret = connection.remapErrorCode(code);
     cookie.logResponse(ret);
     if (ret == ENGINE_DISCONNECT) {
         connection.setState(StateMachine::State::closing);

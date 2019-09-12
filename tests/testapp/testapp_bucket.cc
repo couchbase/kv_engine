@@ -662,3 +662,15 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     connection.get(name, Vbid(0));
     connection.deleteBucket("mybucket_000");
 }
+
+TEST_P(BucketTest, SelectNoBucket) {
+    auto& connection = getAdminConnection();
+    connection.selectBucket("default");
+    connection.selectBucket("@no bucket@");
+    try {
+        connection.get("foo", Vbid(0));
+        FAIL() << "We should get " + to_string(cb::mcbp::Status::NoBucket);
+    } catch (const ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::NoBucket, error.getReason());
+    }
+}

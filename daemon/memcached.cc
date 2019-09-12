@@ -225,7 +225,6 @@ bool associate_bucket(Connection& connection, const char* name) {
     disassociate_bucket(connection);
 
     /* Try to associate with the named bucket */
-    /* @todo add auth checks!!! */
     for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
         Bucket &b = all_buckets.at(ii);
         std::lock_guard<std::mutex> guard(b.mutex);
