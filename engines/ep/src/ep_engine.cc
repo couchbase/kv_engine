@@ -686,6 +686,12 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setMemUsedMergeThresholdPercent(std::stof(val));
         } else if (key == "retain_erroneous_tombstones") {
             getConfiguration().setRetainErroneousTombstones(cb_stob(val));
+        } else if (key == "couchstore_tracing") {
+            getConfiguration().setCouchstoreTracing(cb_stob(val));
+        } else if (key == "couchstore_write_validation") {
+            getConfiguration().setCouchstoreWriteValidation(cb_stob(val));
+        } else if (key == "couchstore_mprotect") {
+            getConfiguration().setCouchstoreMprotect(cb_stob(val));
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;

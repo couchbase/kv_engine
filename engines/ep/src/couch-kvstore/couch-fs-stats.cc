@@ -83,6 +83,19 @@ couchstore_error_t StatsOps::set_periodic_sync(couch_file_handle h,
     return sf->orig_ops->set_periodic_sync(sf->orig_handle, period_bytes);
 }
 
+couchstore_error_t StatsOps::set_tracing_enabled(couch_file_handle h) {
+    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    return sf->orig_ops->set_tracing_enabled(sf->orig_handle);
+}
+couchstore_error_t StatsOps::set_write_validation_enabled(couch_file_handle h) {
+    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    return sf->orig_ops->set_write_validation_enabled(sf->orig_handle);
+}
+couchstore_error_t StatsOps::set_mprotect_enabled(couch_file_handle h) {
+    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    return sf->orig_ops->set_mprotect_enabled(sf->orig_handle);
+}
+
 ssize_t StatsOps::pread(couchstore_error_info_t* errinfo,
                         couch_file_handle h,
                         void* buf,

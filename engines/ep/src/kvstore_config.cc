@@ -32,6 +32,17 @@ public:
             config.setPeriodicSyncBytes(value);
         }
     }
+    void booleanValueChanged(const std::string& key, bool value) override {
+        if (key == "couchstore_tracing") {
+            config.setCouchstoreTracingEnabled(value);
+        }
+        if (key == "couchstore_write_validation") {
+            config.setCouchstoreWriteValidationEnabled(value);
+        }
+        if (key == "couchstore_mprotect") {
+            config.setCouchstoreMprotectEnabled(value);
+        }
+    }
 
 private:
     KVStoreConfig& config;
@@ -47,6 +58,18 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
     config.addValueChangedListener(
             "fsync_after_every_n_bytes_written",
             std::make_unique<ConfigChangeListener>(*this));
+    setCouchstoreTracingEnabled(config.isCouchstoreTracing());
+    config.addValueChangedListener(
+            "couchstore_tracing",
+            std::make_unique<ConfigChangeListener>(*this));
+    setCouchstoreWriteValidationEnabled(config.isCouchstoreWriteValidation());
+    config.addValueChangedListener(
+            "couchstore_write_validation",
+            std::make_unique<ConfigChangeListener>(*this));
+    setCouchstoreMprotectEnabled(config.isCouchstoreMprotect());
+    config.addValueChangedListener(
+            "couchstore_mprotect",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
@@ -60,7 +83,10 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       backend(_backend),
       shardId(_shardId),
       logger(globalBucketLogger.get()),
-      buffered(true) {
+      buffered(true),
+      couchstoreTracingEnabled(false),
+      couchstoreWriteValidationEnabled(false),
+      couchstoreMprotectEnabled(false) {
 }
 
 KVStoreConfig::~KVStoreConfig() = default;
