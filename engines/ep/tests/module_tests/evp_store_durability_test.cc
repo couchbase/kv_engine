@@ -843,6 +843,49 @@ TEST_P(DurabilityBucketTest, SyncWriteComparesToCorrectCas) {
     ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 }
 
+TEST_P(DurabilityEphemeralBucketTest, SyncWriteChecksCorrectExpiry) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    vb.processResolvedSyncWrites();
+
+    // Non-durable write with expiry
+    auto committed = makeCommittedItem(key, "some_other_value");
+
+    using namespace std::chrono;
+    auto expiry = system_clock::now() + seconds(1);
+    committed->setExpTime(system_clock::to_time_t(expiry));
+
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+
+    // get cas
+    uint64_t cas = store->get(key, vbid, cookie, {}).item->getCas();
+
+    // time travel to when the item has definitely expired
+    TimeTraveller cooper(10);
+
+    // now do a SyncWrite with a cas - the item has expired so it should
+    // return not found, not invalid cas
+    pending = makePendingItem(key, "new_value");
+    pending->setCas(cas);
+    ASSERT_EQ(ENGINE_KEY_ENOENT, store->set(*pending, cookie));
+}
+
 void DurabilityEPBucketTest::verifyOnDiskItemCount(VBucket& vb,
                                                    uint64_t expectedValue) {
     // skip for rocksdb as it treats every mutation as an insertion

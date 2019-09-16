@@ -3173,9 +3173,14 @@ VBucket::processSetInner(HashTable::FindCommitResult& htRes,
      * a cas operation for a key that doesn't exist is not a very cool
      * thing to do. See MB 3252
      */
-    if (v && v->isExpired(ep_real_time()) && !hasMetaData && !itm.isDeleted()) {
-        if (v->isLocked(ep_current_time())) {
-            v->unlock();
+    // need to test cas and locking against the committed value
+    // explicitly, as v may be a completed prepare (to be modified)
+    // with a cas, deleted status, expiry etc. different from the committed
+    auto* committed = htRes.committed;
+    if (committed && committed->isExpired(ep_real_time()) && !hasMetaData &&
+        !itm.isDeleted()) {
+        if (committed->isLocked(ep_current_time())) {
+            committed->unlock();
         }
         if (cas) {
             /* item has expired and cas value provided. Deny ! */
@@ -3183,10 +3188,6 @@ VBucket::processSetInner(HashTable::FindCommitResult& htRes,
         }
     }
 
-    // need to test cas and locking against the committed value
-    // explicitly, as v may be a completed prepare to be modified
-    // containing an unrelated cas, deleted status etc.
-    auto* committed = htRes.committed;
     if (committed) {
         if (!allowExisting && !committed->isTempItem() &&
             !committed->isDeleted()) {
