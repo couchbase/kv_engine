@@ -2413,12 +2413,11 @@ ENGINE_ERROR_CODE VBucket::add(
     }
 
     { // HashBucketLock scope
-        auto htRes = itm.isPending() ? ht.findForSyncWrite(itm.getKey())
-                                     : ht.findForWrite(itm.getKey());
-        auto* v = htRes.storedValue;
-        auto& hbl = htRes.lock;
+        auto htRes = ht.findForUpdate(itm.getKey());
+        auto* v = htRes.selectSVToModify(itm);
+        auto& hbl = htRes.getHBL();
 
-        if (v && v->isPending()) {
+        if (htRes.pending && htRes.pending->isPending()) {
             // If an existing item was found and it is prepared, then cannot
             // (yet) perform an Add (Add would only succeed if prepared
             // SyncWrite was subsequently aborted).
@@ -2444,7 +2443,7 @@ ENGINE_ERROR_CODE VBucket::add(
         AddStatus status;
         boost::optional<VBNotifyCtx> notifyCtx;
         std::tie(status, notifyCtx) =
-                processAdd(hbl, v, itm, maybeKeyExists, queueItmCtx, cHandle);
+                processAdd(htRes, v, itm, maybeKeyExists, queueItmCtx, cHandle);
 
         switch (status) {
         case AddStatus::NoMem:
@@ -3268,20 +3267,23 @@ VBucket::processSetInner(HashTable::FindUpdateResult& htRes,
 }
 
 std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
-        const HashTable::HashBucketLock& hbl,
+        HashTable::FindUpdateResult& htRes,
         StoredValue*& v,
         Item& itm,
         bool maybeKeyExists,
         const VBQueueItemCtx& queueItmCtx,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    if (!hbl.getHTLock()) {
+    if (!htRes.getHBL().getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processAdd: htLock not held for " +
                 getId().to_string());
     }
-    if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
-        !v->isTempItem() && !cHandle.isLogicallyDeleted(v->getBySeqno()) &&
-        !v->isCompleted()) {
+    auto* committed = htRes.committed;
+    // must specifically check the committed item here rather than v
+    // as v may be a completed prepare (only in ephemeral).
+    if (committed && !committed->isDeleted() &&
+        !committed->isExpired(ep_real_time()) && !committed->isTempItem() &&
+        !cHandle.isLogicallyDeleted(committed->getBySeqno())) {
         return {AddStatus::Exists, {}};
     }
     if (!hasMemoryForStoredValue(stats, itm)) {
@@ -3312,7 +3314,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         }
 
         std::tie(v, std::ignore, rv.second) =
-                updateStoredValue(hbl, *v, itm, queueItmCtx);
+                updateStoredValue(htRes.getHBL(), *v, itm, queueItmCtx);
     } else {
         if (itm.getBySeqno() != StoredValue::state_temp_init) {
             if (eviction == EvictionPolicy::Full && maybeKeyExists) {
@@ -3323,11 +3325,11 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         if (itm.getBySeqno() == StoredValue::state_temp_init) {
             /* A 'temp initial item' is just added to the hash table. It is
              not put on checkpoint manager or sequence list */
-            v = ht.unlocked_addNewStoredValue(hbl, itm);
+            v = ht.unlocked_addNewStoredValue(htRes.getHBL(), itm);
             updateRevSeqNoOfNewStoredValue(*v);
         } else {
             std::tie(v, rv.second) = addNewStoredValue(
-                    hbl, itm, queueItmCtx, GenerateRevSeqno::Yes);
+                    htRes.getHBL(), itm, queueItmCtx, GenerateRevSeqno::Yes);
         }
 
         itm.setRevSeqno(v->getRevSeqno());

@@ -1715,7 +1715,7 @@ protected:
      * rules before adding an item into other in-memory structure like HT,
      * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
      *
-     * @param hbl Hash table bucket lock that must be held
+     * @param htRes Committed and Pending StoredValues
      * @param v[in, out] the stored value to do this operation on
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param queueItmCtx holds info needed to queue an item in chkpt
@@ -1725,7 +1725,7 @@ protected:
      *                info (if the operation was successful).
      */
     std::pair<AddStatus, boost::optional<VBNotifyCtx>> processAdd(
-            const HashTable::HashBucketLock& hbl,
+            HashTable::FindUpdateResult& htRes,
             StoredValue*& v,
             Item& itm,
             bool maybeKeyExists,

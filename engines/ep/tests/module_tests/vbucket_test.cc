@@ -220,10 +220,12 @@ MutationStatus VBucketTestBase::public_processSet(Item& itm,
 AddStatus VBucketTestBase::public_processAdd(Item& itm) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
-    auto hbl_sv = lockAndFind(itm.getKey());
+    auto htRes = vbucket->ht.findForUpdate(itm.getKey());
+
+    StoredValue* v = htRes.selectSVToModify(itm);
     return vbucket
-            ->processAdd(hbl_sv.first,
-                         hbl_sv.second,
+            ->processAdd(htRes,
+                         v,
                          itm,
                          /*maybeKeyExists*/ true,
                          VBQueueItemCtx{},

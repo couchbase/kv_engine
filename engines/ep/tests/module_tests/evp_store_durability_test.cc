@@ -849,6 +849,77 @@ TEST_P(DurabilityBucketTest, SyncWriteComparesToCorrectCas) {
     ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 }
 
+TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectSVExists) {
+    // MB-35979: test to ensure a durable add op does not erroneously succeed
+    // when the item does exist, in the presence of a completed prepare.
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite  and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    vb.processResolvedSyncWrites();
+
+    // Non-durable write
+    auto committed = makeCommittedItem(key, "some_other_value");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+
+    // now do a SyncAdd. Should FAIL as the item exists
+    // This was seen to succeed due to a bug in VBucket::processAdd
+    pending = makePendingItem(key, "new_value");
+    ASSERT_EQ(ENGINE_NOT_STORED, store->add(*pending, cookie));
+}
+
+TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectExpiry) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    vb.processResolvedSyncWrites();
+
+    // Non-durable write with expiry
+    auto committed = makeCommittedItem(key, "some_other_value");
+
+    using namespace std::chrono;
+    auto expiry = system_clock::now() + seconds(1);
+    committed->setExpTime(system_clock::to_time_t(expiry));
+
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+
+    // time travel to when the item has definitely expired
+    TimeTraveller cooper(10);
+
+    // now do a SyncAdd. Should succeed, as the item has expired.
+    pending = makePendingItem(key, "new_value");
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->add(*pending, cookie));
+}
+
 TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectSVExists) {
     setVBucketStateAndRunPersistTask(
             vbid,
