@@ -1657,7 +1657,8 @@ ENGINE_ERROR_CODE VBucket::replace(
         }
 
         if (htRes.committed) {
-            if (isLogicallyNonExistent(*htRes.committed, cHandle)) {
+            if (isLogicallyNonExistent(*htRes.committed, cHandle) ||
+                htRes.committed->isExpired(ep_real_time())) {
                 ht.cleanupIfTemporaryItem(hbl, *htRes.committed);
                 return ENGINE_KEY_ENOENT;
             }
