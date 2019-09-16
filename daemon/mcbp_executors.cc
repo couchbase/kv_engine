@@ -833,7 +833,11 @@ void execute_client_request_packet(Cookie& cookie,
     static McbpPrivilegeChains privilegeChains;
 
     const auto opcode = request.getClientOpcode();
-    const auto res = privilegeChains.invoke(opcode, cookie);
+    auto res = cb::rbac::PrivilegeAccess::Ok;
+    if (!cookie.isAuthorized()) {
+        res = privilegeChains.invoke(opcode, cookie);
+    }
+
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
         LOG_WARNING("{} {}: no access to command {}",
@@ -849,6 +853,7 @@ void execute_client_request_packet(Cookie& cookie,
         }
         return;
     case cb::rbac::PrivilegeAccess::Ok:
+        cookie.setAuthorized();
         handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
                 cookie);
         return;

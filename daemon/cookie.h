@@ -520,6 +520,26 @@ public:
         validated = value;
     }
 
+    /**
+     * @return true is setAuthorized has been called
+     */
+    bool isAuthorized() const {
+        return authorized;
+    }
+
+    /**
+     * This method should be used when the command has successfully passed
+     * authorization check(s).
+     *
+     * This exists to assist with correct "would block" command processing,
+     * this method should be used to tag that the authorization process has
+     * returned "success| and the command shouldn't get a second authorization
+     * test when unblocked and re-executed.
+     */
+    void setAuthorized() {
+        authorized = true;
+    }
+
 protected:
     bool enableTracing = false;
     cb::tracing::Tracer tracer;
@@ -608,4 +628,7 @@ protected:
     /// might have multiple cookies in flight and needs to be able to
     /// lock them independently
     uint8_t refcount = 0;
+
+    /// see isAuthorized/setAuthorized
+    bool authorized = false;
 };
