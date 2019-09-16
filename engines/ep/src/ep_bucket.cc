@@ -397,7 +397,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             }
             // We need to set a few values from the in-memory state.
             uint64_t maxSeqno = 0;
-            uint64_t maxVbStateOperation = 0;
+            uint64_t maxVbStateOpCas = 0;
 
             auto minSeqno = std::numeric_limits<uint64_t>::max();
 
@@ -460,20 +460,30 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
 
                 if (op == queue_op::set_vbucket_state) {
-                    // Only process vbstate if it's sequenced higher
-                    if (static_cast<uint64_t>(item->getBySeqno()) >
-                        maxVbStateOperation) {
-                        maxVbStateOperation = item->getBySeqno();
+                    // Only process vbstate if it's sequenced higher (by cas).
+                    // We use the cas instead of the seqno here because a
+                    // set_vbucket_state does not increment the lastBySeqno in
+                    // the CheckpointManager when it is created. This means that
+                    // it is possible to have two set_vbucket_state items that
+                    // follow one another with the same seqno. The cas will be
+                    // bumped for every item so it can be used to distinguish
+                    // which item is the latest and should be flushed.
+                    if (item->getCas() > maxVbStateOpCas) {
+                        // Should only bump the stat once for the latest state
+                        // change that we want to flush
+                        if (maxVbStateOpCas == 0) {
+                            // There is at least a commit to be done, so
+                            // increase todo
+                            ++stats.flusher_todo;
+                        }
+
+                        maxVbStateOpCas = item->getCas();
 
                         // It could be the case that the set_vbucket_state is
                         // alone, i.e. no mutations are being flushed, we must
-                        // trigger an update of the vbstatem which will always
+                        // trigger an update of the vbstate, which will always
                         // happen when we set this.
                         mustCheckpointVBState = true;
-
-                        // There is at least a commit to be done, so increase
-                        // todo
-                        ++stats.flusher_todo;
 
                         // Process the Item's value into the transition struct
                         vbstate.transition.fromItem(*item);

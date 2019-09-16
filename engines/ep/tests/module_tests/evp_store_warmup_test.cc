@@ -26,6 +26,7 @@
 #include "ep_time.h"
 #include "evp_store_durability_test.h"
 #include "evp_store_single_threaded_test.h"
+#include "failover-table.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
@@ -549,6 +550,35 @@ TEST_F(WarmupTest, SetVBState) {
     resetEngineAndWarmup();
 
     EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+}
+
+TEST_F(WarmupTest, TwoStateChangesAtSameSeqno) {
+    // 1) Do a normal state change to replica
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_replica));
+
+    // 2) Make a change to the failover table as we would if we had just created
+    // a stream to an active node
+    auto failoverTableLastSeqno = 999;
+    { // VBPtr scope (not valid after warmup)
+        auto vb = store->getVBucket(vbid);
+        vb->failovers->createEntry(failoverTableLastSeqno);
+        EXPECT_EQ(2, vb->failovers->getNumEntries());
+        EXPECT_EQ(failoverTableLastSeqno,
+                  vb->failovers->getLatestEntry().by_seqno);
+    }
+    store->scheduleVBStatePersist(vbid);
+
+    // 3) Flush the two state changes together and warmup so that we can more
+    // easily read what was persisted
+    flush_vbucket_to_disk(vbid, 0);
+    resetEngineAndWarmup();
+
+    // Test
+    auto vb = store->getVBucket(vbid);
+    auto state = store->getVBucket(vbid)->getTransitionState();
+    EXPECT_EQ(vbucket_state_replica, vb->getState());
+    EXPECT_EQ(failoverTableLastSeqno, vb->failovers->getLatestEntry().by_seqno);
 }
 
 // Test uses a sequence of operations that will mean delete is de-duplicated

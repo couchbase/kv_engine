@@ -787,6 +787,12 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     queued_item item = createCheckpointItem(/*id*/0, vbucketId,
                                             queue_op::set_vbucket_state);
 
+    // We need to set the cas of the item as two subsequent set_vbucket_state
+    // items will have the same seqno and the flusher needs a way to determine
+    // which is the latest so that we persist the correct state.
+    // We do this 'atomically' as we are holding the ::queueLock.
+    item->setCas(vb.nextHLCCas());
+
     // Store a JSON version of the vbucket transition data in the value
     vbstate.toItem(*item);
 
@@ -1184,6 +1190,14 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
         bySeqno = lastBySeqno;
         break;
     case queue_op::set_vbucket_state:
+        // It's not valid to actually increment lastBySeqno for a
+        // set_vbucket_state for two reasons:
+        // 1) This may be called independently on the replica to the active
+        // (i.e. for a failover table change) so the seqnos would differ to
+        // those on the active.
+        // 2) DcpConsumer calling getAllVBucketSeqnos would expect to see a
+        // seqno that will never be sent to them if the last item queued is a
+        // set_vbucket_state.
         bySeqno = lastBySeqno + 1;
         break;
 
