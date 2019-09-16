@@ -68,10 +68,11 @@ public:
     /**
      * Adds the given connection to the set of connections associated
      * with the given vbucket.
-     * @param conn Connection to add to the set. Refcount is retained.
+     *
+     * @param conn Connection to add to the set.
      * @param vbid vBucket to add to.
      */
-    void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid);
+    void addVBConnByVBId(ConnHandler& conn, Vbid vbid);
 
     void removeVBConnByVBId(const void* connCookie, Vbid vbid);
 

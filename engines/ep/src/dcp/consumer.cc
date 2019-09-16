@@ -1767,7 +1767,7 @@ void DcpConsumer::registerStream(std::shared_ptr<PassiveStream> stream) {
 
     Expects(!connMap.vbConnectionExists(this, vbid));
 
-    connMap.addVBConnByVBId(shared_from_this(), vbid);
+    connMap.addVBConnByVBId(*this, vbid);
 }
 
 std::shared_ptr<PassiveStream> DcpConsumer::removeStream(Vbid vbid) {

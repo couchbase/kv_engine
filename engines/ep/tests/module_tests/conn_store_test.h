@@ -39,7 +39,7 @@ protected:
 
     void removeConnHandler(const void* cookie);
 
-    void addVbConn(Vbid vb, std::shared_ptr<ConnHandler> conn);
+    void addVbConn(Vbid vb, ConnHandler& conn);
     void removeVbConn(Vbid vb, const void* cookie);
 
     std::unique_ptr<MockConnStore> connStore;

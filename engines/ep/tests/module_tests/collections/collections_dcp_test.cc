@@ -22,6 +22,7 @@
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_dcp.h"
+#include "tests/mock/mock_dcp_conn_map.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -75,8 +76,19 @@ void CollectionsDcpTest::createDcpStream(
 }
 
 void CollectionsDcpTest::createDcpConsumer() {
+    // Nuke the old consumer (if it exists) to ensure that we remove any
+    // streams from the vbToConns map or we will end up firing assertions
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    if (consumer) {
+        mockConnMap.removeConn(consumer->getCookie());
+        engine->releaseCookie(cookieC);
+        cookieC = create_mock_cookie();
+    }
+
     consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieC, "test_consumer");
+    mockConnMap.addConn(cookieC, consumer);
+
     store->setVBucketState(replicaVB, vbucket_state_replica);
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(/*opaque*/ 0,
@@ -102,8 +114,6 @@ void CollectionsDcpTest::TearDown() {
 }
 
 void CollectionsDcpTest::teardown() {
-    destroy_mock_cookie(cookieC);
-    destroy_mock_cookie(cookieP);
     if (consumer) {
         consumer->closeAllStreams();
         consumer->cancelTask();
@@ -112,6 +122,11 @@ void CollectionsDcpTest::teardown() {
         producer->closeAllStreams();
         producer->cancelCheckpointCreatorTask();
     }
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.removeConn(cookieC);
+    mockConnMap.removeConn(cookieP);
+    destroy_mock_cookie(cookieC);
+    destroy_mock_cookie(cookieP);
     producer.reset();
     consumer.reset();
 }

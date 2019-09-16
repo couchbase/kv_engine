@@ -177,7 +177,7 @@ void ConnMap::processPendingNotifications() {
     }
 }
 
-void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid) {
+void ConnMap::addVBConnByVBId(ConnHandler& conn, Vbid vbid) {
     connStore->addVBConnByVbid(vbid, conn);
 }
 

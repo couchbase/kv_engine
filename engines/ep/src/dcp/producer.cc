@@ -542,7 +542,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     notifyStreamReady(vbucket);
 
     if (add_vb_conn_map) {
-        engine_.getDcpConnMap().addVBConnByVBId(shared_from_this(), vbucket);
+        engine_.getDcpConnMap().addVBConnByVBId(*this, vbucket);
     }
 
     return rv;

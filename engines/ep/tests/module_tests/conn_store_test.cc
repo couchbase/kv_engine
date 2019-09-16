@@ -55,13 +55,13 @@ void ConnStoreTest::removeConnHandler(const void* cookie) {
     ASSERT_EQ(max, handle->copyCookieToConn().size());
 }
 
-void ConnStoreTest::addVbConn(Vbid vb, std::shared_ptr<ConnHandler> conn) {
+void ConnStoreTest::addVbConn(Vbid vb, ConnHandler& conn) {
     // We are assuming that the cookie and vbid are valid
     auto& map = connStore->getVBToConnsMap();
     auto& list = map[vb.get()];
     auto listSize = list.size();
 
-    auto itr = connStore->getVBToConnsItr(vb, *conn);
+    auto itr = connStore->getVBToConnsItr(vb, conn);
     auto refCount = 0;
     if (itr != list.end()) {
         refCount = itr->refCount;
@@ -69,7 +69,7 @@ void ConnStoreTest::addVbConn(Vbid vb, std::shared_ptr<ConnHandler> conn) {
 
     ASSERT_NO_THROW(connStore->addVBConnByVbid(vb, conn));
 
-    itr = connStore->getVBToConnsItr(vb, *conn);
+    itr = connStore->getVBToConnsItr(vb, conn);
     ASSERT_NE(itr, list.end());
     ASSERT_EQ(refCount + 1, itr->refCount);
 
@@ -78,7 +78,7 @@ void ConnStoreTest::addVbConn(Vbid vb, std::shared_ptr<ConnHandler> conn) {
 
         // We'll put the new connection at the back of the list so grab the last
         // one And the cookie should match
-        ASSERT_EQ(conn.get(), list.back().connHandler.lock().get());
+        ASSERT_EQ(conn.getCookie(), list.back().connHandler.getCookie());
     }
 }
 
@@ -90,7 +90,7 @@ void ConnStoreTest::removeVbConn(Vbid vb, const void* cookie) {
     // Check beforehand if we should delete anything
     auto itr = std::find_if(
             list.begin(), list.end(), [cookie](ConnStore::VBConn conn) {
-                return cookie == conn.connHandler.lock()->getCookie();
+                return cookie == conn.connHandler.getCookie();
             });
 
     int expectedSize = list.size();
@@ -105,7 +105,7 @@ void ConnStoreTest::removeVbConn(Vbid vb, const void* cookie) {
     // Check that we removed the element for this cookie
     itr = std::find_if(
             list.begin(), list.end(), [cookie](ConnStore::VBConn conn) {
-                return cookie == conn.connHandler.lock()->getCookie();
+                return cookie == conn.connHandler.getCookie();
             });
 
     ASSERT_EQ(list.end(), itr);
@@ -133,17 +133,17 @@ TEST_F(ConnStoreTest, RemoveConnHandler) {
 // should not exist in the map
 TEST_F(ConnStoreTest, AddVBConnInvalidVbid) {
     auto consumer = addConnHandler(cookie, "consumer");
-    EXPECT_THROW(connStore->addVBConnByVbid(Vbid(-1), consumer),
+    EXPECT_THROW(connStore->addVBConnByVbid(Vbid(-1), *consumer.get()),
                  std::out_of_range);
     EXPECT_THROW(connStore->addVBConnByVbid(
                          Vbid(engine->getConfiguration().getMaxVbuckets() + 1),
-                         consumer),
+                         *consumer.get()),
                  std::out_of_range);
 }
 
 TEST_F(ConnStoreTest, AddVbConnValid) {
     auto consumer = addConnHandler(cookie, "consumer");
-    addVbConn(Vbid(0), consumer);
+    addVbConn(Vbid(0), *consumer.get());
 }
 
 TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
@@ -156,7 +156,7 @@ TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
     auto consumer = addConnHandler(cookie, "consumer");
 
     Vbid vb(0);
-    addVbConn(vb, consumer);
+    addVbConn(vb, *consumer.get());
 
     for (size_t i = 0; i < map.size(); i++) {
         auto list = map[i];
@@ -167,7 +167,7 @@ TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
         }
     }
 
-    connStore->addVBConnByVbid(vb, consumer);
+    connStore->addVBConnByVbid(vb, *consumer.get());
 
     // Don't add duplicates
     for (size_t i = 0; i < map.size(); i++) {
@@ -200,7 +200,7 @@ TEST_F(ConnStoreTest, RemoveVbConnInvalidCookie) {
 TEST_F(ConnStoreTest, RemoveVbConnValid) {
     Vbid vb(0);
     auto consumer = addConnHandler(cookie, "consumer");
-    addVbConn(vb, consumer);
+    addVbConn(vb, *consumer.get());
     removeVbConn(vb, cookie);
 }
 
@@ -217,7 +217,7 @@ TEST_F(ConnStoreTest, RemoveConnHandlerWithVbConns) {
 
     for (size_t i = 0; i < map.size(); i++) {
         Vbid vb(i);
-        addVbConn(vb, consumer);
+        addVbConn(vb, *consumer.get());
     }
 
     for (const auto& list : map) {
@@ -246,7 +246,7 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     // Add the vbConns
     for (size_t i = 0; i < map.size(); i++) {
         Vbid vb(i);
-        addVbConn(vb, consumer1);
+        addVbConn(vb, *consumer1.get());
     }
 
     // Check we added something
@@ -260,7 +260,7 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     // Add the vbConns
     for (size_t i = 0; i < map.size(); i++) {
         Vbid vb(i);
-        addVbConn(vb, consumer2);
+        addVbConn(vb, *consumer2.get());
     }
 
     // Check we added something
@@ -274,7 +274,7 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     // We should have removed the ConnHandler for cookie1
     for (const auto& list : map) {
         EXPECT_EQ(1, list.size());
-        EXPECT_EQ(consumer2.get(), list.front().connHandler.lock().get());
+        EXPECT_EQ(consumer2->getCookie(), list.front().connHandler.getCookie());
     }
 
     destroy_mock_cookie(cookie2);

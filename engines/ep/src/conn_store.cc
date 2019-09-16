@@ -32,9 +32,7 @@ ConnStore::getConnsForVBHandle(Vbid vb) {
             std::unique_lock<std::mutex>(vbConnLocks[index])};
 }
 
-void ConnStore::addVBConnByVbid(Vbid vbid, std::shared_ptr<ConnHandler> conn) {
-    Expects(conn.get());
-
+void ConnStore::addVBConnByVbid(Vbid vbid, ConnHandler& conn) {
     if (vbid.get() > vbToConns.size()) {
         throw std::out_of_range(
                 "ConnStore::addVBConnByVbid attempting to add a "
@@ -46,12 +44,12 @@ void ConnStore::addVBConnByVbid(Vbid vbid, std::shared_ptr<ConnHandler> conn) {
     std::unique_lock<std::mutex> lh(vbConnLocks[lock_num]);
 
     auto& list = vbToConns[vbid.get()];
-    auto itr = getVBToConnsItr(lh, vbid, *conn.get());
+    auto itr = getVBToConnsItr(lh, vbid, conn);
 
     // For collections we will allow many streams for a given vBucket per
     // Producer. For this, bump the refCount of the VBConn with each new stream.
     if (itr == list.end()) {
-        vbToConns[vbid.get()].emplace_back(VBConn{std::move(conn), 1});
+        vbToConns[vbid.get()].emplace_back(VBConn{conn, 1});
     } else {
         itr->refCount++;
     }
@@ -89,11 +87,7 @@ ConnStore::VBToConnsMap::value_type::iterator ConnStore::getVBToConnsItr(
 ConnStore::VBToConnsMap::value_type::iterator ConnStore::getVBToConnsItr(
         std::unique_lock<std::mutex>& lock, Vbid vbid, const void* cookie) {
     return getVBToConnsItr(lock, vbid, [cookie](const VBConn& listConn) {
-        auto locked = listConn.connHandler.lock();
-        if (!locked) {
-            return false;
-        }
-        return locked->getCookie() == cookie;
+        return listConn.connHandler.getCookie() == cookie;
     });
 }
 
@@ -102,11 +96,7 @@ ConnStore::VBToConnsMap::value_type::iterator ConnStore::getVBToConnsItr(
         Vbid vbid,
         const std::string& name) {
     return getVBToConnsItr(lock, vbid, [name](const VBConn& listConn) {
-        auto locked = listConn.connHandler.lock();
-        if (!locked) {
-            return false;
-        }
-        return locked->getName() == name;
+        return listConn.connHandler.getName() == name;
     });
 }
 
@@ -121,6 +111,7 @@ bool ConnStore::doesVbConnExist(Vbid vbid, const void* cookie) {
     size_t lock_num = vbid.get() % vbConnLocks.size();
     std::unique_lock<std::mutex> lh(vbConnLocks[lock_num]);
     auto itr = getVBToConnsItr(lh, vbid, cookie);
+
     return doesVbConnExistInner(vbid, itr);
 }
 
@@ -137,16 +128,6 @@ bool ConnStore::doesVbConnExistInner(
     if (itr == list.end()) {
         return false;
     }
-
-    auto locked = itr->connHandler.lock();
-    if (!locked) {
-        // ConnHandler no longer exists, cleanup. This /shouldn't/ happen but
-        // it's pulled from the current DcpConnMap code and will be (@TODO)
-        // removed when we convert the shared_ptr to a reference.
-        list.erase(itr);
-        return false;
-    }
-
     return true;
 }
 
@@ -196,13 +177,7 @@ void ConnStore::CookieToConnMapHandle::removeConnByCookie(const void* cookie) {
 
             auto& list = connStore.vbToConns[i];
             list.remove_if([cookie](VBConn listConn) {
-                auto locked = listConn.connHandler.lock();
-                // Remove any connections that we cannot lock
-                if (!locked) {
-                    return true;
-                }
-
-                return cookie == locked->getCookie();
+                return cookie == listConn.connHandler.getCookie();
             });
         }
         cookieToConn.erase(itr);

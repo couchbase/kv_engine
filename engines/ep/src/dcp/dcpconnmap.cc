@@ -261,11 +261,7 @@ bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
     bool ret = false;
     auto handle = connStore->getConnsForVBHandle(vbid);
     for (auto itr = handle.begin(); itr != handle.end(); itr++) {
-        auto connection = itr->connHandler.lock();
-        if (!connection) {
-            continue;
-        }
-        auto* producer = dynamic_cast<DcpProducer*>(connection.get());
+        auto* producer = dynamic_cast<DcpProducer*>(&itr->connHandler);
         if (producer && producer->handleSlowStream(vbid, cursor)) {
             return true;
         }
@@ -434,11 +430,7 @@ void DcpConnMap::notifyVBConnections(Vbid vbid,
                                      uint64_t bySeqno,
                                      SyncWriteOperation syncWrite) {
     for (auto& vbConn : connStore->getConnsForVBHandle(vbid)) {
-        auto connection = vbConn.connHandler.lock();
-        if (!connection) {
-            continue;
-        }
-        auto* producer = dynamic_cast<DcpProducer*>(connection.get());
+        auto* producer = dynamic_cast<DcpProducer*>(&vbConn.connHandler);
         if (producer) {
             producer->notifySeqnoAvailable(vbid, bySeqno, syncWrite);
         }
@@ -452,11 +444,7 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
     // ConnHandlers for the Consumer with the alive PassiveStream for this
     // vBucket.
     for (auto& vbConn : connStore->getConnsForVBHandle(vbid)) {
-        auto connection = vbConn.connHandler.lock();
-        if (!connection) {
-            continue;
-        }
-        auto consumer = dynamic_pointer_cast<DcpConsumer>(connection);
+        auto* consumer = dynamic_cast<DcpConsumer*>(&vbConn.connHandler);
         if (consumer) {
             // Note: Sync Repl enabled at Consumer only if Producer supports it.
             //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to

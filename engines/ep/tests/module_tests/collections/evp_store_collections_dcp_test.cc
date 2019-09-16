@@ -138,8 +138,6 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
  * Test that we are sending the manifest uid when resuming a stream
  */
 TEST_F(CollectionsDcpTest, stream_request_uid) {
-    createDcpConsumer();
-
     // We shouldn't have tried to create a filtered producer
     EXPECT_EQ("", producers->last_collection_filter);
 

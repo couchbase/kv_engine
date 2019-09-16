@@ -50,11 +50,10 @@ class Vbid;
  *
  * When Streams are added to connections (ConnHandlers) an entry mapping Vbid to
  * ConnHandler(s) is tracked so that we can iterate over all ConnHandlers that
- * a Vbid is aware of. As streams are created, a weak_ptr (todo make reference)
- * to the ConnHandler is placed in the VbToConns map. This weak_ptr refers to
- * a unique ConnHandler, and should we have multiple streams per vBucket then
- * a refCount is bumped. This allows us to clean up the weak_ptr (todo make
- * reference) entry when all streams are closed.
+ * a Vbid is aware of. As streams are created, a reference to the ConnHandler is
+ * placed in the VbToConns map. This reference refers to a unique ConnHandler,
+ * and should we have multiple streams per vBucket then a refCount is bumped.
+ * This allows us to clean up the reference entry when all streams are closed.
  *
  * When a connection is disconnected, (a ConnHandler is removed from the
  * CookieToConnection map) we clean up the reference to the ConnHandler in the
@@ -71,18 +70,7 @@ public:
      * refCount is 0.
      */
     struct VBConn {
-        // @TODO make reference
-        std::weak_ptr<ConnHandler> connHandler;
-        /**
-         * For performance reasons we wish to make the connHandler member of
-         * this struct a reference (currently we have a large amount of cache
-         * contention due to the writing to the refCounts of the connHandler
-         * when we iterate on VBToConnsMap::value_type. "connHandler" should
-         * also not be a shared_ptr as the logical owner of the connection is
-         * the CookieToConnectionMap object. As such, we use our own refCount
-         * which is only bumped when a new stream is added or removed, and not
-         * on iteration as iteration is done under a lock anyway.
-         */
+        ConnHandler& connHandler;
         uint8_t refCount = 0;
     };
 
@@ -238,7 +226,7 @@ public:
      * @param vbid the vBucket that the ConnHandler serves
      * @param conn the connection
      */
-    void addVBConnByVbid(Vbid vbid, std::shared_ptr<ConnHandler> conn);
+    void addVBConnByVbid(Vbid vbid, ConnHandler& conn);
 
     /**
      * Remove the reference in vbToConns for the given cookie (ConnHandler).
