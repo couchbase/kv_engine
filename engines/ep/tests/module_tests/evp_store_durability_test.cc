@@ -807,6 +807,42 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     ASSERT_EQ(1, ckptList.back()->getNumItems());
 }
 
+TEST_P(DurabilityBucketTest, SyncWriteComparesToCorrectCas) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+
+    // prepare SyncWrite and commit.
+    auto key = makeStoredDocKey("key");
+    auto pending = makePendingItem(key, "value");
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key,
+                        pending->getBySeqno(),
+                        {} /*commitSeqno*/,
+                        vb.lockCollections(key)));
+
+    vb.processResolvedSyncWrites();
+
+    // Non-durable write to same key
+
+    auto committed = makeCommittedItem(key, "some_other_value");
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
+
+    // get cas
+    uint64_t cas = store->get(key, vbid, cookie, {}).item->getCas();
+
+    // now do another SyncWrite with a cas
+    pending = makePendingItem(key, "new_value");
+    pending->setCas(cas);
+
+    // Should succeed - has correct cas
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+}
+
 void DurabilityEPBucketTest::verifyOnDiskItemCount(VBucket& vb,
                                                    uint64_t expectedValue) {
     // skip for rocksdb as it treats every mutation as an insertion

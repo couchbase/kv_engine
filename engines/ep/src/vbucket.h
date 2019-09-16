@@ -1700,7 +1700,7 @@ protected:
      * Inner function for processSet. Allows overwriting of in-flight prepares.
      */
     std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSetInner(
-            const HashTable::HashBucketLock& hbl,
+            HashTable::FindCommitResult& htRes,
             StoredValue*& v,
             Item& itm,
             uint64_t cas,

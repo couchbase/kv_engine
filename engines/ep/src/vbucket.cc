@@ -1784,7 +1784,7 @@ ENGINE_ERROR_CODE VBucket::prepare(
         // Valid duplicate prepare - call processSetInner and skip the
         // SyncWrite checks.
         queueItmCtx.overwritingPrepareSeqno = v->getBySeqno();
-        std::tie(status, notifyCtx) = processSetInner(hbl,
+        std::tie(status, notifyCtx) = processSetInner(htRes,
                                                       v,
                                                       itm,
                                                       cas,
@@ -3108,7 +3108,7 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         processImplicitlyCompletedPrepare(htRes.pending);
 
         // Add a new or overwrite the existing mutation
-        return processSetInner(htRes.pending.getHBL(),
+        return processSetInner(htRes,
                                htRes.committed,
                                itm,
                                cas,
@@ -3119,7 +3119,7 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
                                maybeKeyExists);
     }
 
-    return processSetInner(htRes.getHBL(),
+    return processSetInner(htRes,
                            v,
                            itm,
                            cas,
@@ -3131,7 +3131,7 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
 }
 
 std::pair<MutationStatus, boost::optional<VBNotifyCtx>>
-VBucket::processSetInner(const HashTable::HashBucketLock& hbl,
+VBucket::processSetInner(HashTable::FindCommitResult& htRes,
                          StoredValue*& v,
                          Item& itm,
                          uint64_t cas,
@@ -3140,7 +3140,7 @@ VBucket::processSetInner(const HashTable::HashBucketLock& hbl,
                          const VBQueueItemCtx& queueItmCtx,
                          cb::StoreIfStatus storeIfStatus,
                          bool maybeKeyExists) {
-    if (!hbl.getHTLock()) {
+    if (!htRes.getHBL().getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processSet: htLock not held for " +
                 getId().to_string());
@@ -3183,28 +3183,34 @@ VBucket::processSetInner(const HashTable::HashBucketLock& hbl,
         }
     }
 
-    if (v) {
-        if (!allowExisting && !v->isTempItem() && !v->isDeleted()) {
+    // need to test cas and locking against the committed value
+    // explicitly, as v may be a completed prepare to be modified
+    // containing an unrelated cas, deleted status etc.
+    auto* committed = htRes.committed;
+    if (committed) {
+        if (!allowExisting && !committed->isTempItem() &&
+            !committed->isDeleted()) {
             return {MutationStatus::InvalidCas, {}};
         }
-        if (v->isLocked(ep_current_time())) {
+        if (committed->isLocked(ep_current_time())) {
             /*
              * item is locked, deny if there is cas value mismatch
              * or no cas value is provided by the user
              */
-            if (cas != v->getCas()) {
+            if (cas != committed->getCas()) {
                 return {MutationStatus::IsLocked, {}};
             }
             /* allow operation*/
-            v->unlock();
-        } else if (cas && cas != v->getCas()) {
-            if (v->isTempNonExistentItem()) {
+            committed->unlock();
+        } else if (cas && cas != committed->getCas()) {
+            if (committed->isTempNonExistentItem()) {
                 // This is a temporary item which marks a key as non-existent;
                 // therefore specifying a non-matching CAS should be exposed
                 // as item not existing.
                 return {MutationStatus::NotFound, {}};
             }
-            if ((v->isTempDeletedItem() || v->isDeleted()) && !itm.isDeleted()) {
+            if ((committed->isTempDeletedItem() || committed->isDeleted()) &&
+                !itm.isDeleted()) {
                 // Existing item is deleted, and we are not replacing it with
                 // a (different) deleted value - return not existing.
                 return {MutationStatus::NotFound, {}};
@@ -3214,47 +3220,49 @@ VBucket::processSetInner(const HashTable::HashBucketLock& hbl,
             return {MutationStatus::InvalidCas, {}};
         }
         if (!hasMetaData) {
-            itm.setRevSeqno(v->getRevSeqno() + 1);
+            itm.setRevSeqno(committed->getRevSeqno() + 1);
             /* MB-23530: We must ensure that a replace operation (i.e.
              * set with a CAS) /fails/ if the old document is deleted; it
              * logically "doesn't exist". However, if the new value is deleted
              * this op is a /delete/ with a CAS and we must permit a
              * deleted -> deleted transition for Deleted Bodies.
              */
-            if (cas && (v->isDeleted() || v->isTempDeletedItem()) &&
+            if (cas &&
+                (committed->isDeleted() || committed->isTempDeletedItem()) &&
                 !itm.isDeleted()) {
                 return {MutationStatus::NotFound, {}};
             }
         }
+    } else if (cas != 0) {
+        // if a cas has been specified but there is no committed item
+        // the op should fail
+        return {MutationStatus::NotFound, {}};
+    }
 
-        MutationStatus status;
-        VBNotifyCtx notifyCtx;
+    MutationStatus status;
+    VBNotifyCtx notifyCtx;
+    if (v) {
         // This is a new SyncWrite, we just want to add a new prepare unless we
         // still have a completed prepare (Ephemeral) which we should replace
         // instead.
         if (v->isCommitted() && !v->isCompleted() && itm.isPending()) {
             std::tie(v, notifyCtx) = addNewStoredValue(
-                    hbl, itm, queueItmCtx, GenerateRevSeqno::No);
+                    htRes.getHBL(), itm, queueItmCtx, GenerateRevSeqno::No);
             // Add should always be clean
             status = MutationStatus::WasClean;
         } else {
             std::tie(v, status, notifyCtx) =
-                    updateStoredValue(hbl, *v, itm, queueItmCtx);
+                    updateStoredValue(htRes.getHBL(), *v, itm, queueItmCtx);
         }
-
-        return {status, notifyCtx};
-
-    } else if (cas != 0) {
-        return {MutationStatus::NotFound, {}};
     } else {
-        VBNotifyCtx notifyCtx;
         auto genRevSeqno = hasMetaData ? GenerateRevSeqno::No :
                            GenerateRevSeqno::Yes;
-        std::tie(v, notifyCtx) =
-                addNewStoredValue(hbl, itm, queueItmCtx, genRevSeqno);
+        std::tie(v, notifyCtx) = addNewStoredValue(
+                htRes.getHBL(), itm, queueItmCtx, genRevSeqno);
         itm.setRevSeqno(v->getRevSeqno());
-        return {MutationStatus::WasClean, notifyCtx};
+        status = MutationStatus::WasClean;
     }
+    return {status, notifyCtx};
 }
 
 std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
