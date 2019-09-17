@@ -516,9 +516,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         // so only update backfillRemaining when non-zero
         if (resp->getApproximateSize()) {
             Expects(backfillRemaining.is_initialized());
-            if (*backfillRemaining > 0) {
-                (*backfillRemaining)--;
-            }
+            (*backfillRemaining)--;
         }
     }
 

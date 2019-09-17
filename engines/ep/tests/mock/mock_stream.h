@@ -107,7 +107,8 @@ public:
         return lastReadSeqno;
     }
 
-    boost::optional<size_t> getNumBackfillItemsRemaining() const {
+    boost::optional<cb::NonNegativeCounter<size_t>>
+    getNumBackfillItemsRemaining() const {
         return backfillRemaining;
     }
 

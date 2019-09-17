@@ -20,6 +20,7 @@
 #include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
 #include <memcached/engine_error.h>
+#include <platform/non_negative_counter.h>
 #include <spdlog/common.h>
 
 class CheckpointManager;
@@ -361,7 +362,7 @@ protected:
      * scanned) it is empty.
      * Guarded by streamMutex.
      */
-    boost::optional<size_t> backfillRemaining;
+    boost::optional<cb::NonNegativeCounter<size_t>> backfillRemaining;
 
     std::unique_ptr<DcpResponse> backfillPhase(std::lock_guard<std::mutex>& lh);
 
