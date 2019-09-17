@@ -2101,7 +2101,7 @@ void DestroyBucketThread::run() {
     task->makeRunnable();
 }
 
-static void initialize_buckets() {
+void initialize_buckets() {
     size_t numthread = Settings::instance().getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
         b.stats.resize(numthread);
@@ -2119,7 +2119,7 @@ static void initialize_buckets() {
     nobucket.state = Bucket::State::Ready;
 }
 
-static void cleanup_buckets() {
+void cleanup_buckets() {
     for (auto &bucket : all_buckets) {
         bool waiting;
 

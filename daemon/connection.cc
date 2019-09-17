@@ -1259,14 +1259,27 @@ void Connection::addIov(const void* buf, size_t len) {
 
     // Update 'm' as we may have added an additional msghdr
     m = &msglist.back();
+    // If this entry is right after the previous one we can just
+    // extend the previous entry instead of adding a new one
+    bool addNewEntry = true;
+    if (m->msg_iovlen > 0) {
+        auto& prev = m->msg_iov[m->msg_iovlen - 1];
+        const auto* p = static_cast<const char*>(prev.iov_base) + prev.iov_len;
+        if (buf == p) {
+            prev.iov_len += len;
+            addNewEntry = false;
+        }
+    }
 
-    m->msg_iov[m->msg_iovlen].iov_base = (void*)buf;
-    m->msg_iov[m->msg_iovlen].iov_len = len;
+    if (addNewEntry) {
+        m->msg_iov[m->msg_iovlen].iov_base = (void*)buf;
+        m->msg_iov[m->msg_iovlen].iov_len = len;
+        ++iovused;
+        STATS_MAX(this, iovused_high_watermark, gsl::narrow<int>(getIovUsed()));
+        m->msg_iovlen++;
+    }
 
     msgbytes += len;
-    ++iovused;
-    STATS_MAX(this, iovused_high_watermark, gsl::narrow<int>(getIovUsed()));
-    m->msg_iovlen++;
 }
 
 void Connection::releaseReservedItems() {
@@ -1320,6 +1333,8 @@ Connection::Connection(FrontEndThread& thr)
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
+    msglist.reserve(MSG_LIST_INITIAL);
+    iov.resize(IOV_LIST_INITIAL);
 }
 
 Connection::Connection(SOCKET sfd,
