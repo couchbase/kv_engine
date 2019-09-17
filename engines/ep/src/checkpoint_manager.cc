@@ -1333,6 +1333,11 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                         cookie);
             }
         }
+
+        // Iterate all checkpoints and dump usages
+        for (const auto& c : checkpointList) {
+            c->addStats(add_stat, cookie);
+        }
     } catch (std::exception& error) {
         EP_LOG_WARN(
                 "CheckpointManager::addStats: An error occurred while adding "

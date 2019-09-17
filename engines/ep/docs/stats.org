@@ -1007,6 +1007,22 @@ each stat name.
 | mem_usage                        | Total memory taken up by items in all     |
 |                                  | checkpoints under given manager           |
 
+Additionally each Checkpoint will generate the following stats, these are
+prefixed with the vbucket and the id of the Checkpoint, e.g. "vb_0:id_52:state"
+
+| state                            | Checkpoint open or closed                 |
+| type                             | Type of checkpoint, disk or memory        |
+| key_index_allocator_bytes        | The number of bytes currently allocated to|
+|                                  | the key index(s) as returned by the       |
+|                                  | underlying std::allocator implementation  |
+| to_write_allocator_bytes         | The number of bytes currently allocated to|
+|                                  | the toWrite queue as returned by the      |
+|                                  | underlying std::allocator implementation  |
+| queued_items_mem_usage           | A second counter which should be a subset |
+|                                  | of to_write_allocator_bytes, this is      |
+|                                  | approximately the sizeof every value      |
+|                                  | stored in the toWrite queue               |
+
 ** Memory Stats
 
 This provides various memory-related stats including the stats from tcmalloc.

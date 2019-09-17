@@ -2161,7 +2161,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
 
     bool isLastMutationItem{true};
-    for (auto ii = 0; ii < 3; ++ii) {
+    for (auto ii = 0; ii < itemCount; ++ii) {
         auto item = this->manager->nextItem(
                 this->manager->getPersistenceCursor(), isLastMutationItem);
         ASSERT_FALSE(isLastMutationItem);
@@ -2198,17 +2198,11 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     // Get the memory usage after expelling
     auto checkpointMemoryUsageAfterExpel = this->manager->getMemoryUsage();
 
-    size_t extra = 0;
     // A list is comprised of 3 pointers (forward, backwards and
     // pointer to the element).
-    const size_t perElementOverhead = extra + (3 * sizeof(uintptr_t));
-#if WIN32
-    // On windows for an empty list we still allocate space for
-    // containing one element.
-    extra = perElementOverhead;
-#endif
+    const size_t perElementOverhead = (3 * sizeof(uintptr_t));
 
-    const size_t reductionInCheckpointMemoryUsage =
+    const size_t actualReductionInCheckpointMemoryUsage =
             checkpointMemoryUsageBeforeExpel - checkpointMemoryUsageAfterExpel;
     const size_t checkpointListSaving =
             (perElementOverhead * expelResult.expelCount);
@@ -2220,12 +2214,25 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     // checkpoint start item
     const size_t queuedItemSaving =
             (sizeOfItem * 2) + checkpointStartItem->size();
-    const size_t expectedMemoryRecovered =
+    const size_t expectedReductionInCheckpointMemoryUsage =
             checkpointListSaving + queuedItemSaving;
 
     EXPECT_EQ(3, expelResult.expelCount);
-    EXPECT_EQ(expectedMemoryRecovered, expelResult.estimateOfFreeMemory);
-    EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
+    EXPECT_EQ(expelResult.estimateOfFreeMemory,
+              expectedReductionInCheckpointMemoryUsage);
+
+    // 5 in this next calculation relates to the key size used, e.g. key0, key1
+    const size_t keyIndexReduction =
+            (sizeof(CheckpointIndexKeyNamespace) + sizeof(index_entry) + 5) * 2;
+    const size_t metaIndexReduction =
+            checkpointStartItem->getKey().size() + sizeof(index_entry);
+
+    // The reduction includes bytes deallocated by the internal hash-tables
+    // (i.e. keyIndex.erase) which easy to calculate, hence we expect the actual
+    // reduction to be greater or equal to the expected
+    EXPECT_GE(actualReductionInCheckpointMemoryUsage,
+              expectedReductionInCheckpointMemoryUsage + keyIndexReduction +
+                      metaIndexReduction);
     EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
 }
 

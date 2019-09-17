@@ -25,6 +25,7 @@
 
 #include <boost/optional.hpp>
 #include <folly/Synchronized.h>
+#include <memcached/engine_common.h>
 #include <platform/non_negative_counter.h>
 #include <utilities/memory_tracking_allocator.h>
 
@@ -74,7 +75,7 @@ struct index_entry {
     int64_t mutation_id;
 };
 
-enum class CheckpointIndexKeyNamespace {
+enum class CheckpointIndexKeyNamespace : uint8_t {
     Committed = 0,
     Prepared,
 };
@@ -451,9 +452,7 @@ public:
      * Set the current state of this checkpoint.
      * @param state the checkpoint's new state
      */
-    void setState(checkpoint_state state) {
-        *checkpointState.wlock() = state;
-    }
+    void setState(checkpoint_state state);
 
     void incNumOfCursorsInCheckpoint() {
         ++numOfCursorsInCheckpoint;
@@ -618,6 +617,13 @@ public:
         return *trackingAllocator.getBytesAllocated();
     }
 
+    // see member variable definition for info
+    size_t getQueuedItemsMemUsage() const {
+        return queuedItemsMemUsage;
+    }
+
+    void addStats(const AddStatFn& add_stat, const void* cookie);
+
 private:
     /**
      * Class using RAII pattern for updating stats.memOverhead.
@@ -675,9 +681,9 @@ private:
     // Count of the number of cursors that reside in the checkpoint
     cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
 
-    // Allocator used for tracking memory used by the CheckpointQueue
+    // Allocator used for tracking memory used by toWrite
     MemoryTrackingAllocator<queued_item> trackingAllocator;
-    // Allocator used for tracking memory used by the CheckpointQueue
+    // Allocator used for tracking memory used by keyIndex and metaKeyIndex
     checkpoint_index::allocator_type keyIndexTrackingAllocator;
     CheckpointQueue toWrite;
     checkpoint_index               keyIndex;

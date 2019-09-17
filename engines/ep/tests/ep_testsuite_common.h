@@ -44,9 +44,12 @@ bool teardown_suite(void);
 }
 #endif
 
-
 template <typename T>
-static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
+static void checkeqfn(T exp,
+                      T got,
+                      const std::string& msg,
+                      const char* file,
+                      const int linenum) {
     if (exp != got) {
         std::stringstream ss;
         ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
@@ -55,7 +58,11 @@ static void checkeqfn(T exp, T got, const char *msg, const char *file, const int
 }
 
 template <typename T>
-static void checknefn(T exp, T got, const char *msg, const char *file, const int linenum) {
+static void checknefn(T exp,
+                      T got,
+                      const std::string& msg,
+                      const char* file,
+                      const int linenum) {
     if (exp == got) {
         std::stringstream ss;
         ss << "Expected `" << exp << "' to not equal `" << got << "' - " << msg;
@@ -64,7 +71,10 @@ static void checknefn(T exp, T got, const char *msg, const char *file, const int
 }
 
 template <typename T>
-static void checklefn(T exp, T got, const char *msg, const char *file,
+static void checklefn(T exp,
+                      T got,
+                      const std::string& msg,
+                      const char* file,
                       const int linenum) {
     if (exp > got) {
         std::stringstream ss;

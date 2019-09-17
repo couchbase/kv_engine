@@ -335,7 +335,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     auto memoryOverhead = checkpointManager->getMemoryOverhead();
     if (engine->getDcpConnMap().handleSlowStream(vbid,
                                                  cursors[0].lock().get())) {
-        ASSERT_EQ(expectedFreedMemoryFromItems,
+        ASSERT_GE(expectedFreedMemoryFromItems,
                   checkpointManager->getMemoryUsageOfUnrefCheckpoints());
         // Check that the memory of unreferenced checkpoints is greater than or
         // equal to the pre-cursor-dropped memory overhead.

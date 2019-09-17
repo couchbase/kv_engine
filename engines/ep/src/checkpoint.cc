@@ -27,6 +27,7 @@
 #include "checkpoint_manager.h"
 #include "ep_time.h"
 #include "stats.h"
+#include "statwriter.h"
 
 const char* to_string(enum checkpoint_state s) {
     switch (s) {
@@ -328,6 +329,33 @@ ExpelResult Checkpoint::expelItems(CheckpointCursor& expelUpToAndIncluding) {
                              begin().getUnderlyingIterator(),
                              iterator.getUnderlyingIterator());
 
+        if (getState() == CHECKPOINT_OPEN) {
+            // Whilst cp is open, erase the expelled items from the indexes
+            for (const auto& expelled : expelledItems) {
+                size_t erased = 0;
+                if (expelled->isCheckPointMetaItem()) {
+                    erased = metaKeyIndex.erase(expelled->getKey());
+                } else {
+                    erased = keyIndex.erase(
+                            {expelled->getKey(),
+                             expelled->isCommitted()
+                                     ? CheckpointIndexKeyNamespace::Committed
+                                     : CheckpointIndexKeyNamespace::Prepared});
+                }
+
+                if (erased == 0) {
+                    std::stringstream ss;
+                    ss << *expelled;
+                    throw std::logic_error(
+                            "Checkpoint::expelItem: not found in index " +
+                            ss.str());
+                }
+            }
+            // Ask the hash-table's to rehash to fit the new number of elements
+            metaKeyIndex.reserve(metaKeyIndex.size());
+            keyIndex.reserve(keyIndex.size());
+        }
+
         /*
          * Reduce the queuedItems memory usage by the size of the items
          * being expelled from memory, and record the expelled amount in the
@@ -392,6 +420,58 @@ ssize_t Checkpoint::TrackOverhead::getToWriteDifference() const {
 
 ssize_t Checkpoint::TrackOverhead::getKeyIndexDifference() const {
     return (cp.getKeyIndexAllocatorBytes() - keyIndexAllocated);
+}
+
+void Checkpoint::setState(checkpoint_state state) {
+    *checkpointState.wlock() = state;
+
+    if (state == CHECKPOINT_CLOSED) {
+        // Now closed, the indexes have no use and can be completely erased
+        TrackOverhead trackOverhead(*this);
+        keyIndex.clear();
+        keyIndex.reserve(0);
+        metaKeyIndex.clear();
+        metaKeyIndex.reserve(0);
+    }
+}
+
+void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {
+    char buf[256];
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":queued_items_mem_usage",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, getQueuedItemsMemUsage(), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":key_index_allocator_bytes",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, getKeyIndexAllocatorBytes(), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":to_write_allocator_bytes",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, getWriteQueueAllocatorBytes(), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":state",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, to_string(getState()), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":type",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, to_string(getCheckpointType()), add_stat, cookie);
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

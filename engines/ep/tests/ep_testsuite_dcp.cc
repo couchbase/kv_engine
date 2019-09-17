@@ -3272,10 +3272,10 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     // the thresholds required for cursor dropping
     const int cursor_dropping_mem_thres_perc = 75;
 
+    // Write items with persistence off, this ensures the DCP stream is always
+    // from memory.
+    stop_persistence(h);
     write_items(h, num_items, 1);
-
-    wait_for_flusher_to_settle(h);
-    verify_curr_items(h, num_items, "Wrong amount of items");
 
     /* Set up a dcp producer conn and stream a few items. This will cause the
        stream to transition from pending -> backfill -> in-memory state */
@@ -3320,11 +3320,12 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
                                   std::to_string(0) + "_state");
     std::string state = get_str_stat(h, stat_stream_state.c_str(), "dcp");
-    checkeq(state.compare("in-memory"), 0, "Stream is in memory state");
+    checkeq(state.compare("in-memory"),
+            0,
+            "Stream should be in-memory. state is " + state);
 
     /* Write items such that cursor is dropped due to heavy memory usage and
        stream state changes from memory->backfill */
-    stop_persistence(h);
     num_items += write_items_upto_mem_perc(
             h, cursor_dropping_mem_thres_perc, num_items + 1);
 
@@ -8027,13 +8028,14 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=60;"
-                 "cursor_dropping_upper_mark=70;"
+                 "cursor_dropping_lower_mark=50;"
+                 "cursor_dropping_upper_mark=65;"
                  "chk_remover_stime=1;"
                  "max_size=6291456;"
                  "chk_max_items=8000;"
                  "ephemeral_full_policy=fail_new_data;"
-                 "chk_expel_enabled=false",
+                 "chk_expel_enabled=false;"
+                 "chk_period=1",
                  /*
                   * Checkpoint expelling needs to be disabled for this test because
                   * the expects to stream from memory.  So if items have been
@@ -8053,13 +8055,14 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=60;"
-                 "cursor_dropping_upper_mark=70;"
+                 "cursor_dropping_lower_mark=50;"
+                 "cursor_dropping_upper_mark=65;"
                  "chk_remover_stime=1;"
                  "max_size=6291456;"
                  "chk_max_items=8000;"
                  "ephemeral_full_policy=fail_new_data;"
-                 "chk_expel_enabled=false",
+                 "chk_expel_enabled=false;"
+                 "chk_period=1",
                  /*
                   * Checkpoint expelling needs to be disabled for this test because
                   * the expects to stream from memory.  So if items have been
@@ -8079,8 +8082,12 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                   create at least 1000 items when our residency
                   ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;",
+                 "cursor_dropping_lower_mark=50;"
+                 "cursor_dropping_upper_mark=65;"
+                 "chk_remover_stime=1;"
+                 "max_size=6291456;"
+                 "chk_max_items=8000;"
+                 "chk_period=1",
 
                  // MB-28031: Test intermittently failing - disabling.
                  prepare_broken_test,
