@@ -2059,6 +2059,41 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
     mb_33773(mb_33773Mode::noMemoryAndClosed);
 }
 
+TEST_P(SingleThreadedPassiveStreamTest,
+       InitialDiskSnapshotFlagClearedOnStateTransition) {
+    // Test that a vbucket changing state away from replica clears the initial
+    // disk snapshot flag
+
+    // receive snapshot
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          100 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          {} /*HCS*/,
+                          {} /*streamId*/);
+
+    stream->processMarker(&marker);
+
+    auto vb = engine->getVBucket(vbid);
+    ASSERT_TRUE(vb->isReceivingInitialDiskSnapshot());
+    ASSERT_TRUE(stream->isActive());
+
+    // set stream to dead - modelling stream being unexpectedly "disconnected"
+    stream->setDead(END_STREAM_DISCONNECTED);
+    ASSERT_FALSE(stream->isActive());
+
+    // flag not cleared yet, the replica might reconnect to the active, don't
+    // want to momentarily clear the flag
+    EXPECT_TRUE(vb->isReceivingInitialDiskSnapshot());
+
+    // change state
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // check that the initial disk snapshot flag was cleared
+    EXPECT_FALSE(vb->isReceivingInitialDiskSnapshot());
+}
+
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
         SingleThreadedActiveStreamTest,

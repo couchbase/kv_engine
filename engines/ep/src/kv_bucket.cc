@@ -953,6 +953,15 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
                     std::make_shared<PendingOpsNotification>(engine, vb);
             ExecutorPool::get()->schedule(notifyTask);
         }
+
+        if (oldstate == vbucket_state_replica && to != vbucket_state_replica) {
+            // MB-35723: The vbucket is moving away from being a replica
+            // and can therefore no longer be receiving an initial disk
+            // snapshot. If the vbucket ever reached vbucket_state_active with
+            // this flag still set it would never accept a streamRequest
+            vb->setReceivingInitialDiskSnapshot(false);
+        }
+
         scheduleVBStatePersist(vbid);
     } else if (vbid.get() < vbMap.getSize()) {
         auto ft =
