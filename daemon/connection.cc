@@ -1211,6 +1211,17 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
     } while (true);
 }
 
+bool Connection::useCookieSendResponse(std::size_t size) const {
+    // The limit for when to copy the data into a separate response
+    // buffer instead of using the IO vector to send the data. The limit
+    // is currently hardcoded, but it should probably be possible to tune
+    // the value. (when the cost of copying exceeds the cost of creating
+    // two (or 3) extra TLS frames. Start by keep it fixed to see if it
+    // makes any difference in showfast.
+    static constexpr std::size_t SslCopyLimit = 4096;
+    return isSslEnabled() && size < SslCopyLimit;
+}
+
 void Connection::addMsgHdr(bool reset) {
     if (reset) {
         msgcurr = 0;

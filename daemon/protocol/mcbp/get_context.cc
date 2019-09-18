@@ -98,24 +98,45 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     }
 
     // Set the CAS to add into the header
-    cookie.setCas(info.cas);
-    mcbp_add_header(cookie,
+    if (connection.useCookieSendResponse(bodylen)) {
+        if (shouldSendKey()) {
+            cookie.sendResponse(
                     cb::mcbp::Status::Success,
-                    sizeof(info.flags),
-                    keylen,
-                    bodylen,
-                    info.datatype);
+                    {reinterpret_cast<const char*>(&info.flags),
+                     sizeof(info.flags)},
+                    {reinterpret_cast<const char*>(key.data()), key.size()},
+                    {payload.buf, payload.len},
+                    cb::mcbp::Datatype(info.datatype),
+                    info.cas);
+        } else {
+            cookie.sendResponse(cb::mcbp::Status::Success,
+                                {reinterpret_cast<const char*>(&info.flags),
+                                 sizeof(info.flags)},
+                                {},
+                                {payload.buf, payload.len},
+                                cb::mcbp::Datatype(info.datatype),
+                                info.cas);
+        }
+    } else {
+        cookie.setCas(info.cas);
+        mcbp_add_header(cookie,
+                        cb::mcbp::Status::Success,
+                        sizeof(info.flags),
+                        keylen,
+                        bodylen,
+                        info.datatype);
 
-    // Add the flags
-    connection.addIov(&info.flags, sizeof(info.flags));
+        // Add the flags
+        connection.addIov(&info.flags, sizeof(info.flags));
 
-    // Add the value
-    if (shouldSendKey()) {
-        connection.addIov(key.data(), key.size());
+        // Add the value
+        if (shouldSendKey()) {
+            connection.addIov(key.data(), key.size());
+        }
+
+        connection.addIov(payload.buf, payload.len);
+        connection.setState(StateMachine::State::send_data);
     }
-
-    connection.addIov(payload.buf, payload.len);
-    connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);

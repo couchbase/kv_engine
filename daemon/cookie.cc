@@ -333,11 +333,6 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                 "in the write buffer!");
     }
 
-    if (datatype != cb::mcbp::Datatype::Raw &&
-        datatype != cb::mcbp::Datatype::JSON) {
-        throw std::runtime_error("Cookie::sendResponse: Unsupported datatype");
-    }
-
     if (status == cb::mcbp::Status::NotMyVbucket) {
         sendNotMyVBucket();
         return;

@@ -589,6 +589,16 @@ public:
     }
 
     /**
+     * If we've got a response (key, extras and body) of the provided
+     * size. Should Cookie::sendResponse be used to send the data
+     * instead of addIov
+     *
+     * @param size the total size to return to the other end
+     * @return true if Cookie::sendResponse
+     */
+    bool useCookieSendResponse(std::size_t size) const;
+
+    /**
      * Get the number of entries in use in the IO Vector
      */
     size_t getIovUsed() const {
