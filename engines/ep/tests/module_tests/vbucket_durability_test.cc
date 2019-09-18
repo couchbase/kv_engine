@@ -1137,7 +1137,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting) {
     // Prepare still exists in the hash table
     EXPECT_EQ(2, ht->getNumItems());
     auto key = makeStoredDocKey("key");
-    auto res = ht->findForCommit(key);
+    auto res = ht->findForUpdate(key);
     EXPECT_TRUE(res.pending->isCompleted());
 
     // Check that we have the expected items in the seqList.

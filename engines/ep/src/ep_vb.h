@@ -255,7 +255,7 @@ private:
             DeleteSource deleteSource = DeleteSource::Explicit) override;
 
     VBNotifyCtx commitStoredValue(
-            HashTable::FindCommitResult& values,
+            HashTable::FindUpdateResult& values,
             uint64_t prepareSeqno,
             const VBQueueItemCtx& queueItmCtx,
             boost::optional<int64_t> commitSeqno) override;

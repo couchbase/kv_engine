@@ -1274,8 +1274,8 @@ void DurabilityPassiveStreamTest::
 
     // Test the HashTable state
     {
-        // findForCommit will return both pending and committed perspectives
-        auto res = vb->ht.findForCommit(key);
+        // findForUpdate will return both pending and committed perspectives
+        auto res = vb->ht.findForUpdate(key);
         ASSERT_TRUE(res.committed);
         EXPECT_EQ(4, res.committed->getBySeqno());
         if (docState == DocumentState::Alive) {
@@ -1421,8 +1421,8 @@ void DurabilityPassiveStreamTest::
     vb->notifyPersistenceToDurabilityMonitor();
 
     {
-        // findForCommit will return both pending and committed perspectives
-        auto res = vb->ht.findForCommit(key);
+        // findForUpdate will return both pending and committed perspectives
+        auto res = vb->ht.findForUpdate(key);
         if (persistent()) {
             EXPECT_FALSE(res.pending);
         } else {

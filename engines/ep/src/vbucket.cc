@@ -813,7 +813,7 @@ ENGINE_ERROR_CODE VBucket::commit(
         boost::optional<int64_t> commitSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
-    auto res = ht.findForCommit(key);
+    auto res = ht.findForUpdate(key);
     if (!res.pending) {
         // If we are committing we /should/ always find the pending item.
         EP_LOG_ERR(
@@ -862,7 +862,7 @@ ENGINE_ERROR_CODE VBucket::abort(
         boost::optional<int64_t> abortSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
-    auto htRes = ht.findForCommit(key);
+    auto htRes = ht.findForUpdate(key);
 
     if (!htRes.pending) {
         // Did not find a prepare
@@ -1525,7 +1525,7 @@ ENGINE_ERROR_CODE VBucket::set(
     bool cas_op = (itm.getCas() != 0);
 
     { // HashBucketLock scope
-        auto htRes = ht.findForCommit(itm.getKey());
+        auto htRes = ht.findForUpdate(itm.getKey());
         auto* v = htRes.selectSVToModify(itm);
         auto& hbl = htRes.getHBL();
 
@@ -1640,7 +1640,7 @@ ENGINE_ERROR_CODE VBucket::replace(
     }
 
     { // HashBucketLock scope
-        auto htRes = ht.findForCommit(itm.getKey());
+        auto htRes = ht.findForUpdate(itm.getKey());
         auto& hbl = htRes.getHBL();
 
         // If a pending SV was found and it's not yet complete, then we cannot
@@ -1766,7 +1766,7 @@ ENGINE_ERROR_CODE VBucket::prepare(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = ht.findForCommit(itm.getKey());
+    auto htRes = ht.findForUpdate(itm.getKey());
     auto* v = htRes.pending.getSV();
     auto& hbl = htRes.getHBL();
     bool maybeKeyExists = true;
@@ -1868,7 +1868,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
-    auto htRes = ht.findForCommit(itm.getKey());
+    auto htRes = ht.findForUpdate(itm.getKey());
     auto* v = htRes.selectSVToModify(itm);
     auto& hbl = htRes.getHBL();
     bool maybeKeyExists = true;
@@ -2021,7 +2021,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
     auto ret = durability ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
 
     { // HashBucketLock scope
-        auto htRes = ht.findForCommit(cHandle.getKey());
+        auto htRes = ht.findForUpdate(cHandle.getKey());
         auto& hbl = htRes.getHBL();
 
         if (htRes.pending && htRes.pending->isPending()) {
@@ -2168,7 +2168,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         DeleteSource deleteSource) {
     const auto& key = cHandle.getKey();
-    auto htRes = ht.findForCommit(key);
+    auto htRes = ht.findForUpdate(key);
     auto* v = htRes.selectSVToModify(false);
     auto& hbl = htRes.pending.getHBL();
 
@@ -3077,7 +3077,7 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
 }
 
 std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
-        HashTable::FindCommitResult& htRes,
+        HashTable::FindUpdateResult& htRes,
         StoredValue*& v,
         Item& itm,
         uint64_t cas,
@@ -3132,7 +3132,7 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
 }
 
 std::pair<MutationStatus, boost::optional<VBNotifyCtx>>
-VBucket::processSetInner(HashTable::FindCommitResult& htRes,
+VBucket::processSetInner(HashTable::FindUpdateResult& htRes,
                          StoredValue*& v,
                          Item& itm,
                          uint64_t cas,
@@ -3345,7 +3345,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
 }
 
 std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
-VBucket::processSoftDelete(HashTable::FindCommitResult& htRes,
+VBucket::processSoftDelete(HashTable::FindUpdateResult& htRes,
                            StoredValue& v,
                            uint64_t cas,
                            const ItemMetaData& metadata,

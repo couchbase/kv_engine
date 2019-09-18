@@ -1686,7 +1686,7 @@ protected:
      *                info (if operation was successful).
      */
     std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSet(
-            HashTable::FindCommitResult& htRes,
+            HashTable::FindUpdateResult& htRes,
             StoredValue*& v,
             Item& itm,
             uint64_t cas,
@@ -1700,7 +1700,7 @@ protected:
      * Inner function for processSet. Allows overwriting of in-flight prepares.
      */
     std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSetInner(
-            HashTable::FindCommitResult& htRes,
+            HashTable::FindUpdateResult& htRes,
             StoredValue*& v,
             Item& itm,
             uint64_t cas,
@@ -1754,7 +1754,7 @@ protected:
      *         notification info, if status was successful.
      */
     std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
-    processSoftDelete(HashTable::FindCommitResult& htRes,
+    processSoftDelete(HashTable::FindUpdateResult& htRes,
                       StoredValue& v,
                       uint64_t cas,
                       const ItemMetaData& metadata,
@@ -2129,7 +2129,7 @@ private:
      * @return Information on who should be notified of the commit.
      */
     virtual VBNotifyCtx commitStoredValue(
-            HashTable::FindCommitResult& values,
+            HashTable::FindUpdateResult& values,
             uint64_t prepareSeqno,
             const VBQueueItemCtx& queueItmCtx,
             boost::optional<int64_t> commitSeqno) = 0;

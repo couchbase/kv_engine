@@ -113,7 +113,7 @@ StoredValue* HashTable::StoredValueProxy::release() {
     return tmp;
 }
 
-StoredValue* HashTable::FindCommitResult::selectSVToModify(bool durability) {
+StoredValue* HashTable::FindUpdateResult::selectSVToModify(bool durability) {
     if (durability) {
         if (pending) {
             return pending.getSV();
@@ -129,7 +129,7 @@ StoredValue* HashTable::FindCommitResult::selectSVToModify(bool durability) {
     }
 }
 
-StoredValue* HashTable::FindCommitResult::selectSVToModify(const Item& itm) {
+StoredValue* HashTable::FindUpdateResult::selectSVToModify(const Item& itm) {
     return selectSVToModify(itm.isPending());
 }
 
@@ -753,7 +753,7 @@ HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,
             std::move(result.lock), result.storedValue, valueStats);
 }
 
-HashTable::FindCommitResult HashTable::findForCommit(const DocKey& key) {
+HashTable::FindUpdateResult HashTable::findForUpdate(const DocKey& key) {
     auto result = findInner(key);
 
     StoredValueProxy prepare{

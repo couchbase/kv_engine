@@ -2409,7 +2409,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
             cfg.getItemEvictionFreqCounterAgeThreshold());
 
     {
-        auto pending = vb->ht.findForCommit(key).pending;
+        auto pending = vb->ht.findForUpdate(key).pending;
         ASSERT_TRUE(pending);
         ASSERT_TRUE(pending->isCompleted());
         ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);
@@ -2423,7 +2423,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     }
 
     {
-        auto pending = vb->ht.findForCommit(key).pending;
+        auto pending = vb->ht.findForUpdate(key).pending;
         EXPECT_TRUE(pending);
         EXPECT_TRUE(pending->isCompleted());
     }
@@ -2539,7 +2539,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
 
     // Check completed prepare is present
     if (!persistent()) {
-        auto pending = vbucket->ht.findForCommit(key).pending;
+        auto pending = vbucket->ht.findForUpdate(key).pending;
         ASSERT_TRUE(pending);
         ASSERT_TRUE(pending->isCompleted());
         ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);

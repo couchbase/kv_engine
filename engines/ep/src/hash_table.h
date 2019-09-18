@@ -741,7 +741,7 @@ public:
     };
 
     /**
-     * Result of the findForCommit() method.
+     * Result of the findForUpdate() method.
      *
      * Contains a StoredValueProxy for the prepare so that we can modify it
      * outside of HashTable functions and a pointer to the previously committed
@@ -749,14 +749,14 @@ public:
      * and committed items exist in the same HashBucket, as only one lock is
      * returned (in the pending StoredValueProxy).
      */
-    struct FindCommitResult {
+    struct FindUpdateResult {
         /**
          * Return the StoredValue (prepared or committed) that should generally
          * be used to modify a key.
          * Callers of the findForWrite and findForSyncWrite functions
          * typically choose one or the other based on the item being updated
          * (itm.isPending() ? findForSyncWrite(...) : findForWrite(...)). This
-         * function allows the caller to do the same with the FindCommitResult.
+         * function allows the caller to do the same with the FindUpdateResult.
          *
          * @param bool is the current operation a durable one
          * @return The prepare if the item is pending and the prepare exists,
@@ -836,10 +836,11 @@ public:
     FindResult findForSyncReplace(const DocKey& key);
 
     /**
-     * @return A pair of StoredValues (pending and prepare) so that we can
-     *         update accordingly when committing a SyncWrite.
+     * @return A pair of StoredValues (pending and committed) so that we can
+     *         check the existing values and update accordingly when
+     *         performing a normal write or committing a SyncWrite
      */
-    FindCommitResult findForCommit(const DocKey& key);
+    FindUpdateResult findForUpdate(const DocKey& key);
 
     /**
      * Find only a Committed item with the specified key. If no Committed item

@@ -583,7 +583,7 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
     folly::assume_unreachable();
 }
 
-VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindCommitResult& values,
+VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindUpdateResult& values,
                                          uint64_t prepareSeqno,
                                          const VBQueueItemCtx& queueItmCtx,
                                          boost::optional<int64_t> commitSeqno) {
@@ -850,7 +850,7 @@ bool EPVBucket::isValidDurabilityLevel(cb::durability::Level level) {
 void EPVBucket::processImplicitlyCompletedPrepare(
         HashTable::StoredValueProxy& v) {
     // As we have passed a StoredValueProxy to this function (the callers need
-    // a HashTable::FindCommitResult) we need to be careful about our stats
+    // a HashTable::FindUpdateResult) we need to be careful about our stats
     // updates. The StoredValueProxy attempts to do a
     // HashTable::Statistics::epilogue stats update when we destruct it. This is
     // generally fine, but if we want to use any other HashTable function with

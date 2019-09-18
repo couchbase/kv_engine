@@ -112,7 +112,7 @@ protected:
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
             const DocKey& key, VBQueueItemCtx ctx = {});
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
-            HashTable::FindCommitResult& htRes,
+            HashTable::FindUpdateResult& htRes,
             StoredValue& v,
             VBQueueItemCtx ctx = {});
 

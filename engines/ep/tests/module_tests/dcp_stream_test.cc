@@ -1466,7 +1466,7 @@ void SingleThreadedActiveStreamTest::setupProducer(
 
 MutationStatus SingleThreadedActiveStreamTest::public_processSet(
         VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
-    auto htRes = vb.ht.findForCommit(item.getKey());
+    auto htRes = vb.ht.findForUpdate(item.getKey());
     auto* v = htRes.selectSVToModify(item);
     return vb
             .processSet(htRes,

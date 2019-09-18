@@ -182,7 +182,7 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
     ctx.durability =
             DurabilityItemCtx{item.getDurabilityReqs(), /*cookie*/ nullptr};
 
-    auto htRes = vb->ht.findForCommit(item.getKey());
+    auto htRes = vb->ht.findForUpdate(item.getKey());
     auto* v = htRes.selectSVToModify(item);
 
     return vb

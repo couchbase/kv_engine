@@ -208,7 +208,7 @@ MutationStatus VBucketTestBase::public_processSet(Item& itm,
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
 
-    auto htRes = vbucket->ht.findForCommit(itm.getKey());
+    auto htRes = vbucket->ht.findForUpdate(itm.getKey());
     auto* v = htRes.selectSVToModify(itm);
 
     return vbucket
@@ -236,7 +236,7 @@ VBucketTestBase::public_processSoftDelete(const DocKey& key,
         VBQueueItemCtx ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
-    auto htRes = vbucket->ht.findForCommit(key);
+    auto htRes = vbucket->ht.findForUpdate(key);
     auto* v = htRes.selectSVToModify(ctx.durability.is_initialized());
     if (!v) {
         return {MutationStatus::NotFound, nullptr};
@@ -248,7 +248,7 @@ VBucketTestBase::public_processSoftDelete(const DocKey& key,
 }
 
 std::pair<MutationStatus, StoredValue*>
-VBucketTestBase::public_processSoftDelete(HashTable::FindCommitResult& htRes,
+VBucketTestBase::public_processSoftDelete(HashTable::FindUpdateResult& htRes,
                                           StoredValue& v,
                                           VBQueueItemCtx ctx) {
     ItemMetaData metadata;
