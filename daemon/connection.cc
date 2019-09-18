@@ -1590,7 +1590,7 @@ bool Connection::signalIfIdle() {
 }
 
 void Connection::setPriority(Connection::Priority priority) {
-    Connection::priority = priority;
+    Connection::priority.store(priority);
     switch (priority) {
     case Priority::High:
         max_reqs_per_event =

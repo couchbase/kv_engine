@@ -194,7 +194,7 @@ public:
     void setAuthenticated(bool authenticated);
 
     Priority getPriority() const {
-        return priority;
+        return priority.load();
     }
 
     void setPriority(const Priority priority);
@@ -1115,8 +1115,12 @@ protected:
     /** Name of the local socket if known */
     const std::string sockname;
 
-    /** The connections priority */
-    Priority priority{Priority::Medium};
+    /**
+     * The connections' priority.
+     * atomic to allow read (from DCP stats) without acquiring any
+     * additional locks (priority should rarely change).
+     */
+    std::atomic<Priority> priority{Priority::Medium};
 
     /** The cluster map revision used by this client */
     int clustermap_revno{-2};
