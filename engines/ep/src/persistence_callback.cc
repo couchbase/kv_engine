@@ -60,10 +60,10 @@ void PersistenceCallback::operator()(
         // This make sure we don't increment for sets that have been performed
         // for collection manifests
         if (isInHashTable || queuedItem->isPending()) {
-            ++vbucket.opsCreate;
             // We should only increment the item counter if we have persisted a
             // committed (by mutation or commit) item
             if (queuedItem->isCommitted()) {
+                ++vbucket.opsCreate;
                 vbucket.incrNumTotalItems();
             }
             vbucket.incrMetaDataDisk(*queuedItem);

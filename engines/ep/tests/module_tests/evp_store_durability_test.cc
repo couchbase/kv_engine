@@ -312,6 +312,7 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
 
     // The item count must not increase when flushing Pending SyncWrites
     EXPECT_EQ(1, vb.getNumItems());
+    EXPECT_EQ(1, vb.opsCreate) << "pending op increased opsCreate?";
 
     // @TODO RocksDB
     // @TODO Durability
@@ -411,6 +412,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     EXPECT_EQ(0, vb.getNumItems());
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
     EXPECT_EQ(0, stats.diskQueueSize);
+    EXPECT_EQ(0, vb.opsCreate); // nothing committed
 
     // At persist-dedup, the Abort survives
     auto* store = vb.getShard()->getROUnderlying();
@@ -590,6 +592,8 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     //       deduplicated at Flush.
     flushVBucketToDiskIfPersistent(vbid, 2);
 
+    EXPECT_EQ(1, vb.opsCreate);
+
     // prepare SyncDelete and commit.
     uint64_t cas = 0;
     using namespace cb::durability;
@@ -604,6 +608,8 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(1, ckptMgr.getNumItemsForPersistence());
 
     flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1, vb.opsCreate);
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
