@@ -253,5 +253,5 @@ private:
 template <class T,
           template <class> class OrderReversedPolicy =
                   DefaultOrderReversedPolicy>
-using WeaklyAtomicMonotonic =
+using AtomicWeaklyMonotonic =
         AtomicMonotonic<T, OrderReversedPolicy, cb::greater_equal>;

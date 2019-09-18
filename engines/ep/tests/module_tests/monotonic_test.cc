@@ -117,9 +117,9 @@ class WeaklyMonotonicTest : public MonotonicTest<T> {};
 
 using WeaklyMonotonicTypes =
         ::testing::Types<WeaklyMonotonic<int, IgnorePolicy>,
-                         WeaklyAtomicMonotonic<int, IgnorePolicy>,
+                         AtomicWeaklyMonotonic<int, IgnorePolicy>,
                          WeaklyMonotonic<int, ThrowExceptionPolicy>,
-                         WeaklyAtomicMonotonic<int, ThrowExceptionPolicy>>;
+                         AtomicWeaklyMonotonic<int, ThrowExceptionPolicy>>;
 
 TYPED_TEST_CASE(WeaklyMonotonicTest, WeaklyMonotonicTypes);
 

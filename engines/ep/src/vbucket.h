@@ -2344,7 +2344,7 @@ private:
      * - Weakly monotonic as this should not go backwards.
      * - Atomic so it can be read without locks for stats printing.
      */
-    WeaklyAtomicMonotonic<uint64_t> purge_seqno;
+    AtomicWeaklyMonotonic<uint64_t> purge_seqno;
     std::atomic<bool>               takeover_backed_up;
 
     /* snapshotMutex is used to update/read the pair {start, end} atomically,
