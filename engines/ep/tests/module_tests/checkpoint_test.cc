@@ -2222,3 +2222,28 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
     EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
 }
+
+TYPED_TEST(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
+    // Test to ensure that receiving an initial snapshot while
+    // already holding cursors (in addition to the persistence cursor)
+    // does not lead to a second increment of the checkpoint num cursors
+
+    this->createManager(0);
+
+    auto& cm = *this->manager;
+    const auto& checkpointList = cm.getCheckpointList();
+
+    // done by KVBucket::setVBucketState
+    cm.setOpenCheckpointId(0);
+
+    ASSERT_EQ(1, checkpointList.size());
+    ASSERT_EQ(1, checkpointList.front()->getNumCursorsInCheckpoint());
+    cm.registerCursorBySeqno("test_cursor_name", 0);
+    EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
+
+    // first snapshot received
+    cm.createSnapshot(1, 10, {/* hcs */}, CheckpointType::Memory);
+    EXPECT_EQ(1, checkpointList.size());
+    // Ensure the number of cursors is still correct
+    EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
+}

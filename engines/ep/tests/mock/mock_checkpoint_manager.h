@@ -84,6 +84,10 @@ public:
         return checkpointList.size();
     }
 
+    const CheckpointList& getCheckpointList() const {
+        return checkpointList;
+    }
+
     queued_item public_createCheckpointItem(uint64_t id,
                                             Vbid vbid,
                                             queue_op checkpoint_op) {

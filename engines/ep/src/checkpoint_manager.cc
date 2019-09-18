@@ -983,9 +983,19 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
                 pCursorPreCheckpointId = chkid ? chkid - 1 : 0;
             }
         }
+
+        if (cit.second->currentCheckpoint != checkpointList.begin()) {
+            // need to avoid incrementing again if the cursor is already
+            // in the checkpoint.
+            // Can't safely decrement the old checkpoint counter
+            // as the old checkpoint may have been destroyed (e.g., if
+            // clearing the CheckpointManager), so only increment
+            // the new one if different.
+            checkpointList.front()->incNumOfCursorsInCheckpoint();
+        }
+
         cit.second->currentCheckpoint = checkpointList.begin();
         cit.second->currentPos = checkpointList.front()->begin();
-        checkpointList.front()->incNumOfCursorsInCheckpoint();
     }
 }
 
