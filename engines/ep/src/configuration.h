@@ -252,10 +252,19 @@ public:
 
 protected:
     /**
+     * Add a new configuration parameter (size_t, ssize_t, float, bool, string)
+     * @param key the key to specify
+     * @param value the new value
+     */
+    template <class T>
+    void addParameter(std::string key, T value);
+
+    /**
      * Set the configuration parameter for a given key to
      * a new value (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
      * @param value the new value
+     * @throws invalid_argument if the given key doesn't exist.
      * @throws runtime_error if the validation failed
      */
     template <class T>

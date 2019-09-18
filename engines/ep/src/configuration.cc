@@ -136,20 +136,34 @@ struct Configuration::value_t {
 };
 
 template <class T>
+void Configuration::addParameter(std::string key, T value) {
+    auto result =
+            attributes.insert({std::move(key), std::make_shared<value_t>()});
+    if (!result.second) {
+        throw std::logic_error("Configuration::addParameter(" + key +
+                               ") already exists.");
+    }
+    result.first->second->value = value;
+}
+
+template <class T>
 void Configuration::setParameter(const std::string& key, T value) {
     std::vector<ValueChangedListener*> copy;
     {
         std::lock_guard<std::mutex> lh(mutex);
-        auto validator = attributes.find(key);
-        if (validator != attributes.end()) {
-            if (validator->second->validator) {
-                validator->second->validator->validate(key, value);
-            }
-        } else {
-            attributes[key] = std::make_shared<value_t>();
+        auto it = attributes.find(key);
+        if (it == attributes.end()) {
+            throw std::invalid_argument("Configuration::setParameter(" + key +
+                                        ") doesn't exist.");
         }
-        attributes[key]->value = value;
-        copy = attributes[key]->copyListeners();
+        if (it->second->validator) {
+            it->second->validator->validate(key, value);
+        }
+        it->second->value = value;
+
+        // Take a copy of the listeners so we can call them without holding
+        // the mutex.
+        copy = it->second->copyListeners();
     }
 
     for (auto* listener : copy) {
@@ -363,3 +377,10 @@ bool Configuration::parseConfiguration(const char *str,
 }
 
 Configuration::~Configuration() = default;
+
+// Explicit instantiations for addParameter for supported types.
+template void Configuration::addParameter(std::string, bool);
+template void Configuration::addParameter(std::string, size_t);
+template void Configuration::addParameter(std::string, ssize_t);
+template void Configuration::addParameter(std::string, float);
+template void Configuration::addParameter(std::string, std::string);

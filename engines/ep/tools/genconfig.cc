@@ -207,6 +207,8 @@ static void initialize() {
 #include <platform/sysinfo.h>
 #include <limits>
 
+using namespace std::string_literals;
+
 )";
 
     validators["range"] = getRangeValidatorCode;
@@ -411,10 +413,9 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     }
 
     // Generate initialization code
-    initialization << "    setParameter(\"" << key << "\", ";
-    if (type.compare("std::string") == 0) {
-        initialization << "(const char*)\"" << defaultVal << "\");"
-                       << std::endl;
+    initialization << "    addParameter(\"" << key << "\", ";
+    if (type == "std::string") {
+        initialization << "\"" << defaultVal << "\"s);" << std::endl;
     } else {
         initialization << "(" << type << ")" << defaultVal << ");" << std::endl;
     }
