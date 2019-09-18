@@ -32,11 +32,12 @@
 #include <memcached/isotime.h>
 #include <platform/string_hex.h>
 
+#include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 
 #include <sstream>
 
-static cb::audit::UniqueAuditPtr auditHandle;
+static folly::Synchronized<cb::audit::UniqueAuditPtr> auditHandle;
 
 static std::atomic_bool audit_enabled{false};
 
@@ -113,9 +114,13 @@ static void do_audit(uint32_t id,
                      const nlohmann::json& event,
                      const char* warn) {
     auto text = event.dump();
-    if (!auditHandle->put_event(id, text)) {
-        LOG_WARNING("{}: {}", warn, text);
-    }
+    auditHandle.withRLock([id, warn, &text](auto& handle) {
+        if (handle) {
+            if (!handle->put_event(id, text)) {
+                LOG_WARNING("{}: {}", warn, text);
+            }
+        }
+    });
 }
 
 void audit_auth_failure(const Connection& c, const char* reason) {
@@ -263,7 +268,12 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
 
     cb::const_char_buffer buffer{reinterpret_cast<const char*>(payload.data()),
                                  payload.size()};
-    return auditHandle->put_event(audit_eventid, buffer);
+    return auditHandle.withRLock([audit_eventid, buffer](auto& handle) {
+        if (!handle) {
+            return false;
+        }
+        return handle->put_event(audit_eventid, buffer);
+    });
 }
 
 namespace cb {
@@ -335,28 +345,37 @@ static void event_state_listener(uint32_t id, bool enabled) {
 
 void initialize_audit() {
     /* Start the audit daemon */
-    auditHandle = cb::audit::create_audit_daemon(
+    auto audit = cb::audit::create_audit_daemon(
             Settings::instance().getAuditFile(), get_server_api()->cookie);
-    if (!auditHandle) {
+    if (!audit) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
-    auditHandle->add_event_state_listener(event_state_listener);
-    auditHandle->notify_all_event_states();
+    audit->add_event_state_listener(event_state_listener);
+    audit->notify_all_event_states();
+    *auditHandle.wlock() = std::move(audit);
 }
 
 void shutdown_audit() {
-    auditHandle.reset();
+    auditHandle.wlock()->reset();
 }
 
 ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
-    if (auditHandle->configure_auditdaemon(Settings::instance().getAuditFile(),
-                                           static_cast<void*>(&cookie))) {
-        return ENGINE_EWOULDBLOCK;
-    }
-
-    return ENGINE_FAILED;
+    return auditHandle.withRLock([&cookie](auto& handle) {
+        if (!handle) {
+            return ENGINE_FAILED;
+        }
+        if (handle->configure_auditdaemon(Settings::instance().getAuditFile(),
+                                          static_cast<void*>(&cookie))) {
+            return ENGINE_EWOULDBLOCK;
+        }
+        return ENGINE_FAILED;
+    });
 }
 
 void stats_audit(const AddStatFn& add_stats, Cookie& cookie) {
-    auditHandle->stats(add_stats, &cookie);
+    auditHandle.withRLock([&add_stats, &cookie](auto& handle) {
+        if (handle) {
+            handle->stats(add_stats, &cookie);
+        }
+    });
 }
