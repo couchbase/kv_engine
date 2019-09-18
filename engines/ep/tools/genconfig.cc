@@ -174,82 +174,41 @@ static std::string getEnumValidatorCode(const std::string& key,
 }
 
 static void initialize() {
-    prototypes << "/*" << std::endl
-               << " *     Copyright 2019 Couchbase, Inc" << std::endl
-               << " *" << std::endl
-               << " *   Licensed under the Apache License, Version 2.0 (the "
-                  "\"License\");"
-               << std::endl
-               << " *   you may not use this file except in compliance with "
-                  "the License."
-               << std::endl
-               << " *   You may obtain a copy of the License at" << std::endl
-               << " *" << std::endl
-               << " *       http://www.apache.org/licenses/LICENSE-2.0"
-               << std::endl
-               << " *" << std::endl
-               << " *   Unless required by applicable law or agreed to in "
-                  "writing, software"
-               << std::endl
-               << " *   distributed under the License is distributed on an "
-                  "\"AS IS\" BASIS,"
-               << std::endl
-               << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either "
-                  "express or implied."
-               << std::endl
-               << " *   See the License for the specific language governing "
-                  "permissions and"
-               << std::endl
-               << " *   limitations under the License." << std::endl
-               << " */" << std::endl
-               << std::endl
-               << "// ###########################################" << std::endl
-               << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << std::endl
-               << "// ###########################################" << std::endl
-               << "#pragma once" << std::endl
-               << std::endl
-               << "#include <string>" << std::endl;
+    const char* header = R"(/*
+ *     Copyright 2019 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0"
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 
-    implementation << "/*" << std::endl
-                   << " *     Copyright 2019 Couchbase, Inc" << std::endl
-                   << " *" << std::endl
-                   << " *   Licensed under the Apache License, Version 2.0 "
-                      "(the \"License\");"
-                   << std::endl
-                   << " *   you may not use this file except in compliance "
-                      "with the License."
-                   << std::endl
-                   << " *   You may obtain a copy of the License at"
-                   << std::endl
-                   << " *" << std::endl
-                   << " *       http://www.apache.org/licenses/LICENSE-2.0"
-                   << std::endl
-                   << " *" << std::endl
-                   << " *   Unless required by applicable law or agreed to in "
-                      "writing, software"
-                   << std::endl
-                   << " *   distributed under the License is distributed on an "
-                      "\"AS IS\" BASIS,"
-                   << std::endl
-                   << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, "
-                      "either express or implied."
-                   << std::endl
-                   << " *   See the License for the specific language "
-                      "governing permissions and"
-                   << std::endl
-                   << " *   limitations under the License." << std::endl
-                   << " */" << std::endl
-                   << std::endl
-                   << "// ###########################################"
-                   << std::endl
-                   << "// # DO NOT EDIT! THIS IS A GENERATED FILE " << std::endl
-                   << "// ###########################################"
-                   << std::endl
-                   << std::endl
-                   << "#include \"configuration.h\"" << std::endl
-                   << "#include \"configuration_impl.h\"" << std::endl
-                   << "#include <platform/sysinfo.h>" << std::endl
-                   << "#include <limits>" << std::endl;
+// ###########################################
+// # DO NOT EDIT! THIS IS A GENERATED FILE
+// ###########################################
+)";
+
+    prototypes << header << R"(
+#pragma once
+
+#include <string>
+)";
+
+    implementation << header << R"(
+#include "configuration.h"
+#include "configuration_impl.h"
+#include <platform/sysinfo.h>
+#include <limits>
+
+)";
+
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     datatypes["bool"] = "bool";
