@@ -114,25 +114,21 @@ Checkpoint::Checkpoint(EPStats& st,
       toWrite(trackingAllocator),
       keyIndex(keyIndexTrackingAllocator),
       metaKeyIndex(keyIndexTrackingAllocator),
-      keyIndexMemUsage(0),
       queuedItemsMemUsage(0),
       checkpointType(checkpointType),
       highCompletedSeqno(highCompletedSeqno) {
-    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
+    stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint) +
+                                                 getKeyIndexAllocatorBytes() +
+                                                 getWriteQueueAllocatorBytes());
 }
 
 Checkpoint::~Checkpoint() {
     EP_LOG_DEBUG("Checkpoint {} for {} is purged from memory",
                  checkpointId,
                  vbucketId);
-    /**
-     * Calculate as best we can the overhead associated with the queue
-     * (toWrite). This is approximated to sizeof(queued_item) * number
-     * of queued_items in the checkpoint.
-     */
-    auto queueMemOverhead = sizeof(queued_item) * toWrite.size();
-    stats.coreLocal.get()->memOverhead.fetch_sub(
-            sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead);
+    stats.coreLocal.get()->memOverhead.fetch_sub(sizeof(Checkpoint) +
+                                                 getKeyIndexAllocatorBytes() +
+                                                 getWriteQueueAllocatorBytes());
 }
 
 QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
@@ -143,7 +139,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 "(which is" +
                 std::to_string(getState()) + ") is not OPEN");
     }
-
+    TrackOverhead trackOverhead(*this);
     QueueDirtyStatus rv;
 
     // Check if the item is a meta item
@@ -254,26 +250,6 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 result.first->second = entry;
             }
         }
-
-        if (rv == QueueDirtyStatus::SuccessNewItem) {
-            auto indexKeyUsage = qi->getKey().size() + sizeof(index_entry);
-            if (!qi->isCheckPointMetaItem()) {
-                indexKeyUsage += sizeof(CheckpointIndexKeyNamespace);
-            }
-            /**
-             * Calculate as best we can the memory overhead of adding the new
-             * item to the queue (toWrite).  This is approximated to the
-             * addition to metaKeyIndex / keyIndex plus sizeof(queued_item).
-             */
-            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage +
-                                                         sizeof(queued_item));
-            /**
-             *  Update the total metaKeyIndex / keyIndex memory usage which is
-             *  used when the checkpoint is destructed to manually account
-             *  for the freed memory.
-             */
-            keyIndexMemUsage += indexKeyUsage;
-        }
     }
 
     // Notify flusher if in case queued item is a checkpoint meta item or
@@ -316,47 +292,60 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     }
 }
 
-CheckpointQueue Checkpoint::expelItems(
-        CheckpointCursor& expelUpToAndIncluding) {
-    CheckpointQueue expelledItems(toWrite.get_allocator());
+ExpelResult Checkpoint::expelItems(CheckpointCursor& expelUpToAndIncluding) {
+    TrackOverhead trackOverhead(*this);
+    ExpelResult expelResult;
+    // Perform the expel inside this inner scope, this ensures that the expelled
+    // items are deallocated within this function allowing memOverhead to be
+    // tracked.
+    {
+        CheckpointQueue expelledItems(trackingAllocator);
 
-    ChkptQueueIterator iterator = expelUpToAndIncluding.currentPos;
+        ChkptQueueIterator iterator = expelUpToAndIncluding.currentPos;
 
-    // Record the seqno of the last item to be expelled.
-    highestExpelledSeqno =
-            iterator.getUnderlyingIterator()->get()->getBySeqno();
+        // Record the seqno of the last item to be expelled.
+        highestExpelledSeqno =
+                iterator.getUnderlyingIterator()->get()->getBySeqno();
 
-    // The item to be swapped with the dummy is not expected to be a
-    // meta-data item.
-    Expects(!iterator.getUnderlyingIterator()->get()->isCheckPointMetaItem());
+        // The item to be swapped with the dummy is not expected to be a
+        // meta-data item.
+        Expects(!iterator.getUnderlyingIterator()
+                         ->get()
+                         ->isCheckPointMetaItem());
 
-    // Swap the item pointed to by our iterator with the dummy item
-    auto dummy = begin().getUnderlyingIterator();
-    iterator.getUnderlyingIterator()->swap(*dummy);
+        // Swap the item pointed to by our iterator with the dummy item
+        auto dummy = begin().getUnderlyingIterator();
+        iterator.getUnderlyingIterator()->swap(*dummy);
 
+        /*
+         * Move from (and including) the first item in the checkpoint queue upto
+         * (but not including) the item pointed to by iterator.  The item
+         * pointed to by iterator is now the new dummy item for the checkpoint
+         * queue.
+         */
+        expelledItems.splice(expelledItems.begin(),
+                             toWrite,
+                             begin().getUnderlyingIterator(),
+                             iterator.getUnderlyingIterator());
 
-    /*
-     * Move from (and including) the first item in the checkpoint queue upto
-     * (but not including) the item pointed to by iterator.  The item pointed
-     * to by iterator is now the new dummy item for the checkpoint queue.
-     */
-    expelledItems.splice(expelledItems.begin(),
-                         toWrite,
-                         begin().getUnderlyingIterator(),
-                         iterator.getUnderlyingIterator());
+        /*
+         * Reduce the queuedItems memory usage by the size of the items
+         * being expelled from memory, and record the expelled amount in the
+         * result.
+         */
+        const auto addSize = [](size_t a, queued_item qi) {
+            return a + qi->size();
+        };
 
-    /*
-     * Reduce the queuedItems memory usage by the size of the items
-     * being expelled from memory.
-     */
-    const auto addSize = [](size_t a, queued_item qi) {
-        return a + qi->size();
-    };
-    queuedItemsMemUsage -= std::accumulate(
-            expelledItems.begin(), expelledItems.end(), 0, addSize);
+        expelResult.estimateOfFreeMemory = std::accumulate(
+                expelledItems.begin(), expelledItems.end(), 0, addSize);
+        queuedItemsMemUsage -= expelResult.estimateOfFreeMemory;
+        expelResult.expelCount = expelledItems.size();
+    }
 
-    // Return the items that have been expelled in a separate queue.
-    return expelledItems;
+    expelResult.estimateOfFreeMemory +=
+            std::abs(trackOverhead.getToWriteDifference());
+    return expelResult;
 }
 
 int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
@@ -391,6 +380,20 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
     return cursor_item_idx->second.mutation_id;
 }
 
+Checkpoint::TrackOverhead::~TrackOverhead() {
+    // Add in the allocated difference to the memOverhead
+    cp.stats.coreLocal.get()->memOverhead.fetch_add(getToWriteDifference() +
+                                                    getKeyIndexDifference());
+}
+
+ssize_t Checkpoint::TrackOverhead::getToWriteDifference() const {
+    return (cp.getWriteQueueAllocatorBytes() - toWriteAllocated);
+}
+
+ssize_t Checkpoint::TrackOverhead::getKeyIndexDifference() const {
+    return (cp.getKeyIndexAllocatorBytes() - keyIndexAllocated);
+}
+
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
        << " id:" << c.checkpointId << " seqno:{" << c.getLowSeqno() << ","
@@ -399,6 +402,8 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << c.getSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " type:" << to_string(c.getCheckpointType())
+       << " toWrite:" << c.getWriteQueueAllocatorBytes()
+       << " keyIndex:" << c.getKeyIndexAllocatorBytes()
        << " hcs:" << c.getHighCompletedSeqno() << " items:[" << std::endl;
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());

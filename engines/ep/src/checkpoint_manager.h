@@ -74,12 +74,6 @@ public:
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
     };
 
-    /// Return type of expelUnreferencedCheckpointItems()
-    struct ExpelResult {
-        size_t expelCount = {0};
-        size_t estimateOfFreeMemory = {0};
-    };
-
     CheckpointManager(EPStats& st,
                       Vbid vbucket,
                       CheckpointConfig& config,

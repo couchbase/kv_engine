@@ -75,7 +75,19 @@ CheckpointTest<V>::CheckpointTest()
 }
 
 template <typename V>
+CheckpointTest<V>::~CheckpointTest() {
+    manager.reset();
+    // Finally, check if the memory overhead is now back to the value at the
+    // start.
+    EXPECT_EQ(expectedOverhead, global_stats.getMemOverhead());
+}
+
+template <typename V>
 void CheckpointTest<V>::createManager(int64_t last_seqno) {
+    manager.reset();
+    // Before constructing the manager, read the current mem-overhead, we should
+    // get back to this value once a test completes
+    expectedOverhead = global_stats.getMemOverhead();
     manager.reset(new MockCheckpointManager(global_stats,
                                         this->vbucket->getId(),
                                         checkpoint_config,
@@ -237,8 +249,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                           EvictionPolicy::Value,
                           std::make_unique<Collections::VB::Manifest>()));
 
-    this->manager.reset(new MockCheckpointManager(
-            this->global_stats, Vbid(0), this->checkpoint_config, 1, 0, 0, cb));
+    this->createManager(1);
 
     const size_t n_set_threads = RUNNING_ON_VALGRIND ? NUM_SET_THREADS_VG :
                                                        NUM_SET_THREADS;
@@ -1462,7 +1473,7 @@ TYPED_TEST(CheckpointTest, takeAndResetCursors) {
     EXPECT_EQ(0, this->manager->getNumOfCursors());
 
     // Destroy first checkpoint manager
-    this->createManager(0);
+    this->manager.reset();
 
     EXPECT_EQ(c1, dcpCursor1.cursor.lock().get());
     EXPECT_EQ(c2, dcpCursor2.cursor.lock().get());
@@ -1840,8 +1851,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsTest) {
      * 1003 - 3rd item (key2)
      */
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(itemCount, expelResult.expelCount);
     EXPECT_LT(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
@@ -1904,8 +1914,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
         ASSERT_FALSE(isLastMutationItem);
     }
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(itemCount, expelResult.expelCount);
     EXPECT_LT(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
@@ -1966,8 +1975,7 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToLastItem) {
     // move back one.  The expel point now points to a metadata item so
     // move back again.  We have now reached the dummy item and so we
     // don't expel anything.
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(0, expelResult.expelCount);
     EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
@@ -1990,8 +1998,7 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
      * 1001 - checkpoint start  <<<<<<< persistenceCursor
      */
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(0, expelResult.expelCount);
     EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
@@ -2042,8 +2049,7 @@ TYPED_TEST(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
      */
 
     // We should not expel any items due to dcpCursor1
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(0, expelResult.expelCount);
     EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
@@ -2116,8 +2122,7 @@ TYPED_TEST(CheckpointTest, doNotExpelIfHaveSameSeqnoAfterMutation) {
 
     // We should not expel any items due to dcpCursor1 as we end up
     // moving the expel point back to the dummy item.
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(0, expelResult.expelCount);
     EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
@@ -2175,8 +2180,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     const auto checkpointMemoryUsageBeforeExpel =
             this->manager->getMemoryUsage();
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
 
     /*
      * After expelling checkpoint now looks as follows:
@@ -2211,14 +2215,16 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     const auto& checkpointStartItem =
             this->manager->public_createCheckpointItem(
                     0, Vbid(0), queue_op::checkpoint_start);
+
+    // 2 = the number of our items that are expected to be expelled + 1
+    // checkpoint start item
     const size_t queuedItemSaving =
-            checkpointStartItem->size() + (sizeOfItem * (itemCount - 1));
+            (sizeOfItem * 2) + checkpointStartItem->size();
     const size_t expectedMemoryRecovered =
             checkpointListSaving + queuedItemSaving;
 
     EXPECT_EQ(3, expelResult.expelCount);
-    EXPECT_EQ(expectedMemoryRecovered,
-              expelResult.estimateOfFreeMemory - extra);
+    EXPECT_EQ(expectedMemoryRecovered, expelResult.estimateOfFreeMemory);
     EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
     EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
 }
