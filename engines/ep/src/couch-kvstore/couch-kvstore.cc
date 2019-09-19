@@ -1323,7 +1323,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
 
     EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,
-                 nlohmann::json(vbstate).dump());
+                 vbstate);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
