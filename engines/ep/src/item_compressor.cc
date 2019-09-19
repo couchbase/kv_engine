@@ -44,17 +44,21 @@ bool ItemCompressorTask::run(void) {
         }
 
         // Print start status.
-        std::stringstream ss;
-        ss << getDescription() << " for bucket '" << engine->getName() << "'";
-        if (epstore_position == engine->getKVBucket()->startPosition()) {
-            ss << " starting. ";
-        } else {
-            ss << " resuming from " << epstore_position << ", ";
-            ss << prAdapter->getHashtablePosition() << ".";
+        if (globalBucketLogger->should_log(spdlog::level::debug)) {
+            std::stringstream ss;
+            ss << getDescription() << " for bucket '" << engine->getName()
+               << "'";
+            if (epstore_position == engine->getKVBucket()->startPosition()) {
+                ss << " starting. ";
+            } else {
+                ss << " resuming from " << epstore_position << ", ";
+                ss << prAdapter->getHashtablePosition() << ".";
+            }
+            ss << " Using chunk_duration=" << getChunkDuration().count()
+               << " ms."
+               << " mem_used=" << stats.getEstimatedTotalMemoryUsed();
+            EP_LOG_DEBUG("{}", ss.str());
         }
-        ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
-           << " mem_used=" << stats.getEstimatedTotalMemoryUsed();
-        EP_LOG_DEBUG("{}", ss.str());
 
         // Prepare the underlying visitor.
         auto& visitor = getItemCompressorVisitor();
@@ -79,22 +83,25 @@ bool ItemCompressorTask::run(void) {
                 (epstore_position == engine->getKVBucket()->endPosition());
 
         // Print status.
-        ss.str("");
-        ss << getDescription() << " for bucket '" << engine->getName() << "'";
-        if (completed) {
-            ss << " finished.";
-        } else {
-            ss << " paused at position " << epstore_position << ".";
+        if (globalBucketLogger->should_log(spdlog::level::debug)) {
+            std::stringstream ss;
+            ss << getDescription() << " for bucket '" << engine->getName()
+               << "'";
+            if (completed) {
+                ss << " finished.";
+            } else {
+                ss << " paused at position " << epstore_position << ".";
+            }
+            std::chrono::microseconds duration =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            end - start);
+            ss << " Took " << duration.count() << " us."
+               << " compressed " << visitor.getCompressedCount() << "/"
+               << visitor.getVisitedCount() << " visited documents."
+               << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
+               << ".Sleeping for " << getSleepTime() << " seconds.";
+            EP_LOG_DEBUG("{}", ss.str());
         }
-        std::chrono::microseconds duration =
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      start);
-        ss << " Took " << duration.count() << " us."
-           << " compressed " << visitor.getCompressedCount() << "/"
-           << visitor.getVisitedCount() << " visited documents."
-           << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-           << ".Sleeping for " << getSleepTime() << " seconds.";
-        EP_LOG_DEBUG("{}", ss.str());
 
         // Delete(reset) visitor if it finished.
         if (completed) {

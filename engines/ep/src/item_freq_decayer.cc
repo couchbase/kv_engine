@@ -57,16 +57,18 @@ bool ItemFreqDecayerTask::run(void) {
     }
 
     // Print start status.
-    std::stringstream ss;
-    ss << getDescription() << " for bucket '" << engine->getName() << "'";
-    if (epstore_position == engine->getKVBucket()->startPosition()) {
-        ss << " starting. ";
-    } else {
-        ss << " resuming from " << epstore_position << ", ";
-        ss << prAdapter->getHashtablePosition() << ".";
+    if (globalBucketLogger->should_log(spdlog::level::debug)) {
+        std::stringstream ss;
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        if (epstore_position == engine->getKVBucket()->startPosition()) {
+            ss << " starting. ";
+        } else {
+            ss << " resuming from " << epstore_position << ", ";
+            ss << prAdapter->getHashtablePosition() << ".";
+        }
+        ss << " Using chunk_duration=" << getChunkDuration().count() << " ms.";
+        EP_LOG_DEBUG("{}", ss.str());
     }
-    ss << " Using chunk_duration=" << getChunkDuration().count() << " ms.";
-    EP_LOG_DEBUG("{}", ss.str());
 
     // Prepare the underlying visitor.
     auto& visitor = getItemFreqDecayerVisitor();
@@ -84,18 +86,21 @@ bool ItemFreqDecayerTask::run(void) {
     completed = (epstore_position == engine->getKVBucket()->endPosition());
 
     // Print status.
-    ss.str("");
-    ss << getDescription() << " for bucket '" << engine->getName() << "'";
-    if (completed) {
-        ss << " finished.";
-    } else {
-        ss << " paused at position " << epstore_position << ".";
+    if (globalBucketLogger->should_log(spdlog::level::debug)) {
+        std::stringstream ss;
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        if (completed) {
+            ss << " finished.";
+        } else {
+            ss << " paused at position " << epstore_position << ".";
+        }
+        std::chrono::microseconds duration =
+                std::chrono::duration_cast<std::chrono::microseconds>(end -
+                                                                      start);
+        ss << " Took " << duration.count() << " us. to visit "
+           << visitor.getVisitedCount() << " documents.";
+        EP_LOG_DEBUG("{}", ss.str());
     }
-    std::chrono::microseconds duration =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    ss << " Took " << duration.count() << " us. to visit "
-       << visitor.getVisitedCount() << " documents.";
-    EP_LOG_DEBUG("{}", ss.str());
 
     // Delete(reset) visitor and allow to be notified if it finished.
     if (completed) {

@@ -51,18 +51,22 @@ bool DefragmenterTask::run(void) {
         }
 
         // Print start status.
-        std::stringstream ss;
-        ss << getDescription() << " for bucket '" << engine->getName() << "'";
-        if (epstore_position == engine->getKVBucket()->startPosition()) {
-            ss << " starting. ";
-        } else {
-            ss << " resuming from " << epstore_position << ", ";
-            ss << prAdapter->getHashtablePosition() << ".";
+        if (globalBucketLogger->should_log(spdlog::level::debug)) {
+            std::stringstream ss;
+            ss << getDescription() << " for bucket '" << engine->getName()
+               << "'";
+            if (epstore_position == engine->getKVBucket()->startPosition()) {
+                ss << " starting. ";
+            } else {
+                ss << " resuming from " << epstore_position << ", ";
+                ss << prAdapter->getHashtablePosition() << ".";
+            }
+            ss << " Using chunk_duration=" << getChunkDuration().count()
+               << " ms."
+               << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
+               << ", mapped_bytes=" << getMappedBytes();
+            EP_LOG_DEBUG("{}", ss.str());
         }
-        ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
-           << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-           << ", mapped_bytes=" << getMappedBytes();
-        EP_LOG_DEBUG("{}", ss.str());
 
         // Disable thread-caching (as we are about to defragment, and hence don't
         // want any of the new Blobs in tcache).
@@ -102,23 +106,26 @@ bool DefragmenterTask::run(void) {
                                     engine->getKVBucket()->endPosition());
 
         // Print status.
-        ss.str("");
-        ss << getDescription() << " for bucket '" << engine->getName() << "'";
-        if (completed) {
-            ss << " finished.";
-        } else {
-            ss << " paused at position " << epstore_position << ".";
+        if (globalBucketLogger->should_log(spdlog::level::debug)) {
+            std::stringstream ss;
+            ss << getDescription() << " for bucket '" << engine->getName()
+               << "'";
+            if (completed) {
+                ss << " finished.";
+            } else {
+                ss << " paused at position " << epstore_position << ".";
+            }
+            std::chrono::microseconds duration =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            end - start);
+            ss << " Took " << duration.count() << " us."
+               << " moved " << visitor.getDefragCount() << "/"
+               << visitor.getVisitedCount() << " visited documents."
+               << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
+               << ", mapped_bytes=" << getMappedBytes() << ". Sleeping for "
+               << getSleepTime() << " seconds.";
+            EP_LOG_DEBUG("{}", ss.str());
         }
-        std::chrono::microseconds duration =
-                std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      start);
-        ss << " Took " << duration.count() << " us."
-           << " moved " << visitor.getDefragCount() << "/"
-           << visitor.getVisitedCount() << " visited documents."
-           << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-           << ", mapped_bytes=" << getMappedBytes() << ". Sleeping for "
-           << getSleepTime() << " seconds.";
-        EP_LOG_DEBUG("{}", ss.str());
 
         // Delete(reset) visitor if it finished.
         if (completed) {
