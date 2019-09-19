@@ -326,9 +326,6 @@ bool Configuration::parseConfiguration(const char *str,
                 config_datatype(attribute.second->value.which())));
     }
 
-    // And add support for config files...
-    config.push_back(std::make_unique<ConfigItem>("config_file", DT_CONFIGFILE));
-
     const int nelem = config.size();
     std::vector<config_item> items(nelem + 1);
     for (int ii = 0; ii < nelem; ++ii) {

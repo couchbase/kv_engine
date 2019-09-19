@@ -226,11 +226,6 @@
                 }
             }
         },
-        "config_file": {
-            "default": "",
-            "dynamic": true,
-            "type": "std::string"
-        },
         "conflict_resolution_type": {
             "default": "seqno",
             "dynamic": true,
@@ -481,11 +476,6 @@
             "descr": "Initial number of slots in HashTable objects.",
             "dynamic": true,
             "type": "size_t"
-        },
-        "initfile": {
-            "default": "",
-            "dynamic": true,
-            "type": "std::string"
         },
         "item_compressor_interval": {
             "default": "250",
@@ -761,11 +751,6 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "postInitfile": {
-            "default": "",
-            "dynamic": true,
-            "type": "std::string"
-        },
         "replication_throttle_cap_pcnt": {
             "default": "10",
             "descr": "Percentage of total items in write queue at which we throttle replication input",
@@ -910,12 +895,6 @@
                     "min" : 1
                 }
             }
-        },
-        "dcp_max_unacked_bytes": {
-            "default": "524288",
-            "descr": "Amount of processed bytes before an ack is required",
-            "dynamic": true,
-            "type": "size_t"
         },
         "dcp_scan_byte_limit": {
             "default": "4194304",
@@ -1207,11 +1186,6 @@
                 ]
             }
         },
-        "vb0": {
-            "default": "false",
-            "dynamic": true,
-            "type": "bool"
-        },
         "couchstore_tracing": {
             "default": "false",
             "dynamic": true,
@@ -1229,11 +1203,6 @@
             "dynamic": true,
             "descr": "Enable couchstore to mprotect the iobuffer",
             "type" : "bool"
-        },
-        "waitforwarmup": {
-            "default": "false",
-            "dynamic": true,
-            "type": "bool"
         },
         "warmup": {
             "default": "true",

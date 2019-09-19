@@ -232,8 +232,6 @@ For introductory information on stats within Couchbase, start with the
 |                                       | persistence                             |
 | ep_chk_remover_stime                  | The time interval for purging closed    |
 |                                       | checkpoints from memory                 |
-| ep_config_file                        | The location of the ep-engine config    |
-|                                       | file                                    |
 | ep_couch_bucket                       | The name of this bucket                 |
 | ep_couch_host                         | The hostname that the couchdb views     |
 |                                       | server is listening on                  |

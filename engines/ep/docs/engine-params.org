@@ -26,7 +26,6 @@ memcached like this:
 
 | key                            | type   | descr                                      |
 |--------------------------------+--------+--------------------------------------------|
-| config_file                    | string | Path to additional parameters.             |
 | dbname                         | string | Path to on-disk storage.                   |
 | ht_locks                       | int    | Number of locks per hash table.            |
 | ht_size                        | int    | Number of buckets per hash table.          |
