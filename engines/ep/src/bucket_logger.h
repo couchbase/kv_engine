@@ -248,7 +248,12 @@ extern std::shared_ptr<BucketLogger> globalBucketLogger;
 
 // Convenience macros which call globalBucketLogger->log() with the given level
 // and arguments.
-#define EP_LOG_FMT(severity, ...) globalBucketLogger->log(severity, __VA_ARGS__)
+#define EP_LOG_FMT(severity, ...)                           \
+    do {                                                    \
+        if (globalBucketLogger->should_log(severity)) {     \
+            globalBucketLogger->log(severity, __VA_ARGS__); \
+        }                                                   \
+    } while (false)
 
 #define EP_LOG_TRACE(...) \
     EP_LOG_FMT(spdlog::level::level_enum::trace, __VA_ARGS__)
