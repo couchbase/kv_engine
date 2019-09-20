@@ -1291,6 +1291,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto gv = store->get(key, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item->isDeleted()) << "Not deleted " << *gv.item;
     ASSERT_NE(0, gv.item->getNBytes()) << "No value " << *gv.item;
 
     cb::xattr::Blob blob(

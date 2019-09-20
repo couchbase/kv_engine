@@ -1505,6 +1505,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             // A new item has been generated and must be given a new seqno
             queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
 
+            // MB-36101: The result should always be a deleted item
+            itm->setDeleted();
             std::tie(v, delrv, notifyCtx) =
                     updateStoredValue(hbl, *v, *itm, queueItmCtx);
         } else {

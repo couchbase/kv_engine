@@ -1225,6 +1225,10 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto result = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+    runBGFetcherTask();
+
+    result = store->get(key, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
 
     // Now reconstruct a XATTR Blob and validate the user keys are gone
@@ -1242,6 +1246,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
                  reinterpret_cast<char*>(blob.get("_sync").data()));
 
     auto itm = result.item.get();
+    EXPECT_TRUE(itm->isDeleted()) << "Not deleted " << *itm;
     // The meta-data should match the delete_with_meta
     EXPECT_EQ(itemMeta.cas, itm->getCas());
     EXPECT_EQ(itemMeta.flags, itm->getFlags());
