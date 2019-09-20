@@ -1516,7 +1516,7 @@ ScanContext* MagmaKVStore::initScanContext(
         }
         highSeqno = vbstate->highSeqno;
         purgeSeqno = vbstate->purgeSeqno;
-        docCount = cachedMagmaInfo[vbid.get()]->docCount;
+        docCount = highSeqno - startSeqno + 1;
         highCompletedSeqno = vbstate->highCompletedSeqno;
     }
 
