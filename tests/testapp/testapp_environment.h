@@ -204,6 +204,11 @@ public:
         return *testBucket;
     }
 
+    /**
+     * @return The dbPath of a persistent bucket (throws if not persistent)
+     */
+    const std::string& getDbPath() const;
+
 private:
     void SetupAuditFile();
 

@@ -407,4 +407,8 @@ void McdEnvironment::rewriteRbacFile() {
     }
 }
 
+const std::string& McdEnvironment::getDbPath() const {
+    return static_cast<EpBucketImpl*>(testBucket.get())->dbPath;
+}
+
 char McdEnvironment::isasl_env_var[256];

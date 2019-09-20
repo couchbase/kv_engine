@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <platform/dirutils.h>
 #include <string.h>
 #include <cerrno>
 #include <csignal>
@@ -47,6 +48,10 @@ protected:
                       << "' as persistence isn't supported.\n";
             skipTest = true;
             return;
+        }
+        try {
+            cb::io::rmrf(mcd_env->getDbPath());
+        } catch (...) { /* nothing exists */
         }
         ShutdownTest::SetUp();
     }
@@ -115,7 +120,7 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
     shutdownMemcached(GetParam());
 
     // Restart memcached, and attempt to read the item we persisted.
-    SetUp();
+    ShutdownTest::SetUp();
 
     MemcachedConnection& conn = getConnection();
     try {
@@ -183,6 +188,12 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         auto mutation = conn.mutate(doc, vbid, MutationType::Set);
         uuid = mutation.vbucketuuid;
 
+        // It was observed that this test originally did not clear up the old
+        // files before running so all of the seqnos were wrong and could not be
+        // relied on. The following seqno expectation ensures that this test is
+        // run in the correct environment.
+        EXPECT_EQ(i * 2 + 1, mutation.seqno);
+
         high.value = doc.info.id;
         conn.mutate(high, vbid, MutationType::Set);
     }
@@ -201,7 +212,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     shutdownMemcached(GetParam());
 
     // Restart memcached.
-    SetUp();
+    ShutdownTest::SetUp();
 
     // Read "high" to determine how far we got, and then validate that (1)
     // all previous documents exist and (2) no more than 1 extra document exists
