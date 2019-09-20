@@ -548,15 +548,14 @@ void VBucket::setState_UNLOCKED(
     if (state == vbucket_state_active && to != vbucket_state_active) {
         // About to transition away from active.
         // If we have any SyncWrites which are resolved (we have decided they
-        // should be committed / aborted), then we should complete these before
-        // changing state.
-        // This ensures that the VBucket's seqnos are consistent with the
-        // DurabilityMonitor / HashTable, so if we subsequently become a
-        // replica (and try to resume the VBucket seqnos from another node),
-        // then we don't get a Commit for a Prepare which was already removed
-        // from trackedWrites (when resolved) - we will already have a Commit
-        // for that SyncWrite.
-        getActiveDM().processCompletedSyncWriteQueue();
+        // should be committed / aborted), then we need to put them back into
+        // trackedWrites. The previous attempt to fix this issue would complete
+        // them, but this was incorrect as we never streamed the completion to
+        // the replica that was being promoted (we have already set the Streams
+        // to dead) so the replica would attempt to re-commit all writes. This
+        // node would either have to rollback or have a different item with the
+        // same seqno.
+        getActiveDM().unresolveCompletedSyncWriteQueue();
     }
 
     state = to;

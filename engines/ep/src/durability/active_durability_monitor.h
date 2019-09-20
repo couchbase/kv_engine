@@ -289,6 +289,20 @@ public:
     void processCompletedSyncWriteQueue();
 
     /**
+     * Remove all of the prepares from the resolvedQueue and put them back into
+     * trackedWrites.
+     *
+     * Why?
+     *
+     * If we are about to transition from active to non-active then we need to
+     * ensure that the DM state is consistent with the HashTable as we use it
+     * to create a PDM. If we were to process the queue then this node would get
+     * out of step with the new active and need to rollback (or potentially have
+     * two different items with the same seqno).
+     */
+    void unresolveCompletedSyncWriteQueue();
+
+    /**
      * @return all of the currently tracked writes
      */
     std::vector<queued_item> getTrackedWrites() const;

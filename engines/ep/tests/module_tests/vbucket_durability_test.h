@@ -37,13 +37,18 @@ protected:
         SyncWriteSpec(int64_t seqno, bool deletion = false)
             : seqno(seqno), deletion(deletion) {
         }
-        SyncWriteSpec(int64_t seqno, bool deletion, cb::durability::Level level)
-            : seqno(seqno), deletion(deletion), level(level) {
+        SyncWriteSpec(int64_t seqno,
+                      bool deletion,
+                      cb::durability::Level level,
+                      cb::durability::Timeout timeout =
+                              cb::durability::Timeout::Infinity())
+            : seqno(seqno), deletion(deletion), level(level), timeout(timeout) {
         }
 
         int64_t seqno;
         bool deletion = false;
         cb::durability::Level level = cb::durability::Level::Majority;
+        cb::durability::Timeout timeout = cb::durability::Timeout::Infinity();
     };
 
     /**

@@ -76,10 +76,8 @@ void VBucketDurabilityTest::storeSyncWrites(
     const auto preCMCount = ckptMgr->getNumItems();
     for (const auto& write : seqnos) {
         auto key = makeStoredDocKey("key" + std::to_string(write.seqno));
-        // Use an Infinite timeout - these tests don't rely on specific timeout
-        // values.
         using namespace cb::durability;
-        auto reqs = Requirements{write.level, Timeout::Infinity()};
+        auto reqs = Requirements{write.level, write.timeout};
         auto item = makePendingItem(key, "value", reqs);
         item->setBySeqno(write.seqno);
         if (write.deletion) {
@@ -2704,16 +2702,21 @@ TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToPendingTransition) {
     testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_pending);
 }
 
-// MB-35744: If a vbucket is changed from active when there are SyncWrites
-// which have been resolved (i.e. we have decided to commit / abort) but *not*
-// yet completed, then we should complete them before changing state.
-// If we don't then this can cause problems when the vBucket later becomes a
-// replica and wants to stream data - it could get a "re" Commit for the same
-// key but doesn't have the Prepare in the DurabilityMonitor anymore.
-TEST_P(VBucketDurabilityTest, ResolvedSyncWritesCompletedBeforeVBStateChange) {
+// If a vbucket is changed from active when there are SyncWrites which have been
+// resolved (i.e. we have decided to commit / abort) but *not* yet completed,
+// then we need to put them back into trackedWrites. Previously we would
+// complete them but this is incorrect as the DCP Stream will have already been
+// set to dead so no Abort or Commit message will make it to the replica. In the
+// case where this node becomes a replica, this node could have received a "re"
+// Commit for the same key without having a Prepare in the DurabilityMonitor.
+TEST_P(VBucketDurabilityTest,
+       ResolvedSyncWritesReturnedToTrackedWritesVBStateChange) {
     // Setup: Make pending item, and simulate sufficient ACKs so it's in the
     // ResolvedQueue (but not yet Committed).
     const int64_t preparedSeqno = 1;
+    using namespace cb::durability;
+    const std::vector<SyncWriteSpec> seqnos{
+            {1, false, Level::PersistToMajority, Timeout(10000)}, 2};
     storeSyncWrites({preparedSeqno});
     ASSERT_EQ(1,
               VBucketTestIntrospector::public_getActiveDM(*vbucket)
@@ -2742,14 +2745,47 @@ TEST_P(VBucketDurabilityTest, ResolvedSyncWritesCompletedBeforeVBStateChange) {
     // do. This should result in the resolved SyncWrite getting completed.
     vbucket->setState(vbucket_state_dead);
 
-    // Check the item is Committed in HashTable.
+    // Check that the item is still pending in the HashTable. It will actually
+    // be PreparedMaybeVisible as we have transitioned from active to non-active
     {
-        const auto sv = ht->findForRead(key).storedValue;
+        const auto sv = ht->findForWrite(key).storedValue;
         ASSERT_TRUE(sv);
-        EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
-        EXPECT_TRUE(ht->findForWrite(key).storedValue);
+        EXPECT_EQ(CommittedState::PreparedMaybeVisible, sv->getCommitted());
     }
-    EXPECT_EQ(2, vbucket->getHighSeqno());
+    EXPECT_EQ(1, vbucket->getHighSeqno());
+
+    const auto& dm = vbucket->getDurabilityMonitor();
+    EXPECT_EQ(1, dm.getNumTracked());
+    EXPECT_EQ(1, dm.getHighPreparedSeqno());
+    EXPECT_EQ(0, dm.getHighCompletedSeqno());
+
+    // Set us back to active so that we can check a few things in regards to the
+    // state of the SynWrite objects.
+    vbucket->setState(
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{active, replica1}})}});
+
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+
+    // We should not transfer the ack count
+    adm.checkForCommit();
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+
+    // Or the cookies
+    auto cookies = adm.getCookiesForInFlightSyncWrites();
+    EXPECT_TRUE(cookies.empty());
+
+    // We SHOULD have set the timeout to infinite
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::seconds(70));
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort) {

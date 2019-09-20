@@ -798,6 +798,42 @@ void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
     };
 }
 
+void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
+    // First, remove all of the writes from the resolvedQueue. We should be
+    // called from under a WriteHolder of the vBucket state lock so it's safe to
+    // release the resolvedQueue consumer lock afterwards.
+    Container writesToTrack;
+    std::lock_guard<ResolvedQueue::ConsumerLock> lock(
+            resolvedQueue->getConsumerLock());
+    while (folly::Optional<SyncWrite> sw = resolvedQueue->try_dequeue(lock)) {
+        switch (sw->getStatus()) {
+        case SyncWriteStatus::Pending:
+        case SyncWriteStatus::Completed:
+            throw std::logic_error(
+                    "ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue "
+                    "found a SyncWrite with unexpected state: " +
+                    to_string(sw->getStatus()));
+        case SyncWriteStatus::ToCommit:
+        case SyncWriteStatus::ToAbort:
+            // Instead of trying to reset the state of the SyncWrite back to
+            // a valid state for a PassiveDM, just create a new SyncWrite in
+            // the same way.
+            // @TODO Split SyncWrite implementation for Active and Passive.
+            writesToTrack.push_back(SyncWrite(nullptr,
+                                              std::move(sw->getItem()),
+                                              nullptr,
+                                              nullptr,
+                                              SyncWrite::InfiniteTimeout{}));
+            continue;
+        }
+    }
+
+    // Second, whack them back into trackedWrites. The container should be in
+    // seqno order so we will just put them at the front of trackedWrites.
+    auto s = state.wlock();
+    s->trackedWrites.splice(s->trackedWrites.begin(), writesToTrack);
+}
+
 size_t ActiveDurabilityMonitor::getNumTracked() const {
     return state.rlock()->trackedWrites.size();
 }
