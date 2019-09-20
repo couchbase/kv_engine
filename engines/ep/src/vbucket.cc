@@ -1480,8 +1480,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         } else {
             delrv = MutationStatus::NotFound;
         }
-    } else if (v->isTempDeletedItem() &&
-               mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
+    } else if (mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
         delrv = MutationStatus::NeedBgFetch;

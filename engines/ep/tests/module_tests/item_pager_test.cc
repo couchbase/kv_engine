@@ -1221,6 +1221,93 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
             << "The meta attribute should be gone";
 }
 
+// Just for alice branch specialise this one test so we can run in the desired
+// mode - later branches have full/value variants which will be utilised
+class MB_36087 : public STPersistentExpiryPagerTest {};
+
+// Test for MB-36087 - simply check that an evicted xattr item doesn't crash
+// when a winning del-with-meta arrives.
+TEST_P(MB_36087, DelWithMeta_EvictedKey) {
+    ASSERT_TRUE(persistent());
+    std::string value = createXattrValue("body");
+    auto key = makeStoredDocKey("k1");
+    auto item = make_item(
+            vbid,
+            key,
+            value,
+            0,
+            PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+
+    getEPBucket().flushVBucket(vbid);
+
+    // 1) Store k1
+    auto vb = store->getVBucket(vbid);
+
+    // 2) Evict k1
+    evict_key(vbid, key);
+
+    // 3) A winning delWithMeta - system must bgFetch and not crash...
+    ItemMetaData metadata;
+
+    uint64_t cas = -1;
+    metadata.flags = 0xf00f0088;
+    metadata.cas = 0xbeeff00dcafe1234ull;
+    metadata.revSeqno = 0xdad;
+    metadata.exptime = 0xfeedface;
+    PermittedVBStates vbstates(vbucket_state_active);
+    auto deleteWithMeta = std::bind(&KVBucketIface::deleteWithMeta,
+                                    store,
+                                    key,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    vbstates,
+                                    CheckConflicts::Yes,
+                                    metadata,
+                                    false,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr,
+                                    false);
+    // A bgfetch is required for full or value eviction because we need the
+    // xattr value
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, deleteWithMeta());
+    runBGFetcherTask();
+
+    // Full eviction first did a meta-fetch, now has todo a full fetch
+    auto err = std::get<1>(GetParam()) == "full_eviction" ? ENGINE_EWOULDBLOCK
+                                                          : ENGINE_SUCCESS;
+    EXPECT_EQ(err, deleteWithMeta());
+
+    if (std::get<1>(GetParam()) == "full_eviction") {
+        runBGFetcherTask();
+        EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
+    }
+
+    get_options_t options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_NE(0, gv.item->getNBytes()) << "No value " << *gv.item;
+
+    cb::xattr::Blob blob(
+            {const_cast<char*>(gv.item->getData()), gv.item->getNBytes()},
+            false);
+
+    EXPECT_EQ(0, blob.get("user").size());
+    EXPECT_EQ(0, blob.get("meta").size());
+    ASSERT_NE(0, blob.get("_sync").size());
+    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
+                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_EQ(metadata.flags, gv.item->getFlags());
+    EXPECT_EQ(metadata.exptime, gv.item->getExptime());
+    EXPECT_EQ(metadata.cas, gv.item->getCas());
+    EXPECT_EQ(metadata.revSeqno, gv.item->getRevSeqno());
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
@@ -1239,6 +1326,12 @@ static auto allConfigValues = ::testing::Values(
 static auto persistentConfigValues = ::testing::Values(
         std::make_tuple(std::string("persistent"), std::string{}));
 
+static auto persistentAllEvictionConfigValues = ::testing::Values(
+        std::make_tuple(std::string("persistent"), std::string("value_only")),
+        std::make_tuple(std::string("persistent"), std::string("full_eviction"))
+
+);
+
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STItemPagerTest,
                         allConfigValues, );
@@ -1252,6 +1345,10 @@ INSTANTIATE_TEST_CASE_P(Persistent,
                         persistentConfigValues, );
 
 INSTANTIATE_TEST_CASE_P(Persistent, MB_32669, persistentConfigValues, );
+
+INSTANTIATE_TEST_CASE_P(PersistentAllEviction,
+                        MB_36087,
+                        persistentAllEvictionConfigValues, );
 
 INSTANTIATE_TEST_CASE_P(Ephemeral, STEphemeralItemPagerTest, ephConfigValues, );
 

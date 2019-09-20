@@ -184,9 +184,13 @@ protected:
             config_string += ";";
         }
         config_string += "bucket_type=" + std::get<0>(GetParam());
-        auto ephFullPolicy = std::get<1>(GetParam());
-        if (!ephFullPolicy.empty()) {
-            config_string += ";ephemeral_full_policy=" + ephFullPolicy;
+        auto evictionPolicy = std::get<1>(GetParam());
+        if (!evictionPolicy.empty()) {
+            if (persistent()) {
+                config_string += ";item_eviction_policy=" + evictionPolicy;
+            } else {
+                config_string += ";ephemeral_full_policy=" + evictionPolicy;
+            }
         }
         SingleThreadedEPBucketTest::SetUp();
     }
