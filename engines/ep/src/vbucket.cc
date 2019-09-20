@@ -831,6 +831,14 @@ ENGINE_ERROR_CODE VBucket::commit(
     // Value for Pending must never be ejected
     Expects(res.pending->isResident());
 
+    // If prepare seqno is not the same as our stored seqno then we should be
+    // a replica and have missed a completion and a prepare due to de-dupe.
+    if (prepareSeqno != static_cast<uint64_t>(res.pending->getBySeqno())) {
+        Expects(getState() != vbucket_state_active);
+        Expects(isReceivingDiskSnapshot());
+        Expects(prepareSeqno >= checkpointManager->getOpenSnapshotStartSeqno());
+    }
+
     VBQueueItemCtx queueItmCtx;
     if (commitSeqno) {
         queueItmCtx.genBySeqno = GenerateBySeqno::No;

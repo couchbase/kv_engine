@@ -234,7 +234,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(key,
-                              pending->getBySeqno(),
+                              lastSeqno + 1,
                               {},
                               vbucket->lockCollections(key),
                               cookie));
@@ -277,7 +277,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
         // And commit
         ASSERT_EQ(ENGINE_SUCCESS,
                   vbucket->commit(key,
-                                  pending->getBySeqno(),
+                                  lastSeqno + i * 2 + 1,
                                   {},
                                   vbucket->lockCollections(key),
                                   cookie));
@@ -1110,10 +1110,7 @@ void VBucketDurabilityTest::testHTCommitExisting() {
 
     // Test
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key,
-                              result->getBySeqno(),
-                              {},
-                              vbucket->lockCollections(key)));
+              vbucket->commit(key, 2, {}, vbucket->lockCollections(key)));
 
     // Check postconditions - should only have one item for that key.
     auto readView = ht->findForRead(key).storedValue;
@@ -1171,10 +1168,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     // prepare so that we can test commit under range read.
     mockEphVb->registerFakeReadRange(0, 1000);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key,
-                              pending->getBySeqno(),
-                              {},
-                              vbucket->lockCollections(key)));
+              vbucket->commit(key, 4, {}, vbucket->lockCollections(key)));
 
     // Check that we have the expected items in the seqList.
     // 1 stale commit (because of the range read)
@@ -1407,14 +1401,13 @@ void VBucketDurabilityTest::doSyncWriteAndCommit() {
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
     ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
+    auto preparedSeqno = vbucket->getHighSeqno();
 
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key,
-                              prepared->getBySeqno(),
-                              {},
-                              vbucket->lockCollections(key)));
+              vbucket->commit(
+                      key, preparedSeqno, {}, vbucket->lockCollections(key)));
 }
 
 TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncWrite) {
@@ -1443,10 +1436,8 @@ void VBucketDurabilityTest::doSyncDelete() {
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
     ASSERT_EQ(ENGINE_SUCCESS,
-              vbucket->commit(key,
-                              prepared->getBySeqno(),
-                              {},
-                              vbucket->lockCollections(key)));
+              vbucket->commit(
+                      key, lastSeqno + 1, {}, vbucket->lockCollections(key)));
 }
 
 TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncDelete) {

@@ -790,7 +790,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
     // Setup: commit SyncDelete (but no flush yet).
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
-                        3 /*prepareSeqno*/,
+                        2 /*prepareSeqno*/,
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
 
@@ -808,7 +808,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
 
     EXPECT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
-                        5 /*prepareSeqno*/,
+                        4 /*prepareSeqno*/,
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)))
             << "SyncWrite commit should be possible";
@@ -2469,7 +2469,7 @@ void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> ENGINE_ERROR_CODE {
         return vb.commit(key,
-                         2 /*prepareSeqno*/,
+                         1 /*prepareSeqno*/,
                          {} /*commitSeqno*/,
                          vb.lockCollections(key));
     };

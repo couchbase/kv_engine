@@ -2642,9 +2642,10 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
     uint32_t opaque;
     auto key = makeStoredDocKey("key1");
 
-    // Commit the original prepare
-    auto prepareSeqno = 2;
-    auto commitSeqno = prepareSeqno + 1;
+    // Commit the original prepare (setup receives two prepares so we need to
+    // bump our seqno by 2).
+    auto prepareSeqno = 1;
+    auto commitSeqno = prepareSeqno + 2;
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
