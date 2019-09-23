@@ -232,7 +232,19 @@ public:
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
     const uint64_t documentCount;
-    const uint64_t highCompletedSeqno;
+
+    /**
+     * The on disk "High Completed Seqno". This number changes in different ways
+     * when compared to the one in memory so has been named differently. The
+     * seqno will be read from disk and sent to a replica in a snapshot marker
+     * so that we can optimise warmup after having received a disk snapshot.
+     * This is necessary due to de-duplication as a replica will see logical
+     * commits out of order. It cannot update the HCS value reliably with the
+     * information received and perform the warmup optimisation so the active
+     * node will send a persistedCompletedSeqno value which it will write at the
+     * end of the snapshot. This seqno is also used to optimise local warmup.
+     */
+    const uint64_t persistedCompletedSeqno;
 
     BucketLogger* logger;
     const KVStoreConfig& config;

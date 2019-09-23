@@ -528,9 +528,9 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     // node, which is achieved by attempting to move the HPS
     s->updateHighPreparedSeqno(*resolvedQueue);
 
-    s->lastTrackedSeqno.reset(vbs.highPreparedSeqno);
-    s->highPreparedSeqno.reset(vbs.highPreparedSeqno);
-    s->highCompletedSeqno.reset(vbs.highCompletedSeqno);
+    s->lastTrackedSeqno.reset(vbs.persistedPreparedSeqno);
+    s->highPreparedSeqno.reset(vbs.persistedPreparedSeqno);
+    s->highCompletedSeqno.reset(vbs.persistedCompletedSeqno);
 }
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
