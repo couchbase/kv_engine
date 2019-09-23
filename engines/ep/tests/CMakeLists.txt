@@ -137,6 +137,7 @@ ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/couch-kvstore/couch-fs-stats.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/configuration.h
         module_tests/couch-fs-stats_test.cc
+        ${Couchstore_SOURCE_DIR}/src/crc32.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         PRIVATE
@@ -147,7 +148,8 @@ TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test
         gtest_main
         gmock
         mcd_util
-        platform)
+        platform
+        phosphor)
 
 ADD_EXECUTABLE(ep-engine_misc_test module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)

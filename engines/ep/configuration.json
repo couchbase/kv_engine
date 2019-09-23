@@ -1212,6 +1212,24 @@
             "dynamic": true,
             "type": "bool"
         },
+        "couchstore_tracing": {
+            "default": "false",
+            "dynamic": true,
+            "descr": "Enable couchstore tracing",
+            "type" : "bool"
+        },
+        "couchstore_write_validation": {
+            "default": "false",
+            "dynamic": true,
+            "descr": "Validate couchstore writes ",
+            "type" : "bool"
+        },
+        "couchstore_mprotect": {
+            "default": "false",
+            "dynamic": true,
+            "descr": "Enable couchstore to mprotect the iobuffer",
+            "type" : "bool"
+        },
         "waitforwarmup": {
             "default": "false",
             "dynamic": true,

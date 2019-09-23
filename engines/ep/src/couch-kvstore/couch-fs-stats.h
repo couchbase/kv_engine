@@ -49,6 +49,11 @@ public:
                              couch_file_handle handle) override;
     couchstore_error_t set_periodic_sync(couch_file_handle handle,
                                          uint64_t period_bytes) override;
+    couchstore_error_t set_tracing_enabled(couch_file_handle handle) override;
+    couchstore_error_t set_write_validation_enabled(
+            couch_file_handle handle) override;
+    couchstore_error_t set_mprotect_enabled(couch_file_handle handle) override;
+
     ssize_t pread(couchstore_error_info_t* errinfo,
                   couch_file_handle handle, void* buf, size_t nbytes,
                   cs_off_t offset) override;
