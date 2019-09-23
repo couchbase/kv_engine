@@ -93,7 +93,7 @@ bool Flusher::validTransition(State to) const {
 
     switch (_state.load()) {
     case State::Initializing:
-        return (to == State::Running);
+        return (to == State::Running || to == State::Pausing);
     case State::Running:
         return (to == State::Pausing);
     case State::Pausing:
