@@ -1152,7 +1152,7 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     auto checkHCS = [this](int64_t hcs) -> void {
         auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
         auto vbstate = *kvstore->getVBucketState(vbid);
-        ASSERT_EQ(hcs, vbstate.highCompletedSeqno);
+        ASSERT_EQ(hcs, vbstate.persistedCompletedSeqno);
     };
 
     // HCS still 0 in vbstate
@@ -1201,7 +1201,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // Not flushed yet
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
     auto vbstate = *kvstore->getVBucketState(vbid);
-    ASSERT_EQ(0, vbstate.highPreparedSeqno);
+    ASSERT_EQ(0, vbstate.persistedPreparedSeqno);
     ASSERT_EQ(0, vbstate.onDiskPrepares);
 
     // Check the Prepared
@@ -1218,7 +1218,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
 
     // HPS and prepare counter incremented
     vbstate = *kvstore->getVBucketState(vbid);
-    EXPECT_EQ(preparedSeqno, vbstate.highPreparedSeqno);
+    EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
     // @TODO: RocksDB currently does not track the prepare count
     if ((std::get<0>(GetParam()).find("Rocksdb") == std::string::npos)) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
@@ -1230,7 +1230,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
 
     kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
     vbstate = *kvstore->getVBucketState(vbid);
-    EXPECT_EQ(preparedSeqno, vbstate.highPreparedSeqno);
+    EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
     // @TODO: RocksDB currently only has an estimated prepare count
     if ((std::get<0>(GetParam()).find("Rocksdb") == std::string::npos)) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);

@@ -1550,7 +1550,7 @@ ScanContext* MagmaKVStore::initScanContext(
         highSeqno = vbstate->highSeqno;
         purgeSeqno = vbstate->purgeSeqno;
         docCount = highSeqno - startSeqno + 1;
-        highCompletedSeqno = vbstate->highCompletedSeqno;
+        highCompletedSeqno = vbstate->persistedCompletedSeqno;
     }
 
     auto collectionsManifest = getDroppedCollections(vbid);
@@ -2073,7 +2073,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     {
         std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
         ctx->highCompletedSeqno =
-                cachedVBStates[vbid.get()]->highCompletedSeqno;
+                cachedVBStates[vbid.get()]->persistedCompletedSeqno;
     }
 
     // If there aren't any collections to drop, this compaction is likely

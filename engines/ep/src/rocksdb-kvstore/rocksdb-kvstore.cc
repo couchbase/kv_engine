@@ -1453,7 +1453,7 @@ ScanContext* RocksDBKVStore::initScanContext(
             options,
             valOptions,
             /* documentCount */ state->highSeqno - startSeqno + 1,
-            state->highCompletedSeqno,
+            state->persistedCompletedSeqno,
             configuration,
             {/*no collections in rocksdb*/});
 }
