@@ -317,6 +317,13 @@ public:
      */
     void setSslKeyFile(const std::string& file);
 
+    /// Set the TLS version to use
+    void setTlsProtocol(std::string protocol);
+    /// Set the ciphers to use for TLS < 1.3
+    void setTls12Ciphers(std::string ciphers);
+    /// Set the ciphers to use for TLS >= 1.3
+    void setTls13Ciphers(std::string ciphers);
+
     /**
      * Try to establish a connection to the server.
      *
@@ -883,6 +890,11 @@ protected:
     sa_family_t family;
     bool auto_retry_tmpfail = false;
     bool ssl;
+    std::string tls_protocol;
+    std::string tls12_ciphers{"HIGH"};
+    std::string tls13_ciphers{
+            "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_"
+            "GCM_SHA256"};
     std::string ssl_cert_file;
     std::string ssl_key_file;
     SSL_CTX* context = nullptr;
@@ -941,8 +953,7 @@ SOCKET new_socket(const std::string& host, in_port_t port, sa_family_t family);
  *             of family
  * @param port The port number to connect to
  * @param family The socket family to create (AF_INET/AF_INET6/AF_UNSPEC)
- * @param ssl_cert_file an optional filename containing the certificate
- * @param ssl_key_file an optional filename containing the private key
+ * @param setup_ssl_ctx callback to configure the SSL context
  * @return Tuple with:
  *             SOCKET The connected socket or INVALID_SOCKET if we failed
  *                    to connect to the socket
@@ -958,8 +969,7 @@ std::tuple<SOCKET, SSL_CTX*, BIO*> new_ssl_socket(
         const std::string& host,
         in_port_t port,
         sa_family_t family,
-        const std::string& ssl_cert_file = {},
-        const std::string& ssl_key_file = {});
+        std::function<void(SSL_CTX*)> setup_ssl_ctx);
 
 } // namespace net
 } // namespace cb

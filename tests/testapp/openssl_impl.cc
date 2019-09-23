@@ -36,7 +36,8 @@ SOCKET create_connect_ssl_socket(in_port_t port) {
                 "create_connect_ssl_socket: Can't connect to ssl_port == -1");
     }
 
-    std::tie(sfd, ssl_ctx, bio) = cb::net::new_ssl_socket("", port, AF_INET);
+    std::tie(sfd, ssl_ctx, bio) =
+            cb::net::new_ssl_socket("", port, AF_INET, {});
 
     if (sfd == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect over ssl to 127.0.0.1:" << port;

@@ -257,8 +257,7 @@ std::tuple<SOCKET, SSL_CTX*, BIO*> cb::net::new_ssl_socket(
         const std::string& host,
         in_port_t port,
         sa_family_t family,
-        const std::string& ssl_cert_file,
-        const std::string& ssl_key_file) {
+        std::function<void(SSL_CTX*)> setup_ssl_ctx) {
     auto sock = cb::net::new_socket(host, port, family);
     if (sock == INVALID_SOCKET) {
         return std::tuple<SOCKET, SSL_CTX*, BIO*>{
@@ -271,19 +270,8 @@ std::tuple<SOCKET, SSL_CTX*, BIO*> cb::net::new_ssl_socket(
         throw std::runtime_error("Failed to create openssl client context");
     }
 
-    if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
-        if (!SSL_CTX_use_certificate_file(
-                    context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
-            !SSL_CTX_use_PrivateKey_file(
-                    context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
-            !SSL_CTX_check_private_key(context)) {
-            std::vector<char> ssl_err(1024);
-            ERR_error_string_n(ERR_get_error(), ssl_err.data(), ssl_err.size());
-            SSL_CTX_free(context);
-            throw std::runtime_error(
-                    std::string("Failed to use SSL cert and key: ") +
-                    ssl_err.data());
-        }
+    if (setup_ssl_ctx) {
+        setup_ssl_ctx(context);
     }
 
     // Ensure read/write operations only return after the
@@ -311,6 +299,28 @@ SOCKET MemcachedConnection::releaseSocket() {
     return ret;
 }
 
+long tls_protocol_to_options(const std::string& protocol) {
+    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
+    long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+
+    std::string minimum(protocol);
+    std::transform(minimum.begin(), minimum.end(), minimum.begin(), tolower);
+
+    if (minimum.empty() || minimum == "tlsv1") {
+        disallow |= SSL_OP_NO_TLSv1_3 | SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1;
+    } else if (minimum == "tlsv1.1" || minimum == "tlsv1_1") {
+        disallow |= SSL_OP_NO_TLSv1_3 | SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1;
+    } else if (minimum == "tlsv1.2" || minimum == "tlsv1_2") {
+        disallow |= SSL_OP_NO_TLSv1_3 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
+    } else if (minimum == "tlsv1.3" || minimum == "tlsv1_3") {
+        disallow |= SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
+    } else {
+        throw std::invalid_argument("Unknown protocol: " + minimum);
+    }
+
+    return disallow;
+}
+
 void MemcachedConnection::connect() {
     if (bio != nullptr) {
         BIO_free_all(bio);
@@ -329,7 +339,48 @@ void MemcachedConnection::connect() {
 
     if (ssl) {
         std::tie(sock, context, bio) = cb::net::new_ssl_socket(
-                host, port, family, ssl_cert_file, ssl_key_file);
+                host, port, family, [this](SSL_CTX* context) {
+                    if (!tls_protocol.empty()) {
+                        SSL_CTX_set_options(
+                                context, tls_protocol_to_options(tls_protocol));
+                    }
+
+                    if (SSL_CTX_set_ciphersuites(context,
+                                                 tls13_ciphers.c_str()) == 0 &&
+                        !tls13_ciphers.empty()) {
+                        throw std::runtime_error(
+                                "Failed to select a cipher suite from: " +
+                                tls13_ciphers);
+                    }
+
+                    if (SSL_CTX_set_cipher_list(context,
+                                                tls12_ciphers.c_str()) == 0 &&
+                        !tls12_ciphers.empty()) {
+                        throw std::runtime_error(
+                                "Failed to select a cipher suite from: " +
+                                tls12_ciphers);
+                    }
+
+                    if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
+                        if (!SSL_CTX_use_certificate_file(context,
+                                                          ssl_cert_file.c_str(),
+                                                          SSL_FILETYPE_PEM) ||
+                            !SSL_CTX_use_PrivateKey_file(context,
+                                                         ssl_key_file.c_str(),
+                                                         SSL_FILETYPE_PEM) ||
+                            !SSL_CTX_check_private_key(context)) {
+                            std::vector<char> ssl_err(1024);
+                            ERR_error_string_n(ERR_get_error(),
+                                               ssl_err.data(),
+                                               ssl_err.size());
+                            SSL_CTX_free(context);
+                            throw std::runtime_error(
+                                    std::string("Failed to use SSL cert and "
+                                                "key: ") +
+                                    ssl_err.data());
+                        }
+                    }
+                });
     } else {
         sock = cb::net::new_socket(host, port, family);
     }
@@ -638,6 +689,18 @@ void MemcachedConnection::setSslKeyFile(const std::string& file) {
                                 "Can't use [" + path + "]");
     }
     ssl_key_file = path;
+}
+
+void MemcachedConnection::setTlsProtocol(std::string protocol) {
+    tls_protocol = std::move(protocol);
+}
+
+void MemcachedConnection::setTls12Ciphers(std::string ciphers) {
+    tls12_ciphers = std::move(ciphers);
+}
+
+void MemcachedConnection::setTls13Ciphers(std::string ciphers) {
+    tls13_ciphers = std::move(ciphers);
 }
 
 static Frame to_frame(const BinprotCommand& command) {
