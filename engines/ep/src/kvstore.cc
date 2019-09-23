@@ -161,6 +161,7 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
         vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
         vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
         vbState->mightContainXattrs = newState.mightContainXattrs;
+        vbState->checkpointType = newState.checkpointType;
     } else {
         cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
         if (cachedVBStates[vbid.get()]->transition.state !=

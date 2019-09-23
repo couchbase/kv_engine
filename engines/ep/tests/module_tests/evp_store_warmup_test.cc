@@ -676,6 +676,12 @@ protected:
      */
     void testHCSPersistedAndLoadedIntoVBState();
 
+    /**
+     * Test that we persist the checkpoint type correctly when we persist a
+     * snapshot range.
+     */
+    void testCheckpointTypePersistedAndLoadedIntoVBState(CheckpointType type);
+
     class PrePostStateChecker {
     public:
         PrePostStateChecker(VBucketPtr vb);
@@ -1122,6 +1128,44 @@ TEST_P(DurabilityWarmupTest, WarmupCommit) {
     auto sv = vb->ht.findForRead(key).storedValue;
     ASSERT_TRUE(sv);
     ASSERT_TRUE(sv->isCommitted());
+}
+
+void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
+        CheckpointType type) {
+    auto vb = store->getVBucket(vbid);
+    vb->checkpointManager->createSnapshot(
+            1 /*snapStart*/, 1 /*snapEnd*/, {} /*HCS*/, type);
+
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, "do");
+    item->setBySeqno(1);
+    { // collections read-lock scope
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_TRUE(cHandle.valid());
+        // Use vb level set so that the commit doesn't yet happen, we want to
+        // simulate the prepare, but not commit landing on disk
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    vb.reset();
+    resetEngineAndWarmup();
+
+    vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(type,
+              store->getRWUnderlying(vbid)
+                      ->getVBucketState(vbid)
+                      ->checkpointType);
+}
+
+TEST_P(DurabilityWarmupTest, TestCheckpointTypePersistedMemory) {
+    testCheckpointTypePersistedAndLoadedIntoVBState(CheckpointType::Memory);
+}
+
+TEST_P(DurabilityWarmupTest, TestCheckpointTypePersistedDisk) {
+    testCheckpointTypePersistedAndLoadedIntoVBState(CheckpointType::Disk);
 }
 
 void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {

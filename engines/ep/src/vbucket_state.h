@@ -160,6 +160,14 @@ struct vbucket_state {
     uint64_t onDiskPrepares = 0;
 
     /**
+     * The type of the most recently persisted snapshot disk. Required as we
+     * cannot rely on the HCS in the middle of a snapshot to optimise warmup and
+     * we need to be able to determine whether or not it is appropriate to do
+     * so. Added for SyncReplication in 6.5.
+     */
+    CheckpointType checkpointType = CheckpointType::Memory;
+
+    /**
      * Data that is changed as part of a vbucket state transition is stored
      * in this member.
      */

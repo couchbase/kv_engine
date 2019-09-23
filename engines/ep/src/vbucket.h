@@ -494,6 +494,7 @@ public:
         bool moreAvailable = false;
         boost::optional<uint64_t> highCompletedSeqno = {};
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
+        CheckpointType checkpointType = CheckpointType::Memory;
     };
 
     /**

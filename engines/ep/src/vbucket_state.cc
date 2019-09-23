@@ -103,7 +103,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"version", vbs.version},
             {"completed_seqno", std::to_string(vbs.persistedCompletedSeqno)},
             {"prepared_seqno", std::to_string(vbs.persistedPreparedSeqno)},
-            {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)}};
+            {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)},
+            {"checkpoint_type", to_string(vbs.checkpointType)}};
 
     to_json(json, vbs.transition);
 }
@@ -148,6 +149,22 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
 
     // Note: We don't track on disk prepares pre-6.5
     vbs.onDiskPrepares = std::stoll(j.value("on_disk_prepares", "0"));
+
+    // Note: We don't track checkpoint type pre-6.5
+    auto checkpointType = j.find("checkpoint_type");
+    if (checkpointType != j.end()) {
+        auto str = checkpointType->get<std::string>();
+        if (str == "Disk") {
+            vbs.checkpointType = CheckpointType::Disk;
+        } else if (str == "Memory") {
+            vbs.checkpointType = CheckpointType::Memory;
+        } else {
+            throw std::invalid_argument(
+                    "VBucketState::from_json checkpointType was not an "
+                    "expected value: " +
+                    str);
+        }
+    }
 
     from_json(j, vbs.transition);
 }

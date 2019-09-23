@@ -407,6 +407,7 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
         result.ranges = std::move(ckptItems.ranges);
         result.highCompletedSeqno = ckptItems.highCompletedSeqno;
         result.maxDeletedRevSeqno = ckptItems.maxDeletedRevSeqno;
+        result.checkpointType = ckptItems.checkpointType;
         ckptItemsAvailable = ckptItems.moreAvailable;
         stats.persistenceCursorGetItemsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(

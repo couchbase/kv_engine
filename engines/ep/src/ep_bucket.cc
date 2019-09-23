@@ -569,9 +569,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
                 // only update the snapshot range if items were flushed, i.e.
                 // don't appear to be in a snapshot when you have no data for it
+                // We also update the checkpointType here as this should only
+                // change with snapshots.
                 if (range) {
                     vbstate.lastSnapStart = range->getStart();
                     vbstate.lastSnapEnd = range->getEnd();
+                    vbstate.checkpointType = toFlush.checkpointType;
                 }
                 // Track the lowest seqno written in spock and record it as
                 // the HLC epoch, a seqno which we can be sure the value has a
