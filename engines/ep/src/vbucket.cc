@@ -2240,10 +2240,10 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         } else {
             delrv = MutationStatus::NotFound;
         }
-    } else if (v->isTempDeletedItem() &&
-               mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
+    } else if (mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
+        // MB-36087: Any non-resident value
         delrv = MutationStatus::NeedBgFetch;
         metaBgFetch = false;
     } else {
@@ -2265,6 +2265,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             // A new item has been generated and must be given a new seqno
             queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
 
+            // MB-36101: The result should always be a deleted item
+            itm->setDeleted();
             std::tie(v, delrv, notifyCtx) =
                     updateStoredValue(hbl, *v, *itm, queueItmCtx);
         } else {
