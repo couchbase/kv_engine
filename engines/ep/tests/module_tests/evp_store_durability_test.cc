@@ -2740,13 +2740,17 @@ TEST_P(DurabilityBucketTest, GetReplicaWithPendingSyncWriteOnKey) {
     // 6. Switch vbucket to active
     setVBucketToActiveWithValidTopology();
 
+    // 7. Commit the pending item. Can't just call the VBucket::commit function
+    // here as we need the DM to be in the correct state.
     auto& vb = *store->getVBucket(vbid);
-    // 7. Commit the pending item
-    EXPECT_EQ(ENGINE_SUCCESS,
-              vb.commit(key,
-                        vb.getHighPreparedSeqno(),
-                        {},
-                        vb.lockCollections(key)));
+    EXPECT_EQ(1, vb.getDurabilityMonitor().getNumTracked());
+    vb.seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vb.getStateLock()), "replica", 2);
+    vb.notifyActiveDMOfLocalSyncWrite();
+    vb.processResolvedSyncWrites();
+    EXPECT_EQ(0, vb.getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(2, vb.getHighCompletedSeqno());
+
     // 8. Check the commit worked by getting the committed item that was pending
     auto getValueOfCommit = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_SUCCESS, getValueOfCommit.getStatus());

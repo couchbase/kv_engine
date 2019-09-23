@@ -244,6 +244,14 @@ protected:
      */
     void testConvertPassiveDMToActiveDMNoPrepares(vbucket_state_t initialState);
 
+    /**
+     * Test that the transition from active to a state with a PassiveDM converts
+     * the prepares in the HashTable to PreparedMaybeVisible.
+     *
+     * @param toState The state to convert the vBucket to
+     */
+    void testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_t toState);
+
     enum class Resolution { Commit, Abort };
 
     /**

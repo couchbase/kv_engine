@@ -601,6 +601,24 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
     // Then, initialize the DM and propagate the new topology if necessary
     auto* currentPassiveDM =
             dynamic_cast<PassiveDurabilityMonitor*>(durabilityMonitor.get());
+
+    // If we are transitioning away from active then we need to mark all of our
+    // prepares as PreparedMaybeVisible to avoid exposing them
+    std::vector<queued_item> trackedWrites;
+    if (!currentPassiveDM && durabilityMonitor) {
+        auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
+        trackedWrites = adm.getTrackedWrites();
+        for (auto& write : trackedWrites) {
+            auto htRes = ht.findOnlyPrepared(write->getKey());
+            Expects(htRes.storedValue);
+            Expects(htRes.storedValue->isPending() ||
+                    htRes.storedValue->isCompleted());
+            htRes.storedValue->setCommitted(
+                    CommittedState::PreparedMaybeVisible);
+            write->setPreparedMaybeVisible();
+        }
+    }
+
     switch (state) {
     case vbucket_state_active: {
         if (currentPassiveDM) {
@@ -641,13 +659,11 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
         }
         // Current DM (if exists) is not Passive; replace it with a Passive one.
         if (durabilityMonitor) {
-            auto& adm =
-                    dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
             durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
                     *this,
                     durabilityMonitor->getHighPreparedSeqno(),
                     durabilityMonitor->getHighCompletedSeqno(),
-                    adm.getTrackedWrites());
+                    std::move(trackedWrites));
         } else {
             durabilityMonitor =
                     std::make_unique<PassiveDurabilityMonitor>(*this);

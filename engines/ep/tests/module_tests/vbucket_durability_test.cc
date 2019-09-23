@@ -2674,6 +2674,36 @@ TEST_P(VBucketDurabilityTest, Pending_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_pending, Resolution::Abort);
 }
 
+void VBucketDurabilityTest::testConvertADMToPDMMakesPreparesMaybeVisible(
+        vbucket_state_t toState) {
+    const int64_t preparedSeqno = 1;
+    storeSyncWrites({preparedSeqno});
+    ASSERT_EQ(1,
+              VBucketTestIntrospector::public_getActiveDM(*vbucket)
+                      .getNumTracked());
+
+    vbucket->setState(toState);
+
+    auto prepareKey = makeStoredDocKey("key1");
+    auto htRes = vbucket->ht.findForUpdate(prepareKey);
+
+    ASSERT_TRUE(htRes.pending);
+    EXPECT_EQ(CommittedState::PreparedMaybeVisible,
+              htRes.pending->getCommitted());
+}
+
+TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToReplicaTransition) {
+    testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_replica);
+}
+
+TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToDeadTransition) {
+    testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_dead);
+}
+
+TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToPendingTransition) {
+    testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_pending);
+}
+
 // MB-35744: If a vbucket is changed from active when there are SyncWrites
 // which have been resolved (i.e. we have decided to commit / abort) but *not*
 // yet completed, then we should complete them before changing state.
