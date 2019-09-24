@@ -990,7 +990,6 @@ public:
     uint16_t getNmeta() const {
         return ntohs(nmeta);
     }
-
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
@@ -1032,6 +1031,13 @@ static_assert(sizeof(DcpDeleteRequestV1) == 42, "Unexpected struct size");
 
 class DcpDeletionV2Payload {
 public:
+    DcpDeletionV2Payload(uint64_t by_seqno,
+                         uint64_t rev_seqno,
+                         uint32_t delete_time)
+        : by_seqno(htonll(by_seqno)),
+          rev_seqno(htonll(rev_seqno)),
+          delete_time(htonl(delete_time)) {
+    }
     uint64_t getBySeqno() const {
         return ntohll(by_seqno);
     }
@@ -1053,15 +1059,15 @@ public:
     uint8_t getCollectionLen() const {
         return collection_len;
     }
-    void setCollectionLen(uint8_t collection_len) {
-        DcpDeletionV2Payload::collection_len = collection_len;
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
     uint64_t by_seqno = 0;
     uint64_t rev_seqno = 0;
     uint32_t delete_time = 0;
-    uint8_t collection_len = 0;
+    const uint8_t collection_len = 0;
 };
 static_assert(sizeof(DcpDeletionV2Payload) == 21, "Unexpected struct size");
 
@@ -1076,7 +1082,7 @@ public:
                        uint64_t bySeqno,
                        uint64_t revSeqno,
                        uint32_t deleteTime)
-        : req{} {
+        : req{}, body(bySeqno, revSeqno, deleteTime) {
         req.setMagic(cb::mcbp::Magic::ClientRequest);
         req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
         req.setExtlen(gsl::narrow<uint8_t>(sizeof(body)));
@@ -1086,11 +1092,6 @@ public:
         req.setVBucket(vbucket);
         req.setCas(cas);
         req.setDatatype(cb::mcbp::Datatype(datatype));
-
-        body.setBySeqno(bySeqno);
-        body.setRevSeqno(revSeqno);
-        body.setDeleteTime(deleteTime);
-        body.setCollectionLen(0);
     }
 
 protected:

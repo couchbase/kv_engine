@@ -414,9 +414,7 @@ public:
         return dcp;
     }
 
-    void setDCP(bool dcp) {
-        Connection::dcp = dcp;
-    }
+    void setDCP(bool dcp);
 
     bool isDcpXattrAware() const {
         return dcpXattrAware;
@@ -841,6 +839,10 @@ public:
         // Update the aggregated stat
         get_thread_stats(this)->conn_yields++;
     }
+
+    /// Check if DCP should use the write buffer for the message or if it
+    /// should use an IOVector to do so
+    bool dcpUseWriteBuffer(size_t total) const;
 
     // Implementation of dcp_message_producers interface //////////////////////
 

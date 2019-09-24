@@ -52,6 +52,17 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
+/// The TLS packet is using the following format:
+/// Byte 0 - Content type
+/// Byte 1 and 2 - Version
+/// Byte 3 and 4 - length
+///   n bytes of user payload
+///   m bytes of MAC
+///   o bytes of padding for block ciphers
+/// Create a constant which represents the maxium amount of data we
+/// may put in a single TLS frame
+static constexpr std::size_t TlsFrameSize = 16 * 1024;
+
 std::string to_string(Connection::Priority priority) {
     switch (priority) {
     case Connection::Priority::High:
@@ -261,6 +272,20 @@ nlohmann::json Connection::toJSON() const {
     ret["datatype"] = mcbp::datatype::to_string(datatype.getRaw()).c_str();
 
     return ret;
+}
+
+void Connection::setDCP(bool dcp) {
+    Connection::dcp = dcp;
+
+    if (isSslEnabled()) {
+        try {
+            // Make sure that we have space for up to a single TLS frame
+            // in our send buffer (so that we can stick all of the mutations
+            // in that buffer)
+            write->ensureCapacity(TlsFrameSize);
+        } catch (const std::bad_alloc&) {
+        }
+    }
 }
 
 void Connection::restartAuthentication() {
@@ -1222,6 +1247,10 @@ bool Connection::useCookieSendResponse(std::size_t size) const {
     return isSslEnabled() && size < SslCopyLimit;
 }
 
+bool Connection::dcpUseWriteBuffer(size_t size) const {
+    return isSslEnabled() && size < write->wsize();
+}
+
 void Connection::addMsgHdr(bool reset) {
     if (reset) {
         msgcurr = 0;
@@ -1860,16 +1889,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::char_buffer buffer{root, info.value[0].iov_len};
-
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Failed to grow item array", getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
+    cb::char_buffer value{root, info.value[0].iov_len};
 
     auto key = info.key;
     // The client doesn't support collections, so must not send an encoded key
@@ -1885,6 +1905,42 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
             lock_time,
             nru);
 
+    cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
+
+    const auto total = sizeof(extras) + key.size() + value.size() +
+                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
+                       sizeof(cb::mcbp::Request);
+    if (dcpUseWriteBuffer(total)) {
+        cb::mcbp::RequestBuilder builder(write->wdata());
+        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                             : cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
+        if (sid) {
+            builder.setFramingExtras(frameExtras.getBuf());
+        }
+        builder.setExtras(extras.getBuffer());
+        builder.setKey({key.data(), key.size()});
+        builder.setValue(value);
+        builder.setOpaque(opaque);
+        builder.setVBucket(vbucket);
+        builder.setCas(info.cas);
+        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+        auto packet = builder.getFrame()->getFrame();
+        addIov(packet.data(), packet.size());
+        write->produced(packet.size());
+        return ENGINE_SUCCESS;
+    }
+
+    if (!reserveItem(it.get())) {
+        LOG_WARNING("{}: Failed to grow item array", getId());
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    it.release();
+
     cb::mcbp::Request req = {};
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
@@ -1892,27 +1948,20 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(extras)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(
-            sizeof(extras) + key.size() + buffer.size() +
+            sizeof(extras) + key.size() + value.size() +
             (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-    cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
     if (sid) {
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
     }
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this,
-                    &req,
-                    &frameExtras,
-                    &extras,
-                    &buffer,
-                    &ret,
-                    &key,
-                    sid](cb::byte_buffer wbuf) -> size_t {
+    write->produce([this, &req, &frameExtras, &extras, &value, &ret, &key, sid](
+                           cb::byte_buffer wbuf) -> size_t {
         size_t headerSize = sizeof(extras) + sizeof(req);
         if (sid) {
             headerSize += sizeof(frameExtras);
@@ -1946,7 +1995,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         addIov(key.data(), key.size());
 
         // Add the value
-        addIov(buffer.data(), buffer.size());
+        addIov(value.data(), value.size());
 
         return headerSize;
     });
@@ -1992,11 +2041,55 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        cb::mcbp::DcpStreamId sid) {
+    // Should be using the V2 callback
+    if (isCollectionsSupported()) {
+        LOG_WARNING("{}: Connection::deletion: called when collections-enabled",
+                    getId());
+        return ENGINE_FAILED;
+    }
+
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::deletion: Failed to get item info",
                     getId());
         return ENGINE_FAILED;
+    }
+
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
+    cb::char_buffer value{root, info.value[0].iov_len};
+
+    cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
+    cb::mcbp::request::DcpDeletionV1Payload extdata(by_seqno, rev_seqno);
+
+    const auto total = sizeof(extdata) + key.size() + value.size() +
+                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
+                       sizeof(cb::mcbp::Request);
+
+    if (dcpUseWriteBuffer(total)) {
+        cb::mcbp::RequestBuilder builder(write->wdata());
+
+        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                             : cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        if (sid) {
+            builder.setFramingExtras(frameInfo.getBuf());
+        }
+        builder.setExtras(extdata.getBuffer());
+        builder.setKey({key.data(), key.size()});
+        builder.setValue(value);
+        builder.setOpaque(opaque);
+        builder.setVBucket(vbucket);
+        builder.setCas(info.cas);
+        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+        auto packet = builder.getFrame()->getFrame();
+        addIov(packet.data(), packet.size());
+        write->produced(packet.size());
+        return ENGINE_SUCCESS;
     }
 
     if (!reserveItem(it.get())) {
@@ -2005,21 +2098,9 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
         return ENGINE_FAILED;
     }
 
-    // Should be using the V2 callback
-    if (isCollectionsSupported()) {
-        LOG_WARNING("{}: Connection::deletion: called when collections-enabled",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
     it.release();
-
-    auto key = info.key;
-    if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
-    }
 
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpDeletionV1Payload;
@@ -2041,17 +2122,13 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
 
     auto* ptr = blob + sizeof(Request);
     if (sid) {
-        auto& frameInfo = *reinterpret_cast<cb::mcbp::DcpStreamIdFrameInfo*>(
-                blob + sizeof(Request));
-        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
-        req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
-        ++ptr;
+        auto buf = frameInfo.getBuf();
+        std::copy(buf.begin(), buf.end(), ptr);
+        ptr += buf.size();
+        req.setFramingExtraslen(buf.size());
     }
 
-    DcpDeletionV1Payload extras(by_seqno, rev_seqno);
-    auto buf = extras.getBuffer();
-    std::copy(buf.begin(), buf.end(), ptr);
-
+    std::copy(extdata.getBuffer().begin(), extdata.getBuffer().end(), ptr);
     cb::const_byte_buffer packetBuffer{
             blob,
             sizeof(Request) + sizeof(DcpDeletionV1Payload) +
@@ -2067,20 +2144,53 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time,
                                           cb::mcbp::DcpStreamId sid) {
-    const std::string log_str = "deletion_v2";
-
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::{}: Failed to get item info",
-                    getId(),
-                    log_str);
+        LOG_WARNING("{}: Connection::deletion_v2: Failed to get item info",
+                    getId());
         return ENGINE_FAILED;
     }
 
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+
+    cb::mcbp::request::DcpDeletionV2Payload extras(
+            by_seqno, rev_seqno, delete_time);
+    cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
+    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
+    cb::char_buffer value{root, info.value[0].iov_len};
+
+    const auto total = sizeof(extras) + key.size() + value.size() +
+                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
+                       sizeof(cb::mcbp::Request);
+
+    if (dcpUseWriteBuffer(total)) {
+        cb::mcbp::RequestBuilder builder(write->wdata());
+        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                             : cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        if (sid) {
+            builder.setFramingExtras(frameInfo.getBuf());
+        }
+        builder.setExtras(extras.getBuffer());
+        builder.setKey({key.data(), key.size()});
+        builder.setValue(value);
+        builder.setOpaque(opaque);
+        builder.setVBucket(vbucket);
+        builder.setCas(info.cas);
+        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+        auto packet = builder.getFrame()->getFrame();
+        addIov(packet.data(), packet.size());
+        write->produced(packet.size());
+        return ENGINE_SUCCESS;
+    }
+
     if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::{}: Failed to grow item array",
-                    getId(),
-                    log_str);
+        LOG_WARNING("{}: Connection::deletion_v2: Failed to grow item array",
+                    getId());
         return ENGINE_FAILED;
     }
 
@@ -2088,22 +2198,13 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     // the item.
     it.release();
 
-    auto key = info.key;
-    if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
-    }
-
-    using cb::mcbp::DcpStreamIdFrameInfo;
-    using cb::mcbp::Request;
-    using cb::mcbp::request::DcpDeletionV2Payload;
-
     // Make blob big enough for either delete or expiry
-    uint8_t blob[sizeof(Request) + sizeof(DcpDeletionV2Payload) +
-                 sizeof(DcpStreamIdFrameInfo)] = {};
-    const size_t payloadLen = sizeof(DcpDeletionV2Payload);
-    const size_t frameInfoLen = sid ? sizeof(DcpStreamIdFrameInfo) : 0;
+    uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(extras) +
+                 sizeof(frameInfo)] = {};
+    const size_t payloadLen = sizeof(extras);
+    const size_t frameInfoLen = sid ? sizeof(frameInfo) : 0;
 
-    auto& req = *reinterpret_cast<Request*>(blob);
+    auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob);
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
 
@@ -2117,21 +2218,18 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     req.setVBucket(vbucket);
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
-    auto size = sizeof(Request);
+    auto size = sizeof(cb::mcbp::Request);
+    auto* ptr = blob + size;
     if (sid) {
-        auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
-                blob + sizeof(Request));
-        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
-        req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
-        size += sizeof(DcpStreamIdFrameInfo);
+        auto buf = frameInfo.getBuf();
+        std::copy(buf.begin(), buf.end(), ptr);
+        ptr += buf.size();
+        size += buf.size();
     }
 
-    auto& extras = *reinterpret_cast<DcpDeletionV2Payload*>(
-            blob + sizeof(Request) + frameInfoLen);
-    extras.setBySeqno(by_seqno);
-    extras.setRevSeqno(rev_seqno);
-    extras.setDeleteTime(delete_time);
-    size += sizeof(DcpDeletionV2Payload);
+    auto buffer = extras.getBuffer();
+    std::copy(buffer.begin(), buffer.end(), ptr);
+    size += buffer.size();
 
     return deletionInner(info, {blob, size}, key);
 }
@@ -2143,19 +2241,53 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
                                          uint64_t rev_seqno,
                                          uint32_t delete_time,
                                          cb::mcbp::DcpStreamId sid) {
-    const std::string log_str = "expiration";
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::{}: Failed to get item info",
-                    getId(),
-                    log_str);
+        LOG_WARNING("{}: Connection::expiration: Failed to get item info",
+                    getId());
         return ENGINE_FAILED;
     }
 
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+
+    cb::mcbp::request::DcpExpirationPayload extras(
+            by_seqno, rev_seqno, delete_time);
+    cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
+    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
+    cb::char_buffer value{root, info.value[0].iov_len};
+
+    const auto total = sizeof(extras) + key.size() + value.size() +
+                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
+                       sizeof(cb::mcbp::Request);
+
+    if (dcpUseWriteBuffer(total)) {
+        cb::mcbp::RequestBuilder builder(write->wdata());
+        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                             : cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
+        if (sid) {
+            builder.setFramingExtras(frameInfo.getBuf());
+        }
+        builder.setExtras(extras.getBuffer());
+        builder.setKey({key.data(), key.size()});
+        builder.setValue(value);
+        builder.setOpaque(opaque);
+        builder.setVBucket(vbucket);
+        builder.setCas(info.cas);
+        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+
+        auto packet = builder.getFrame()->getFrame();
+        addIov(packet.data(), packet.size());
+        write->produced(packet.size());
+        return ENGINE_SUCCESS;
+    }
+
     if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::{}: Failed to grow item array",
-                    getId(),
-                    log_str);
+        LOG_WARNING("{}: Connection::expiration: Failed to grow item array",
+                    getId());
         return ENGINE_FAILED;
     }
 
@@ -2163,22 +2295,13 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     // the item.
     it.release();
 
-    auto key = info.key;
-    if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
-    }
-
-    using cb::mcbp::DcpStreamIdFrameInfo;
-    using cb::mcbp::Request;
-    using cb::mcbp::request::DcpExpirationPayload;
-
     // Make blob big enough for either delete or expiry
-    uint8_t blob[sizeof(Request) + sizeof(DcpExpirationPayload) +
-                 sizeof(DcpStreamIdFrameInfo)] = {};
-    const size_t payloadLen = sizeof(DcpExpirationPayload);
-    const size_t frameInfoLen = sid ? sizeof(DcpStreamIdFrameInfo) : 0;
+    uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(extras) +
+                 sizeof(frameInfo)] = {};
+    const size_t payloadLen = sizeof(extras);
+    const size_t frameInfoLen = sid ? sizeof(frameInfo) : 0;
 
-    auto& req = *reinterpret_cast<Request*>(blob);
+    auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob);
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
 
@@ -2192,21 +2315,18 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     req.setVBucket(vbucket);
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
-    auto size = sizeof(Request);
+    auto size = sizeof(cb::mcbp::Request);
+    auto* ptr = blob + size;
     if (sid) {
-        auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
-                blob + sizeof(Request));
-        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
-        req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
-        size += sizeof(DcpStreamIdFrameInfo);
+        auto buf = frameInfo.getBuf();
+        std::copy(buf.begin(), buf.end(), ptr);
+        ptr += buf.size();
+        size += buf.size();
     }
 
-    auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
-            blob + sizeof(Request) + frameInfoLen);
-    extras.setBySeqno(by_seqno);
-    extras.setRevSeqno(rev_seqno);
-    extras.setDeleteTime(delete_time);
-    size += sizeof(DcpExpirationPayload);
+    auto buffer = extras.getBuffer();
+    std::copy(buffer.begin(), buffer.end(), ptr);
+    size += buffer.size();
 
     return deletionInner(info, {blob, size}, key);
 }
@@ -2336,16 +2456,6 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
     cb::char_buffer buffer{root, info.value[0].iov_len};
 
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::prepare: Failed to grow item array",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
-
     auto key = info.key;
 
     // The client doesn't support collections, so must not send an encoded key
@@ -2364,6 +2474,39 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
         extras.setDeleted(uint8_t(1));
     }
     extras.setDurabilityLevel(level);
+
+    size_t total = sizeof(extras) + key.size() + buffer.size() +
+                   sizeof(cb::mcbp::Request);
+    if (dcpUseWriteBuffer(total)) {
+        // Format a local copy and send
+        cb::mcbp::RequestBuilder builder(write->wdata());
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);
+        builder.setExtras(extras.getBuffer());
+        builder.setKey({key.data(), key.size()});
+        builder.setOpaque(opaque);
+        builder.setVBucket(vbucket);
+        builder.setCas(info.cas);
+        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+        builder.setValue(buffer);
+
+        auto packet = builder.getFrame()->getFrame();
+        addIov(packet.data(), packet.size());
+        write->produced(packet.size());
+        return ENGINE_SUCCESS;
+    }
+
+    // Use an IO vector instead
+    if (!reserveItem(it.get())) {
+        LOG_WARNING("{}: Connection::prepare: Failed to grow item array",
+                    getId());
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    it.release();
+
     cb::mcbp::Request req = {};
     req.setMagic(cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);
@@ -2404,8 +2547,6 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     });
 
     return ret;
-
-    return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
