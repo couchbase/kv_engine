@@ -753,6 +753,14 @@ void EPVBucket::loadOutstandingPrepares(
         Expects(res == MutationStatus::NotFound);
     }
 
+    EP_LOG_INFO(
+            "EPVBucket::loadOutstandingPrepares: ({}) created DM with HCS:{}, "
+            "HPS:{}, number of prepares loaded:{}",
+            getId(),
+            vbs.highCompletedSeqno,
+            vbs.highPreparedSeqno,
+            outstandingPrepares.size());
+
     // Second restore them into the appropriate DurabilityMonitor.
     switch (getState()) {
     case vbucket_state_active: {
