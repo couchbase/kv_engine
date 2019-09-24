@@ -1111,7 +1111,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
                 vbid);
         return false;
     }
-    hook_ctx->highCompletedSeqno = vbState->persistedCompletedSeqno;
+    hook_ctx->highCompletedSeqno = vbState->highCompletedSeqno;
 
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
     errCode = couchstore_compact_db_ex(compactdb,
@@ -1490,7 +1490,7 @@ ScanContext* CouchKVStore::initScanContext(
                             options,
                             valOptions,
                             count,
-                            readVbStateResult.state.persistedCompletedSeqno,
+                            readVbStateResult.state.highCompletedSeqno,
                             configuration,
                             collectionsManifest);
     sctx->logger = &logger;

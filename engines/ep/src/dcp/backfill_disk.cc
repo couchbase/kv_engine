@@ -248,9 +248,8 @@ backfill_status_t DCPBackfillDisk::create() {
         transitionState(backfill_state_done);
     } else {
         stream->setBackfillRemaining(scanCtx->documentCount);
-        stream->markDiskSnapshot(startSeqno,
-                                 scanCtx->maxSeqno,
-                                 scanCtx->persistedCompletedSeqno);
+        stream->markDiskSnapshot(
+                startSeqno, scanCtx->maxSeqno, scanCtx->highCompletedSeqno);
         transitionState(backfill_state_scanning);
     }
 

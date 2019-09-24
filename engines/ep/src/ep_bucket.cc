@@ -420,8 +420,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // we special case this for the disk snapshot instead of relaxing
             // the general constraint.
             if (toFlush.highCompletedSeqno &&
-                *toFlush.highCompletedSeqno !=
-                        vbstate.persistedCompletedSeqno) {
+                *toFlush.highCompletedSeqno != vbstate.highCompletedSeqno) {
                 hcs = toFlush.highCompletedSeqno;
             }
             // HPS is optional because we have to update it on disk only if a
@@ -592,13 +591,13 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
 
                 if (hcs) {
-                    Expects(hcs > vbstate.persistedCompletedSeqno);
-                    vbstate.persistedCompletedSeqno = *hcs;
+                    Expects(hcs > vbstate.highCompletedSeqno);
+                    vbstate.highCompletedSeqno = *hcs;
                 }
 
                 if (hps) {
-                    Expects(hps > vbstate.persistedPreparedSeqno);
-                    vbstate.persistedPreparedSeqno = *hps;
+                    Expects(hps > vbstate.highPreparedSeqno);
+                    vbstate.highPreparedSeqno = *hps;
                 }
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
@@ -1496,7 +1495,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     // Insert all outstanding Prepares into the VBucket (HashTable &
     // DurabilityMonitor).
     std::vector<queued_item> prepares;
-    if (vbState->persistedPreparedSeqno == vbState->persistedCompletedSeqno) {
+    if (vbState->highPreparedSeqno == vbState->highCompletedSeqno) {
         // We don't need to warm up anything for this vBucket as all of our
         // prepares have been completed, but we do need to create the DM
         // with our vbucket_state.
@@ -1506,12 +1505,12 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     }
 
     // We optimise this step by starting the scan at the seqno following the
-    // Persisted Completed Seqno. By definition, all earlier prepares have been
+    // High Completed Seqno. By definition, all earlier prepares have been
     // completed (Committed or Aborted).
-    const uint64_t startSeqno = vbState->persistedCompletedSeqno + 1;
+    const uint64_t startSeqno = vbState->highCompletedSeqno + 1;
 
-    auto storageCB = std::make_shared<LoadSyncWrites>(
-            epVb, vbState->persistedPreparedSeqno);
+    auto storageCB =
+            std::make_shared<LoadSyncWrites>(epVb, vbState->highPreparedSeqno);
 
     // Don't expect to find anything already in the HashTable, so use
     // NoLookupCallback.

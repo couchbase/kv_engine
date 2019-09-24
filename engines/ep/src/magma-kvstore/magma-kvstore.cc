@@ -1550,7 +1550,7 @@ ScanContext* MagmaKVStore::initScanContext(
         highSeqno = vbstate->highSeqno;
         purgeSeqno = vbstate->purgeSeqno;
         docCount = highSeqno - startSeqno + 1;
-        highCompletedSeqno = vbstate->persistedCompletedSeqno;
+        highCompletedSeqno = vbstate->highCompletedSeqno;
     }
 
     auto collectionsManifest = getDroppedCollections(vbid);

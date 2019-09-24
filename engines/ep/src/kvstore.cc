@@ -69,7 +69,7 @@ ScanContext::ScanContext(
       docFilter(_docFilter),
       valFilter(_valFilter),
       documentCount(_documentCount),
-      persistedCompletedSeqno(highCompletedSeqno),
+      highCompletedSeqno(highCompletedSeqno),
       logger(globalBucketLogger.get()),
       config(_config),
       collectionsContext(droppedCollections) {
@@ -143,8 +143,8 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
             vbState->transition.failovers = newState.transition.failovers;
             vbState->transition.replicationTopology =
                     newState.transition.replicationTopology;
-            vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
-            vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
+            vbState->highCompletedSeqno = newState.highCompletedSeqno;
+            vbState->highPreparedSeqno = newState.highPreparedSeqno;
             vbState->onDiskPrepares = newState.onDiskPrepares;
         } else {
             state_change_detected = false;

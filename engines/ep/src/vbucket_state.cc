@@ -58,12 +58,12 @@ bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
      * - the failover table, or
      * - the replication topology or
      *   (above owned by struct vbucket_transition_state)
-     * - the persisted completed seqno or
-     * - the persisted prepared seqno
+     * - the high completed seqno or
+     * - the high prepared seqno
      */
     return (transition.needsToBePersisted(vbstate.transition) ||
-            persistedCompletedSeqno != vbstate.persistedCompletedSeqno ||
-            persistedPreparedSeqno != vbstate.persistedPreparedSeqno);
+            highCompletedSeqno != vbstate.highCompletedSeqno ||
+            highPreparedSeqno != vbstate.highPreparedSeqno);
 }
 
 void vbucket_state::reset() {
@@ -77,8 +77,8 @@ void vbucket_state::reset() {
     mightContainXattrs = false;
     supportsNamespaces = true;
     version = CurrentVersion;
-    persistedCompletedSeqno = 0;
-    persistedPreparedSeqno = 0;
+    highCompletedSeqno = 0;
+    highPreparedSeqno = 0;
     onDiskPrepares = 0;
     transition = vbucket_transition_state{};
 }
@@ -101,8 +101,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"might_contain_xattrs", vbs.mightContainXattrs},
             {"namespaces_supported", vbs.supportsNamespaces},
             {"version", vbs.version},
-            {"completed_seqno", std::to_string(vbs.persistedCompletedSeqno)},
-            {"prepared_seqno", std::to_string(vbs.persistedPreparedSeqno)},
+            {"high_completed_seqno", std::to_string(vbs.highCompletedSeqno)},
+            {"high_prepared_seqno", std::to_string(vbs.highPreparedSeqno)},
             {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)}};
 
     to_json(json, vbs.transition);
@@ -131,19 +131,19 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     }
 
     // Note: We don't have any HCS in pre-6.5
-    auto hcs = j.find("completed_seqno");
+    auto hcs = j.find("high_completed_seqno");
     if (hcs != j.end()) {
-        vbs.persistedCompletedSeqno = std::stoull((*hcs).get<std::string>());
+        vbs.highCompletedSeqno = std::stoull((*hcs).get<std::string>());
     } else {
-        vbs.persistedCompletedSeqno = 0;
+        vbs.highCompletedSeqno = 0;
     }
 
     // Note: We don't have any HPS in pre-6.5
-    auto hps = j.find("prepared_seqno");
+    auto hps = j.find("high_prepared_seqno");
     if (hps != j.end()) {
-        vbs.persistedPreparedSeqno = std::stoull((*hps).get<std::string>());
+        vbs.highPreparedSeqno = std::stoull((*hps).get<std::string>());
     } else {
-        vbs.persistedPreparedSeqno = 0;
+        vbs.highPreparedSeqno = 0;
     }
 
     // Note: We don't track on disk prepares pre-6.5
