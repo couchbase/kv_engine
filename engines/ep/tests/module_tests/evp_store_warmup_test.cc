@@ -1406,6 +1406,76 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     resetEngineAndWarmup();
 }
 
+/**
+ * Test that we do not move the PCS when we receive an abort as part of a disk
+ * snapshot. If we were to do so then we would prevent the warmup of any
+ * prepares beforehand. This is okay in the general case as, if we went down, we
+ * would resume our disk snapshot and eventually receive the completions. If we
+ * were to be promoted in this state, whilst we would have lost data already,
+ * we could warmup the prepares and eventually recommit them which means that we
+ * be consistent up to the point of the Abort.
+ */
+TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    { // Scope for VBPtr (invalid after reset and warmup)
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+        // We're going to pretend to be a replica because it's easier than
+        // setting up a consumer. We want to be receiving a disk snapshot from
+        // seqno 1 to 3 where seqno 1 is a prepare, seqno 2 the commit for the
+        // prepare, and seqno 3 is an unrelated mutation. HCS is not flushed
+        // as the snapshot is incomplete.
+        vb->checkpointManager->createSnapshot(1 /*snapStart*/,
+                                              5 /*snapEnd*/,
+                                              {} /*HCS not flushed*/,
+                                              CheckpointType::Disk);
+        ASSERT_TRUE(vb->isReceivingDiskSnapshot());
+
+        // 1) Receive the prepare
+        auto prepareKey = makeStoredDocKey("prepare");
+        using namespace cb::durability;
+        auto prepare = makePendingItem(
+                prepareKey,
+                "value",
+                Requirements{Level::Majority, Timeout::Infinity()});
+        prepare->setVBucketId(vbid);
+        prepare->setCas(1);
+        prepare->setBySeqno(1);
+        EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+
+        // 2) Receive the prepare
+        auto abortKey = makeStoredDocKey("abort");
+        vb->abort(abortKey, 3, 4, vb->lockCollections(abortKey));
+        EXPECT_EQ(4, vb->getHighSeqno());
+
+        // 3) Flush and shutdown to simulate a partial snapshot.
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        EXPECT_EQ(0,
+                  store->getRWUnderlying(vbid)
+                          ->getVBucketState(vbid)
+                          ->persistedCompletedSeqno);
+    }
+
+    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
+    // post warmup when we move the HPS for non-durable writes.
+    resetEngineAndWarmup().disable();
+
+    EXPECT_EQ(0,
+              store->getRWUnderlying(vbid)
+                      ->getVBucketState(vbid)
+                      ->persistedCompletedSeqno);
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    // We should have loaded the prepare at seqno 1.
+    EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().warmedUpPrepares);
+    EXPECT_EQ(1,
+              store->getEPEngine()
+                      .getEpStats()
+                      .warmupItemsVisitedWhilstLoadingPrepares);
+}
+
 // MB-35768: Test that having a replication topology stored on disk under
 // which durability is impossible (e.g. [active, <null>], and a Pending
 // // SyncWrite doesn't crash during warmup (when re-populating ActiveDM).

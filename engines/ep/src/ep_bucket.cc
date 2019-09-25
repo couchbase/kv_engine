@@ -441,8 +441,16 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
 
                 const auto op = item->getOperation();
-                if (op == queue_op::commit_sync_write ||
-                    op == queue_op::abort_sync_write) {
+                if ((op == queue_op::commit_sync_write ||
+                     op == queue_op::abort_sync_write) &&
+                    toFlush.checkpointType != CheckpointType::Disk) {
+                    // If we are receiving a disk snapshot then we want to skip
+                    // the HCS update as we will persist a correct one when we
+                    // flush the last item. If we were to persist an incorrect
+                    // HCS then we would have to backtrack the start seqno of
+                    // our warmup to ensure that we do warmup prepares that may
+                    // not have been completed if they were completed out of
+                    // order.
                     hcs = std::max(hcs.value_or(0), item->getPrepareSeqno());
                 }
 

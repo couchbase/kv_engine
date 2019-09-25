@@ -1103,8 +1103,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // mutation does not advance the HCS
     EXPECT_EQ(0, getPersistedHCS());
 
-    // receive an abort (seqno 4) for a deduped prepare (seqno 3) which *does*
-    // advance the HCS
+    // receive an abort (seqno 4) for a deduped prepare (seqno 3)
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       stream->getOpaque(),
@@ -1113,7 +1112,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       3 /*prepare*/,
                       4 /*abort*/)));
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(3, getPersistedHCS());
+    EXPECT_EQ(0, getPersistedHCS());
 
     auto unrelated = makeCommittedItem(makeStoredDocKey("unrelatedKey"), value);
     unrelated->setBySeqno(5);
