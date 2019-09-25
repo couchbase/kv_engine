@@ -1519,10 +1519,41 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     // We optimise this step by starting the scan at the seqno following the
     // Persisted Completed Seqno. By definition, all earlier prepares have been
     // completed (Committed or Aborted).
-    const uint64_t startSeqno = vbState->persistedCompletedSeqno + 1;
+    uint64_t startSeqno = vbState->persistedCompletedSeqno + 1;
 
-    auto storageCB = std::make_shared<LoadSyncWrites>(
-            epVb, vbState->persistedPreparedSeqno);
+    // The seqno up to which we will scan for SyncWrites
+    uint64_t endSeqno = vbState->persistedPreparedSeqno;
+
+    // If we are were in the middle of receiving/persisting a Disk snapshot then
+    // we cannot solely rely on the PCS and PPS due to de-dupe/out of order
+    // commit. We could have our committed item higher than the HPS if we do a
+    // normal mutation after a SyncWrite and we have not yet fully persisted the
+    // disk snapshot to correct the high completed seqno. In this case, we need
+    // to read the rest of the disk snapshot to ensure that we pick up any
+    // completions of prepares that we may attempt to warm up.
+    //
+    // Example:
+    //
+    // Relica receives Disk snapshot
+    // [1:Prepare(a), 2:Prepare(b), 3:Mutation(a)...]
+    //
+    // After receiving and flushing the mutation at seqno 3, the replica has:
+    // HPS - 0 (only moves on snapshot end)
+    // HCS - 1 (the DM takes care of this)
+    // PPS - 2
+    // PCS - 0 (we can only move the PCS correctly at snap-end)
+    //
+    // If we warmup in this case then we load SyncWrites from seqno 1 to 2. If
+    // we do this then we will skip the logical completion at seqno 3 for the
+    // prepare at seqno 1. This will cause us to have a completed SyncWrite in
+    // the DM when we transition to memory which will block any further
+    // SyncWrite completions on this node.
+    if (vbState->checkpointType == CheckpointType::Disk &&
+        static_cast<uint64_t>(vbState->highSeqno) != vbState->lastSnapEnd) {
+        endSeqno = vbState->highSeqno;
+    }
+
+    auto storageCB = std::make_shared<LoadSyncWrites>(epVb, endSeqno);
 
     // Don't expect to find anything already in the HashTable, so use
     // NoLookupCallback.
