@@ -129,8 +129,6 @@ struct dcp_message_producers {
      * @param by_seqno
      * @param rev_seqno
      * @param lock_time
-     * @param meta
-     * @param nmeta
      * @param nru the nru field used by ep-engine (may safely be ignored)
      * @param sid The stream-ID the mutation applies to (can be 0 for none)
      *
@@ -142,8 +140,6 @@ struct dcp_message_producers {
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
-                                       const void* meta,
-                                       uint16_t nmeta,
                                        uint8_t nru,
                                        cb::mcbp::DcpStreamId sid) = 0;
 

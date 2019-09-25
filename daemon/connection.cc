@@ -1950,8 +1950,6 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
-                                       const void* meta,
-                                       uint16_t nmeta,
                                        uint8_t nru,
                                        cb::mcbp::DcpStreamId sid) {
     item_info info;
@@ -1984,7 +1982,6 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
             info.flags,
             gsl::narrow<uint32_t>(info.exptime),
             lock_time,
-            nmeta,
             nru);
 
     cb::mcbp::Request req = {};
@@ -1994,7 +1991,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(extras)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(
-            sizeof(extras) + key.size() + nmeta + buffer.size() +
+            sizeof(extras) + key.size() + buffer.size() +
             (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
@@ -2012,12 +2009,10 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                     &frameExtras,
                     &extras,
                     &buffer,
-                    &meta,
-                    &nmeta,
                     &ret,
                     &key,
                     sid](cb::byte_buffer wbuf) -> size_t {
-        size_t headerSize = sizeof(extras) + sizeof(req) + nmeta;
+        size_t headerSize = sizeof(extras) + sizeof(req);
         if (sid) {
             headerSize += sizeof(frameExtras);
         }
@@ -2041,13 +2036,6 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         nextWbuf = std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
                                sizeof(extras),
                                nextWbuf);
-
-        if (nmeta) {
-            // Add the optional meta section
-            std::copy(static_cast<const uint8_t*>(meta),
-                      static_cast<const uint8_t*>(meta) + nmeta,
-                      nextWbuf);
-        }
 
         // Add the header (which includes extras, optional frame-extra and
         // optional nmeta)

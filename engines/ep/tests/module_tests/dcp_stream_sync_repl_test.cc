@@ -195,8 +195,6 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
                              item->getRevSeqno(),
                              _,
                              _,
-                             _,
-                             _,
                              _))
                 .WillOnce(Return(ENGINE_SUCCESS));
     }
@@ -245,8 +243,6 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
                              Vbid(0),
                              item->getBySeqno(),
                              item->getRevSeqno(),
-                             _,
-                             _,
                              _,
                              _,
                              _))
@@ -352,8 +348,6 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
                              mutation->getRevSeqno(),
                              _,
                              _,
-                             _,
-                             _,
                              _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
@@ -420,8 +414,6 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
                              Vbid(0),
                              mutation->getBySeqno(),
                              mutation->getRevSeqno(),
-                             _,
-                             _,
                              _,
                              _,
                              _))

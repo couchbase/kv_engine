@@ -100,8 +100,6 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t lock_time,
-        const void* meta,
-        uint16_t nmeta,
         uint8_t nru,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
@@ -111,8 +109,6 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
                             by_seqno,
                             rev_seqno,
                             lock_time,
-                            meta,
-                            nmeta,
                             nru,
                             sid);
 }

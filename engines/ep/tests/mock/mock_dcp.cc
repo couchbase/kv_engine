@@ -154,20 +154,17 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
                                                     uint32_t lock_time,
-                                                    const void* meta,
-                                                    uint16_t nmeta,
                                                     uint8_t nru,
                                                     cb::mcbp::DcpStreamId sid) {
-    auto result = handleMutationOrPrepare(
-            cb::mcbp::ClientOpcode::DcpMutation,
-            opaque,
-            std::move(itm),
-            vbucket,
-            by_seqno,
-            rev_seqno,
-            lock_time,
-            {reinterpret_cast<const char*>(meta), nmeta},
-            nru);
+    auto result = handleMutationOrPrepare(cb::mcbp::ClientOpcode::DcpMutation,
+                                          opaque,
+                                          std::move(itm),
+                                          vbucket,
+                                          by_seqno,
+                                          rev_seqno,
+                                          lock_time,
+                                          {},
+                                          nru);
     last_stream_id = sid;
     return result;
 }

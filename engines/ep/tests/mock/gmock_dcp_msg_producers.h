@@ -69,17 +69,15 @@ public:
                               boost::optional<uint64_t> high_completed_seqno,
                               cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD10(mutation,
-                  ENGINE_ERROR_CODE(uint32_t opaque,
-                                    Item* itm,
-                                    Vbid vbucket,
-                                    uint64_t by_seqno,
-                                    uint64_t rev_seqno,
-                                    uint32_t lock_time,
-                                    const void* meta,
-                                    uint16_t nmeta,
-                                    uint8_t nru,
-                                    cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD8(mutation,
+                 ENGINE_ERROR_CODE(uint32_t opaque,
+                                   Item* itm,
+                                   Vbid vbucket,
+                                   uint64_t by_seqno,
+                                   uint64_t rev_seqno,
+                                   uint32_t lock_time,
+                                   uint8_t nru,
+                                   cb::mcbp::DcpStreamId sid));
 
     MOCK_METHOD8(deletion,
                  ENGINE_ERROR_CODE(uint32_t opaque,
@@ -179,8 +177,6 @@ public:
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                uint32_t lock_time,
-                               const void* meta,
-                               uint16_t nmeta,
                                uint8_t nru,
                                cb::mcbp::DcpStreamId sid) {
         return mutation(opaque,
@@ -189,8 +185,6 @@ public:
                         by_seqno,
                         rev_seqno,
                         lock_time,
-                        meta,
-                        nmeta,
                         nru,
                         sid);
     }

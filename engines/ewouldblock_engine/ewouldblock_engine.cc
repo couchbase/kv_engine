@@ -1441,8 +1441,6 @@ ENGINE_ERROR_CODE EWB_Engine::step(
                     0 /*by_seqno*/,
                     0 /*rev_seqno*/,
                     0 /*lock_time*/,
-                    nullptr /*meta*/,
-                    0 /*nmeta*/,
                     0 /*nru*/,
                     {});
             --count;

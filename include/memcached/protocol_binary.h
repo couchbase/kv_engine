@@ -905,14 +905,12 @@ public:
                        uint32_t flags,
                        uint32_t expiration,
                        uint32_t lock_time,
-                       uint16_t nmeta,
                        uint8_t nru)
         : by_seqno(htonll(by_seqno)),
           rev_seqno(htonll(rev_seqno)),
           flags(flags),
           expiration(htonl(expiration)),
           lock_time(htonl(lock_time)),
-          nmeta(htons(nmeta)),
           nru(nru) {
     }
     uint64_t getBySeqno() const {
@@ -948,9 +946,6 @@ public:
     uint16_t getNmeta() const {
         return ntohs(nmeta);
     }
-    void setNmeta(uint16_t nmeta) {
-        DcpMutationPayload::nmeta = htons(nmeta);
-    }
     uint8_t getNru() const {
         return nru;
     }
@@ -968,7 +963,9 @@ protected:
     uint32_t flags = 0;
     uint32_t expiration = 0;
     uint32_t lock_time = 0;
-    uint16_t nmeta = 0;
+    /// We don't set this anymore, but old servers may send it to us
+    /// but we'll ignore it
+    const uint16_t nmeta = 0;
     uint8_t nru = 0;
 };
 static_assert(31, "Unexpected struct size");

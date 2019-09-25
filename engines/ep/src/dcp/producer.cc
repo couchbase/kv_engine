@@ -668,8 +668,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
                                       0 /* lock time */,
-                                      nullptr,
-                                      0,
                                       hotness,
                                       mutationResponse->getStreamId());
             break;
