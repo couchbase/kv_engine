@@ -230,8 +230,8 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         // We permit the key one above "high" to not exist - see state (b)
         // above.
 
-        // Check that all keys above high+1 do not exist.
-        for (size_t i = highNumber + 1; i < docCount; i++) {
+        // Check that all keys ABOVE high+1 do not exist.
+        for (size_t i = highNumber + 2; i < docCount; i++) {
             auto key = std::to_string(i);
             try {
                 conn.get(key, vbid);
