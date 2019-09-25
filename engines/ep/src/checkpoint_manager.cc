@@ -180,24 +180,18 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
                       checkpointType);
 
     /* If cursors reached to the end of its current checkpoint, move it to the
-       next checkpoint. DCP cursors can skip a "checkpoint end" meta item.
-       This is needed so that the checkpoint remover can remove the
+       next checkpoint. DCP and Persistence cursors can skip a "checkpoint end"
+       meta item. This is needed so that the checkpoint remover can remove the
        closed checkpoints and hence reduce the memory usage */
     for (auto& cur_it : connCursors) {
-        if (cur_it.second->name == CheckpointManager::pCursorName) {
-            // skip the persistence cursor - persistence relies on checkpoint
-            // end ops to correctly persist the HCS for disk
-            // snapshots/checkpoints
-            continue;
-        }
         CheckpointCursor& cursor = *cur_it.second;
         ++(cursor.currentPos);
         if (cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
             (*(cursor.currentPos))->getOperation() ==
                     queue_op::checkpoint_end) {
-            /* checkpoint_end meta item is skipped for DCP cursors */
-            ++(cursor.currentPos);
-            // cursor now at checkpoint.end()
+            /* checkpoint_end meta item is skipped for persistence and
+             * DCP cursors */
+            ++(cursor.currentPos); // cursor now reaches to the checkpoint end
         }
 
         if (cursor.currentPos == (*(cursor.currentCheckpoint))->end()) {

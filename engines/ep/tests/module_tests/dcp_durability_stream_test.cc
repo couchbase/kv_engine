@@ -25,7 +25,6 @@
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
-#include "ep_bucket.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
@@ -47,7 +46,6 @@ void DurabilityActiveStreamTest::TearDown() {
 }
 
 void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
-    SCOPED_TRACE(__func__);
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -3143,35 +3141,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     consumer.reset();
 
     // 3) Set up the Producer and ActiveStream
-    // Change state - this should add 1 set_vbucket_state op to the
-    // VBuckets' persistence queue.
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology",
-                        nlohmann::json::array({{active, replica}})}}));
-
-    if (engine->getConfiguration().getBucketType() == "persistent") {
-        // Trigger the flusher to flush state to disk.
-        auto& ep = dynamic_cast<EPBucket&>(*store);
-        // Changing the vb state to active will close the current disk
-        // checkpoint flushVBucket will stop at the start of the new checkpoint
-        // as it is of a different type (memory). This will report moreAvailable
-        // == true.
-        EXPECT_EQ(std::make_pair(true, size_t(0)), ep.flushVBucket(vbid));
-        // flush again to confirm there are no unexpected items and that we now
-        // find moreAvailable == false.
-        EXPECT_EQ(std::make_pair(false, size_t(0)), ep.flushVBucket(vbid));
-    }
-
-    // Enable SyncReplication and flow-control (Producer BufferLog)
-    setupProducer({{"enable_sync_writes", "true"},
-                   {"connection_buffer_size", "52428800"},
-                   {"consumer_name", "test_consumer"}},
-                  true /*startCheckpointProcessorTask*/);
-    ASSERT_TRUE(DurabilityActiveStreamTest::stream
-                        ->public_supportSyncReplication());
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
 
     // 4) Write something to a different key. This should be written into a new
     // checkpoint as we would still be in a Disk checkpoint.
