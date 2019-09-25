@@ -1000,21 +1000,6 @@ void DurabilityPassiveStreamPersistentTest::testDiskSnapshotHCSPersisted() {
     testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
             DocumentState::Alive);
 
-    // We won't flush a HCS from a snapshot marker until we process the entire
-    // checkpoint, this is because we need to be pessimistic with flushing the
-    // HCS in a disk checkpoint for our warmup optimization. If we flush a HCS
-    // that is too high whilst receiving a disk snapshot we may end up in some
-    // inconsistent state due to out of order commit.
-    SnapshotMarker marker(
-            0 /*opaque*/,
-            vbid,
-            5 /*snapStart*/,
-            6 /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*HCS*/,
-            {} /*streamId*/);
-    stream->processMarker(&marker);
-
     flushVBucketToDiskIfPersistent(vbid, 2);
     {
         auto vb = store->getVBucket(vbid);
@@ -1051,9 +1036,9 @@ uint64_t DurabilityPassiveStreamPersistentTest::getPersistedHCS() {
 }
 
 TEST_P(DurabilityPassiveStreamPersistentTest,
-       DiskSnapshotHCSNotPersistedBeforeCkptEnd) {
+       DiskSnapshotHCSNotPersistedBeforeSnapEnd) {
     // Test to ensure the highCompletedSeqno sent as part of a disk snapshot
-    // is not persisted by the replica until the entire checkpoint is flushed
+    // is not persisted by the replica until the entire snapshot is flushed
     // to disk.
 
     // Send a disk snapshot marker with a HCS of 3
@@ -1148,28 +1133,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // We have received all the items for this checkpoint *but*
-    // until the checkpoint is closed, the flusher will not
-    // receive a checkpoint end item, and should not persist the
-    // hcs
-    EXPECT_EQ(3, getPersistedHCS());
-
-    // Receive a new snapshot marker, closing the checkpoint.
-    // Now, flushing should write the sent hcs to disk.
-    SnapshotMarker marker2(
-            0 /*opaque*/,
-            vbid,
-            4 /*snapStart*/,
-            4 /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*HCS*/,
-            {} /*streamId*/);
-    EXPECT_NO_THROW(stream->processMarker(&marker2));
-
-    flushVBucketToDiskIfPersistent(vbid, 0);
-
-    // Now that the checkpoint end has been flushed, the HCS
-    // should have advanced to the value sent as part of the snapshot
+    // We should flush the HCS when we flush the last item in the snapshot
     EXPECT_EQ(4, getPersistedHCS());
 }
 

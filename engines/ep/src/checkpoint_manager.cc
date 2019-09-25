@@ -28,6 +28,7 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 
+#include <boost/optional/optional_io.hpp>
 #include <gsl.h>
 
 CheckpointManager::CheckpointManager(EPStats& st,
@@ -807,8 +808,9 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         }
         if (enteredNewCp) {
             result.ranges.push_back(
-                    {(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
-                     (*cursor.currentCheckpoint)->getSnapshotEndSeqno()});
+                    {{(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
+                      (*cursor.currentCheckpoint)->getSnapshotEndSeqno()},
+                     (*cursor.currentCheckpoint)->getHighCompletedSeqno()});
             enteredNewCp = false;
 
             // As we cross into new checkpoints, update the maxDeletedRevSeqno
@@ -829,11 +831,6 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         if (qi->getOperation() == queue_op::checkpoint_end) {
             enteredNewCp = true; // the next incrCuror will move to a new CP
 
-            // Only move the HCS at checkpoint end (don't want to flush a
-            // HCS mid-checkpoint).
-            result.highCompletedSeqno =
-                    (*cursor.currentCheckpoint)->getHighCompletedSeqno();
-
             // Reached the end of a checkpoint; check if we have exceeded
             // our limit.
             if (itemCount >= approxLimit) {
@@ -852,7 +849,9 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     if (globalBucketLogger->should_log(spdlog::level::debug)) {
         std::stringstream ranges;
         for (const auto& range : result.ranges) {
-            ranges << "{" << range.getStart() << "," << range.getEnd() << "}";
+            ranges << "{" << range.range.getStart() << ","
+                   << range.range.getEnd()
+                   << "} with HCS:" << range.highCompletedSeqno;
         }
         EP_LOG_DEBUG(
                 "CheckpointManager::getItemsForCursor() "

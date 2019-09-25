@@ -416,14 +416,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             boost::optional<uint64_t> hcs =
                     boost::make_optional(false, uint64_t());
 
-            // HCS may be weakly monotonic when received via a disk snapshot so
-            // we special case this for the disk snapshot instead of relaxing
-            // the general constraint.
-            if (toFlush.highCompletedSeqno &&
-                *toFlush.highCompletedSeqno !=
-                        vbstate.persistedCompletedSeqno) {
-                hcs = toFlush.highCompletedSeqno;
-            }
             // HPS is optional because we have to update it on disk only if a
             // prepare is found in the flush-batch
             boost::optional<uint64_t> hps;
@@ -538,8 +530,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     if (itr != toFlush.ranges.end()) {
                         // Use std::max as the flusher is not visiting in seqno
                         // order.
-                        range->setStart(
-                                std::max(range->getStart(), itr->getEnd()));
+                        range->setStart(std::max(range->getStart(),
+                                                 itr->range.getEnd()));
+                        if (toFlush.checkpointType == CheckpointType::Disk) {
+                            hcs = itr->highCompletedSeqno;
+                        }
                     }
                 } else {
                     // Item is the same key as the previous[1] one - don't need

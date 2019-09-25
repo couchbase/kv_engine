@@ -405,7 +405,6 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
         auto ckptItems = checkpointManager->getItemsForPersistence(
                 result.items, ckptMgrLimit);
         result.ranges = std::move(ckptItems.ranges);
-        result.highCompletedSeqno = ckptItems.highCompletedSeqno;
         result.maxDeletedRevSeqno = ckptItems.maxDeletedRevSeqno;
         result.checkpointType = ckptItems.checkpointType;
         ckptItemsAvailable = ckptItems.moreAvailable;

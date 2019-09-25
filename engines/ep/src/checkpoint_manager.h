@@ -43,6 +43,27 @@ class Callback;
 using LockHolder = std::lock_guard<std::mutex>;
 
 /**
+ * snapshot_range_t + a HCS for flushing to disk from Disk checkpoints which
+ * is required as we can't work out a correct PCS on a replica due to de-dupe.
+ */
+struct CheckpointSnapshotRange {
+    // Getters for start and end to allow us to use this in the same way as a
+    // normal snapshot_range_t
+    uint64_t getStart() {
+        return range.getStart();
+    }
+    uint64_t getEnd() {
+        return range.getEnd();
+    }
+
+    snapshot_range_t range;
+
+    // HCS that should be flushed. Currently should only be set for Disk
+    // Checkpoint runs.
+    boost::optional<uint64_t> highCompletedSeqno = {};
+};
+
+/**
  * Representation of a checkpoint manager that maintains the list of checkpoints
  * for a given vbucket.
  */
@@ -64,13 +85,10 @@ public:
             : checkpointType(checkpointType),
               maxDeletedRevSeqno(maxDeletedRevSeqno) {
         }
-        std::vector<snapshot_range_t> ranges;
+        std::vector<CheckpointSnapshotRange> ranges;
         bool moreAvailable = {false};
         CheckpointType checkpointType = CheckpointType::Memory;
 
-        // HCS that should be flushed. Currently should only be set for Disk
-        // Checkpoint runs.
-        boost::optional<uint64_t> highCompletedSeqno = {};
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
     };
 
