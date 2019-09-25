@@ -1664,105 +1664,6 @@ ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
     return ret;
 }
 
-ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
-        uint32_t opaque,
-        cb::unique_item_ptr it,
-        Vbid vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t delete_time,
-        DeleteSource deleteSource,
-        cb::mcbp::DcpStreamId sid) {
-    std::string log_str;
-    if (deleteSource == DeleteSource::TTL) {
-        log_str = "expiration";
-    } else {
-        log_str = "deletion_v2";
-    }
-    item_info info;
-    if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::{}: Failed to get item info",
-                    getId(),
-                    log_str);
-        return ENGINE_FAILED;
-    }
-
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::{}: Failed to grow item array",
-                    getId(),
-                    log_str);
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
-
-    auto key = info.key;
-    if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
-    }
-
-    using cb::mcbp::DcpStreamIdFrameInfo;
-    using cb::mcbp::Request;
-    using cb::mcbp::request::DcpDeletionV2Payload;
-    using cb::mcbp::request::DcpExpirationPayload;
-
-    static_assert(sizeof(DcpDeletionV2Payload) >= sizeof(DcpExpirationPayload),
-                  "This function assumes delete_v2 is >= than expiry");
-
-    // Make blob big enough for either delete or expiry
-    uint8_t blob[sizeof(Request) + sizeof(DcpDeletionV2Payload) +
-                 sizeof(DcpStreamIdFrameInfo)] = {};
-    const size_t payloadLen = deleteSource == DeleteSource::Explicit
-                                      ? sizeof(DcpDeletionV2Payload)
-                                      : sizeof(DcpExpirationPayload);
-    const size_t frameInfoLen = sid ? sizeof(DcpStreamIdFrameInfo) : 0;
-
-    auto& req = *reinterpret_cast<Request*>(blob);
-    req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
-                     : cb::mcbp::Magic::ClientRequest);
-
-    req.setOpcode(deleteSource == DeleteSource::Explicit
-                          ? cb::mcbp::ClientOpcode::DcpDeletion
-                          : cb::mcbp::ClientOpcode::DcpExpiration);
-    req.setExtlen(gsl::narrow<uint8_t>(payloadLen));
-    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
-    req.setBodylen(gsl::narrow<uint32_t>(payloadLen +
-                                         gsl::narrow<uint16_t>(key.size()) +
-                                         info.nbytes + frameInfoLen));
-    req.setOpaque(opaque);
-    req.setVBucket(vbucket);
-    req.setCas(info.cas);
-    req.setDatatype(cb::mcbp::Datatype(info.datatype));
-    auto size = sizeof(Request);
-    if (sid) {
-        auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
-                blob + sizeof(Request));
-        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
-        req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
-        size += sizeof(DcpStreamIdFrameInfo);
-    }
-
-    if (deleteSource == DeleteSource::Explicit) {
-        auto& extras = *reinterpret_cast<DcpDeletionV2Payload*>(
-                blob + sizeof(Request) + frameInfoLen);
-        extras.setBySeqno(by_seqno);
-        extras.setRevSeqno(rev_seqno);
-        extras.setDeleteTime(delete_time);
-        size += sizeof(DcpDeletionV2Payload);
-    } else {
-        auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
-                blob + sizeof(Request) + frameInfoLen);
-        extras.setBySeqno(by_seqno);
-        extras.setRevSeqno(rev_seqno);
-        extras.setDeleteTime(delete_time);
-        size += sizeof(DcpExpirationPayload);
-    }
-
-    return deletionInner(info, {blob, size}, key);
-}
-
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //                   DCP Message producer interface                       //
@@ -2165,14 +2066,73 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time,
                                           cb::mcbp::DcpStreamId sid) {
-    return deletionOrExpirationV2(opaque,
-                                  std::move(it),
-                                  vbucket,
-                                  by_seqno,
-                                  rev_seqno,
-                                  delete_time,
-                                  DeleteSource::Explicit,
-                                  sid);
+    const std::string log_str = "deletion_v2";
+
+    item_info info;
+    if (!bucket_get_item_info(*this, it.get(), &info)) {
+        LOG_WARNING("{}: Connection::{}: Failed to get item info",
+                    getId(),
+                    log_str);
+        return ENGINE_FAILED;
+    }
+
+    if (!reserveItem(it.get())) {
+        LOG_WARNING("{}: Connection::{}: Failed to grow item array",
+                    getId(),
+                    log_str);
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    it.release();
+
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+
+    using cb::mcbp::DcpStreamIdFrameInfo;
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpDeletionV2Payload;
+
+    // Make blob big enough for either delete or expiry
+    uint8_t blob[sizeof(Request) + sizeof(DcpDeletionV2Payload) +
+                 sizeof(DcpStreamIdFrameInfo)] = {};
+    const size_t payloadLen = sizeof(DcpDeletionV2Payload);
+    const size_t frameInfoLen = sid ? sizeof(DcpStreamIdFrameInfo) : 0;
+
+    auto& req = *reinterpret_cast<Request*>(blob);
+    req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                     : cb::mcbp::Magic::ClientRequest);
+
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+    req.setExtlen(gsl::narrow<uint8_t>(payloadLen));
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(payloadLen +
+                                         gsl::narrow<uint16_t>(key.size()) +
+                                         info.nbytes + frameInfoLen));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+    req.setCas(info.cas);
+    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    auto size = sizeof(Request);
+    if (sid) {
+        auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
+                blob + sizeof(Request));
+        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
+        req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
+        size += sizeof(DcpStreamIdFrameInfo);
+    }
+
+    auto& extras = *reinterpret_cast<DcpDeletionV2Payload*>(
+            blob + sizeof(Request) + frameInfoLen);
+    extras.setBySeqno(by_seqno);
+    extras.setRevSeqno(rev_seqno);
+    extras.setDeleteTime(delete_time);
+    size += sizeof(DcpDeletionV2Payload);
+
+    return deletionInner(info, {blob, size}, key);
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
@@ -2182,14 +2142,72 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
                                          uint64_t rev_seqno,
                                          uint32_t delete_time,
                                          cb::mcbp::DcpStreamId sid) {
-    return deletionOrExpirationV2(opaque,
-                                  std::move(it),
-                                  vbucket,
-                                  by_seqno,
-                                  rev_seqno,
-                                  delete_time,
-                                  DeleteSource::TTL,
-                                  sid);
+    const std::string log_str = "expiration";
+    item_info info;
+    if (!bucket_get_item_info(*this, it.get(), &info)) {
+        LOG_WARNING("{}: Connection::{}: Failed to get item info",
+                    getId(),
+                    log_str);
+        return ENGINE_FAILED;
+    }
+
+    if (!reserveItem(it.get())) {
+        LOG_WARNING("{}: Connection::{}: Failed to grow item array",
+                    getId(),
+                    log_str);
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    it.release();
+
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+
+    using cb::mcbp::DcpStreamIdFrameInfo;
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpExpirationPayload;
+
+    // Make blob big enough for either delete or expiry
+    uint8_t blob[sizeof(Request) + sizeof(DcpExpirationPayload) +
+                 sizeof(DcpStreamIdFrameInfo)] = {};
+    const size_t payloadLen = sizeof(DcpExpirationPayload);
+    const size_t frameInfoLen = sid ? sizeof(DcpStreamIdFrameInfo) : 0;
+
+    auto& req = *reinterpret_cast<Request*>(blob);
+    req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                     : cb::mcbp::Magic::ClientRequest);
+
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
+    req.setExtlen(gsl::narrow<uint8_t>(payloadLen));
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(payloadLen +
+                                         gsl::narrow<uint16_t>(key.size()) +
+                                         info.nbytes + frameInfoLen));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+    req.setCas(info.cas);
+    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    auto size = sizeof(Request);
+    if (sid) {
+        auto& frameInfo = *reinterpret_cast<DcpStreamIdFrameInfo*>(
+                blob + sizeof(Request));
+        frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
+        req.setFramingExtraslen(sizeof(DcpStreamIdFrameInfo));
+        size += sizeof(DcpStreamIdFrameInfo);
+    }
+
+    auto& extras = *reinterpret_cast<DcpExpirationPayload*>(
+            blob + sizeof(Request) + frameInfoLen);
+    extras.setBySeqno(by_seqno);
+    extras.setRevSeqno(rev_seqno);
+    extras.setDeleteTime(delete_time);
+    size += sizeof(DcpExpirationPayload);
+
+    return deletionInner(info, {blob, size}, key);
 }
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,

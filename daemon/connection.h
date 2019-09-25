@@ -1041,21 +1041,6 @@ protected:
      */
     ENGINE_ERROR_CODE add_packet_to_send_pipe(cb::const_byte_buffer packet);
 
-    /*
-     * deletionOrExpirationV2 is a helper function to unify the code between
-     * deletion_v2 and expiration (which also uses v2 parameters). This creates
-     * an appropriate packet based on whether it has been called via deletion or
-     * expiry and runsdeletionInner on it, which returns an ENGINE_ERROR_CODE.
-     */
-    ENGINE_ERROR_CODE deletionOrExpirationV2(uint32_t opaque,
-                                             cb::unique_item_ptr it,
-                                             Vbid vbucket,
-                                             uint64_t by_seqno,
-                                             uint64_t rev_seqno,
-                                             uint32_t delete_time,
-                                             DeleteSource deleteSource,
-                                             cb::mcbp::DcpStreamId sid);
-
     /**
      * The actual socket descriptor used by this connection
      */
