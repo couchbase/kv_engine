@@ -1760,7 +1760,7 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
         size += sizeof(DcpExpirationPayload);
     }
 
-    return deletionInner(info, {blob, size}, {/*no extended meta in v2*/}, key);
+    return deletionInner(info, {blob, size}, key);
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -2055,26 +2055,18 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
                                             cb::const_byte_buffer packet,
-                                            cb::const_byte_buffer extendedMeta,
                                             const DocKey& key) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &extendedMeta, &info, &ret, &key](
+    write->produce([this, &packet, &info, &ret, &key](
                            cb::byte_buffer buffer) -> size_t {
         if (buffer.size() <
             (packet.size() +
-             cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() +
-             extendedMeta.size())) {
+             cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize())) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
         std::copy(packet.begin(), packet.end(), buffer.begin());
-
-        if (extendedMeta.size() > 0) {
-            std::copy(extendedMeta.begin(),
-                      extendedMeta.end(),
-                      buffer.data() + packet.size());
-        }
 
         // Add the header + collection-ID (stored in buffer)
         addIov(buffer.data(), packet.size());
@@ -2087,12 +2079,7 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
             addIov(info.value[0].iov_base, info.nbytes);
         }
 
-        // Add the optional meta section
-        if (extendedMeta.size() > 0) {
-            addIov(buffer.data() + packet.size(), extendedMeta.size());
-        }
-
-        return packet.size() + extendedMeta.size();
+        return packet.size();
     });
 
     return ret;
@@ -2103,8 +2090,6 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
-                                       const void* meta,
-                                       uint16_t nmeta,
                                        cb::mcbp::DcpStreamId sid) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
@@ -2146,7 +2131,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(DcpDeletionV1Payload)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(
-            sizeof(DcpDeletionV1Payload) + key.size() + nmeta + info.nbytes +
+            sizeof(DcpDeletionV1Payload) + key.size() + info.nbytes +
             (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
@@ -2164,16 +2149,13 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
             *reinterpret_cast<DcpDeletionV1Payload*>(blob + sizeof(Request));
     extras.setBySeqno(by_seqno);
     extras.setRevSeqno(rev_seqno);
-    extras.setNmeta(nmeta);
 
     cb::const_byte_buffer packetBuffer{
             blob,
             sizeof(Request) + sizeof(DcpDeletionV1Payload) +
                     (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)};
-    cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
-                                       nmeta};
 
-    return deletionInner(info, packetBuffer, extendedMeta, key);
+    return deletionInner(info, packetBuffer, key);
 }
 
 ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,

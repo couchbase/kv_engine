@@ -987,14 +987,11 @@ public:
     uint16_t getNmeta() const {
         return ntohs(nmeta);
     }
-    void setNmeta(uint16_t nmeta) {
-        DcpDeletionV1Payload::nmeta = htons(nmeta);
-    }
 
 protected:
     uint64_t by_seqno = 0;
     uint64_t rev_seqno = 0;
-    uint16_t nmeta = 0;
+    const uint16_t nmeta = 0;
 };
 static_assert(sizeof(DcpDeletionV1Payload) == 18, "Unexpected struct size");
 
@@ -1007,15 +1004,13 @@ public:
                        uint32_t valueLen,
                        protocol_binary_datatype_t datatype,
                        uint64_t bySeqno,
-                       uint64_t revSeqno,
-                       uint16_t nmeta)
+                       uint64_t revSeqno)
         : req{} {
         req.setMagic(cb::mcbp::Magic::ClientRequest);
         req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
         req.setExtlen(gsl::narrow<uint8_t>(sizeof(body)));
         req.setKeylen(keyLen);
-        req.setBodylen(gsl::narrow<uint32_t>(sizeof(body) + keyLen + nmeta +
-                                             valueLen));
+        req.setBodylen(gsl::narrow<uint32_t>(sizeof(body) + keyLen + valueLen));
         req.setOpaque(opaque);
         req.setVBucket(vbucket);
         req.setCas(cas);
@@ -1023,7 +1018,6 @@ public:
 
         body.setBySeqno(bySeqno);
         body.setRevSeqno(revSeqno);
-        body.setNmeta(nmeta);
     }
 
 protected:

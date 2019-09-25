@@ -844,8 +844,6 @@ ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
                                   mutationResponse.getVBucket(),
                                   *mutationResponse.getBySeqno(),
                                   mutationResponse.getRevSeqno(),
-                                  nullptr,
-                                  0,
                                   sid);
     }
     return ret;

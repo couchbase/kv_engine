@@ -118,8 +118,6 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion(
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
-        const void* meta,
-        uint16_t nmeta,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
     return guarded.deletion(opaque,
@@ -127,8 +125,6 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion(
                             vbucket,
                             by_seqno,
                             rev_seqno,
-                            meta,
-                            nmeta,
                             sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion_v2(

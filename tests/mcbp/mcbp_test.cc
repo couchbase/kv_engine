@@ -2279,8 +2279,7 @@ protected:
                       0 /*valueLen*/,
                       PROTOCOL_BINARY_RAW_BYTES,
                       0 /*bySeqno*/,
-                      0 /*revSeqno*/,
-                      0 /*nmeta*/) {
+                      0 /*revSeqno*/) {
         }
 
         uint8_t* getBytes() override {

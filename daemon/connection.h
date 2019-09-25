@@ -893,8 +893,6 @@ public:
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               const void* meta,
-                               uint16_t nmeta,
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
@@ -1036,7 +1034,6 @@ protected:
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
-                                    cb::const_byte_buffer extendedMeta,
                                     const DocKey& key);
 
     /**

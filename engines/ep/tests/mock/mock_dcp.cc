@@ -213,8 +213,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
-        const void* meta,
-        uint16_t nmeta,
         uint32_t deleteTime,
         uint32_t extlen,
         DeleteSource deleteSource,
@@ -232,11 +230,10 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
     last_vbucket = vbucket;
     last_byseqno = by_seqno;
     last_revseqno = rev_seqno;
-    last_meta.assign(static_cast<const char*>(meta), nmeta);
 
     // @todo: MB-24391 as above.
     last_packet_size = sizeof(protocol_binary_request_header) +
-                       last_key.length() + item->getNBytes() + nmeta;
+                       last_key.length() + item->getNBytes();
     last_packet_size += extlen;
 
     last_value.assign(static_cast<const char*>(item->getData()),
@@ -254,16 +251,12 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                                                     Vbid vbucket,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
-                                                    const void* meta,
-                                                    uint16_t nmeta,
                                                     cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
                          std::move(itm),
                          vbucket,
                          by_seqno,
                          rev_seqno,
-                         meta,
-                         nmeta,
                          0,
                          sizeof(cb::mcbp::request::DcpDeletionV1Payload),
                          DeleteSource::Explicit,
@@ -283,8 +276,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(
                          vbucket,
                          by_seqno,
                          rev_seqno,
-                         nullptr,
-                         0,
                          deleteTime,
                          sizeof(cb::mcbp::request::DcpDeletionV2Payload),
                          DeleteSource::Explicit,
@@ -304,8 +295,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(
                          vbucket,
                          by_seqno,
                          rev_seqno,
-                         nullptr,
-                         0,
                          deleteTime,
                          sizeof(cb::mcbp::request::DcpExpirationPayload),
                          DeleteSource::TTL,

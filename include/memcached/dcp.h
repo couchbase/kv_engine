@@ -160,8 +160,6 @@ struct dcp_message_producers {
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
-                                       const void* meta,
-                                       uint16_t nmeta,
                                        cb::mcbp::DcpStreamId sid) = 0;
 
     /**

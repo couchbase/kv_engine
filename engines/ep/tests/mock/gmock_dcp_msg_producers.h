@@ -79,14 +79,12 @@ public:
                                    uint8_t nru,
                                    cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD8(deletion,
+    MOCK_METHOD6(deletion,
                  ENGINE_ERROR_CODE(uint32_t opaque,
                                    Item* itm,
                                    Vbid vbucket,
                                    uint64_t by_seqno,
                                    uint64_t rev_seqno,
-                                   const void* meta,
-                                   uint16_t nmeta,
                                    cb::mcbp::DcpStreamId sid));
 
     MOCK_METHOD7(deletionV2,
@@ -194,16 +192,12 @@ public:
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               const void* meta,
-                               uint16_t nmeta,
                                cb::mcbp::DcpStreamId sid) {
         return deletion(opaque,
                         reinterpret_cast<Item*>(itm.get()),
                         vbucket,
                         by_seqno,
                         rev_seqno,
-                        meta,
-                        nmeta,
                         sid);
     }
 

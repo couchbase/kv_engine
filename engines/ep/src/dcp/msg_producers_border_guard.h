@@ -81,8 +81,6 @@ public:
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               const void* meta,
-                               uint16_t nmeta,
                                cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
