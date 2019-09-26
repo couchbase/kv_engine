@@ -11,14 +11,6 @@ static void display(const char *name, size_t size) {
     printf("%s\t%d\n", name, (int)size);
 }
 
-static long calc_conn_size(void) {
-   long ret = sizeof(Connection);
-   ret += (sizeof(char *) * TEMP_ALLOC_LIST_INITIAL);
-   ret += (sizeof(struct iovec) * IOV_LIST_INITIAL);
-   ret += (sizeof(struct msghdr) * MSG_LIST_INITIAL);
-   return ret;
-}
-
 static unsigned int count_used_opcodes() {
     unsigned int used_opcodes = 0;
     for (uint8_t opcode = 0; opcode < 255; opcode++) {
@@ -53,7 +45,7 @@ int main(int argc, char **argv) {
     display("Global stats", sizeof(struct stats));
     display("Settings", sizeof(Settings));
     display("Libevent thread", sizeof(FrontEndThread));
-    display("Connection", calc_conn_size());
+    display("Connection", sizeof(Connection));
 
     printf("----------------------------------------\n");
 

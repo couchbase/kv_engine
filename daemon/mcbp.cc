@@ -100,7 +100,6 @@ void mcbp_add_header(Cookie& cookie,
                      uint32_t body_len,
                      uint8_t datatype) {
     auto& connection = cookie.getConnection();
-    connection.addMsgHdr(true);
     const auto& header = cookie.getHeader();
 
     const auto wbuf = mcbp_add_header(cookie,

@@ -215,17 +215,6 @@ nlohmann::json Connection::toJSON() const {
 
     ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
-    nlohmann::json iovobj;
-    iovobj["size"] = iov.size();
-    iovobj["used"] = iovused;
-    ret["iov"] = iovobj;
-
-    nlohmann::json msg;
-    msg["used"] = msglist.size();
-    msg["curr"] = msgcurr;
-    msg["bytes"] = msgbytes;
-    ret["msglist"] = msg;
-
     nlohmann::json ilist;
     ilist["size"] = reservedItems.size();
     ret["itemlist"] = ilist;
@@ -661,33 +650,6 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
     }
 }
 
-void Connection::shrinkBuffers() {
-    // We share the buffers with the thread, so we don't need to worry
-    // about the read and write buffer.
-
-    if (msglist.size() > MSG_LIST_HIGHWAT) {
-        try {
-            msglist.resize(MSG_LIST_INITIAL);
-            msglist.shrink_to_fit();
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING("{}: Failed to shrink msglist down to {} elements.",
-                        getId(),
-                        MSG_LIST_INITIAL);
-        }
-    }
-
-    if (iov.size() > IOV_LIST_HIGHWAT) {
-        try {
-            iov.resize(IOV_LIST_INITIAL);
-            iov.shrink_to_fit();
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING("{}: Failed to shrink iov down to {} elements.",
-                        getId(),
-                        IOV_LIST_INITIAL);
-        }
-    }
-}
-
 void Connection::setAuthenticated(bool authenticated) {
     Connection::authenticated = authenticated;
     if (authenticated) {
@@ -726,95 +688,6 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
         return false;
     }
     return true;
-}
-
-ssize_t Connection::sendmsg(struct msghdr* m) {
-    // In the bufferevent prototype we copy everything we wanted to send off
-    // the IO vector, and put it into the bufferevents structures. This is
-    // far from optimal, as it copies all the data into yet another buffer.
-    //
-    // @todo
-    // In the following patches we'll move away from this, but that would
-    // most likely result in state machinery changes (and grow the patch)
-    // so it is kept like this to minimize the patch moving over to
-    // bufferevents
-    //
-    ssize_t res = 0;
-    for (size_t ii = 0; ii < size_t(m->msg_iovlen); ++ii) {
-        int nw = bufferevent_write(
-                bev.get(), m->msg_iov[ii].iov_base, m->msg_iov[ii].iov_len);
-        if (nw == -1) {
-            break;
-        }
-
-        res += ssize_t(m->msg_iov[ii].iov_len);
-        totalSend += m->msg_iov[ii].iov_len;
-    }
-
-    return res > 0 ? res : -1;
-}
-
-/**
- * Adjust the msghdr by "removing" n bytes of data from it.
- *
- * @param m the msgheader to update
- * @param nbytes
- * @return the number of bytes left in the current iov entry
- */
-size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes) {
-    auto rbuf = pipe.rdata();
-
-    // We've written some of the data. Remove the completed
-    // iovec entries from the list of pending writes.
-    while (m->msg_iovlen > 0 && nbytes >= ssize_t(m->msg_iov->iov_len)) {
-        if (rbuf.data() == static_cast<const uint8_t*>(m->msg_iov->iov_base)) {
-            pipe.consumed(m->msg_iov->iov_len);
-            rbuf = pipe.rdata();
-        }
-        nbytes -= (ssize_t)m->msg_iov->iov_len;
-        m->msg_iovlen--;
-        m->msg_iov++;
-    }
-
-    // Might have written just part of the last iovec entry;
-    // adjust it so the next write will do the rest.
-    if (nbytes > 0) {
-        if (rbuf.data() == static_cast<const uint8_t*>(m->msg_iov->iov_base)) {
-            pipe.consumed(nbytes);
-        }
-        m->msg_iov->iov_base =
-                (void*)((unsigned char*)m->msg_iov->iov_base + nbytes);
-        m->msg_iov->iov_len -= nbytes;
-    }
-
-    return m->msg_iov->iov_len;
-}
-
-Connection::TransmitResult Connection::transmit() {
-    while (msgcurr < msglist.size() && msglist[msgcurr].msg_iovlen == 0) {
-        /* Finished writing the current msg; advance to the next. */
-        msgcurr++;
-    }
-
-    if (msgcurr < msglist.size()) {
-        struct msghdr* m = &msglist[msgcurr];
-        auto res = sendmsg(m);
-        if (res > 0) {
-            get_thread_stats(this)->bytes_written += res;
-
-            if (adjust_msghdr(*write, m, res) == 0) {
-                msgcurr++;
-                if (msgcurr == msglist.size()) {
-                    return TransmitResult::Complete;
-                }
-            }
-
-            return TransmitResult::Incomplete;
-        }
-        return TransmitResult::SoftError;
-    }
-
-    return TransmitResult::Complete;
 }
 
 /**
@@ -872,64 +745,16 @@ bool Connection::dcpUseWriteBuffer(size_t size) const {
     return isSslEnabled() && size < write->wsize();
 }
 
-void Connection::addMsgHdr(bool reset) {
-    if (reset) {
-        msgcurr = 0;
-        msglist.clear();
-        iovused = 0;
-    }
-
-    msglist.emplace_back();
-
-    struct msghdr& msg = msglist.back();
-
-    /* this wipes msg_iovlen, msg_control, msg_controllen, and
-       msg_flags, the last 3 of which aren't defined on solaris: */
-    memset(&msg, 0, sizeof(struct msghdr));
-
-    msg.msg_iov = &iov.data()[iovused];
-
-    msgbytes = 0;
-    STATS_MAX(this, msgused_high_watermark, gsl::narrow<int>(msglist.size()));
-}
-
 void Connection::addIov(const void* buf, size_t len) {
     if (len == 0) {
         return;
     }
 
-    struct msghdr* m = &msglist.back();
-
-    /* We may need to start a new msghdr if this one is full. */
-    if (m->msg_iovlen == IOV_MAX) {
-        addMsgHdr(false);
+    int nw = bufferevent_write(bev.get(), buf, len);
+    if (nw == -1) {
+        throw std::bad_alloc();
     }
-
-    ensureIovSpace();
-
-    // Update 'm' as we may have added an additional msghdr
-    m = &msglist.back();
-    // If this entry is right after the previous one we can just
-    // extend the previous entry instead of adding a new one
-    bool addNewEntry = true;
-    if (m->msg_iovlen > 0) {
-        auto& prev = m->msg_iov[m->msg_iovlen - 1];
-        const auto* p = static_cast<const char*>(prev.iov_base) + prev.iov_len;
-        if (buf == p) {
-            prev.iov_len += len;
-            addNewEntry = false;
-        }
-    }
-
-    if (addNewEntry) {
-        m->msg_iov[m->msg_iovlen].iov_base = (void*)buf;
-        m->msg_iov[m->msg_iovlen].iov_len = len;
-        ++iovused;
-        STATS_MAX(this, iovused_high_watermark, gsl::narrow<int>(getIovUsed()));
-        m->msg_iovlen++;
-    }
-
-    msgbytes += len;
+    totalSend += len;
 }
 
 void Connection::releaseReservedItems() {
@@ -938,24 +763,6 @@ void Connection::releaseReservedItems() {
         bucketEngine->release(it);
     }
     reservedItems.clear();
-}
-
-void Connection::ensureIovSpace() {
-    if (iovused < iov.size()) {
-        // There is still size in the list
-        return;
-    }
-
-    // Try to double the size of the array
-    iov.resize(iov.size() * 2);
-
-    /* Point all the msghdr structures at the new list. */
-    size_t ii;
-    int iovnum;
-    for (ii = 0, iovnum = 0; ii < msglist.size(); ii++) {
-        msglist[ii].msg_iov = &iov[iovnum];
-        iovnum += msglist[ii].msg_iovlen;
-    }
 }
 
 Connection::Connection(FrontEndThread& thr)
@@ -971,8 +778,6 @@ Connection::Connection(FrontEndThread& thr)
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
-    msglist.reserve(MSG_LIST_INITIAL);
-    iov.resize(IOV_LIST_INITIAL);
 }
 
 Connection::Connection(SOCKET sfd,
@@ -992,8 +797,6 @@ Connection::Connection(SOCKET sfd,
     setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
-    msglist.reserve(MSG_LIST_INITIAL);
-    iov.resize(IOV_LIST_INITIAL);
     setConnectionId(peername.c_str());
 
     if (ifc.isSslPort()) {

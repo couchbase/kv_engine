@@ -50,24 +50,6 @@ struct EngineIface;
 struct FrontEndThread;
 
 /**
- * Adjust a message header structure by "consuming" nbytes of data.
- *
- * The msghdr structure contains an io-vector of data to send, and
- * by consuming data, we "rebuild" the io-vector by moving the
- * base pointer to the io-vector past all of the fully transferred
- * elements, and move the last iov_base pointer the resulting bytes
- * forward (and reduce the last iov_len the same number of bytes)
- *
- * @param pipe The pipe structure where we may have stored data pointed
- *             to in the io-vector. We need to mark those as consumed
- *             when we skip them in the io-vector.
- * @param m The message header structure to update
- * @param nbytes The number of bytes to skip
- * @return The number of bytes left in the first element in the io-vector
- */
-size_t adjust_msghdr(cb::Pipe& pipe, struct msghdr* m, ssize_t nbytes);
-
-/**
  * The maximum number of character the core preserves for the
  * agent name for each connection
  */
@@ -467,46 +449,6 @@ public:
      */
     void enableReadEvent();
 
-    /**
-     * Shrinks a connection's buffers if they're too big.  This prevents
-     * periodic large "get" requests from permanently chewing lots of server
-     * memory.
-     *
-     * This should only be called in between requests since it can wipe output
-     * buffers!
-     */
-    void shrinkBuffers();
-
-    /**
-     * Send data over the socket
-     *
-     * @param m the message header to send
-     * @return the number of bytes sent, or -1 for an error
-     */
-    ssize_t sendmsg(struct msghdr* m);
-
-    enum class TransmitResult {
-        /** All done writing. */
-        Complete,
-        /** More data remaining to write. */
-        Incomplete,
-        /** Can't write any more right now. */
-        SoftError,
-        /** Can't write (c->state is set to conn_closing) */
-        HardError
-    };
-
-    /**
-     * Transmit the next chunk of data from our list of msgbuf structures.
-     *
-     * Returns:
-     *   Complete   All done writing.
-     *   Incomplete More data remaining to write.
-     *   SoftError Can't write any more right now.
-     *   HardError Can't write (c->state is set to conn_closing)
-     */
-    TransmitResult transmit();
-
     enum class TryReadResult {
         /** Data received on the socket and ready to parse */
         DataReceived,
@@ -542,21 +484,6 @@ public:
      * @return true if Cookie::sendResponse
      */
     bool useCookieSendResponse(std::size_t size) const;
-
-    /**
-     * Get the number of entries in use in the IO Vector
-     */
-    size_t getIovUsed() const {
-        return iovused;
-    }
-
-    /**
-     * Adds a message header to a connection.
-     *
-     * @param reset set to true to reset all message headers
-     * @throws std::bad_alloc
-     */
-    void addMsgHdr(bool reset);
 
     /**
      * Add a chunk of memory to the the IO vector to send
@@ -917,14 +844,6 @@ protected:
 
     void runStateMachinery();
 
-    /**
-     * Ensures that there is room for another struct iovec in a connection's
-     * iov list.
-     *
-     * @throws std::bad_alloc
-     */
-    void ensureIovSpace();
-
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
@@ -1113,18 +1032,6 @@ public:
 protected:
     /** which state to go into after finishing current write */
     StateMachine::State write_and_go = StateMachine::State::new_cmd;
-
-    /* data for the mwrite state */
-    std::vector<iovec> iov;
-    /** number of elements used in iov[] */
-    size_t iovused = 0;
-
-    /** The message list being used for transfer */
-    std::vector<struct msghdr> msglist;
-    /** element in msglist[] being transmitted now */
-    size_t msgcurr = 0;
-    /** number of bytes in current msg */
-    size_t msgbytes = 0;
 
     /**
      * List of items we've reserved during the command (should call

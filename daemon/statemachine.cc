@@ -245,8 +245,6 @@ bool StateMachine::conn_ship_log() {
         break;
     }
 
-    connection.addMsgHdr(true);
-
     const auto ret = connection.getBucket().getDcpIface()->step(
             static_cast<const void*>(&cookie), &connection);
 
@@ -341,7 +339,6 @@ bool StateMachine::conn_new_cmd() {
      *       which would cause us to block)
      */
     connection.getCookieObject().reset();
-    connection.shrinkBuffers();
     if (connection.read->rsize() >= sizeof(cb::mcbp::Request)) {
         setCurrentState(State::parse_cmd);
     } else if (connection.isSslEnabled()) {
@@ -486,34 +483,23 @@ bool StateMachine::conn_read_packet_body() {
 }
 
 bool StateMachine::conn_send_data() {
-    bool ret = true;
+    // We've copied everything over into libevents buffers so we can
+    // release all of the allocated resources
+    connection.releaseTempAlloc();
+    connection.releaseReservedItems();
+    connection.write->clear();
 
-    switch (connection.transmit()) {
-    case Connection::TransmitResult::Complete:
-        // Release all allocated resources
-        connection.releaseTempAlloc();
-        connection.releaseReservedItems();
+    if (connection.getSendQueueSize() >
+        Settings::instance().getMaxPacketSize()) {
+        // We don't want the connection to allocate too much resources
+        // so lets drain the send buffer before proceeding
+        // (but we need to enter the drain
         setCurrentState(State::drain_send_buffer);
-        return true;
-
-    case Connection::TransmitResult::Incomplete:
-        LOG_DEBUG("{} - Incomplete transfer. Will retry", connection.getId());
-        break;
-
-    case Connection::TransmitResult::HardError:
-        LOG_INFO("{} - Hard error, closing connection", connection.getId());
-        break;
-
-    case Connection::TransmitResult::SoftError:
-        ret = false;
-        break;
+        return false;
     }
 
-    if (is_bucket_dying(connection)) {
-        return true;
-    }
-
-    return ret;
+    setCurrentState(connection.getWriteAndGo());
+    return true;
 }
 
 bool StateMachine::conn_drain_send_buffer() {
@@ -521,8 +507,6 @@ bool StateMachine::conn_drain_send_buffer() {
         return false;
     }
 
-    // We're done sending the response to the client. Enter the next
-    // state in the state machine
     connection.setState(connection.getWriteAndGo());
     return true;
 }

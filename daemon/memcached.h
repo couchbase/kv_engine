@@ -24,23 +24,6 @@
 #define DATA_BUFFER_SIZE 2048
 #define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
 
-/** Initial size of list of items being returned by "get". */
-#define ITEM_LIST_INITIAL 200
-
-/** Initial size of list of temprary auto allocates  */
-#define TEMP_ALLOC_LIST_INITIAL 20
-
-/** Initial size of the sendmsg() scatter/gather array. */
-#define IOV_LIST_INITIAL 10
-
-/** Initial number of sendmsg() argument structures to allocate. */
-#define MSG_LIST_INITIAL 5
-
-/** High water marks for buffer shrinking */
-#define READ_BUFFER_HIGHWAT 8192
-#define IOV_LIST_HIGHWAT 50
-#define MSG_LIST_HIGHWAT 20
-
 /* Maximum length of config which can be validated */
 #define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
 

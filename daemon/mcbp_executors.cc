@@ -1044,7 +1044,6 @@ void try_read_mcbp_command(Cookie& cookie) {
         return;
     }
 
-    c.addMsgHdr(true);
     if (c.isPacketAvailable()) {
         // we've got the entire packet spooled up, just go execute
         cookie.setPacket(Cookie::PacketContent::Full,

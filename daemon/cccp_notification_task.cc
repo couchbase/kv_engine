@@ -96,7 +96,6 @@ public:
                  payload.second->size()});
 
         // Inject our packet into the stream!
-        connection.addMsgHdr(true);
         connection.addIov(connection.write->wdata().data(), needed);
         connection.write->produced(needed);
 
