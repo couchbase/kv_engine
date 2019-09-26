@@ -1989,6 +1989,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                     config);
     }
 
+    // Ensure (global) ExecutorPool has been created, and update the (local)
+    // configuration with the actual number of each thread type we have (config
+    // params are typically defaulted to "0" which means "auto-configure
+    // thread counts"
+    auto* pool = ExecutorPool::get();
+    configuration.setNumReaderThreads(pool->getNumReaders());
+    configuration.setNumWriterThreads(pool->getNumWriters());
+    configuration.setNumAuxioThreads(pool->getNumAuxIO());
+    configuration.setNumNonioThreads(pool->getNumNonIO());
+
     maxFailoverEntries = configuration.getMaxFailoverEntries();
 
     // Start updating the variables from the config!
