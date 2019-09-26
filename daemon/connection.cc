@@ -216,10 +216,6 @@ nlohmann::json Connection::toJSON() const {
 
     ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
-    nlohmann::json ilist;
-    ilist["size"] = reservedItems.size();
-    ret["itemlist"] = ilist;
-
     ret["ssl"] = client_ctx != nullptr;
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
@@ -805,14 +801,6 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
     }
 }
 
-void Connection::releaseReservedItems() {
-    auto* bucketEngine = getBucket().getEngine();
-    for (auto* it : reservedItems) {
-        bucketEngine->release(it);
-    }
-    reservedItems.clear();
-}
-
 Connection::Connection(FrontEndThread& thr)
     : socketDescriptor(INVALID_SOCKET),
       connectedToSystemPort(false),
@@ -924,8 +912,6 @@ Connection::~Connection() {
     if (authenticated && domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(username);
     }
-
-    releaseReservedItems();
 
     if (client_ctx) {
         SSL_free(client_ctx);
@@ -1157,9 +1143,6 @@ bool Connection::close() {
         // to the client won't be sent).
         disableReadEvent();
         cb::net::shutdown(socketDescriptor, SHUT_RD);
-
-        // Release all reserved items!
-        releaseReservedItems();
     }
 
     // Notify interested parties that the connection is currently being
@@ -1275,19 +1258,13 @@ size_t Connection::getSendQueueSize() const {
 
 ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
         cb::const_byte_buffer packet) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, packet, &ret](cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() < packet.size()) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
+    try {
+        copyToOutputStream(packet);
+    } catch (const std::bad_alloc&) {
+        return ENGINE_E2BIG;
+    }
 
-        std::copy(packet.begin(), packet.end(), buffer.begin());
-        addIov(buffer.data(), packet.size());
-        return packet.size();
-    });
-
-    return ret;
+    return ENGINE_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -1523,20 +1500,9 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-        auto packet = builder.getFrame()->getFrame();
-        addIov(packet.data(), packet.size());
-        write->produced(packet.size());
+        copyToOutputStream(builder.getFrame()->getFrame());
         return ENGINE_SUCCESS;
     }
-
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Failed to grow item array", getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
 
     cb::mcbp::Request req = {};
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
@@ -1556,80 +1522,50 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
     }
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &req, &frameExtras, &extras, &value, &ret, &key, sid](
-                           cb::byte_buffer wbuf) -> size_t {
-        size_t headerSize = sizeof(extras) + sizeof(req);
+    try {
+        // Add the header
+        copyToOutputStream(
+                {reinterpret_cast<const uint8_t*>(&req), sizeof(req)});
         if (sid) {
-            headerSize += sizeof(frameExtras);
+            copyToOutputStream(frameExtras.getBuf());
         }
-        if (wbuf.size() < headerSize) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        auto nextWbuf = std::copy_n(reinterpret_cast<const uint8_t*>(&req),
-                                    sizeof(req),
-                                    wbuf.begin());
-
-        if (sid) {
-            // Add the optional stream-ID
-            nextWbuf =
-                    std::copy_n(reinterpret_cast<const uint8_t*>(&frameExtras),
-                                sizeof(frameExtras),
-                                nextWbuf);
-        }
-
-        nextWbuf = std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
-                               sizeof(extras),
-                               nextWbuf);
-
-        // Add the header (which includes extras, optional frame-extra and
-        // optional nmeta)
-        addIov(wbuf.data(), headerSize);
+        copyToOutputStream(extras.getBuffer());
 
         // Add the key
-        addIov(key.data(), key.size());
+        copyToOutputStream({key.data(), key.size()});
 
         // Add the value
-        addIov(value.data(), value.size());
+        if (!value.empty()) {
+            std::unique_ptr<SendBuffer> sendbuffer;
+            sendbuffer = std::make_unique<ItemSendBuffer>(
+                    std::move(it), value, getBucket());
+            chainDataToOutputStream(std::move(sendbuffer));
+        }
+    } catch (const std::bad_alloc&) {
+        /// We might have written a partial message into the buffer so
+        /// we need to disconnect the client
+        return ENGINE_DISCONNECT;
+    }
 
-        return headerSize;
-    });
-
-    return ret;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
                                             cb::const_byte_buffer packet,
                                             const DocKey& key) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &info, &ret, &key](
-                           cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() <
-            (packet.size() +
-             cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize())) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
+    try {
+        copyToOutputStream(packet);
+        copyToOutputStream({key.data(), key.size()});
+        copyToOutputStream(
+                {reinterpret_cast<const char*>(info.value[0].iov_base),
+                 info.nbytes});
+    } catch (const std::bad_alloc&) {
+        // We might have written a partial message into the buffer so
+        // we need to disconnect the client
+        return ENGINE_DISCONNECT;
+    }
 
-        std::copy(packet.begin(), packet.end(), buffer.begin());
-
-        // Add the header + collection-ID (stored in buffer)
-        addIov(buffer.data(), packet.size());
-
-        // Add the key
-        addIov(key.data(), key.size());
-
-        // Add the optional payload (xattr)
-        if (info.nbytes > 0) {
-            addIov(info.value[0].iov_base, info.nbytes);
-        }
-
-        return packet.size();
-    });
-
-    return ret;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
@@ -1683,21 +1619,9 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-        auto packet = builder.getFrame()->getFrame();
-        addIov(packet.data(), packet.size());
-        write->produced(packet.size());
+        copyToOutputStream(builder.getFrame()->getFrame());
         return ENGINE_SUCCESS;
     }
-
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::deletion: Failed to grow item array",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
 
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpDeletionV1Payload;
@@ -1778,22 +1702,9 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
-
-        auto packet = builder.getFrame()->getFrame();
-        addIov(packet.data(), packet.size());
-        write->produced(packet.size());
+        copyToOutputStream(builder.getFrame()->getFrame());
         return ENGINE_SUCCESS;
     }
-
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::deletion_v2: Failed to grow item array",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
 
     // Make blob big enough for either delete or expiry
     uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(extras) +
@@ -1875,22 +1786,9 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
-
-        auto packet = builder.getFrame()->getFrame();
-        addIov(packet.data(), packet.size());
-        write->produced(packet.size());
+        copyToOutputStream(builder.getFrame()->getFrame());
         return ENGINE_SUCCESS;
     }
-
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::expiration: Failed to grow item array",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
 
     // Make blob big enough for either delete or expiry
     uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(extras) +
@@ -2086,23 +1984,9 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
         builder.setValue(buffer);
-
-        auto packet = builder.getFrame()->getFrame();
-        addIov(packet.data(), packet.size());
-        write->produced(packet.size());
+        copyToOutputStream(builder.getFrame()->getFrame());
         return ENGINE_SUCCESS;
     }
-
-    // Use an IO vector instead
-    if (!reserveItem(it.get())) {
-        LOG_WARNING("{}: Connection::prepare: Failed to grow item array",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    it.release();
 
     cb::mcbp::Request req = {};
     req.setMagic(cb::mcbp::Magic::ClientRequest);
@@ -2116,34 +2000,30 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &req, &extras, &buffer, &ret, &key](
-                           cb::byte_buffer wbuf) -> size_t {
-        const size_t total = sizeof(extras) + sizeof(req);
-        if (wbuf.size() < total) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy_n(reinterpret_cast<const uint8_t*>(&req),
-                    sizeof(req),
-                    wbuf.begin());
-        std::copy_n(reinterpret_cast<const uint8_t*>(&extras),
-                    sizeof(extras),
-                    wbuf.begin() + sizeof(req));
-
+    try {
         // Add the header
-        addIov(wbuf.data(), sizeof(req) + sizeof(extras));
+        copyToOutputStream(
+                {reinterpret_cast<const uint8_t*>(&req), sizeof(req)});
+        copyToOutputStream(
+                {reinterpret_cast<const uint8_t*>(&extras), sizeof(extras)});
 
         // Add the key
-        addIov(key.data(), key.size());
+        copyToOutputStream({key.data(), key.size()});
 
         // Add the value
-        addIov(buffer.data(), buffer.size());
-        return total;
-    });
+        if (!buffer.empty()) {
+            std::unique_ptr<SendBuffer> sendbuffer;
+            sendbuffer = std::make_unique<ItemSendBuffer>(
+                    std::move(it), buffer, getBucket());
+            chainDataToOutputStream(std::move(sendbuffer));
+        }
+    } catch (const std::bad_alloc&) {
+        /// We might have written a partial message into the buffer so
+        /// we need to disconnect the client
+        return ENGINE_DISCONNECT;
+    }
 
-    return ret;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,

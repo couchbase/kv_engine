@@ -485,7 +485,6 @@ bool StateMachine::conn_read_packet_body() {
 bool StateMachine::conn_send_data() {
     // We've copied everything over into libevents buffers so we can
     // release all of the allocated resources
-    connection.releaseReservedItems();
     connection.write->clear();
 
     if (connection.getSendQueueSize() >

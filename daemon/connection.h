@@ -504,6 +504,13 @@ public:
      */
     void copyToOutputStream(cb::const_char_buffer data);
 
+    /// Wrapper function to deal with byte buffers during the transition over
+    /// to only use char buffers
+    void copyToOutputStream(cb::const_byte_buffer data) {
+        copyToOutputStream(
+                {reinterpret_cast<const char*>(data.data()), data.size()});
+    }
+
     /**
      * Add a reference to the data to the output stream.
      *
@@ -526,26 +533,6 @@ public:
      *                        stream.
      */
     void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer);
-
-    /**
-     * Release all of the items we've saved a reference to
-     */
-    void releaseReservedItems();
-
-    /**
-     * Put an item on our list of reserved items (which we should release
-     * at a later time through releaseReservedItems).
-     *
-     * @return true if success, false otherwise
-     */
-    bool reserveItem(void* item) {
-        try {
-            reservedItems.push_back(item);
-            return true;
-        } catch (const std::bad_alloc&) {
-            return false;
-        }
-    }
 
     /**
      * Enable the datatype which corresponds to the feature
@@ -1054,12 +1041,6 @@ public:
 protected:
     /** which state to go into after finishing current write */
     StateMachine::State write_and_go = StateMachine::State::new_cmd;
-
-    /**
-     * List of items we've reserved during the command (should call
-     * item_release when transmit is complete)
-     */
-    std::vector<void*> reservedItems;
 
     /**
      * If the client enabled the mutation seqno feature each mutation
