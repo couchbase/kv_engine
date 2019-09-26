@@ -953,9 +953,11 @@ size_t Connection::getNumberOfCookies() const {
 }
 
 bool Connection::isPacketAvailable() const {
+    const cb::mcbp::Header* header;
+
     auto* in = bufferevent_get_input(bev.get());
     const auto size = evbuffer_get_length(in);
-    if (size < sizeof(cb::mcbp::Header)) {
+    if (size < sizeof(*header)) {
         return false;
     }
 
@@ -964,39 +966,51 @@ bool Connection::isPacketAvailable() const {
         throw std::bad_alloc();
     }
 
-    // @todo make sure that this is a valid header before calling this
-    const auto* header = reinterpret_cast<cb::mcbp::Header*>(ptr);
-    if (size < (header->getBodylen() + sizeof(cb::mcbp::Header))) {
-        return false;
+    header = reinterpret_cast<const cb::mcbp::Header*>(ptr);
+    if (!header->isValid()) {
+        audit_invalid_packet(*this, getAvailableBytes());
+        throw std::runtime_error(
+                "Connection::isPacketAvailable(): Invalid packet header "
+                "detected");
     }
 
-    ptr = evbuffer_pullup(in, sizeof(cb::mcbp::Header) + header->getBodylen());
-    if (ptr == nullptr) {
-        throw std::bad_alloc();
+    const auto framesize = sizeof(*header) + header->getBodylen();
+    if (size >= framesize) {
+        ptr = evbuffer_pullup(in, framesize);
+        if (ptr == nullptr) {
+            throw std::bad_alloc();
+        }
+
+        return true;
     }
 
-    return true;
+    // We don't have the entire frame available.. Are we receiving an
+    // incredible big packet so that we want to disconnect the client?
+    if (framesize > Settings::instance().getMaxPacketSize()) {
+        throw std::runtime_error(
+                "Connection::isPacketAvailable(): The packet size " +
+                std::to_string(framesize) +
+                " exceeds the max allowed packet size " +
+                std::to_string(Settings::instance().getMaxPacketSize()));
+    }
+
+    return false;
 }
 
-bool Connection::isPacketHeaderAvailable() const {
-    auto* in = bufferevent_get_input(bev.get());
-    const auto size = evbuffer_get_length(in);
-    return size >= sizeof(cb::mcbp::Header);
-}
-
-const cb::mcbp::Header* Connection::getPacket() const {
+const cb::mcbp::Header& Connection::getPacket() const {
     auto* in = bufferevent_get_input(bev.get());
     const auto size = evbuffer_get_length(in);
 
     if (size < sizeof(cb::mcbp::Header)) {
-        return nullptr;
+        throw std::runtime_error(
+                "Connection::getPacket(): packet not available");
     }
 
     const auto* ptr = evbuffer_pullup(in, sizeof(cb::mcbp::Header));
     if (ptr == nullptr) {
         throw std::bad_alloc();
     }
-    return reinterpret_cast<const cb::mcbp::Header*>(ptr);
+    return *reinterpret_cast<const cb::mcbp::Header*>(ptr);
 }
 
 cb::const_byte_buffer Connection::getAvailableBytes(size_t max) const {
