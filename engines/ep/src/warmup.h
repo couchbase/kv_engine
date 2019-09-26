@@ -420,8 +420,8 @@ private:
     } warmupStart;
 
     // Time it took to load metadata and complete warmup, stored atomically.
-    cb::AtomicDuration metadata;
-    cb::AtomicDuration warmup;
+    cb::AtomicDuration<> metadata;
+    cb::AtomicDuration<> warmup;
 
     std::vector<std::map<Vbid, vbucket_state>> shardVbStates;
     std::atomic<size_t> threadtask_count{0};
@@ -430,7 +430,7 @@ private:
     /// contains all vBucket IDs which are present for the given shard.
     std::vector<std::vector<Vbid>> shardVbIds;
 
-    cb::AtomicDuration estimateTime;
+    cb::AtomicDuration<> estimateTime;
     std::atomic<size_t> estimatedItemCount{std::numeric_limits<size_t>::max()};
     bool cleanShutdown{true};
     bool corruptAccessLog{false};

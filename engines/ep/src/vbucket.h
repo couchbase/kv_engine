@@ -2429,7 +2429,7 @@ private:
     // which is what this mutex is used for.
     std::mutex dmQueueMutex;
 
-    static cb::AtomicDuration chkFlushTimeout;
+    static cb::AtomicDuration<> chkFlushTimeout;
 
     static double mutationMemThreshold;
 
