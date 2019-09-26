@@ -1156,6 +1156,19 @@ void Connection::propagateDisconnect() const {
     }
 }
 
+bool Connection::maybeYield() {
+    if (--numEvents >= 0) {
+        return false;
+    }
+
+    yields++;
+    // Update the aggregated stat
+    get_thread_stats(this)->conn_yields++;
+    const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
+    bufferevent_trigger(bev.get(), EV_READ | EV_WRITE, opt);
+    return true;
+}
+
 bool Connection::signalIfIdle() {
     for (const auto& c : cookies) {
         if (c->isEwouldblock()) {
