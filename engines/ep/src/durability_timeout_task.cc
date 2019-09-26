@@ -21,6 +21,23 @@
 
 #include <phosphor/phosphor.h>
 
+class DurabilityTimeoutTask::ConfigChangeListener
+    : public ValueChangedListener {
+public:
+    ConfigChangeListener(DurabilityTimeoutTask& timeoutTask)
+        : timeoutTask(timeoutTask) {
+    }
+
+    void sizeValueChanged(const std::string& key, size_t value) override {
+        if (key == "durability_timeout_task_interval") {
+            timeoutTask.setSleepTime(std::chrono::milliseconds(value));
+        }
+    }
+
+private:
+    DurabilityTimeoutTask& timeoutTask;
+};
+
 DurabilityTimeoutTask::DurabilityTimeoutTask(EventuallyPersistentEngine& engine,
                                              std::chrono::milliseconds interval)
     : GlobalTask(&engine,
@@ -28,6 +45,9 @@ DurabilityTimeoutTask::DurabilityTimeoutTask(EventuallyPersistentEngine& engine,
                  0 /*initial sleep-time in seconds*/,
                  false /*completeBeforeShutdown*/),
       sleepTime(interval) {
+    engine.getConfiguration().addValueChangedListener(
+            "durability_timeout_task_interval",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 bool DurabilityTimeoutTask::run() {
@@ -45,7 +65,9 @@ bool DurabilityTimeoutTask::run() {
 
     // Note: Default unit for std::duration is seconds, so the following gives
     // the seconds-representation (as double) of the given millis (sleepTime)
-    snooze(std::chrono::duration<double>(sleepTime).count());
+    snooze(std::chrono::duration_cast<std::chrono::duration<double>>(
+                   sleepTime.load())
+                   .count());
 
     // Schedule again if not shutting down
     return !engine->getEpStats().isShutdown;

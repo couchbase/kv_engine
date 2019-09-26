@@ -18,12 +18,15 @@
 
 #include "globaltask.h"
 #include "vb_visitors.h"
+#include <platform/atomic_duration.h>
 
 /*
  * Enforces the Durability Timeout for the SyncWrites tracked in this KVBucket.
  */
 class DurabilityTimeoutTask : public GlobalTask {
 public:
+    class ConfigChangeListener;
+
     /**
      * @param engine The engine that will be visited
      */
@@ -43,12 +46,16 @@ public:
         return std::chrono::seconds(1);
     }
 
+    void setSleepTime(std::chrono::milliseconds value) {
+        sleepTime = value;
+    }
+
 private:
     // Note: this is the actual minimum interval between subsequent runs.
     // The VBCBAdaptor (which is the actual task that executes this Visitor)
     // has its internal sleep-time which is used for a different purpose,
     // details in VBCBAdaptor.
-    std::chrono::milliseconds sleepTime;
+    cb::AtomicDuration<std::memory_order::memory_order_seq_cst> sleepTime;
 };
 
 /**

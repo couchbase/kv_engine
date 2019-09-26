@@ -542,6 +542,9 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setBackfillMemThreshold(std::stoull(val));
         } else if (key == "compaction_exp_mem_threshold") {
             getConfiguration().setCompactionExpMemThreshold(std::stoull(val));
+        } else if (key == "durability_timeout_task_interval") {
+            getConfiguration().setDurabilityTimeoutTaskInterval(
+                    std::stoull(val));
         } else if (key == "mutation_mem_threshold") {
             getConfiguration().setMutationMemThreshold(std::stoull(val));
         } else if (key == "timing_log") {
