@@ -2039,17 +2039,18 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
 
+    auto* ptr = blob + sizeof(Request);
     if (sid) {
         auto& frameInfo = *reinterpret_cast<cb::mcbp::DcpStreamIdFrameInfo*>(
                 blob + sizeof(Request));
         frameInfo = cb::mcbp::DcpStreamIdFrameInfo(sid);
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
+        ++ptr;
     }
 
-    auto& extras =
-            *reinterpret_cast<DcpDeletionV1Payload*>(blob + sizeof(Request));
-    extras.setBySeqno(by_seqno);
-    extras.setRevSeqno(rev_seqno);
+    DcpDeletionV1Payload extras(by_seqno, rev_seqno);
+    auto buf = extras.getBuffer();
+    std::copy(buf.begin(), buf.end(), ptr);
 
     cb::const_byte_buffer packetBuffer{
             blob,

@@ -972,6 +972,9 @@ static_assert(31, "Unexpected struct size");
 
 class DcpDeletionV1Payload {
 public:
+    DcpDeletionV1Payload(uint64_t _by_seqno, uint64_t _rev_seqno)
+        : by_seqno(htonll(_by_seqno)), rev_seqno(htonll(_rev_seqno)) {
+    }
     uint64_t getBySeqno() const {
         return ntohll(by_seqno);
     }
@@ -986,6 +989,10 @@ public:
     }
     uint16_t getNmeta() const {
         return ntohs(nmeta);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
@@ -1005,7 +1012,7 @@ public:
                        protocol_binary_datatype_t datatype,
                        uint64_t bySeqno,
                        uint64_t revSeqno)
-        : req{} {
+        : req{}, body(bySeqno, revSeqno) {
         req.setMagic(cb::mcbp::Magic::ClientRequest);
         req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
         req.setExtlen(gsl::narrow<uint8_t>(sizeof(body)));
@@ -1015,9 +1022,6 @@ public:
         req.setVBucket(vbucket);
         req.setCas(cas);
         req.setDatatype(cb::mcbp::Datatype(datatype));
-
-        body.setBySeqno(bySeqno);
-        body.setRevSeqno(revSeqno);
     }
 
 protected:
