@@ -362,8 +362,6 @@ public:
 
     uint64_t getOpenSnapshotStartSeqno() const;
 
-    bool incrCursor(CheckpointCursor &cursor);
-
     void notifyFlusher();
 
     void setBySeqno(int64_t seqno);
@@ -390,6 +388,15 @@ public:
     bool isOpenCheckpointDisk();
 
 protected:
+    /**
+     * Advance the given cursor. Protected as it's valid to call this from
+     * getItemsForCursor but not from anywhere else (as it will return an entire
+     * checkpoint and never leave a cursor placed at the checkpoint_end).
+     *
+     * @return true if advanced, false otherwise
+     */
+    bool incrCursor(CheckpointCursor& cursor);
+
     uint64_t getOpenCheckpointId_UNLOCKED(const LockHolder& lh);
 
     uint64_t getLastClosedCheckpointId_UNLOCKED(const LockHolder& lh);

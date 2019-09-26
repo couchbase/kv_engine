@@ -79,8 +79,8 @@ size_t CheckpointCursor::getRemainingItemsCount() const {
     return remaining;
 }
 
-std::pair<int64_t, uint64_t> CheckpointCursor::getSeqnoAndCkptId() const {
-    return {(*currentPos)->getBySeqno(), (*currentCheckpoint)->getId()};
+std::pair<int64_t, uint64_t> CheckpointCursor::getCkptIdAndSeqno() const {
+    return {(*currentCheckpoint)->getId(), (*currentPos)->getBySeqno()};
 }
 
 CheckpointType CheckpointCursor::getCheckpointType() const {

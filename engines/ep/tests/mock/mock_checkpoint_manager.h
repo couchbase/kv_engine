@@ -103,4 +103,8 @@ public:
         LockHolder lh(queueLock);
         checkOpenCheckpoint_UNLOCKED(lh, true, 0);
     }
+
+    bool incrCursor(CheckpointCursor& cursor) {
+        return CheckpointManager::incrCursor(cursor);
+    }
 };

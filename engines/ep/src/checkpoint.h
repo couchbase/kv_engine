@@ -203,7 +203,7 @@ private:
      */
     size_t getRemainingItemsCount() const;
 
-    std::pair<int64_t, uint64_t> getSeqnoAndCkptId() const;
+    std::pair<int64_t, uint64_t> getCkptIdAndSeqno() const;
 
     std::string                      name;
     CheckpointList::iterator currentCheckpoint;

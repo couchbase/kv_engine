@@ -630,7 +630,7 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
      *  - set_vb_state   2   << CursorB
      *  - chkptEnd       1
      *  -------
-     *  - dummy          2   ** cursors skip this dummy
+     *  - dummy          1   ** cursors skip this dummy
      *  - ckptStart      2   << CursorA
      */
 

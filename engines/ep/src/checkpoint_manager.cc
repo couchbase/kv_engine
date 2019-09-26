@@ -180,9 +180,12 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
                       checkpointType);
 
     /* If cursors reached to the end of its current checkpoint, move it to the
-       next checkpoint. DCP and Persistence cursors can skip a "checkpoint end"
-       meta item. This is needed so that the checkpoint remover can remove the
-       closed checkpoints and hence reduce the memory usage */
+       next checkpoint. DCP cursors can skip a "checkpoint end" meta item.
+       This is needed so that the checkpoint remover can remove the
+       closed checkpoints and hence reduce the memory usage and so to ensure
+       that we do not leave a cursor at the checkpoint_end. This is required as
+       expelling needs our cursors to be orderable by seqno and a checkpoint_end
+       will have a lower seqno than a preceding set_vbucket_state */
     for (auto& cur_it : connCursors) {
         CheckpointCursor& cursor = *cur_it.second;
         ++(cursor.currentPos);
@@ -495,22 +498,53 @@ ExpelResult CheckpointManager::expelUnreferencedCheckpointItems() {
             return {};
         }
 
-        const auto compareBySeqnoAndCkpt = [](const auto& a, const auto& b) {
-            return a.second->getSeqnoAndCkptId() <
-                   b.second->getSeqnoAndCkptId();
+        // Sort first by checkpointID then by seqno to find the first cursor.
+        //
+        // If you run a cursor through the entire checkpointList then you will
+        // not necessarily find that seqnos are monotonic. They're not even
+        // weakly montonic. This is because of setVBucketState and the seqnos
+        // that we give to them, checkpoint_end, and dummy items.
+        //
+        // It is possible to have a checkpoint with a setVBucketState at seqno 2
+        // followed by a checkpoint_end at seqno 1. One might then believe that
+        // it would be incorrect to attempt to order cursors by seqno.
+        // "Fortunately", due to what was once just an optimization, we move the
+        // cursors from the previous checkpoint to the next if they were at the
+        // last item. The only time where we would expect to see seqnos out of
+        // order like this is if a setVBucketState is the last item. It's also
+        // not possible for a cursor to be advanced and left at a
+        // checkpoint_end. As such, a seqno ordering is actually possible.
+        const auto compareByCkptAndSeqno = [](const auto& a, const auto& b) {
+            return a.second->getCkptIdAndSeqno() <
+                   b.second->getCkptIdAndSeqno();
         };
 
-        // find the cursor with the lowest seqno
         auto earliestCursor = std::min_element(
-                connCursors.begin(), connCursors.end(), compareBySeqnoAndCkpt);
+                connCursors.begin(), connCursors.end(), compareByCkptAndSeqno);
 
         std::shared_ptr<CheckpointCursor> lowestCheckpointCursor =
                 earliestCursor->second;
 
         // Sanity check - if the oldest checkpoint is referenced, the cursor
         // with the lowest seqno should be in that checkpoint.
-        Expects(lowestCheckpointCursor->currentCheckpoint->get() ==
-                oldestCheckpoint);
+        if (lowestCheckpointCursor->currentCheckpoint->get() !=
+            oldestCheckpoint) {
+            std::stringstream ss;
+            ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
+               << vbucketId
+               << ") lowest found cursor is not in the oldest "
+                  "checkpoint. Oldest checkpoint ID: "
+               << oldestCheckpoint->getId()
+               << " lowSeqno: " << oldestCheckpoint->getLowSeqno()
+               << " highSeqno: " << oldestCheckpoint->getHighSeqno()
+               << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
+               << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
+               << ". Lowest cursor: " << lowestCheckpointCursor->name
+               << " seqno: "
+               << (*lowestCheckpointCursor->currentPos)->getBySeqno()
+               << " ckptID: " << lowestCheckpointCursor->getId();
+            throw std::logic_error(ss.str());
+        }
 
         auto expelUpToAndIncluding =
                 CheckpointCursor("expelUpToAndIncluding",
