@@ -355,7 +355,7 @@
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",
-	    "dynamic": true,
+	        "dynamic": true,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -866,7 +866,7 @@
         },
         "dcp_enable_noop": {
             "default": "true",
-            "descr": "Whether or not dcp connections should use no-ops",
+            "descr": "Whether DCP Consumer connections should attempt to negotiate no-ops with the Producer",
             "dynamic": true,
             "type": "bool"
         },
@@ -932,7 +932,7 @@
         "dcp_consumer_process_buffered_messages_yield_limit" : {
             "default": "10",
             "descr": "The number of processBufferedMessages iterations before forcing the task to yield.",
-	    "dynamic": true,
+	        "dynamic": true,
             "type": "size_t",
             "validator": {
                 "range": {
@@ -1069,7 +1069,7 @@
         "retain_erroneous_tombstones": {
             "default": "true",
             "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",
-	    "dynamic": true,
+	        "dynamic": true,
             "type": "bool"
         },
         "rocksdb_options": {

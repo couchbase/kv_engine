@@ -225,8 +225,10 @@ protected:
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches.
+     * Atomic as can be changed by ValueChangedListener on one thread and read
+     * by flusher on other thread.
      */
-    size_t flusherBatchSplitTrigger;
+    std::atomic<size_t> flusherBatchSplitTrigger;
 
     /**
      * Indicates whether erroneous tombstones need to retained or not during

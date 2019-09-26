@@ -19,6 +19,7 @@
 
 #include "configuration.h"
 
+#include <atomic>
 #include <string>
 
 class BucketLogger;
@@ -131,16 +132,20 @@ private:
     BucketLogger* logger;
     bool buffered;
 
+    // Following config variables are atomic as can be changed (via
+    // ConfigChangeListener) at runtime by front-end threads while read by
+    // IO threads.
+
     /**
      * If non-zero, tell storage layer to issue a sync() operation after every
      * N bytes written.
      */
-    uint64_t periodicSyncBytes;
+    std::atomic<uint64_t> periodicSyncBytes;
 
     /* enable tracing for couchstore */
-    bool couchstoreTracingEnabled;
+    std::atomic_bool couchstoreTracingEnabled;
     /* enable write verification for couchstore */
-    bool couchstoreWriteValidationEnabled;
+    std::atomic_bool couchstoreWriteValidationEnabled;
     /* enbale mprotect of couchstore internal io buffer */
-    bool couchstoreMprotectEnabled;
+    std::atomic_bool couchstoreMprotectEnabled;
 };

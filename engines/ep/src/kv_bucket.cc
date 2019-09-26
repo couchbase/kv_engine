@@ -74,7 +74,10 @@ public:
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key.compare("max_size") == 0) {
+        if (key == "cursor_dropping_lower_threshold" ||
+            key == "cursor_dropping_upper_threshold") {
+            store.setCursorDroppingLowerUpperThresholds(stats.getMaxDataSize());
+        } else if (key == "max_size") {
             stats.setMaxDataSize(value);
             store.getEPEngine().getDcpConnMap(). \
                                      updateMaxActiveSnoozingBackfills(value);

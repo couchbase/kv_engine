@@ -574,10 +574,10 @@ public:
         : data_dir("CouchKVStoreErrorInjectionTest.db"),
           ops(create_default_file_ops()),
           logger("couchKVStoreTest"),
-          config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
-                         .setLogger(logger)
-                         .setBuffered(false)),
+          config(1024, 4, data_dir, "couchdb", 0),
           flush(manifest) {
+        config.setLogger(logger);
+        config.setBuffered(false);
         try {
             cb::io::rmrf(data_dir.c_str());
         } catch (std::system_error& e) {
@@ -1424,9 +1424,9 @@ public:
     CouchstoreTest()
         : data_dir("CouchstoreTest.db"),
           vbid(0),
-          config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
-                         .setBuffered(false)),
+          config(1024, 4, data_dir, "couchdb", 0),
           flush(manifest) {
+        config.setBuffered(false);
         try {
             cb::io::rmrf(data_dir.c_str());
         } catch (std::system_error& e) {

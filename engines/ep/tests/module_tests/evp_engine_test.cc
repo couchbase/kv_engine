@@ -29,6 +29,7 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <boost/algorithm/string/join.hpp>
 #include <configuration_impl.h>
 #include <platform/dirutils.h>
 #include <chrono>
@@ -235,6 +236,52 @@ TEST_P(SetParamTest, minCompressionRatioConfigTest) {
 
     EXPECT_EQ(cb::mcbp::Status::Einval,
               engine->setFlushParam("min_compression_ratio", "-1", msg));
+}
+
+TEST_P(SetParamTest, DynamicConfigValuesModifiable) {
+    Configuration& config = engine->getConfiguration();
+
+    // For each dynamic config variable (should be possible to change at
+    // runtime), attempt to set (to the same as it's current value).
+    config.visit([this](const std::string& key,
+                        bool dynamic,
+                        std::string value) {
+        std::vector<std::string> handled;
+        if (dynamic) {
+            std::string msg;
+            using namespace cb::mcbp;
+            if (engine->setFlushParam(key, value, msg) == Status::Success) {
+                handled.push_back("setFlushParam");
+            }
+            if (engine->setReplicationParam(key, value, msg) ==
+                Status::Success) {
+                handled.push_back("setReplicationParam");
+            }
+            if (engine->setCheckpointParam(key, value, msg) ==
+                Status::Success) {
+                handled.push_back("setCheckpointParam");
+            }
+            if (engine->setDcpParam(key, value, msg) == Status::Success) {
+                handled.push_back("setDcpParam");
+                return;
+            }
+            if (engine->setVbucketParam(Vbid(0), key, value, msg) ==
+                Status::Success) {
+                handled.push_back("setVBucketParam");
+            }
+            if (handled.empty()) {
+                ADD_FAILURE() << "Dynamic config key \"" << key
+                              << "\" cannot be set via any of the set...Param "
+                                 "methods.";
+            } else if (handled.size() > 1) {
+                ADD_FAILURE()
+                        << "Dynamic config key \"" << key
+                        << "\" should only be settable by a single "
+                           "set...Param() method - actually settable via: ["
+                        << boost::algorithm::join(handled, ", ") << "]";
+            }
+        }
+    });
 }
 
 // Test cases which run for persistent and ephemeral buckets

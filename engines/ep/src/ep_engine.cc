@@ -477,16 +477,15 @@ cb::mcbp::Status EventuallyPersistentEngine::setCheckpointParam(
         } else if (key == "keep_closed_chks") {
             getConfiguration().setKeepClosedChks(cb_stob(val));
         } else if (key == "cursor_dropping_checkpoint_mem_upper_mark") {
-            size_t v = std::stoull(val);
-            validate(v,
-                     getConfiguration().getCursorDroppingCheckpointMemLowerMark(),
-                     size_t(100));
-            getConfiguration().setCursorDroppingCheckpointMemUpperMark(v);
+            getConfiguration().setCursorDroppingCheckpointMemUpperMark(
+                    std::stoull(val));
         } else if (key == "cursor_dropping_checkpoint_mem_lower_mark") {
-            size_t v = std::stoull(val);
-            validate(
-                    v, size_t(0), getConfiguration().getCursorDroppingCheckpointMemUpperMark());
-            getConfiguration().setCursorDroppingCheckpointMemLowerMark(v);
+            getConfiguration().setCursorDroppingCheckpointMemLowerMark(
+                    std::stoull(val));
+        } else if (key == "cursor_dropping_lower_mark") {
+            getConfiguration().setCursorDroppingLowerMark(std::stoull(val));
+        } else if (key == "cursor_dropping_upper_mark") {
+            getConfiguration().setCursorDroppingUpperMark(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
@@ -525,7 +524,9 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
 
     // Handle the actual mutation.
     try {
-        if (key == "max_size") {
+        configuration.requirementsMetOrThrow(key);
+
+        if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
 
             getConfiguration().setMaxSize(vsize);
@@ -573,16 +574,35 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setExpPagerStime(std::stoull(val));
         } else if (key == "exp_pager_initial_run_time") {
             getConfiguration().setExpPagerInitialRunTime(std::stoll(val));
+        } else if (key == "flusher_batch_split_trigger") {
+            getConfiguration().setFlusherBatchSplitTrigger(std::stoll(val));
+        } else if (key == "getl_default_timeout") {
+            getConfiguration().setGetlDefaultTimeout(std::stoull(val));
+        } else if (key == "getl_max_timeout") {
+            getConfiguration().setGetlMaxTimeout(std::stoull(val));
+        } else if (key == "ht_resize_interval") {
+            getConfiguration().setHtResizeInterval(std::stoull(val));
+        } else if (key == "max_item_privileged_bytes") {
+            getConfiguration().setMaxItemPrivilegedBytes(std::stoull(val));
+        } else if (key == "max_item_size") {
+            getConfiguration().setMaxItemSize(std::stoull(val));
         } else if (key == "access_scanner_enabled") {
-            getConfiguration().requirementsMetOrThrow("access_scanner_enabled");
             getConfiguration().setAccessScannerEnabled(cb_stob(val));
+        } else if (key == "alog_path") {
+            getConfiguration().setAlogPath(val);
+        } else if (key == "alog_max_stored_items") {
+            getConfiguration().setAlogMaxStoredItems(std::stoull(val));
+        } else if (key == "alog_resident_ratio_threshold") {
+            getConfiguration().setAlogResidentRatioThreshold(std::stoull(val));
         } else if (key == "alog_sleep_time") {
-            getConfiguration().requirementsMetOrThrow("alog_sleep_time");
             getConfiguration().setAlogSleepTime(std::stoull(val));
         } else if (key == "alog_task_time") {
-            getConfiguration().requirementsMetOrThrow("alog_task_time");
             getConfiguration().setAlogTaskTime(std::stoull(val));
             /* Start of ItemPager parameters */
+        } else if (key == "bfilter_fp_prob") {
+            getConfiguration().setBfilterFpProb(std::stof(val));
+        } else if (key == "bfilter_key_count") {
+            getConfiguration().setBfilterKeyCount(std::stoull(val));
         } else if (key == "pager_active_vb_pcnt") {
             getConfiguration().setPagerActiveVbPcnt(std::stoull(val));
         } else if (key == "pager_sleep_time_ms") {
@@ -659,15 +679,17 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
         } else if (key == "vb_state_persist_run") {
             runVbStatePersistTask(Vbid(std::stoi(val)));
         } else if (key == "ephemeral_full_policy") {
-            getConfiguration().requirementsMetOrThrow("ephemeral_full_policy");
             getConfiguration().setEphemeralFullPolicy(val);
+        } else if (key == "ephemeral_metadata_mark_stale_chunk_duration") {
+            getConfiguration().setEphemeralMetadataMarkStaleChunkDuration(
+                    std::stoull(val));
         } else if (key == "ephemeral_metadata_purge_age") {
-            getConfiguration().requirementsMetOrThrow(
-                    "ephemeral_metadata_purge_age");
             getConfiguration().setEphemeralMetadataPurgeAge(std::stoull(val));
         } else if (key == "ephemeral_metadata_purge_interval") {
-            getConfiguration().requirementsMetOrThrow("ephemeral_metadata_purge_interval");
             getConfiguration().setEphemeralMetadataPurgeInterval(
+                    std::stoull(val));
+        } else if (key == "ephemeral_metadata_purge_stale_chunk_duration") {
+            getConfiguration().setEphemeralMetadataPurgeStaleChunkDuration(
                     std::stoull(val));
         } else if (key == "fsync_after_every_n_bytes_written") {
             getConfiguration().setFsyncAfterEveryNBytesWritten(
@@ -731,26 +753,44 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
                                                          std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
     try {
-        if (key == "connection_manager_interval") {
+        if (key == "dcp_conn_buffer_size") {
+            getConfiguration().setDcpConnBufferSize(std::stoull(val));
+        } else if (key == "dcp_conn_buffer_size_max") {
+            getConfiguration().setDcpConnBufferSizeMax(std::stoull(val));
+        } else if (key == "dcp_conn_buffer_size_aggr_mem_threshold") {
+            getConfiguration().setDcpConnBufferSizeAggrMemThreshold(
+                    std::stoull(val));
+        } else if (key == "dcp_conn_buffer_size_aggressive_perc") {
+            getConfiguration().setDcpConnBufferSizeAggressivePerc(
+                    std::stoull(val));
+        } else if (key == "dcp_conn_buffer_size_perc") {
+            getConfiguration().setDcpConnBufferSizePerc(std::stoull(val));
+        } else if (key == "connection_manager_interval") {
             getConfiguration().setConnectionManagerInterval(std::stoull(val));
         } else if (key ==
                    "dcp_consumer_process_buffered_messages_yield_limit") {
-            size_t v = size_t(std::stoul(val));
-            checkNumeric(val.c_str());
-            validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
-                    v);
+                    std::stoull(val));
         } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
             size_t v = size_t(std::stoul(val));
             checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
                     v);
+        } else if (key == "dcp_enable_noop") {
+            getConfiguration().setDcpEnableNoop(cb_stob(val));
         } else if (key == "dcp_idle_timeout") {
             size_t v = size_t(std::stoul(val));
             checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpIdleTimeout(v);
+        } else if (key == "dcp_noop_tx_interval") {
+            getConfiguration().setDcpNoopTxInterval(std::stoull(val));
+        } else if (key == "dcp_producer_snapshot_marker_yield_limit") {
+            getConfiguration().setDcpProducerSnapshotMarkerYieldLimit(
+                    std::stoull(val));
+        } else if (key == "dcp_takeover_max_time") {
+            getConfiguration().setDcpTakeoverMaxTime(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
