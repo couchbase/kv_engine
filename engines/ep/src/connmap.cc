@@ -40,12 +40,34 @@ size_t ConnMap::vbConnLockNum = 32;
  */
 class ConnManager : public GlobalTask {
 public:
-    ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, TaskId::ConnManager,
+    class ConfigChangeListener : public ValueChangedListener {
+    public:
+        ConfigChangeListener(ConnManager& connManager)
+            : connManager(connManager) {
+        }
+
+        void sizeValueChanged(const std::string& key, size_t value) override {
+            if (key == "connection_manager_interval") {
+                connManager.setSnoozeTime(value);
+            }
+        }
+
+    private:
+        ConnManager& connManager;
+    };
+
+    ConnManager(EventuallyPersistentEngine* e, ConnMap* cmap)
+        : GlobalTask(e,
+                     TaskId::ConnManager,
                      e->getConfiguration().getConnectionManagerInterval(),
                      true),
-          engine(e), connmap(cmap),
-          snoozeTime(e->getConfiguration().getConnectionManagerInterval()) { }
+          engine(e),
+          connmap(cmap),
+          snoozeTime(e->getConfiguration().getConnectionManagerInterval()) {
+        engine->getConfiguration().addValueChangedListener(
+                "connection_manager_interval",
+                std::make_unique<ConfigChangeListener>(*this));
+    }
 
     /**
      * The ConnManager task is used to run the manageConnections function
@@ -74,6 +96,10 @@ public:
         // Set slow limit to 1s initially to highlight the worst runtimes;
         // consider reducing further when they are solved.
         return std::chrono::seconds(1);
+    }
+
+    void setSnoozeTime(size_t snooze) {
+        snoozeTime = snooze;
     }
 
 private:

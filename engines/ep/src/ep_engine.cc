@@ -728,7 +728,10 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
                                                          std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
     try {
-        if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
+        if (key == "connection_manager_interval") {
+            getConfiguration().setConnectionManagerInterval(std::stoull(val));
+        } else if (key ==
+                   "dcp_consumer_process_buffered_messages_yield_limit") {
             size_t v = size_t(std::stoul(val));
             checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
