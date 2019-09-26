@@ -145,10 +145,12 @@ public:
 
     /**
      * Remove the cursor for a given connection.
-     * @param const pointer to the clients cursor, can be null
+     * @param pointer to the clients cursor, can be null and is non constant
+     * so currentCheckpoint member can be set to checkpointList.end() to prevent
+     * further use of currentCheckpoint iterator.
      * @return true if the cursor is removed successfully.
      */
-    bool removeCursor(const CheckpointCursor* cursor);
+    bool removeCursor(CheckpointCursor* cursor);
 
     /**
      * Queue an item to be written to persistent layer.
@@ -387,6 +389,13 @@ public:
     /// @return true if the current open checkpoint is a DiskCheckpoint
     bool isOpenCheckpointDisk();
 
+    /**
+     * Member std::function variable, to allow us to inject code into
+     * removeCursor_UNLOCKED() for unit MB36146
+     */
+    std::function<void(const CheckpointCursor* cursor, Vbid vbid)>
+            runGetItemsHook;
+
 protected:
     /**
      * Advance the given cursor. Protected as it's valid to call this from
@@ -420,7 +429,7 @@ protected:
         bool onCpktStart;
     };
 
-    bool removeCursor_UNLOCKED(const CheckpointCursor* cursor);
+    bool removeCursor_UNLOCKED(CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,
                                                    const std::string& name,

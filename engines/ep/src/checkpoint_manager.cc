@@ -337,14 +337,27 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     return result;
 }
 
-bool CheckpointManager::removeCursor(const CheckpointCursor* cursor) {
+bool CheckpointManager::removeCursor(CheckpointCursor* cursor) {
     LockHolder lh(queueLock);
     return removeCursor_UNLOCKED(cursor);
 }
 
-bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
+bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
     if (!cursor) {
         return false;
+    }
+
+    // if the currentCheckpoint is a the checkpointList end then we must have
+    // removed this cursor before.
+    if (cursor->currentCheckpoint == checkpointList.end()) {
+        throw std::logic_error(
+                "CheckpointManager::removeCursor_UNLOCKED tried to remove "
+                "cursor "
+                "named:" +
+                cursor->name +
+                " but currentCheckpoint"
+                " was equal to checkpointList.end() implying we have already "
+                "removed it");
     }
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
@@ -352,6 +365,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
                  vbucketId);
 
     (*cursor->currentCheckpoint)->decNumOfCursorsInCheckpoint();
+    cursor->currentCheckpoint = checkpointList.end();
 
     if (connCursors.erase(cursor->name) == 0) {
         throw std::logic_error(
@@ -359,14 +373,25 @@ bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
                 "name:" +
                 cursor->name);
     }
+
+    /**
+     * The code bellow is for unit test purposes only and is designed to inject
+     * code to simulate a race condition with the destruction of a cursor. See
+     * for more information MB-36146
+     */
+    if (runGetItemsHook) {
+        queueLock.unlock();
+        runGetItemsHook(cursor, vbucketId);
+        queueLock.lock();
+    }
+
     return true;
 }
 
 bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
         const LockHolder& lh, const VBucket& vbucket) {
     bool forceCreation = false;
-    double memoryUsed =
-            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
+    auto memoryUsed = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
@@ -412,7 +437,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         newOpenCheckpointCreated = oldCheckpointId > 0;
 
         if (checkpointConfig.canKeepClosedCheckpoints()) {
-            double memoryUsed =
+            auto memoryUsed =
                     static_cast<double>(stats.getEstimatedTotalMemoryUsed());
             if (memoryUsed < stats.mem_high_wat &&
                 checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
@@ -883,6 +908,10 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 }
 
 bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
+    if (cursor.currentCheckpoint == checkpointList.end()) {
+        return false;
+    }
+
     if (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
         return true;
     }
@@ -971,6 +1000,10 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
+    if (cursor.currentCheckpoint == checkpointList.end()) {
+        return false;
+    }
+
     auto& it = cursor.currentCheckpoint;
     if ((*it)->getState() == CHECKPOINT_OPEN) {
         return false;
@@ -1031,7 +1064,7 @@ size_t CheckpointManager::getNumItemsForCursor(
 
 size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         const CheckpointCursor* cursor) const {
-    if (cursor) {
+    if (cursor && cursor->currentCheckpoint != checkpointList.end()) {
         size_t items = cursor->getRemainingItemsCount();
         CheckpointList::const_iterator chkptIterator =
                 cursor->currentCheckpoint;
@@ -1059,13 +1092,17 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
+    if (cursor.currentCheckpoint == checkpointList.end()) {
+        throw std::logic_error(
+                "CheckpointManager::isLastMutationItemInCheckpoint() cursor "
+                "has no valid current checkpoint as currentCheckpoint == "
+                "checkpointList.end()");
+    }
+
     ChkptQueueIterator it = cursor.currentPos;
     ++it;
-    if (it == (*(cursor.currentCheckpoint))->end() ||
-        (*it)->getOperation() == queue_op::checkpoint_end) {
-        return true;
-    }
-    return false;
+    return it == (*(cursor.currentCheckpoint))->end() ||
+           (*it)->getOperation() == queue_op::checkpoint_end;
 }
 
 void CheckpointManager::setBackfillPhase(uint64_t start, uint64_t end) {
@@ -1387,7 +1424,7 @@ std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
         os << "    " << *c << std::endl;
     }
     os << "    connCursors:[" << std::endl;
-    for (const auto cur : m.connCursors) {
+    for (const auto& cur : m.connCursors) {
         os << "        " << cur.first << ": " << *cur.second << std::endl;
     }
     os << "    ]" << std::endl;

@@ -1633,6 +1633,56 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_TRUE(statusFound);
 }
 
+/**
+ * Unit test for MB-36146 to ensure that CheckpointCursor do not try to
+ * use the currentCheckpoint member variable if its not point to a valid
+ * object.
+ *
+ * 1. Create an item
+ * 2. Perform a SET on the item
+ * 3. Create a new open checkpoint
+ * 4. For persistent vbuckets flush data to disk to move all cursors to the
+ * next checkpoint.
+ * 5. Create a lamda function that will allow use to mimic the race condition
+ * 6. Transition stream state to dead which will call removeCheckpointCursor()
+ * 7. Once the CheckpointManager has removed all cursors to the checkpoint
+ * call removeClosedUnrefCheckpoints() to delete the checkpoint in memory
+ * 8. call getNumItemsForCursor() using the cursor we removed and make sure
+ * we don't access the deleted memory
+ */
+TEST_P(SingleThreadedActiveStreamTest, MB36146) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    auto item = make_item(vbid, key, value);
+
+    {
+        auto cHandle = vb->lockCollections(item.getKey());
+        EXPECT_EQ(ENGINE_SUCCESS, vb->set(item, cookie, *engine, {}, cHandle));
+    }
+    EXPECT_EQ(3, ckptMgr.createNewCheckpoint());
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+
+    ckptMgr.runGetItemsHook = [this, &ckptMgr](const CheckpointCursor* cursor,
+                                               Vbid vbid) {
+        bool newCheckpoint = false;
+        EXPECT_EQ(1,
+                  ckptMgr.removeClosedUnrefCheckpoints(
+                          *engine->getVBucket(vbid), newCheckpoint));
+        size_t numberOfItemsInCursor = 0;
+        EXPECT_NO_THROW(numberOfItemsInCursor =
+                                ckptMgr.getNumItemsForCursor(cursor));
+        EXPECT_EQ(0, numberOfItemsInCursor);
+    };
+
+    stream->transitionStateToTakeoverDead();
+}
+
 /*
  * MB-31410: In this test I simulate a DcpConsumer that receives messages
  * while previous messages have been buffered. This simulates the system
