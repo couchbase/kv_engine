@@ -6966,7 +6966,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_sync_writes_max_allowed_replicas",
               "ep_time_synchronization",
               "ep_uuid",
-              "ep_warmup",
               "ep_warmup_batch_size",
               "ep_warmup_min_items_threshold",
               "ep_warmup_min_memory_threshold",
@@ -7259,7 +7258,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_vb_total",
               "ep_vbucket_del",
               "ep_vbucket_del_fail",
-              "ep_warmup",
               "ep_warmup_batch_size",
               "ep_warmup_min_items_threshold",
               "ep_warmup_min_memory_threshold",
@@ -7398,15 +7396,17 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_chk_persistence_timeout"});
 
         // Config variables only valid for persistent
-        eng_stats.insert(eng_stats.end(),
-                         {"ep_access_scanner_enabled",
-                          "ep_alog_block_size",
-                          "ep_alog_max_stored_items",
-                          "ep_alog_path",
-                          "ep_alog_resident_ratio_threshold",
-                          "ep_alog_sleep_time",
-                          "ep_alog_task_time",
-                          "ep_item_eviction_policy"});
+        std::initializer_list<std::string> persistentConfig = {
+                "ep_access_scanner_enabled",
+                "ep_alog_block_size",
+                "ep_alog_max_stored_items",
+                "ep_alog_path",
+                "ep_alog_resident_ratio_threshold",
+                "ep_alog_sleep_time",
+                "ep_alog_task_time",
+                "ep_item_eviction_policy",
+                "ep_warmup"};
+        eng_stats.insert(eng_stats.end(), persistentConfig);
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.
         statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};
@@ -7428,18 +7428,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         vb_details.push_back("vb_0:db_data_size");
         vb_details.push_back("vb_0:db_file_size");
 
-        auto& config_stats = statsKeys.at("config");
-
         // Config variables only valid for persistent
-        config_stats.insert(config_stats.end(),
-                            {"ep_access_scanner_enabled",
-                             "ep_alog_block_size",
-                             "ep_alog_max_stored_items",
-                             "ep_alog_path",
-                             "ep_alog_resident_ratio_threshold",
-                             "ep_alog_sleep_time",
-                             "ep_alog_task_time",
-                             "ep_item_eviction_policy"});
+        auto& config_stats = statsKeys.at("config");
+        config_stats.insert(config_stats.end(), persistentConfig);
     }
 
     if (isEphemeralBucket(h)) {

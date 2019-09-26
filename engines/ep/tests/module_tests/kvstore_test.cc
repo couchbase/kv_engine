@@ -31,6 +31,7 @@
 #ifdef EP_USE_MAGMA
 #include "magma-kvstore/magma-kvstore_config.h"
 #endif
+#include "programs/engine_testapp/mock_server.h"
 #include "src/internal.h"
 #include "src/rollback_result.h"
 #include "test_helpers.h"
@@ -2140,10 +2141,11 @@ public:
 void KVStoreParamTest::SetUp() {
     KVStoreTest::SetUp();
     Configuration config;
-    config.setDbname(data_dir);
     // `GetParam` returns the string parameter representing the KVStore
-    // implementation
-    config.setBackend(GetParam());
+    // implementation.
+    auto configStr = "dbname="s + data_dir + ";backend="s + GetParam();
+    config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+
     if (config.getBackend() == "couchdb") {
         kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
     }
@@ -2692,8 +2694,10 @@ protected:
     void SetUp() override {
         KVStoreTest::SetUp();
         Configuration config;
-        config.setDbname(data_dir);
-        config.setBackend("rocksdb");
+        config.parseConfiguration(
+                ("dbname="s + data_dir + ";backend=rocksdb").c_str(),
+                get_mock_server_api());
+
         kvstoreConfig =
                 std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);
@@ -2727,10 +2731,12 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
 
     // Block Cache
     Configuration config;
-    config.setDbname(data_dir);
-    config.setBackend("rocksdb");
+
     // Note: we need to switch-on DB Statistics
-    config.setRocksdbStatsLevel("kAll");
+    auto configStr = ("dbname="s + data_dir +
+                      ";backend=rocksdb;rocksdb_stats_level=kAll");
+    config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+
     kvstoreConfig =
             std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     // Close the opened DB instance
@@ -2758,11 +2764,12 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
 // Verify that a wrong value of 'rocksdb_statistics_option' is caught
 TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     Configuration config;
-    config.setDbname(data_dir);
-    config.setBackend("rocksdb");
+    const auto baseConfig = "dbname="s + data_dir + ";backend=rocksdb";
 
     // Test wrong value
-    config.setRocksdbStatsLevel("wrong-value");
+    config.parseConfiguration(
+            (baseConfig + ";rocksdb_stats_level=wrong_value").c_str(),
+            get_mock_server_api());
     kvstoreConfig =
             std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     // Close the opened DB instance
@@ -2772,7 +2779,9 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
                  std::invalid_argument);
 
     // Test one right value
-    config.setRocksdbStatsLevel("kAll");
+    config.parseConfiguration(
+            (baseConfig + ";rocksdb_stats_level=kAll").c_str(),
+            get_mock_server_api());
     kvstoreConfig =
             std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
     // Close the opened DB instance
@@ -2788,12 +2797,13 @@ class MagmaKVStoreTest : public KVStoreTest {
 protected:
     void SetUp() override {
         KVStoreTest::SetUp();
+
+        auto configStr = "dbname="s + data_dir + ";backend=magma"s;
+        // need to set these for Rollback test
+        configStr += ";magma_commit_point_every_batch=true"s +
+                     ";magma_commit_point_interval=0"s;
         Configuration config;
-        config.setDbname(data_dir);
-        config.setBackend("magma");
-        // need to set this for Rollback test
-        config.setMagmaCommitPointEveryBatch(true);
-        config.setMagmaCommitPointInterval(0);
+        config.parseConfiguration(configStr.c_str(), get_mock_server_api());
         kvstoreConfig =
                 std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);

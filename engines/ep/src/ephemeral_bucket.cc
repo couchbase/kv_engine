@@ -255,8 +255,6 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     // Disable Bloom filter - it is currently no use for us (both
     // alive+deleted keys are kept in HashTable).
     config.setBfilterEnabled(false);
-    // Disable warmup - it is not applicable to Ephemeral buckets.
-    config.setWarmup(false);
 }
 
 void EphemeralBucket::notifyNewSeqno(const Vbid vbid,

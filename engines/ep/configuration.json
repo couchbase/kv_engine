@@ -3,7 +3,7 @@
         "alog_block_size": {
             "default": "4096",
             "descr": "Logging block size.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t",
             "requires": {
                 "bucket_type": "persistent"
@@ -88,7 +88,8 @@
         },
         "backend": {
             "default": "couchdb",
-            "dynamic": true,
+            "desr": "The storage backend to use.",
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -148,7 +149,7 @@
         "bucket_type": {
             "default": "persistent",
             "descr": "Bucket type in the couchbase server",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -187,19 +188,19 @@
         },
         "chk_remover_stime": {
             "default": "5",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "collections_enabled" : {
             "default": "true",
             "descr": "Enable the collections functionality, enabling the storage of collection metadata",
-            "dynamic": true,
+            "dynamic": false,
             "type": "bool"
         },
         "collections_max_size" : {
             "default": "1000",
             "descr": "The maximum number of collections allowed.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "compression_mode": {
@@ -228,7 +229,7 @@
         },
         "conflict_resolution_type": {
             "default": "seqno",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -239,7 +240,8 @@
         },
         "couch_bucket": {
             "default": "default",
-            "dynamic": true,
+            "descr": "The name of this bucket",
+            "dynamic": false,
             "type": "std::string"
         },
         "cursor_dropping_lower_mark": {
@@ -293,13 +295,13 @@
         "data_traffic_enabled": {
             "default": "true",
             "descr": "True if we want to enable data traffic after warmup is complete",
-            "dynamic": true,
+            "dynamic": false,
             "type": "bool"
         },
         "dbname": {
             "default": "./test",
             "descr": "Path to on-disk storage.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string"
         },
         "dcp_noop_mandatory_for_v5_features": {
@@ -427,7 +429,8 @@
         },
         "failpartialwarmup": {
             "default": "true",
-            "dynamic": true,
+            "descr": "If true then do not allow traffic to be enabled to the bucket if warmup didn't complete successfully",
+            "dynamic": false,
             "type": "bool"
         },
         "flusher_batch_split_trigger" : {
@@ -462,7 +465,7 @@
         },
         "ht_locks": {
             "default": "47",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "ht_resize_interval": {
@@ -474,7 +477,7 @@
         "ht_size": {
             "default": "47",
             "descr": "Initial number of slots in HashTable objects.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "item_compressor_interval": {
@@ -497,7 +500,7 @@
         "item_eviction_policy": {
             "default": "value_only",
             "descr": "Item eviction policy on cache, which is used by the item pager",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -587,7 +590,7 @@
         "max_failover_entries": {
             "default": "25",
             "descr": "maximum number of failover log entries",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "max_item_privileged_bytes": {
@@ -624,25 +627,25 @@
         "max_vbuckets": {
             "default": "1024",
             "descr": "Maximum number of vbuckets expected",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "max_threads": {
             "default": "0",
             "descr": "Maximum number of threads in global pool",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "max_num_shards": {
             "default": "4",
-            "descr": "Maximum number of shards",
-            "dynamic": true,
+            "descr": "Number of shards",
+            "dynamic": false,
             "type": "size_t"
         },
         "max_num_workers": {
             "default": "4",
             "descr": "Bucket Priority relative to other buckets",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t",
             "validator": {
                 "range": {
@@ -790,19 +793,19 @@
         "uuid": {
             "default": "",
             "descr": "The UUID for the bucket",
-            "dynamic" : true,
+            "dynamic" : false,
             "type": "std::string"
         },
         "dcp_backfill_byte_limit": {
             "default": "20972856",
             "descr": "Max bytes a connection can backfill into memory",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "dcp_flow_control_policy": {
             "default": "aggressive",
             "descr": "Flow control policy used on consumer side buffer",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -899,13 +902,13 @@
         "dcp_scan_byte_limit": {
             "default": "4194304",
             "descr": "Max bytes that can be read in a single disk scan",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "dcp_scan_item_limit": {
             "default": "4096",
             "descr": "Max items that can be read in a single disk scan",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "dcp_takeover_max_time": {
@@ -981,13 +984,13 @@
         },
         "magma_max_commit_points": {
             "default": "5",
-            "dynamic": true,
+            "dynamic": false,
             "descr": "Maximum # of commit points retained for rollback.",
             "type": "size_t"
         },
         "magma_commit_point_interval": {
             "default": "2",
-            "dynamic": true,
+            "dynamic": false,
             "descr": "frequency of commit point interval; in minutes.",
             "type": "size_t"
         },
@@ -1012,7 +1015,7 @@
         "magma_mem_quota_ratio": {
             "default": "0.1",
             "descr": "Magma total memory ratio of the Bucket Quota across all shards.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "float"
         },
         "magma_wal_buffer_size": {
@@ -1041,7 +1044,7 @@
         },
         "magma_commit_point_every_batch": {
             "default": "false",
-            "dynamic": true,
+            "dynamic": false,
             "descr": "Couchstore generates a potential commit point at the end of every batch of items. During normal operation, Magma commit points are take at every magma_commit_point_interval. Many of the tests require more frequent commit points so this configuration parameter makes sure every batch generates a commit point. Should be used for testing only!",
             "type": "bool"
         },
@@ -1072,61 +1075,61 @@
         "rocksdb_options": {
             "default": "bytes_per_sync=1048576,stats_dump_period_sec=600",
             "descr": "RocksDB Options, comma separated.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string"
         },
         "rocksdb_cf_options": {
             "default": "",
             "descr": "RocksDB Column Family Options, comma separated.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string"
         },
         "rocksdb_bbt_options": {
             "default": "block_size=16384,cache_index_and_filter_blocks=true,pin_l0_filter_and_index_blocks_in_cache=true,cache_index_and_filter_blocks_with_high_priority=true,index_type=kTwoLevelIndexSearch,partition_filters=true",
             "descr": "RocksDB Block Based Table Options, comma separated.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string"
         },
         "rocksdb_low_pri_background_threads": {
             "default": "0",
             "descr": "Number of RocksDB low priority background threads. 0 = auto-select.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "rocksdb_high_pri_background_threads": {
             "default": "0",
             "descr": "Number of RocksDB high priority background threads. 0 = auto-select.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "rocksdb_stats_level": {
             "default": "kExceptTimeForMutex",
             "descr": "RocksDB Statistics 'stats_level'. Possible values: {'', 'kAll', 'kExceptTimeForMutex', 'kExceptDetailedTimers'}. The empty value disables Statistics.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string"
         },
         "rocksdb_block_cache_ratio": {
             "default": "0.1",
             "descr": "RocksDB Block Cache ratio of the Bucket Quota. A value of 0.0 sets to the default.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "float"
         },
         "rocksdb_block_cache_high_pri_pool_ratio": {
             "default": "0.9",
             "descr": "RocksDB ratio of the BlockCache quota reserved for index/filter blocks. A value of 0.0 disables the 'cache_index_and_filter_blocks_with_high_priority=true' option.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "float"
         },
         "rocksdb_memtables_ratio": {
             "default": "0.1",
             "descr": "RocksDB total (i.e., all Column Families) Memtables ratio of the Bucket Quota). A value of 0.0 sets to the default.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "float"
         },
         "rocksdb_default_cf_optimize_compaction": {
             "default": "none",
             "descr": "Enable Compaction Optimization for the 'default' ColumnFamily.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -1139,7 +1142,7 @@
         "rocksdb_seqno_cf_optimize_compaction": {
             "default": "none",
             "descr": "Enable Compaction Optimization for the 'seqno' ColumnFamily.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -1152,19 +1155,19 @@
         "rocksdb_write_rate_limit": {
             "default": "0",
             "descr": "RocksDB write rate limit (in Bytes/Sec). Use to control write rate of flush and compaction. A value of 0 sets to the default (no limit).",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "rocksdb_uc_max_size_amplification_percent": {
             "default": "200",
             "descr": "RocksDB Universal-Compaction 'max_size_amplification_percent' option. The default value is the RocksDB internal default (200).",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "scopes_max_size" : {
             "default": "100",
             "descr": "The maximum number of scopes allowed.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t"
         },
         "sync_writes_max_allowed_replicas" : {
@@ -1176,7 +1179,7 @@
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -1206,13 +1209,17 @@
         },
         "warmup": {
             "default": "true",
-            "dynamic": true,
-            "type": "bool"
+            "dynamic": false,
+            "descr": "Is Warmup of existing data enabled",
+            "type": "bool",
+            "requires": {
+                "bucket_type": "persistent"
+            }
         },
         "warmup_batch_size": {
             "default": "10000",
             "descr": "The size of each batch loaded during warmup.",
-            "dynamic": true,
+            "dynamic": false,
             "type": "size_t",
             "validator": {
                 "range": {

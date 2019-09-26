@@ -556,7 +556,7 @@ bool isPassiveCompressionEnabled(EngineIface* h) {
 }
 
 bool isWarmupEnabled(EngineIface* h) {
-    return get_bool_stat(h, "ep_warmup");
+    return isPersistentBucket(h) && get_bool_stat(h, "ep_warmup");
 }
 
 bool isPersistentBucket(EngineIface* h) {

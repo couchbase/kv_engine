@@ -29,6 +29,9 @@
 #include <benchmark/benchmark.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
+#include <programs/engine_testapp/mock_server.h>
+
+using namespace std::string_literals;
 
 enum Storage {
     COUCHSTORE = 0
@@ -87,18 +90,21 @@ protected:
         // Initialize KVStoreConfig
         Configuration config;
         uint16_t shardId = 0;
-        config.setDbname("KVStoreBench.db");
+
+        auto configStr = "dbname=KVStoreBench.db"s;
         config.setMaxSize(536870912);
         switch (storage) {
         case COUCHSTORE:
             state.SetLabel("Couchstore");
-            config.setBackend("couchdb");
+            config.parseConfiguration((configStr + ";backend=couchdb").c_str(),
+                                      get_mock_server_api());
             kvstoreConfig = std::make_unique<KVStoreConfig>(config, shardId);
             break;
 #ifdef EP_USE_ROCKSDB
         case ROCKSDB:
             state.SetLabel("CouchRocks");
-            config.setBackend("rocksdb");
+            config.parseConfiguration((configStr + ";backend=rocksdb").c_str(),
+                                      get_mock_server_api());
             kvstoreConfig =
                     std::make_unique<RocksDBKVStoreConfig>(config, shardId);
             break;

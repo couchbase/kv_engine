@@ -246,10 +246,6 @@ public:
         return syncConfig & FLUSH_FULL;
     }
 
-    size_t getBlockSize() const {
-        return blockSize;
-    }
-
     bool exists() const;
 
     const std::string &getLogFile() const { return logPath; }

@@ -2832,7 +2832,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
 
     add_casted_stat("ep_startup_time", startupTime.load(), add_stat, cookie);
 
-    if (getConfiguration().isWarmup()) {
+    if (getConfiguration().getBucketType() == "persistent" &&
+        getConfiguration().isWarmup()) {
         Warmup *wp = kvBucket->getWarmup();
         if (wp == nullptr) {
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");

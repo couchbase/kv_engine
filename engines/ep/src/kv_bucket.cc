@@ -431,7 +431,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 bool KVBucket::initialize() {
     // We should nuke everything unless we want warmup
     Configuration &config = engine.getConfiguration();
-    if (!config.isWarmup()) {
+    if ((config.getBucketType() == "ephemeral") || (!config.isWarmup())) {
         reset();
     }
 
