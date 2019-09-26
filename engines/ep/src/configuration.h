@@ -199,6 +199,15 @@ public:
      */
     void addStats(const AddStatFn& add_stat, const void* c) const;
 
+    using Visitor = std::function<void(
+            const std::string& key, bool isDynamic, std::string value)>;
+
+    /**
+     * Invokes the given function on all configuration values which have
+     * their requirements met.
+     */
+    void visit(Visitor visitor) const;
+
     /**
      * Add a listener for changes for a key. The configuration class takes
      * ownership of the listener. There is no way to remove a
@@ -255,9 +264,11 @@ protected:
      * Add a new configuration parameter (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
      * @param value the new value
+     * @param dynamic True if this parameter can be changed at runtime,
+     *        False if the value cannot be changed once object is constructed.
      */
     template <class T>
-    void addParameter(std::string key, T value);
+    void addParameter(std::string key, T value, bool dynamic);
 
     /**
      * Set the configuration parameter for a given key to

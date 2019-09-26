@@ -291,19 +291,19 @@ public:
 TEST(ConfigurationTest, SetGetWorks) {
     ConfigurationShim configuration;
 
-    configuration.addParameter("bool", false);
+    configuration.addParameter("bool", false, false);
     EXPECT_EQ(configuration.getParameter<bool>("bool"), false);
 
-    configuration.addParameter("size", (size_t)100);
+    configuration.addParameter("size", (size_t)100, false);
     EXPECT_EQ(configuration.getParameter<size_t>("size"), 100);
 
-    configuration.addParameter("ssize", (ssize_t)-100);
+    configuration.addParameter("ssize", (ssize_t)-100, false);
     EXPECT_EQ(configuration.getParameter<ssize_t>("ssize"), -100);
 
-    configuration.addParameter("float", (float)123.5);
+    configuration.addParameter("float", (float)123.5, false);
     EXPECT_EQ(configuration.getParameter<float>("float"), 123.5);
 
-    configuration.addParameter("string", std::string("hello"));
+    configuration.addParameter("string", std::string("hello"), false);
     EXPECT_EQ(configuration.getParameter<std::string>("string"), "hello");
 }
 
@@ -311,7 +311,7 @@ TEST(ConfigurationTest, ValidatorWorks) {
     ConfigurationShim configuration;
     std::string key{"test_key"};
 
-    configuration.addParameter(key, (size_t)110);
+    configuration.addParameter(key, (size_t)110, false);
     EXPECT_NO_THROW(configuration.setValueValidator(key, (new SizeRangeValidator())->min(10)->max(100)));
     EXPECT_NO_THROW(configuration.setParameter(key, (size_t)10));
     EXPECT_NO_THROW(configuration.setParameter(key, (size_t)100));
@@ -347,7 +347,7 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     // Create listeners
     auto mvcl = std::make_unique<MockValueChangedListener>();
     // set parameter once so entry in attributes is present to add a listener
-    configuration.addParameter(key, (ssize_t)1);
+    configuration.addParameter(key, (ssize_t)1, false);
 
     EXPECT_CALL(*mvcl, ssizeValueChanged("test_key", 2)).Times(1);
     EXPECT_CALL(*mvcl, sizeValueChanged(_, _)).Times(0);

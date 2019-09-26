@@ -113,6 +113,9 @@ Configuration::Configuration() {
 }
 
 struct Configuration::value_t {
+    value_t(bool dynamic) : dynamic(dynamic) {
+    }
+
     std::vector<std::unique_ptr<ValueChangedListener>> changeListener;
     std::unique_ptr<ValueChangedValidator> validator;
     std::unique_ptr<Requirement> requirement;
@@ -121,6 +124,9 @@ struct Configuration::value_t {
     // match the order of the types in config_datatype. Looking
     // for a cleaner method.
     value_variant_t value;
+
+    /// Is this parameter dynamic (can be changed at runtime?)
+    const bool dynamic;
 
     std::vector<ValueChangedListener*> copyListeners() {
         std::vector<ValueChangedListener*> copy;
@@ -136,9 +142,9 @@ struct Configuration::value_t {
 };
 
 template <class T>
-void Configuration::addParameter(std::string key, T value) {
-    auto result =
-            attributes.insert({std::move(key), std::make_shared<value_t>()});
+void Configuration::addParameter(std::string key, T value, bool dynamic) {
+    auto result = attributes.insert(
+            {std::move(key), std::make_shared<value_t>(dynamic)});
     if (!result.second) {
         throw std::logic_error("Configuration::addParameter(" + key +
                                ") already exists.");
@@ -372,12 +378,21 @@ bool Configuration::parseConfiguration(const char *str,
 
     return ret;
 }
+void Configuration::visit(Configuration::Visitor visitor) const {
+    for (const auto& attr : attributes) {
+        if (requirementsMet(*attr.second)) {
+            std::stringstream value;
+            value << std::boolalpha << attr.second->value;
+            visitor(attr.first, attr.second->dynamic, value.str());
+        }
+    }
+}
 
 Configuration::~Configuration() = default;
 
 // Explicit instantiations for addParameter for supported types.
-template void Configuration::addParameter(std::string, bool);
-template void Configuration::addParameter(std::string, size_t);
-template void Configuration::addParameter(std::string, ssize_t);
-template void Configuration::addParameter(std::string, float);
-template void Configuration::addParameter(std::string, std::string);
+template void Configuration::addParameter(std::string, bool, bool);
+template void Configuration::addParameter(std::string, size_t, bool);
+template void Configuration::addParameter(std::string, ssize_t, bool);
+template void Configuration::addParameter(std::string, float, bool);
+template void Configuration::addParameter(std::string, std::string, bool);

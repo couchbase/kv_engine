@@ -407,18 +407,22 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     // Generate prototypes
     prototypes << "    " << type << " " << getGetterPrefix(type) << cppName
                << "() const;" << std::endl;
-    if (!isReadOnly(json)) {
+    const auto dynamic = !isReadOnly(json);
+
+    if (dynamic) {
         prototypes << "    void set" << cppName << "(const " << type
                    << " &nval);" << std::endl;
     }
 
     // Generate initialization code
-    initialization << "    addParameter(\"" << key << "\", ";
+    initialization << "    addParameter(\"" << key << "\", " << std::boolalpha;
     if (type == "std::string") {
-        initialization << "\"" << defaultVal << "\"s);" << std::endl;
+        initialization << "\"" << defaultVal << "\"s, ";
     } else {
-        initialization << "(" << type << ")" << defaultVal << ");" << std::endl;
+        initialization << type << "(" << defaultVal << "), ";
     }
+    initialization << dynamic << ");" << std::endl;
+
     if (!validator.empty()) {
         initialization << "    setValueValidator(\"" << key << "\", "
                        << validator << ");" << std::endl;
