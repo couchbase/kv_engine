@@ -26,6 +26,11 @@ class TlsTests : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
+        memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "HIGH";
+        memcached_cfg["ssl_cipher_list"]["tls 1.3"] =
+                "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_"
+                "128_GCM_SHA256";
+        reloadConfig();
         setTlsMinimumSpec("tlsv1");
         connection = connectionMap.getConnection(true, AF_INET).clone();
     }
@@ -153,4 +158,11 @@ TEST_P(TlsTests, No_Ciphers) {
     shouldFail("tlsv1_1");
     shouldFail("tlsv1_2");
     shouldFail("tlsv1_3");
+}
+
+TEST_P(TlsTests, ECDHE_RSA_AES256_GCM_SHA384) {
+    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "ECDHE-RSA-AES256-GCM-SHA384";
+    memcached_cfg["ssl_cipher_list"]["tls 1.3"] = "";
+    reloadConfig();
+    shouldPass("tlsv1_2");
 }

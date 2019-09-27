@@ -46,6 +46,10 @@ void set_ssl_ctx_ciphers(SSL_CTX* ctx,
                          const std::string& list,
                          const std::string& suites) {
     if (list.empty()) {
+        auto options = SSL_CTX_get_options(ctx);
+        SSL_CTX_set_options(ctx,
+                            options | SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1 |
+                                    SSL_OP_NO_TLSv1);
         SSL_CTX_set_cipher_list(ctx, "");
     } else if (SSL_CTX_set_cipher_list(ctx, list.c_str()) == 0) {
         throw std::runtime_error(
@@ -54,6 +58,8 @@ void set_ssl_ctx_ciphers(SSL_CTX* ctx,
     }
 
     if (suites.empty()) {
+        auto options = SSL_CTX_get_options(ctx);
+        SSL_CTX_set_options(ctx, options | SSL_OP_NO_TLSv1_3);
         SSL_CTX_set_ciphersuites(ctx, "");
     } else if (SSL_CTX_set_ciphersuites(ctx, suites.c_str()) == 0) {
         throw std::runtime_error(
