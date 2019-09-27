@@ -532,7 +532,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                         // order.
                         range->setStart(std::max(range->getStart(),
                                                  itr->range.getEnd()));
-                        if (toFlush.checkpointType == CheckpointType::Disk) {
+                        // HCS may be weakly monotonic when received via a disk
+                        // snapshot so we special case this for the disk
+                        // snapshot instead of relaxing the general constraint.
+                        if (toFlush.checkpointType == CheckpointType::Disk &&
+                            itr->highCompletedSeqno !=
+                                    vbstate.persistedCompletedSeqno) {
                             hcs = itr->highCompletedSeqno;
                         }
                     }

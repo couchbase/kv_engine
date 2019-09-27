@@ -1140,6 +1140,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 TEST_P(DurabilityPassiveStreamPersistentTest,
        DiskSnapshotHCSIgnoredIfWeaklyMonotonic) {
     testDiskSnapshotHCSPersisted();
+
+    EXPECT_EQ(2, getPersistedHCS());
     SnapshotMarker marker(0 /*opaque*/,
                           vbid,
                           6 /*snapStart*/,
@@ -1149,9 +1151,26 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
+    auto key = makeStoredDocKey("unrelated");
+    auto item = makeCommittedItem(key, "unrelated");
+    item->setBySeqno(7);
+
+    // Send the logical commit
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      0 /*opaque*/,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
     // We don't flush any items but we will run the flusher which will advance
-    // use out of the checkpoint
-    flushVBucketToDiskIfPersistent(vbid, 0);
+    // use out of the checkpoint. Should not throw any pre-condition due to
+    // monotonicity.
+    flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
 TEST_P(DurabilityPassiveStreamTest,
