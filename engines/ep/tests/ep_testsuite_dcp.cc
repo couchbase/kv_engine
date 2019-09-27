@@ -8028,8 +8028,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=50;"
-                 "cursor_dropping_upper_mark=65;"
+                 "cursor_dropping_lower_mark=30;"
+                 "cursor_dropping_upper_mark=45;"
                  "chk_remover_stime=1;"
                  "max_size=6291456;"
                  "chk_max_items=8000;"
@@ -8055,8 +8055,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=50;"
-                 "cursor_dropping_upper_mark=65;"
+                 "cursor_dropping_lower_mark=30;"
+                 "cursor_dropping_upper_mark=45;"
                  "chk_remover_stime=1;"
                  "max_size=6291456;"
                  "chk_max_items=8000;"
@@ -8082,8 +8082,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                   create at least 1000 items when our residency
                   ratio gets to 90%. See test body for more details. */
-                 "cursor_dropping_lower_mark=50;"
-                 "cursor_dropping_upper_mark=65;"
+                 "cursor_dropping_lower_mark=30;"
+                 "cursor_dropping_upper_mark=45;"
                  "chk_remover_stime=1;"
                  "max_size=6291456;"
                  "chk_max_items=8000;"
