@@ -1035,19 +1035,14 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                 " but we don't have a StreamContainer for that vb");
     }
 
-    // Search for an active stream with the same opaque as the response.
-    // Use find_if2 which will return the matching shared_ptr<Stream>
-    auto stream = find_if2([opaque](const StreamsMap::value_type& s) {
-        auto handle = s.second->rlock();
-        for (; !handle.end(); handle.next()) {
-            auto& stream = handle.get();
-            auto* as = dynamic_cast<ActiveStream*>(stream.get());
-            if (as && opaque == stream->getOpaque()) {
-                return stream; // return matching shared_ptr<Stream>
-            }
+    ActiveStream* stream = nullptr;
+    for (auto itr = rv->second->rlock(); !itr.end(); itr.next()) {
+        auto* s = itr.get().get();
+        if (s->getOpaque() == opaque) {
+            stream = dynamic_cast<ActiveStream*>(s);
+            break;
         }
-        return ContainerElement{};
-    });
+    }
 
     if (!stream) {
         // No stream found, may be the case that we have just ended our
@@ -1057,8 +1052,7 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
         return ENGINE_SUCCESS;
     }
 
-    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-    return as->seqnoAck(consumerName, prepared_seqno);
+    return stream->seqnoAck(consumerName, prepared_seqno);
 }
 
 bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
