@@ -569,7 +569,7 @@ class BinprotGetAndTouchCommand
     : public BinprotCommandT<BinprotGetAndTouchCommand,
                              cb::mcbp::ClientOpcode::Gat> {
 public:
-    BinprotGetAndTouchCommand();
+    explicit BinprotGetAndTouchCommand(std::string key = {}, uint32_t exp = 0);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -608,6 +608,7 @@ class BinprotTouchCommand
     : public BinprotCommandT<BinprotGetAndTouchCommand,
                              cb::mcbp::ClientOpcode::Touch> {
 public:
+    explicit BinprotTouchCommand(std::string key = {}, uint32_t exp = 0);
     void encode(std::vector<uint8_t>& buf) const override;
 
     BinprotTouchCommand& setExpirytime(uint32_t timeout);

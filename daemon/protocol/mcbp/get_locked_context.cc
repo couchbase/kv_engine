@@ -90,22 +90,31 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
 
     datatype = connection.getEnabledDatatypes(datatype);
 
-    const uint32_t bodylength =
-            gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
-
-    // Set the CAS to add into the header
-    cookie.setCas(info.cas);
-    mcbp_add_header(cookie,
-                    cb::mcbp::Status::Success,
-                    sizeof(info.flags),
-                    0 /* keylength */,
-                    bodylength,
-                    datatype);
-    // Add the flags
-    connection.addIov(&info.flags, sizeof(info.flags));
-    // Add the value
-    connection.addIov(payload.buf, payload.len);
-    connection.setState(StateMachine::State::send_data);
+    const auto bodylength =
+            gsl::narrow<uint32_t>(sizeof(info.flags) + payload.size());
+    if (connection.useCookieSendResponse(bodylength)) {
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {reinterpret_cast<const char*>(&info.flags),
+                             sizeof(info.flags)},
+                            {},
+                            {payload.buf, payload.len},
+                            cb::mcbp::Datatype(info.datatype),
+                            info.cas);
+    } else {
+        // Set the CAS to add into the header
+        cookie.setCas(info.cas);
+        mcbp_add_header(cookie,
+                        cb::mcbp::Status::Success,
+                        sizeof(info.flags),
+                        0 /* keylength */,
+                        bodylength,
+                        datatype);
+        // Add the flags
+        connection.addIov(&info.flags, sizeof(info.flags));
+        // Add the value
+        connection.addIov(payload.buf, payload.len);
+        connection.setState(StateMachine::State::send_data);
+    }
 
     STATS_INCR(&connection, cmd_lock);
     update_topkeys(cookie);

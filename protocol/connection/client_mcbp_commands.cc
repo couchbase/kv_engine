@@ -542,8 +542,10 @@ void BinprotGetAndTouchCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), buffer.begin(), buffer.end());
     buf.insert(buf.end(), key.begin(), key.end());
 }
-BinprotGetAndTouchCommand::BinprotGetAndTouchCommand()
-    : BinprotCommandT(), expirytime(0) {
+BinprotGetAndTouchCommand::BinprotGetAndTouchCommand(std::string key,
+                                                     uint32_t exp)
+    : BinprotCommandT(), expirytime(exp) {
+    setKey(std::move(key));
 }
 bool BinprotGetAndTouchCommand::isQuiet() const {
     return getOp() == cb::mcbp::ClientOpcode::Gatq;
@@ -556,6 +558,11 @@ BinprotGetAndTouchCommand& BinprotGetAndTouchCommand::setExpirytime(
         uint32_t timeout) {
     expirytime = timeout;
     return *this;
+}
+
+BinprotTouchCommand::BinprotTouchCommand(std::string key, uint32_t exp)
+    : BinprotCommandT(), expirytime(exp) {
+    setKey(std::move(key));
 }
 
 void BinprotTouchCommand::encode(std::vector<uint8_t>& buf) const {

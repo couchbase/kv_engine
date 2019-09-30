@@ -40,6 +40,7 @@ protected:
     void testHit(bool quiet);
     void testMiss(bool quiet);
 
+    void testGatAndTouch(const std::string& value);
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -178,4 +179,30 @@ TEST_P(TouchTest, Touch_Miss) {
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+}
+
+void TouchTest::testGatAndTouch(const std::string& input_doc) {
+    auto& conn = getConnection();
+    document.value = input_doc;
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    auto resp = BinprotGetAndTouchResponse{
+            conn.execute(BinprotGetAndTouchCommand{name})};
+    EXPECT_TRUE(resp.isSuccess());
+    auto value = resp.getData();
+    std::string val(reinterpret_cast<const char*>(value.data()), value.size());
+    EXPECT_EQ(document.value, val);
+    resp = BinprotGetAndTouchResponse{conn.execute(BinprotTouchCommand{name})};
+    EXPECT_TRUE(resp.isSuccess());
+    EXPECT_TRUE(resp.getData().empty());
+}
+
+TEST_P(TouchTest, SmallValues) {
+    testGatAndTouch("hello world");
+}
+
+TEST_P(TouchTest, LargeValues) {
+    std::string value;
+    value.resize(512 * 1024);
+    std::fill(value.begin(), value.end(), 'd');
+    testGatAndTouch("hello world");
 }
