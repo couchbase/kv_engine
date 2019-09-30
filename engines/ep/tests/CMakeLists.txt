@@ -315,7 +315,13 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
     ENDIF ()
 ENDFUNCTION()
 
-ADD_TESTSUITE(ep_testsuite 1800)
+# MB-36252: Skipping ep_testsuite under Magma as intermittently times out on
+# Windows
+IF(WIN32)
+    ADD_TESTSUITE(ep_testsuite 1800 SKIP_MAGMA)
+ELSE()
+    ADD_TESTSUITE(ep_testsuite 1800)
+ENDIF()
 
 ADD_TESTSUITE(ep_testsuite_basic 600)
 
