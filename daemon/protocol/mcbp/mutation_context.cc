@@ -33,8 +33,6 @@ MutationCommandContext::MutationCommandContext(Cookie& cookie,
                                                const ENGINE_STORE_OPERATION op_)
     : SteppableCommandContext(cookie),
       operation(req.getCas() == 0 ? op_ : OPERATION_CAS),
-      key(cookie.getRequestKey()),
-      value(req.getValue()),
       vbucket(req.getVBucket()),
       input_cas(req.getCas()),
       extras(*reinterpret_cast<const cb::mcbp::request::MutationPayload*>(
@@ -112,29 +110,31 @@ static bool shouldStoreUncompressed(Cookie& cookie,
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
+    // Check that the client don't try to mark the document as something
+    // it didn't enable
     if (!connection.isDatatypeEnabled(datatype)) {
         return ENGINE_EINVAL;
     }
 
-    /**
-     * If snappy datatype is enabled and if the datatype is SNAPPY,
-     * validate to data to ensure that it is compressed using SNAPPY
-     */
+    // If snappy datatype is enabled and if the datatype is SNAPPY,
+    // validate to data to ensure that it is compressed using SNAPPY
+    auto raw_value = cookie.getRequest().getValue();
     try {
         if (mcbp::datatype::is_snappy(datatype)) {
-            cb::const_char_buffer value_buf{reinterpret_cast<const char*>(value.buf),
-                                            value.len};
+            cb::const_char_buffer buffer{
+                    reinterpret_cast<const char*>(raw_value.data()),
+                    raw_value.size()};
 
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                          value_buf,
+                                          buffer,
                                           decompressed_value)) {
                 return ENGINE_EINVAL;
             }
+            raw_value = decompressed_value;
 
-            /* Check if the size of the decompressed value is greater than
-             * the maximum item size supported by the underlying engine
-             */
-            auto& bucket = connection.getBucket();
+            // Check if the size of the decompressed value is greater than
+            // the maximum item size supported by the underlying engine
+            const auto& bucket = connection.getBucket();
             if (decompressed_value.size() > bucket.max_document_size) {
                 return ENGINE_E2BIG;
             }
@@ -143,22 +143,18 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
 
             const auto mode = bucket_get_compression_mode(cookie);
             if (mode == BucketCompressionMode::Off ||
-                shouldStoreUncompressed(cookie, value.len,
-                                        decompressed_value.size())) {
-                value.buf = reinterpret_cast<const uint8_t*>(
-                        decompressed_value.data());
-                value.len = decompressed_value.size();
+                shouldStoreUncompressed(
+                        cookie, raw_value.size(), decompressed_value.size())) {
                 datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             }
-        } else {
-            // Determine if document is JSON or not. We do not trust what the client
-            // sent - instead we check for ourselves.
-            setDatatypeJSONFromValue(value, datatype);
         }
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
 
+    // Determine if document is JSON or not. We do not trust what the client
+    // sent - instead we check for ourselves.
+    setDatatypeJSONFromValue(raw_value, datatype);
     state = State::AllocateNewItem;
     return ENGINE_SUCCESS;
 }
@@ -171,9 +167,10 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
     // value eviction case where the underlying engine would have to read
     // the value off disk in order to return it via get() even if we don't
     // need it (and would throw it away in the frontend).
-    auto pair = bucket_get_if(cookie, key, vbucket, [](const item_info& info) {
-        return mcbp::datatype::is_xattr(info.datatype);
-    });
+    auto pair = bucket_get_if(
+            cookie, cookie.getRequestKey(), vbucket, [](const item_info& info) {
+                return mcbp::datatype::is_xattr(info.datatype);
+            });
     if (pair.first != cb::engine_errc::no_such_key &&
         pair.first != cb::engine_errc::success) {
         return ENGINE_ERROR_CODE(pair.first);
@@ -217,6 +214,7 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
 
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     auto dtype = datatype;
+    auto value = cookie.getRequest().getValue();
     if (existingXattrs.size() > 0) {
         // We need to prepend the existing XATTRs - include XATTR bit
         // in datatype:
@@ -224,6 +222,14 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         // The result will also *not* be compressed - even if the
         // input value was (as we combine the data uncompressed).
         dtype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        if (mcbp::datatype::is_snappy(datatype)) {
+            value = decompressed_value;
+        }
+    }
+    // We tried to inflate the value, but we need to store it inflated due
+    // to the bucket policy
+    if (decompressed_value.size() > 0 && !mcbp::datatype::is_snappy(datatype)) {
+        value = decompressed_value;
     }
 
     size_t total_size = value.size() + existingXattrs.size();
@@ -234,7 +240,7 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     item_info newitem_info;
     try {
         auto ret = bucket_allocate_ex(cookie,
-                                      key,
+                                      cookie.getRequestKey(),
                                       total_size,
                                       existingXattrs.get_system_size(),
                                       extras.getFlagsInNetworkByteOrder(),
@@ -270,17 +276,8 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         root += existingXattrs.size();
     }
 
-    // Copy the user supplied value over. If the user-supplied value
-    // was Snappy and we have XATTRs, we must use the decompressed
-    // version of it (compression is only applied to the complete
-    // value+XATTR pair, not to only part of it).
-    if (existingXattrs.size() > 0 && mcbp::datatype::is_snappy(datatype)) {
-        std::copy(decompressed_value.data(),
-                  decompressed_value.data() + decompressed_value.size(),
-                  root);
-    } else {
-        std::copy(value.begin(), value.end(), root);
-    }
+    // Copy the user supplied value over.
+    std::copy(value.begin(), value.end(), root);
     state = State::StoreItem;
 
     return ENGINE_SUCCESS;
