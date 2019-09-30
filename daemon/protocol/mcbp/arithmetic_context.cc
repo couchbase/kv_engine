@@ -31,7 +31,6 @@ using cb::mcbp::request::ArithmeticPayload;
 ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
                                                    const cb::mcbp::Request& req)
     : SteppableCommandContext(cookie),
-      key(cookie.getRequestKey()),
       extras(*reinterpret_cast<const ArithmeticPayload*>(
               req.getExtdata().data())),
       cas(req.getCas()),
@@ -41,7 +40,7 @@ ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
-    auto ret = bucket_get(cookie, key, vbucket);
+    auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
 
@@ -93,7 +92,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     result = extras.getInitial();
 
     auto pair = bucket_allocate_ex(cookie,
-                                   key,
+                                   cookie.getRequestKey(),
                                    value.size(),
                                    0, // no privileged bytes
                                    0, // Empty flags
@@ -186,7 +185,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     // In order to be backwards compatible with old Couchbase server we
     // continue to use the old expiry time:
     auto pair = bucket_allocate_ex(cookie,
-                                   key,
+                                   cookie.getRequestKey(),
                                    xattrsize + value.size(),
                                    priv_bytes,
                                    oldItemInfo.flags,

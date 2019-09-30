@@ -57,7 +57,6 @@ public:
 
     RemoveCommandContext(Cookie& cookie, const cb::mcbp::Request& req)
         : SteppableCommandContext(cookie),
-          key(cookie.getRequestKey()),
           vbucket(req.getVBucket()),
           input_cas(req.getCas()),
           state(State::GetItem),
@@ -128,7 +127,6 @@ protected:
     ENGINE_ERROR_CODE reset();
 
 private:
-    const DocKey key;
     const Vbid vbucket;
     const uint64_t input_cas;
 

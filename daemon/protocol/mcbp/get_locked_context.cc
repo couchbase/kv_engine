@@ -27,7 +27,8 @@
 #include <gsl/gsl>
 
 ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
-    auto ret = bucket_get_locked(cookie, key, vbucket, lock_timeout);
+    auto ret = bucket_get_locked(
+            cookie, cookie.getRequestKey(), vbucket, lock_timeout);
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, it.get(), &info)) {

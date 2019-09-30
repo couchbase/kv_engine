@@ -30,9 +30,6 @@ AppendPrependCommandContext::AppendPrependCommandContext(
             req.getClientOpcode() == cb::mcbp::ClientOpcode::Appendq)
                    ? Mode::Append
                    : Mode::Prepend),
-      key(cookie.getRequestKey()),
-      value(reinterpret_cast<const char*>(req.getValue().buf),
-            req.getValue().len),
       vbucket(req.getVBucket()),
       cas(req.getCas()),
       state(State::ValidateInput),
@@ -95,12 +92,13 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::validateInput() {
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
     try {
-        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      value,
-                                      inputbuffer)) {
+        auto value = cookie.getRequest().getValue();
+        cb::const_char_buffer buffer{
+                reinterpret_cast<const char*>(value.data()), value.size()};
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy, buffer, inputbuffer)) {
             return ENGINE_EINVAL;
         }
-        value = inputbuffer;
         state = State::GetItem;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -110,7 +108,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
-    auto ret = bucket_get(cookie, key, vbucket);
+    auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
         if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
@@ -180,9 +178,18 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         priv_size = blob.get_system_size();
     }
 
+    // If the client sent a compressed value we should use the one
+    // we inflated
+    cb::const_byte_buffer value;
+    if (inputbuffer.size() == 0) {
+        value = cookie.getRequest().getValue();
+    } else {
+        value = inputbuffer;
+    }
+
     auto pair = bucket_allocate_ex(cookie,
-                                   key,
-                                   old.len + value.len,
+                                   cookie.getRequestKey(),
+                                   old.size() + value.size(),
                                    priv_size,
                                    oldItemInfo.flags,
                                    (rel_time_t)oldItemInfo.exptime,

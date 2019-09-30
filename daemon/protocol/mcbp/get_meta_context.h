@@ -77,7 +77,6 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
-    const DocKey key;
     const Vbid vbucket;
 
     State state;

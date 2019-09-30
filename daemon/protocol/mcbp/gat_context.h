@@ -109,7 +109,6 @@ protected:
 private:
     uint32_t getExptime(Cookie& cookie);
 
-    const DocKey key;
     const Vbid vbucket;
     const uint32_t exptime;
 

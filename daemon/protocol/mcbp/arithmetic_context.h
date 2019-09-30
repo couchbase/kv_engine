@@ -123,7 +123,6 @@ protected:
 
 private:
 
-    const DocKey key;
     const cb::mcbp::request::ArithmeticPayload extras;
     const uint64_t cas;
     const Vbid vbucket;

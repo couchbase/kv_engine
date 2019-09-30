@@ -64,7 +64,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
-    auto ret = bucket_get(cookie, key, vbucket);
+    auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         existing = std::move(ret.second);
         if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
@@ -101,7 +101,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
     }
     auto pair =
             bucket_allocate_ex(cookie,
-                               key,
+                               cookie.getRequestKey(),
                                xattr.size(),
                                xattr.size(), // Only system xattrs
                                0, // MB-25273: 0 flags when deleting the body
@@ -160,7 +160,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
     uint64_t new_cas = input_cas;
     const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
     auto ret = bucket_remove(cookie,
-                             key,
+                             cookie.getRequestKey(),
                              new_cas,
                              vbucket,
                              request.getDurabilityRequirements(),

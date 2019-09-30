@@ -39,7 +39,6 @@ uint32_t GatCommandContext::getExptime(Cookie& cookie) {
 
 GatCommandContext::GatCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
-      key(cookie.getRequestKey()),
       vbucket(cookie.getRequest().getVBucket()),
       exptime(getExptime(cookie)),
       info{},
@@ -49,7 +48,7 @@ GatCommandContext::GatCommandContext(Cookie& cookie)
 ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
     auto ret =
             bucket_get_and_touch(cookie,
-                                 key,
+                                 cookie.getRequestKey(),
                                  vbucket,
                                  exptime,
                                  cookie.getRequest(Cookie::PacketContent::Full)

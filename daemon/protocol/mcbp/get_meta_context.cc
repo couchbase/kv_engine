@@ -28,7 +28,6 @@
 
 GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
-      key(cookie.getRequestKey()),
       vbucket(cookie.getRequest().getVBucket()),
       state(State::GetItemMeta),
       info(),
@@ -41,7 +40,8 @@ GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
 }
 
 ENGINE_ERROR_CODE GetMetaCommandContext::getItemMeta() {
-    auto errorMetaPair = bucket_get_meta(cookie, key, vbucket);
+    auto errorMetaPair =
+            bucket_get_meta(cookie, cookie.getRequestKey(), vbucket);
     if (errorMetaPair.first == cb::engine_errc::success) {
         info = errorMetaPair.second;
         state = State::SendResponse;

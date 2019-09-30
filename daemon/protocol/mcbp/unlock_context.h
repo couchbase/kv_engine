@@ -38,7 +38,6 @@ public:
 
     explicit UnlockCommandContext(Cookie& cookie)
         : SteppableCommandContext(cookie),
-          key(cookie.getRequestKey()),
           vbucket(cookie.getRequest().getVBucket()),
           cas(cookie.getRequest().getCas()),
           state(State::Unlock) {
@@ -63,7 +62,6 @@ protected:
      ENGINE_ERROR_CODE unlock();
 
 private:
-    const DocKey key;
     const Vbid vbucket;
     const uint64_t cas;
 

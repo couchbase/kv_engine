@@ -79,8 +79,6 @@ protected:
 
 private:
     const Mode mode;
-    const DocKey key;
-    cb::const_char_buffer value;
     const Vbid vbucket;
     const uint64_t cas;
 
