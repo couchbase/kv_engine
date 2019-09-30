@@ -321,7 +321,9 @@ ADD_TESTSUITE(ep_testsuite_basic 600)
 
 ADD_TESTSUITE(ep_testsuite_dcp 1200)
 
-ADD_TESTSUITE(ep_testsuite_checkpoint 120)
+# MB-36228: Skipping ep_testsuite_checkpoint under Magma as intermittently hangs on
+# Windows
+ADD_TESTSUITE(ep_testsuite_checkpoint 120 SKIP_MAGMA)
 
 # MB-36226: Skipping ep_testsuite_xdcr under Magma as intermittently hangs on
 # Windows
