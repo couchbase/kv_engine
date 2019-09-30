@@ -47,8 +47,8 @@ bool DurabilityTimeoutTask::run() {
     // the seconds-representation (as double) of the given millis (sleepTime)
     snooze(std::chrono::duration<double>(sleepTime).count());
 
-    // Schedule again
-    return true;
+    // Schedule again if not shutting down
+    return !engine->getEpStats().isShutdown;
 }
 
 void DurabilityTimeoutVisitor::visitBucket(const VBucketPtr& vb) {
