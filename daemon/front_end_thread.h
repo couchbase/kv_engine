@@ -24,6 +24,8 @@
 #include <platform/socket.h>
 #include <subdoc/operations.h>
 
+#include <atomic>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <unordered_map>

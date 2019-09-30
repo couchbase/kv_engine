@@ -19,6 +19,8 @@
 
 #include "globaltask.h"
 
+#include <functional>
+
 class LambdaTask : public GlobalTask {
 public:
     LambdaTask(Taskable& t,
