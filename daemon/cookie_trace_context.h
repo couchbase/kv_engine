@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <mcbp/protocol/opcode.h>
+#include <platform/sized_buffer.h>
 #include <tracing/tracer.h>
 #include <string>
 

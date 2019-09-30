@@ -17,8 +17,8 @@
 
 #pragma once
 
+#include "item.h"
 #include "paging_visitor.h"
-
 #include <string>
 
 /**

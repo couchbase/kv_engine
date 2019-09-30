@@ -217,9 +217,8 @@ add_subdirectory(programs)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake
                ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake COPYONLY)
 
-option(CB_ENABLE_HEADER_INCLUDE_CHECK "Enable building of just headers objs,
-       for header include  correctness."
-        OFF)
+option(CB_ENABLE_HEADER_INCLUDE_CHECK
+       "Enable building of just headers objs, for header include correctness.")
 
 if(CB_ENABLE_HEADER_INCLUDE_CHECK)
     # Extra (non-default) target to compile all memcached headers (for
@@ -268,5 +267,7 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
 
 
     add_header_object_library(NAME memcached_headers_obj HEADERS ${memcached_headers})
-    target_include_directories(memcached_headers_obj SYSTEM PRIVATE ${hdr_histogram_SOURCE_DIR}/src)
+    target_include_directories(memcached_headers_obj SYSTEM PRIVATE
+      ${hdr_histogram_SOURCE_DIR}/src
+      ${OPENTRACING_INCLUDE_DIR})
 endif(CB_ENABLE_HEADER_INCLUDE_CHECK)

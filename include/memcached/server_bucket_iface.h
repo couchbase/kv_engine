@@ -21,6 +21,8 @@
 
 struct EngineIface;
 
+typedef struct server_handle_v1_t SERVER_HANDLE_V1;
+
 /**
  * The ServerBucketIface allows the EWB engine to create buckets without
  * having to load the shared object (and have to worry about when to release

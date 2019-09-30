@@ -30,9 +30,7 @@
 
 #include <functional>
 #include <iostream>
-#include <list>
 #include <mutex>
-#include <set>
 #include <unordered_map>
 
 class VBucket;

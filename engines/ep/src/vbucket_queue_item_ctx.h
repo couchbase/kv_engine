@@ -17,6 +17,9 @@
 
 #pragma once
 
+#include "ep_types.h"
+
+#include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <memcached/durability_spec.h>
 

@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <boost/optional.hpp>
+#include <memcached/durability_spec.h>
 #include <cstdint>
 #include <memory>
 #include <string>

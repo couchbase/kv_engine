@@ -36,6 +36,7 @@ class Pipe;
 
 class Cookie;
 class Connection;
+class ListeningPort;
 struct thread_stats;
 
 using SharedListeningPort = std::shared_ptr<ListeningPort>;

@@ -26,10 +26,8 @@
 
 class AbortSyncWrite;
 class BucketLogger;
-class ChangeSeparatorCollectionEvent;
 class CommitSyncWrite;
 class CreateCollectionEvent;
-class CreateOrDeleteCollectionEvent;
 class CreateScopeEvent;
 class DropCollectionEvent;
 class DropScopeEvent;
@@ -277,13 +275,11 @@ protected:
     const Collections::ManifestUid vb_manifest_uid;
 
     struct Buffer {
-        Buffer() : bytes(0) {
-        }
+        Buffer();
 
-        bool empty() const {
-            LockHolder lh(bufMutex);
-            return messages.empty();
-        }
+        ~Buffer();
+
+        bool empty() const;
 
         void push(std::unique_ptr<DcpResponse> message);
 
@@ -296,15 +292,7 @@ protected:
          * Return a reference to the item at the front.
          * The user must pass a lock to bufMutex.
          */
-        std::unique_ptr<DcpResponse>& front(std::unique_lock<std::mutex>& lh) {
-            return messages.front();
-        }
-
-        /*
-         * Caller must of locked bufMutex and pass as lh (not asserted)
-         */
-        void push_front(std::unique_ptr<DcpResponse> message,
-                        std::unique_lock<std::mutex>& lh);
+        std::unique_ptr<DcpResponse>& front(std::unique_lock<std::mutex>& lh);
 
         size_t bytes;
         /* Lock ordering w.r.t to streamMutex:

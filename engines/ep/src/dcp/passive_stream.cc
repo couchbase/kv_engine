@@ -1216,6 +1216,16 @@ void PassiveStream::log(spdlog::level::level_enum severity,
     }
 }
 
+PassiveStream::Buffer::Buffer() : bytes(0) {
+}
+
+PassiveStream::Buffer::~Buffer() = default;
+
+bool PassiveStream::Buffer::empty() const {
+    LockHolder lh(bufMutex);
+    return messages.empty();
+}
+
 void PassiveStream::Buffer::push(std::unique_ptr<DcpResponse> message) {
     std::lock_guard<std::mutex> lg(bufMutex);
     bytes += message->getMessageSize();
@@ -1231,8 +1241,7 @@ void PassiveStream::Buffer::pop_front(std::unique_lock<std::mutex>& lh,
     bytes -= bytesPopped;
 }
 
-void PassiveStream::Buffer::push_front(std::unique_ptr<DcpResponse> message,
-                                       std::unique_lock<std::mutex>& lh) {
-    bytes += message->getMessageSize();
-    messages.push_front(std::move(message));
+std::unique_ptr<DcpResponse>& PassiveStream::Buffer::front(
+        std::unique_lock<std::mutex>& lh) {
+    return messages.front();
 }

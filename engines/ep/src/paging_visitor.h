@@ -27,6 +27,7 @@
 #include <list>
 
 class EPStats;
+class Item;
 class EventuallyPersistentEngine;
 class KVBucket;
 class StoredValue;
