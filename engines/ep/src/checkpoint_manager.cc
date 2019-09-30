@@ -183,9 +183,9 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
        next checkpoint. DCP cursors can skip a "checkpoint end" meta item.
        This is needed so that the checkpoint remover can remove the
        closed checkpoints and hence reduce the memory usage and so to ensure
-       that we do not leave a cursor at the checkpoint_end. This is required as
-       expelling needs our cursors to be orderable by seqno and a checkpoint_end
-       will have a lower seqno than a preceding set_vbucket_state */
+       that we do not leave a cursor at the checkpoint_end. This also ensures
+       that where possible we will drop a checkpoint instead of running
+       expelling which is faster.*/
     for (auto& cur_it : connCursors) {
         CheckpointCursor& cursor = *cur_it.second;
         ++(cursor.currentPos);
@@ -499,21 +499,6 @@ ExpelResult CheckpointManager::expelUnreferencedCheckpointItems() {
         }
 
         // Sort first by checkpointID then by seqno to find the first cursor.
-        //
-        // If you run a cursor through the entire checkpointList then you will
-        // not necessarily find that seqnos are monotonic. They're not even
-        // weakly montonic. This is because of setVBucketState and the seqnos
-        // that we give to them, checkpoint_end, and dummy items.
-        //
-        // It is possible to have a checkpoint with a setVBucketState at seqno 2
-        // followed by a checkpoint_end at seqno 1. One might then believe that
-        // it would be incorrect to attempt to order cursors by seqno.
-        // "Fortunately", due to what was once just an optimization, we move the
-        // cursors from the previous checkpoint to the next if they were at the
-        // last item. The only time where we would expect to see seqnos out of
-        // order like this is if a setVBucketState is the last item. It's also
-        // not possible for a cursor to be advanced and left at a
-        // checkpoint_end. As such, a seqno ordering is actually possible.
         const auto compareByCkptAndSeqno = [](const auto& a, const auto& b) {
             return a.second->getCkptIdAndSeqno() <
                    b.second->getCkptIdAndSeqno();
@@ -1173,36 +1158,41 @@ uint64_t CheckpointManager::getOpenSnapshotStartSeqno() const {
 queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     Vbid vbid,
                                                     queue_op checkpoint_op) {
-    uint64_t bySeqno;
+    // It's not valid to actually increment lastBySeqno for any meta op for two
+    // reasons:
+    // 1) This may be called independently on the replica to the active
+    // (i.e. for a failover table change as part of set_vbucket_state) so the
+    // seqnos would differ to those on the active.
+    // 2) DcpConsumer calling getAllVBucketSeqnos would expect to see a
+    // seqno that will never be sent to them if the last item queued is a meta
+    // op.
+    //
+    // We enqueue all meta ops with lastBySeqno + 1 though to ensure that they
+    // are weakly monotonic. If we used different seqnos for different meta ops
+    // then they may not be. The next normal op will be enqueued after bumping
+    // lastBySeqno so we may see the following seqnos across checkpoints
+    // [1, 1, 1, 2, 3, 3] [3, 3, 4] [4, 4, ...]. This means that checkpoint end
+    // seqnos are exclusive of any seqno of a normal mutation in the checkpoint,
+    // whilst checkpoint starts should be inclusive. Checkpoint ends may share a
+    // seqno with a preceding setVBucketState though.
+    uint64_t bySeqno = lastBySeqno + 1;
     StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
 
     switch (checkpoint_op) {
     case queue_op::checkpoint_start:
-        bySeqno = lastBySeqno + 1;
-        break;
     case queue_op::checkpoint_end:
-        bySeqno = lastBySeqno;
-        break;
     case queue_op::empty:
-        bySeqno = lastBySeqno;
-        break;
     case queue_op::set_vbucket_state:
-        // It's not valid to actually increment lastBySeqno for a
-        // set_vbucket_state for two reasons:
-        // 1) This may be called independently on the replica to the active
-        // (i.e. for a failover table change) so the seqnos would differ to
-        // those on the active.
-        // 2) DcpConsumer calling getAllVBucketSeqnos would expect to see a
-        // seqno that will never be sent to them if the last item queued is a
-        // set_vbucket_state.
-        bySeqno = lastBySeqno + 1;
         break;
 
     default:
-        throw std::invalid_argument("CheckpointManager::createCheckpointItem:"
-                        "checkpoint_op (which is " +
-                        std::to_string(static_cast<std::underlying_type<queue_op>::type>(checkpoint_op)) +
-                        ") is not a valid item to create");
+        throw std::invalid_argument(
+                "CheckpointManager::createCheckpointItem:"
+                "checkpoint_op (which is " +
+                std::to_string(
+                        static_cast<std::underlying_type<queue_op>::type>(
+                                checkpoint_op)) +
+                ") is not a valid item to create");
     }
 
     queued_item qi(new Item(key, vbid, checkpoint_op, id, bySeqno));

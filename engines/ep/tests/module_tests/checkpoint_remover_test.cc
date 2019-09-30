@@ -628,9 +628,9 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
      *  - chptStart      1
      *  - item key_1     1
      *  - set_vb_state   2   << CursorB
-     *  - chkptEnd       1
+     *  - chkptEnd       2
      *  -------
-     *  - dummy          1   ** cursors skip this dummy
+     *  - dummy          2   ** cursors skip this dummy
      *  - ckptStart      2   << CursorA
      */
 
@@ -656,10 +656,8 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     // This test is seen to fail prior to the fix for MB-35812
     // as the cursors were sorted only by seqno and CursorA would
     // be selected, despite not being in the oldest checkpoint.
-
     EXPECT_NO_THROW(cm->expelUnreferencedCheckpointItems());
 }
-
 TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     setVBucketStateAndRunPersistTask(
             vbid,

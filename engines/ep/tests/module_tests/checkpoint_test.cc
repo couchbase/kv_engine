@@ -2277,3 +2277,113 @@ TYPED_TEST(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
     // Ensure the number of cursors is still correct
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
 }
+
+TYPED_TEST(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
+    this->createManager(0);
+    auto& cm = *this->manager;
+
+    // Queue a normal set
+    queued_item qi(new Item(makeStoredDocKey("key1"),
+                            this->vbucket->getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
+
+    // Queue a setVBucketState
+    auto& vb = *this->vbucket;
+    cm.queueSetVBState(vb);
+
+    // Close our checkpoint to create a checkpoint_end, another dummy item, and
+    // a checkpoint_start
+    cm.forceNewCheckpoint();
+
+    // Test: Iterate on all items and check that the seqnos are weakly monotonic
+    auto regRes = cm.registerCursorBySeqno("Cursor", 0);
+    auto cursor = regRes.cursor.lock();
+    std::vector<queued_item> items;
+    cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
+
+    WeaklyMonotonic<uint64_t> seqno = 0;
+    for (const auto& item : items) {
+        seqno = item->getBySeqno();
+    }
+}
+
+TYPED_TEST(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
+    this->createManager(0);
+    auto& cm = *this->manager;
+
+    // Queue a setVBucketState
+    auto& vb = *this->vbucket;
+    cm.queueSetVBState(vb);
+
+    // Queue a normal set
+    queued_item qi(new Item(makeStoredDocKey("key1"),
+                            this->vbucket->getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
+
+    // Close our checkpoint to create a checkpoint_end, another dummy item, and
+    // a checkpoint_start
+    cm.forceNewCheckpoint();
+
+    // Test: Iterate on all items and check that the seqnos are weakly monotonic
+    auto regRes = cm.registerCursorBySeqno("Cursor", 0);
+    auto cursor = regRes.cursor.lock();
+    std::vector<queued_item> items;
+    cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
+
+    WeaklyMonotonic<uint64_t> seqno = 0;
+    for (const auto& item : items) {
+        seqno = item->getBySeqno();
+    }
+}
+
+TYPED_TEST(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
+    this->createManager(0);
+    auto& cm = *this->manager;
+
+    // Queue a normal set
+    queued_item qi(new Item(makeStoredDocKey("key1"),
+                            this->vbucket->getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
+
+    // Close our checkpoint to create a checkpoint_end, another dummy item, and
+    // a checkpoint_start
+    cm.forceNewCheckpoint();
+
+    // Queue a normal set
+    qi = queued_item(new Item(makeStoredDocKey("key1"),
+                              this->vbucket->getId(),
+                              queue_op::mutation,
+                              /*revSeq*/ 0,
+                              /*bySeq*/ 0));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
+
+    // Try to register a cursor at seqno 2 (i.e. the first item in the second
+    // checkpoint).
+    auto regRes = cm.registerCursorBySeqno("Cursor", 2);
+    EXPECT_EQ(2, regRes.cursor.lock()->getId());
+}

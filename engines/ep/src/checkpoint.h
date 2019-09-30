@@ -537,6 +537,13 @@ public:
     uint64_t getHighSeqno() const {
         auto pos = end();
         --pos;
+
+        if ((*pos)->getOperation() == queue_op::checkpoint_end) {
+            // We bump the seqno for checkpoint_end items so return the high
+            // seqno of the last non-meta item (i.e. one less)
+            return (*pos)->getBySeqno() - 1;
+        }
+
         return (*pos)->getBySeqno();
     }
 

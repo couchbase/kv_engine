@@ -76,7 +76,11 @@ enum class queue_op : uint8_t {
     checkpoint_start,
 
     /// (meta item) Marker for the end of a checkpoint. Only exists in closed
-    /// checkpoints, where it is always the last item in the checkpoint.
+    /// checkpoints, where it is always the last item in the checkpoint. The
+    /// seqno of the checkpoint_end will be exclusive of the seqnos of all
+    /// non-meta operations in the checkpoint (i.e. one greater); this will not
+    /// be the case if the preceding item is a set_vbucket_state though (the two
+    /// ops will have the same seqno).
     checkpoint_end,
 
     /// (meta item) Marker to persist the VBucket's state (vbucket_state) to
