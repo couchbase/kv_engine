@@ -318,9 +318,9 @@ ENDFUNCTION()
 # MB-36252: Skipping ep_testsuite under Magma as intermittently times out on
 # Windows
 IF(WIN32)
-    ADD_TESTSUITE(ep_testsuite 1800 SKIP_MAGMA)
+    ADD_TESTSUITE(ep_testsuite 300 SKIP_MAGMA)
 ELSE()
-    ADD_TESTSUITE(ep_testsuite 1800)
+    ADD_TESTSUITE(ep_testsuite 300)
 ENDIF()
 
 ADD_TESTSUITE(ep_testsuite_basic 600)
