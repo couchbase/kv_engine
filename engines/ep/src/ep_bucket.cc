@@ -418,7 +418,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             // HPS is optional because we have to update it on disk only if a
             // prepare is found in the flush-batch
-            boost::optional<uint64_t> hps;
+            boost::optional<uint64_t> hps =
+                    boost::make_optional(false, uint64_t());
 
             if (toFlush.maxDeletedRevSeqno) {
                 vbstate.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
