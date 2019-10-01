@@ -56,7 +56,8 @@ bool DurabilityCompletionTask::run() {
     // its resolved SyncWrites.
     for (size_t count = 0; count < pendingVBs.size();
          count++, vbid = (vbid + 1) % pendingVBs.size()) {
-        if (pendingVBs[vbid].exchange(false)) {
+        bool expected = true;
+        if (pendingVBs[vbid].compare_exchange_strong(expected, false)) {
             auto vb = engine->getVBucket(Vbid(vbid));
             if (vb) {
                 vb->processResolvedSyncWrites();
