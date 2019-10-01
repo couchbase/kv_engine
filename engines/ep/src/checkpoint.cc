@@ -332,23 +332,23 @@ ExpelResult Checkpoint::expelItems(CheckpointCursor& expelUpToAndIncluding) {
         if (getState() == CHECKPOINT_OPEN) {
             // Whilst cp is open, erase the expelled items from the indexes
             for (const auto& expelled : expelledItems) {
-                size_t erased = 0;
                 if (expelled->isCheckPointMetaItem()) {
-                    erased = metaKeyIndex.erase(expelled->getKey());
+                    metaKeyIndex.erase(expelled->getKey());
+                    // setvbstate may exist more than once, so don't check erase
+                    // return value in the same way as keyIndex.erase
                 } else {
-                    erased = keyIndex.erase(
+                    auto erased = keyIndex.erase(
                             {expelled->getKey(),
                              expelled->isCommitted()
                                      ? CheckpointIndexKeyNamespace::Committed
                                      : CheckpointIndexKeyNamespace::Prepared});
-                }
-
-                if (erased == 0) {
-                    std::stringstream ss;
-                    ss << *expelled;
-                    throw std::logic_error(
-                            "Checkpoint::expelItem: not found in index " +
-                            ss.str());
+                    if (erased == 0) {
+                        std::stringstream ss;
+                        ss << *expelled;
+                        throw std::logic_error(
+                                "Checkpoint::expelItem: not found in index " +
+                                ss.str());
+                    }
                 }
             }
             // Ask the hash-table's to rehash to fit the new number of elements

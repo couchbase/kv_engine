@@ -1994,6 +1994,31 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
+// Test for MB-36251, an exception was seen because the setvbstate is erased
+// from the metaIndex twice, we were asserting that erase returns 1 each time
+// which is not correct.
+TYPED_TEST(CheckpointTest, expelCursorMultipleSetStates) {
+    EXPECT_TRUE(this->queueNewItem("key1"));
+    EXPECT_TRUE(this->queueNewItem("key2"));
+    this->manager->queueSetVBState(*this->vbucket);
+    EXPECT_TRUE(this->queueNewItem("key3"));
+    this->manager->queueSetVBState(*this->vbucket);
+    EXPECT_TRUE(this->queueNewItem("key4"));
+    EXPECT_TRUE(this->queueNewItem("key5"));
+    EXPECT_TRUE(this->queueNewItem("key6"));
+
+    bool isLastMutationItem{true};
+    for (auto ii = 0; ii < 9; ++ii) {
+        auto item = this->manager->nextItem(
+                this->manager->getPersistenceCursor(), isLastMutationItem);
+    }
+
+    // Expelling would throw prior to fix for MB-36251
+    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(8, expelResult.expelCount);
+    EXPECT_EQ(8, this->global_stats.itemsExpelledFromCheckpoints);
+}
+
 // Test that if we want to evict items from seqno X, but have a meta-data item
 // also with seqno X, and a cursor is pointing to this meta data item, we do not
 // evict.
