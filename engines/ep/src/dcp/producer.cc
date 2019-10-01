@@ -1599,8 +1599,8 @@ void DcpProducer::scheduleNotify() {
 ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
     const auto now = ep_current_time();
     auto elapsedTime = now - lastReceiveTime;
-    auto dcpIdleTimeout = engine_.getConfiguration().getDcpIdleTimeout();
-    if (noopCtx.enabled && elapsedTime > dcpIdleTimeout) {
+    auto dcpIdleTimeout = getIdleTimeout();
+    if (noopCtx.enabled && std::chrono::seconds(elapsedTime) > dcpIdleTimeout) {
         logger->info(
                 "Disconnecting because a message has not been received for "
                 "the DCP idle timeout of {}s. "
@@ -1609,7 +1609,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
                 "Last sent noop {}s ago. "
                 "DCP noop interval is {}s. "
                 "opaque: {}, pendingRecv: {}.",
-                dcpIdleTimeout,
+                dcpIdleTimeout.count(),
                 (now - lastSendTime),
                 elapsedTime,
                 (now - noopCtx.sendTime),

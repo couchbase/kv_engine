@@ -183,6 +183,11 @@ protected:
     void consumerBatchSizeConfigChanged(size_t newValue);
 
     /**
+     * Change the idle timeout that Producers and Consumers operate with
+     */
+    void idleTimeoutConfigChanged(size_t newValue);
+
+    /**
      * @param engine The engine
      * @param cookie The cookie that identifies the connection
      * @param connName The name that identifies the connection

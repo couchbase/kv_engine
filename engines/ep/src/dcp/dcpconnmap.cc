@@ -58,6 +58,9 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     engine.getConfiguration().addValueChangedListener(
             "dcp_consumer_process_buffered_messages_batch_size",
             std::make_unique<DcpConfigChangeListener>(*this));
+    engine.getConfiguration().addValueChangedListener(
+            "dcp_idle_timeout",
+            std::make_unique<DcpConfigChangeListener>(*this));
 }
 
 DcpConnMap::~DcpConnMap() {
@@ -544,6 +547,8 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
         myConnMap.consumerYieldConfigChanged(value);
     } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
         myConnMap.consumerBatchSizeConfigChanged(value);
+    } else if (key == "dcp_idle_timeout") {
+        myConnMap.idleTimeoutConfigChanged(value);
     }
 }
 
@@ -572,6 +577,14 @@ void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
         if (dcpConsumer) {
             dcpConsumer->setProcessBufferedMessagesBatchSize(newValue);
         }
+    }
+}
+
+void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
+    LockHolder lh(connsLock);
+    for (const auto& cookieToConn : map_) {
+        cookieToConn.second.get()->setIdleTimeout(
+                std::chrono::seconds(newValue));
     }
 }
 

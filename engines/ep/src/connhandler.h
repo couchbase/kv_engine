@@ -340,6 +340,14 @@ public:
         return connected_port;
     }
 
+    void setIdleTimeout(std::chrono::seconds newValue) {
+        idleTimeout = newValue;
+    }
+
+    std::chrono::seconds getIdleTimeout() {
+        return idleTimeout;
+    }
+
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
@@ -385,6 +393,12 @@ private:
 
     /// The port the connection is connected to
     const in_port_t connected_port;
+
+    /**
+     * A timeout value after which we will disconnect the connection if no
+     * message has been received (provided noopCtx has been enabled).
+     */
+    std::chrono::seconds idleTimeout;
 };
 
 std::string to_string(ConnHandler::PausedReason r);

@@ -1384,14 +1384,14 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     }
 
     const auto now = ep_current_time();
-    auto dcpIdleTimeout = engine.getConfiguration().getDcpIdleTimeout();
-    if ((now - lastMessageTime) > dcpIdleTimeout) {
+    auto dcpIdleTimeout = getIdleTimeout();
+    if (std::chrono::seconds(now - lastMessageTime) > dcpIdleTimeout) {
         logger->info(
                 "Disconnecting because a message has not been received for "
                 "the DCP idle timeout of {}s. "
                 "Received last message (e.g. mutation/noop/StreamEnd) {}s ago. "
                 "DCP noop interval is {}s.",
-                dcpIdleTimeout,
+                dcpIdleTimeout.count(),
                 (now - lastMessageTime),
                 intervalCount);
         return ENGINE_DISCONNECT;

@@ -2675,6 +2675,48 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
     }
 }
 
+TEST_F(SingleThreadedKVBucketTest, ConsumerIdleTimeoutUpdatedOnConfigChange) {
+    engine->getConfiguration().setDcpIdleTimeout(100);
+
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    ASSERT_EQ(std::chrono::seconds(100), consumer->getIdleTimeout());
+
+    // Need to put our consumer in the ConnMap or we won't know to change the
+    // value when the config is updated.
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, consumer);
+    ASSERT_TRUE(connMap.findByName("test_consumer"));
+
+    engine->getConfiguration().setDcpIdleTimeout(200);
+
+    EXPECT_EQ(std::chrono::seconds(200), consumer->getIdleTimeout());
+
+    connMap.removeConn(cookie);
+}
+
+TEST_F(SingleThreadedKVBucketTest, ProducerIdleTimeoutUpdatedOnConfigChange) {
+    engine->getConfiguration().setDcpIdleTimeout(100);
+
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    ASSERT_EQ(std::chrono::seconds(100), producer->getIdleTimeout());
+
+    // Need to put our producer in the ConnMap or we won't know to change the
+    // value when the config is updated.
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, producer);
+    ASSERT_TRUE(connMap.findByName("test_producer"));
+
+    engine->getConfiguration().setDcpIdleTimeout(200);
+
+    EXPECT_EQ(std::chrono::seconds(200), producer->getIdleTimeout());
+
+    connMap.removeConn(cookie);
+}
+
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&

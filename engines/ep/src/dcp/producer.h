@@ -331,6 +331,8 @@ public:
 
     std::string getConsumerName() const;
 
+    void setIdleTimeout(size_t newValue);
+
 protected:
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.

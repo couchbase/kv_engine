@@ -53,7 +53,8 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
       disconnect(false),
       paused(false),
       authenticatedUser(e.getServerApi()->cookie->get_authenticated_user(c)),
-      connected_port(e.getServerApi()->cookie->get_connected_port(c)) {
+      connected_port(e.getServerApi()->cookie->get_connected_port(c)),
+      idleTimeout(e.getConfiguration().getDcpIdleTimeout()) {
     logger = BucketLogger::createBucketLogger(
             std::to_string(reinterpret_cast<uintptr_t>(this)));
 
