@@ -2385,6 +2385,12 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     // Check onDiskPrepares is updated correctly after compaction.
     EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
+
+    vb.reset();
+    resetEngineAndWarmup();
+    kvstore = store->getOneRWUnderlying();
+    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
@@ -2435,6 +2441,12 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     // Now the Abort should be gone
     gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+
+    vb.reset();
+    resetEngineAndWarmup();
+    kvstore = store->getOneRWUnderlying();
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
 }

@@ -407,6 +407,20 @@ void CouchKVStore::initialize() {
             cachedVBStates[id.get()] = NULL;
         }
 
+        // Setup cachedDocCount
+        DbInfo info;
+        errorCode = couchstore_db_info(db, &info);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::initialize: couchstore_db_info"
+                    " error:{}, name:{}/{}.couch.{}",
+                    couchstore_strerror(errorCode),
+                    dbname,
+                    id.get(),
+                    db.getFileRev());
+        }
+        cachedDocCount[id.get()] = info.doc_count;
+
         if (!isReadOnly()) {
             removeCompactFile(dbname, id);
         }
@@ -1146,13 +1160,9 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         return false;
     }
 
-    couchstore_open_flags openFlags =
-            hook_ctx->eraserContext->needToUpdateCollectionsMetadata()
-                    ? 0
-                    : COUCHSTORE_OPEN_FLAG_RDONLY;
-
-    // Open the newly compacted VBucket database file ...
-    errCode = openSpecificDB(vbid, new_rev, targetDb, (uint64_t)openFlags);
+    // Open the newly compacted VBucket database file in write mode, we will be
+    // updating vbstate
+    errCode = openSpecificDB(vbid, new_rev, targetDb, 0);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::compactDB: openDB#2 error:{}, file:{}, "
@@ -1188,14 +1198,12 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         }
     }
 
-    // Update the global VBucket file map so all operations use the new file
-    updateDbFileMap(vbid, new_rev);
+    errCode = couchstore_db_info(targetDb.getDb(), &info);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.warn("CouchKVStore::compactDB: couchstore_db_info errCode:{}",
+                    couchstore_strerror(errCode));
+    }
 
-    logger.debug("INFO: created new couch db file, name:{} rev:{}",
-                 new_file,
-                 new_rev);
-
-    couchstore_db_info(targetDb.getDb(), &info);
     hook_ctx->stats.post = toFileInfo(info);
 
     cachedFileSize[vbid.get()] = info.file_size;
@@ -1209,7 +1217,23 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         cachedDeleteCount[vbid.get()] = info.deleted_count;
         cachedDocCount[vbid.get()] = info.doc_count;
         state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
+        // Must sync the modified state back
+        saveVBState(targetDb.getDb(), *state);
+        errCode = couchstore_commit(targetDb.getDb());
+        if (errCode != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::compactDB: failed to commit vbstate "
+                    "errCode:{}",
+                    couchstore_strerror(errCode));
+        }
     }
+
+    logger.debug("INFO: created new couch db file, name:{} rev:{}",
+                 new_file,
+                 new_rev);
+
+    // Update the global VBucket file map so all operations use the new file
+    updateDbFileMap(vbid, new_rev);
 
     // Removing the stale couch file
     unlinkCouchFile(vbid, compactdb.getFileRev());
@@ -2982,10 +3006,10 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
     std::string fname = dbname + "/" + std::to_string(vbucket.get()) +
                         ".couch." + std::to_string(fRev);
     cb::io::sanitizePath(fname);
-    logger.info("CouchKVStore::unlinkCouchFile: {}, revision:{}, fname:{}",
-                vbucket,
-                fRev,
-                fname);
+    logger.debug("CouchKVStore::unlinkCouchFile: {}, revision:{}, fname:{}",
+                 vbucket,
+                 fRev,
+                 fname);
 
     if (remove(fname.c_str()) == -1) {
         logger.warn(
