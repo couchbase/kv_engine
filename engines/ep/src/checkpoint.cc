@@ -145,6 +145,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
+        // We will just queue the item
         rv = QueueDirtyStatus::SuccessNewItem;
         addItemToCheckpoint(qi);
     } else {
@@ -162,61 +163,89 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
         // Check if this checkpoint already has an item for the same key
         // and the item has not been expelled.
-        if (it != keyIndex.end() &&
-            (it->second.mutation_id > highestExpelledSeqno)) {
-            const auto currPos = it->second.position;
-            if (!(canDedup(*currPos, qi))) {
-                return QueueDirtyStatus::FailureDuplicateItem;
-            }
+        if (it != keyIndex.end()) {
+            if (it->second.mutation_id > highestExpelledSeqno) {
+                // Normal path - we haven't expelled the item. We have a valid
+                // cursor position to read the item and make our de-dupe checks.
+                const auto currPos = it->second.position;
+                if (!(canDedup(*currPos, qi))) {
+                    return QueueDirtyStatus::FailureDuplicateItem;
+                }
 
-            rv = QueueDirtyStatus::SuccessExistingItem;
-            const int64_t currMutationId{it->second.mutation_id};
+                rv = QueueDirtyStatus::SuccessExistingItem;
+                const int64_t currMutationId{it->second.mutation_id};
 
-            // Given the key already exists, need to check all cursors in this
-            // Checkpoint and see if the existing item for this key is to
-            // the "left" of the cursor (i.e. has already been processed).
-            for (auto& cursor : checkpointManager->connCursors) {
-                if ((*(cursor.second->currentCheckpoint)).get() == this) {
-                    if (cursor.second->name == CheckpointManager::pCursorName) {
-                        int64_t cursor_mutation_id =
-                                getMutationId(*cursor.second);
-                        queued_item& cursor_item = *(cursor.second->currentPos);
-                        // If the cursor item is non-meta, then we need to
-                        // return persist again if the existing item is
-                        // either before or on the cursor - as the cursor
-                        // points to the "last processed" item.
-                        // However if the cursor item is meta, then we only
-                        // need to return persist again if the existing item
-                        // is strictly less than the cursor, as meta-items
-                        // can share a seqno with a non-meta item but are
-                        // logically before them.
-                        if (cursor_item->isCheckPointMetaItem()) {
-                            --cursor_mutation_id;
+                // Given the key already exists, need to check all cursors in
+                // this Checkpoint and see if the existing item for this key is
+                // to the "left" of the cursor (i.e. has already been
+                // processed).
+                for (auto& cursor : checkpointManager->connCursors) {
+                    if ((*(cursor.second->currentCheckpoint)).get() == this) {
+                        if (cursor.second->name ==
+                            CheckpointManager::pCursorName) {
+                            int64_t cursor_mutation_id =
+                                    getMutationId(*cursor.second);
+                            queued_item& cursor_item =
+                                    *(cursor.second->currentPos);
+                            // If the cursor item is non-meta, then we need to
+                            // return persist again if the existing item is
+                            // either before or on the cursor - as the cursor
+                            // points to the "last processed" item.
+                            // However if the cursor item is meta, then we only
+                            // need to return persist again if the existing item
+                            // is strictly less than the cursor, as meta-items
+                            // can share a seqno with a non-meta item but are
+                            // logically before them.
+                            if (cursor_item->isCheckPointMetaItem()) {
+                                --cursor_mutation_id;
+                            }
+                            if (currMutationId <= cursor_mutation_id) {
+                                // Cursor has already processed the previous
+                                // value for this key so need to persist again.
+                                rv = QueueDirtyStatus::SuccessPersistAgain;
+                            }
                         }
-                        if (currMutationId <= cursor_mutation_id) {
-                            // Cursor has already processed the previous
-                            // value for this key so need to persist again.
-                            rv = QueueDirtyStatus::SuccessPersistAgain;
+                        /* If a cursor points to the existing item for the same
+                           key, shift it left by 1 */
+                        if (cursor.second->currentPos == currPos) {
+                            cursor.second->decrPos();
                         }
-                    }
-                    /* If a cursor points to the existing item for the same
-                       key, shift it left by 1 */
-                    if (cursor.second->currentPos == currPos) {
-                        cursor.second->decrPos();
                     }
                 }
+
+                addItemToCheckpoint(qi);
+
+                // Reduce the size of the checkpoint by the size of the
+                // item being removed.
+                queuedItemsMemUsage -= ((*currPos)->size());
+                // Remove the existing item for the same key from the list.
+                toWrite.erase(currPos.getUnderlyingIterator());
+            } else {
+                // The old item has been expelled, but we can continue to use
+                // this checkpoint in most cases. If the previous op was a
+                // syncWrite and we hit this code then we know that the new op
+                // (regardless of what it is) must be placed in a new
+                // checkpoint (as it is for the same key). If the new op is a
+                // commit (which would typically de-dupe a mutation) then we
+                // must also place the op in a new checkpoint. We can't use the
+                // cursor position as we normally would as we have expelled the
+                // queued_item and freed the memory. The index_entry has the
+                // information we need though to tell us if this item was a
+                // SyncWrite.
+                if (it->second.isSyncWrite() ||
+                    qi->getOperation() == queue_op::commit_sync_write) {
+                    return QueueDirtyStatus::FailureDuplicateItem;
+                }
+
+                // Always return PersistAgain because if the old item has been
+                // expelled then the persistence cursor MUST have passed it.
+                rv = QueueDirtyStatus::SuccessPersistAgain;
+
+                addItemToCheckpoint(qi);
             }
 
-            addItemToCheckpoint(qi);
-
-            // Reduce the size of the checkpoint by the size of the
-            // item being removed.
-            queuedItemsMemUsage -= ((*currPos)->size());
-            // Remove the existing item for the same key from the list.
-            toWrite.erase(currPos.getUnderlyingIterator());
-
-            // Reduce the number of items because addItemToCheckpoint
-            // increases the number by one.
+            // Reduce the number of items because addItemToCheckpoint will
+            // increase the number by one.
             --numItems;
         } else {
             rv = QueueDirtyStatus::SuccessNewItem;
@@ -337,18 +366,13 @@ ExpelResult Checkpoint::expelItems(CheckpointCursor& expelUpToAndIncluding) {
                     // setvbstate may exist more than once, so don't check erase
                     // return value in the same way as keyIndex.erase
                 } else {
-                    auto erased = keyIndex.erase(
+                    auto itr = keyIndex.find(
                             {expelled->getKey(),
                              expelled->isCommitted()
                                      ? CheckpointIndexKeyNamespace::Committed
                                      : CheckpointIndexKeyNamespace::Prepared});
-                    if (erased == 0) {
-                        std::stringstream ss;
-                        ss << *expelled;
-                        throw std::logic_error(
-                                "Checkpoint::expelItem: not found in index " +
-                                ss.str());
-                    }
+                    Expects(itr != keyIndex.end());
+                    itr->second.invalidate(end());
                 }
             }
             // Ask the hash-table's to rehash to fit the new number of elements

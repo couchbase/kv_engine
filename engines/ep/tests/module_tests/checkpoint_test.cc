@@ -1926,8 +1926,11 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
      * 1004 - 4th item (key0)  << The New item added >>
      */
 
-    // The full checkpoint still contains the 4 items added.
-    EXPECT_EQ(itemCount + 1, this->manager->getNumOpenChkItems());
+    // The full checkpoint still contains the 3 unique items added. The second
+    // add for key0 de-dupes the first for key0 so we don't bump the count. This
+    // mimics normal behaviour for an item de-duping an earlier one in a
+    // checkpoint when there is no expelling going on.
+    EXPECT_EQ(itemCount, this->manager->getNumOpenChkItems());
 }
 
 // Test that when the first cursor we come across is pointing to the last
@@ -2236,11 +2239,10 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     EXPECT_EQ(expelResult.estimateOfFreeMemory,
               expectedReductionInCheckpointMemoryUsage);
 
-    // 5 in this next calculation relates to the key size used, e.g. key0, key1
-    const size_t keyIndexReduction =
-            (sizeof(CheckpointIndexKeyNamespace) + sizeof(index_entry) + 5) * 2;
-    const size_t metaIndexReduction =
-            checkpointStartItem->getKey().size() + sizeof(index_entry);
+    // We can remove nothing from the indexes of open checkpoints when we expel
+    // as they are required for de-dupe. We just invalidate them instead.
+    const size_t keyIndexReduction = 0;
+    const size_t metaIndexReduction = 0;
 
     // The reduction includes bytes deallocated by the internal hash-tables
     // (i.e. keyIndex.erase) which easy to calculate, hence we expect the actual

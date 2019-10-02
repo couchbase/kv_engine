@@ -71,7 +71,45 @@ using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
  * A checkpoint index entry.
  */
 struct index_entry {
+    /**
+     * Invalidate the given index_entry (as part of expelling) to ensure that
+     * we use it correctly if we were expelling from the open checkpoint.
+     *
+     * @param itr Checkpoint::end()
+     */
+    void invalidate(const ChkptQueueIterator& itr) {
+        auto op = (*position)->getOperation();
+        switch (op) {
+        case queue_op::pending_sync_write:
+        case queue_op::abort_sync_write:
+        case queue_op::commit_sync_write:
+            // Set this to be a "SyncWrite" item (even though it is
+            // invalidated) so that we know if we can de-dupe it or not
+            mutation_id = 0;
+        case queue_op::mutation:
+        case queue_op::flush:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+        case queue_op::set_vbucket_state:
+        case queue_op::system_event:
+            break;
+        }
+
+        position = itr;
+    }
+
+    bool isSyncWrite() const {
+        return mutation_id == 0;
+    }
+
     ChkptQueueIterator position;
+
+    /**
+     * The mutation_id is generally the bySeqno of the item. However, if this is
+     * a SyncWrite expelled from the open checkpoint then the mutation_id is set
+     * to 0 so that we can make our de-dupe checks
+     */
     int64_t mutation_id;
 };
 

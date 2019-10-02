@@ -659,3 +659,84 @@ TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
 
     EXPECT_NO_THROW(cm->expelUnreferencedCheckpointItems());
 }
+
+TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto vb = engine->getVBucket(vbid);
+    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+
+    {
+        // clear out the first checkpoint containing a set vbstate
+        cm->forceNewCheckpoint();
+        flush_vbucket_to_disk(vbid, 0);
+        bool newOpenCreated;
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+    }
+
+    store_item(vbid, makeStoredDocKey("key_1"), "value");
+    store_item(vbid, makeStoredDocKey("key_2"), "value");
+
+    // Queue a prepare
+    auto prepareKey = makeStoredDocKey("key_1");
+    auto prepare = makePendingItem(prepareKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+              store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
+
+    // Persist to move our cursor so that we can expel the prepare
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    cm->dump();
+    auto result = cm->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(3, result.expelCount);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(prepareKey,
+                         3,
+                         {},
+                         vb->lockCollections(prepareKey),
+                         cookie));
+
+    // We should have opened a new checkpoint
+    EXPECT_EQ(2, cm->getNumCheckpoints());
+}
+
+TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto vb = engine->getVBucket(vbid);
+    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+
+    {
+        // clear out the first checkpoint containing a set vbstate
+        cm->forceNewCheckpoint();
+        flush_vbucket_to_disk(vbid, 0);
+        bool newOpenCreated;
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+    }
+
+    store_item(vbid, makeStoredDocKey("key_1"), "value");
+    store_item(vbid, makeStoredDocKey("key_2"), "value");
+
+    // Queue a prepare
+    auto prepareKey = makeStoredDocKey("key_1");
+    auto prepare = makePendingItem(prepareKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+              store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
+
+    // Persist to move our cursor so that we can expel the prepare
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    cm->dump();
+    auto result = cm->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(3, result.expelCount);
+
+    store_item(vbid, makeStoredDocKey("key_2"), "value");
+
+    EXPECT_EQ(1, cm->getNumCheckpoints());
+
+    // We should have decremented numItems when we added again
+    EXPECT_EQ(3, cm->getNumOpenChkItems());
+}

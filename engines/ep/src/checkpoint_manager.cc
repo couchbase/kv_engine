@@ -1023,7 +1023,8 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
                                      checkpointConfig.getCheckpointPeriod();
     // Create the new open checkpoint if any of the following conditions is
     // satisfied:
-    // (1) force creation due to online update or high memory usage
+    // (1) force creation due to online update, high memory usage, or enqueueing
+    //     an op we cannot de-dupe (i.e. an abort, commit, or prepare).
     // (2) current checkpoint is reached to the max number of items allowed.
     // (3) time elapsed since the creation of the current checkpoint is greater
     //     than the threshold
