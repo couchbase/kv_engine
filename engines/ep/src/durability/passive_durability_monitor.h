@@ -104,12 +104,6 @@ public:
         /// Abort: Failed to meet the durability requirements (within the
         /// timeout)
         Abort,
-        /** CompletionWasDeduped: (MB-34516) We are a backfilling replica, we
-         don't expect to receive a Commit/Abort for the tracked Prepare (it was
-         followed by a Prepare and Commit/Abort for the same key, and the new
-         Commit/Abort deduped the "missing" Commit/Abort)
-         */
-        CompletionWasDeduped
     };
 
     /**
