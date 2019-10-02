@@ -874,6 +874,17 @@ TEST_F(SettingsTest, system_connections) {
     EXPECT_TRUE(settings.has.system_connections);
 }
 
+TEST_F(SettingsTest, max_concurrent_commands_per_connection) {
+    nonNumericValuesShouldFail("max_concurrent_commands_per_connection");
+
+    nlohmann::json obj;
+    const std::size_t max = 64;
+    obj["max_concurrent_commands_per_connection"] = max;
+    Settings settings(obj);
+    EXPECT_EQ(max, settings.getMaxConcurrentCommandsPerConnection());
+    EXPECT_TRUE(settings.has.max_concurrent_commands_per_connection);
+}
+
 TEST_F(SettingsTest, SaslMechanisms) {
     nonStringValuesShouldFail("sasl_mechanisms");
 
@@ -1168,6 +1179,20 @@ TEST(SettingsUpdateTest, SystemConnectionsIsDynamic) {
     ;
     settings.updateSettings(updated, true);
     EXPECT_EQ(1000, settings.getSystemConnections());
+}
+
+TEST(SettingsUpdateTest, MaxConcurrentCommandsPerConnectionIsDynamic) {
+    Settings updated;
+    Settings settings;
+    settings.setMaxConcurrentCommandsPerConnection(10);
+    // setting it to the same value should work
+    updated.setMaxConcurrentCommandsPerConnection(10);
+    settings.updateSettings(updated, false);
+
+    // changing it should work
+    updated.setMaxConcurrentCommandsPerConnection(1000);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(1000, settings.getMaxConcurrentCommandsPerConnection());
 }
 
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {

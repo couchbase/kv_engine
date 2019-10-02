@@ -221,6 +221,15 @@ static void handle_active_external_users_push_interval(
     }
 }
 
+static void handle_max_concurrent_commands_per_connection(
+        Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(
+                R"("max_concurrent_commands_per_connection" must be a positive number)");
+    }
+    s.setMaxConcurrentCommandsPerConnection(obj.get<size_t>());
+}
+
 /**
  * Handle the "tracing_enabled" tag in the settings
  *
@@ -688,6 +697,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"external_auth_service", handle_external_auth_service},
             {"active_external_users_push_interval",
              handle_active_external_users_push_interval},
+            {"max_concurrent_commands_per_connection",
+             handle_max_concurrent_commands_per_connection},
             {"opentracing", handle_opentracing},
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier}};
@@ -1159,6 +1170,19 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setOpenTracingConfig(o);
         }
     }
+
+    if (other.has.max_concurrent_commands_per_connection) {
+        if (other.getMaxConcurrentCommandsPerConnection() !=
+            getMaxConcurrentCommandsPerConnection()) {
+            LOG_INFO(
+                    "Change max number of concurrent commands per connection "
+                    "from {} to {}",
+                    other.getMaxConcurrentCommandsPerConnection(),
+                    getMaxConcurrentCommandsPerConnection());
+            setMaxConcurrentCommandsPerConnection(
+                    other.getMaxConcurrentCommandsPerConnection());
+        }
+    }
 }
 
 /**
@@ -1341,4 +1365,16 @@ void Settings::setSslCipherSuites(std::string suites) {
     *ssl_cipher_suites.wlock() = std::move(suites);
     has.ssl_cipher_suites = true;
     notify_changed("ssl_cipher_suites");
+}
+
+size_t Settings::getMaxConcurrentCommandsPerConnection() const {
+    return max_concurrent_commands_per_connection.load(
+            std::memory_order_consume);
+}
+
+void Settings::setMaxConcurrentCommandsPerConnection(size_t num) {
+    max_concurrent_commands_per_connection.store(num,
+                                                 std::memory_order_release);
+    has.max_concurrent_commands_per_connection = true;
+    notify_changed("max_concurrent_commands_per_connection");
 }

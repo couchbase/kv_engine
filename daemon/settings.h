@@ -333,6 +333,10 @@ public:
         return getMaxConnections() - getSystemConnections();
     }
 
+    size_t getMaxConcurrentCommandsPerConnection() const;
+
+    void setMaxConcurrentCommandsPerConnection(size_t num);
+
     /**
      * Set the number of request to handle per notification from the
      * event library
@@ -978,6 +982,10 @@ protected:
     /// The configuration used by OpenTracing
     std::shared_ptr<OpenTracingConfig> opentracing_config;
 
+    /// The maximum number of commands each connection may have before
+    /// blocking execution
+    std::atomic<std::size_t> max_concurrent_commands_per_connection{32};
+
     /// The name of the file to store portnumber information
     /// May also be set in environment (cannot change)
     std::string portnumber_file;
@@ -1031,6 +1039,7 @@ public:
         bool active_external_users_push_interval = false;
         bool max_connections = false;
         bool system_connections = false;
+        bool max_concurrent_commands_per_connection = false;
         bool opentracing_config = false;
 
         bool portnumber_file = false;
