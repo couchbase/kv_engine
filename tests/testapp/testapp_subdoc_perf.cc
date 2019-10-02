@@ -30,8 +30,9 @@
 
 #include "testapp_subdoc_common.h"
 
-#include <unordered_map>
+#include <folly/Portability.h>
 #include <valgrind/valgrind.h>
+#include <unordered_map>
 
 class SubdocPerfTest : public SubdocTestappTest {
 protected:
@@ -41,19 +42,14 @@ protected:
         ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,
                                      0);
 
-#ifdef THREAD_SANITIZER
-        // Reduce the iterations to 250 if we're running under Thread Sanitizer
-        // to avoid the test running too long
-        iterations = 250;
-#else
-        if (RUNNING_ON_VALGRIND == 0) {
-            iterations = 5000;
+        if (folly::kIsSanitize || RUNNING_ON_VALGRIND) {
+            // Reduce the iterations to a minimal value if we're running under
+            // Sanitizers or Valgrind - we aren't benchmarking under
+            // these modes, just checking for bugs.
+            iterations = 10;
         } else {
-            // Reduce the iterations to 100 if we're running under valgrind
-            // to avoid the test running too long
-            iterations = 100;
+            iterations = 5000;
         }
-#endif
     }
 
     void subdoc_perf_test_array(cb::mcbp::ClientOpcode cmd, size_t iterations);
