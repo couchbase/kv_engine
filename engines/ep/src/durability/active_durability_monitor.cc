@@ -180,7 +180,9 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     s->updateHighPreparedSeqno(*resolvedQueue);
 
     s->lastTrackedSeqno.reset(vbs.persistedPreparedSeqno);
-    s->highPreparedSeqno.reset(vbs.persistedPreparedSeqno);
+    // Everything warmed up is definitely prepared, set hps to the highSeqno
+    // as the in-memory hps is moved even on non-durable ops
+    s->highPreparedSeqno.reset(vbs.highSeqno);
     s->highCompletedSeqno.reset(vbs.persistedCompletedSeqno);
 }
 
@@ -274,6 +276,11 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
     }
 
     state.wlock()->addSyncWrite(cookie, std::move(item));
+}
+
+void ActiveDurabilityMonitor::notifyNonPrepare(const Item& item) {
+    auto lock = state.wlock();
+    lock->notifyNonPrepare(item);
 }
 
 ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
@@ -1316,6 +1323,25 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
     totalAccepted++;
 }
 
+void ActiveDurabilityMonitor::State::notifyNonPrepare(const Item& item) {
+    if (trackedWrites.empty()) {
+        // the ActiveDM can always update the HPS immediately if there
+        // are no existing tracked writes, unlike the PassiveDM.
+        highPreparedSeqno = item.getBySeqno();
+        return;
+    }
+
+    // If everything has been prepared then we won't call
+    // updateHighPreparedSeqno until we get a new item. Just set the HPS
+    // manually in this case.
+    if (trackedWrites.back().getBySeqno() <= highPreparedSeqno) {
+        highPreparedSeqno = item.getBySeqno();
+        return;
+    }
+
+    trackedWrites.back().setDesiredHPS(item.getBySeqno());
+}
+
 void ActiveDurabilityMonitor::State::removeExpired(
         std::chrono::steady_clock::time_point asOf, ResolvedQueue& expired) {
     // Given SyncWrites must complete In-Order, iterate from the beginning
@@ -1375,7 +1401,7 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
                 return;
             }
 
-            highPreparedSeqno = itr->getBySeqno();
+            highPreparedSeqno = itr->getDesiredHPS();
 
             auto next = std::next(itr);
             trackedWrites.erase(itr);
@@ -1405,7 +1431,7 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
     while ((next = getNodeNext(active)) != trackedWrites.end() &&
            static_cast<uint64_t>(next->getBySeqno()) <=
                    adm.vb.getPersistenceSeqno()) {
-        highPreparedSeqno = next->getBySeqno();
+        highPreparedSeqno = next->getDesiredHPS();
         advanceNodePosition(active);
         removeForCommitIfSatisfied();
     }
@@ -1427,7 +1453,7 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
             break;
         }
 
-        highPreparedSeqno = next->getBySeqno();
+        highPreparedSeqno = next->getDesiredHPS();
         advanceNodePosition(active);
         removeForCommitIfSatisfied();
     }

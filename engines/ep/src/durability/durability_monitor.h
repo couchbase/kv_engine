@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "ep_types.h"
 #include "memcached/engine_common.h"
 #include <list>
 
@@ -69,6 +70,14 @@ public:
      * pending Prepares) has been committed to the storage.
      */
     virtual void notifyLocalPersistence() = 0;
+
+    /**
+     * Inform the DM of a non-SyncWrite that it needs to track in some way to
+     * move the HPS for non-durable writes.
+     *
+     * @param item The item of the normal write
+     */
+    virtual void notifyNonPrepare(const Item& item) = 0;
 
     enum class ReplicationChainName {
         First = 1,
