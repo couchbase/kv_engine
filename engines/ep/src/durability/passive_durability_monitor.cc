@@ -57,8 +57,45 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
     : PassiveDurabilityMonitor(vb, highPreparedSeqno, highCompletedSeqno) {
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
-        // Construct the SyncWrites and request an infinite timeout
         s->trackedWrites.emplace_back(std::move(prepare));
+
+        // Advance the highPreparedSeqno iterator to point to the highest
+        // SyncWrite which has been prepared.
+        auto lastIt = std::prev(s->trackedWrites.end());
+        if (lastIt->getBySeqno() <= highPreparedSeqno) {
+            s->highPreparedSeqno.it = lastIt;
+        }
+
+        // Advance the highCompletedSeqno iterator to point to the highest
+        // SyncWrite which has been completed.
+        //
+        // Note: One might assume that this would always point to
+        // trackedWrites.begin(), given that we are a newly minted PassiveDM and
+        // hence would only be tracking incomplete SyncWrites. However, we
+        // _could_ have been converted from an ActiveDM with null topology which
+        // itself was converted from a previous PassiveDM which _did_ have
+        // completed SyncWrites still in trackedWrites (because they haven't
+        // been persisted locally yet).
+        if (lastIt->getBySeqno() <= highCompletedSeqno) {
+            s->highCompletedSeqno.it = lastIt;
+        }
+    }
+}
+
+PassiveDurabilityMonitor::PassiveDurabilityMonitor(
+        VBucket& vb, ActiveDurabilityMonitor&& adm)
+    : PassiveDurabilityMonitor(
+              vb, adm.getHighPreparedSeqno(), adm.getHighCompletedSeqno()) {
+    auto s = state.wlock();
+
+    // The adm will have to (read) lock it's own state to get these for us so
+    // grab a copy for our use
+    auto highPreparedSeqno = adm.getHighPreparedSeqno();
+    auto highCompletedSeqno = adm.getHighCompletedSeqno();
+
+    auto admState = adm.state.wlock();
+    for (auto& write : admState->trackedWrites) {
+        s->trackedWrites.emplace_back(std::move(write));
 
         // Advance the highPreparedSeqno iterator to point to the highest
         // SyncWrite which has been prepared.

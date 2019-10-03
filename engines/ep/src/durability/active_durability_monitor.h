@@ -421,6 +421,9 @@ protected:
     // Maximum number of replicas which can be specified in topology.
     static const size_t maxReplicas = 3;
 
+    // Necessary for implementing PDM(ADM&&)
+    friend class PassiveDurabilityMonitor;
+
     // @todo: Try to remove this, currenlty necessary for testing wipeTracked()
     friend class ActiveDurabilityMonitorTest;
 };

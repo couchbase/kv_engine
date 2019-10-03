@@ -79,6 +79,20 @@ public:
                              int64_t highCompletedSeqno,
                              std::vector<queued_item>&& outstandingPrepares);
 
+    /**
+     * Construct a PassiveDM for the given vBucket using pre-existing state.
+     *
+     * This constructor is used when we transition state from ADM to PDM.
+     *
+     * This constructor is used during state changes where an
+     * ActiveDurabilityMonitor must handover any outstanding prepares when an
+     * active switches to replica.
+     *
+     * @param vb VBucket which owns this Durability Monitor.
+     * @param adm The ActiveDM to be converted
+     */
+    PassiveDurabilityMonitor(VBucket& vb, ActiveDurabilityMonitor&& adm);
+
     ~PassiveDurabilityMonitor();
 
     void addStats(const AddStatFn& addStat, const void* cookie) const override;

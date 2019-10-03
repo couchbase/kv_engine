@@ -660,9 +660,8 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
         if (durabilityMonitor) {
             durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
                     *this,
-                    durabilityMonitor->getHighPreparedSeqno(),
-                    durabilityMonitor->getHighCompletedSeqno(),
-                    std::move(trackedWrites));
+                    std::move(dynamic_cast<ActiveDurabilityMonitor&>(
+                            *durabilityMonitor.get())));
         } else {
             durabilityMonitor =
                     std::make_unique<PassiveDurabilityMonitor>(*this);
