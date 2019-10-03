@@ -247,7 +247,7 @@ ENDIF()
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).
 FUNCTION(ADD_TESTSUITE name timeout)
-    CMAKE_PARSE_ARGUMENTS("arg" "SKIP_EPHEMERAL SKIP_MAGMA" "" "" ${ARGN})
+    CMAKE_PARSE_ARGUMENTS("arg" "SKIP_EPHEMERAL;SKIP_MAGMA" "" "" ${ARGN})
 
     SET(_cmdline
             ${Memcached_BINARY_DIR}/engine_testapp
