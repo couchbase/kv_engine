@@ -19,6 +19,7 @@
 #include "testapp_client_test.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/limits.h>
 #include <platform/compress.h>
 #include <algorithm>
 #include <gsl/gsl>
@@ -283,36 +284,37 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     EXPECT_EQ(successCount + statResps() + 1,
               getResponseCount(cb::mcbp::Status::Success));
 
-    // Add a system xattr that exceeds the 1MB quota limit
-    xattrVal.assign("{\"eg\":\"");
-    xattrVal.append(std::string(1048586, 'a'));
+    // Add a system xattr that exceeds the 1MB quota limit. There is some
+    // internal overhead in the xattr (4 byte total length field plus 6 bytes
+    // per value pair)
+    xattrVal.assign(R"({"eg":")");
+    xattrVal.append(std::string(1048552, 'a'));
     xattrVal.append(std::string("\"}"));
+    EXPECT_EQ(1024 * 1024, 4 + 6 + xattrVal.size() + sysXattr.size());
 
     setBodyAndXattr(userdata,
                     {{sysXattr, xattrVal}});
 
-    // Add a document value that is exactly the size of the
-    // maximum allowed size. This will fail because this will
-    // exceed the limit of maximum allowed doc size + system
-    // xattrs size
-    userdata.assign(GetTestBucket().getMaximumDocSize(), 'a');
+    // Default bucket supports xattr, but the max document size is 1MB so we
+    // can't store additional data in those buckets if the system xattr
+    // occupies the entire document
+    if (GetTestBucket().getMaximumDocSize() > cb::limits::PrivilegedBytes) {
+        // Add a document value that is exactly the size of the
+        // maximum allowed size. This should be allowed as the system
+        // xattrs has its own storage limit
+        userdata.assign(GetTestBucket().getMaximumDocSize(), 'a');
+        setBodyAndXattr(userdata, {{sysXattr, xattrVal}});
 
-    document.value = userdata;
-    document.info.cas = mcbp::cas::Wildcard;
-    document.info.datatype = cb::mcbp::Datatype::Raw;
-
-    if (compressedSource) {
-        document.compress();
-    }
-
-    e2bigCount = getResponseCount(cb::mcbp::Status::E2big);
-    try {
-        conn.mutate(document, Vbid(0), MutationType::Set);
-        FAIL() << "It should not be possible to add a document whose size is "
-                "greater than the max item size";
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isTooBig()) << error.what();
-        // Check that we correctly increment the status counter stat
+        // But it should fail if we try to use a user xattr
+        e2bigCount = getResponseCount(cb::mcbp::Status::E2big);
+        try {
+            setBodyAndXattr(userdata,
+                            {{sysXattr, xattrVal}, {"foo", R"({"a":"b"})"}});
+            FAIL() << "It should not be possible to add a document whose size "
+                      "is greater than the max item size";
+        } catch (const ConnectionError& error) {
+            EXPECT_TRUE(error.isTooBig()) << error.what();
+        }
         EXPECT_EQ(e2bigCount + 1, getResponseCount(cb::mcbp::Status::E2big));
     }
 }

@@ -1401,7 +1401,8 @@ MutationInfo MemcachedConnection::mutateWithMeta(
 
     const auto response = BinprotMutationResponse(execute(swm));
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed to mutateWithMeta " + doc.info.id,
+        throw ConnectionError("Failed to mutateWithMeta " + doc.info.id + " " +
+                                      response.getDataString(),
                               response.getStatus());
     }
 

@@ -138,3 +138,49 @@ TEST_P(WithMetaTest, basicSetXattr) {
         checkCas();
     }
 }
+
+TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
+    if (::testing::get<3>(GetParam()) == ClientSnappySupport::No) {
+        return;
+    }
+
+    std::vector<char> blob(21 * 1024 * 1024);
+    cb::compression::Buffer deflated;
+    ASSERT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                         {blob.data(), blob.size()},
+                                         deflated));
+    cb::const_char_buffer doc = deflated;
+    document.value.clear();
+    std::copy(doc.begin(), doc.end(), std::back_inserter(document.value));
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
+    try {
+        getConnection().mutateWithMeta(
+                document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
+        FAIL() << "It should not be possible to store documents which exceeds "
+                  "the max document size";
+    } catch (const ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::E2big, error.getReason());
+    }
+}
+
+TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
+    if (::testing::get<1>(GetParam()) == XattrSupport::No) {
+        return;
+    }
+
+    document.value.clear();
+    cb::xattr::Blob blob;
+    blob.set("_sys", R"({"author":"bubba"})");
+    auto xattrValue = blob.finalize();
+    std::copy(xattrValue.begin(),
+              xattrValue.end(),
+              std::back_inserter(document.value));
+
+    document.value.resize((20 * 1024 * 1024) + xattrValue.size());
+    document.info.datatype = cb::mcbp::Datatype::Xattr;
+    auto& conn = getConnection();
+    conn.mutateWithMeta(document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
+    conn.remove(name, Vbid(0));
+}

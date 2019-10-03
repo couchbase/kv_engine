@@ -50,6 +50,7 @@ void TestappXattrClientTest::setBodyAndXattr(
             xattrs.set(kv.first, kv.second);
         }
         auto encoded = xattrs.finalize();
+        ASSERT_TRUE(cb::xattr::validate(encoded)) << "Invalid xattr encoding";
         document.info.cas = 10; // withMeta requires a non-zero CAS.
         document.info.datatype = cb::mcbp::Datatype::Xattr;
         document.value = {reinterpret_cast<char*>(encoded.data()),
