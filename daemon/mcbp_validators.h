@@ -43,6 +43,8 @@ public:
     enum class ExpectedValueLen { Zero, NonZero, Any };
     enum class ExpectedCas { Set, NotSet, Any };
 
+    constexpr static uint8_t AllSupportedDatatypes = ::mcbp::datatype::highest;
+
     McbpValidator();
 
     /**
@@ -51,13 +53,12 @@ public:
      */
     Status validate(ClientOpcode command, Cookie& cookie);
 
-    static Status verify_header(
-            Cookie& cookie,
-            uint8_t expected_extlen,
-            ExpectedKeyLen expected_keylen,
-            ExpectedValueLen expected_valuelen,
-            ExpectedCas expected_cas = ExpectedCas::Any,
-            uint8_t expected_datatype_mask = ::mcbp::datatype::highest);
+    static Status verify_header(Cookie& cookie,
+                                uint8_t expected_extlen,
+                                ExpectedKeyLen expected_keylen,
+                                ExpectedValueLen expected_valuelen,
+                                ExpectedCas expected_cas,
+                                uint8_t expected_datatype_mask);
 
 protected:
     /**

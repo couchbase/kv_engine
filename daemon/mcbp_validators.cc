@@ -582,10 +582,13 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
 
 static Status dcp_system_event_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpSystemEventPayload;
-    auto status = McbpValidator::verify_header(cookie,
-                                               sizeof(DcpSystemEventPayload),
-                                               ExpectedKeyLen::Any,
-                                               ExpectedValueLen::Any);
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         sizeof(DcpSystemEventPayload),
+                                         ExpectedKeyLen::Any,
+                                         ExpectedValueLen::Any,
+                                         ExpectedCas::Any,
+                                         McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
@@ -627,11 +630,13 @@ static bool is_valid_xattr_blob(const cb::mcbp::Request& request) {
 static Status dcp_mutation_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpMutationPayload;
 
-    auto status = McbpValidator::verify_header(
-            cookie,
-            sizeof(DcpMutationPayload),
-            ExpectedKeyLen::NonZero,
-            ExpectedValueLen::Any);
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         sizeof(DcpMutationPayload),
+                                         ExpectedKeyLen::NonZero,
+                                         ExpectedValueLen::Any,
+                                         ExpectedCas::Any,
+                                         McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
@@ -695,7 +700,9 @@ static Status dcp_deletion_validator(Cookie& cookie) {
             McbpValidator::verify_header(cookie,
                                          gsl::narrow<uint8_t>(expectedExtlen),
                                          ExpectedKeyLen::NonZero,
-                                         ExpectedValueLen::Any);
+                                         ExpectedValueLen::Any,
+                                         ExpectedCas::Any,
+                                         McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
@@ -716,7 +723,9 @@ static Status dcp_expiration_validator(Cookie& cookie) {
             cookie,
             sizeof(cb::mcbp::request::DcpExpirationPayload),
             ExpectedKeyLen::NonZero,
-            ExpectedValueLen::Any);
+            ExpectedValueLen::Any,
+            ExpectedCas::Any,
+            McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
@@ -802,11 +811,13 @@ static bool isValidDurabilityLevel(cb::durability::Level lvl) {
 
 static Status dcp_prepare_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpPreparePayload;
-    auto status = McbpValidator::verify_header(cookie,
-                                               sizeof(DcpPreparePayload),
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Any,
-                                               ExpectedCas::Set);
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         sizeof(DcpPreparePayload),
+                                         ExpectedKeyLen::NonZero,
+                                         ExpectedValueLen::Any,
+                                         ExpectedCas::Set,
+                                         McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
@@ -1566,10 +1577,13 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in McbpValidator::verify_header
-    auto status = McbpValidator::verify_header(cookie,
-                                               header.getExtlen(),
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Any);
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         header.getExtlen(),
+                                         ExpectedKeyLen::NonZero,
+                                         ExpectedValueLen::Any,
+                                         ExpectedCas::Any,
+                                         McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
