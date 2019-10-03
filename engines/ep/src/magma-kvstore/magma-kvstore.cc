@@ -1649,6 +1649,10 @@ scan_error_t MagmaKVStore::scan(ScanContext* inCtx) {
     bool onlyKeys = ctx->valFilter == ValueFilter::KEYS_ONLY;
 
     auto itr = magma->NewSeqIterator(ctx->vbid.get());
+    if (!itr) {
+        logger->warn("MagmaKVStore::scan failed {}", ctx->vbid.get());
+        return scan_failed;
+    }
 
     for (itr->Seek(startSeqno, ctx->maxSeqno); itr->Valid(); itr->Next()) {
         Slice keySlice, metaSlice, valSlice;
