@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include "active_durability_monitor.h"
 #include "durability_monitor.h"
 #include "item.h"
 #include "monotonic.h"
@@ -32,8 +33,6 @@
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
-
-class PassiveDurabilityMonitor;
 
 // An empty string is used to indicate an undefined node in a replication
 // topology.
@@ -358,6 +357,366 @@ struct SnapshotEndInfo {
  */
 bool operator>(const SnapshotEndInfo& a, const SnapshotEndInfo& b);
 std::string to_string(const SnapshotEndInfo& snapshotEndInfo);
+
+/*
+ * This class embeds the state of an ADM. It has been designed for being
+ * wrapped by a folly::Synchronized<T>, which manages the read/write
+ * concurrent access to the T instance.
+ * Note: all members are public as accessed directly only by ADM, this is
+ * a protected struct. Avoiding direct access by ADM would require
+ * re-implementing most of the ADM functions into ADM::State and exposing
+ * them on the ADM::State public interface.
+ *
+ * This resides in this file (and not active_durability_monitor.cc as one might
+ * expect) because the PassiveDM ctor implemenation needs access to it be able
+ * to construct an PassiveDM from the ActiveDM's state.
+ */
+struct ActiveDurabilityMonitor::State {
+    /**
+     * @param adm The owning ActiveDurabilityMonitor
+     */
+    State(const ActiveDurabilityMonitor& adm);
+
+    /**
+     * Create a replication chain. Not static as we require an iterator from
+     * trackedWrites.
+     *
+     * @param name Name of chain (used for stats and exception logging)
+     * @param chain Unique ptr to the chain
+     */
+    std::unique_ptr<ReplicationChain> makeChain(
+            const DurabilityMonitor::ReplicationChainName name,
+            const nlohmann::json& chain);
+
+    /**
+     * Set the replication topology from the given json. If the new topology
+     * makes durability impossible then this function will abort any in-flight
+     * SyncWrites by enqueuing them in the ResolvedQueue toAbort.
+     *
+     * @param topology Json topology
+     * @param toComplete Reference to the resolvedQueue so that we can abort
+     *        any SyncWrites for which durability is no longer possible.
+     */
+    void setReplicationTopology(const nlohmann::json& topology,
+                                ResolvedQueue& toComplete);
+
+    /**
+     * Add a new SyncWrite
+     *
+     * @param cookie Connection to notify on completion
+     * @param item The prepare
+     */
+    void addSyncWrite(const void* cookie, queued_item item);
+
+    /**
+     * Returns the next position for a node iterator.
+     *
+     * @param node
+     * @return the iterator to the next position for the given node. Returns
+     *         trackedWrites.end() if the node is not found.
+     */
+    Container::iterator getNodeNext(const std::string& node);
+
+    /**
+     * Advance a node tracking to the next Position in the tracked
+     * Container. Note that a Position tracks a node in terms of both:
+     * - iterator to a SyncWrite in the tracked Container
+     * - seqno of the last SyncWrite ack'ed by the node
+     *
+     * @param node the node to advance
+     * @return an iterator to the new position (tracked SyncWrite) of the
+     *         given node.
+     * @throws std::logic_error if the node is not found
+     */
+    Container::iterator advanceNodePosition(const std::string& node);
+
+    /**
+     * This function updates the tracking with the last seqno ack'ed by
+     * node.
+     *
+     * Does nothing if the node is not found. This may be the case
+     * during a rebalance when a new replica is acking sync writes but we do
+     * not yet have a second chain because ns_server is waiting for
+     * persistence to allow sync writes to be transferred the the replica
+     * asynchronously. When the new replica catches up to the active,
+     * ns_server will give us a second chain.
+     *
+     * @param node
+     * @param seqno New ack seqno
+     */
+    void updateNodeAck(const std::string& node, int64_t seqno);
+
+    /**
+     * Updates a node memory/disk tracking as driven by the new ack-seqno.
+     *
+     * @param node The node that ack'ed the given seqno
+     * @param ackSeqno
+     * @param [out] toCommit Container which has all SyncWrites to be Commited
+     * appended to it.
+     */
+    void processSeqnoAck(const std::string& node,
+                         int64_t ackSeqno,
+                         ResolvedQueue& toCommit);
+
+    /**
+     * Removes expired Prepares from tracking which are eligable to be timed
+     * out (and Aborted).
+     *
+     * @param asOf The time to be compared with tracked-SWs' expiry-time
+     * @param [out] the ResolvedQueue to enqueue the expired Prepares onto.
+     */
+    void removeExpired(std::chrono::steady_clock::time_point asOf,
+                       ResolvedQueue& expired);
+
+    /// @returns the name of the active node. Assumes the first chain is valid.
+    const std::string& getActive() const;
+
+    int64_t getNodeWriteSeqno(const std::string& node) const;
+
+    int64_t getNodeAckSeqno(const std::string& node) const;
+
+    /**
+     * Remove the given SyncWrte from tracking.
+     *
+     * @param it The iterator to the SyncWrite to be removed
+     * @param status The SyncWriteStatus to set the SyncWrite to as we remove it
+     * @return the removed SyncWrite.
+     */
+    SyncWrite removeSyncWrite(Container::iterator it, SyncWriteStatus status);
+
+    /**
+     * Logically 'moves' forward the High Prepared Seqno to the last
+     * locally-satisfied Prepare. In other terms, the function moves the HPS
+     * to before the current durability-fence.
+     *
+     * Details.
+     *
+     * In terms of Durability Requirements, Prepares at Active can be
+     * locally-satisfied:
+     * (1) as soon as the they are queued into the PDM, if Level Majority
+     * (2) when they are persisted, if Level PersistToMajority or
+     *     MajorityAndPersistOnMaster
+     *
+     * We call the first non-satisfied PersistToMajority or
+     * MajorityAndPersistOnMaster Prepare the "durability-fence".
+     * All Prepares /before/ the durability-fence are locally-satisfied.
+     *
+     * This functions's internal logic performs (2) first by moving the HPS
+     * up to the latest persisted Prepare (i.e., the durability-fence) and
+     * then (1) by moving to the HPS to the last Prepare /before/ the new
+     * durability-fence (note that after step (2) the durability-fence has
+     * implicitly moved as well).
+     *
+     * Note that in the ActiveDM the HPS is implemented as the Active
+     * tracking in FirstChain. So, differently from the PassiveDM, here we
+     * do not have a dedicated HPS iterator.
+     *
+     * @param completed The ResolvedQueue to enqueue all prepares satisfied
+     *        (ready for commit) by the HPS update
+     */
+    void updateHighPreparedSeqno(ResolvedQueue& completed);
+
+    void updateHighCompletedSeqno();
+
+    /// Debug - print a textual description of this object to stderr.
+    void dump() const;
+
+protected:
+    /**
+     * Set up the newFirstChain correctly if we previously had no topology.
+     *
+     * When a replica is promoted to active, the trackedWrites are moved from
+     * the PDM to the ADM. This ADM will have a null topology and the active
+     * node iterator will not exist. When we move from a null topology to a
+     * topology, we need to correct the HPS iterator to ensure that the HPS is
+     * correct post topology change. The HPS iterator is set to the
+     * corresponding SyncWrite in trackedWrites. If we have just received a Disk
+     * snapshot as PDM and highPreparedSeqno is not equal to anything in
+     * trackedWrites then it will be set to the highest seqno less than the
+     * highPreparedSeqno.
+     *
+     * @param newFirstChain our new firstChain
+     */
+    void transitionFromNullTopology(ReplicationChain& newFirstChain);
+
+    /**
+     * Move the Positions (iterators and write/ack seqnos) from the old chains
+     * to the new chains. Copies between two chains too so that a node that
+     * previously existed int he second chain and now only exists in the first
+     * will have the correct iterators and seqnos (this is a normal swap
+     * rebalance scenario).
+     *
+     * @param firstChain old first chain
+     * @param newFirstChain new first chain
+     * @param secondChain old second chain
+     * @param newSecondChain new second chain
+     */
+    void copyChainPositions(ReplicationChain* firstChain,
+                            ReplicationChain& newFirstChain,
+                            ReplicationChain* secondChain,
+                            ReplicationChain* newSecondChain);
+
+    /**
+     * Copy the Positions from the given old chain to the given new chain.
+     */
+    void copyChainPositionsInner(ReplicationChain& oldChain,
+                                 ReplicationChain& newChain);
+
+    /**
+     * A topology change may make durable writes impossible in the case of a
+     * failover. We abort the in-flight SyncWrites to allow the client to retry
+     * them to provide an earlier response. This retry would then be met with a
+     * durability impossible error if the cluster had not yet been healed.
+     *
+     * Note, we cannot abort any in-flight SyncWrites with an infinite
+     * timeout as these must be committed. They will eventually be committed
+     * when the cluster is healed or the number of replicas is dropped such that
+     * they are satisfied. These SyncWrites may exist due to either warmup or
+     * a Passive->Active transition.
+     *
+     * @param newFirstChain Chain against which we check if durability is
+     *        possible
+     * @param newSecondChain Chain against which we check if durability is
+     *        possible
+     * @param[out] toAbort Container which has all SyncWrites to abort appended
+     *             to it
+     */
+    void abortNoLongerPossibleSyncWrites(ReplicationChain& newFirstChain,
+                                         ReplicationChain* newSecondChain,
+                                         ResolvedQueue& toAbort);
+
+    /**
+     * Perform the manual ack (from the map of queuedSeqnoAcks) that is
+     * required at rebalance for the given chain
+     *
+     * @param chain Chain for which we should manually ack nodes
+     * @param[out] toCommit Container which has all SyncWrites to be committed
+     *             appended to it.
+     */
+    void performQueuedAckForChain(const ReplicationChain& chain,
+                                  ResolvedQueue& toCommit);
+
+    /**
+     * A topology change may trigger a commit due to number of replicas
+     * changing. Generally we commit by moving the HPS or receiving a seqno ack
+     * but we cannot call the typical updateHPS function at topology change.
+     * This function iterates on trackedWrites committing anything that
+     * needs commit. We may also have SyncWrites in trackedWrites that were
+     * completed by a previous PDM but are needed to correctly set the HPS when
+     * we receive the replication topology from ns_server; these SyncWrites
+     * should be removed from trackedWrites at this point.
+     *
+     * @param [out] toCommit Container which has all SyncWrites to be committed
+     *              appended to it.
+     */
+    void cleanUpTrackedWritesPostTopologyChange(ResolvedQueue& toCommit);
+
+private:
+    /**
+     * Advance the current Position (iterator and seqno).
+     *
+     * @param pos the current Position of the node
+     * @param node the node to advance (used to update the SyncWrite if
+     *        acking)
+     * @param shouldAck should we call SyncWrite->ack() on this node?
+     *        Optional as we want to avoid acking a SyncWrite twice if a
+     *        node exists in both the first and second chain.
+     */
+    void advanceAndAckForPosition(Position& pos,
+                                  const std::string& node,
+                                  bool shouldAck);
+
+    /**
+     * throw exception with the following error string:
+     *   "ActiveDurabilityMonitor::State::<thrower>:<error> vb:x"
+     *
+     * @param thrower a string for who is throwing, typically __func__
+     * @param error a string containing the error and any useful data
+     * @throws exception
+     */
+    template <class exception>
+    [[noreturn]] void throwException(const std::string& thrower,
+                                     const std::string& error) const;
+
+public:
+    /// The container of pending Prepares.
+    Container trackedWrites;
+
+    /**
+     * @TODO Soon firstChain will be optional for warmup - update comment
+     * Our replication topology. firstChain is a requirement, secondChain is
+     * optional and only required for rebalance. It will be a nullptr if we
+     * do not have a second replication chain.
+     */
+    std::unique_ptr<ReplicationChain> firstChain;
+    std::unique_ptr<ReplicationChain> secondChain;
+
+    // Always stores the seqno of the last SyncWrite added for tracking.
+    // Useful for sanity checks, necessary because the tracked container
+    // can by emptied by Commit/Abort.
+    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno = 0;
+
+    // Stores the last committed seqno.
+    Monotonic<int64_t> lastCommittedSeqno = 0;
+
+    // Stores the last aborted seqno.
+    Monotonic<int64_t> lastAbortedSeqno = 0;
+
+    // Stores the highPreparedSeqno
+    WeaklyMonotonic<int64_t> highPreparedSeqno = 0;
+
+    // Stores the highCompletedSeqno
+    Monotonic<int64_t> highCompletedSeqno = 0;
+
+    // Cumulative count of accepted (tracked) SyncWrites.
+    size_t totalAccepted = 0;
+    // Cumulative count of Committed SyncWrites.
+    size_t totalCommitted = 0;
+    // Cumulative count of Aborted SyncWrites.
+    size_t totalAborted = 0;
+
+    // The durability timeout value to use for SyncWrites which haven't
+    // specified an explicit timeout.
+    // @todo-durability: Allow this to be configurable.
+    static constexpr std::chrono::milliseconds defaultTimeout =
+            std::chrono::seconds(30);
+
+    const ActiveDurabilityMonitor& adm;
+
+    // Map of node to seqno value for seqno acks that we have seen but
+    // do not exist in the current replication topology. They may be
+    // required to manually ack for a new node if we receive an ack before
+    // ns_server sends us a new replication topology.
+    std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
+
+    friend std::ostream& operator<<(std::ostream& os, const State& s) {
+        os << "#trackedWrites:" << s.trackedWrites.size()
+           << " highPreparedSeqno:" << s.highPreparedSeqno
+           << " highCompletedSeqno:" << s.highCompletedSeqno
+           << " lastTrackedSeqno:" << s.lastTrackedSeqno
+           << " lastCommittedSeqno:" << s.lastCommittedSeqno
+           << " lastAbortedSeqno:" << s.lastAbortedSeqno << " trackedWrites:["
+           << "\n";
+        for (const auto& w : s.trackedWrites) {
+            os << "    " << w << "\n";
+        }
+        os << "]\n";
+        os << "firstChain: ";
+        if (s.firstChain) {
+            chainToOstream(os, *s.firstChain, s.trackedWrites.end());
+        } else {
+            os << "<null>";
+        }
+        os << "\nsecondChain: ";
+        if (s.secondChain) {
+            chainToOstream(os, *s.secondChain, s.trackedWrites.end());
+        } else {
+            os << "<null>";
+        }
+        os << "\n";
+        return os;
+    }
+};
 
 /*
  * This class embeds the state of a PDM. It has been designed for being
