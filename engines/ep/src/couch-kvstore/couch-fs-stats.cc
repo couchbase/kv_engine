@@ -32,7 +32,8 @@ StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
       orig_handle(_orig_handle),
       last_offs(_last_offs),
       read_count_since_open(0),
-      write_count_since_open(0) {
+      write_count_since_open(0),
+      write_bytes_since_open(0) {
 }
 
 size_t StatsOps::StatFile::getReadCount() {
@@ -41,6 +42,10 @@ size_t StatsOps::StatFile::getReadCount() {
 
 size_t StatsOps::StatFile::getWriteCount() {
     return write_count_since_open;
+}
+
+size_t StatsOps::StatFile::getWriteBytes() {
+    return write_bytes_since_open;
 }
 
 couch_file_handle StatsOps::constructor(couchstore_error_info_t *errinfo) {
@@ -58,6 +63,7 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
     StatFile* sf = reinterpret_cast<StatFile*>(*h);
     sf->read_count_since_open = 0;
     sf->write_count_since_open = 0;
+    sf->write_bytes_since_open = 0;
     return sf->orig_ops->open(errinfo, &sf->orig_handle, path, flags);
 }
 
@@ -130,6 +136,7 @@ ssize_t StatsOps::pwrite(couchstore_error_info_t*errinfo,
     if (result > 0) {
         stats.totalBytesWritten += result;
         ++sf->write_count_since_open;
+        sf->write_bytes_since_open += result;
     }
     return result;
 }

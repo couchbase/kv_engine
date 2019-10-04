@@ -367,7 +367,8 @@ public:
      * fetch operations.
      */
     cb::RelaxedAtomic<size_t> io_bg_fetch_docs_read;
-    //! Number of write related io operations
+    //! Number of logical write operations (i.e. one per saved doc; not
+    //  considering how many actual pwrite() calls were made).
     cb::RelaxedAtomic<size_t> io_num_write;
     //! Document bytes (key+meta+value) read for background fetch operations.
     cb::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
@@ -383,7 +384,8 @@ public:
     Hdr1sfInt32Histogram readSizeHisto;
     // How long it takes us to complete a write
     Hdr1sfMicroSecHistogram writeTimeHisto;
-    // How big are our writes?
+    // Number of logical bytes written to disk for each document saved
+    // (document key + meta + value).
     Hdr1sfInt32Histogram writeSizeHisto;
     // Time spent in delete() calls.
     Hdr1sfMicroSecHistogram delTimeHisto;
@@ -407,6 +409,13 @@ public:
     // per fetched document.
     Hdr1sfInt32Histogram getMultiFsReadPerDocHisto;
 
+    /// Histogram of disk Write Amplification ratios for each batch of items
+    /// flushed to disk (each saveDocs() call).
+    /// Encoded as integer, by multipling the floating-point ratio by 10 -
+    // e.g. ratio of 3.3 -> 33
+    HdrHistogram flusherWriteAmplificationHisto{
+            0, 1000, 2, HdrHistogram::Iterator::IterMode::Percentiles};
+
     // Stats from the underlying OS file operations
     FileStats fsStats;
 
@@ -423,7 +432,8 @@ public:
                saveDocsHisto.getMemFootPrint() + batchSize.getMemFootPrint() +
                getMultiFsReadHisto.getMemFootPrint() +
                getMultiFsReadPerDocHisto.getMemFootPrint() +
-               fsStats.getMemFootPrint() + fsStatsCompaction.getMemFootPrint();
+               fsStats.getMemFootPrint() + fsStatsCompaction.getMemFootPrint() +
+               flusherWriteAmplificationHisto.getMemFootPrint();
     }
 };
 

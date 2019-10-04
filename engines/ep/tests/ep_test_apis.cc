@@ -1454,6 +1454,11 @@ bool get_stat(EngineIface* h,
 }
 
 template <>
+float get_stat(EngineIface* h, const char* statname, const char* statkey) {
+    return std::stof(get_str_stat(h, statname, statkey));
+}
+
+template <>
 std::string get_stat(EngineIface* h,
                      const char* statname,
                      const char* statkey) {

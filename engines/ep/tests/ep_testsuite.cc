@@ -2205,6 +2205,13 @@ static enum test_result test_io_stats(EngineIface* h) {
             get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
             "Expected storing the key to update the write bytes");
 
+    // Exact write amplification varies, bur expect it to be at least 10.0x
+    // given we are writing a single byte key and single byte value.
+    checkge(get_stat<float>(
+                    h, "rw_0:io_flusher_write_amplification", "kvstore"),
+            10.0f,
+            "Expected storing the key to update Flusher Write Amplification");
+
     evict_key(h, key.c_str(), Vbid(0), "Ejected.");
 
     check_key_value(h, "a", value.c_str(), value.size(), Vbid(0));
@@ -6616,6 +6623,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_0:failure_open",
                 "rw_0:failure_set",
                 "rw_0:failure_vbset",
+                "rw_0:io_flusher_write_amplification",
+                "rw_0:io_total_write_amplification",
                 "rw_0:io_compaction_read_bytes",
                 "rw_0:io_compaction_write_bytes",
                 "rw_0:io_bg_fetch_docs_read",
@@ -6635,6 +6644,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_1:failure_open",
                 "rw_1:failure_set",
                 "rw_1:failure_vbset",
+                "rw_1:io_flusher_write_amplification",
+                "rw_1:io_total_write_amplification",
                 "rw_1:io_compaction_read_bytes",
                 "rw_1:io_compaction_write_bytes",
                 "rw_1:io_bg_fetch_docs_read",
@@ -6654,6 +6665,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_2:failure_open",
                 "rw_2:failure_set",
                 "rw_2:failure_vbset",
+                "rw_2:io_flusher_write_amplification",
+                "rw_2:io_total_write_amplification",
                 "rw_2:io_compaction_read_bytes",
                 "rw_2:io_compaction_write_bytes",
                 "rw_2:io_bg_fetch_docs_read",
@@ -6673,6 +6686,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_3:failure_open",
                 "rw_3:failure_set",
                 "rw_3:failure_vbset",
+                "rw_3:io_flusher_write_amplification",
+                "rw_3:io_total_write_amplification",
                 "rw_3:io_compaction_read_bytes",
                 "rw_3:io_compaction_write_bytes",
                 "rw_3:io_bg_fetch_docs_read",

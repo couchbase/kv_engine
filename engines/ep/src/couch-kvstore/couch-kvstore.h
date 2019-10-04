@@ -78,19 +78,6 @@ public:
         return &dbDocInfo;
     }
 
-    /**
-     * Get the length of a document body to be persisted
-     *
-     * @return length of a document body
-     */
-    size_t getNBytes() {
-        return dbDocInfo.rev_meta.size + dbDocInfo.size;
-    }
-
-    size_t getKeySize() const {
-        return dbDocInfo.id.size;
-    }
-
 protected:
     static couchstore_content_meta_flags getContentMeta(const Item& it);
 

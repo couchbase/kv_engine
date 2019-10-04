@@ -373,6 +373,12 @@ def size_label(s):
     suffix = sizes[int(e)]
     return "%4d%s" % (s/(1024 ** math.floor(e)), suffix)
 
+def ratio_label(s):
+    """A label for a ratio (1.2x, 8.8x) which is encoded from the server as
+    an integer 10x the floating point ratio - e.g. '12', '88'
+    """
+    return str(float(s) / 10.0);
+
 def histograms(mc, raw_stats):
     # Try to figure out the terminal width.  If we can't, 79 is good
     def termWidth():
@@ -414,6 +420,8 @@ def histograms(mc, raw_stats):
             label_func = size_label
         elif k.endswith("Count"):
             label_func = no_label
+        elif k.endswith("Ratio"):
+            label_func = ratio_label
         elif k in special_labels:
             label_func = special_labels[k]
 

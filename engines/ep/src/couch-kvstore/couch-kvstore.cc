@@ -2167,6 +2167,16 @@ static void saveDocsCallback(const DocInfo* oldInfo,
             docKey, newInfo->db_seq, newInfo->deleted);
 }
 
+/**
+ * Returns the logical size of the data within the given Doc - i.e. the
+ * "useful" data ep-engine is writing to disk for this document.
+ * Used for Write Amplification calculation.
+ */
+static size_t calcLogicalDataSize(const DocInfo& info) {
+    // key len + revision metadata (expiry, flags, etc) + value len.
+    return info.id.size + info.rev_meta.size + info.size;
+}
+
 couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                                           const std::vector<Doc*>& docs,
                                           std::vector<DocInfo*>& docinfos,
@@ -2193,6 +2203,10 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 
         uint64_t maxDBSeqno = 0;
 
+        // Count of logical bytes written (key + ep-engine meta + value),
+        // used to calculated Write Amplification.
+        size_t docsLogicalBytes = 0;
+
         // Only do a couchstore_save_documents if there are docs
         if (docs.size() > 0) {
             std::vector<sized_buf> ids(docs.size());
@@ -2201,6 +2215,9 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
                 auto key = makeDiskDocKey(ids[idx]);
                 kvctx.keyStats[key] = false;
+
+                // Accumulate the size of the useful data in this docinfo.
+                docsLogicalBytes += calcLogicalDataSize(*docinfos[idx]);
             }
 
             auto cs_begin = std::chrono::steady_clock::now();
@@ -2273,6 +2290,16 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 
         st.batchSize.add(docs.size());
 
+        // If available, record the write amplification we did for this commit -
+        // i.e. for each byte of user data (key+value+meta) how many overhead
+        // bytes were written.
+        auto* stats = couchstore_get_db_filestats(db);
+        if (stats != nullptr) {
+            const auto writeBytes = stats->getWriteBytes();
+            uint64_t writeAmp = (writeBytes * 10) / docsLogicalBytes;
+            st.flusherWriteAmplificationHisto.addValue(writeAmp);
+        }
+
         // retrieve storage system stats for file fragmentation computation
         errCode = couchstore_db_info(db, &info);
         if (errCode) {
@@ -2312,11 +2339,11 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                                   kvstats_ctx& kvctx,
                                   couchstore_error_t errCode) {
     for (auto& committed : committedReqs) {
-        size_t dataSize = committed.getNBytes();
-        size_t keySize = committed.getKeySize();
+        const auto docLogicalSize =
+                calcLogicalDataSize(*committed.getDbDocInfo());
         /* update ep stats */
         ++st.io_num_write;
-        st.io_write_bytes += (keySize + dataSize);
+        st.io_write_bytes += docLogicalSize;
 
         if (committed.isDelete()) {
             auto mutationStatus = getMutationStatus(errCode);
@@ -2348,7 +2375,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                 ++st.numSetFailure;
             } else {
                 st.writeTimeHisto.add(committed.getDelta());
-                st.writeSizeHisto.add(dataSize + keySize);
+                st.writeSizeHisto.add(docLogicalSize);
             }
 
             auto setState = MutationSetResultState::Failed;

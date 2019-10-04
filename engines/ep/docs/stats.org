@@ -1169,6 +1169,8 @@ The following stats are available for the CouchStore database engine:
 | save_documents            | Time spent in CouchStore save documents operation                                                                                                   |
 | io_bg_fetch_docs_read     | Number of documents (full and meta-only) fetched from disk                                                                                          |
 | io_bg_fetch_doc_bytes     | Number of bytes read while fetching documents (key + value + rev_meta)                                                                              |
+| io_flusher_write_amplification | Number of bytes written to disk during front-end flushing, divided by the document bytes for each document saved (key + metadata + value).     |
+| io_total_write_amplification | Number of bytes written to disk during front-end flushing and compaction, divided by the document bytes for each document saved (key + metadata + value). |
 | io_num_write              | Number of io write operations                                                                                                                       |
 | io_write_bytes            | Number of bytes written (key + values + rev_meta                                                                                                    |
 | io_total_read_bytes       | Number of bytes read (total, including Couchstore B-Tree and other overheads)                                                                       |
@@ -1206,6 +1208,7 @@ rw_<Shard number>: indicating the times spent doing various things:
 | fsReadSize            | sizes of various filesystem reads issued       |
 | fsWriteSize           | sizes of various filesystem writes issued      |
 | fsReadSeek            | values of various seek operations in file      |
+| flusherWriteAmplificationRatio | Write Amplification per saveDocs batch |
 
 
 ** Workload Raw Stats

@@ -82,6 +82,7 @@ protected:
 
         size_t getReadCount() override;
         size_t getWriteCount() override;
+        size_t getWriteBytes() override;
 
         FileOpsInterface* orig_ops;
         couch_file_handle orig_handle;
@@ -91,5 +92,7 @@ protected:
         size_t read_count_since_open;
         /// Number of write() calls against this file since it was last opened.
         size_t write_count_since_open;
+        /// Count of bytes written to this file since it was last opened.
+        size_t write_bytes_since_open;
     };
 };

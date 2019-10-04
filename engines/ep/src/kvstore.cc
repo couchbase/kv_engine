@@ -320,6 +320,31 @@ void KVStore::addStats(const AddStatFn& add_stat,
                            st.fsStatsCompaction.totalBytesWritten.load();
     addStat(prefix, "io_total_write_bytes", written, add_stat, c);
 
+    if (!isReadOnly()) {
+        // Flusher Write Amplification - ratio of bytes written to disk by
+        // flusher to "useful" user data written - i.e. doesn't include bytes
+        // written later by compaction (after initial flush). Used to measure
+        // the impact of KVstore on persistTo times.
+        const double flusherWriteAmp =
+                double(st.fsStats.totalBytesWritten.load()) / st.io_write_bytes;
+        addStat(prefix,
+                "io_flusher_write_amplification",
+                flusherWriteAmp,
+                add_stat,
+                c);
+
+        // Total Write Amplification - ratio of total bytes written to disk
+        // to "useful" user data written over entire disk lifecycle. Includes
+        // bytes during initial item flush to disk  and compaction.
+        // Used to measure the overall write amplification.
+        const double totalWriteAmp = double(written) / st.io_write_bytes;
+        addStat(prefix,
+                "io_total_write_amplification",
+                totalWriteAmp,
+                add_stat,
+                c);
+    }
+
     addStat(prefix, "io_compaction_read_bytes",
             st.fsStatsCompaction.totalBytesRead, add_stat, c);
     addStat(prefix, "io_compaction_write_bytes",
@@ -456,6 +481,11 @@ void KVStore::addTimingStats(const AddStatFn& add_stat, const void* c) {
     addStat(prefix,
             "getMultiFsReadPerDocCount",
             st.getMultiFsReadPerDocHisto,
+            add_stat,
+            c);
+    addStat(prefix,
+            "flusherWriteAmplificationRatio",
+            st.flusherWriteAmplificationHisto,
             add_stat,
             c);
 
