@@ -67,9 +67,17 @@ bool VBReadyQueue::empty() {
     return readyQueue.empty();
 }
 
+void VBReadyQueue::clear() {
+    LockHolder lh(lock);
+    while (!readyQueue.empty()) {
+        readyQueue.pop();
+    }
+    queuedValues.clear();
+}
+
 void VBReadyQueue::addStats(const std::string& prefix,
                             const AddStatFn& add_stat,
-                            const void* c) {
+                            const void* c) const {
     // Take a copy of the queue data under lock; then format it to stats.
     std::queue<Vbid> qCopy;
     std::unordered_set<Vbid> qMapCopy;

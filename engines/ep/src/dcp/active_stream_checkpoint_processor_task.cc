@@ -77,7 +77,10 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
 
 void ActiveStreamCheckpointProcessorTask::schedule(
         std::shared_ptr<ActiveStream> stream) {
-    pushUnique(stream->getVBucket());
+    if (!queue.pushUnique(stream->getVBucket())) {
+        // Return if already in queue, no need to notify the task
+        return;
+    }
 
     bool expected = false;
     if (notified.compare_exchange_strong(expected, true)) {
@@ -86,54 +89,14 @@ void ActiveStreamCheckpointProcessorTask::schedule(
 }
 
 void ActiveStreamCheckpointProcessorTask::cancelTask() {
-    LockHolder lh(workQueueLock);
-    while (!queue.empty()) {
-        queue.pop();
-    }
-    queuedVbuckets.clear();
+    queue.clear();
 }
 
 void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
                                                    const AddStatFn& add_stat,
                                                    const void* c) const {
-    // Take a copy of the queue data under lock; then format it to stats.
-    std::queue<Vbid> qCopy;
-    std::unordered_set<Vbid> qMapCopy;
-    {
-        LockHolder lh(workQueueLock);
-        qCopy = queue;
-        qMapCopy = queuedVbuckets;
-    }
-
-    auto prefix = name + ":ckpt_processor_";
-    add_casted_stat((prefix + "queue_size").c_str(), qCopy.size(), add_stat, c);
-    add_casted_stat(
-            (prefix + "queue_map_size").c_str(), qMapCopy.size(), add_stat, c);
-
-    // Form a comma-separated string of the queue's contents.
-    std::string contents;
-    while (!qCopy.empty()) {
-        contents += std::to_string(qCopy.front().get()) + ",";
-        qCopy.pop();
-    }
-    if (!contents.empty()) {
-        contents.pop_back();
-    }
-    add_casted_stat(
-            (prefix + "queue_contents").c_str(), contents.c_str(), add_stat, c);
-
-    // Form a comma-separated string of the queue map's contents.
-    std::string qMapContents;
-    for (auto& vbid : qMapCopy) {
-        qMapContents += std::to_string(vbid.get()) + ",";
-    }
-    if (!qMapContents.empty()) {
-        qMapContents.pop_back();
-    }
-    add_casted_stat((prefix + "queue_map_contents").c_str(),
-                    qMapContents.c_str(),
-                    add_stat,
-                    c);
+    auto prefix = name + ":ckpt_processor_queue_";
+    queue.addStats(prefix, add_stat, c);
 
     add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
 }
@@ -141,14 +104,10 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
 std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>>
 ActiveStreamCheckpointProcessorTask::queuePop() {
     Vbid vbid = Vbid(0);
-    {
-        LockHolder lh(workQueueLock);
-        if (queue.empty()) {
-            return nullptr;
-        }
-        vbid = queue.front();
-        queue.pop();
-        queuedVbuckets.erase(vbid);
+    auto ready = queue.popFront(vbid);
+    if (!ready) {
+        // no item (i.e. queue empty).
+        return nullptr;
     }
 
     /* findStream acquires DcpProducer::streamsMutex, hence called

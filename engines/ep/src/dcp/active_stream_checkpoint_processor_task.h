@@ -19,6 +19,7 @@
 
 #include "dcp/active_stream.h"
 #include "globaltask.h"
+#include "vb_ready_queue.h"
 
 #include <memcached/engine_common.h>
 
@@ -56,7 +57,6 @@ public:
 
     /* Returns the number of unique streams waiting to be processed */
     size_t queueSize() {
-        LockHolder lh(workQueueLock);
         return queue.size();
     }
 
@@ -69,25 +69,13 @@ private:
     std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> queuePop();
 
     bool queueEmpty() {
-        LockHolder lh(workQueueLock);
         return queue.empty();
-    }
-
-    void pushUnique(Vbid vbid) {
-        LockHolder lh(workQueueLock);
-        if (queuedVbuckets.count(vbid) == 0) {
-            queue.push(vbid);
-            queuedVbuckets.insert(vbid);
-        }
     }
 
     /// Human-readable description of this task.
     const std::string description;
 
-    /// Guards queue && queuedVbuckets
-    mutable std::mutex workQueueLock;
-
-    /**
+    /*
      * Maintain a queue of unique vbucket ids for which stream should be
      * processed.
      * There's no need to have the same stream in the queue more than once
@@ -99,8 +87,7 @@ private:
      * new one, then we would end up not updating it here as we append to the
      * queue only if there is no entry for the vbucket in the queue.
      */
-    std::queue<Vbid> queue;
-    std::unordered_set<Vbid> queuedVbuckets;
+    VBReadyQueue queue;
 
     std::atomic<bool> notified;
     const size_t iterationsBeforeYield;

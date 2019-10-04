@@ -60,14 +60,23 @@ public:
      */
     size_t size();
 
+    /**
+     * @return true if empty
+     */
     bool empty();
+
+    /**
+     * Clears the queue
+     */
+    void clear();
 
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
-                  const void* c);
+                  const void* c) const;
 
 private:
-    std::mutex lock;
+    // Mutable so that we can lock in addStats (const) to copy the queue/set
+    mutable std::mutex lock;
 
     /* a queue of vbuckets that are ready for producing */
     std::queue<Vbid> readyQueue;
