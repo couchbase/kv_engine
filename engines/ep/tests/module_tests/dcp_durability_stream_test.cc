@@ -2965,6 +2965,103 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     EXPECT_EQ(3, vb->getHighSeqno());
 }
 
+TEST_P(DurabilityPassiveStreamTest,
+       DiskSnapshotDontRemoveUncompletedPrepareFromPreviousSnapshot) {
+    uint32_t opaque = 0;
+    auto vb = engine->getVBucket(vbid);
+
+    // 1) Send memory snapshot marker
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            1 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 2) Send prepare for keyA
+    auto keyA = makeStoredDocKey("keyA");
+    using namespace cb::durability;
+    auto pending = makePendingItem(
+            keyA, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(1);
+    pending->setCas(1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 3) Send disk snapshot marker
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            2 /*snapStart*/,
+            5 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 4) Send prepare and commit for keyB before we see the commit for keyA
+    auto key = makeStoredDocKey("keyB");
+    pending = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    pending->setBySeqno(3);
+    pending->setCas(3);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      pending,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    auto committed = makeCommittedItem(key, {});
+    committed->setBySeqno(4);
+    auto qi = queued_item{committed};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      committed,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // 5) Flush before we receive the completion for keyA
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // 6) Completion of keyA should not throw an exception due to keyA not being
+    // found in the PDM
+    committed = makeCommittedItem(keyA, {});
+    committed->setBySeqno(5);
+    qi = queued_item{committed};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      committed,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+}
+
 /**
  * We have to treat all prepares in a disk snapshot as requiring persistence
  * due to them possibly de-duplicating a PersistToMajority SyncWrite. As this is

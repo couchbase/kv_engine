@@ -580,11 +580,21 @@ void PassiveDurabilityMonitor::State::checkForAndRemovePrepares() {
         return;
     }
 
-    const auto fence = std::min(int64_t(highCompletedSeqno.lastWriteSeqno),
-                                int64_t(highPreparedSeqno.lastWriteSeqno));
-
+    // Remove prepares up to the HPS. We can't use the HCS here as we may have
+    // prepared something that is not completed (if we have a prepare from a
+    // previous snapshot but are in a disk snapshot and are awaiting a
+    // completion). We only move the HPS at snapshot end (or persistence) up to
+    // some consistent point. At this point we know that all of our completed
+    // prepares should be at the beginning of trackedWrites. We will iterate on
+    // trackedWrites up to the HPS or the first non complete SyncWrite removing
+    // all of them.
     auto it = trackedWrites.begin();
-    while (it != trackedWrites.end() && it->getBySeqno() <= fence) {
+    while (it != trackedWrites.end() &&
+           it->getBySeqno() <= highPreparedSeqno.lastWriteSeqno) {
+        if (!it->isCompleted()) {
+            break;
+        }
+
         // In PassiveDM we have two iterators pointing to items in the tracked
         // Container: the HPS and the High Completed Seqno.
         // Ensure that iterators are never invalid by pointing them to
