@@ -788,6 +788,16 @@ public:
 
     cb::engine::FeatureSet getFeatures() override;
 
+    /**
+     * Set the bucket's maximum data size (aka quota).
+     * This method propagates the value to other components that need to
+     * know the bucket's quota and is used on initialisation and dynamic
+     * changes.
+     *
+     * @param size in bytes for the bucket
+     */
+    void setMaxDataSize(size_t size);
+
 protected:
     friend class EpEngineValueChangeListener;
 

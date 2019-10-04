@@ -62,8 +62,24 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     maxItemSize = configuration.getMaxItemSize();
 
     setCompressionMode(configuration.getCompressionMode());
+
     allowDelWithMetaPruneUserData =
             configuration.isAllowDelWithMetaPruneUserData();
+
+    if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
+        stats->mem_low_wat_percent.store(0.75);
+    } else {
+        stats->mem_low_wat_percent.store(double(configuration.getMemLowWat()) /
+                                         configuration.getMaxSize());
+    }
+
+    if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
+        stats->mem_high_wat_percent.store(0.85);
+    } else {
+        stats->mem_high_wat_percent.store(
+                double(configuration.getMemHighWat()) /
+                configuration.getMaxSize());
+    }
 }
 
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {
@@ -86,6 +102,8 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
 
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));
+
+    engine->setMaxDataSize(engine->getConfiguration().getMaxSize());
 
     // Ensure that EPEngine is told about necessary server callbacks
     // (client disconnect, bucket delete).

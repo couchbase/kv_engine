@@ -133,6 +133,22 @@ public:
     // account for deallocated mem
     void memDeallocated(size_t sz);
 
+    /**
+     * Set the low water mark to the new value.
+     * Side effect is that the low water mark percentage is updated to the
+     * percentage of max_size
+     * @param the new low watermark (in bytes)
+     */
+    void setLowWaterMark(size_t value);
+
+    /**
+     * Set the high water mark to the new value.
+     * Side effect is that the high water mark percentage is updated to the
+     * percentage of max_size
+     * @param the new high watermark (in bytes)
+     */
+    void setHighWaterMark(size_t value);
+
     //! Number of keys warmed up during key-only loading.
     Counter warmedUpKeys;
     //! Number of key-values warmed up during data loading.

@@ -275,6 +275,16 @@ size_t EPStats::getNumItem() const {
     return std::max(int64_t(0), result);
 }
 
+void EPStats::setLowWaterMark(size_t value) {
+    mem_low_wat.store(value);
+    mem_low_wat_percent.store((double)(value) / getMaxDataSize());
+}
+
+void EPStats::setHighWaterMark(size_t value) {
+    mem_high_wat.store(value);
+    mem_high_wat_percent.store((double)(value) / getMaxDataSize());
+}
+
 void EPStats::reset() {
     tooYoung.store(0);
     tooOld.store(0);

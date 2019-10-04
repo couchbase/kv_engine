@@ -530,13 +530,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
 
         if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
-
             getConfiguration().setMaxSize(vsize);
-            EPStats& st = getEpStats();
-            getConfiguration().setMemLowWat(
-                    percentOf(vsize, st.mem_low_wat_percent));
-            getConfiguration().setMemHighWat(
-                    percentOf(vsize, st.mem_high_wat_percent));
         } else if (key == "mem_low_wat") {
             getConfiguration().setMemLowWat(std::stoull(val));
         } else if (key == "mem_high_wat") {
@@ -2068,20 +2062,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         return ENGINE_FAILED;
     }
 
-    if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        stats->mem_low_wat_percent.store(0.75);
-        configuration.setMemLowWat(percentOf(
-                configuration.getMaxSize(), stats->mem_low_wat_percent.load()));
-    }
-
-    if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        stats->mem_high_wat_percent.store(0.85);
-        configuration.setMemHighWat(
-                percentOf(configuration.getMaxSize(),
-                          stats->mem_high_wat_percent.load()));
-    }
-
-
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener(
             "max_item_size",
@@ -2140,6 +2120,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     CheckpointConfig::addConfigChangeListener(*this);
 
     kvBucket = makeBucket(configuration);
+
+    // Seed the watermark percentages to the default 75/85% or the current ratio
+    if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
+        stats->mem_low_wat_percent.store(0.75);
+    } else {
+        stats->mem_low_wat_percent.store(double(configuration.getMemLowWat()) /
+                                         configuration.getMaxSize());
+    }
+
+    if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
+        stats->mem_high_wat_percent.store(0.85);
+    } else {
+        stats->mem_high_wat_percent.store(
+                double(configuration.getMemHighWat()) /
+                configuration.getMaxSize());
+    }
+
+    setMaxDataSize(configuration.getMaxSize());
 
     initializeEngineCallbacks();
 
@@ -6622,4 +6620,21 @@ void EventuallyPersistentEngine::setCompressionMode(
     } catch (const std::invalid_argument& e) {
         EP_LOG_WARN("{}", e.what());
     }
+}
+
+// Set the max_size, low/high water mark (absolute values and percentages)
+// and some other interested parties.
+void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
+    stats->setMaxDataSize(size); // Set first because following code may read
+
+    // Setting the quota must set the water-marks and the new water-mark values
+    // must be readable from both the configuration and EPStats. The following
+    // is also updating EPStats because the configuration has a change listener
+    // that will update EPStats
+    configuration.setMemLowWat(percentOf(size, stats->mem_low_wat_percent));
+    configuration.setMemHighWat(percentOf(size, stats->mem_high_wat_percent));
+
+    getDcpConnMap().updateMaxActiveSnoozingBackfills(size);
+    getKVBucket()->setCursorDroppingLowerUpperThresholds(size);
+    getDcpConnMap().updateMaxActiveSnoozingBackfills(size);
 }

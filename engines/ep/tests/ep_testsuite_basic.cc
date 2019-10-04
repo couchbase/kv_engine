@@ -168,6 +168,25 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     checkeq(0.7f, get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect even smaller high wat. percent");
 
+    // Once you've changed the ratios by setting explicit water marks, changes
+    // to the max_size will calculate watermarks based on the current ratio.
+    // Example here is that we get 50% and 70% watermarks because of the
+    // prior configuration tweaks that resulted in changes to the percentages.
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "1000");
+    checkeq(500,
+            get_int_stat(h, "ep_mem_low_wat"),
+            "Incorrect low wat."); // Now engine computes 50 %
+    checkeq(700, get_int_stat(h, "ep_mem_high_wat"), "Incorrect high wat.");
+    checkeq(0.5f,
+            get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect even smaller low wat. percent");
+    checkeq(0.7f,
+            get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect even smaller high wat. percent");
+
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
@@ -184,6 +203,28 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     checkeq(0.75f, get_float_stat(h, "ep_mem_low_wat_percent"),
             "Incorrect initial low wat. percent");
     checkeq(0.85f, get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect initial high wat. percent");
+
+    // Finally check a new engine with explicit water marks results in the
+    // expected percentages
+    std::string newConfig(testHarness->get_current_testcase()->cfg);
+    newConfig += "mem_low_wat=550;mem_high_wat=660";
+
+    testHarness->reload_engine(
+            &h, testHarness->engine_path, newConfig.c_str(), true, true);
+
+    wait_for_warmup_complete(h);
+
+    checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
+    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 550),
+          "Incorrect intial low wat.");
+    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 660),
+          "Incorrect initial high wat.");
+    checkeq(0.55f,
+            get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect initial low wat. percent");
+    checkeq(0.66f,
+            get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect initial high wat. percent");
 
     return SUCCESS;

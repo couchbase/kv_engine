@@ -78,24 +78,11 @@ public:
             key == "cursor_dropping_upper_threshold") {
             store.setCursorDroppingLowerUpperThresholds(stats.getMaxDataSize());
         } else if (key == "max_size") {
-            stats.setMaxDataSize(value);
-            store.getEPEngine().getDcpConnMap(). \
-                                     updateMaxActiveSnoozingBackfills(value);
-            size_t low_wat = static_cast<size_t>
-                    (static_cast<double>(value) * stats.mem_low_wat_percent);
-            size_t high_wat = static_cast<size_t>
-                    (static_cast<double>(value) * stats.mem_high_wat_percent);
-            stats.mem_low_wat.store(low_wat);
-            stats.mem_high_wat.store(high_wat);
-            store.setCursorDroppingLowerUpperThresholds(value);
+            store.getEPEngine().setMaxDataSize(value);
         } else if (key.compare("mem_low_wat") == 0) {
-            stats.mem_low_wat.store(value);
-            stats.mem_low_wat_percent.store(
-                                    (double)(value) / stats.getMaxDataSize());
+            stats.setLowWaterMark(value);
         } else if (key.compare("mem_high_wat") == 0) {
-            stats.mem_high_wat.store(value);
-            stats.mem_high_wat_percent.store(
-                                    (double)(value) / stats.getMaxDataSize());
+            stats.setHighWaterMark(value);
         } else if (key.compare("replication_throttle_threshold") == 0) {
             stats.replicationThrottleThreshold.store(
                                           static_cast<double>(value) / 100.0);
@@ -331,28 +318,19 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "mem_used_merge_threshold_percent",
             std::make_unique<StatsValueChangeListener>(stats, *this));
-    stats.setMaxDataSize(config.getMaxSize());
+
     config.addValueChangedListener(
             "max_size",
             std::make_unique<StatsValueChangeListener>(stats, *this));
     getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(
                                                         config.getMaxSize());
 
-    stats.mem_low_wat.store(config.getMemLowWat());
     config.addValueChangedListener(
             "mem_low_wat",
             std::make_unique<StatsValueChangeListener>(stats, *this));
-    stats.mem_low_wat_percent.store(
-                (double)(stats.mem_low_wat.load()) / stats.getMaxDataSize());
-
-    stats.mem_high_wat.store(config.getMemHighWat());
     config.addValueChangedListener(
             "mem_high_wat",
             std::make_unique<StatsValueChangeListener>(stats, *this));
-    stats.mem_high_wat_percent.store(
-                (double)(stats.mem_high_wat.load()) / stats.getMaxDataSize());
-
-    setCursorDroppingLowerUpperThresholds(config.getMaxSize());
 
     stats.replicationThrottleThreshold.store(static_cast<double>
                                     (config.getReplicationThrottleThreshold())
