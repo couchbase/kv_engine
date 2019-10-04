@@ -322,7 +322,7 @@ std::string to_string(QueueDirtyStatus value);
  *              +-------+-------+-------+-------+-------+-------+
  *              | empty | Start |  Set  |  Set  |  Del  |  End  |
  *              +-------+-------+-------+-------+-------+-------+
- *         seqno    0       1       1       2       3       3
+ *         seqno    0       1       1       2       3       4
  *
  *                  ^
  *                  |
@@ -336,7 +336,7 @@ std::string to_string(QueueDirtyStatus value);
  *              +-------+-------+-------+-------+-------+
  *              | empty | Start |  Del  |  Set  |  Set
  *              +-------+-------+-------+-------+-------+
- *         seqno    3       4       4       5       6
+ *         seqno    4       4       4       5       6
  *
  * A Checkpoint starts with an empty item, followed by a checkpoint_start,
  * and then 0...N set and del items, finally finishing with a checkpoint_end if
@@ -360,8 +360,8 @@ std::string to_string(QueueDirtyStatus value);
  *
  * Note that sequence numbers are only unique for normal operations (mutation)
  * and system events - for meta-items like checkpoint start/end they share the
- * same sequence number as the associated op - for checkpoint_start that is the
- * ID of the following op, for checkpoint_end the ID of the proceeding op.
+ * same sequence number as the associated op - for all meta operations this is
+ * the ID of the following op.
  *
  * Expelling
  * =========
@@ -380,7 +380,7 @@ std::string to_string(QueueDirtyStatus value);
  *            |     |                                  |
  *           \./   \./                                \./
  *        --------------------------------------------------
- *        | 1000 | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 |
+ *        | 1001 | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 |
  *        --------------------------------------------------
  *                                      /.\           /.\
  *                                       |             |
@@ -405,7 +405,7 @@ std::string to_string(QueueDirtyStatus value);
  *            |      |      |
  *           \./    \./    \./
  *         ---------------------
- *         | 1000 | 1005 | 1006 |
+ *         | 1001 | 1005 | 1006 |
  *         ---------------------
  *           /.\           /.\
  *            |             |
