@@ -20,10 +20,10 @@
 #include "atomic_unordered_map.h"
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
-#include "dcp/ready-queue.h"
 #include "dcp/stream_container.h"
 #include "ep_engine.h"
 #include "monotonic.h"
+#include "vb_ready_queue.h"
 
 #include <folly/AtomicHashMap.h>
 #include <folly/CachelinePadded.h>
@@ -539,7 +539,7 @@ protected:
     //   a connection is disconnected.
     cb::AtomicSharedPtr<BackfillManager> backfillMgr;
 
-    DcpReadyQueue ready;
+    VBReadyQueue ready;
 
     /**
      * Folly's AtomicHashMap offers great performance if you know the maximum

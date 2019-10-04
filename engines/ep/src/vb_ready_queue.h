@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc
+ *     Copyright 2019 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,18 +25,14 @@
 #include <unordered_set>
 
 /**
- * DcpReadyQueue is a std::queue wrapper for managing a
- * queue of vbuckets that are ready for a DCP producer/consumer to process.
- * The queue does not allow duplicates and the push_unique method enforces
- * this. The interface is generally customised for the needs of:
- * - getNextItem and is thread safe as the frontend operations and
- *   DCPProducer threads are accessing this data.
- * - processBufferedItems by the processer task of the consumer
+ * VBReadyQueue is a std::queue wrapper for managing a queue of vbuckets that
+ * are ready for some task to process. The queue does not allow duplicates and
+ * the push_unique method enforces this.
  *
  * Internally a std::queue and std::set track the contents and the std::set
  * enables a fast exists method which is used by front-end threads.
  */
-class DcpReadyQueue {
+class VBReadyQueue {
 public:
     bool exists(Vbid vbucket);
 

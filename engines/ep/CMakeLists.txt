@@ -219,8 +219,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/passive_stream.cc
             src/dcp/passive_stream.h
             src/dcp/producer.cc
-            src/dcp/ready-queue.cc
-            src/dcp/ready-queue.h
+        src/vb_ready_queue.cc
+        src/vb_ready_queue.h
             src/dcp/response.cc
             src/dcp/stream.cc
             src/defragmenter.cc

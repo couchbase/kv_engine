@@ -144,7 +144,7 @@ public:
         return log.acknowledge(bytes);
     }
 
-    DcpReadyQueue& getReadyQueue() {
+    VBReadyQueue& getReadyQueue() {
         return ready;
     }
 

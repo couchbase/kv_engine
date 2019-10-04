@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc
+ *     Copyright 2019 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,17 +15,17 @@
  *   limitations under the License.
  */
 
-#include "ready-queue.h"
+#include "vb_ready_queue.h"
 
 #include "locks.h"
 #include "statwriter.h"
 
-bool DcpReadyQueue::exists(Vbid vbucket) {
+bool VBReadyQueue::exists(Vbid vbucket) {
     LockHolder lh(lock);
     return (queuedValues.count(vbucket) != 0);
 }
 
-bool DcpReadyQueue::popFront(Vbid& frontValue) {
+bool VBReadyQueue::popFront(Vbid& frontValue) {
     LockHolder lh(lock);
     if (!readyQueue.empty()) {
         frontValue = readyQueue.front();
@@ -36,7 +36,7 @@ bool DcpReadyQueue::popFront(Vbid& frontValue) {
     return false;
 }
 
-void DcpReadyQueue::pop() {
+void VBReadyQueue::pop() {
     LockHolder lh(lock);
     if (!readyQueue.empty()) {
         queuedValues.erase(readyQueue.front());
@@ -44,7 +44,7 @@ void DcpReadyQueue::pop() {
     }
 }
 
-bool DcpReadyQueue::pushUnique(Vbid vbucket) {
+bool VBReadyQueue::pushUnique(Vbid vbucket) {
     bool wasEmpty;
     {
         LockHolder lh(lock);
@@ -57,19 +57,19 @@ bool DcpReadyQueue::pushUnique(Vbid vbucket) {
     return wasEmpty;
 }
 
-size_t DcpReadyQueue::size() {
+size_t VBReadyQueue::size() {
     LockHolder lh(lock);
     return readyQueue.size();
 }
 
-bool DcpReadyQueue::empty() {
+bool VBReadyQueue::empty() {
     LockHolder lh(lock);
     return readyQueue.empty();
 }
 
-void DcpReadyQueue::addStats(const std::string& prefix,
-                             const AddStatFn& add_stat,
-                             const void* c) {
+void VBReadyQueue::addStats(const std::string& prefix,
+                            const AddStatFn& add_stat,
+                            const void* c) {
     // Take a copy of the queue data under lock; then format it to stats.
     std::queue<Vbid> qCopy;
     std::unordered_set<Vbid> qMapCopy;

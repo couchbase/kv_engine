@@ -21,9 +21,9 @@
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
-#include "dcp/ready-queue.h"
 #include "ep_types.h"
 #include "globaltask.h"
+#include "vb_ready_queue.h"
 
 #include <memcached/dcp_stream_id.h>
 
@@ -536,7 +536,7 @@ protected:
     size_t processorTaskId;
     std::atomic<enum process_items_error_t> processorTaskState;
 
-    DcpReadyQueue vbReady;
+    VBReadyQueue vbReady;
     std::atomic<bool> processorNotification;
 
     std::mutex readyMutex;
