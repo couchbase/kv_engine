@@ -685,7 +685,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
 
     // Persist to move our cursor so that we can expel the prepare
     flushVBucketToDiskIfPersistent(vbid, 3);
-    cm->dump();
+
     auto result = cm->expelUnreferencedCheckpointItems();
     EXPECT_EQ(3, result.expelCount);
 
@@ -727,7 +727,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
 
     // Persist to move our cursor so that we can expel the prepare
     flushVBucketToDiskIfPersistent(vbid, 3);
-    cm->dump();
+
     auto result = cm->expelUnreferencedCheckpointItems();
     EXPECT_EQ(3, result.expelCount);
 
