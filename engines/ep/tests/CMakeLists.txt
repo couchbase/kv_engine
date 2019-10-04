@@ -316,7 +316,9 @@ ENDFUNCTION()
 
 # MB-36252: Skipping ep_testsuite under Magma as intermittently times out on
 # Windows
-IF(WIN32)
+# MB-36322: Skipping ep_testsuite under TSan + Magma as
+# intermittently timing out.
+IF(WIN32 OR CB_THREADSANITIZER)
     ADD_TESTSUITE(ep_testsuite 300 SKIP_MAGMA)
 ELSE()
     ADD_TESTSUITE(ep_testsuite 300)
