@@ -355,7 +355,7 @@
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",
-	        "dynamic": true,
+            "dynamic": true,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -370,7 +370,7 @@
         "ephemeral_metadata_purge_age": {
             "default": "60",
             "descr": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "ssize_t",
             "requires": {
                 "bucket_type": "ephemeral"
@@ -379,7 +379,7 @@
         "ephemeral_metadata_purge_interval": {
             "default": "60",
             "descr": "Time in seconds between automatic, periodic runs of the Ephemeral metadata purge task. Periodic purging disabled if set to 0.",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t",
             "requires": {
                 "bucket_type": "ephemeral"
@@ -454,13 +454,13 @@
         "hlc_drift_ahead_threshold_us": {
             "default": "5000000",
             "descr": "The μs threshold of drift at which we will increment a vbucket's ahead counter.",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t"
         },
         "hlc_drift_behind_threshold_us": {
             "default": "5000000",
             "descr": "The μs threshold of drift at which we will increment a vbucket's behind counter.",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t"
         },
         "ht_locks": {
@@ -483,13 +483,13 @@
         "item_compressor_interval": {
             "default": "250",
             "descr": "How often the item compressor task should run (in milliseconds)",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t"
         },
         "item_compressor_chunk_duration": {
             "default": "20",
             "descr": "Maximum time (in ms) item compression task will run for before being paused (and resumed at the next item_compressor_interval).",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t",
             "validator": {
                 "range": {
@@ -615,7 +615,7 @@
         "max_ttl":{
             "default": "0",
             "descr": "A maximum TTL (in seconds) that will apply to all new documents, documents set with no TTL will be given this value. A value of 0 means this is disabled",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t",
             "validator": {
                 "range": {
@@ -657,7 +657,7 @@
         "mem_used_merge_threshold_percent" : {
             "default": "0.5",
             "descr": "What percent of max_data size should we allow the estimated total memory to lag by (EPStats::getEstimatedTotalMemoryUsed)",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "float",
             "validator": {
                 "range": {
@@ -873,7 +873,7 @@
         "dcp_min_compression_ratio": {
             "default": "0.85",
             "desr": "Compression ratio to be achieved above which producer will ship documents as is",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "float",
             "validator": {
                 "range": {
@@ -944,7 +944,7 @@
         "dcp_consumer_process_buffered_messages_batch_size" : {
             "default": "10",
             "descr": "The maximum number of items stream->processBufferedMessages will consume.",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "size_t",
             "validator": {
                 "range": {
@@ -956,13 +956,13 @@
         "fsync_after_every_n_bytes_written": {
             "default": "16777216",
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
-	    "dynamic": true,
+            "dynamic": true,
             "type" : "size_t"
         },
         "min_compression_ratio": {
             "default": "1.2",
             "descr": "specifies a minimum compression ratio below which storing the document will be stored as uncompressed.",
-	    "dynamic": true,
+            "dynamic": true,
             "type" : "float",
             "validator": {
                 "range": {
@@ -1254,7 +1254,7 @@
         },
         "xattr_enabled": {
             "default": "true",
-	    "dynamic": true,
+            "dynamic": true,
             "type": "bool"
         }
     }
