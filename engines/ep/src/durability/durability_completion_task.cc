@@ -27,12 +27,7 @@ using namespace std::chrono_literals;
 
 DurabilityCompletionTask::DurabilityCompletionTask(
         EventuallyPersistentEngine& engine)
-    : GlobalTask(&engine, TaskId::DurabilityCompletionTask),
-      pendingVBs(engine.getConfiguration().getMaxVbuckets()),
-      vbid(0) {
-    for (auto& vb : pendingVBs) {
-        vb.store(false);
-    }
+    : GlobalTask(&engine, TaskId::DurabilityCompletionTask) {
 }
 
 bool DurabilityCompletionTask::run() {
@@ -51,18 +46,13 @@ bool DurabilityCompletionTask::run() {
 
     const auto startTime = std::chrono::steady_clock::now();
 
-    // Loop for each vBucket, starting from where we previously left off.
-    // For each vbucket, if the pending flag is set then clear it, and process
-    // its resolved SyncWrites.
-    for (size_t count = 0; count < pendingVBs.size();
-         count++, vbid = (vbid + 1) % pendingVBs.size()) {
-        bool expected = true;
-        if (pendingVBs[vbid].compare_exchange_strong(expected, false)) {
-            auto vb = engine->getVBucket(Vbid(vbid));
-            if (vb) {
-                vb->processResolvedSyncWrites();
-            }
+    Vbid pendingVb;
+    while (queue.popFront(pendingVb)) {
+        auto vb = engine->getVBucket(Vbid(pendingVb));
+        if (vb) {
+            vb->processResolvedSyncWrites();
         }
+
         // Yield back to scheduler if we have exceeded the maximum runtime
         // for a single execution.
         auto runtime = std::chrono::steady_clock::now() - startTime;
@@ -76,18 +66,18 @@ bool DurabilityCompletionTask::run() {
 }
 
 void DurabilityCompletionTask::notifySyncWritesToComplete(Vbid vbid) {
-    bool expected = false;
-    if (pendingVBs[vbid.get()].compare_exchange_strong(expected, true)) {
-        // This VBucket transitioned from false -> true - wake ourselves up so
-        // we can start to process the SyncWrites.
-        expected = false;
+    if (!queue.pushUnique(vbid)) {
+        // Return if already in queue, no need to notify the task
+        return;
+    }
 
-        // Performance: Only wake up the task once (and don't repeatedly try to
-        // wake if it's already scheduled to wake) - ExecutorPool::wake() isn't
-        // super cheap so avoid it if already pending.
-        if (wakeUpScheduled.compare_exchange_strong(expected, true)) {
-            ExecutorPool::get()->wake(getId());
-        }
+    bool expected = false;
+
+    // Performance: Only wake up the task once (and don't repeatedly try to
+    // wake if it's already scheduled to wake) - ExecutorPool::wake() isn't
+    // super cheap so avoid it if already pending.
+    if (wakeUpScheduled.compare_exchange_strong(expected, true)) {
+        ExecutorPool::get()->wake(getId());
     }
 }
 

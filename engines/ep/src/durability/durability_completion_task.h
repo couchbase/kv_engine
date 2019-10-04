@@ -17,6 +17,7 @@
 #pragma once
 
 #include "globaltask.h"
+#include "vb_ready_queue.h"
 #include <memcached/vbucket.h>
 
 /*
@@ -64,16 +65,9 @@ public:
 
 private:
     /**
-     * A flag for each (possible) Vbid, set to true if there are SyncWrites
-     * which need to be resolved.
+     * Queue of unique vBuckets to process.
      */
-    std::vector<std::atomic_bool> pendingVBs;
-
-    /// The index of the vBucket to check for resolved SyncWrites next
-    /// in run().
-    /// Kept as member variable (and not just local) so we resume from the
-    /// vBucket we left off from, to ensure fair scheduling.
-    int vbid;
+    VBReadyQueue queue;
 
     /**
      * Flag which is used to check if a wakeup has already been scheduled for
