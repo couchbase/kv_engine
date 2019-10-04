@@ -58,11 +58,8 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
     auto s = state.wlock();
     for (auto& prepare : outstandingPrepares) {
         // Construct the SyncWrites and request an infinite timeout
-        s->trackedWrites.emplace_back(nullptr,
-                                      std::move(prepare),
-                                      nullptr,
-                                      nullptr,
-                                      SyncWrite::InfiniteTimeout{});
+        s->trackedWrites.emplace_back(std::move(prepare));
+
         // Advance the highPreparedSeqno iterator to point to the highest
         // SyncWrite which has been prepared.
         auto lastIt = std::prev(s->trackedWrites.end());
@@ -177,15 +174,7 @@ void PassiveDurabilityMonitor::addSyncWrite(
     }
 #endif
 
-    // Need to specify defaultTimeout for SyncWrite ctor, but we've already
-    // checked just above the requirements have a non-default value,
-    // just pass dummy value here.
-    std::chrono::milliseconds dummy{};
-    s->trackedWrites.emplace_back(nullptr /*cookie*/,
-                                  std::move(item),
-                                  dummy,
-                                  nullptr /*firstChain*/,
-                                  nullptr /*secondChain*/);
+    s->trackedWrites.emplace_back(std::move(item));
     s->totalAccepted++;
 }
 
@@ -396,7 +385,7 @@ PassiveDurabilityMonitor::State::State(const PassiveDurabilityMonitor& pdm)
     highCompletedSeqno.lastAckSeqno.setLabel(hcsPrefix + ".lastAckSeqno");
 }
 
-DurabilityMonitor::Container::iterator
+PassiveDurabilityMonitor::Container::iterator
 PassiveDurabilityMonitor::State::getIteratorNext(
         const Container::iterator& it) {
     // Note: Container::end could be the new position when the pointed SyncWrite

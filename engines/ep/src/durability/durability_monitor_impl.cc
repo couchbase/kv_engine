@@ -36,26 +36,43 @@ expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
     return std::chrono::steady_clock::now() + relativeTimeout;
 }
 
-DurabilityMonitor::SyncWrite::SyncWrite(
+DurabilityMonitor::SyncWrite::SyncWrite(queued_item item)
+    : item(item), startTime(std::chrono::steady_clock::now()) {
+}
+
+const StoredDocKey& DurabilityMonitor::SyncWrite::getKey() const {
+    return item->getKey();
+}
+
+int64_t DurabilityMonitor::SyncWrite::getBySeqno() const {
+    return item->getBySeqno();
+}
+
+cb::durability::Requirements DurabilityMonitor::SyncWrite::getDurabilityReqs()
+        const {
+    return item->getDurabilityReqs();
+}
+
+DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
         const void* cookie,
         queued_item item,
         std::chrono::milliseconds defaultTimeout,
-        const ReplicationChain* firstChain,
-        const ReplicationChain* secondChain)
-    : cookie(cookie),
-      item(item),
+        const ActiveDurabilityMonitor::ReplicationChain* firstChain,
+        const ActiveDurabilityMonitor::ReplicationChain* secondChain)
+    : SyncWrite(item),
+      cookie(cookie),
       expiryTime(expiryFromDurabiltyReqs(item->getDurabilityReqs(),
-                                         defaultTimeout)),
-      startTime(std::chrono::steady_clock::now()) {
+                                         defaultTimeout)) {
     initialiseChains(firstChain, secondChain);
 }
 
-DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
-                                        queued_item item,
-                                        const ReplicationChain* firstChain,
-                                        const ReplicationChain* secondChain,
-                                        SyncWrite::InfiniteTimeout)
-    : cookie(cookie), item(item), startTime(std::chrono::steady_clock::now()) {
+DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
+        const void* cookie,
+        queued_item item,
+        const ActiveDurabilityMonitor::ReplicationChain* firstChain,
+        const ActiveDurabilityMonitor::ReplicationChain* secondChain,
+        InfiniteTimeout)
+    : SyncWrite(item), cookie(cookie) {
     Expects(getDurabilityReqs().getLevel() != cb::durability::Level::None);
     // If creating a SyncWrite with Infinite timeout then we could be
     // re-creating SyncWrites from warmup - in which case durability may not
@@ -75,9 +92,14 @@ DurabilityMonitor::SyncWrite::SyncWrite(const void* cookie,
     }
 }
 
-void DurabilityMonitor::SyncWrite::initialiseChains(
-        const ReplicationChain* firstChain,
-        const ReplicationChain* secondChain) {
+DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(SyncWrite&& write)
+    : SyncWrite(write), cookie(nullptr) {
+    initialiseChains(nullptr /*firstChain*/, nullptr /*secondChain*/);
+}
+
+void DurabilityMonitor::ActiveSyncWrite::initialiseChains(
+        const ActiveDurabilityMonitor::ReplicationChain* firstChain,
+        const ActiveDurabilityMonitor::ReplicationChain* secondChain) {
     // We should always have a first chain if we have a second
     if (secondChain) {
         Expects(firstChain);
@@ -88,33 +110,20 @@ void DurabilityMonitor::SyncWrite::initialiseChains(
     }
 }
 
-const StoredDocKey& DurabilityMonitor::SyncWrite::getKey() const {
-    return item->getKey();
-}
-
-int64_t DurabilityMonitor::SyncWrite::getBySeqno() const {
-    return item->getBySeqno();
-}
-
-cb::durability::Requirements DurabilityMonitor::SyncWrite::getDurabilityReqs()
-        const {
-    return item->getDurabilityReqs();
-}
-
-const void* DurabilityMonitor::SyncWrite::getCookie() const {
+const void* DurabilityMonitor::ActiveSyncWrite::getCookie() const {
     return cookie;
 }
 
-void DurabilityMonitor::SyncWrite::clearCookie() {
+void DurabilityMonitor::ActiveSyncWrite::clearCookie() {
     cookie = nullptr;
 }
 
 std::chrono::steady_clock::time_point
-DurabilityMonitor::SyncWrite::getStartTime() const {
+DurabilityMonitor::ActiveSyncWrite::getStartTime() const {
     return startTime;
 }
 
-void DurabilityMonitor::SyncWrite::ack(const std::string& node) {
+void DurabilityMonitor::ActiveSyncWrite::ack(const std::string& node) {
     if (!firstChain) {
         throw std::logic_error(
                 "SyncWrite::ack: Acking without a ReplicationChain");
@@ -140,7 +149,7 @@ void DurabilityMonitor::SyncWrite::ack(const std::string& node) {
     }
 }
 
-bool DurabilityMonitor::SyncWrite::isSatisfied() const {
+bool DurabilityMonitor::ActiveSyncWrite::isSatisfied() const {
     if (!firstChain) {
         throw std::logic_error(
                 "SyncWrite::isSatisfied: Attmpting to check "
@@ -175,7 +184,7 @@ bool DurabilityMonitor::SyncWrite::isSatisfied() const {
     return ret;
 }
 
-bool DurabilityMonitor::SyncWrite::isExpired(
+bool DurabilityMonitor::ActiveSyncWrite::isExpired(
         std::chrono::steady_clock::time_point asOf) const {
     if (!expiryTime) {
         return false;
@@ -183,8 +192,8 @@ bool DurabilityMonitor::SyncWrite::isExpired(
     return expiryTime < asOf;
 }
 
-uint8_t DurabilityMonitor::SyncWrite::getAckCountForNewChain(
-        const ReplicationChain& chain) {
+uint8_t DurabilityMonitor::ActiveSyncWrite::getAckCountForNewChain(
+        const ActiveDurabilityMonitor::ReplicationChain& chain) {
     auto ackCount = 0;
     for (const auto& pos : chain.positions) {
         // We only bump the ackCount if this SyncWrite was acked in either the
@@ -200,9 +209,9 @@ uint8_t DurabilityMonitor::SyncWrite::getAckCountForNewChain(
     return ackCount;
 }
 
-void DurabilityMonitor::SyncWrite::resetTopology(
-        const ReplicationChain& firstChain,
-        const ReplicationChain* secondChain) {
+void DurabilityMonitor::ActiveSyncWrite::resetTopology(
+        const ActiveDurabilityMonitor::ReplicationChain& firstChain,
+        const ActiveDurabilityMonitor::ReplicationChain* secondChain) {
     // We need to calculate our new ack counts for each chain before resetting
     // any topology so store these values first.
     auto ackedFirstChain = getAckCountForNewChain(firstChain);
@@ -215,9 +224,10 @@ void DurabilityMonitor::SyncWrite::resetTopology(
     this->secondChain.reset(secondChain, ackedSecondChain);
 }
 
-void DurabilityMonitor::SyncWrite::checkDurabilityPossibleAndResetTopology(
-        const DurabilityMonitor::ReplicationChain& firstChain,
-        const DurabilityMonitor::ReplicationChain* secondChain) {
+void DurabilityMonitor::ActiveSyncWrite::
+        checkDurabilityPossibleAndResetTopology(
+                const ActiveDurabilityMonitor::ReplicationChain& firstChain,
+                const ActiveDurabilityMonitor::ReplicationChain* secondChain) {
     // We can reset the topology in one of two cases:
     // a) for a new SyncWrite
     // b) for a topology change
@@ -236,16 +246,20 @@ void DurabilityMonitor::SyncWrite::checkDurabilityPossibleAndResetTopology(
 
     resetTopology(firstChain, secondChain);
 }
-
 std::ostream& operator<<(std::ostream& os,
                          const DurabilityMonitor::SyncWrite& sw) {
     os << "SW @" << &sw << " "
-       << "cookie:" << sw.cookie << " qi:[key:'"
-       << cb::tagUserData(sw.item->getKey().to_string())
+       << "qi:[key:'" << cb::tagUserData(sw.item->getKey().to_string())
        << "' seqno:" << sw.item->getBySeqno()
-       << " reqs:" << to_string(sw.item->getDurabilityReqs()) << "] maj:"
+       << " reqs:" << to_string(sw.item->getDurabilityReqs()) << "] "
+       << " status:" << to_string(sw.getStatus());
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const DurabilityMonitor::ActiveSyncWrite& sw) {
+    os << static_cast<const DurabilityMonitor::SyncWrite&>(sw) << " maj:"
        << std::to_string(sw.firstChain ? sw.firstChain.chainPtr->majority : 0)
-       << " completed:" << sw.isCompleted()
        << " #1stChainAcks:" << std::to_string(sw.firstChain.ackCount)
        << " 1stChainAcks:[";
     std::string acks;
@@ -276,7 +290,7 @@ std::ostream& operator<<(std::ostream& os,
     return os;
 }
 
-DurabilityMonitor::ReplicationChain::ReplicationChain(
+ActiveDurabilityMonitor::ReplicationChain::ReplicationChain(
         const DurabilityMonitor::ReplicationChainName name,
         const std::vector<std::string>& nodes,
         const Container::iterator& it,
@@ -297,7 +311,7 @@ DurabilityMonitor::ReplicationChain::ReplicationChain(
             continue;
         }
         // This check ensures that there is no duplicate in the given chain
-        auto result = positions.emplace(node, Position(it));
+        auto result = positions.emplace(node, Position<Container>(it));
         if (!result.second) {
             throw std::invalid_argument(
                     "ReplicationChain::ReplicationChain: Duplicate node: " +
@@ -308,11 +322,11 @@ DurabilityMonitor::ReplicationChain::ReplicationChain(
     }
 }
 
-size_t DurabilityMonitor::ReplicationChain::size() const {
+size_t ActiveDurabilityMonitor::ReplicationChain::size() const {
     return positions.size();
 }
 
-bool DurabilityMonitor::ReplicationChain::isDurabilityPossible() const {
+bool ActiveDurabilityMonitor::ReplicationChain::isDurabilityPossible() const {
     Expects(size());
     Expects(majority);
 
@@ -335,8 +349,8 @@ std::string to_string(DurabilityMonitor::ReplicationChainName name) {
     folly::assume_unreachable();
 }
 
-bool DurabilityMonitor::ReplicationChain::hasAcked(const std::string& node,
-                                                   int64_t bySeqno) const {
+bool ActiveDurabilityMonitor::ReplicationChain::hasAcked(
+        const std::string& node, int64_t bySeqno) const {
     auto itr = positions.find(node);
 
     // Replica has not acked for this chain if we do not know about it.
@@ -353,23 +367,6 @@ bool operator>(const SnapshotEndInfo& a, const SnapshotEndInfo& b) {
 std::string to_string(const SnapshotEndInfo& snapshotEndInfo) {
     return std::to_string(snapshotEndInfo.seqno) + "{" +
            to_string(snapshotEndInfo.type) + "}";
-}
-
-std::string to_string(
-        const DurabilityMonitor::Position& pos,
-        std::list<DurabilityMonitor::SyncWrite,
-                  std::allocator<DurabilityMonitor::SyncWrite>>::const_iterator
-                trackedWritesEnd) {
-    std::stringstream ss;
-    ss << "{lastAck:" << pos.lastAckSeqno << " lastWrite:" << pos.lastWriteSeqno
-       << " it: @" << &*pos.it;
-    if (pos.it == trackedWritesEnd) {
-        ss << " <end>";
-    } else {
-        ss << " seqno:" << pos.it->getBySeqno();
-    }
-    ss << "}";
-    return ss.str();
 }
 
 std::string to_string(SyncWriteStatus status) {

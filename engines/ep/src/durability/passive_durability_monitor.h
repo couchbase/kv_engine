@@ -41,6 +41,9 @@ class StoredDocKey;
  */
 class PassiveDurabilityMonitor : public DurabilityMonitor {
 public:
+    // Container type used for State::trackedWrites
+    using Container = std::list<SyncWrite>;
+
     PassiveDurabilityMonitor(VBucket& vb);
 
     /**

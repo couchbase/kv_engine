@@ -62,10 +62,58 @@ enum class SyncWriteStatus {
 std::string to_string(SyncWriteStatus status);
 
 /**
- * Represents a tracked SyncWrite. It is mainly a wrapper around a pending
- * Prepare item.
+ * Represents a tracked durable write. It is mainly a wrapper around a pending
+ * Prepare item. This SyncWrite object is used to track a durable write on
+ * non-active nodes.
  */
 class DurabilityMonitor::SyncWrite {
+public:
+    SyncWrite(queued_item item);
+
+    const StoredDocKey& getKey() const;
+
+    int64_t getBySeqno() const;
+
+    cb::durability::Requirements getDurabilityReqs() const;
+
+    void setStatus(SyncWriteStatus status) {
+        this->status = status;
+    }
+
+    SyncWriteStatus getStatus() const {
+        return status;
+    }
+
+    /**
+     * @return true if this SyncWrite has been logically completed
+     */
+    bool isCompleted() const {
+        return status == SyncWriteStatus::Completed;
+    }
+
+protected:
+    // An Item stores all the info that the DurabilityMonitor needs:
+    // - seqno
+    // - Durability Requirements
+    // Note that queued_item is a ref-counted object, so the copy in the
+    // CheckpointManager can be safely removed.
+    const queued_item item;
+
+    /// The time point the SyncWrite was added to the DurabilityMonitor.
+    /// Used for statistics (track how long SyncWrites take to complete).
+    const std::chrono::steady_clock::time_point startTime;
+
+    SyncWriteStatus status = SyncWriteStatus::Pending;
+
+    friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
+};
+
+/**
+ * Represents a tracked durable write for use in the Active Durability Monitor.
+ * Includes additional state over the base SyncWrite class for tracking number
+ * of acks and the client to respond to etc.
+ */
+class DurabilityMonitor::ActiveSyncWrite : public DurabilityMonitor::SyncWrite {
 public:
     /**
      * @param (optional) cookie The cookie representing the client connection.
@@ -80,11 +128,12 @@ public:
      *     tracked against. Necessary at Active for verifying the SW Durability
      *     Requirements.
      */
-    SyncWrite(const void* cookie,
-              queued_item item,
-              std::chrono::milliseconds defaultTimeout,
-              const ReplicationChain* firstChain,
-              const ReplicationChain* secondChain);
+    ActiveSyncWrite(
+            const void* cookie,
+            queued_item item,
+            std::chrono::milliseconds defaultTimeout,
+            const ActiveDurabilityMonitor::ReplicationChain* firstChain,
+            const ActiveDurabilityMonitor::ReplicationChain* secondChain);
 
     /**
      * Constructs a SyncWrite with an infinite timeout.
@@ -102,17 +151,19 @@ public:
      *        infinite timeout is being used.
      */
     struct InfiniteTimeout {};
-    explicit SyncWrite(const void* cookie,
-                       queued_item item,
-                       const ReplicationChain* firstChain,
-                       const ReplicationChain* secondChain,
-                       InfiniteTimeout);
+    explicit ActiveSyncWrite(
+            const void* cookie,
+            queued_item item,
+            const ActiveDurabilityMonitor::ReplicationChain* firstChain,
+            const ActiveDurabilityMonitor::ReplicationChain* secondChain,
+            InfiniteTimeout);
 
-    const StoredDocKey& getKey() const;
-
-    int64_t getBySeqno() const;
-
-    cb::durability::Requirements getDurabilityReqs() const;
+    /**
+     * Move construct an ActiveSyncWrite from a normal (Passive) SyncWrite
+     *
+     * @param write The (Passive) SyncWrite
+     */
+    explicit ActiveSyncWrite(SyncWrite&& write);
 
     const void* getCookie() const;
 
@@ -149,8 +200,9 @@ public:
      * @param firstChain Reference to first chain
      * @param secondChain Pointer (may be null) to second chain
      */
-    void resetTopology(const ReplicationChain& firstChain,
-                       const ReplicationChain* secondChain);
+    void resetTopology(
+            const ActiveDurabilityMonitor::ReplicationChain& firstChain,
+            const ActiveDurabilityMonitor::ReplicationChain* secondChain);
 
     /**
      * Reset the ack-state for this SyncWrite and set it up for the new given
@@ -160,26 +212,11 @@ public:
      * @param secondChain Pointer (may be null) to second chain
      */
     void checkDurabilityPossibleAndResetTopology(
-            const ReplicationChain& firstChain,
-            const ReplicationChain* secondChain);
+            const ActiveDurabilityMonitor::ReplicationChain& firstChain,
+            const ActiveDurabilityMonitor::ReplicationChain* secondChain);
 
     const queued_item& getItem() const {
         return item;
-    }
-
-    void setStatus(SyncWriteStatus status) {
-        this->status = status;
-    }
-
-    /**
-     * @return true if this SyncWrite has been logically completed
-     */
-    bool isCompleted() const {
-        return status == SyncWriteStatus::Completed;
-    }
-
-    SyncWriteStatus getStatus() const {
-        return status;
     }
 
     /**
@@ -187,8 +224,9 @@ public:
      * @param firstChain Pointer (may be null) to the first chain
      * @param secondChain Pointer (may be null) to second chain
      */
-    void initialiseChains(const ReplicationChain* firstChain,
-                          const ReplicationChain* secondChain);
+    void initialiseChains(
+            const ActiveDurabilityMonitor::ReplicationChain* firstChain,
+            const ActiveDurabilityMonitor::ReplicationChain* secondChain);
 
 private:
     /**
@@ -198,18 +236,12 @@ private:
      * @return The ackCount that we have for the given chain. Does not count the
      *         active
      */
-    uint8_t getAckCountForNewChain(const ReplicationChain& chain);
+    uint8_t getAckCountForNewChain(
+            const ActiveDurabilityMonitor::ReplicationChain& chain);
 
     // Client cookie associated with this SyncWrite request, to be notified
     // when the SyncWrite completes.
     const void* cookie;
-
-    // An Item stores all the info that the DurabilityMonitor needs:
-    // - seqno
-    // - Durability Requirements
-    // Note that queued_item is a ref-counted object, so the copy in the
-    // CheckpointManager can be safely removed.
-    const queued_item item;
 
     /**
      * Holds all the information required for a SyncWrite to determine if it
@@ -221,7 +253,8 @@ private:
             return chainPtr;
         }
 
-        void reset(const ReplicationChain* chainPtr, uint8_t ackCount) {
+        void reset(const ActiveDurabilityMonitor::ReplicationChain* chainPtr,
+                   uint8_t ackCount) {
             this->ackCount.reset(ackCount);
             this->chainPtr = chainPtr;
         }
@@ -233,7 +266,7 @@ private:
 
         // Pointer to the chain. Used to find out which node is the active and
         // what the majority value is.
-        const ReplicationChain* chainPtr{nullptr};
+        const ActiveDurabilityMonitor::ReplicationChain* chainPtr{nullptr};
     };
 
     ChainStatus firstChain;
@@ -241,15 +274,10 @@ private:
 
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.
-    const boost::optional<std::chrono::steady_clock::time_point> expiryTime;
+    const boost::optional<std::chrono::steady_clock::time_point> expiryTime =
+            {};
 
-    /// The time point the SyncWrite was added to the DurabilityMonitor.
-    /// Used for statistics (track how long SyncWrites take to complete).
-    const std::chrono::steady_clock::time_point startTime;
-
-    SyncWriteStatus status = SyncWriteStatus::Pending;
-
-    friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
+    friend std::ostream& operator<<(std::ostream&, const ActiveSyncWrite&);
 };
 
 /**
@@ -271,11 +299,12 @@ private:
  * - lastAckSeqno: Stores always the last seqno acknowledged by the tracked
  *         node. Used for validation at seqno-ack received and stats.
  */
+template <typename Container>
 struct DurabilityMonitor::Position {
     Position() = default;
-    Position(const Container::iterator& it) : it(it) {
+    Position(const typename Container::iterator& it) : it(it) {
     }
-    Container::iterator it;
+    typename Container::iterator it;
     // @todo: Consider using (strictly) Monotonic here. Weakly monotonic was
     // necessary when we tracked both memory and disk seqnos.
     // Now a Replica is not supposed to ack the same seqno twice.
@@ -287,7 +316,7 @@ struct DurabilityMonitor::Position {
  * Represents a VBucket Replication Chain in the ns_server meaning,
  * i.e. a list of active/replica nodes where the VBucket resides.
  */
-struct DurabilityMonitor::ReplicationChain {
+struct ActiveDurabilityMonitor::ReplicationChain {
     /**
      * @param nodes The list of active/replica nodes in the ns_server format
      *         {active, replica1, replica2, replica3}
@@ -322,7 +351,7 @@ struct DurabilityMonitor::ReplicationChain {
 
     // Index of node Positions. The key is the node id.
     // A Position embeds the seqno-state of the tracked node.
-    std::unordered_map<std::string, Position> positions;
+    std::unordered_map<std::string, Position<Container>> positions;
 
     // Majority in the arithmetic definition:
     //     chain-size / 2 + 1
@@ -482,7 +511,8 @@ struct ActiveDurabilityMonitor::State {
      * @param status The SyncWriteStatus to set the SyncWrite to as we remove it
      * @return the removed SyncWrite.
      */
-    SyncWrite removeSyncWrite(Container::iterator it, SyncWriteStatus status);
+    ActiveSyncWrite removeSyncWrite(Container::iterator it,
+                                    SyncWriteStatus status);
 
     /**
      * Logically 'moves' forward the High Prepared Seqno to the last
@@ -622,7 +652,7 @@ private:
      *        Optional as we want to avoid acking a SyncWrite twice if a
      *        node exists in both the first and second chain.
      */
-    void advanceAndAckForPosition(Position& pos,
+    void advanceAndAckForPosition(Position<Container>& pos,
                                   const std::string& node,
                                   bool shouldAck);
 
@@ -743,7 +773,8 @@ struct PassiveDurabilityMonitor::State {
      * @param it The iterator
      * @return the next position in Container
      */
-    Container::iterator getIteratorNext(const Container::iterator& it);
+    typename Container::iterator getIteratorNext(
+            const typename Container::iterator& it);
 
     /**
      * Logically 'moves' forward the High Prepared Seqno to the last
@@ -794,7 +825,7 @@ struct PassiveDurabilityMonitor::State {
     //         or MajorityAndPersistToMaster
     //     - the Prepare has been persisted locally, if Level
     //         PersistToMajority
-    Position highPreparedSeqno;
+    Position<Container> highPreparedSeqno;
 
     // Queue of SnapshotEndInfos for snapshots which have been received entirely
     // by the (owning) replica/pending VBucket, and the type of the checkpoint.
@@ -812,7 +843,22 @@ struct PassiveDurabilityMonitor::State {
     // Points to the last Prepare that has been completed (Committed or
     // Aborted). Together with the HPS Position, it is used for implementing
     // the correct Prepare remove-logic in PassiveDM.
-    Position highCompletedSeqno;
+    Position<Container> highCompletedSeqno;
 
     const PassiveDurabilityMonitor& pdm;
 };
+
+template <typename Container>
+std::string to_string(const DurabilityMonitor::Position<Container>& pos,
+                      typename Container::const_iterator trackedWritesEnd) {
+    std::stringstream ss;
+    ss << "{lastAck:" << pos.lastAckSeqno << " lastWrite:" << pos.lastWriteSeqno
+       << " it: @" << &*pos.it;
+    if (pos.it == trackedWritesEnd) {
+        ss << " <end>";
+    } else {
+        ss << " seqno:" << pos.it->getBySeqno();
+    }
+    ss << "}";
+    return ss.str();
+}

@@ -81,7 +81,8 @@ public:
      *        State locked.
      * @param sw SyncWrite which has been completed.
      */
-    void enqueue(const ActiveDurabilityMonitor::State& state, SyncWrite&& sw) {
+    void enqueue(const ActiveDurabilityMonitor::State& state,
+                 ActiveSyncWrite&& sw) {
         highEnqueuedSeqno = sw.getBySeqno();
         queue.enqueue(sw);
     }
@@ -96,7 +97,7 @@ public:
      * @return The oldest item on the queue if the queue is non-empty, else
      *         an empty optional.
      */
-    folly::Optional<SyncWrite> try_dequeue(
+    folly::Optional<ActiveSyncWrite> try_dequeue(
             const std::lock_guard<ConsumerLock>& clg) {
         return queue.try_dequeue();
     }
@@ -112,9 +113,10 @@ public:
     }
 
 private:
-    // Unbounded, Single-producer, single-consumer Queue of SyncWrite objects,
-    // non-blocking variant. Initially holds 2^5 (32) SyncWrites
-    using Queue = folly::USPSCQueue<DurabilityMonitor::SyncWrite, false, 5>;
+    // Unbounded, Single-producer, single-consumer Queue of ActiveSyncWrite
+    // objects, non-blocking variant. Initially holds 2^5 (32) SyncWrites
+    using Queue =
+            folly::USPSCQueue<DurabilityMonitor::ActiveSyncWrite, false, 5>;
     Queue queue;
     // Track the highest Enqueued Seqno to enforce enqueue ordering.
     Monotonic<int64_t> highEnqueuedSeqno = {0};
@@ -156,7 +158,7 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
                                       std::move(prepare),
                                       s->firstChain.get(),
                                       s->secondChain.get(),
-                                      SyncWrite::InfiniteTimeout{});
+                                      ActiveSyncWrite::InfiniteTimeout{});
         s->lastTrackedSeqno = seqno;
     }
 
@@ -173,7 +175,10 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
                                                  PassiveDurabilityMonitor&& pdm)
     : ActiveDurabilityMonitor(stats, pdm.vb) {
     auto s = state.wlock();
-    s->trackedWrites.swap(pdm.state.wlock()->trackedWrites);
+    for (auto& write : pdm.state.wlock()->trackedWrites) {
+        s->trackedWrites.emplace_back(std::move(write));
+    }
+
     if (!s->trackedWrites.empty()) {
         s->lastTrackedSeqno = s->trackedWrites.back().getBySeqno();
     } else {
@@ -414,7 +419,7 @@ void ActiveDurabilityMonitor::checkForResolvedSyncWrites() {
 void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
     std::lock_guard<ResolvedQueue::ConsumerLock> lock(
             resolvedQueue->getConsumerLock());
-    while (folly::Optional<SyncWrite> sw = resolvedQueue->try_dequeue(lock)) {
+    while (auto sw = resolvedQueue->try_dequeue(lock)) {
         switch (sw->getStatus()) {
         case SyncWriteStatus::Pending:
         case SyncWriteStatus::Completed:
@@ -441,7 +446,7 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
     Container writesToTrack;
     std::lock_guard<ResolvedQueue::ConsumerLock> lock(
             resolvedQueue->getConsumerLock());
-    while (folly::Optional<SyncWrite> sw = resolvedQueue->try_dequeue(lock)) {
+    while (auto sw = resolvedQueue->try_dequeue(lock)) {
         switch (sw->getStatus()) {
         case SyncWriteStatus::Pending:
         case SyncWriteStatus::Completed:
@@ -455,11 +460,12 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
             // a valid state for a PassiveDM, just create a new SyncWrite in
             // the same way.
             // @TODO Split SyncWrite implementation for Active and Passive.
-            writesToTrack.push_back(SyncWrite(nullptr,
-                                              std::move(sw->getItem()),
-                                              nullptr,
-                                              nullptr,
-                                              SyncWrite::InfiniteTimeout{}));
+            writesToTrack.push_back(
+                    ActiveSyncWrite(nullptr,
+                                    std::move(sw->getItem()),
+                                    nullptr,
+                                    nullptr,
+                                    ActiveSyncWrite::InfiniteTimeout{}));
             continue;
         }
     }
@@ -559,7 +565,8 @@ ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
                 "Attempting to advance positions for an invalid node " + node);
     }
 
-    std::unordered_map<std::string, Position>::iterator secondChainItr;
+    std::unordered_map<std::string, Position<Container>>::iterator
+            secondChainItr;
     auto secondChainFound = false;
     if (secondChain) {
         secondChainItr = secondChain->positions.find(node);
@@ -576,7 +583,7 @@ ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
     // Node may be in both chains (or only one) so we need to advance only the
     // correct chain.
     if (firstChainFound) {
-        auto& pos = const_cast<Position&>(firstChainItr->second);
+        auto& pos = const_cast<Position<Container>&>(firstChainItr->second);
         // We only ack if we do not have this node in the secondChain because
         // we only want to ack once
         advanceAndAckForPosition(pos, node, !secondChainFound /*should ack*/);
@@ -587,7 +594,7 @@ ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
 
     if (secondChainFound) {
         // Update second chain itr
-        auto& pos = const_cast<Position&>(secondChainItr->second);
+        auto& pos = const_cast<Position<Container>&>(secondChainItr->second);
         advanceAndAckForPosition(pos, node, true /* should ack*/);
         return pos.it;
     }
@@ -596,7 +603,7 @@ ActiveDurabilityMonitor::State::advanceNodePosition(const std::string& node) {
 }
 
 void ActiveDurabilityMonitor::State::advanceAndAckForPosition(
-        Position& pos, const std::string& node, bool shouldAck) {
+        Position<Container>& pos, const std::string& node, bool shouldAck) {
     if (pos.it == trackedWrites.end()) {
         pos.it = trackedWrites.begin();
     } else {
@@ -642,7 +649,8 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
     auto firstChainItr = firstChain->positions.find(node);
     auto firstChainFound = firstChainItr != firstChain->positions.end();
     if (firstChainFound) {
-        auto& firstChainPos = const_cast<Position&>(firstChainItr->second);
+        auto& firstChainPos =
+                const_cast<Position<Container>&>(firstChainItr->second);
         if (firstChainPos.lastAckSeqno > seqno) {
             EP_LOG_WARN(
                     "({}) Node {} acked seqno:{} lower than previous ack "
@@ -663,7 +671,7 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
         if (secondChainItr != secondChain->positions.end()) {
             secondChainFound = true;
             auto& secondChainPos =
-                    const_cast<Position&>(secondChainItr->second);
+                    const_cast<Position<Container>&>(secondChainItr->second);
             if (secondChainPos.lastAckSeqno > seqno) {
                 EP_LOG_WARN(
                         "({}) Node {} acked seqno:{} lower than previous ack "
@@ -740,8 +748,9 @@ int64_t ActiveDurabilityMonitor::State::getNodeAckSeqno(
                                           "Node " + node + " not found");
 }
 
-DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
-        Container::iterator it, SyncWriteStatus status) {
+DurabilityMonitor::ActiveSyncWrite
+ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
+                                                SyncWriteStatus status) {
     if (it == trackedWrites.end()) {
         throwException<std::logic_error>(__func__, "Position points to end");
     }
@@ -772,7 +781,7 @@ DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
     for (const auto& entry : firstChain->positions) {
         const auto& nodePos = entry.second;
         if (nodePos.it == it) {
-            const_cast<Position&>(nodePos).it = prev;
+            const_cast<Position<Container>&>(nodePos).it = prev;
         }
     }
 
@@ -780,7 +789,7 @@ DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
         for (const auto& entry : secondChain->positions) {
             const auto& nodePos = entry.second;
             if (nodePos.it == it) {
-                const_cast<Position&>(nodePos).it = prev;
+                const_cast<Position<Container>&>(nodePos).it = prev;
             }
         }
     }
@@ -790,7 +799,7 @@ DurabilityMonitor::SyncWrite ActiveDurabilityMonitor::State::removeSyncWrite(
     return std::move(removed.front());
 }
 
-void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
+void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
 
     const auto prepareEnd = std::chrono::steady_clock::now();
@@ -836,7 +845,7 @@ void ActiveDurabilityMonitor::commit(const SyncWrite& sw) {
     }
 }
 
-void ActiveDurabilityMonitor::abort(const SyncWrite& sw) {
+void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
     auto result = vb.abort(key,
                            sw.getBySeqno() /*prepareSeqno*/,
@@ -976,7 +985,7 @@ void ActiveDurabilityMonitor::validateChain(
     }
 }
 
-std::unique_ptr<DurabilityMonitor::ReplicationChain>
+std::unique_ptr<ActiveDurabilityMonitor::ReplicationChain>
 ActiveDurabilityMonitor::State::makeChain(
         const DurabilityMonitor::ReplicationChainName name,
         const nlohmann::json& chain) {
@@ -1221,7 +1230,7 @@ void ActiveDurabilityMonitor::State::abortNoLongerPossibleSyncWrites(
 }
 
 void ActiveDurabilityMonitor::State::performQueuedAckForChain(
-        const DurabilityMonitor::ReplicationChain& chain,
+        const ActiveDurabilityMonitor::ReplicationChain& chain,
         ResolvedQueue& toCommit) {
     for (const auto& node : chain.positions) {
         auto existingAck = queuedSeqnoAcks.find(node.first);

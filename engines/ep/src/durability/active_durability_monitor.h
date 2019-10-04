@@ -103,6 +103,10 @@ class VBucket;
  */
 class ActiveDurabilityMonitor : public DurabilityMonitor {
 public:
+    struct ReplicationChain;
+    // Container type used for State::trackedWrites
+    using Container = std::list<DurabilityMonitor::ActiveSyncWrite>;
+
     // Note: constructor and destructor implementation in the .cc file to allow
     // the forward declaration of ReplicationChain in the header
     ActiveDurabilityMonitor(EPStats& stats, VBucket& vb);
@@ -335,14 +339,14 @@ protected:
      *
      * @param sw The SyncWrite to commit
      */
-    void commit(const SyncWrite& sw);
+    void commit(const ActiveSyncWrite& sw);
 
     /**
      * Abort the given SyncWrite.
      *
      * @param sw The SyncWrite to abort
      */
-    void abort(const SyncWrite& sw);
+    void abort(const ActiveSyncWrite& sw);
 
     /**
      * Test only (for now; shortly this will be probably needed at rollback).

@@ -77,10 +77,10 @@ public:
 
 protected:
     class SyncWrite;
-    struct ReplicationChain;
-    struct Position;
+    class ActiveSyncWrite;
 
-    using Container = std::list<SyncWrite>;
+    template <typename Container>
+    struct Position;
 
     virtual void toOStream(std::ostream& os) const = 0;
 
@@ -88,6 +88,7 @@ protected:
                                     const DurabilityMonitor& dm);
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
+    friend std::ostream& operator<<(std::ostream&, const ActiveSyncWrite&);
 
     /** Return a string representation of the given Position.
      *
@@ -96,8 +97,10 @@ protected:
      *        trackedWrites container this Position references. Used to check
      *        if Position is at end and print appropiate info.
      */
-    friend std::string to_string(const DurabilityMonitor::Position& pos,
-                                 Container::const_iterator trackedWritesEnd);
+    template <typename Container>
+    friend std::string to_string(
+            const DurabilityMonitor::Position<Container>& pos,
+            typename Container::const_iterator trackedWritesEnd);
 };
 
 std::string to_string(DurabilityMonitor::ReplicationChainName name);
