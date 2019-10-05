@@ -351,6 +351,31 @@ void SingleThreadedKVBucketTest::runCollectionsEraser() {
     }
 }
 
+void STParameterizedBucketTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    auto bucketType = std::get<0>(GetParam());
+    if (bucketType == "persistentRocksdb") {
+        config_string += "bucket_type=persistent;backend=rocksdb";
+    } else if (bucketType == "persistentMagma") {
+        config_string += "bucket_type=persistent;backend=magma";
+    } else {
+        config_string += "bucket_type=" + bucketType;
+    }
+    auto evictionPolicy = std::get<1>(GetParam());
+
+    if (!evictionPolicy.empty()) {
+        if (persistent()) {
+            config_string += ";item_eviction_policy=" + evictionPolicy;
+        } else {
+            config_string += ";ephemeral_full_policy=" + evictionPolicy;
+        }
+    }
+
+    SingleThreadedKVBucketTest::SetUp();
+}
+
 /// @returns a string representing this tests' parameters.
 std::string STParameterizedBucketTest::PrintToStringParamName(
         const ::testing::TestParamInfo<ParamType>& info) {
@@ -463,8 +488,7 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
  *    stream.
  */
 TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
-    auto& mockConnMap =
-            static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
 
@@ -509,6 +533,33 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
     // DcpConnMapp.manageConnections() will reset our cookie so we need to
     // recreate it for the normal test TearDown to work
     cookie = create_mock_cookie();
+}
+
+ENGINE_ERROR_CODE STParameterizedBucketTest::checkKeyExists(
+        StoredDocKey& key, Vbid vbid, get_options_t options) {
+    auto rc = store->get(key, vbid, cookie, options).getStatus();
+    if (needBGFetch(rc)) {
+        rc = store->get(key, vbid, cookie, options).getStatus();
+    }
+    return rc;
+}
+
+ENGINE_ERROR_CODE STParameterizedBucketTest::setItem(Item& itm,
+                                                     const void* cookie) {
+    auto rc = store->set(itm, cookie);
+    if (needBGFetch(rc)) {
+        rc = store->set(itm, cookie);
+    }
+    return rc;
+}
+
+ENGINE_ERROR_CODE STParameterizedBucketTest::addItem(Item& itm,
+                                                     const void* cookie) {
+    auto rc = store->add(itm, cookie);
+    if (needBGFetch(rc)) {
+        rc = store->add(itm, cookie);
+    }
+    return rc;
 }
 
 /*
@@ -787,6 +838,7 @@ protected:
     }
 };
 
+// @TODO get working for magma
 TEST_F(MB29369_SingleThreadedEPBucketTest,
        CursorDroppingPendingCkptProcessorTask) {
     // Create a Mock Dcp producer and schedule on executorpool.
@@ -967,7 +1019,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 // that is subsequently closed/re-created, if that checkpoint processor runs
 // whilst the new stream is backfilling, it can't interfere with the new stream.
 // This issue was raised by MB-29585 but is fixed by MB-29369
-TEST_F(SingleThreadedEPBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
+TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     producer->scheduleCheckpointProcessorTask();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -1238,7 +1290,7 @@ void MB22960callbackBeforeRegisterCursor(
     }
 }
 
-TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
+TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // Records the number of times ActiveStream::registerCursor is invoked.
     size_t registerCursorCount = 0;
     // Make vbucket active.
@@ -1443,7 +1495,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
  * pendingBackfill should be false.
  */
 
-TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
+TEST_P(STParamPersistentBucketTest,
+       MB25056_do_not_set_pendingBackfill_to_true) {
     // Records the number of times registerCursor is invoked.
     size_t registerCursorCount = 0;
     // Make vbucket a replica.
@@ -1614,7 +1667,7 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
  * isBackfillTaskRunning is false and, the stream state remains set to
  * StreamBackfilling.
  */
-TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
+TEST_P(STParamPersistentBucketTest, test_mb22451) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     // Store a single Item
@@ -1674,7 +1727,7 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
  * (and connection disconnected) if a couchstore file hasn't been re-created
  * yet when doDcpVbTakeoverStats() is called.
  */
-TEST_F(SingleThreadedEPBucketTest, MB19815_doDcpVbTakeoverStats) {
+TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
     auto* task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
         (ExecutorPool::get());
 
@@ -1720,7 +1773,7 @@ TEST_F(SingleThreadedEPBucketTest, MB19815_doDcpVbTakeoverStats) {
  * 1. We cannot create a stream against a dead vb (MB-17230)
  * 2. No tasks are scheduled as a side-effect of the streamRequest attempt.
  */
-TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
+TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     store_item(vbid, makeStoredDocKey("key"), "value");
@@ -1861,7 +1914,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
 // descriptors, which can prevent ns_server from cleaning up old vBucket files
 // and consequently re-adding a node to the cluster.
 //
-TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
+TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -2002,7 +2055,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
  * that is received on the consumer side as a result of a disk
  * backfill
  */
-TEST_F(SingleThreadedEPBucketTest, MB_29861) {
+TEST_P(STParamPersistentBucketTest, MB_29861) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
@@ -2255,10 +2308,10 @@ static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(
 
 // Test performs engine deletion interleaved with tasks so redefine TearDown
 // for this tests needs.
-class MB20054_SingleThreadedEPStoreTest : public SingleThreadedEPBucketTest {
+class MB20054_SingleThreadedEPStoreTest : public STParamPersistentBucketTest {
 public:
     void SetUp() {
-        SingleThreadedEPBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
         engine->initializeConnmap();
     }
 
@@ -2273,8 +2326,8 @@ public:
 // has been observed when we have a DCPBackfill task which is deleted during
 // bucket shutdown, which has a non-zero number of Items which are destructed
 // (and call onDeleteItem).
-TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_deletion) {
-
+TEST_P(MB20054_SingleThreadedEPStoreTest,
+       MB20054_onDeleteItem_during_bucket_deletion) {
     // [[1] Set our state to active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -2607,7 +2660,7 @@ TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
 // Test that we can push a DCP_DELETION which pretends to be from a delete
 // with xattrs, i.e. the delete has a value containing only system xattrs
 // The MB was created because this code would actually trigger an exception
-TEST_F(SingleThreadedEPBucketTest, mb25273) {
+TEST_P(STParamPersistentBucketTest, mb25273) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
@@ -3183,7 +3236,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
 
 // Create a replica VB and consumer, then send it an delete with value which
 // should never of been created on the source.
-TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
+TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     auto consumer = std::make_shared<MockDcpConsumer>(
@@ -3248,7 +3301,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
 }
 
 // Test highlighting MB_29480 - this is not demonstrating the issue is fixed.
-TEST_F(SingleThreadedEPBucketTest, MB_29480) {
+TEST_P(STParamPersistentBucketTest, MB_29480) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3348,7 +3401,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
 
 // MB-29512: Ensure if compaction ran in between stream-request and backfill
 // starting, we don't backfill from before the purge-seqno.
-TEST_F(SingleThreadedEPBucketTest, MB_29512) {
+TEST_P(STParamPersistentBucketTest, MB_29512) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3431,7 +3484,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
     producer->closeAllStreams();
 }
 
-TEST_F(SingleThreadedEPBucketTest, MB_29541) {
+TEST_P(STParamPersistentBucketTest, MB_29541) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // 1) First store 2 keys which we will backfill
@@ -3556,7 +3609,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_32724) {
  * This test checks that the DCP stream actually sends the end stream
  * message when triggering this problematic sequence.
  */
-TEST_F(SingleThreadedEPBucketTest, MB_31481) {
+TEST_P(STParamPersistentBucketTest, MB_31481) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // 1) First store 2 keys which we will backfill
@@ -3655,7 +3708,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
     producer->cancelCheckpointCreatorTask();
 }
 
-void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
+void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
     auto flags = xattr ? cb::mcbp::request::DcpOpenPayload::IncludeXattrs : 0;
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -3744,12 +3797,12 @@ void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
     producer.reset();
 }
 // MB-26907
-TEST_F(SingleThreadedEPBucketTest, backfill_expiry_output) {
+TEST_P(STParamPersistentBucketTest, backfill_expiry_output) {
     backfillExpiryOutput(false);
 }
 
 // MB-26907
-TEST_F(SingleThreadedEPBucketTest, backfill_expiry_output_xattr) {
+TEST_P(STParamPersistentBucketTest, backfill_expiry_output_xattr) {
     backfillExpiryOutput(true);
 }
 // MB-26907
@@ -3957,6 +4010,10 @@ EPBucket& SingleThreadedEPBucketTest::getEPBucket() {
     return dynamic_cast<EPBucket&>(*store);
 }
 
+EPBucket& STParamPersistentBucketTest::getEPBucket() {
+    return dynamic_cast<EPBucket&>(*store);
+}
+
 /*
  * Test that an ActiveStream does not push items to Stream::readyQ
  * indefinitely as we enforce a stream byte-limit on backfill.
@@ -3986,7 +4043,7 @@ TEST_F(SingleThreadedEPBucketTest, ProducerReadyQConnectionLimitOnBackfill) {
  * true, then the compactor will retain the tombstones, and if
  * it is set to false, they get purged
  */
-TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
+TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -4005,25 +4062,34 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     // KVStore layer to set the delete time to 0.
     auto* kvstore = epstore.getVBucket(vbid)->getShard()
                                             ->getRWUnderlying();
-    GetValue gv = kvstore->get(DiskDocKey{key1}, Vbid(0));
-    std::unique_ptr<Item> itm = std::move(gv.item);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    ASSERT_TRUE(itm->isDeleted());
-    itm->setExpTime(0);
+    {
+        GetValue gv = kvstore->get(DiskDocKey{key1}, Vbid(0));
+        std::unique_ptr<Item> itm = std::move(gv.item);
+        ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        ASSERT_TRUE(itm->isDeleted());
+        itm->setExpTime(0);
+        itm->setBySeqno(itm->getBySeqno() + 1);
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
-    // Release the item (from the unique ptr) as the queued_item we create will
-    // destroy it later
-    kvstore->del(itm.release());
-    VB::Commit f(epstore.getVBucket(vbid)->getManifest());
-    kvstore->commit(f);
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        // Release the item (from the unique ptr) as the queued_item we create
+        // will destroy it later
+        kvstore->del(itm.release());
+        VB::Commit f(epstore.getVBucket(vbid)->getManifest());
+        kvstore->commit(f);
+    }
 
     // Add another item to ensure that seqno of the deleted item
     // gets purged. KV-engine doesn't purge a deleted item with
     // the highest seqno
-    auto key2 = makeStoredDocKey("key2");
-    store_item(vbid, key2, "value");
-    flush_vbucket_to_disk(vbid);
+    {
+        auto key2 = makeStoredDocKey("key2");
+        auto itm = makeCommittedItem(key2, "value");
+        itm->setBySeqno(4);
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->del(itm);
+        VB::Commit f(epstore.getVBucket(vbid)->getManifest());
+        kvstore->commit(f);
+    }
 
     // Now read back and verify key1 has a non-zero delete time
     ItemMetaData metadata;
@@ -4060,14 +4126,15 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
 
     // Run compaction and verify that the tombstone is purged
     runCompaction(~0, 3);
-    EXPECT_EQ(2, vb->getPurgeSeqno());
+    EXPECT_EQ(3, vb->getPurgeSeqno());
 }
 
 /**
  * Test to verify that in case retain_erroneous_tombstones is set to true, then
  * a tombstone with a valid expiry time will get purged
  */
-TEST_F(SingleThreadedEPBucketTest, testValidTombstonePurgeOnRetainErroneousTombstones) {
+TEST_P(STParamPersistentBucketTest,
+       testValidTombstonePurgeOnRetainErroneousTombstones) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -4446,6 +4513,8 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
 
 using FlushResult = EPBucket::FlushResult;
 
+class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {};
+
 /**
  * We flush if we have at least:
  *  1) one non-meta item
@@ -4454,8 +4523,11 @@ using FlushResult = EPBucket::FlushResult;
  * trigger the reset of the persistence cursor.
  * This test verifies scenario (1) by checking that we persist all the expected
  * items when we re-attempt flush.
+ *
+ * @TODO magma: Test does not run for magma as we don't yet have a way of inject
+ * errors.
  */
-TEST_P(STParamPersistentBucketTest, ResetPCursorAtPersistNonMetaItems) {
+TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
     // About the first two COUCHSTORE_SUCCESS:
     // - firts, set-vbstate precommit()
     // - then, set-vbstate couchstore_commit()
@@ -4585,8 +4657,11 @@ TEST_P(STParamPersistentBucketTest, ResetPCursorAtPersistNonMetaItems) {
  * trigger the reset of the persistence cursor.
  * This test verifies scenario (2) by checking that we persist the new vbstate
  * when we re-attempt flush.
+ *
+ * @TODO magma: Test does not run for magma as we don't yet have a way of inject
+ * errors.
  */
-TEST_P(STParamPersistentBucketTest, ResetPCursorAtPersistVBStateOnly) {
+TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistVBStateOnly) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
@@ -4665,8 +4740,11 @@ TEST_P(STParamPersistentBucketTest, ResetPCursorAtPersistVBStateOnly) {
 
 /**
  * Check that flush stats are updated only at flush success.
+ *
+ * @TODO magma: Test does not run for magma as we don't yet have a way of inject
+ * errors.
  */
-TEST_P(STParamPersistentBucketTest,
+TEST_P(STParamCouchstoreBucketTest,
        FlushStatsAtPersistNonMetaItems_FlusherDeduplication) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
@@ -4732,7 +4810,11 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(0, vb.dirtyQueueSize);
 }
 
-TEST_P(STParamPersistentBucketTest,
+/**
+ * @TODO magma: Test does not run for magma as we don't yet have a way of inject
+ * errors.
+ */
+TEST_P(STParamCouchstoreBucketTest,
        BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateOnly) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
@@ -4772,7 +4854,11 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_FALSE(vb->isBucketCreation());
 }
 
-TEST_P(STParamPersistentBucketTest,
+/**
+ * @TODO magma: Test does not run for magma as we don't yet have a way of inject
+ * errors.
+ */
+TEST_P(STParamCouchstoreBucketTest,
        BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateAndMutations) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
@@ -4879,4 +4965,14 @@ TEST_P(STParamPersistentBucketTest,
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParamPersistentBucketTest,
                          STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(STParamPersistentBucketTest,
+                         MB20054_SingleThreadedEPStoreTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(STParamCouchstoreBucketTest,
+                         STParamCouchstoreBucketTest,
+                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

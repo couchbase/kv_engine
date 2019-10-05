@@ -206,7 +206,6 @@ class SingleThreadedEPBucketTest : public SingleThreadedKVBucketTest {
 public:
     enum class BackfillBufferLimit { StreamByte, StreamItem, ConnectionByte };
 
-    void backfillExpiryOutput(bool xattr);
     void producerReadyQLimitOnBackfill(BackfillBufferLimit limitType);
 
 protected:
@@ -296,10 +295,38 @@ public:
                 std::make_tuple("ephemeral"s, "auto_delete"s),
                 std::make_tuple("ephemeral"s, "fail_new_data"),
                 std::make_tuple("persistent"s, "value_only"s),
+                std::make_tuple("persistent"s, "full_eviction"s)
+#ifdef EP_USE_MAGMA
+                        ,
+                std::make_tuple("persistentMagma"s, "value_only"s),
+                std::make_tuple("persistentMagma"s, "full_eviction"s)
+#endif
+        );
+    }
+
+    static auto ephAndCouchstoreConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("ephemeral"s, "auto_delete"s),
+                std::make_tuple("ephemeral"s, "fail_new_data"),
+                std::make_tuple("persistent"s, "value_only"s),
                 std::make_tuple("persistent"s, "full_eviction"s));
     }
 
     static auto persistentConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistent"s, "value_only"s),
+                std::make_tuple("persistent"s, "full_eviction"s)
+#ifdef EP_USE_MAGMA
+                        ,
+                std::make_tuple("persistentMagma"s, "value_only"s),
+                std::make_tuple("persistentMagma"s, "full_eviction"s)
+#endif
+        );
+    }
+
+    static auto couchstoreConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(
                 std::make_tuple("persistent"s, "value_only"s),
@@ -311,8 +338,14 @@ public:
         return ::testing::Values(
                 std::make_tuple("persistent"s, "value_only"s),
                 std::make_tuple("persistent"s, "full_eviction"s)
+#ifdef EP_USE_MAGMA
+                        ,
+                std::make_tuple("persistentMagma"s, "value_only"s),
+                std::make_tuple("persistentMagma"s, "full_eviction"s)
+#endif
 #ifdef EP_USE_ROCKSDB
-                ,std::make_tuple("persistentRocksdb"s, "value_only"s),
+                        ,
+                std::make_tuple("persistentRocksdb"s, "value_only"s),
                 std::make_tuple("persistentRocksdb"s, "full_eviction"s)
 #endif
         );
@@ -346,38 +379,90 @@ public:
         return std::get<0>(GetParam()).find("Rocksdb") != std::string::npos;
     }
 
+    bool isMagma() const {
+        return std::get<0>(GetParam()).find("Magma") != std::string::npos;
+    }
+
+    bool bloomFilterEnabled() const {
+        return engine->getConfiguration().isBfilterEnabled();
+    }
+
     /// @returns a string representing this tests' parameters.
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info);
 
-protected:
-    void SetUp() override {
-        if (!config_string.empty()) {
-            config_string += ";";
+    /**
+     * This function is for handling cases where we get an EWOULDBLOCK
+     * error so we trigger a BGFetch. This can happen when bloom
+     * filters are turned off, for instance for magma.
+     *
+     * @param rc ENGINE_ERROR_CODE returned from attempted op
+     * @return true if did BGFetch
+     */
+    bool needBGFetch(ENGINE_ERROR_CODE rc) {
+        if (rc == ENGINE_EWOULDBLOCK && persistent() && fullEviction()) {
+            runBGFetcherTask();
+            return true;
         }
-        auto bucketType = std::get<0>(GetParam());
-        if (bucketType == "persistentRocksdb") {
-            config_string += "bucket_type=persistent;backend=rocksdb";
-        } else if (bucketType == "persistentMagma") {
-            config_string += "bucket_type=persistent;backend=magma";
-        } else {
-            config_string += "bucket_type=" + bucketType;
-        }
-        auto evictionPolicy = std::get<1>(GetParam());
-
-        if (!evictionPolicy.empty()) {
-            if (persistent()) {
-                config_string += ";item_eviction_policy=" + evictionPolicy;
-            } else {
-                config_string += ";ephemeral_full_policy=" + evictionPolicy;
-            }
-        }
-
-        SingleThreadedKVBucketTest::SetUp();
+        return false;
     }
+
+    /**
+     * Check to see if Key Exists.
+     * Handles case when we get ENGINE_EWOULDBLOCK.
+     *
+     * @param key doc key
+     * @param vbid vbucket id
+     * @param options fetch options
+     * @return ENGINE_ERROR_CODE return status of get call
+     */
+    ENGINE_ERROR_CODE checkKeyExists(StoredDocKey& key,
+                                     Vbid vbid,
+                                     get_options_t options);
+
+    /**
+     * Call kvstore SET.
+     * Handles case when we get ENGINE_EWOULDBLOCK.
+     *
+     * @param item item to be SET
+     * @param cookie mock cookie
+     * @return ENGINE_ERROR_CODE return status of SET call
+     */
+    ENGINE_ERROR_CODE setItem(Item& itm, const void* cookie);
+
+    /**
+     * Call kvstore ADD.
+     * Handles case when we get ENGINE_EWOULDBLOCK.
+     *
+     * @param item item to be ADD
+     * @param cookie mock cookie
+     * @return ENGINE_ERROR_CODE return status of ADD call
+     */
+    ENGINE_ERROR_CODE addItem(Item& itm, const void* cookie);
+
+    /**
+     * When persistent + full eviction + no bloom filters, don't
+     * expect to flush.
+     *
+     * @param expected # of expected items flushed
+     * @return # of items expected to flush
+     */
+    int expectedFlushed(int expected) {
+        if (persistent() && fullEviction()) {
+            return 0;
+        }
+        return expected;
+    }
+
+protected:
+    void SetUp() override;
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {
 protected:
     void testAbortDoesNotIncrementOpsDelete(bool flusherDedup);
+    void backfillExpiryOutput(bool xattr);
+
+protected:
+    EPBucket& getEPBucket();
 };

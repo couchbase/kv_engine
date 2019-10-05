@@ -1337,15 +1337,17 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
 // hence it is required currently.
 #if defined(HAVE_JEMALLOC)
 
-INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
-                         STItemPagerTest,
-                         STParameterizedBucketTest::allConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(
+        EphemeralOrPersistent,
+        STItemPagerTest,
+        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
-                         STExpiryPagerTest,
-                         STParameterizedBucketTest::allConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(
+        EphemeralOrPersistent,
+        STExpiryPagerTest,
+        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(ValueOnly,
                          STValueEvictionExpiryPagerTest,
@@ -1364,7 +1366,7 @@ INSTANTIATE_TEST_SUITE_P(Ephemeral,
 
 INSTANTIATE_TEST_SUITE_P(PersistentFullValue,
                          MB_36087,
-                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 #endif

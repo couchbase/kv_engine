@@ -166,11 +166,8 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     // A key in meat that doesn't exist
-    gv = store->get(StoredDocKey{"meat:sausage", CollectionEntry::meat},
-                    vbid,
-                    cookie,
-                    options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    auto key1 = StoredDocKey{"meat:sausage", CollectionEntry::meat};
+    EXPECT_EQ(ENGINE_KEY_ENOENT, checkKeyExists(key1, vbid, options));
 
     // Begin the deletion
     vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
@@ -327,7 +324,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, addItem(item1, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
@@ -650,6 +647,10 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest({cm});
 
+    // Flushing the manifest to disk guarantees that the database file
+    // is written and exists, any subsequent bgfetches (e.g. during
+    // addItem) will definitely be executed.
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(1,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -659,8 +660,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
-
+    EXPECT_EQ(ENGINE_SUCCESS, addItem(item1, cookie));
     EXPECT_EQ(2,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -678,7 +678,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, addItem(item2, cookie));
     EXPECT_EQ(4,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -698,6 +698,10 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest({cm});
 
+    // Flushing the manifest to disk guarantees that the database file
+    // is written and exists, any subsequent bgfetches (e.g. during
+    // addItem) will definitely be executed.
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(1,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -707,7 +711,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, addItem(item1, cookie));
 
     EXPECT_EQ(2,
               vb->getManifest().lock().getHighSeqno(
@@ -732,7 +736,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
                            "beefy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, addItem(item2, cookie));
 
     // Skip 1 seqno for creation of meat
     EXPECT_EQ(4,

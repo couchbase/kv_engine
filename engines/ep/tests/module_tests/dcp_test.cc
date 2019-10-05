@@ -788,6 +788,13 @@ class ConnectionTest : public DCPTest,
 protected:
     void SetUp() override {
         bucketType = std::get<0>(GetParam());
+        if (bucketType == "persistentMagma") {
+            bucketType = "persistent";
+            if (!config_string.empty()) {
+                config_string += ";";
+            }
+            config_string += magmaConfig;
+        }
         DCPTest::SetUp();
         vbid = Vbid(0);
         if (bucketType == "ephemeral") {

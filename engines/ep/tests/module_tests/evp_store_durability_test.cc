@@ -275,6 +275,19 @@ protected:
                            cookie));
     }
 
+    // When bloom filters are turned off, a temp item needs to be
+    // inserted and the BGFetcher needs to run to get that item accepted.
+    // Then, we need to come back to the original item and push that out
+    // with the BGFetch before the pending item is accepted.
+    ENGINE_ERROR_CODE addPendingItem(Item& itm, const void* cookie) {
+        auto rc = store->add(itm, cookie);
+        if (rc == ENGINE_EWOULDBLOCK && persistent() && fullEviction()) {
+            runBGFetcherTask();
+            rc = store->add(itm, cookie);
+        }
+        return rc;
+    }
+
     /**
      * Method to get and check a replica's value
      */
@@ -1996,7 +2009,7 @@ TEST_P(DurabilityBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
     // Setup: Add the first prepared SyncWrite.
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->add(*pending, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, addPendingItem(*pending, cookie));
 
     // Test: Attempt to add a second prepared SyncWrite (different cookie i.e.
     // client).
@@ -2067,7 +2080,8 @@ TEST_P(DurabilityBucketTest, SyncAddAfterAbortedSyncWrite) {
     // Test: Attempt to perform a SyncAdd. Should succeed as initial SyncWrite
     // was aborted.
     auto prepared2 = makePendingItem(key, "value2");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->add(*prepared2, cookie));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, addPendingItem(*prepared2, cookie));
+
     auto& vb = *store->getVBucket(vbid);
     EXPECT_EQ(
             ENGINE_SUCCESS,
@@ -2087,6 +2101,10 @@ TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncWrite) {
     // Test: Attempt to perform a SyncReplace. Should fails as initial SyncWrite
     // was aborted.
     auto prepared2 = makePendingItem(key, "value2");
+    if (persistent() && fullEviction() && !bloomFilterEnabled()) {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(*prepared2, cookie));
+        runBGFetcherTask();
+    }
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(*prepared2, cookie));
 }
 
@@ -2351,14 +2369,25 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
 
     // Test: Attempt another SyncWrite, which _should_ fail (in this case just
     // use replace against the same non-existent key).
-    ASSERT_EQ(ENGINE_KEY_ENOENT,
-              engine->store(cookie,
+    auto rc = engine->store(cookie,
                             pending.get(),
                             cas,
                             OPERATION_REPLACE,
                             pending->getDurabilityReqs(),
                             DocumentState::Alive,
-                            false));
+                            false);
+
+    if (rc == ENGINE_EWOULDBLOCK && persistent() && fullEviction()) {
+        runBGFetcherTask();
+        rc = engine->store(cookie,
+                           pending.get(),
+                           cas,
+                           OPERATION_REPLACE,
+                           pending->getDurabilityReqs(),
+                           DocumentState::Alive,
+                           false);
+    }
+    EXPECT_EQ(ENGINE_KEY_ENOENT, rc);
 }
 
 // Test a durable set with CAS works when evicted. This checks that the set
@@ -2627,6 +2656,11 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
+    // TODO magma
+    // Magma ops are different than couchstore ops
+    if (engine->getConfiguration().getBackend(), "magma") {
+        return;
+    }
     // Replace RW kvstore and use a gmocked ops so we an inject failure
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
@@ -3692,6 +3726,11 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
 // should be made to pass.
 TEST_P(DurabilityCouchstoreBucketTest,
        CompactionOfPrepareDoesNotAddToBloomFilter) {
+    // This test doesn't apply to magma since magma does not use
+    // engine bloom filters.
+    if (engine->getConfiguration().getBackend(), "magma") {
+        return;
+    }
     using namespace cb::durability;
 
     // 1) Persist a prepare but don't complete it
@@ -3820,7 +3859,11 @@ void DurabilityBucketTest::testReplaceAtPendingSW(DocState docState) {
         case DocState::NOENT: {
             ASSERT_FALSE(res.committed);
             ASSERT_EQ(0, vb.getNumTotalItems());
-            expectedRes = ENGINE_KEY_ENOENT;
+            if (fullEviction() && !bloomFilterEnabled()) {
+                expectedRes = ENGINE_EWOULDBLOCK;
+            } else {
+                expectedRes = ENGINE_KEY_ENOENT;
+            }
             break;
         }
         case DocState::RESIDENT: {

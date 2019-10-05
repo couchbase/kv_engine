@@ -2899,10 +2899,8 @@ protected:
     void SetUp() override {
         KVStoreTest::SetUp();
 
-        auto configStr = "dbname="s + data_dir + ";backend=magma"s;
-        // need to set these for Rollback test
-        configStr += ";magma_commit_point_every_batch=true"s +
-                     ";magma_commit_point_interval=0"s;
+        auto configStr =
+                "dbname="s + data_dir + ";"s + "backend=magma;" + magmaConfig;
         Configuration config;
         config.parseConfiguration(configStr.c_str(), get_mock_server_api());
         WorkLoadPolicy workload(config.getMaxNumWorkers(),

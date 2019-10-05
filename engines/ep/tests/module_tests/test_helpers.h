@@ -33,9 +33,9 @@
 // Couchstore defaults to creating a rollback point at each batch
 // commit. In order to simulate that with magma, we need to set
 // magma_commit_point_interval=0 and
-// magma_commit_point_every_batch=true. Also increate the number of
-// commit points retained. Since we are doing very little work, to
-// improve performance, only start 1 flusher and compactor thread.
+// magma_commit_point_every_batch=true. Also create the number of
+// commit points retained. Run 2 flushers and compactors to attempt to find any
+// race conditions.
 static std::string magmaConfig =
         "magma_max_commit_points=10;"
         "magma_commit_point_interval=0;"

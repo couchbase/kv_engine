@@ -119,3 +119,5 @@ class STPassiveStreamPersistentTest : public SingleThreadedPassiveStreamTest {
 public:
     void SetUp() override;
 };
+
+class STPassiveStreamCouchstoreTest : public STPassiveStreamPersistentTest {};

@@ -2804,8 +2804,11 @@ void STPassiveStreamPersistentTest::SetUp() {
 /**
  * The test checks that we do not lose any SnapRange information when at Replica
  * we re-attempt the flush of Disk Snapshot after a storage failure.
+ *
+ * @TODO magma: Test does not run for magma as we don't yet have a way of inject
+ * errors.
  */
-TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
+TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
     // Gmock helps us with simulating a flush failure.
     // In the test we want that the first attempt to flush fails, while the
     // second attempts succeeds. The purpose of the test is to check that
@@ -2993,4 +2996,9 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamPersistentTest,
                          STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         STPassiveStreamCouchstoreTest,
+                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
