@@ -20,10 +20,12 @@
 #include "ep_time.h"
 #include "item.h"
 #include "magma-kvstore_config.h"
+#include "statwriter.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
 #include <mcbp/protocol/request.h>
+#include <nlohmann/json.hpp>
 #include <utilities/logtags.h>
 
 #include <string.h>
@@ -2487,4 +2489,16 @@ bool MagmaKVStore::getStat(const char* name, size_t& value) {
         return false;
     }
     return true;
+}
+
+void MagmaKVStore::addStats(const AddStatFn& add_stat,
+                            const void* c,
+                            const std::string& args) {
+    KVStore::addStats(add_stat, c, args);
+    const auto prefix = getStatsPrefix();
+
+    Magma::MagmaStats stats;
+    magma->GetStats(stats);
+    auto statName = prefix + ":magma";
+    add_casted_stat(statName.c_str(), stats.JSON().dump(), add_stat, c);
 }
