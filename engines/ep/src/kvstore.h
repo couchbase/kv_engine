@@ -252,6 +252,8 @@ public:
 };
 
 struct FileStats {
+    FileStats() = default;
+
     // Read time length
     Hdr1sfMicroSecHistogram readTimeHisto;
     // Distance from last read
@@ -270,20 +272,11 @@ struct FileStats {
     Hdr1sfInt32Histogram writeCountHisto;
 
     // total bytes read from disk.
-    std::atomic<size_t> totalBytesRead{0};
+    cb::RelaxedAtomic<size_t> totalBytesRead{0};
     // Total bytes written to disk.
-    std::atomic<size_t> totalBytesWritten{0};
+    cb::RelaxedAtomic<size_t> totalBytesWritten{0};
 
-    size_t getMemFootPrint() const {
-        return readTimeHisto.getMemFootPrint() +
-               readSeekHisto.getMemFootPrint() +
-               readSizeHisto.getMemFootPrint() +
-               writeTimeHisto.getMemFootPrint() +
-               writeSizeHisto.getMemFootPrint() +
-               syncTimeHisto.getMemFootPrint() +
-               readCountHisto.getMemFootPrint() +
-               writeCountHisto.getMemFootPrint();
-    }
+    size_t getMemFootPrint() const;
 
     void reset();
 };
@@ -294,56 +287,10 @@ struct FileStats {
 class KVStoreStats {
 
 public:
-    /**
-     * Default constructor
-     */
-    KVStoreStats()
-        : docsCommitted(0),
-          numOpen(0),
-          numClose(0),
-          numLoadedVb(0),
-          numCompactionFailure(0),
-          numGetFailure(0),
-          numSetFailure(0),
-          numDelFailure(0),
-          numOpenFailure(0),
-          numVbSetFailure(0),
-          io_bg_fetch_docs_read(0),
-          io_num_write(0),
-          io_bgfetch_doc_bytes(0),
-          io_write_bytes(0),
-          getMultiFsReadCount(0) {
-    }
+    KVStoreStats();
 
-    KVStoreStats(const KVStoreStats &copyFrom) {}
-
-    void reset() {
-        docsCommitted = 0;
-        numOpen = 0;
-        numClose = 0;
-        numLoadedVb = 0;
-        numCompactionFailure = 0;
-        numGetFailure = 0;
-        numSetFailure = 0;
-        numDelFailure = 0;
-        numOpenFailure = 0;
-        numVbSetFailure = 0;
-
-        readTimeHisto.reset();
-        readSizeHisto.reset();
-        writeTimeHisto.reset();
-        writeSizeHisto.reset();
-        delTimeHisto.reset();
-        compactHisto.reset();
-        snapshotHisto.reset();
-        commitHisto.reset();
-        saveDocsHisto.reset();
-        batchSize.reset();
-        getMultiFsReadCount = 0;
-        getMultiFsReadHisto.reset();
-        getMultiFsReadPerDocHisto.reset();
-        fsStats.reset();
-    }
+    /// Resets all statistics to their initial vaule.
+    void reset();
 
     // the number of docs committed
     cb::RelaxedAtomic<size_t> docsCommitted;

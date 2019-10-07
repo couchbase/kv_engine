@@ -88,6 +88,53 @@ void FileStats::reset() {
     totalBytesWritten = 0;
 }
 
+size_t FileStats::getMemFootPrint() const {
+    return readTimeHisto.getMemFootPrint() + readSeekHisto.getMemFootPrint() +
+           readSizeHisto.getMemFootPrint() + writeTimeHisto.getMemFootPrint() +
+           writeSizeHisto.getMemFootPrint() + syncTimeHisto.getMemFootPrint() +
+           readCountHisto.getMemFootPrint() + writeCountHisto.getMemFootPrint();
+}
+
+KVStoreStats::KVStoreStats() = default;
+
+void KVStoreStats::reset() {
+    docsCommitted = 0;
+    numOpen = 0;
+    numClose = 0;
+    numLoadedVb = 0;
+
+    numCompactionFailure = 0;
+    numGetFailure = 0;
+    numSetFailure = 0;
+    numDelFailure = 0;
+    numOpenFailure = 0;
+    numVbSetFailure = 0;
+
+    io_bg_fetch_docs_read = 0;
+    io_num_write = 0;
+    io_bgfetch_doc_bytes = 0;
+    io_write_bytes = 0;
+
+    readTimeHisto.reset();
+    readSizeHisto.reset();
+    writeTimeHisto.reset();
+    writeSizeHisto.reset();
+    delTimeHisto.reset();
+    commitHisto.reset();
+    compactHisto.reset();
+    saveDocsHisto.reset();
+    batchSize.reset();
+    snapshotHisto.reset();
+
+    getMultiFsReadCount.reset();
+    getMultiFsReadHisto.reset();
+    getMultiFsReadPerDocHisto.reset();
+    flusherWriteAmplificationHisto.reset();
+
+    fsStats.reset();
+    fsStatsCompaction.reset();
+}
+
 KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     std::string backend = config.getBackend();
     if (backend == "couchdb") {
