@@ -961,7 +961,14 @@ void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
 }
 
 void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
-    checkpointList.clear();
+    // Swap our checkpoint list for a new one so that we can clear everything
+    // and addOpenCheckpoint will create the new checkpoint in our new list.
+    // This also keeps our cursors pointing to valid checkpoints which is
+    // necessary as we will dereference them in resetCursors to decrement the
+    // counts of the old checkpoints.
+    CheckpointList newCheckpointList;
+    checkpointList.swap(newCheckpointList);
+
     numItems = 0;
     lastBySeqno.reset(seqno);
     pCursorPreCheckpointId = 0;
@@ -984,13 +991,9 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
             }
         }
 
+        // Only change the counts if the checkpoints are different
         if (cit.second->currentCheckpoint != checkpointList.begin()) {
-            // need to avoid incrementing again if the cursor is already
-            // in the checkpoint.
-            // Can't safely decrement the old checkpoint counter
-            // as the old checkpoint may have been destroyed (e.g., if
-            // clearing the CheckpointManager), so only increment
-            // the new one if different.
+            (*cit.second->currentCheckpoint)->decNumOfCursorsInCheckpoint();
             checkpointList.front()->incNumOfCursorsInCheckpoint();
         }
 
