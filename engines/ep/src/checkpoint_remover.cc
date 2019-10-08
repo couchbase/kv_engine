@@ -28,22 +28,63 @@
 #include <phosphor/phosphor.h>
 #include <memory>
 
+// isReductionInCheckpointMemoryNeeded() wants to determine if checkpoint
+// expelling and/or cursor dropping should be invoked, if true a calculated
+// memory reduction 'target' is also returned.
+//
+// The following diagram depicts the bucket memory where # is the max_size and
+// the labelled vertical lines each show a threshold that is used in deciding if
+// memory reduction is needed. Also depicted are two of the 'live' statistics
+// that are also used in deciding if memory reduction is needed.
+//
+// 0                                                                      #
+// ├───────────────────┬───────────────┬───┬───────────┬──┬─┬────┬────┬───┤
+// │                   │               │   │           │  │ │    │    │   │
+// │                   │               │   │           │  │ │    │    │   │
+// └───────────────────▼───────────────▼───▼───────────▼──▼─▼────▼────▼───┘
+//                     A               B   X           L  Y C    H    D
+//
+// The thresholds used with the current defaults:
+//
+//   A = cursor_dropping_checkpoint_mem_lower_mark (30%)
+//   B = cursor_dropping_checkpoint_mem_upper_mark (50%)
+//   C = cursor_dropping_lower_mark (80%)
+//   D = cursor_dropping_upper_mark (95%)
+//   L = mem_low_watermark (75%)
+//   H = mem_high_watermark (85%)
+//
+// The two live statistics:
+//
+//   X = checkpoint memory used, the value returned from
+//       VBucketMap::getVBucketsTotalCheckpointMemoryUsage()
+//   Y = 'mem_used' i.e. the value of stats.getEstimatedTotalMemoryUsed()
+//
+// Memory reduction will commence if any of the following conditions are met:
+// 1) If checkpoint memory usage (X) is greater than
+//    cursor_dropping_checkpoint_mem_upper_mark and 'mem_used' (Y) is greater
+//    than mem_low_watermark (L).
+// 2) If 'mem_used' (Y) is greater than cursor_dropping_upper_mark (D)
+//
+// If case 1 is the trigger this function will return X - A as the target amount
+// to free.
+//
+// If case 2 is the trigger this function will return Y - C as the target amount
+// to free.
+//
+// When memory reduction is required two different techniques are applied:
+// 1) First checkpoint expelling. If that technique does not 'free' the required
+//    target, then a second technique is applied.
+// 2) The second technique is cursor dropping.
+//
+// At the end of the memory reduction if the target is still not reached no
+// further action occurs. The next invocation of the
+// ClosedUnrefCheckpointRemoverTask will start the process again.
+//
 std::pair<bool, size_t>
 ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
-    /**
-     * Cursor dropping will commence if one of the following conditions is met:
-     * 1. if the total memory used is greater than the upper threshold which is
-     * a percentage of the quota, specified by cursor_dropping_upper_mark
-     * 2. if the overall checkpoint memory usage goes above a certain % of the
-     * bucket quota, specified by cursor_dropping_checkpoint_mem_upper_mark
-     *
-     * Once cursor dropping starts, it will continue until memory usage is
-     * projected to go under the lower threshold, either
-     * cursor_dropping_lower_mark or cursor_dropping_checkpoint_mem_lower_mark
-     * based on the trigger condition.
-     */
     const auto& config = engine->getConfiguration();
     const auto bucketQuota = config.getMaxSize();
+    const auto memUsed = stats.getEstimatedTotalMemoryUsed();
 
     const auto vBucketChkptMemSize =
             engine->getKVBucket()
@@ -57,15 +98,13 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
     const bool hitCheckpointMemoryThreshold =
             vBucketChkptMemSize >= chkptMemLimit;
 
-    const bool aboveLowWatermark =
-            stats.getEstimatedTotalMemoryUsed() >= stats.mem_low_wat.load();
+    const bool aboveLowWatermark = memUsed >= stats.mem_low_wat.load();
 
     const bool ckptMemExceedsCheckpointMemoryThreshold =
             aboveLowWatermark && hitCheckpointMemoryThreshold;
 
     const bool memUsedExceedsCursorDroppingUpperMark =
-            stats.getEstimatedTotalMemoryUsed() >
-            stats.cursorDroppingUThreshold.load();
+            memUsed > stats.cursorDroppingUThreshold.load();
 
     auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
     if (memUsedExceedsCursorDroppingUpperMark ||
@@ -73,12 +112,10 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
         size_t amountOfMemoryToClear;
 
         if (ckptMemExceedsCheckpointMemoryThreshold) {
-            // If we were triggered by the fact we hit the low watermark and we
-            // are at or over the threshold of allowed checkpoint memory usage,
-            // then try to clear memory down to the lower limit of the allowable
-            // memory usage threshold.
+            // Calculate the lower percentage of quota and subtract that from
+            // the current checkpoint memory size to obtain the 'target'.
             amountOfMemoryToClear =
-                    stats.getEstimatedTotalMemoryUsed() -
+                    vBucketChkptMemSize -
                     ((bucketQuota *
                       config.getCursorDroppingCheckpointMemLowerMark()) /
                      100);
@@ -92,15 +129,17 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
                     toMB(amountOfMemoryToClear));
 
         } else {
-            amountOfMemoryToClear = stats.getEstimatedTotalMemoryUsed() -
-                                    stats.cursorDroppingLThreshold.load();
+            amountOfMemoryToClear =
+                    memUsed - stats.cursorDroppingLThreshold.load();
             EP_LOG_INFO(
                     "Triggering memory recovery as mem_used ({} MB) "
                     "exceeds cursor_dropping_upper_mark ({}%, {} MB). "
+                    "current checkpoint consumption is {} MB "
                     "Attempting to free {} MB of memory.",
                     toMB(stats.getEstimatedTotalMemoryUsed()),
                     config.getCursorDroppingUpperMark(),
                     toMB(stats.cursorDroppingUThreshold.load()),
+                    toMB(vBucketChkptMemSize),
                     toMB(amountOfMemoryToClear));
         }
         // Memory recovery is required.

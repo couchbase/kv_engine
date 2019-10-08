@@ -486,6 +486,75 @@ TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
     EXPECT_EQ(1, engine->getEpStats().cursorsDropped);
 }
 
+// Test written for MB-36366. With the fix removed this test failed because
+// post expel, we continued onto cursor dropping.
+TEST_F(CheckpointRemoverEPTest, noCursorDropWhenTargetMet) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& config = engine->getConfiguration();
+    const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto* checkpointManager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    CheckpointConfig c(*engine.get());
+    checkpointManager->resetConfig(c);
+
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+
+    bool isLastMutation;
+    ActiveStream& activeStream =
+            reinterpret_cast<ActiveStream&>(*producer->findStream(vbid));
+
+    config.setChkExpelEnabled(true);
+    const size_t maxSize = 100000;
+    config.setMaxSize(maxSize);
+    config.setCursorDroppingCheckpointMemUpperMark(35);
+    // This value is forced to 1 so expel/cursor drop becomes eligible
+    engine->getEpStats().mem_low_wat.store(1);
+
+    int ii = 0;
+    while (engine->getEpStats().getPreciseTotalMemoryUsed() <
+           (maxSize * 0.75)) {
+        // using small keys and values
+        std::string doc_key = std::to_string(ii);
+        store_item(vbid, makeStoredDocKey(doc_key), "a");
+        ++ii;
+    }
+
+    // Create a second checkpoint add an item and flush, this moves the
+    // persistence cursor into the second checkpoint making dcp cursor eligible
+    // for dropping.
+    checkpointManager->createNewCheckpoint();
+
+    store_item(vbid, makeStoredDocKey("another"), "value");
+
+    // We should now have 2 checkpoints for this vBucket
+    ASSERT_EQ(2, checkpointManager->getNumCheckpoints());
+
+    // Flush all and leave DCP behind
+    flush_vbucket_to_disk(vbid, ii + 1);
+
+    // Move the DCP cursor along so expelling can do some work
+    {
+        auto cursor = activeStream.getCursor().lock();
+
+        // Move the cursor past 80% of the items added.
+        for (int jj = 0; jj < ii * 0.8; ++jj) {
+            checkpointManager->nextItem(cursor.get(), isLastMutation);
+        }
+    }
+
+    // We expect expelling to have kicked in, but not cursor dropping
+    task->run();
+    EXPECT_NE(0, engine->getEpStats().itemsExpelledFromCheckpoints);
+    EXPECT_EQ(0, engine->getEpStats().cursorsDropped);
+    EXPECT_TRUE(activeStream.getCursor().lock().get());
+}
+
 std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
         const std::string& name, uint64_t startBySeqno, bool expectBackfill) {
     auto vb = engine->getVBucket(vbid);
