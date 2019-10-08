@@ -53,6 +53,47 @@ std::string to_string(QueueDirtyStatus value) {
                                 std::to_string(int(value)));
 }
 
+CheckpointCursor::CheckpointCursor(const std::string& n,
+                                   CheckpointList::iterator checkpoint,
+                                   ChkptQueueIterator pos)
+    : name(n), currentCheckpoint(checkpoint), currentPos(pos), numVisits(0) {
+    (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
+}
+
+CheckpointCursor::CheckpointCursor(const CheckpointCursor& other)
+    : name(other.name),
+      currentCheckpoint(other.currentCheckpoint),
+      currentPos(other.currentPos),
+      numVisits(other.numVisits.load()),
+      isValid(other.isValid) {
+    if (isValid) {
+        (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
+    }
+}
+
+CheckpointCursor::~CheckpointCursor() {
+    if (isValid) {
+        (*currentCheckpoint)->decNumOfCursorsInCheckpoint();
+    }
+}
+
+CheckpointCursor& CheckpointCursor::operator=(const CheckpointCursor& other) {
+    name.assign(other.name);
+    currentCheckpoint = other.currentCheckpoint;
+    currentPos = other.currentPos;
+    numVisits = other.numVisits.load();
+    isValid = other.isValid;
+    if (isValid) {
+        (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
+    }
+    return *this;
+}
+
+void CheckpointCursor::invalidate() {
+    (*currentCheckpoint)->decNumOfCursorsInCheckpoint();
+    isValid = false;
+}
+
 void CheckpointCursor::decrPos() {
     if (currentPos != (*currentCheckpoint)->begin()) {
         --currentPos;
@@ -482,6 +523,7 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << " snap:{" << c.getSnapshotStartSeqno() << ","
        << c.getSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
+       << " numCursors:" << c.getNumCursorsInCheckpoint()
        << " type:" << to_string(c.getCheckpointType())
        << " hcs:" << c.getHighCompletedSeqno() << " items:[" << std::endl;
     for (const auto& e : c.toWrite) {

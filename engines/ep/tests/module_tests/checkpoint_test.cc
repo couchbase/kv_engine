@@ -1468,6 +1468,11 @@ TYPED_TEST(CheckpointTest, takeAndResetCursors) {
     EXPECT_EQ(0, manager2->getNumItemsForPersistence());
     EXPECT_EQ(0,
               manager2->getNumItemsForCursor(dcpCursor2.cursor.lock().get()));
+
+    EXPECT_EQ(1, manager2->getNumCheckpoints());
+    EXPECT_EQ(
+            4,
+            manager2->getCheckpointList().front()->getNumCursorsInCheckpoint());
 }
 
 // Test that if we add 2 cursors with the same name the first one is removed.

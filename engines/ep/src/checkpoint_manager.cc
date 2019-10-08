@@ -293,7 +293,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                                                              itr,
                                                              (*itr)->begin());
             connCursors[name] = cursor;
-            (*itr)->incNumOfCursorsInCheckpoint();
             result.seqno = st;
             result.cursor.setCursor(cursor);
             result.tryBackfill = true;
@@ -318,7 +317,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             auto cursor =
                     std::make_shared<CheckpointCursor>(name, itr, iitr);
             connCursors[name] = cursor;
-            (*itr)->incNumOfCursorsInCheckpoint();
             result.cursor.setCursor(cursor);
             break;
         }
@@ -349,7 +347,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
 
     // if the currentCheckpoint is a the checkpointList end then we must have
     // removed this cursor before.
-    if (cursor->currentCheckpoint == checkpointList.end()) {
+    if (!cursor->valid()) {
         throw std::logic_error(
                 "CheckpointManager::removeCursor_UNLOCKED tried to remove "
                 "cursor "
@@ -364,8 +362,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
                  cursor->name,
                  vbucketId);
 
-    (*cursor->currentCheckpoint)->decNumOfCursorsInCheckpoint();
-    cursor->currentCheckpoint = checkpointList.end();
+    cursor->invalidate();
 
     if (connCursors.erase(cursor->name) == 0) {
         throw std::logic_error(
@@ -949,7 +946,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 }
 
 bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
-    if (cursor.currentCheckpoint == checkpointList.end()) {
+    if (!cursor.valid()) {
         return false;
     }
 
@@ -1044,7 +1041,7 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
 }
 
 bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
-    if (cursor.currentCheckpoint == checkpointList.end()) {
+    if (!cursor.valid()) {
         return false;
     }
 
@@ -1108,7 +1105,7 @@ size_t CheckpointManager::getNumItemsForCursor(
 
 size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         const CheckpointCursor* cursor) const {
-    if (cursor && cursor->currentCheckpoint != checkpointList.end()) {
+    if (cursor && cursor->valid()) {
         size_t items = cursor->getRemainingItemsCount();
         CheckpointList::const_iterator chkptIterator =
                 cursor->currentCheckpoint;
@@ -1136,11 +1133,10 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
-    if (cursor.currentCheckpoint == checkpointList.end()) {
+    if (!cursor.valid()) {
         throw std::logic_error(
                 "CheckpointManager::isLastMutationItemInCheckpoint() cursor "
-                "has no valid current checkpoint as currentCheckpoint == "
-                "checkpointList.end()");
+                "is not valid, it has been removed");
     }
 
     ChkptQueueIterator it = cursor.currentPos;

@@ -193,38 +193,33 @@ class CheckpointCursor {
     friend class Checkpoint;
     friend class MockCheckpointManager;
 public:
-
     CheckpointCursor(const std::string& n,
                      CheckpointList::iterator checkpoint,
-                     ChkptQueueIterator pos)
-        : name(n),
-          currentCheckpoint(checkpoint),
-          currentPos(pos),
-          numVisits(0) {
-    }
+                     ChkptQueueIterator pos);
 
     // We need to define the copy construct explicitly due to the fact
     // that std::atomic implicitly deleted the assignment operator
-    CheckpointCursor(const CheckpointCursor& other)
-        : name(other.name),
-          currentCheckpoint(other.currentCheckpoint),
-          currentPos(other.currentPos),
-          numVisits(other.numVisits.load()) {
-    }
+    CheckpointCursor(const CheckpointCursor& other);
 
-    CheckpointCursor &operator=(const CheckpointCursor &other) {
-        name.assign(other.name);
-        currentCheckpoint = other.currentCheckpoint;
-        currentPos = other.currentPos;
-        numVisits = other.numVisits.load();
-        return *this;
-    }
+    CheckpointCursor& operator=(const CheckpointCursor& other);
+
+    ~CheckpointCursor();
 
     /// @returns the id of the current checkpoint the cursor is on
     uint64_t getId() const;
 
     /// @returns the type of the Checkpoint that the cursor is in
     CheckpointType getCheckpointType() const;
+
+    /**
+     * Invalidates this cursor. After invalidating this cursor it should not be
+     * used.
+     */
+    void invalidate();
+
+    bool valid() const {
+        return isValid;
+    }
 
 private:
     /**
@@ -251,6 +246,11 @@ private:
 
     // Number of times a cursor has been moved or processed.
     std::atomic<size_t>              numVisits;
+
+    /**
+     * Is the cursor pointing to a valid checkpoint
+     */
+    bool isValid = true;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };
