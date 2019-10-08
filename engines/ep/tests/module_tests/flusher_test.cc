@@ -65,7 +65,7 @@ protected:
 // Regression test for MB-36380 - if the Flusher receives a wakeup for a vBucket
 // between calculating if it can sleep and actually calling snooze(), then the
 // wakeup is lost.
-TEST_F(FlusherTest, DISABLED_MissingWakeupBeforeSnooze) {
+TEST_F(FlusherTest, MissingWakeupBeforeSnooze) {
     // Setup: Mark a vBucket as active, and notify a pending mutation on a
     // vBucket.
     engine->getKVBucket()->setVBucketState(Vbid(0), vbucket_state_active);

@@ -34,7 +34,6 @@ Flusher::Flusher(EPBucket* st, KVShard* k)
     : store(st),
       _state(State::Initializing),
       taskId(0),
-      minSleepTime(0.1),
       forceShutdownReceived(false),
       doHighPriority(false),
       numHighPriority(0),
@@ -208,17 +207,26 @@ bool Flusher::step(GlobalTask *task) {
         return true;
 
     case State::Running:
+        // Start by putting ourselves back to sleep once step() completes.
+        // If a new VB is notified (or a VB is re-notified after it is processed
+        // in the loop below) then that will cause the task to be re-awoken.
+        task->snooze(INT_MAX);
+
         flushVB();
+
         if (_state == State::Running) {
-            double tosleep = computeMinSleepTime();
+            /// If there's still work to do for this shard, wake up the Flusher
+            /// to run again.
+            const bool shouldWakeUp =
+                    !canSnooze() || (shard->highPriorityCount.load() > 0);
 
             // Testing hook
             if (stepPreSnoozeHook) {
                 stepPreSnoozeHook();
             }
 
-            if (tosleep > 0) {
-                task->snooze(tosleep);
+            if (shouldWakeUp) {
+                task->updateWaketime(std::chrono::steady_clock::now());
             }
         }
         return true;
@@ -245,15 +253,6 @@ void Flusher::completeFlush() {
     while(!canSnooze()) {
         flushVB();
     }
-}
-
-double Flusher::computeMinSleepTime() {
-    if (!canSnooze() || shard->highPriorityCount.load() > 0) {
-        minSleepTime = DEFAULT_MIN_SLEEP_TIME;
-        return 0;
-    }
-    minSleepTime *= 2;
-    return std::min(minSleepTime, DEFAULT_MAX_SLEEP_TIME);
 }
 
 void Flusher::flushVB(void) {

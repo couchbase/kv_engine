@@ -27,9 +27,6 @@
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
 #define RETRY_FLUSH_VBUCKET (-1)
 
-const double DEFAULT_MIN_SLEEP_TIME = MIN_SLEEP_TIME;
-const double DEFAULT_MAX_SLEEP_TIME = 10.0;
-
 class EPBucket;
 class KVShard;
 
@@ -83,7 +80,6 @@ private:
     void completeFlush();
     void initialize();
     void schedule_UNLOCKED();
-    double computeMinSleepTime();
 
     const char* stateName(State st) const;
 
@@ -99,7 +95,6 @@ private:
     std::mutex                        taskMutex;
     std::atomic<size_t>      taskId;
 
-    double                   minSleepTime;
     std::atomic<bool> forceShutdownReceived;
     std::queue<Vbid> hpVbs;
     std::queue<Vbid> lpVbs;
