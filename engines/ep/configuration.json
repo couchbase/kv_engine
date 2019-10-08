@@ -1,5 +1,11 @@
 {
     "params": {
+        "allow_del_with_meta_prune_user_data" : {
+            "default" : "false",
+            "descr": "Let del_with_meta prune user data provided from the user instead of failing",
+            "dynamic" : true,
+            "type" : "bool"
+        },
         "alog_block_size": {
             "default": "4096",
             "descr": "Logging block size.",

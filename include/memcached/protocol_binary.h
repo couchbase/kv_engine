@@ -1577,6 +1577,16 @@ static_assert(sizeof(SetWithMetaPayload) == 24, "Unexpected struct size");
 
 class DelWithMetaPayload {
 public:
+    DelWithMetaPayload(uint32_t flags,
+                       uint32_t delete_time,
+                       uint64_t seqno,
+                       uint64_t cas)
+        : flags(htonl(flags)),
+          delete_time(htonl(delete_time)),
+          seqno(htonll(seqno)),
+          cas(htonll(cas)) {
+    }
+
     uint32_t getFlags() const {
         return ntohl(flags);
     }

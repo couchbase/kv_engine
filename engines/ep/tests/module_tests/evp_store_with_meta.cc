@@ -35,6 +35,10 @@
 class WithMetaTest : public SingleThreadedEPBucketTest {
 public:
     void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "allow_del_with_meta_prune_user_data=true";
         SingleThreadedEPBucketTest::SetUp();
         store->setVBucketState(vbid, vbucket_state_active);
         expiry = ep_real_time() + 31557600; // +1 year in seconds
@@ -143,6 +147,7 @@ public:
     }
 
     void oneOp(cb::mcbp::ClientOpcode op,
+               uint8_t datatype,
                ItemMetaData itemMeta,
                int options,
                cb::mcbp::Status expectedResponseStatus,
@@ -150,7 +155,7 @@ public:
                const std::string& value,
                const std::vector<char>& emd) {
         auto swm = buildWithMetaPacket(op,
-                                       0 /*datatype*/,
+                                       datatype,
                                        vbid,
                                        0 /*opaque*/,
                                        0 /*cas*/,
@@ -188,7 +193,15 @@ public:
         if (withValue) {
             value = createXattrValue("myvalue"); // xattr but stored as raw
         }
-        oneOp(op, itemMeta, options, expectedResponseStatus, key, value, emd);
+        oneOp(op,
+              withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                        : PROTOCOL_BINARY_RAW_BYTES,
+              itemMeta,
+              options,
+              expectedResponseStatus,
+              key,
+              value,
+              emd);
         checkGetItem(key, value, itemMeta, expectedGetReturnValue);
     }
 
@@ -464,13 +477,13 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
     uint64_t cas = 1;
     auto swm =
             buildWithMetaPacket(GetParam(),
-                                0 /*datatype*/,
+                                PROTOCOL_BINARY_DATATYPE_XATTR,
                                 vbid /*vbucket*/,
                                 0 /*opaque*/,
                                 0 /*cas*/,
                                 {cas, 0, 0, 0},
                                 "mykey",
-                                "myvalue",
+                                createXattrValue("myvalue", true),
                                 {},
                                 SKIP_CONFLICT_RESOLUTION_FLAG | REGENERATE_CAS);
 
@@ -614,23 +627,33 @@ void WithMetaTest::conflict_lose(cb::mcbp::ClientOpcode op,
     }
     std::string key = "mykey";
     // First add a document so we have something to conflict with
-    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
-                                   0,
-                                   vbid /*vbucket*/,
-                                   0 /*opaque*/,
-                                   0 /*cas*/,
-                                   itemMeta,
-                                   key,
-                                   value,
-                                   {},
-                                   options);
+    auto swm =
+            buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
+                                value.empty() ? PROTOCOL_BINARY_RAW_BYTES
+                                              : PROTOCOL_BINARY_DATATYPE_XATTR,
+                                vbid /*vbucket*/,
+                                0 /*opaque*/,
+                                0 /*cas*/,
+                                itemMeta,
+                                key,
+                                value,
+                                {},
+                                options);
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     for (const auto& td : testData) {
-        oneOp(op, td.meta, options, td.expectedStatus, key, value, {});
+        oneOp(op,
+              withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                        : PROTOCOL_BINARY_RAW_BYTES,
+              td.meta,
+              options,
+              td.expectedStatus,
+              key,
+              value,
+              {});
     }
 }
 
@@ -828,7 +851,8 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
         // Set our "target" (new key each iteration) and the op for test
         // uniqueness
         std::string key = "mykey" + std::to_string(counter) + to_string(op);
-        std::string value = "newvalue" + std::to_string(counter);
+        std::string value =
+                createXattrValue("newvalue" + std::to_string(counter), true);
         auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
                                        0 /*datatype*/,
                                        vbid /*vbucket*/,
@@ -847,7 +871,7 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
 
         // Next the test packet (always with a value).
         auto wm = buildWithMetaPacket(op,
-                                      0 /*datatype*/,
+                                      PROTOCOL_BINARY_DATATYPE_XATTR,
                                       vbid /*vbucket*/,
                                       0 /*opaque*/,
                                       0 /*cas*/,
@@ -1154,8 +1178,16 @@ TEST_P(AllWithMetaTest, markJSON) {
               strncmp(value.data(),
                       result.item->getData(),
                       result.item->getNBytes()));
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
-              result.item->getDataType());
+    if (GetParam() == cb::mcbp::ClientOpcode::DelWithMeta ||
+        GetParam() == cb::mcbp::ClientOpcode::DelqWithMeta) {
+        // Delete strips off the user value and user xattrs, but leaves the
+        // system XATTR behind
+        EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, result.item->getDataType());
+    } else {
+        EXPECT_EQ(
+                PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
+                result.item->getDataType());
+    }
 }
 
 // Test uses an XATTR body that has 1 system key (see createXattrValue)
@@ -1389,8 +1421,10 @@ TEST_P(DelWithMetaTest, MB_31141) {
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
 
     // Before the fix 5.0+ could of left the value as 5, the size of the
-    // extended metadata
-    int expectedSize = withValue ? 275 : 0;
+    // extended metadata. (The expected size is the size of the system
+    // xattrs segment. The rest of the value (user defined xattrs and value)
+    // was stripped off as part of delete)
+    int expectedSize = withValue ? 43 : 0;
     EXPECT_EQ(expectedSize, result.item->getNBytes());
 }
 

@@ -928,6 +928,26 @@ protected:
     std::vector<uint8_t> meta;
 };
 
+class BinprotDelWithMetaCommand : public BinprotGenericCommand {
+public:
+    BinprotDelWithMetaCommand(Document doc,
+                              Vbid vbucket,
+                              uint32_t flags,
+                              uint32_t delete_time,
+                              uint64_t seqno,
+                              uint64_t operationCas,
+                              bool quiet = false);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const Document doc;
+    const uint32_t flags;
+    const uint32_t delete_time;
+    const uint64_t seqno;
+    const uint64_t operationCas;
+};
+
 class BinprotSetControlTokenCommand : public BinprotGenericCommand {
 public:
     BinprotSetControlTokenCommand(uint64_t token_, uint64_t oldtoken);

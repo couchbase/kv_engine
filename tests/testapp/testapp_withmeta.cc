@@ -184,3 +184,67 @@ TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
     conn.mutateWithMeta(document, Vbid(0), mcbp::cas::Wildcard, 1, 0, {});
     conn.remove(name, Vbid(0));
 }
+
+TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        return;
+    }
+
+    cb::xattr::Blob blob;
+    blob.set("user", R"({"band":"Steel Panther"})");
+    auto xattrValue = blob.finalize();
+
+    document.value.clear();
+    std::copy(xattrValue.begin(),
+              xattrValue.end(),
+              std::back_inserter(document.value));
+    document.value.append(R"({"Bug":"MB-36321"})");
+    using cb::mcbp::Datatype;
+    document.info.datatype =
+            Datatype(uint8_t(Datatype::Xattr) | uint8_t(Datatype::JSON));
+    auto& conn = getConnection();
+
+    BinprotDelWithMetaCommand cmd(document, Vbid(0), 0, 0, 1, 0);
+    const auto rsp = BinprotMutationResponse(conn.execute(cmd));
+    ASSERT_FALSE(rsp.isSuccess()) << rsp.getStatus();
+    auto error = nlohmann::json::parse(rsp.getDataString());
+
+    ASSERT_EQ(
+            "It is only possible to specify system extended attributes as a "
+            "value to DeleteWithMeta",
+            error["error"]["context"]);
+}
+
+TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        return;
+    }
+
+    cb::xattr::Blob blob;
+    blob.set("_sys", R"({"author":"bubba"})");
+    auto xattrValue = blob.finalize();
+
+    document.value.clear();
+    std::copy(xattrValue.begin(),
+              xattrValue.end(),
+              std::back_inserter(document.value));
+    document.info.datatype = cb::mcbp::Datatype::Xattr;
+    auto& conn = getConnection();
+
+    BinprotDelWithMetaCommand cmd(document, Vbid(0), 0, 0, 1, 0);
+    const auto rsp = BinprotMutationResponse(conn.execute(cmd));
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    // The system xattr should be there
+    auto sresp = subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+                        name,
+                        "_sys.author",
+                        {},
+                        SUBDOC_FLAG_XATTR_PATH,
+                        mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_TRUE(sresp.isSuccess()) << sresp.getStatus();
+}

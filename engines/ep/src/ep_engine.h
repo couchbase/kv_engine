@@ -1165,4 +1165,5 @@ protected:
     EpEngineTaskable taskable;
     std::atomic<BucketCompressionMode> compressionMode;
     std::atomic<float> minCompressionRatio;
+    std::atomic_bool allowDelWithMetaPruneUserData;
 };

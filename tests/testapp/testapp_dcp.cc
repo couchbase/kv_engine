@@ -99,7 +99,7 @@ TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     streamReq.setDcpStartSeqno(1);
     conn.sendCommand(streamReq);
     conn.recvResponse(rsp);
-    ASSERT_FALSE(rsp.isSuccess());
+    ASSERT_EQ(cb::mcbp::Status::Rollback, rsp.getStatus());
 
     auto data = rsp.getData();
     ASSERT_EQ(sizeof(uint64_t), data.size());

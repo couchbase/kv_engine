@@ -70,6 +70,7 @@
 #include <fcntl.h>
 #include <memcached/limits.h>
 #include <stdarg.h>
+#include <xattr/blob.h>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -718,6 +719,8 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setCouchstoreWriteValidation(cb_stob(val));
         } else if (key == "couchstore_mprotect") {
             getConfiguration().setCouchstoreMprotect(cb_stob(val));
+        } else if (key == "allow_del_with_meta_prune_user_data") {
+            getConfiguration().setAllowDelWithMetaPruneUserData(cb_stob(val));
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
@@ -1983,11 +1986,12 @@ void EventuallyPersistentEngine::notifyIOComplete(T cookies,
  */
 class EpEngineValueChangeListener : public ValueChangedListener {
 public:
-    EpEngineValueChangeListener(EventuallyPersistentEngine &e) : engine(e) {
+    explicit EpEngineValueChangeListener(EventuallyPersistentEngine& e)
+        : engine(e) {
         // EMPTY
     }
 
-    virtual void sizeValueChanged(const std::string &key, size_t value) {
+    void sizeValueChanged(const std::string& key, size_t value) override {
         if (key.compare("getl_max_timeout") == 0) {
             engine.setGetlMaxTimeout(value);
         } else if (key.compare("getl_default_timeout") == 0) {
@@ -1999,16 +2003,23 @@ public:
         }
     }
 
-    virtual void stringValueChanged(const std::string& key, const char* value) {
+    void stringValueChanged(const std::string& key,
+                            const char* value) override {
         if (key == "compression_mode") {
             std::string value_str{value, strlen(value)};
             engine.setCompressionMode(value_str);
         }
     }
 
-    virtual void floatValueChanged(const std::string& key, float value) {
+    void floatValueChanged(const std::string& key, float value) override {
         if (key == "min_compression_ratio") {
             engine.setMinCompressionRatio(value);
+        }
+    }
+
+    void booleanValueChanged(const std::string& key, bool b) override {
+        if (key == "allow_del_with_meta_prune_user_data") {
+            engine.allowDelWithMetaPruneUserData.store(b);
         }
     }
 
@@ -2088,6 +2099,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     getlMaxTimeout = configuration.getGetlMaxTimeout();
     configuration.addValueChangedListener(
             "getl_max_timeout",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    allowDelWithMetaPruneUserData.store(
+            configuration.isAllowDelWithMetaPruneUserData());
+    configuration.addValueChangedListener(
+            "allow_del_with_meta_prune_user_data",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
@@ -5419,6 +5436,69 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t cas = request.getCas();
     ENGINE_ERROR_CODE ret;
     try {
+        // MB-36321 User XATTRs and body should be nuked
+        const auto datatype = uint8_t(request.getDatatype());
+        cb::compression::Buffer uncompressedValue;
+        if (mcbp::datatype::is_snappy(datatype)) {
+            if (!cb::compression::inflate(
+                        cb::compression::Algorithm::Snappy,
+                        {reinterpret_cast<const char*>(value.data()),
+                         value.size()},
+                        uncompressedValue)) {
+                setErrorContext(cookie, "Failed to inflate data");
+                return ENGINE_EINVAL;
+            }
+            value = uncompressedValue;
+        }
+
+        std::vector<char> backing;
+        bool invalid = false;
+        if (allowDelWithMetaPruneUserData) {
+            if (mcbp::datatype::is_xattr(datatype)) {
+                // prune user xattrs and user value
+                auto sizes = cb::xattr::get_size_and_system_xattr_size(
+                        datatype,
+                        {reinterpret_cast<const char*>(value.data()),
+                         value.size()});
+                if (sizes.first != sizes.second) {
+                    // We need to rebuild the system xattrs
+                    std::copy_n(value.begin(),
+                                sizes.first,
+                                std::back_inserter(backing));
+                    cb::xattr::Blob blob({backing.data(), backing.size()},
+                                         false);
+                    blob.prune_user_keys();
+                    auto system = blob.finalize();
+                    value = {reinterpret_cast<uint8_t*>(system.data()),
+                             system.size()};
+                } else {
+                    // Strip of a potential value
+                    value = {value.data(), sizes.first};
+                }
+            } else {
+                // prune value
+                value = {};
+            }
+        } else if (mcbp::datatype::is_xattr(datatype)) {
+            // verify that value is only system xattr
+            auto sizes = cb::xattr::get_size_and_system_xattr_size(
+                    PROTOCOL_BINARY_DATATYPE_XATTR,
+                    {reinterpret_cast<const char*>(value.data()),
+                     value.size()});
+            if (sizes.second != value.size()) {
+                invalid = true;
+            }
+        } else if (!value.empty()) {
+            invalid = true;
+        }
+
+        if (invalid) {
+            setErrorContext(cookie,
+                            "It is only possible to specify system extended "
+                            "attributes as a value to DeleteWithMeta");
+            return ENGINE_EINVAL;
+        }
+
         if (value.empty()) {
             ret = deleteWithMeta(request.getVBucket(),
                                  key,
@@ -5439,7 +5519,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                               value,
                               {metacas, seqno, flags, time_t(delete_time)},
                               true /*isDeleted*/,
-                              uint8_t(request.getDatatype()),
+                              PROTOCOL_BINARY_DATATYPE_XATTR,
                               cas,
                               &bySeqno,
                               cookie,

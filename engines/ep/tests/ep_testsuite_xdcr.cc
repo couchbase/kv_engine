@@ -1647,6 +1647,9 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     // the command should work with a complete xattr/body blob
     std::string body = R"({"key1":"value","key2":"value"})";
     std::vector<char> data = createXattrValue(body);
+    cb::xattr::Blob xattr({data.data(), data.size()}, false);
+    xattr.prune_user_keys();
+    data.resize(xattr.finalize().size());
 
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, key1, body.data()),
@@ -1720,17 +1723,17 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
 
     check(h->get_item_info(ret.second.get(), &info),
           "Failed get_item_info of key1");
+
     checkeq(data.size(), info.value[0].iov_len, "Value length mismatch");
     checkeq(0, memcmp(info.value[0].iov_base, data.data(), data.size()),
            "New body mismatch");
     checkeq(int(DocumentState::Deleted), int(info.document_state),
           "document_state is not DocumentState::Deleted");
 
-    // The new value is XATTR with a JSON body (the del_w_meta should of
-    // noticed)
-    checkeq(int(PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON),
+    // The new value is XATTR
+    checkeq(int(PROTOCOL_BINARY_DATATYPE_XATTR),
             int(info.datatype),
-            "datatype isn't JSON and XATTR");
+            "datatype isn't XATTR");
 
     // @todo implement test for the deletion of a value that has xattr using
     // a delete that has none (i.e. non-xattr/!spock client)

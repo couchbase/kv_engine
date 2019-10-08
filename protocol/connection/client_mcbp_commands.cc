@@ -338,7 +338,7 @@ protocol_binary_subdoc_flag BinprotSubdocCommand::getFlags() const {
 }
 
 bool BinprotResponse::isSuccess() const {
-    return getStatus() == cb::mcbp::Status::Success;
+    return cb::mcbp::isStatusSuccess(getStatus());
 }
 
 void BinprotResponse::assign(std::vector<uint8_t>&& srcbuf) {
@@ -1687,4 +1687,35 @@ BinprotDcpAddStreamCommand::BinprotDcpAddStreamCommand(uint32_t flags)
 void BinprotDcpAddStreamCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(flags));
     append(buf, flags);
+}
+
+BinprotDelWithMetaCommand::BinprotDelWithMetaCommand(Document doc,
+                                                     Vbid vbucket,
+                                                     uint32_t flags,
+                                                     uint32_t delete_time,
+                                                     uint64_t seqno,
+                                                     uint64_t operationCas,
+                                                     bool quiet)
+    : BinprotGenericCommand(quiet ? cb::mcbp::ClientOpcode::DelqWithMeta
+                                  : cb::mcbp::ClientOpcode::DelWithMeta,
+                            doc.info.id),
+      doc(std::move(doc)),
+      flags(flags),
+      delete_time(delete_time),
+      seqno(seqno),
+      operationCas(operationCas) {
+    setVBucket(vbucket);
+    setCas(operationCas);
+}
+
+void BinprotDelWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
+    cb::mcbp::request::DelWithMetaPayload extras(
+            flags, delete_time, seqno, doc.info.cas);
+    writeHeader(buf, doc.value.size(), sizeof(extras));
+    auto& request = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
+    request.setDatatype(doc.info.datatype);
+    auto extraBuf = extras.getBuffer();
+    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), doc.value.begin(), doc.value.end());
 }
