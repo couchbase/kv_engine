@@ -256,13 +256,6 @@ void Flusher::completeFlush() {
 }
 
 void Flusher::flushVB(void) {
-    if (store->isDeleteAllScheduled() && shard->getId() != EP_PRIMARY_SHARD) {
-        // another shard is doing disk flush
-        bool inverse = false;
-        pendingMutation.compare_exchange_strong(inverse, true);
-        return;
-    }
-
     // If the low-priority vBucket queue is empty, see if there's any
     // pending mutations - and if so re-populate the low pri queue.
     if (lpVbs.empty()) {

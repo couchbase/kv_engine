@@ -1268,7 +1268,6 @@ public:
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
      * @param options flags indicating some retrieval related info
-     * @param diskFlushAll
      * @param getKeyOnly if GetKeyOnly::Yes we want only the key
      * @param cHandle Collections readhandle (caching mode) for this key
      * @param getReplicaItem bi-state enum to state of this get internal
@@ -1280,7 +1279,6 @@ public:
             const void* cookie,
             EventuallyPersistentEngine& engine,
             get_options_t options,
-            bool diskFlushAll,
             GetKeyOnly getKeyOnly,
             const Collections::VB::Manifest::CachingReadHandle& cHandle,
             ForGetReplicaOp getReplicaItem = ForGetReplicaOp::No);

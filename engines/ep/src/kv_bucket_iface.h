@@ -600,10 +600,6 @@ public:
 
     virtual size_t getTransactionTimePerItem() = 0;
 
-    virtual bool isDeleteAllScheduled() = 0;
-
-    virtual void setDeleteAllComplete() = 0;
-
     virtual void setBackfillMemoryThreshold(double threshold) = 0;
 
     virtual void setExpiryPagerSleeptime(size_t val) = 0;

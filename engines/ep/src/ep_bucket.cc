@@ -304,16 +304,6 @@ void EPBucket::deinitialize() {
     KVBucket::deinitialize();
 }
 
-void EPBucket::reset() {
-    KVBucket::reset();
-
-    // Need to additionally update disk state
-    bool inverse = true;
-    deleteAllTaskCtx.delay.compare_exchange_strong(inverse, false);
-    // Waking up (notifying) one flusher is good enough for diskDeleteAll
-    vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
-}
-
 /**
  * @returns true if the item `candidate` can be de-duplicated (skipped) because
  * `lastFlushed` already supercedes it.
@@ -340,16 +330,6 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
 }
 
 std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
-    KVShard *shard = vbMap.getShardByVbId(vbid);
-    if (diskDeleteAll && !deleteAllTaskCtx.delay) {
-        if (shard->getId() == EP_PRIMARY_SHARD) {
-            flushOneDeleteAll();
-        } else {
-            // disk flush is pending just return
-            return {false, 0};
-        }
-    }
-
     int items_flushed = 0;
     bool moreAvailable = false;
     const auto flush_start = std::chrono::steady_clock::now();
@@ -884,23 +864,6 @@ ENGINE_ERROR_CODE EPBucket::cancelCompaction(Vbid vbid) {
     return ENGINE_SUCCESS;
 }
 
-void EPBucket::flushOneDeleteAll() {
-    for (auto vbid : vbMap.getBuckets()) {
-        auto vb = getLockedVBucket(vbid);
-        if (!vb) {
-            continue;
-        }
-        // Reset the vBucket if it's non-null and not already in the middle of
-        // being created / destroyed.
-        if (!(vb->isBucketCreation() || vb->isDeletionDeferred())) {
-            getRWUnderlying(vb->getId())->reset(vbid);
-        }
-        // Reset disk item count.
-        vb->setNumTotalItems(0);
-    }
-
-    setDeleteAllComplete();
-}
 
 void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
     if (!vb) {
