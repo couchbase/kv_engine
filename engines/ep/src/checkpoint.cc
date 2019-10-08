@@ -375,7 +375,7 @@ CheckpointQueue Checkpoint::expelItems(
                          iterator.getUnderlyingIterator());
 
     if (getState() == CHECKPOINT_OPEN) {
-        // Whilst cp is open invalidate item
+        // Whilst cp is open invalidate item and reduce queuedItemsMemUsage
         for (const auto& expelled : expelledItems) {
             if (!expelled->isCheckPointMetaItem()) {
                 auto itr = keyIndex.find(
@@ -386,18 +386,19 @@ CheckpointQueue Checkpoint::expelItems(
                 Expects(itr != keyIndex.end());
                 itr->second.invalidate(end());
             }
+            queuedItemsMemUsage -= expelled->size();
         }
+    } else {
+        /*
+         * Reduce the queuedItems memory usage by the size of the items
+         * being expelled from memory.
+         */
+        const auto addSize = [](size_t a, queued_item qi) {
+            return a + qi->size();
+        };
+        queuedItemsMemUsage -= std::accumulate(
+                expelledItems.begin(), expelledItems.end(), 0, addSize);
     }
-
-    /*
-     * Reduce the queuedItems memory usage by the size of the items
-     * being expelled from memory.
-     */
-    const auto addSize = [](size_t a, queued_item qi) {
-        return a + qi->size();
-    };
-    queuedItemsMemUsage -= std::accumulate(
-            expelledItems.begin(), expelledItems.end(), 0, addSize);
 
     // Return the items that have been expelled in a separate queue.
     return expelledItems;
