@@ -24,8 +24,3 @@ class Checkpoint;
 // List of Checkpoints used by class CheckpointManager to store Checkpoints for
 // a given vBucket.
 using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
-
-struct ExpelResult {
-    size_t expelCount = {0};
-    size_t estimateOfFreeMemory = {0};
-};

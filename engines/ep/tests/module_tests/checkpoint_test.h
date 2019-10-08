@@ -50,7 +50,6 @@ template <typename V>
 class CheckpointTest : public ::testing::Test {
 protected:
     CheckpointTest();
-    ~CheckpointTest();
 
     void createManager(int64_t last_seqno = 1000);
 
@@ -68,10 +67,6 @@ protected:
     std::shared_ptr<Callback<Vbid>> callback;
     std::unique_ptr<V> vbucket;
     std::unique_ptr<MockCheckpointManager> manager;
-
-    /// The memOverhead value we expect to see after a test completes and after
-    /// the destruction of the manager
-    size_t expectedOverhead = 0;
 };
 
 // Set of vBucket classes to test.

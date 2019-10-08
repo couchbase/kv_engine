@@ -634,11 +634,11 @@ public:
 
     /**
      * Expel those items in the checkpoint where all cursors have passed.
-     * @param expelUpToAndIncluding a cursor pointing where we will expel
-     *        upto and including.
-     * @return ExpelResult, number of items expelled + memory freed
+     * @param expelUpToAndIncluding  a cursor pointing where we will expel
+     *                               upto and including.
+     * @return  a CheckpointQueue of items that have been expelled.
      */
-    ExpelResult expelItems(CheckpointCursor& expelUpToAndIncluding);
+    CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
@@ -672,34 +672,6 @@ public:
     void addStats(const AddStatFn& add_stat, const void* cookie);
 
 private:
-    /**
-     * Class using RAII pattern for updating stats.memOverhead.
-     * Tracks the Checkpoint's keyIndex and toWrite allocated bytes and on
-     * destruction updates stats.memOverhead with the difference
-     */
-    class TrackOverhead {
-    public:
-        TrackOverhead(Checkpoint& cp)
-            : cp(cp),
-              keyIndexAllocated(cp.getKeyIndexAllocatorBytes()),
-              toWriteAllocated(cp.getWriteQueueAllocatorBytes()) {
-        }
-
-        /// Destruction updates EPStats memOverhead with any difference
-        ~TrackOverhead();
-
-        /// @return the difference since construction of the toWrite allocator
-        ssize_t getToWriteDifference() const;
-
-        /// @return the difference since construction of the keyIndex allocator
-        ssize_t getKeyIndexDifference() const;
-
-    private:
-        Checkpoint& cp;
-        ssize_t keyIndexAllocated = 0;
-        ssize_t toWriteAllocated = 0;
-    };
-
     /**
      * When checking if the existing item has already been processed by the
      * persistence cursor we use the mutation_id field in the index_entry (the
@@ -737,6 +709,9 @@ private:
     /* Index for meta keys like "dummy_key" */
     meta_checkpoint_index metaKeyIndex;
 
+    // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
+    // This includes each item's key size and sizeof(index_entry).
+    cb::NonNegativeCounter<size_t> keyIndexMemUsage;
     // Records the memory consumption of all items in the checkpoint.
     // This includes each item's key, metadata and the blob.
     cb::NonNegativeCounter<size_t> queuedItemsMemUsage;
