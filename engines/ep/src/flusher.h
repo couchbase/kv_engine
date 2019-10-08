@@ -21,10 +21,8 @@
 
 #include <memcached/vbucket.h>
 
-#include <list>
-#include <map>
+#include <functional>
 #include <queue>
-#include <string>
 
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
 #define RETRY_FLUSH_VBUCKET (-1)
@@ -64,6 +62,10 @@ public:
         }
     }
     void setTaskId(size_t newId) { taskId = newId; }
+
+    // Testing hook - if non-empty, called from step() just before snoozing
+    // the task.
+    std::function<void()> stepPreSnoozeHook;
 
 private:
     enum class State {

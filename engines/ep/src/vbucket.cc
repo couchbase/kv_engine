@@ -30,7 +30,6 @@
 #include "ep_time.h"
 #include "ep_types.h"
 #include "failover-table.h"
-#include "flusher.h"
 #include "hash_table.h"
 #include "hash_table_stat_visitor.h"
 #include "kvstore.h"

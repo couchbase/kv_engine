@@ -211,6 +211,12 @@ bool Flusher::step(GlobalTask *task) {
         flushVB();
         if (_state == State::Running) {
             double tosleep = computeMinSleepTime();
+
+            // Testing hook
+            if (stepPreSnoozeHook) {
+                stepPreSnoozeHook();
+            }
+
             if (tosleep > 0) {
                 task->snooze(tosleep);
             }

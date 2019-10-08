@@ -53,4 +53,7 @@ public:
 
     void setDurabilityCompletionTask(
             std::shared_ptr<DurabilityCompletionTask> task);
+
+    /// @returns a non-const pointer to Flusher object.
+    Flusher* getFlusherNonConst(Vbid vbid);
 };

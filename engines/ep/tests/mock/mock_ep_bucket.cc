@@ -83,3 +83,7 @@ void MockEPBucket::setDurabilityCompletionTask(
         std::shared_ptr<DurabilityCompletionTask> task) {
     durabilityCompletionTask = task;
 }
+
+Flusher* MockEPBucket::getFlusherNonConst(Vbid vbid) {
+    return vbMap.getShardByVbId(vbid)->getFlusher();
+}

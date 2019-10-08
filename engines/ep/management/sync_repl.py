@@ -51,8 +51,11 @@ elif op == "bulk_setD":
         client.setDurable(key + "_" + str(i), 0, 0, value)
 elif op == "loop_setD":
     count = int(sys.argv[8])
+    if len(sys.argv) > 9:
+        level = int(sys.argv[9])
+
     for i in range(count):
-        print (client.setDurable(key, 0, 0, value + "_" + str(i)))
+        client.setDurable(key, 0, 0, value + "_" + str(i), level=level)
 elif op == "add":
     print (client.add(key, 0, 0, value))
 elif op == "addD":
