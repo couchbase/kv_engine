@@ -1997,31 +1997,6 @@ TYPED_TEST(CheckpointTest, expelCursorPointingToChkptStart) {
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
-// Test for MB-36251, an exception was seen because the setvbstate is erased
-// from the metaIndex twice, we were asserting that erase returns 1 each time
-// which is not correct.
-TYPED_TEST(CheckpointTest, expelCursorMultipleSetStates) {
-    EXPECT_TRUE(this->queueNewItem("key1"));
-    EXPECT_TRUE(this->queueNewItem("key2"));
-    this->manager->queueSetVBState(*this->vbucket);
-    EXPECT_TRUE(this->queueNewItem("key3"));
-    this->manager->queueSetVBState(*this->vbucket);
-    EXPECT_TRUE(this->queueNewItem("key4"));
-    EXPECT_TRUE(this->queueNewItem("key5"));
-    EXPECT_TRUE(this->queueNewItem("key6"));
-
-    bool isLastMutationItem{true};
-    for (auto ii = 0; ii < 9; ++ii) {
-        auto item = this->manager->nextItem(
-                this->manager->getPersistenceCursor(), isLastMutationItem);
-    }
-
-    // Expelling would throw prior to fix for MB-36251
-    ExpelResult expelResult = this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(8, expelResult.expelCount);
-    EXPECT_EQ(8, this->global_stats.itemsExpelledFromCheckpoints);
-}
-
 // Test that if we want to evict items from seqno X, but have a meta-data item
 // also with seqno X, and a cursor is pointing to this meta data item, we do not
 // evict.
@@ -2179,7 +2154,7 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     ASSERT_EQ(1000 + itemCount, this->manager->getHighSeqno());
 
     bool isLastMutationItem{true};
-    for (auto ii = 0; ii < itemCount; ++ii) {
+    for (auto ii = 0; ii < 3; ++ii) {
         auto item = this->manager->nextItem(
                 this->manager->getPersistenceCursor(), isLastMutationItem);
         ASSERT_FALSE(isLastMutationItem);
@@ -2216,11 +2191,17 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     // Get the memory usage after expelling
     auto checkpointMemoryUsageAfterExpel = this->manager->getMemoryUsage();
 
+    size_t extra = 0;
     // A list is comprised of 3 pointers (forward, backwards and
     // pointer to the element).
-    const size_t perElementOverhead = (3 * sizeof(uintptr_t));
+    const size_t perElementOverhead = extra + (3 * sizeof(uintptr_t));
+#if WIN32
+    // On windows for an empty list we still allocate space for
+    // containing one element.
+    extra = perElementOverhead;
+#endif
 
-    const size_t actualReductionInCheckpointMemoryUsage =
+    const size_t reductionInCheckpointMemoryUsage =
             checkpointMemoryUsageBeforeExpel - checkpointMemoryUsageAfterExpel;
     const size_t checkpointListSaving =
             (perElementOverhead * expelResult.expelCount);
@@ -2232,24 +2213,12 @@ TYPED_TEST(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     // checkpoint start item
     const size_t queuedItemSaving =
             (sizeOfItem * 2) + checkpointStartItem->size();
-    const size_t expectedReductionInCheckpointMemoryUsage =
+    const size_t expectedMemoryRecovered =
             checkpointListSaving + queuedItemSaving;
 
     EXPECT_EQ(3, expelResult.expelCount);
-    EXPECT_EQ(expelResult.estimateOfFreeMemory,
-              expectedReductionInCheckpointMemoryUsage);
-
-    // We can remove nothing from the indexes of open checkpoints when we expel
-    // as they are required for de-dupe. We just invalidate them instead.
-    const size_t keyIndexReduction = 0;
-    const size_t metaIndexReduction = 0;
-
-    // The reduction includes bytes deallocated by the internal hash-tables
-    // (i.e. keyIndex.erase) which easy to calculate, hence we expect the actual
-    // reduction to be greater or equal to the expected
-    EXPECT_GE(actualReductionInCheckpointMemoryUsage,
-              expectedReductionInCheckpointMemoryUsage + keyIndexReduction +
-                      metaIndexReduction);
+    EXPECT_EQ(expectedMemoryRecovered, expelResult.estimateOfFreeMemory);
+    EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
     EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
 }
 

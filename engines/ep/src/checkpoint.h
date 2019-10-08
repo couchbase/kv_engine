@@ -490,7 +490,9 @@ public:
      * Set the current state of this checkpoint.
      * @param state the checkpoint's new state
      */
-    void setState(checkpoint_state state);
+    void setState(checkpoint_state state) {
+        *checkpointState.wlock() = state;
+    }
 
     void incNumOfCursorsInCheckpoint() {
         ++numOfCursorsInCheckpoint;

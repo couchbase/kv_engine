@@ -279,7 +279,9 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // The initial setVBucketState is a meta item and will be dropped when we
     // drop the first checkpoint. It is slightly smaller than an item enqueued
     // in the keyIndex as it does not include the CheckpointIndexKeyNamespace
-    expectedFreedMemoryFromItems -= sizeof(CheckpointIndexKeyNamespace);
+    // the CheckpointIndexKeyNamespace ends up generating 3 bytes of padding,
+    // which is also removed here
+    expectedFreedMemoryFromItems -= (sizeof(CheckpointIndexKeyNamespace) + 3);
     for (size_t i = 0; i < getMaxCheckpointItems(*vb); i++) {
         std::string doc_key = "key_" + std::to_string(i);
         Item item = store_item(vbid, makeStoredDocKey(doc_key), "value");
@@ -320,7 +322,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // checkpoint_end is a meta item and has slightly smaller size than an item
     // enqueued in the keyIndex as it does not include the
     // CheckpointIndexKeyNamespace
-    expectedFreedMemoryFromItems -= sizeof(CheckpointIndexKeyNamespace);
+    expectedFreedMemoryFromItems -= (sizeof(CheckpointIndexKeyNamespace) + 3);
 
     // Add the size of the checkpoint end
     expectedFreedMemoryFromItems += chkptEnd->size();
@@ -342,7 +344,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     auto memoryOverhead = checkpointManager->getMemoryOverhead();
     if (engine->getDcpConnMap().handleSlowStream(vbid,
                                                  cursors[0].lock().get())) {
-        ASSERT_GE(expectedFreedMemoryFromItems,
+        ASSERT_EQ(expectedFreedMemoryFromItems,
                   checkpointManager->getMemoryUsageOfUnrefCheckpoints());
         // Check that the memory of unreferenced checkpoints is greater than or
         // equal to the pre-cursor-dropped memory overhead.

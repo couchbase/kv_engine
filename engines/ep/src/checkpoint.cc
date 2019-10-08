@@ -359,13 +359,9 @@ ExpelResult Checkpoint::expelItems(CheckpointCursor& expelUpToAndIncluding) {
                              iterator.getUnderlyingIterator());
 
         if (getState() == CHECKPOINT_OPEN) {
-            // Whilst cp is open, erase the expelled items from the indexes
+            // Whilst cp is open invalidate item
             for (const auto& expelled : expelledItems) {
-                if (expelled->isCheckPointMetaItem()) {
-                    metaKeyIndex.erase(expelled->getKey());
-                    // setvbstate may exist more than once, so don't check erase
-                    // return value in the same way as keyIndex.erase
-                } else {
+                if (!expelled->isCheckPointMetaItem()) {
                     auto itr = keyIndex.find(
                             {expelled->getKey(),
                              expelled->isCommitted()
@@ -375,9 +371,6 @@ ExpelResult Checkpoint::expelItems(CheckpointCursor& expelUpToAndIncluding) {
                     itr->second.invalidate(end());
                 }
             }
-            // Ask the hash-table's to rehash to fit the new number of elements
-            metaKeyIndex.reserve(metaKeyIndex.size());
-            keyIndex.reserve(keyIndex.size());
         }
 
         /*
@@ -444,19 +437,6 @@ ssize_t Checkpoint::TrackOverhead::getToWriteDifference() const {
 
 ssize_t Checkpoint::TrackOverhead::getKeyIndexDifference() const {
     return (cp.getKeyIndexAllocatorBytes() - keyIndexAllocated);
-}
-
-void Checkpoint::setState(checkpoint_state state) {
-    *checkpointState.wlock() = state;
-
-    if (state == CHECKPOINT_CLOSED) {
-        // Now closed, the indexes have no use and can be completely erased
-        TrackOverhead trackOverhead(*this);
-        keyIndex.clear();
-        keyIndex.reserve(0);
-        metaKeyIndex.clear();
-        metaKeyIndex.reserve(0);
-    }
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {
