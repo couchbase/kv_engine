@@ -35,6 +35,8 @@ class CheckpointManager;
  */
 class CheckpointRemoverTest : public SingleThreadedKVBucketTest {
 public:
+    void SetUp() override;
+
     /**
      * Get the maximum number of items allowed in a checkpoint for the given
      * vBucket
