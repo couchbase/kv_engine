@@ -476,20 +476,27 @@ TEST_P(DcpMutationValidatorTest, InvalidKey2) {
 class DcpDeletionValidatorTest : public ::testing::WithParamInterface<bool>,
                                  public ValidatorTest {
 public:
-public:
     DcpDeletionValidatorTest()
         : ValidatorTest(GetParam()),
-          request(GetParam() ? makeV2() : makeV1()),
-          header(request->getHeader()) {
-        header.request.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
-        if (GetParam()) {
-            header.request.setKeylen(5); // min-collection key
-            header.request.setBodylen(header.request.getExtlen() + 5);
-        }
+          builder({blob, sizeof(blob)}),
+          header(*reinterpret_cast<cb::mcbp::Request*>(blob)) {
     }
 
     void SetUp() override {
         ValidatorTest::SetUp();
+
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        builder.setDatatype(cb::mcbp::Datatype::Raw);
+        builder.setKey("document-key");
+
+        if (isCollectionsEnabled()) {
+            cb::mcbp::request::DcpDeletionV2Payload extras(0, 0, 0);
+            builder.setExtras(extras.getBuffer());
+        } else {
+            cb::mcbp::request::DcpDeletionV1Payload extras(0, 0);
+            builder.setExtras(extras.getBuffer());
+        }
     }
 
     bool isCollectionsEnabled() const {
@@ -498,86 +505,12 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        std::copy(request->getBytes(),
-                  request->getBytes() + request->getSizeofBytes(),
-                  blob);
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpDeletion,
                                        static_cast<void*>(blob));
     }
 
-    class Request {
-    public:
-        virtual ~Request() = default;
-        protocol_binary_request_header& getHeader() {
-            return *reinterpret_cast<protocol_binary_request_header*>(
-                    getBytes());
-        }
-
-        virtual uint8_t* getBytes() = 0;
-
-        virtual size_t getSizeofBytes() = 0;
-    };
-
-    class RequestV1 : public Request {
-    public:
-        RequestV1()
-            : request(0 /*opaque*/,
-                      Vbid(0),
-                      0 /*cas*/,
-                      2 /*keylen*/,
-                      0 /*valueLen*/,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      0 /*bySeqno*/,
-                      0 /*revSeqno*/) {
-        }
-
-        uint8_t* getBytes() override {
-            return reinterpret_cast<uint8_t*>(&request);
-        }
-
-        size_t getSizeofBytes() override {
-            return sizeof(request);
-        }
-
-    private:
-        cb::mcbp::request::DcpDeleteRequestV1 request;
-    };
-
-    class RequestV2 : public Request {
-    public:
-        RequestV2()
-            : request(0 /*opaque*/,
-                      Vbid(0),
-                      0 /*cas*/,
-                      2 /*keylen*/,
-                      0 /*valueLen*/,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      0 /*bySeqno*/,
-                      0 /*revSeqno*/,
-                      0 /*deleteTime*/) {
-        }
-        uint8_t* getBytes() override {
-            return reinterpret_cast<uint8_t*>(&request);
-        }
-
-        size_t getSizeofBytes() override {
-            return sizeof(request);
-        }
-
-    private:
-        cb::mcbp::request::DcpDeleteRequestV2 request;
-    };
-
-    std::unique_ptr<Request> makeV1() {
-        return std::make_unique<RequestV1>();
-    }
-
-    std::unique_ptr<Request> makeV2() {
-        return std::make_unique<RequestV2>();
-    }
-
-    std::unique_ptr<Request> request;
-    protocol_binary_request_header& header;
+    cb::mcbp::RequestBuilder builder;
+    cb::mcbp::Request& header;
 };
 
 TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
@@ -585,7 +518,7 @@ TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
-    request->getBytes()[0] = 0;
+    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -596,11 +529,11 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
              uint8_t(Datatype::Raw) | uint8_t(Datatype::Snappy),
              uint8_t(Datatype::Xattr),
              uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy)}};
-
     for (auto valid : datatypes) {
-        header.request.setDatatype(Datatype(valid));
+        header.setDatatype(Datatype(valid));
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate())
-                << "Testing valid datatype:" << int(valid);
+                << "Testing valid datatype: "
+                << mcbp::datatype::to_string(protocol_binary_datatype_t(valid));
     }
 }
 
@@ -611,35 +544,36 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
              uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON)}};
 
     for (auto invalid : datatypes) {
-        header.request.setDatatype(Datatype(invalid));
+        header.setDatatype(Datatype(invalid));
         EXPECT_EQ(cb::mcbp::Status::Einval, validate())
-                << "Testing invalid datatype:" << int(invalid);
+                << "Testing invalid datatype: "
+                << mcbp::datatype::to_string(
+                           protocol_binary_datatype_t(invalid));
     }
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidExtlen) {
-    header.request.setExtlen(5);
-    header.request.setBodylen(7);
+    header.setExtlen(5);
+    header.setBodylen(7);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidExtlenCollections) {
     // Flip extlen, so when not collections, set the length collections uses
-    header.request.setExtlen(
-            isCollectionsEnabled()
-                    ? sizeof(cb::mcbp::request::DcpDeletionV1Payload)
-                    : sizeof(cb::mcbp::request::DcpDeletionV2Payload));
+    header.setExtlen(isCollectionsEnabled()
+                             ? sizeof(cb::mcbp::request::DcpDeletionV1Payload)
+                             : sizeof(cb::mcbp::request::DcpDeletionV2Payload));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, InvalidKeylen) {
-    header.request.setKeylen(GetParam() ? 1 : 0);
-    header.request.setBodylen(18);
+    header.setKeylen(GetParam() ? 1 : 0);
+    header.setBodylen(18);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, WithValue) {
-    header.request.setBodylen(100);
+    header.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
