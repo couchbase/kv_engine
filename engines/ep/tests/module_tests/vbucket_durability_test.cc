@@ -1394,7 +1394,9 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
 
 void VBucketDurabilityTest::doSyncWriteAndCommit() {
     auto key = makeStoredDocKey("key");
-    auto prepared = makePendingItem(key, "valueB"s);
+    auto prepared = makePendingItem(key, "\"valueB\""s);
+    prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
+
     VBQueueItemCtx ctx;
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
@@ -1406,6 +1408,33 @@ void VBucketDurabilityTest::doSyncWriteAndCommit() {
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(
                       key, preparedSeqno, {}, vbucket->lockCollections(key)));
+}
+
+// MB-36393: Test that a SyncDelete after a SyncWrite correctly sets the value
+// of the prepare (and committed) SyncDelete to empty.
+// (Original MB only affects Ephemeral, but we should expect no value for a
+// SyncDelete irrespective so instantiate for both bucket types.)
+TEST_P(VBucketDurabilityTest, SyncWriteSyncDeleteEmptyValue) {
+    // Setup - prepare & commit a SyncWrite so there's a previous Prepared
+    // value, prepare a SyncDelete.
+    // then
+    doSyncWriteAndCommit();
+
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{
+            cb::durability::Requirements{cb::durability::Level::Majority, {}},
+            cookie};
+    auto key = makeStoredDocKey("key");
+    ASSERT_EQ(MutationStatus::WasDirty,
+              public_processSoftDelete(key, ctx).first);
+
+    // Test: Check the prepared item has a zero length, raw value.
+    auto result = ht->findForWrite(key).storedValue;
+    ASSERT_TRUE(result);
+
+    EXPECT_TRUE(result->isDeleted());
+    EXPECT_EQ(0, result->valuelen());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, result->getDatatype());
 }
 
 TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncWrite) {
