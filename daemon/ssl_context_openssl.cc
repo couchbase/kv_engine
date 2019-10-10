@@ -33,103 +33,20 @@ SslContext::~SslContext() {
     }
 }
 
-int SslContext::accept(SOCKET sfd) {
-    do {
-        auto ret = SSL_accept(client);
-        if (ret > 0) {
-            return ret;
-        }
-
-        if (ret == 0) {
-            return 0;
-        }
-
-        const int e = getError(ret);
-        if (e == SSL_ERROR_WANT_WRITE || e == SSL_ERROR_WANT_READ) {
-            switch (drainBios(sfd)) {
-            case DrainProgress::Error:
-                return -1;
-            case DrainProgress::Progress:
-                // We made some progress... retry
-                break;
-            case DrainProgress::NoProgress:
-                return ret;
-            }
-        } else {
-            // We don't handle this error
-            return ret;
-        }
-    } while (true);
+int SslContext::accept() {
+    return SSL_accept(client);
 }
 
 int SslContext::getError(int errormask) const {
     return SSL_get_error(client, errormask);
 }
 
-int SslContext::read(SOCKET sfd, void* buf, int num) {
-    drainBioRecvPipe(sfd);
-    if (hasError()) {
-        return -1;
-    }
-    do {
-        auto ret = SSL_read(client, buf, num);
-        if (ret > 0) {
-            return ret;
-        }
-
-        const int e = getError(ret);
-        if (e == SSL_ERROR_ZERO_RETURN) {
-            /* The TLS/SSL connection has been closed (cleanly). */
-            return 0;
-        } else if (e == SSL_ERROR_WANT_WRITE || e == SSL_ERROR_WANT_READ) {
-            switch (drainBios(sfd)) {
-            case DrainProgress::Error:
-                return -1;
-            case DrainProgress::Progress:
-                // We made some progress... retry
-                break;
-            case DrainProgress::NoProgress:
-                return ret;
-            }
-        } else {
-            return ret;
-        }
-    } while (true);
-    // not reached
+int SslContext::read(void* buf, int num) {
+    return SSL_read(client, buf, num);
 }
 
-int SslContext::write(SOCKET sfd, const void* buf, int num) {
-    drainBioSendPipe(sfd);
-    if (hasError()) {
-        return -1;
-    }
-    do {
-        const auto ret = SSL_write(client, buf, num);
-        if (ret > 0) {
-            // try to drain the internal buffers in SSL and push them
-            // to the socket
-            drainBioSendPipe(sfd);
-            return ret;
-        } else if (ret == 0) {
-            return 0;
-        } else {
-            const int e = getError(ret);
-            if (e == SSL_ERROR_WANT_WRITE || e == SSL_ERROR_WANT_READ) {
-                switch (drainBios(sfd)) {
-                case DrainProgress::Error:
-                    return -1;
-                case DrainProgress::Progress:
-                    // We made some progress... retry
-                    break;
-                case DrainProgress::NoProgress:
-                    return ret;
-                }
-            } else {
-                return ret;
-            }
-        }
-    } while (true);
-    // not reached
+int SslContext::write(const void* buf, int num) {
+    return SSL_write(client, buf, num);
 }
 
 bool SslContext::havePendingInputData() {
@@ -247,18 +164,12 @@ bool SslContext::drainInputSocketBuf() {
     return false;
 }
 
-bool SslContext::drainBioRecvPipe(SOCKET sfd) {
-    bool progress = false;
+void SslContext::drainBioRecvPipe(SOCKET sfd) {
     bool stop;
 
     do {
         // Try to move data from our internal buffer to the SSL pipe
-        if (drainInputSocketBuf()) {
-            progress = true;
-            stop = false;
-        } else {
-            stop = true;
-        }
+        stop = !drainInputSocketBuf();
 
         // If there is room in the input pipe (the internal buffer for read)
         // try to read out as much as possible from the socket
@@ -273,7 +184,6 @@ bool SslContext::drainBioRecvPipe(SOCKET sfd) {
                 totalRecv += n;
                 // We did receive some data... move it into the BIO
                 stop = false;
-                progress = true;
             } else {
                 if (n == 0) {
                     error = true; /* read end shutdown */
@@ -296,11 +206,9 @@ bool SslContext::drainBioRecvPipe(SOCKET sfd) {
     //   * The BIO object is full and the input pipe is:
     //       * full - there may be more data on the network
     //       * not full - there is no more data to read from the network
-    return progress;
 }
 
-bool SslContext::drainBioSendPipe(SOCKET sfd) {
-    bool progress = false;
+void SslContext::drainBioSendPipe(SOCKET sfd) {
     bool stop;
 
     do {
@@ -320,7 +228,6 @@ bool SslContext::drainBioSendPipe(SOCKET sfd) {
                 totalSend += n;
                 // We did move some data
                 stop = false;
-                progress = true;
             } else {
                 if (n == -1) {
                     auto err = cb::net::get_socket_error();
@@ -331,7 +238,7 @@ bool SslContext::drainBioSendPipe(SOCKET sfd) {
                         error = true;
                     }
                 }
-                return progress;
+                return;
             }
         }
 
@@ -345,7 +252,6 @@ bool SslContext::drainBioSendPipe(SOCKET sfd) {
             if (n > 0) {
                 // We did move data
                 stop = false;
-                progress = true;
             }
         }
         // As long as we moved some data (from the internal buffer to the
@@ -356,7 +262,6 @@ bool SslContext::drainBioSendPipe(SOCKET sfd) {
     // At this time there is:
     //   * There is no more data to send
     //   * The socket buffer is full
-    return progress;
 }
 
 void SslContext::dumpCipherList(uint32_t id) const {
@@ -387,13 +292,4 @@ nlohmann::json SslContext::toJSON() const {
 
 const char* SslContext::getCurrentCipherName() const {
     return SSL_get_cipher_name(client);
-}
-
-SslContext::DrainProgress SslContext::drainBios(SOCKET sock) {
-    auto progress = (drainBioSendPipe(sock) || drainBioRecvPipe(sock));
-    if (error) {
-        return DrainProgress::Error;
-    }
-
-    return progress ? DrainProgress::Progress : DrainProgress::NoProgress;
 }

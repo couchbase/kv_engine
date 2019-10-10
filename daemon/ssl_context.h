@@ -107,18 +107,16 @@ public:
      * as possible.
      *
      * @param sfd the socket to read data from
-     * @return true if any progress was made
      */
-    bool drainBioRecvPipe(SOCKET sfd);
+    void drainBioRecvPipe(SOCKET sfd);
 
     /**
      * Try to drain the SSL stream with as much data as possible and
      * send it over the network.
      *
      * @param sfd the socket to write data to
-     * @return true if any progress was made
      */
-    bool drainBioSendPipe(SOCKET sfd);
+    void drainBioSendPipe(SOCKET sfd);
 
     bool moreInputAvailable() const {
         return !inputPipe.empty();
@@ -135,50 +133,13 @@ public:
      */
     void dumpCipherList(uint32_t id) const;
 
-    /**
-     * Accept the next connection.
-     *
-     * Check hasError() before looking at the return code (hasError is for
-     * the underlying socket error)
-     *
-     * @param sfd The socket used for recv/send in the case we
-     *            need more data
-     * @return 1 success
-     *         0 clean shutdown
-     *        <0 an error
-     */
-    int accept(SOCKET sfd);
+    int accept();
 
     int getError(int errormask) const;
 
-    /**
-     * Read from the SSL pipe
-     *
-     * Check hasError() before looking at the return code (hasError is for
-     * the underlying socket error)
-     *
-     * @param sfd the underlying socket
-     * @param buf where to store the data
-     * @param num the amount of bytes to read
-     * @return > 0 - the number of bytes read
-     *         <= 0 - an error occurred. Check with getError
-     */
-    int read(SOCKET sfd, void* buf, int num);
+    int read(void* buf, int num);
 
-    /**
-     * Write data to the SSL pipe
-     *
-     * Check hasError() before looking at the return code (hasError is for
-     * the underlying socket error)
-     *
-     * @param sfd The underlying socket
-     * @param buf The data to send
-     * @param num The number of bytes ot send
-     * @return > 0 - The number of bytes sent
-     *           0 - Connection closed
-     *         < 0 - An error occurred. Check with getError
-     */
-    int write(SOCKET sfd, const void* buf, int num);
+    int write(const void* buf, int num);
 
     bool havePendingInputData();
 
@@ -192,16 +153,6 @@ public:
     const char* getCurrentCipherName() const;
 
 protected:
-    enum class DrainProgress { Error, Progress, NoProgress };
-
-    /**
-     * Try to drain the SSL output buffer and fill its input buffer
-     *
-     * @param sock the socket to use for transfer
-     * @return true if no error occurred
-     */
-    DrainProgress drainBios(SOCKET sock);
-
     bool drainInputSocketBuf();
 
     bool enabled = false;

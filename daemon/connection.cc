@@ -789,11 +789,7 @@ void Connection::logSslErrorInfo(const std::string& method, int rval) {
 }
 
 int Connection::sslPreConnection() {
-    int r = ssl.accept(socketDescriptor);
-    if (ssl.hasError()) {
-        cb::net::set_econnreset();
-        return -1;
-    }
+    int r = ssl.accept();
     if (r == 1) {
         ssl.drainBioSendPipe(socketDescriptor);
         ssl.setConnected();
@@ -845,17 +841,19 @@ int Connection::sslPreConnection() {
          LOG_INFO("{}: Using SSL cipher:{}",
                  getId(),
                  ssl.getCurrentCipherName());
-         return 0;
+    } else {
+        if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
+            ssl.drainBioSendPipe(socketDescriptor);
+            cb::net::set_ewouldblock();
+            return -1;
+        } else {
+            logSslErrorInfo("SSL_accept", r);
+            cb::net::set_econnreset();
+            return -1;
+        }
     }
 
-    auto err = ssl.getError(r);
-    if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-        cb::net::set_ewouldblock();
-    } else {
-        logSslErrorInfo("SSL_accept", r);
-        cb::net::set_econnreset();
-    }
-    return -1;
+    return 0;
 }
 
 int Connection::recv(char* dest, size_t nbytes) {
@@ -1132,56 +1130,110 @@ Connection::TryReadResult Connection::tryReadNetwork() {
 }
 
 int Connection::sslRead(char* dest, size_t nbytes) {
-    const auto ret = ssl.read(socketDescriptor, dest, gsl::narrow<int>(nbytes));
+    int ret = 0;
+
+    while (ret < int(nbytes)) {
+        int n;
+        ssl.drainBioRecvPipe(socketDescriptor);
+        if (ssl.hasError()) {
+            cb::net::set_econnreset();
+            return -1;
+        }
+        n = ssl.read(dest + ret, (int)(nbytes - ret));
+        if (n > 0) {
+            ret += n;
+        } else {
+            /* n < 0 and n == 0 require a check of SSL error*/
+            const int error = ssl.getError(n);
+
+            switch (error) {
+            case SSL_ERROR_WANT_READ:
+                /*
+                 * Drain the buffers and retry if we've got data in
+                 * our input buffers
+                 */
+                if (ssl.moreInputAvailable()) {
+                    /* our recv buf has data feed the BIO */
+                    ssl.drainBioRecvPipe(socketDescriptor);
+                } else if (ret > 0) {
+                    /* nothing in our recv buf, return what we have */
+                    return ret;
+                } else {
+                    cb::net::set_ewouldblock();
+                    return -1;
+                }
+                break;
+
+            case SSL_ERROR_ZERO_RETURN:
+                /* The TLS/SSL connection has been closed (cleanly). */
+                return 0;
+
+            default:
+                logSslErrorInfo("SSL_read", n);
+                cb::net::set_econnreset();
+                return -1;
+            }
+        }
+    }
+
+    return ret;
+}
+
+int Connection::sslWrite(const char* src, size_t nbytes) {
+    // Start by trying to send everything we've already got
+    // buffered in our bio
+    ssl.drainBioSendPipe(socketDescriptor);
     if (ssl.hasError()) {
         cb::net::set_econnreset();
         return -1;
     }
 
-    if (ret > 0) {
-        return ret;
-    }
-    const int error = ssl.getError(ret);
-
-    switch (error) {
-    case SSL_ERROR_WANT_READ:
-    case SSL_ERROR_WANT_WRITE:
-        cb::net::set_ewouldblock();
-        return -1;
-
-    case SSL_ERROR_ZERO_RETURN:
-        /* The TLS/SSL connection has been closed (cleanly). */
-        return 0;
-
-    default:
-        logSslErrorInfo("SSL_read", ret);
-        cb::net::set_econnreset();
-        return -1;
-    }
-    // not reached
-}
-
-int Connection::sslWrite(const char* src, size_t nbytes) {
-    const auto ret = ssl.write(socketDescriptor, src, gsl::narrow<int>(nbytes));
-    if (ssl.hasError() || ret == 0) {
-        cb::net::set_econnreset();
-        return -1;
-    }
-    if (ret > 0) {
-        return ret;
-    }
-
-    const int error = ssl.getError(ret);
-    if (error == SSL_ERROR_WANT_WRITE || error == SSL_ERROR_WANT_READ) {
+    // If the network socket is full there isn't much point
+    // of trying to add more to SSL
+    if (ssl.morePendingOutput()) {
         cb::net::set_ewouldblock();
         return -1;
     }
 
-    // We encountered an error we don't have code to handle.
-    // Reset the connection
-    logSslErrorInfo("SSL_write", ret);
-    cb::net::set_econnreset();
-    return -1;
+    // We've got an empty buffer for SSL to operate on,
+    // so lets get to it.
+    do {
+        const auto n = ssl.write(src, int(nbytes));
+        if (n > 0) {
+            // we've successfully sent some bytes to
+            // SSL. Lets try to flush it to the network
+            // socket buffers.
+            ssl.drainBioSendPipe(socketDescriptor);
+            if (ssl.hasError()) {
+                cb::net::set_econnreset();
+                return -1;
+            }
+            // Return the number of bytes submitted to SSL
+            return n;
+        } else if (n == 0) {
+            // Closed connection.
+            cb::net::set_econnreset();
+            return -1;
+        } else {
+            const int error = ssl.getError(n);
+            if (error == SSL_ERROR_WANT_WRITE) {
+                ssl.drainBioSendPipe(socketDescriptor);
+                if (ssl.morePendingOutput()) {
+                    cb::net::set_ewouldblock();
+                    return -1;
+                }
+                // We've got space in the network buffer.
+                // retry the operation (and openssl will
+                // try to fill the network buffer again)
+            } else {
+                // We enountered an error we don't have code
+                // to handle. Reset the connection
+                logSslErrorInfo("SSL_write", n);
+                cb::net::set_econnreset();
+                return -1;
+            }
+        }
+    } while (true);
 }
 
 bool Connection::useCookieSendResponse(std::size_t size) const {
