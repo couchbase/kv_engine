@@ -817,3 +817,70 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     // We should have decremented numItems when we added again
     EXPECT_EQ(3, cm->getNumOpenChkItems());
 }
+
+TEST_F(CheckpointRemoverEPTest,
+       CheckpointExpellingInvalidatesKeyIndexCorrectly) {
+    /*
+     * Ensure that expelling correctly marks invalidated keyIndex entries as
+     * SyncWrite/non SyncWrite.
+     * MB-36338: expelling would incorrectly mark a keyIndex entry for a sync
+     * write as non-sync write if it was the last item to be expelled, as the
+     * value it checked was that of the dummy item rather than of the real item.
+     */
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto vb = engine->getVBucket(vbid);
+    auto* cm = static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+
+    {
+        // clear out the first checkpoint containing a set vbstate
+        cm->forceNewCheckpoint();
+        flush_vbucket_to_disk(vbid, 0);
+        bool newOpenCreated;
+        cm->removeClosedUnrefCheckpoints(*vb, newOpenCreated, 999);
+    }
+
+    // expelling will not remove items preceded by an item with the same seqno
+    // (in the case, the checkpoint start meta item)
+    // pad to allow the following prepare to be expelled
+    store_item(vbid, makeStoredDocKey("padding1"), "value");
+
+    auto prepareKey = makeStoredDocKey("key_1");
+
+    // Queue a prepare
+    auto prepare = makePendingItem(prepareKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+              store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
+
+    // expelling will not remove items with seqno equal to the ckpt highSeqno
+    // but the commit serves as padding, allowing the preceding prepare to be
+    // expelled
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(prepareKey,
+                         2,
+                         {},
+                         vb->lockCollections(prepareKey),
+                         cookie));
+
+    // Persist to move our cursor so that we can expel the prepare
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    // expel from the checkpoint. This will invalidate keyIndex entries
+    // for all expelled items.
+    auto result = cm->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(3, result.expelCount);
+
+    EXPECT_EQ(1, cm->getNumCheckpoints());
+
+    auto prepare2 = makePendingItem(prepareKey, "value");
+
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+              store->set(*prepare2, cookie, nullptr /*StoreIfPredicate*/));
+
+    // queueing second prepare should fail as it would dedupe the existing
+    // prepare (even though it has been expelled) leading to a new
+    // checkpoint being opened.
+    EXPECT_EQ(2, cm->getNumCheckpoints());
+}

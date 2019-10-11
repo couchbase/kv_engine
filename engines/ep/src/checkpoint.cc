@@ -397,6 +397,51 @@ CheckpointQueue Checkpoint::expelItems(
     highestExpelledSeqno =
             iterator.getUnderlyingIterator()->get()->getBySeqno();
 
+    auto firstItemToExpel = std::next(begin());
+    auto lastItemToExpel = iterator;
+
+    if (getState() == CHECKPOINT_OPEN) {
+        // If the checkpoint is open, for every item which will be expelled
+        // the corresponding keyIndex entry must be invalidated. The items
+        // to expel start /after/ the dummy item, and /include/ the item
+        // pointed to by expelUpToAndIncluding.
+        // NB: This must occur *before* swapping the dummy value to its
+        // new position, as invalidate(...) dereferences the entry's
+        // iterator and reads the value it finds. Swapping the dummy first
+        // would lead to it reading the dummy value instead.
+        for (auto expelItr = firstItemToExpel;
+             expelItr != std::next(lastItemToExpel);
+             ++expelItr) {
+            const auto& toExpel = *expelItr;
+
+            if (!toExpel->isCheckPointMetaItem()) {
+                auto itr = keyIndex.find(
+                        {toExpel->getKey(),
+                         toExpel->isCommitted()
+                         ? CheckpointIndexKeyNamespace::Committed
+                         : CheckpointIndexKeyNamespace::Prepared});
+                Expects(itr != keyIndex.end());
+                Expects(itr->second.position == expelItr);
+                itr->second.invalidate(end());
+
+                Ensures(toExpel->isAnySyncWriteOp() ==
+                        itr->second.isSyncWrite());
+            }
+
+            queuedItemsMemUsage -= toExpel->size();
+        }
+    } else {
+        /*
+         * Reduce the queuedItems memory usage by the size of the items
+         * being expelled from memory.
+         */
+        const auto addSize = [](size_t a, queued_item qi) {
+            return a + qi->size();
+        };
+        queuedItemsMemUsage -= std::accumulate(
+                firstItemToExpel, std::next(lastItemToExpel), 0, addSize);
+    }
+
     // The item to be swapped with the dummy is not expected to be a
     // meta-data item.
     Expects(!iterator.getUnderlyingIterator()->get()->isCheckPointMetaItem());
@@ -414,32 +459,6 @@ CheckpointQueue Checkpoint::expelItems(
                          toWrite,
                          begin().getUnderlyingIterator(),
                          iterator.getUnderlyingIterator());
-
-    if (getState() == CHECKPOINT_OPEN) {
-        // Whilst cp is open invalidate item and reduce queuedItemsMemUsage
-        for (const auto& expelled : expelledItems) {
-            if (!expelled->isCheckPointMetaItem()) {
-                auto itr = keyIndex.find(
-                        {expelled->getKey(),
-                         expelled->isCommitted()
-                                 ? CheckpointIndexKeyNamespace::Committed
-                                 : CheckpointIndexKeyNamespace::Prepared});
-                Expects(itr != keyIndex.end());
-                itr->second.invalidate(end());
-            }
-            queuedItemsMemUsage -= expelled->size();
-        }
-    } else {
-        /*
-         * Reduce the queuedItems memory usage by the size of the items
-         * being expelled from memory.
-         */
-        const auto addSize = [](size_t a, queued_item qi) {
-            return a + qi->size();
-        };
-        queuedItemsMemUsage -= std::accumulate(
-                expelledItems.begin(), expelledItems.end(), 0, addSize);
-    }
 
     // Return the items that have been expelled in a separate queue.
     return expelledItems;

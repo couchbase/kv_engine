@@ -78,24 +78,11 @@ struct index_entry {
      * @param itr Checkpoint::end()
      */
     void invalidate(const ChkptQueueIterator& itr) {
-        auto op = (*position)->getOperation();
-        switch (op) {
-        case queue_op::pending_sync_write:
-        case queue_op::abort_sync_write:
-        case queue_op::commit_sync_write:
+        if ((*position)->isAnySyncWriteOp()) {
             // Set this to be a "SyncWrite" item (even though it is
             // invalidated) so that we know if we can de-dupe it or not
             mutation_id = 0;
-        case queue_op::mutation:
-        case queue_op::flush:
-        case queue_op::empty:
-        case queue_op::checkpoint_start:
-        case queue_op::checkpoint_end:
-        case queue_op::set_vbucket_state:
-        case queue_op::system_event:
-            break;
         }
-
         position = itr;
     }
 
