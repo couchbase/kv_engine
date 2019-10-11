@@ -497,7 +497,8 @@ TEST_F(CheckpointRemoverEPTest, notExpelButCursorDrop) {
 
 // Test written for MB-36366. With the fix removed this test failed because
 // post expel, we continued onto cursor dropping.
-TEST_F(CheckpointRemoverEPTest, noCursorDropWhenTargetMet) {
+// MB-36447 - unreliable test, disabling for now
+TEST_F(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
