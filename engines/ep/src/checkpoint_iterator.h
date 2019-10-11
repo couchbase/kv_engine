@@ -42,6 +42,10 @@ public:
     using pointer = typename C::pointer;
     using reference = typename C::reference;
 
+    // these are not a STL required typedefs
+    using underlying_iterator = typename C::iterator;
+    using const_underlying_iterator = typename C::const_iterator;
+
     CheckpointIterator(std::reference_wrapper<C> c, Position p) : container(c) {
         if (p == Position::begin) {
             iter = container.get().begin();
@@ -140,7 +144,7 @@ public:
 
     /// The following is required to allow erase to be invoked on
     /// CheckpointQueue as the erase method takes a const_iter.
-    auto getUnderlyingIterator() const {
+    operator const_underlying_iterator() const {
         return iter;
     }
 
@@ -178,5 +182,5 @@ private:
     /// reference_wrapper of the container being iterated over.
     std::reference_wrapper<C> container;
     /// The Container's standard iterator
-    typename C::iterator iter;
+    underlying_iterator iter;
 };

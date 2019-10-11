@@ -264,7 +264,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 // item being removed.
                 queuedItemsMemUsage -= ((*currPos)->size());
                 // Remove the existing item for the same key from the list.
-                toWrite.erase(currPos.getUnderlyingIterator());
+                toWrite.erase(currPos);
             } else {
                 // The old item has been expelled, but we can continue to use
                 // this checkpoint in most cases. If the previous op was a
@@ -457,8 +457,8 @@ CheckpointQueue Checkpoint::expelItems(
      */
     expelledItems.splice(expelledItems.begin(),
                          toWrite,
-                         begin().getUnderlyingIterator(),
-                         iterator.getUnderlyingIterator());
+                         begin(),
+                         iterator);
 
     // Return the items that have been expelled in a separate queue.
     return expelledItems;
