@@ -395,7 +395,7 @@ CheckpointQueue Checkpoint::expelItems(
 
     // Record the seqno of the last item to be expelled.
     highestExpelledSeqno =
-            iterator.getUnderlyingIterator()->get()->getBySeqno();
+            (*iterator)->getBySeqno();
 
     auto firstItemToExpel = std::next(begin());
     auto lastItemToExpel = iterator;
@@ -444,11 +444,11 @@ CheckpointQueue Checkpoint::expelItems(
 
     // The item to be swapped with the dummy is not expected to be a
     // meta-data item.
-    Expects(!iterator.getUnderlyingIterator()->get()->isCheckPointMetaItem());
+    Expects(!(*iterator)->isCheckPointMetaItem());
 
     // Swap the item pointed to by our iterator with the dummy item
-    auto dummy = begin().getUnderlyingIterator();
-    iterator.getUnderlyingIterator()->swap(*dummy);
+    auto dummy = begin();
+    iterator->swap(*dummy);
 
     /*
      * Move from (and including) the first item in the checkpoint queue upto

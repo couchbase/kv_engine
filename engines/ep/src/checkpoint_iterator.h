@@ -120,6 +120,24 @@ public:
         return getElement();
     }
 
+    auto& operator-> () {
+        if (isAtEnd()) {
+            throw std::out_of_range(
+                    "CheckpointIterator ->() "
+                    "index is pointing to 'end'");
+        }
+        return iter;
+    }
+
+    const auto& operator-> () const {
+        if (isAtEnd()) {
+            throw std::out_of_range(
+                    "CheckpointIterator ->() const "
+                    "index is pointing to 'end'");
+        }
+        return iter;
+    }
+
     /// The following is required to allow erase to be invoked on
     /// CheckpointQueue as the erase method takes a const_iter.
     auto getUnderlyingIterator() const {
