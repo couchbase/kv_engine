@@ -2098,30 +2098,45 @@ TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
 void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
         vbucket_state_t newState) {
     setVBucketToActiveWithValidTopology();
-
-    // Make pending
-    auto key = makeStoredDocKey("key");
     using namespace cb::durability;
-    auto pending = makePendingItem(key, "value");
 
-    // Store it
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+    // Store two keys, key1 is acknowledged, key2 is not.
+    auto key1 = makeStoredDocKey("ack-me");
+    auto pending1 = makePendingItem(key1, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending1, cookie));
+
+    auto key2 = makeStoredDocKey("don't-ack-me");
+    auto pending2 = makePendingItem(key2, "value");
+    auto cookie2 = create_mock_cookie();
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending2, cookie2));
+
+    auto vb = store->getVBucket(vbid);
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          pending1->getBySeqno());
 
     // We don't send ENGINE_SYNC_WRITE_PENDING to clients
     auto mockCookie = cookie_to_mock_object(cookie);
+    auto mockCookie2 = cookie_to_mock_object(cookie2);
+
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
+    EXPECT_EQ(ENGINE_SUCCESS, mockCookie2->status);
 
     // Set state to dead
     EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, newState));
 
     // We have set state to dead but we have not yet run the notification task
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
+    EXPECT_EQ(ENGINE_SUCCESS, mockCookie2->status);
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     runNextTask(lpAuxioQ);
 
     // We should have told client the SyncWrite is ambiguous
     EXPECT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, mockCookie->status);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, mockCookie2->status);
+
+    destroy_mock_cookie(cookie2);
 }
 
 TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous_replica) {

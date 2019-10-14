@@ -864,8 +864,20 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
 
 std::vector<const void*>
 ActiveDurabilityMonitor::getCookiesForInFlightSyncWrites() {
-    auto s = state.wlock();
     auto vec = std::vector<const void*>();
+    {
+        std::lock_guard<ResolvedQueue::ConsumerLock> lock(
+                resolvedQueue->getConsumerLock());
+        while (auto write = resolvedQueue->try_dequeue(lock)) {
+            auto* cookie = write->getCookie();
+            if (cookie) {
+                vec.push_back(cookie);
+                write->clearCookie();
+            }
+        }
+    }
+
+    auto s = state.wlock();
     for (auto& write : s->trackedWrites) {
         auto* cookie = write.getCookie();
         if (cookie) {
