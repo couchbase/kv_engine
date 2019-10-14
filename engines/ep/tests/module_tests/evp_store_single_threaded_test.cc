@@ -1213,7 +1213,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
  *   {2,set,key2}
  *   {4,set,key3}
  * ]
- *   connCursors:[
+ *   cursors:[
  *       persistence: CheckpointCursor[0x7fff5ca0cf98] with name:persistence
  *       currentCkpt:{id:1 state:CHECKPOINT_OPEN} currentPos:2 offset:2
  *       ckptMetaItemsRead:1

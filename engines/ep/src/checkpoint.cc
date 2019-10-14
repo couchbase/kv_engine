@@ -224,7 +224,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 // this Checkpoint and see if the existing item for this key is
                 // to the "left" of the cursor (i.e. has already been
                 // processed).
-                for (auto& cursor : checkpointManager->connCursors) {
+                for (auto& cursor : checkpointManager->cursors) {
                     if ((*(cursor.second->currentCheckpoint)).get() == this) {
                         if (cursor.second->name ==
                             CheckpointManager::pCursorName) {

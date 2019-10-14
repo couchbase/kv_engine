@@ -76,7 +76,7 @@ public:
 
     size_t getNumOfCursors() const {
         LockHolder lh(queueLock);
-        return connCursors.size();
+        return cursors.size();
     }
 
     size_t getNumCheckpoints() const {

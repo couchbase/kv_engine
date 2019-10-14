@@ -531,14 +531,14 @@ protected:
     uint64_t                 pCursorPreCheckpointId;
 
     /**
-     * connCursors: stores all known CheckpointCursor objects which are held via
+     * cursors: stores all known CheckpointCursor objects which are held via
      * shared_ptr. When a client creates a cursor we store the shared_ptr and
      * give out a weak_ptr allowing cursors to be simply de-registered. We use
      * the client's chosen name as the key
      */
     using cursor_index =
             std::unordered_map<std::string, std::shared_ptr<CheckpointCursor>>;
-    cursor_index connCursors;
+    cursor_index cursors;
 
     const FlusherCallback flusherCB;
 

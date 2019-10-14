@@ -186,7 +186,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
        that we do not leave a cursor at the checkpoint_end. This also ensures
        that where possible we will drop a checkpoint instead of running
        expelling which is faster.*/
-    for (auto& cur_it : connCursors) {
+    for (auto& cur_it : cursors) {
         CheckpointCursor& cursor = *cur_it.second;
         ++(cursor.currentPos);
         if (cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
@@ -270,7 +270,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
 
     // If cursor exists with the same name as the one being created, then
     // remove it.
-    for (const auto& cursor : connCursors) {
+    for (const auto& cursor : cursors) {
         if (cursor.first == name) {
             removeCursor_UNLOCKED(cursor.second.get());
             break;
@@ -292,7 +292,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             auto cursor = std::make_shared<CheckpointCursor>(name,
                                                              itr,
                                                              (*itr)->begin());
-            connCursors[name] = cursor;
+            cursors[name] = cursor;
             result.seqno = st;
             result.cursor.setCursor(cursor);
             result.tryBackfill = true;
@@ -316,7 +316,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
 
             auto cursor =
                     std::make_shared<CheckpointCursor>(name, itr, iitr);
-            connCursors[name] = cursor;
+            cursors[name] = cursor;
             result.cursor.setCursor(cursor);
             break;
         }
@@ -364,7 +364,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
 
     cursor->invalidate();
 
-    if (connCursors.erase(cursor->name) == 0) {
+    if (cursors.erase(cursor->name) == 0) {
         throw std::logic_error(
                 "CheckpointManager::removeCursor_UNLOCKED failed to remove "
                 "name:" +
@@ -394,7 +394,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
 
     // pesistence and conn cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
-            (connCursors.size() + 1) == openCkpt.getNumCursorsInCheckpoint();
+            (cursors.size() + 1) == openCkpt.getNumCursorsInCheckpoint();
 
     if (memoryUsed > stats.mem_high_wat && allCursorsInOpenCheckpoint &&
         (openCkpt.getNumItems() >= MIN_CHECKPOINT_ITEMS ||
@@ -528,7 +528,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
         };
 
         auto earliestCursor = std::min_element(
-                connCursors.begin(), connCursors.end(), compareByCkptAndSeqno);
+                cursors.begin(), cursors.end(), compareByCkptAndSeqno);
 
         std::shared_ptr<CheckpointCursor> lowestCheckpointCursor =
                 earliestCursor->second;
@@ -674,7 +674,7 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
      * from) then add the cursor to the cursorsToDrop vector.
      */
     std::vector<Cursor> cursorsToDrop;
-    for (const auto& cursor : connCursors) {
+    for (const auto& cursor : cursors) {
         if (validChkpts.count(cursor.second->currentCheckpoint->get()) > 0) {
             cursorsToDrop.emplace_back(cursor.second);
         }
@@ -1019,7 +1019,7 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
 }
 
 void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
-    for (auto& cit : connCursors) {
+    for (auto& cit : cursors) {
         if (cit.second->name == pCursorName) {
             if (!resetPersistenceCursor) {
                 continue;
@@ -1358,7 +1358,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                 buf, getLastClosedCheckpointId_UNLOCKED(lh), add_stat, cookie);
         checked_snprintf(
                 buf, sizeof(buf), "vb_%d:num_conn_cursors", vbucketId.get());
-        add_casted_stat(buf, connCursors.size(), add_stat, cookie);
+        add_casted_stat(buf, cursors.size(), add_stat, cookie);
         checked_snprintf(buf,
                          sizeof(buf),
                          "vb_%d:num_checkpoint_items",
@@ -1389,7 +1389,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
         checked_snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId.get());
         add_casted_stat(buf, getMemoryUsage_UNLOCKED(), add_stat, cookie);
 
-        for (const auto& cursor : connCursors) {
+        for (const auto& cursor : cursors) {
             checked_snprintf(buf,
                              sizeof(buf),
                              "vb_%d:%s:cursor_checkpoint_id",
@@ -1444,10 +1444,10 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
 void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
     pCursor = other.pCursor;
     persistenceCursor = pCursor.lock().get();
-    for (auto& cursor : other.connCursors) {
-        connCursors[cursor.second->name] = cursor.second;
+    for (auto& cursor : other.cursors) {
+        cursors[cursor.second->name] = cursor.second;
     }
-    other.connCursors.clear();
+    other.cursors.clear();
 
     resetCursors(true /*reset persistence*/);
 }
@@ -1463,8 +1463,8 @@ std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     for (const auto& c : m.checkpointList) {
         os << "    " << *c << std::endl;
     }
-    os << "    connCursors:[" << std::endl;
-    for (const auto& cur : m.connCursors) {
+    os << "    cursors:[" << std::endl;
+    for (const auto& cur : m.cursors) {
         os << "        " << cur.first << ": " << *cur.second << std::endl;
     }
     os << "    ]" << std::endl;
