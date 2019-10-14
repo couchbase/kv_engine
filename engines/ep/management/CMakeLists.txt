@@ -8,7 +8,8 @@ PyWrapper(
     cbcompact
     cbvdiff
     cbvbucketctl
-    kv_trace_dump)
+    kv_trace_dump
+    kv_slow_ops_2_gtrace)
 
 # Install supporting python files
 INSTALL(FILES
