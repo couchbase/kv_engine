@@ -853,8 +853,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
     std::unique_lock<std::mutex> lh(vbsetMutex);
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
+        folly::SharedMutex::WriteHolder vbStateLock(vb->getStateLock());
         setVBucketState_UNLOCKED(
-                vb, to, meta, transfer, true /*notifyDcp*/, lh);
+                vb, to, meta, transfer, true /*notifyDcp*/, lh, vbStateLock);
     } else if (vbid.get() < vbMap.getSize()) {
         return createVBucket_UNLOCKED(vbid, to, meta, lh);
     } else {
@@ -870,7 +871,7 @@ void KVBucket::setVBucketState_UNLOCKED(
         TransferVB transfer,
         bool notify_dcp,
         std::unique_lock<std::mutex>& vbset,
-        folly::SharedMutex::WriteHolder* vbStateLock) {
+        folly::SharedMutex::WriteHolder& vbStateLock) {
     // Return success immediately if the new state is the same as the old,
     // and no extra metadata was included.
     if (to == vb->getState() && meta.empty()) {
@@ -895,7 +896,7 @@ void KVBucket::setVBucketState_UNLOCKED(
         ExecutorPool::get()->schedule(notifyTask);
     }
 
-    auto oldstate = vbMap.setState(vb, to, meta, vbStateLock);
+    auto oldstate = vbMap.setState_UNLOCKED(*vb, to, meta, vbStateLock);
 
     if (oldstate != to && notify_dcp) {
         bool closeInboundStreams = false;
@@ -976,8 +977,7 @@ ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
         Vbid vbid,
         vbucket_state_t to,
         const nlohmann::json& meta,
-        std::unique_lock<std::mutex>& vbset,
-        folly::SharedMutex::WriteHolder* vbStateLock) {
+        std::unique_lock<std::mutex>& vbset) {
     auto ft = std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
     KVShard* shard = vbMap.getShardByVbId(vbid);
 
@@ -1026,7 +1026,7 @@ ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
     //     ns_server issues a single set-vb-state call for creating a VB.
     // Note: Must be done /after/ the new VBucket has been added to vbMap.
     if (to == vbucket_state_active || to == vbucket_state_replica) {
-        vbMap.setState(newvb, to, meta, vbStateLock);
+        vbMap.setState(*newvb, to, meta);
     }
 
     // When the VBucket is constructed we initialize

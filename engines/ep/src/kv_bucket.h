@@ -319,18 +319,16 @@ public:
      *                    associated with the vbucket
      * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
      *              EventuallyPersistentStore class
-     * @param vbStateLock ptr to WriterLockHolder of 'stateLock' in the vbucket
-     *                    class. if passed as null, the function acquires the
-     *                    vbucket 'stateLock'
+     * @param vbStateLock WriterLockHolder of 'stateLock' in the vbucket
+     *                    class.
      */
-    void setVBucketState_UNLOCKED(
-            VBucketPtr& vb,
-            vbucket_state_t to,
-            const nlohmann::json& meta,
-            TransferVB transfer,
-            bool notify_dcp,
-            std::unique_lock<std::mutex>& vbset,
-            folly::SharedMutex::WriteHolder* vbStateLock = nullptr);
+    void setVBucketState_UNLOCKED(VBucketPtr& vb,
+                                  vbucket_state_t to,
+                                  const nlohmann::json& meta,
+                                  TransferVB transfer,
+                                  bool notify_dcp,
+                                  std::unique_lock<std::mutex>& vbset,
+                                  folly::SharedMutex::WriteHolder& vbStateLock);
 
     /**
      * Creates the vbucket in the desired state
@@ -340,9 +338,6 @@ public:
      * @param meta optional meta information to apply alongside the state
      * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
      *              EventuallyPersistentStore class
-     * @param vbStateLock ptr to WriterLockHolder of 'stateLock' in the vbucket
-     *                    class. if passed as null, the function acquires the
-     *                    vbucket 'stateLock'
      *
      * @return status of the operation
      */
@@ -350,8 +345,7 @@ public:
             Vbid vbid,
             vbucket_state_t state,
             const nlohmann::json& meta,
-            std::unique_lock<std::mutex>& vbset,
-            folly::SharedMutex::WriteHolder* vbStateLock = nullptr);
+            std::unique_lock<std::mutex>& vbset);
     /**
      * Returns the 'vbsetMutex'
      */

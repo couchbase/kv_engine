@@ -448,7 +448,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
                         TransferVB::No,
                         false /* notify_dcp */,
                         epVbSetLh,
-                        &vbStateLh);
+                        vbStateLh);
 
                 log(spdlog::level::level_enum::info,
                     "{} Vbucket marked as dead, last sent "
