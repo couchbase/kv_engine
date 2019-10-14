@@ -1,17 +1,23 @@
-IF (NOT MEMORY_ALLOCATOR STREQUAL "system")
+if (NOT MEMORY_ALLOCATOR STREQUAL "system")
   # Need to ensure that the directory containing
   # memcached_memory_tracking_test is added to the RPATH so we can
   # successfully dlopen() the plugin.
-  LINK_DIRECTORIES(${Memcached_BINARY_DIR})
+  link_directories(${Memcached_BINARY_DIR})
 
-  ADD_EXECUTABLE(memcached_memory_tracking_test
+  add_executable(memcached_memory_tracking_test
     $<TARGET_OBJECTS:memory_tracking>
     memory_tracking_test.cc)
-  TARGET_LINK_LIBRARIES(memcached_memory_tracking_test memcached_logger platform gtest ${MALLOC_LIBRARIES})
-  ADD_TEST(NAME memcached-memory-tracking COMMAND memcached_memory_tracking_test)
+  target_link_libraries(memcached_memory_tracking_test
+  memcached_logger
+  platform gtest
+  ${MALLOC_LIBRARIES})
 
-  ADD_LIBRARY(memcached_memory_tracking_plugin MODULE
+  add_test(NAME memcached-memory-tracking
+           WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+           COMMAND memcached_memory_tracking_test)
+
+  add_library(memcached_memory_tracking_plugin MODULE
               memory_tracking_plugin.cc)
-  TARGET_LINK_LIBRARIES(memcached_memory_tracking_plugin platform)
-  SET_TARGET_PROPERTIES(memcached_memory_tracking_plugin PROPERTIES PREFIX "")
-ENDIF (NOT MEMORY_ALLOCATOR STREQUAL "system")
+  target_link_libraries(memcached_memory_tracking_plugin platform)
+  set_target_properties(memcached_memory_tracking_plugin PROPERTIES PREFIX "")
+endif (NOT MEMORY_ALLOCATOR STREQUAL "system")
