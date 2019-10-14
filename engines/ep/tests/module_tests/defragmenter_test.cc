@@ -244,15 +244,15 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 
     size_t mapped_2 = get_mapped_bytes();
 
-    // Sanity check (2) - mapped memory should still be high - at least 90% of
+    // Sanity check (2) - mapped memory should still be high - at least 80% of
     // the value after creation, before delete.
     const size_t current_mapped = mapped_2 - mapped_0;
     const size_t previous_mapped = mapped_1 - mapped_0;
 
-    EXPECT_GE(current_mapped, 0.9 * double(previous_mapped))
-        << "current_mapped memory (which is " << current_mapped
-        << ") is lower than 90% of previous mapped (which is "
-        << previous_mapped << "). ";
+    EXPECT_GE(current_mapped, 0.80 * double(previous_mapped))
+            << "current_mapped memory (which is " << current_mapped
+            << ") is lower than 80% of previous mapped (which is "
+            << previous_mapped << "). ";
 
     // 3. Enable defragmenter and trigger defragmentation
     AllocHooks::enable_thread_cache(false);
