@@ -308,10 +308,10 @@ public:
                                       const void* cookie = nullptr);
 
     /**
-     * Sets the vbucket or creates a vbucket with the desired state
+     * Sets the vbucket to the desired state
      *
-     * @param vbid vbucket id
-     * @param state desired state of the vbucket
+     * @param vb shared_ptr to the vbucket to set the state on
+     * @param state desired state for the vbucket
      * @param meta optional meta information to apply alongside the state
      * @param transfer indicates that the vbucket is transferred to the active
      *                 post a failover and/or rebalance
@@ -322,18 +322,36 @@ public:
      * @param vbStateLock ptr to WriterLockHolder of 'stateLock' in the vbucket
      *                    class. if passed as null, the function acquires the
      *                    vbucket 'stateLock'
-     *
-     * return status of the operation
      */
-    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
-            Vbid vbid,
-            vbucket_state_t state,
+    void setVBucketState_UNLOCKED(
+            VBucketPtr& vb,
+            vbucket_state_t to,
             const nlohmann::json& meta,
             TransferVB transfer,
             bool notify_dcp,
             std::unique_lock<std::mutex>& vbset,
             folly::SharedMutex::WriteHolder* vbStateLock = nullptr);
 
+    /**
+     * Creates the vbucket in the desired state
+     *
+     * @param vbid vbucket id
+     * @param state desired state of the vbucket
+     * @param meta optional meta information to apply alongside the state
+     * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
+     *              EventuallyPersistentStore class
+     * @param vbStateLock ptr to WriterLockHolder of 'stateLock' in the vbucket
+     *                    class. if passed as null, the function acquires the
+     *                    vbucket 'stateLock'
+     *
+     * @return status of the operation
+     */
+    ENGINE_ERROR_CODE createVBucket_UNLOCKED(
+            Vbid vbid,
+            vbucket_state_t state,
+            const nlohmann::json& meta,
+            std::unique_lock<std::mutex>& vbset,
+            folly::SharedMutex::WriteHolder* vbStateLock = nullptr);
     /**
      * Returns the 'vbsetMutex'
      */

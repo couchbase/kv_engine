@@ -808,30 +808,6 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     return result;
 }
 
-ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
-                                            vbucket_state_t to,
-                                            const nlohmann::json& meta,
-                                            TransferVB transfer,
-                                            const void* cookie) {
-    // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
-    // the vbucket state data.
-    if (cookie && maybeWaitForVBucketWarmup(cookie)) {
-        EP_LOG_INFO(
-                "KVBucket::setVBucketState blocking {}, to:{}, transfer:{}, "
-                "cookie:{}",
-                vbid,
-                VBucket::toString(to),
-                transfer,
-                cookie);
-        return ENGINE_EWOULDBLOCK;
-    }
-
-    // Lock to prevent a race condition between a failed update and add.
-    std::unique_lock<std::mutex> lh(vbsetMutex);
-    return setVBucketState_UNLOCKED(
-            vbid, to, meta, transfer, true /*notifyDcp*/, lh);
-}
-
 void KVBucket::releaseRegisteredSyncWrites() {
     for (size_t vbid = 0; vbid < vbMap.size; ++vbid) {
         VBucketPtr vb = vbMap.getBucket(Vbid{gsl::narrow<uint16_t>(vbid)});
@@ -855,177 +831,208 @@ void KVBucket::releaseRegisteredSyncWrites() {
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
-        Vbid vbid,
+ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
+                                            vbucket_state_t to,
+                                            const nlohmann::json& meta,
+                                            TransferVB transfer,
+                                            const void* cookie) {
+    // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
+    // the vbucket state data.
+    if (cookie && maybeWaitForVBucketWarmup(cookie)) {
+        EP_LOG_INFO(
+                "KVBucket::setVBucketState blocking {}, to:{}, transfer:{}, "
+                "cookie:{}",
+                vbid,
+                VBucket::toString(to),
+                transfer,
+                cookie);
+        return ENGINE_EWOULDBLOCK;
+    }
+
+    // Lock to prevent a race condition between a failed update and add.
+    std::unique_lock<std::mutex> lh(vbsetMutex);
+    VBucketPtr vb = vbMap.getBucket(vbid);
+    if (vb) {
+        setVBucketState_UNLOCKED(
+                vb, to, meta, transfer, true /*notifyDcp*/, lh);
+    } else if (vbid.get() < vbMap.getSize()) {
+        return createVBucket_UNLOCKED(vbid, to, meta, lh);
+    } else {
+        return ENGINE_ERANGE;
+    }
+    return ENGINE_SUCCESS;
+}
+
+void KVBucket::setVBucketState_UNLOCKED(
+        VBucketPtr& vb,
         vbucket_state_t to,
         const nlohmann::json& meta,
         TransferVB transfer,
         bool notify_dcp,
         std::unique_lock<std::mutex>& vbset,
         folly::SharedMutex::WriteHolder* vbStateLock) {
-    VBucketPtr vb = vbMap.getBucket(vbid);
     // Return success immediately if the new state is the same as the old,
     // and no extra metadata was included.
-    if (vb && to == vb->getState() && meta.empty()) {
-        return ENGINE_SUCCESS;
+    if (to == vb->getState() && meta.empty()) {
+        return;
     }
 
-    if (vb) {
-        // We need to process any outstanding SyncWrites before we set the
-        // vBucket state so that we can keep our invariant that we do not use
-        // an ActiveDurabilityMonitor in a state other than active. This is done
-        // under a write lock of the vbState and we will set the vBucket to dead
-        // under the same lock so we will not attempt to queue any more
-        // SyncWrites after sending these notifications.
-        if (vb->getState() == vbucket_state_active &&
-            to == vbucket_state_dead) {
-            // At takeover (VBucket active -> VBucket dead) we should return
-            // ENGINE_SYNC_WRITE_AMBIGUOUS to any clients waiting for the result
-            // of a SyncWrite as they will timeout anyway.
+    // We need to process any outstanding SyncWrites before we set the
+    // vBucket state so that we can keep our invariant that we do not use
+    // an ActiveDurabilityMonitor in a state other than active. This is done
+    // under a write lock of the vbState and we will set the vBucket to dead
+    // under the same lock so we will not attempt to queue any more
+    // SyncWrites after sending these notifications.
+    if (vb->getState() == vbucket_state_active && to == vbucket_state_dead) {
+        // At takeover (VBucket active -> VBucket dead) we should return
+        // ENGINE_SYNC_WRITE_AMBIGUOUS to any clients waiting for the result
+        // of a SyncWrite as they will timeout anyway.
 
-            // Get a list of cookies that we should respond to
-            auto connectionsToRespondTo = vb->getCookiesForInFlightSyncWrites();
-            ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
-                    engine, vb, std::move(connectionsToRespondTo));
-            ExecutorPool::get()->schedule(notifyTask);
+        // Get a list of cookies that we should respond to
+        auto connectionsToRespondTo = vb->getCookiesForInFlightSyncWrites();
+        ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
+                engine, vb, std::move(connectionsToRespondTo));
+        ExecutorPool::get()->schedule(notifyTask);
+    }
+
+    auto oldstate = vbMap.setState(vb, to, meta, vbStateLock);
+
+    if (oldstate != to && notify_dcp) {
+        bool closeInboundStreams = false;
+        if (to == vbucket_state_active && transfer == TransferVB::No) {
+            /**
+             * Close inbound (passive) streams into the vbucket
+             * only in case of a failover.
+             */
+            closeInboundStreams = true;
         }
+        engine.getDcpConnMap().vbucketStateChanged(
+                vb->getId(), to, closeInboundStreams);
+    }
 
-        auto oldstate = vbMap.setState(vb, to, meta, vbStateLock);
-
-        if (oldstate != to && notify_dcp) {
-            bool closeInboundStreams = false;
-            if (to == vbucket_state_active && transfer == TransferVB::No) {
-                /**
-                 * Close inbound (passive) streams into the vbucket
-                 * only in case of a failover.
-                 */
-                closeInboundStreams = true;
-            }
-            engine.getDcpConnMap().vbucketStateChanged(vbid, to,
-                                                       closeInboundStreams);
-        }
+    /**
+     * Expect this to happen for failover
+     */
+    if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
+        /**
+         * Create a new checkpoint to ensure that we do not now write to a
+         * Disk checkpoint. This updates the snapshot range to maintain the
+         * correct snapshot sequence numbers even in a failover scenario.
+         */
+        vb->checkpointManager->createNewCheckpoint();
 
         /**
-         * Expect this to happen for failover
+         * Update the manifest of this vBucket from the
+         * collectionsManager to ensure that it did not miss a manifest
+         * that was not replicated via DCP.
          */
-        if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
-            /**
-             * Create a new checkpoint to ensure that we do not now write to a
-             * Disk checkpoint. This updates the snapshot range to maintain the
-             * correct snapshot sequence numbers even in a failover scenario.
-             */
-            vb->checkpointManager->createNewCheckpoint();
+        collectionsManager->update(*vb);
+    }
 
-            /**
-             * Update the manifest of this vBucket from the
-             * collectionsManager to ensure that it did not miss a manifest
-             * that was not replicated via DCP.
-             */
-            collectionsManager->update(*vb);
-        }
+    if (to == vbucket_state_active && oldstate != vbucket_state_active &&
+        transfer == TransferVB::No) {
+        // Changed state to active and this isn't a transfer (i.e.
+        // takeover), which means this is a new fork in the vBucket history
+        // - create a new failover table entry.
+        const snapshot_range_t range = vb->getPersistedSnapshot();
+        auto highSeqno = range.getEnd() == vb->getPersistenceSeqno()
+                                 ? range.getEnd()
+                                 : range.getStart();
+        vb->failovers->createEntry(highSeqno);
 
-        if (to == vbucket_state_active && oldstate != vbucket_state_active &&
-            transfer == TransferVB::No) {
-            // Changed state to active and this isn't a transfer (i.e.
-            // takeover), which means this is a new fork in the vBucket history
-            // - create a new failover table entry.
-            const snapshot_range_t range = vb->getPersistedSnapshot();
-            auto highSeqno = range.getEnd() == vb->getPersistenceSeqno()
-                                     ? range.getEnd()
-                                     : range.getStart();
-            vb->failovers->createEntry(highSeqno);
+        auto entry = vb->failovers->getLatestEntry();
+        EP_LOG_INFO(
+                "KVBucket::setVBucketState: {} created new failover entry "
+                "with uuid:{} and seqno:{}",
+                vb->getId(),
+                entry.vb_uuid,
+                entry.by_seqno);
+    }
 
-            auto entry = vb->failovers->getLatestEntry();
-            EP_LOG_INFO(
-                    "KVBucket::setVBucketState: {} created new failover entry "
-                    "with uuid:{} and seqno:{}",
-                    vbid,
-                    entry.vb_uuid,
-                    entry.by_seqno);
-        }
+    if (oldstate == vbucket_state_pending && to == vbucket_state_active) {
+        /**
+         * Create a new checkpoint to ensure that we do not now write to a
+         * Disk checkpoint.
+         */
+        vb->checkpointManager->createNewCheckpoint();
 
-        if (oldstate == vbucket_state_pending &&
-            to == vbucket_state_active) {
-            /**
-             * Create a new checkpoint to ensure that we do not now write to a
-             * Disk checkpoint.
-             */
-            vb->checkpointManager->createNewCheckpoint();
+        ExTask notifyTask =
+                std::make_shared<PendingOpsNotification>(engine, vb);
+        ExecutorPool::get()->schedule(notifyTask);
+    }
 
-            ExTask notifyTask =
-                    std::make_shared<PendingOpsNotification>(engine, vb);
-            ExecutorPool::get()->schedule(notifyTask);
-        }
+    if (oldstate == vbucket_state_replica && to != vbucket_state_replica) {
+        // MB-35723: The vbucket is moving away from being a replica
+        // and can therefore no longer be receiving an initial disk
+        // snapshot. If the vbucket ever reached vbucket_state_active with
+        // this flag still set it would never accept a streamRequest
+        vb->setReceivingInitialDiskSnapshot(false);
+    }
 
-        if (oldstate == vbucket_state_replica && to != vbucket_state_replica) {
-            // MB-35723: The vbucket is moving away from being a replica
-            // and can therefore no longer be receiving an initial disk
-            // snapshot. If the vbucket ever reached vbucket_state_active with
-            // this flag still set it would never accept a streamRequest
-            vb->setReceivingInitialDiskSnapshot(false);
-        }
+    scheduleVBStatePersist(vb->getId());
+}
 
-        scheduleVBStatePersist(vbid);
-    } else if (vbid.get() < vbMap.getSize()) {
-        auto ft =
-                std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
-        KVShard* shard = vbMap.getShardByVbId(vbid);
+ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
+        Vbid vbid,
+        vbucket_state_t to,
+        const nlohmann::json& meta,
+        std::unique_lock<std::mutex>& vbset,
+        folly::SharedMutex::WriteHolder* vbStateLock) {
+    auto ft = std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
+    KVShard* shard = vbMap.getShardByVbId(vbid);
 
-        VBucketPtr newvb =
-                makeVBucket(vbid,
-                            to,
-                            shard,
-                            std::move(ft),
-                            std::make_unique<NotifyNewSeqnoCB>(*this),
-                            std::make_unique<Collections::VB::Manifest>());
+    VBucketPtr newvb =
+            makeVBucket(vbid,
+                        to,
+                        shard,
+                        std::move(ft),
+                        std::make_unique<NotifyNewSeqnoCB>(*this),
+                        std::make_unique<Collections::VB::Manifest>());
 
-        newvb->setFreqSaturatedCallback(
-                [this] { this->wakeItemFreqDecayerTask(); });
+    newvb->setFreqSaturatedCallback(
+            [this] { this->wakeItemFreqDecayerTask(); });
 
-        Configuration& config = engine.getConfiguration();
-        if (config.isBfilterEnabled()) {
-            // Initialize bloom filters upon vbucket creation during
-            // bucket creation and rebalance
-            newvb->createFilter(config.getBfilterKeyCount(),
-                                config.getBfilterFpProb());
-        }
+    Configuration& config = engine.getConfiguration();
+    if (config.isBfilterEnabled()) {
+        // Initialize bloom filters upon vbucket creation during
+        // bucket creation and rebalance
+        newvb->createFilter(config.getBfilterKeyCount(),
+                            config.getBfilterFpProb());
+    }
 
-        // The first checkpoint for active vbucket should start with id 2.
-        uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
-        newvb->checkpointManager->setOpenCheckpointId(start_chk_id);
+    // The first checkpoint for active vbucket should start with id 2.
+    uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
+    newvb->checkpointManager->setOpenCheckpointId(start_chk_id);
 
-        // Before adding the VB to the map, notify KVStore of the create
-        vbMap.getShardByVbId(vbid)->forEachKVStore(
-                [vbid](KVStore* kvs) { kvs->prepareToCreate(vbid); });
+    // Before adding the VB to the map, notify KVStore of the create
+    vbMap.getShardByVbId(vbid)->forEachKVStore(
+            [vbid](KVStore* kvs) { kvs->prepareToCreate(vbid); });
 
-        // If active, update the VB from the bucket's collection state.
-        // Note: Must be done /before/ adding the new VBucket to vbMap so that
-        // it has the correct collections state when it is exposed to operations
-        if (to == vbucket_state_active) {
-            collectionsManager->update(*newvb);
-        }
+    // If active, update the VB from the bucket's collection state.
+    // Note: Must be done /before/ adding the new VBucket to vbMap so that
+    // it has the correct collections state when it is exposed to operations
+    if (to == vbucket_state_active) {
+        collectionsManager->update(*newvb);
+    }
 
-        if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
-            return ENGINE_ERANGE;
-        }
-
-        // @todo-durability: Can the following happen?
-        //     For now necessary at least for tests.
-        // Durability: Re-set vb-state for applying the ReplicationChain
-        //     encoded in 'meta'. This is for supporting the case where
-        //     ns_server issues a single set-vb-state call for creating a VB.
-        // Note: Must be done /after/ the new VBucket has been added to vbMap.
-        if (to == vbucket_state_active || to == vbucket_state_replica) {
-            vbMap.setState(newvb, to, meta, vbStateLock);
-        }
-
-        // When the VBucket is constructed we initialize
-        // persistenceSeqno(0) && persistenceCheckpointId(0)
-        newvb->setBucketCreation(true);
-        scheduleVBStatePersist(vbid);
-    } else {
+    if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
         return ENGINE_ERANGE;
     }
+
+    // @todo-durability: Can the following happen?
+    //     For now necessary at least for tests.
+    // Durability: Re-set vb-state for applying the ReplicationChain
+    //     encoded in 'meta'. This is for supporting the case where
+    //     ns_server issues a single set-vb-state call for creating a VB.
+    // Note: Must be done /after/ the new VBucket has been added to vbMap.
+    if (to == vbucket_state_active || to == vbucket_state_replica) {
+        vbMap.setState(newvb, to, meta, vbStateLock);
+    }
+
+    // When the VBucket is constructed we initialize
+    // persistenceSeqno(0) && persistenceCheckpointId(0)
+    newvb->setBucketCreation(true);
+    scheduleVBStatePersist(vbid);
     return ENGINE_SUCCESS;
 }
 
@@ -1115,16 +1122,12 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
     if (vb) {
         vbucket_state_t vbstate = vb->getState();
 
+        // 1) Remove the vb from the map and begin the deferred deletion
         vbMap.dropVBucketAndSetupDeferredDeletion(vb->getId(),
                                                   nullptr /*no cookie*/);
 
-        // Delete and recreate the vbucket database file
-        setVBucketState_UNLOCKED(vb->getId(),
-                                 vbstate,
-                                 {},
-                                 TransferVB::No,
-                                 true /*notifyDcp*/,
-                                 vbset);
+        // 2) Create a new vbucket
+        createVBucket_UNLOCKED(vb->getId(), vbstate, {}, vbset);
 
         // Move the cursors from the old vbucket into the new vbucket
         VBucketPtr newvb = vbMap.getBucket(vb->getId());

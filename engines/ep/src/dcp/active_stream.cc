@@ -442,7 +442,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
                 transitionState(StreamState::TakeoverSend);
 
                 engine->getKVBucket()->setVBucketState_UNLOCKED(
-                        vb_,
+                        vbucket,
                         vbucket_state_dead,
                         {},
                         TransferVB::No,
