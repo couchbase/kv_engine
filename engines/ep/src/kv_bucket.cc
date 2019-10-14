@@ -881,19 +881,21 @@ void KVBucket::setVBucketState_UNLOCKED(
     // We need to process any outstanding SyncWrites before we set the
     // vBucket state so that we can keep our invariant that we do not use
     // an ActiveDurabilityMonitor in a state other than active. This is done
-    // under a write lock of the vbState and we will set the vBucket to dead
+    // under a write lock of the vbState and we will set the vBucket state
     // under the same lock so we will not attempt to queue any more
     // SyncWrites after sending these notifications.
-    if (vb->getState() == vbucket_state_active && to == vbucket_state_dead) {
-        // At takeover (VBucket active -> VBucket dead) we should return
+    if (vb->getState() == vbucket_state_active && to != vb->getState()) {
+        // At state change to !active we should return
         // ENGINE_SYNC_WRITE_AMBIGUOUS to any clients waiting for the result
         // of a SyncWrite as they will timeout anyway.
 
         // Get a list of cookies that we should respond to
         auto connectionsToRespondTo = vb->getCookiesForInFlightSyncWrites();
-        ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
-                engine, vb, std::move(connectionsToRespondTo));
-        ExecutorPool::get()->schedule(notifyTask);
+        if (!connectionsToRespondTo.empty()) {
+            ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
+                    engine, vb, std::move(connectionsToRespondTo));
+            ExecutorPool::get()->schedule(notifyTask);
+        }
     }
 
     auto oldstate = vbMap.setState_UNLOCKED(*vb, to, meta, vbStateLock);

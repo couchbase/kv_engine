@@ -1302,8 +1302,10 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
     // Test: Set state to dead. Should skip notification for the warmed-up
     // Prepare (as it has no cookie) when task is run.
     EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, vbucket_state_dead));
-    runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
-                "Notify clients of Sync Write Ambiguous vb:0");
+
+    // No task scheduled because no prepare has a cookie (so cannot be notified)
+    EXPECT_EQ(0,
+              task_executor->getLpTaskQ()[NONIO_TASK_IDX]->getReadyQueueSize());
 }
 
 // Test actually covers an issue seen in MB-34956, the issue was just the lack

@@ -304,6 +304,8 @@ protected:
         EXPECT_EQ(ENGINE_SUCCESS, store->prepare(item, cookie));
     }
 
+    void takeoverSendsDurabilityAmbiguous(vbucket_state_t newState);
+
     /// Member to store the default options for GET and GET_REPLICA ops
     static const get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -2093,7 +2095,8 @@ TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
     runNextTask(taskQ, task->getDescription());
 }
 
-TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
+void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
+        vbucket_state_t newState) {
     setVBucketToActiveWithValidTopology();
 
     // Make pending
@@ -2109,7 +2112,7 @@ TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
 
     // Set state to dead
-    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, vbucket_state_dead));
+    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, newState));
 
     // We have set state to dead but we have not yet run the notification task
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
@@ -2119,6 +2122,18 @@ TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous) {
 
     // We should have told client the SyncWrite is ambiguous
     EXPECT_EQ(ENGINE_SYNC_WRITE_AMBIGUOUS, mockCookie->status);
+}
+
+TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous_replica) {
+    takeoverSendsDurabilityAmbiguous(vbucket_state_replica);
+}
+
+TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous_pending) {
+    takeoverSendsDurabilityAmbiguous(vbucket_state_pending);
+}
+
+TEST_P(DurabilityBucketTest, TakeoverSendsDurabilityAmbiguous_dead) {
+    takeoverSendsDurabilityAmbiguous(vbucket_state_dead);
 }
 
 TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
