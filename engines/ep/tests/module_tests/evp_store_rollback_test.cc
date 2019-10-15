@@ -791,6 +791,43 @@ TEST_P(RollbackTest, RollbackOnActive) {
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
+TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
+    // Stay as active until the rollback as it's easier to store things
+    // Store 1 item as our base (and post-rollback) state
+    const int numItems = 1;
+    for (int i = 0; i < numItems; i++) {
+        store_item(vbid,
+                   makeStoredDocKey("key_" + std::to_string(i)),
+                   "not rolled back");
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto htState = getHtState();
+    auto vb = store->getVBucket(vbid);
+    auto rollbackSeqno = vb->getHighSeqno();
+
+    // Put two unpersisted items into the checkpoint manager in two different
+    // checkpoints of different type
+    ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointDisk());
+    ASSERT_EQ(2, vb->checkpointManager->getOpenCheckpointId());
+    store_item(vbid, makeStoredDocKey("key_memory"), "not rolled back");
+
+    vb->checkpointManager->createSnapshot(vb->getHighSeqno() + 1,
+                                          vb->getHighSeqno() + 2,
+                                          0 /*highCompletedSeqno*/,
+                                          CheckpointType::Disk);
+    ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointDisk());
+    ASSERT_EQ(3, vb->checkpointManager->getOpenCheckpointId());
+    store_item(vbid, makeStoredDocKey("key_disk"), "not rolled back");
+
+    // Flip to replica and rollback
+    store->setVBucketState(vbid, vbucket_state_replica);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, vb->getHighSeqno());
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+}
+
 class RollbackDcpTest : public RollbackTest {
 public:
     // Mock implementation of dcp_message_producers which ... TODO
