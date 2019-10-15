@@ -2701,8 +2701,8 @@ TEST_P(VBucketDurabilityTest, Pending_Abort) {
     testCompleteSWInPassiveDM(vbucket_state_pending, Resolution::Abort);
 }
 
-void VBucketDurabilityTest::testConvertADMToPDMMakesPreparesMaybeVisible(
-        vbucket_state_t toState) {
+void VBucketDurabilityTest::testConvertADMMakesPreparesMaybeVisible(
+        vbucket_state_t toState, bool expectPreparedMaybeVisible) {
     const int64_t preparedSeqno = 1;
     storeSyncWrites({preparedSeqno});
     ASSERT_EQ(1,
@@ -2715,20 +2715,29 @@ void VBucketDurabilityTest::testConvertADMToPDMMakesPreparesMaybeVisible(
     auto htRes = vbucket->ht.findForUpdate(prepareKey);
 
     ASSERT_TRUE(htRes.pending);
-    EXPECT_EQ(CommittedState::PreparedMaybeVisible,
-              htRes.pending->getCommitted());
+    if (expectPreparedMaybeVisible) {
+        EXPECT_EQ(CommittedState::PreparedMaybeVisible,
+                  htRes.pending->getCommitted());
+    } else {
+        EXPECT_NE(CommittedState::PreparedMaybeVisible,
+                  htRes.pending->getCommitted());
+    }
 }
 
 TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToReplicaTransition) {
-    testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_replica);
+    testConvertADMMakesPreparesMaybeVisible(vbucket_state_replica, true);
 }
 
 TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToDeadTransition) {
-    testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_dead);
+    testConvertADMMakesPreparesMaybeVisible(vbucket_state_dead, true);
 }
 
 TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToPendingTransition) {
-    testConvertADMToPDMMakesPreparesMaybeVisible(vbucket_state_pending);
+    testConvertADMMakesPreparesMaybeVisible(vbucket_state_pending, true);
+}
+
+TEST_P(VBucketDurabilityTest, PreparesMaybeVisibleOnActiveToActiveTransition) {
+    testConvertADMMakesPreparesMaybeVisible(vbucket_state_active, false);
 }
 
 // If a vbucket is changed from active when there are SyncWrites which have been

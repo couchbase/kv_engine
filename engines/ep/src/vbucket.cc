@@ -603,7 +603,8 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
     // If we are transitioning away from active then we need to mark all of our
     // prepares as PreparedMaybeVisible to avoid exposing them
     std::vector<queued_item> trackedWrites;
-    if (!currentPassiveDM && durabilityMonitor) {
+    if (!currentPassiveDM && durabilityMonitor &&
+        state != vbucket_state_active) {
         auto& adm = dynamic_cast<ActiveDurabilityMonitor&>(*durabilityMonitor);
         trackedWrites = adm.getTrackedWrites();
         for (auto& write : trackedWrites) {
