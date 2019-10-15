@@ -8628,10 +8628,17 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  NULL, prepare, cleanup),
 
-                 //@TODO RDB: Broken because rocksDB threads stick around after
-                 // bucket is destroyed and have persistent thread locals
-        TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
-                   teardown_v2, NULL, prepare_ep_bucket_skip_broken_under_rocks, cleanup),
+        //@TODO RDB: Broken because rocksDB threads stick around after
+        // bucket is destroyed and have persistent thread locals
+        // MB-36494: Address sanitizer reports a use-after-free when
+        // runnning with Magma
+        TestCaseV2("multi_bucket set/get ",
+                   test_multi_bucket_set_get,
+                   NULL,
+                   teardown_v2,
+                   NULL,
+                   prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                   cleanup),
 
         TestCase("test_mb19635_upgrade_from_25x",
                  test_mb19635_upgrade_from_25x,
