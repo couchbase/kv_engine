@@ -824,34 +824,10 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
                           "mutex",
                           "event_handler::threadLock",
                           SlowMutexThreshold);
-
-    if (memcached_shutdown) {
-        // Someone requested memcached to shut down.
-        if (signal_idle_clients(thr) == 0) {
-            LOG_INFO("Stopping worker thread {}", thr.index);
-            c->eventBaseLoopbreak();
-            return;
-        }
-    }
-
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
 
     run_event_loop(c, which);
-
-    if (memcached_shutdown) {
-        // Someone requested memcached to shut down. If we don't have
-        // any connections bound to this thread we can just shut down
-        int connected = signal_idle_clients(thr);
-        if (connected == 0) {
-            LOG_INFO("Stopping worker thread {}", thr.index);
-            event_base_loopbreak(thr.base);
-        } else {
-            LOG_INFO("Waiting for {} connected clients on worker thread {}",
-                     connected,
-                     thr.index);
-        }
-    }
 }
 
 /**
