@@ -1410,19 +1410,35 @@ RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
 
 void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
     std::vector<queued_item> items;
+    // @TODO: This will only return items from contiguous checkpoints of the
+    // same type. Needs updating to run up to the high seqno.
     vb.checkpointManager->getNextItemsForPersistence(items);
     for (const auto& item : items) {
-        if (item->getBySeqno() > rollbackSeqno &&
-            !item->isCheckPointMetaItem() &&
-            !item->getKey().getCollectionID().isSystem()) {
-            GetValue gcb = getROUnderlying(vb.getId())
-                                   ->get(DiskDocKey{*item}, vb.getId());
+        if (item->getBySeqno() <= rollbackSeqno ||
+            item->isCheckPointMetaItem() ||
+            item->getKey().getCollectionID().isSystem()) {
+            continue;
+        }
 
-            if (gcb.getStatus() == ENGINE_SUCCESS) {
-                vb.setFromInternal(*gcb.item.get());
-            } else {
-                vb.removeItemFromMemory(*item);
-            }
+        // Currently we remove prepares from the HashTable on completion but
+        // they may still exist on disk. If we were to reload the prepare from
+        // disk, because we have a new unpersisted one, then we would end up in
+        // an inconsistent state to pre-rollback. Just remove the prepare from
+        // the HashTable. We will "warm up" any incomplete prepares in a later
+        // stage of rollback.
+        if (item->isPending()) {
+            vb.removeItemFromMemory(*item);
+            continue;
+        }
+
+        // Committed items only past this point
+        GetValue gcb =
+                getROUnderlying(vb.getId())->get(DiskDocKey{*item}, vb.getId());
+
+        if (gcb.getStatus() == ENGINE_SUCCESS) {
+            vb.setFromInternal(*gcb.item.get());
+        } else {
+            vb.removeItemFromMemory(*item);
         }
     }
 }

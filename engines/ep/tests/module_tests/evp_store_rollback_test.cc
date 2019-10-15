@@ -954,10 +954,12 @@ public:
      * @param key Key to use for the Prepare.
      * @param value Value to use for the Prepare.
      * @param syncDelete is this a SyncWrite or SyncDelete
+     * @param flush flush the prepare to disk
      */
     void doPrepare(StoredDocKey key,
                    std::string value,
-                   bool syncDelete = false);
+                   bool syncDelete = false,
+                   bool flush = true);
 
     /**
      * Receive and fulsh a DCP commit
@@ -1013,6 +1015,9 @@ public:
                                        bool syncDeleteSecond);
     void rollbackAbortOnTopOfAbortedSyncWrite(bool syncDeleteFirst,
                                               bool syncDeleteSecond);
+
+    void rollbackUnpersistedPrepareOnTopOfSyncWrite(bool syncDelete,
+                                                    bool deletedPrepare);
 
     std::shared_ptr<MockDcpConsumer> consumer;
     DcpProducers producers;
@@ -1161,7 +1166,8 @@ void RollbackDcpTest::writeBaseItems() {
 
 void RollbackDcpTest::doPrepare(StoredDocKey key,
                                 std::string value,
-                                bool syncDelete) {
+                                bool syncDelete,
+                                bool flush) {
     auto stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     auto startSeqno = vb->getHighSeqno();
@@ -1192,7 +1198,9 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
     }
 
     ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
-    flush_vbucket_to_disk(vbid, 1);
+    if (flush) {
+        flush_vbucket_to_disk(vbid, 1);
+    }
 }
 
 void RollbackDcpTest::doCommit(StoredDocKey key) {
@@ -1376,6 +1384,50 @@ TEST_P(RollbackDcpTest, RollbackPrepareOnTopOfSyncDelete) {
 
 TEST_P(RollbackDcpTest, RollbackDeletedPrepareOnTopOfSyncDelete) {
     rollbackPrepareOnTopOfSyncWrite(true, true);
+}
+
+void RollbackDcpTest::rollbackUnpersistedPrepareOnTopOfSyncWrite(
+        bool syncDelete, bool deletedPrepare) {
+    writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
+    auto key = makeStoredDocKey("anykey_0_0");
+    doPrepareAndCommit(key, "value2", syncDelete);
+    auto baseItems = vb->getNumTotalItems();
+    auto rollbackSeqno = vb->getHighSeqno();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    doPrepare(key, "value3", deletedPrepare, false /*noflush*/);
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumTotalItems());
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
+}
+
+TEST_P(RollbackDcpTest, RollbackUnpersistedPrepareOnTopOfSyncWrite) {
+    rollbackUnpersistedPrepareOnTopOfSyncWrite(false, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackUnpersistedDeletedPrepareOnTopOfSyncWrite) {
+    rollbackUnpersistedPrepareOnTopOfSyncWrite(false, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackUnpersistedPrepareOnTopOfSyncDelete) {
+    rollbackUnpersistedPrepareOnTopOfSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackUnpersistedDeletedPrepareOnTopOfSyncDelete) {
+    rollbackUnpersistedPrepareOnTopOfSyncWrite(true, true);
 }
 
 /**
