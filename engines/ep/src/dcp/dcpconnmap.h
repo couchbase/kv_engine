@@ -41,6 +41,21 @@ public:
     ~DcpConnMap();
 
     /**
+     * Checks for a connection with the same name and sets it to disconnected
+     * whilst removing it from the map
+     *
+     * @param cookie Cookie representing the client
+     * @param name Full name of the connection
+     * @param connType Logging string (Producer/Consumer)
+     * @return shared_ptr to the connection
+     */
+    std::shared_ptr<ConnHandler> checkForAndRemoveExistingConn(
+            LockHolder& lh,
+            const void* cookie,
+            const std::string& name,
+            const std::string& connType);
+
+    /**
      * Find or build a dcp connection for the given cookie and with
      * the given name.
      * @param cookie The cookie representing the client
@@ -101,7 +116,17 @@ public:
      */
     bool handleSlowStream(uint16_t vbid, const std::string &name);
 
+    /**
+     * Disconnect the connection for the given cookie
+     */
     void disconnect(const void *cookie);
+
+    /**
+     * ConnHandler specific disconnection.
+     *
+     * @param conn RValue conn to prevent any later use by caller
+     */
+    void disconnectConn(std::shared_ptr<ConnHandler>&& conn);
 
     void manageConnections();
 
@@ -159,6 +184,9 @@ protected:
      * of the module test ep-engine_dead_connections_test
      */
     std::list<std::shared_ptr<ConnHandler>> deadConnections;
+
+    std::shared_ptr<ConnHandler> findByName_UNLOCKED(LockHolder& lh,
+                                                     const std::string& name);
 
     /*
      * Change the value at which a DcpConsumer::Processor task will yield
