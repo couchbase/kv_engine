@@ -16,8 +16,8 @@
  */
 #include "client_mcbp_commands.h"
 #include "frameinfo.h"
-#include "tracing/tracer.h"
 #include <mcbp/mcbp.h>
+#include <memcached/tracer.h>
 #include <array>
 #include <gsl/gsl>
 

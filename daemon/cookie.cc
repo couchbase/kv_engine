@@ -510,8 +510,8 @@ Cookie::Cookie(Connection& conn) : connection(conn) {
 
 void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     reset();
-    enableTracing =
-            tracing_enabled || Settings::instance().alwaysCollectTraceInfo();
+    setTracingEnabled(tracing_enabled ||
+                      Settings::instance().alwaysCollectTraceInfo());
     setPacket(Cookie::PacketContent::Header, header);
     start = std::chrono::steady_clock::now();
     tracer.begin(cb::tracing::TraceCode::REQUEST, start);

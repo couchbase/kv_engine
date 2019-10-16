@@ -527,7 +527,3 @@ size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {
     auto* c = cookie_to_mock_object(cookie);
     return c->num_io_notifications;
 }
-
-cb::tracing::Traceable& mock_get_traceable(const void* cookie) {
-    return *cookie_to_mock_object(cookie);
-}

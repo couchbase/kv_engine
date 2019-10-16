@@ -16,27 +16,35 @@
  */
 #pragma once
 
-#include <memcached/tracetypes.h>
+#include <memcached/visibility.h>
 #include <chrono>
+#include <string>
 #include <vector>
 
 namespace cb {
 namespace tracing {
-// fwd declaration
-class MEMCACHED_PUBLIC_CLASS Tracer;
-} // namespace tracing
-} // namespace cb
 
-// to have this in the global namespace
-// get the tracepoints either as raw
-// or formatted list of durations
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
-                                           bool raw = true);
-MEMCACHED_PUBLIC_API std::ostream& operator<<(
-        std::ostream& os, const cb::tracing::Tracer& tracer);
+enum class TraceCode : uint8_t {
+    REQUEST, /* Whole Request */
 
-namespace cb {
-namespace tracing {
+    /// Time spent waiting for a background fetch operation to be scheduled.
+    BG_WAIT,
+    /// Time spent performing the actual background load from disk.
+    BG_LOAD,
+    GET,
+    GETIF,
+    GETSTATS,
+    SETWITHMETA,
+    STORE,
+    /// Time spent by a SyncWrite in Prepared state before being completed.
+    SYNC_WRITE_PREPARE,
+    /// Time when a SyncWrite local ACK is received by the Active.
+    SYNC_WRITE_ACK_LOCAL,
+    /// Time when a SyncWrite replica ACK is received by the Active.
+    SYNC_WRITE_ACK_REMOTE,
+};
+
+using SpanId = std::size_t;
 
 class MEMCACHED_PUBLIC_CLASS Span {
 public:
@@ -90,32 +98,36 @@ public:
     // clear the collected trace data;
     void clear();
 
-    friend std::string(::to_string)(const cb::tracing::Tracer& tracer,
-                                    bool raw);
-
 protected:
     std::vector<Span> vecSpans;
 };
 
-struct MEMCACHED_PUBLIC_CLASS Traceable {
-    Traceable() : enableTracing(false) {
-    }
-
+class MEMCACHED_PUBLIC_CLASS Traceable {
+public:
+    virtual ~Traceable() = default;
     bool isTracingEnabled() const {
-        return enableTracing;
+        return tracingEnabled;
     }
-
     void setTracingEnabled(bool enable) {
-        enableTracing = enable;
+        tracingEnabled = enable;
     }
-
-    cb::tracing::Tracer& getTracer() {
+    Tracer& getTracer() {
+        return tracer;
+    }
+    const Tracer& getTracer() const {
         return tracer;
     }
 
-    bool enableTracing;
-    cb::tracing::Tracer tracer;
+protected:
+    bool tracingEnabled = false;
+    Tracer tracer;
 };
 
 } // namespace tracing
 } // namespace cb
+
+MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
+                                           bool raw = true);
+MEMCACHED_PUBLIC_API std::ostream& operator<<(
+        std::ostream& os, const cb::tracing::Tracer& tracer);
+MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::TraceCode tracecode);

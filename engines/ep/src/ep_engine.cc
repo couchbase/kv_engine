@@ -5190,9 +5190,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
             storeEngineSpecific(cookie, nullptr);
         } else {
             startTime = std::chrono::steady_clock::now();
+            auto& traceable = *cookie2traceable(cookie);
+            if (traceable.isTracingEnabled()) {
+                NonBucketAllocationGuard guard;
+                traceable.getTracer().begin(TraceCode::SETWITHMETA);
+            }
         }
     }
-    TRACE_BEGIN(cookie, TraceCode::SETWITHMETA, startTime);
 
     const auto opcode = request.getClientOpcode();
     const bool allowExisting = (opcode == cb::mcbp::ClientOpcode::SetWithMeta ||
@@ -5235,7 +5239,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                 cookie, cb::audit::document::Operation::Modify);
         ++stats->numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
-        TRACE_END(cookie, TraceCode::SETWITHMETA, endTime);
+        auto& traceable = *cookie2traceable(cookie);
+        if (traceable.isTracingEnabled()) {
+            traceable.getTracer().end(TraceCode::SETWITHMETA, endTime);
+        }
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - startTime);
         stats->setWithMetaHisto.add(elapsed);

@@ -199,11 +199,13 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     updateBGStats(fetched_item.initTime, startTime, fetchEnd);
 
     // Close the BG_WAIT span; and add a BG_LOAD span
-    if (fetched_item.cookie) {
-        TRACE_END(fetched_item.cookie, cb::tracing::TraceCode::BG_WAIT, startTime);
-        TRACE_BEGIN(
-                  fetched_item.cookie, cb::tracing::TraceCode::BG_LOAD, startTime);
-        TRACE_END(fetched_item.cookie, cb::tracing::TraceCode::BG_LOAD, fetchEnd);
+    auto* traceable = cookie2traceable(fetched_item.cookie);
+    if (traceable && traceable->isTracingEnabled()) {
+        NonBucketAllocationGuard guard;
+        auto& tracer = traceable->getTracer();
+        tracer.end(fetched_item.traceSpanId, startTime);
+        auto spanId = tracer.begin(cb::tracing::TraceCode::BG_LOAD, startTime);
+        tracer.end(spanId, fetchEnd);
     }
 
     return status;

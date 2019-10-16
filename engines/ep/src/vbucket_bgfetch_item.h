@@ -19,6 +19,7 @@
 
 #include "callbacks.h"
 #include "diskdockey.h"
+#include "objectregistry.h"
 #include "trace_helpers.h"
 
 #include <list>
@@ -41,15 +42,19 @@ public:
           cookie(c),
           initTime(init_time),
           metaDataOnly(meta_only) {
-        if (cookie) {
-            TRACE_BEGIN(cookie, cb::tracing::TraceCode::BG_WAIT, init_time);
+        auto* traceable = cookie2traceable(c);
+        if (traceable && traceable->isTracingEnabled()) {
+            NonBucketAllocationGuard guard;
+            traceSpanId = traceable->getTracer().begin(
+                    cb::tracing::TraceCode::BG_WAIT, init_time);
         }
     }
 
     GetValue* value;
     const void* cookie;
-    std::chrono::steady_clock::time_point initTime;
+    const std::chrono::steady_clock::time_point initTime;
     bool metaDataOnly;
+    cb::tracing::SpanId traceSpanId;
 };
 
 struct vb_bgfetch_item_ctx_t {

@@ -17,8 +17,8 @@
 
 #pragma once
 
+#include <memcached/tracer.h>
 #include <platform/sized_buffer.h>
-#include <tracing/tracer.h>
 #include <string>
 
 namespace cb {

@@ -17,9 +17,10 @@
 #include "tests/mcbp/mock_connection.h"
 #include "tracing/trace_helpers.h"
 
+#include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <folly/portability/GTest.h>
-#include <tracing/tracer.h>
+#include <memcached/tracer.h>
 #include <unistd.h>
 #include <algorithm>
 #include <chrono>
@@ -94,37 +95,3 @@ protected:
     Cookie cookie;
     std::chrono::steady_clock::time_point epoch;
 };
-
-TEST_F(TracingCookieTest, InstantTracerBegin) {
-    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ true);
-
-    const auto& durations = cookie.getTracer().getDurations();
-    EXPECT_EQ(1u, durations.size());
-    EXPECT_GT(durations[0].start, epoch);
-    EXPECT_EQ(cb::tracing::Span::Duration::max(), durations[0].duration)
-            << "Span should be half-open when we have not yet ended it.";
-}
-
-TEST_F(TracingCookieTest, InstantTracerBeginEnd) {
-    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ true);
-    // Ensure we have a non-zero span duration
-    std::this_thread::sleep_for(std::chrono::microseconds(1));
-    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ false);
-
-    const auto& durations = cookie.getTracer().getDurations();
-    EXPECT_EQ(1u, durations.size());
-    EXPECT_GT(durations[0].start, epoch);
-    EXPECT_LT(durations[0].duration, cb::tracing::Span::Duration::max())
-            << "Span should be closed once we have ended it.";
-    EXPECT_GE(durations[0].duration, std::chrono::microseconds(1))
-            << "Span should have non-zero duration once we have ended it.";
-}
-
-/// Test that omitting a begin all (and only ending) doesn't create a trace
-/// span.
-TEST_F(TracingCookieTest, InstantTracerEnd) {
-    InstantTracer(cookie, cb::tracing::TraceCode::REQUEST, /*start*/ false);
-
-    const auto& durations = cookie.getTracer().getDurations();
-    EXPECT_EQ(0u, durations.size());
-}

@@ -3,14 +3,13 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/server_callback_iface.h>
+#include <memcached/tracer.h>
 
 #include <atomic>
 #include <bitset>
 #include <condition_variable>
 #include <mutex>
 #include <string>
-
-#include "tracing/tracer.h"
 
 struct MockCookie : cb::tracing::Traceable {
     const uint64_t magic{MAGIC};
@@ -78,7 +77,5 @@ int get_number_of_mock_cookie_references(const void* cookie);
 size_t get_number_of_mock_cookie_io_notifications(const void* cookie);
 
 void mock_set_pre_link_function(PreLinkFunction function);
-
-cb::tracing::Traceable& mock_get_traceable(const void* cookie);
 
 MockCookie* cookie_to_mock_object(const void* cookie);

@@ -25,7 +25,6 @@
 #include <mcbp/protocol/request.h>
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
-#include <tracing/trace_helpers.h>
 #include <utilities/logtags.h>
 
 using namespace std::string_literals;

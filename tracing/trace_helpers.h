@@ -16,9 +16,11 @@
  */
 #pragma once
 
-#include "tracer.h"
+#include <memcached/tracer.h>
 
-#include "daemon/cookie.h"
+static inline cb::tracing::Traceable* cookie2traceable(const void* cc) {
+    return reinterpret_cast<cb::tracing::Traceable*>(const_cast<void*>(cc));
+}
 
 /**
  * Traces a scope
@@ -30,66 +32,29 @@
  */
 class ScopedTracer {
 public:
-    ScopedTracer(Cookie& cookie, const cb::tracing::TraceCode code)
-        : cookie(cookie) {
-        if (cookie.isTracingEnabled()) {
-            spanId = cookie.getTracer().begin(code);
+    ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::TraceCode code)
+        : traceable(traceable) {
+        if (traceable.isTracingEnabled()) {
+            spanId = traceable.getTracer().begin(code);
         }
     }
 
     /// Constructor from Cookie (void*)
-    ScopedTracer(const void* cookie, const cb::tracing::TraceCode code)
-        : ScopedTracer(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
-                       code) {
+    ScopedTracer(const void* cookie, cb::tracing::TraceCode code)
+        : ScopedTracer(*cookie2traceable(cookie), code) {
     }
 
     ~ScopedTracer() {
-        if (cookie.isTracingEnabled()) {
-            cookie.getTracer().end(spanId);
+        if (traceable.isTracingEnabled()) {
+            traceable.getTracer().end(spanId);
         }
     }
 
 protected:
-    Cookie& cookie;
+    cb::tracing::Traceable& traceable;
 
     /// ID of our Span.
     cb::tracing::SpanId spanId = {};
-};
-
-/**
- * Simple helper class which adds a trace begin or end event instantly
- * when it is created.
- * For use when the start & stop times are not inside the same scope; and hence
- * need the ability to specify them individually.
- */
-class InstantTracer {
-public:
-    InstantTracer(Cookie& cookie,
-                  const cb::tracing::TraceCode code,
-                  bool begin,
-                  std::chrono::steady_clock::time_point time =
-                          std::chrono::steady_clock::now()) {
-        if (cookie.isTracingEnabled()) {
-            auto& tracer = cookie.getTracer();
-            if (begin) {
-                tracer.begin(code, time);
-            } else {
-                tracer.end(code, time);
-            }
-        }
-    }
-
-    /// Constructor from Cookie (void*)
-    InstantTracer(const void* cookie,
-                  const cb::tracing::TraceCode code,
-                  bool begin,
-                  std::chrono::steady_clock::time_point time =
-                          std::chrono::steady_clock::now())
-        : InstantTracer(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
-                        code,
-                        begin,
-                        time) {
-    }
 };
 
 /**
@@ -103,49 +68,33 @@ public:
  */
 class TracerStopwatch {
 public:
-    TracerStopwatch(Cookie& cookie, const cb::tracing::TraceCode code)
-        : cookie(cookie), code(code) {
+    TracerStopwatch(cb::tracing::Traceable* traceable,
+                    const cb::tracing::TraceCode code)
+        : traceable(traceable), code(code) {
     }
 
     /// Constructor from Cookie (void*)
     TracerStopwatch(const void* cookie, const cb::tracing::TraceCode code)
-        : TracerStopwatch(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
-                          code) {
+        : TracerStopwatch(cookie2traceable(cookie), code) {
     }
 
     void start(std::chrono::steady_clock::time_point startTime) {
-        if (cookie.isTracingEnabled()) {
-            spanId = cookie.getTracer().begin(code, startTime);
+        if (traceable && traceable->isTracingEnabled()) {
+            spanId = traceable->getTracer().begin(code, startTime);
         }
     }
 
     void stop(std::chrono::steady_clock::time_point stopTime) {
-        if (cookie.isTracingEnabled()) {
-            cookie.getTracer().end(spanId, stopTime);
+        if (traceable && traceable->isTracingEnabled()) {
+            traceable->getTracer().end(spanId, stopTime);
         }
     }
 
 protected:
-    Cookie& cookie;
+    cb::tracing::Traceable* const traceable;
 
     /// ID of our Span.
     cb::tracing::SpanId spanId = {};
 
     cb::tracing::TraceCode code;
 };
-
-#define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
-
-/**
- * Begin a trace. Accepts a single optional argument - the time_point to use
- * as the starting time instead of the default std::chrono::steady_clock::now().
- */
-#define TRACE_BEGIN(ck, code, ...) \
-    InstantTracer(ck, code, /*begin*/ true, __VA_ARGS__)
-
-/**
- * End a trace. Accepts a single optional argument - the time_point to use
- * as the ending time instead of the default std::chrono::steady_clock::now().
- */
-#define TRACE_END(ck, code, ...) \
-    InstantTracer(ck, code, /*begin*/ false, __VA_ARGS__)

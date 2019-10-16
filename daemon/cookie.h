@@ -17,12 +17,12 @@
 #pragma once
 
 #include "dynamic_buffer.h"
-#include "tracing/tracer.h"
 
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
+#include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 #include <chrono>
@@ -50,7 +50,7 @@ class Response;
  * know what the argument is and provide it's own logic depending on
  * which field is set
  */
-class Cookie {
+class Cookie : public cb::tracing::Traceable {
 public:
     explicit Cookie(Connection& conn);
 
@@ -451,22 +451,6 @@ public:
         return start;
     }
 
-    bool isTracingEnabled() const {
-        return enableTracing;
-    }
-
-    void setTracingEnabled(bool enable) {
-        enableTracing = enable;
-    }
-
-    cb::tracing::Tracer& getTracer() {
-        return tracer;
-    }
-
-    const cb::tracing::Tracer& getTracer() const {
-        return tracer;
-    }
-
     uint8_t getRefcount() {
         return refcount;
     }
@@ -541,9 +525,6 @@ public:
     }
 
 protected:
-    bool enableTracing = false;
-    cb::tracing::Tracer tracer;
-
     /// The tracing context provided by the client to use as the
     /// parent span
     std::string openTracingContext;
