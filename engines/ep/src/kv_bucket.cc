@@ -1134,31 +1134,33 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
     return rv;
 }
 
-extern "C" {
-
-struct snapshot_stats_t : cb::tracing::Traceable {
-    EventuallyPersistentEngine* engine;
+/**
+ * The getStats methods tries to Trace the time spent in the
+ * stats calls so we need to provide a Cookie which is Traceable,
+ * but what we really want is a map containing the kv pairs
+ */
+struct snapshot_add_stat_cookie : cb::tracing::Traceable {
     std::map<std::string, std::string> smap;
 };
 
-static void add_stat(const char* key,
-                     const uint16_t klen,
-                     const char* val,
-                     const uint32_t vlen,
-                     gsl::not_null<const void*> cookie) {
+static void snapshot_add_stat(const char* key,
+                              const uint16_t klen,
+                              const char* val,
+                              const uint32_t vlen,
+                              gsl::not_null<const void*> cookie) {
     void* ptr = const_cast<void*>(cookie.get());
-    snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
+    auto* snap = static_cast<snapshot_add_stat_cookie*>(ptr);
     std::string k(key, klen);
     std::string v(val, vlen);
     snap->smap.insert(std::pair<std::string, std::string>(k, v));
-    }
 }
 
 void KVBucket::snapshotStats() {
-    snapshot_stats_t snap;
-    snap.engine = &engine;
-    bool rv = engine.getStats(&snap, {}, {}, add_stat) == ENGINE_SUCCESS &&
-              engine.getStats(&snap, "dcp", {}, add_stat) == ENGINE_SUCCESS;
+    snapshot_add_stat_cookie snap;
+    bool rv = engine.getStats(&snap, {}, {}, snapshot_add_stat) ==
+                      ENGINE_SUCCESS &&
+              engine.getStats(&snap, "dcp", {}, snapshot_add_stat) ==
+                      ENGINE_SUCCESS;
 
     if (rv && stats.isShutdown) {
         snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
