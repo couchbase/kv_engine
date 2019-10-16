@@ -79,6 +79,16 @@ public:
      */
     void reconfigure(const nlohmann::json& json);
 
+    bool alwaysCollectTraceInfo() const {
+        return always_collect_trace_info.load(std::memory_order_consume);
+    }
+
+    void setAlwaysCollectTraceInfo(bool value) {
+        always_collect_trace_info.store(value, std::memory_order_release);
+        has.always_collect_trace_info = true;
+        notify_changed("always_collect_trace_info");
+    }
+
     /**
      * Get the name of the file containing the RBAC data
      *
@@ -814,6 +824,8 @@ public:
     }
 
 protected:
+    /// Should the server always collect trace information for commands
+    std::atomic_bool always_collect_trace_info{false};
 
     /**
      * The file containing the RBAC user data
@@ -1000,6 +1012,7 @@ public:
      * getter/setter pattern
      */
     struct {
+        bool always_collect_trace_info = false;
         bool rbac_file;
         bool privilege_debug;
         bool threads;

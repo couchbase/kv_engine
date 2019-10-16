@@ -191,6 +191,41 @@ nlohmann::json SettingsTest::makeInterfacesConfig(const char* protocolMode) {
     return root;
 }
 
+TEST_F(SettingsTest, AlwaysCollectTraceInfo) {
+    // Ensure that we detect non-string values for admin
+    nonBooleanValuesShouldFail("always_collect_trace_info");
+
+    nlohmann::json json;
+    // By default it should be off
+    try {
+        Settings settings(json);
+        EXPECT_FALSE(settings.alwaysCollectTraceInfo());
+        EXPECT_FALSE(settings.has.always_collect_trace_info);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    // We can set it to true
+    json["always_collect_trace_info"] = true;
+    try {
+        Settings settings(json);
+        EXPECT_TRUE(settings.alwaysCollectTraceInfo());
+        EXPECT_TRUE(settings.has.always_collect_trace_info);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    // We can set it to false
+    json["always_collect_trace_info"] = false;
+    try {
+        Settings settings(json);
+        EXPECT_FALSE(settings.alwaysCollectTraceInfo());
+        EXPECT_TRUE(settings.has.always_collect_trace_info);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST_F(SettingsTest, AuditFile) {
     // Ensure that we detect non-string values for admin
     nonStringValuesShouldFail("audit_file");
@@ -1033,6 +1068,21 @@ TEST(SettingsUpdateTest, RootIsNotDynamic) {
     updated.setRoot("/var");
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
+}
+
+TEST(SettingsUpdateTest, AlwaysCollectTraceInfoIsDynamic) {
+    Settings updated;
+    Settings settings;
+    EXPECT_FALSE(settings.alwaysCollectTraceInfo());
+
+    updated.setAlwaysCollectTraceInfo(true);
+    EXPECT_NO_THROW(settings.updateSettings(updated));
+    EXPECT_TRUE(settings.alwaysCollectTraceInfo());
+
+    // Changing it should also work
+    updated.setAlwaysCollectTraceInfo(false);
+    EXPECT_NO_THROW(settings.updateSettings(updated));
+    EXPECT_FALSE(settings.alwaysCollectTraceInfo());
 }
 
 TEST(SettingsUpdateTest, BreakpadIsDynamic) {

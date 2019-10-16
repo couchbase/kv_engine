@@ -111,6 +111,11 @@ static void throw_missing_file_exception(const std::string& key,
     throw_file_exception(key, filename, FileError::Missing);
 }
 
+static void handle_always_collect_trace_info(Settings& s,
+                                             const nlohmann::json& obj) {
+    s.setAlwaysCollectTraceInfo(obj.get<bool>());
+}
+
 /**
  * Handle the "rbac_file" tag in the settings
  *
@@ -658,6 +663,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
 
     std::vector<settings_config_tokens> handlers = {
             {"admin", ignore_entry},
+            {"always_collect_trace_info", handle_always_collect_trace_info},
             {"rbac_file", handle_rbac_file},
             {"privilege_debug", handle_privilege_debug},
             {"audit_file", handle_audit_file},
@@ -812,6 +818,19 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     // Ok, go ahead and update the settings!!
+    if (other.has.always_collect_trace_info) {
+        if (other.alwaysCollectTraceInfo() != alwaysCollectTraceInfo()) {
+            if (other.alwaysCollectTraceInfo()) {
+                LOG_INFO("Always collect trace information");
+            } else {
+                LOG_INFO(
+                        "Only collect trace information if the client asks for "
+                        "it");
+            }
+            setAlwaysCollectTraceInfo(other.alwaysCollectTraceInfo());
+        }
+    }
+
     if (other.has.datatype_snappy) {
         if (other.datatype_snappy != datatype_snappy) {
             std::string curr_val_str = datatype_snappy ? "true" : "false";

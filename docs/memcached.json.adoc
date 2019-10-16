@@ -21,6 +21,15 @@ be specified.
 
 This is the root directory of the Couchbase server installation.
 
+=== always_collect_trace_info
+
+the *always_collect_trace_info* attribute is used to instruct the
+server to collect trace information for operations even if the client
+don't asks for it, so that the "Slow operation" entries in the log
+contains a breakdown of where the server spent the time. The
+trace information is only returned to the client iff the client asked
+for it.
+
 === breakpad
 
 The *breakpad* attribute is used to configure the Breakpad crash
