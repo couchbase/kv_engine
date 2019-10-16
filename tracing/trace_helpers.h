@@ -53,7 +53,7 @@ protected:
     Cookie& cookie;
 
     /// ID of our Span.
-    cb::tracing::Tracer::SpanId spanId = {};
+    cb::tracing::SpanId spanId = {};
 };
 
 /**
@@ -129,7 +129,7 @@ protected:
     Cookie& cookie;
 
     /// ID of our Span.
-    cb::tracing::Tracer::SpanId spanId = {};
+    cb::tracing::SpanId spanId = {};
 
     cb::tracing::TraceCode code;
 };

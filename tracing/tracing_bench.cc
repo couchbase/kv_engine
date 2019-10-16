@@ -20,11 +20,11 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <memcached/tracetypes.h>
 #include <platform/scope_timer.h>
 
 #include "programs/engine_testapp/mock_server.h"
 #include "tracing/trace_helpers.h"
-#include "tracing/tracetypes.h"
 
 void SessionTracingRecordMutationSpan(benchmark::State& state) {
     auto* cookie = create_mock_cookie();

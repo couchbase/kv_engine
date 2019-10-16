@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "tracing/tracetypes.h"
+#include <memcached/tracetypes.h>
 #include <chrono>
 #include <vector>
 
@@ -60,10 +60,8 @@ public:
  */
 class MEMCACHED_PUBLIC_CLASS Tracer {
 public:
-    using SpanId = std::size_t;
-
     /// Begin a Span starting from the specified time point (defaults to now)
-    SpanId begin(const TraceCode tracecode,
+    SpanId begin(TraceCode tracecode,
                  std::chrono::steady_clock::time_point startTime =
                          std::chrono::steady_clock::now());
 
@@ -72,7 +70,7 @@ public:
                      std::chrono::steady_clock::now());
 
     /// End a Span, stopping at the specified time point (defaults to now).
-    bool end(const TraceCode tracecode,
+    bool end(TraceCode tracecode,
              std::chrono::steady_clock::time_point endTime =
                      std::chrono::steady_clock::now());
 

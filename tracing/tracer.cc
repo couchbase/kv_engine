@@ -31,8 +31,8 @@ std::chrono::microseconds to_micros(
 namespace cb {
 namespace tracing {
 
-Tracer::SpanId Tracer::begin(const TraceCode tracecode,
-                             std::chrono::steady_clock::time_point startTime) {
+SpanId Tracer::begin(TraceCode tracecode,
+                     std::chrono::steady_clock::time_point startTime) {
     vecSpans.emplace_back(tracecode, startTime);
     return vecSpans.size() - 1;
 }
@@ -46,7 +46,7 @@ bool Tracer::end(SpanId spanId, std::chrono::steady_clock::time_point endTime) {
     return true;
 }
 
-bool Tracer::end(const TraceCode tracecode,
+bool Tracer::end(TraceCode tracecode,
                  std::chrono::steady_clock::time_point endTime) {
     // Locate the ID for this tracecode (when we begin the Span).
     SpanId spanId = 0;

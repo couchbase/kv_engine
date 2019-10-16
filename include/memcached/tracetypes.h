@@ -42,8 +42,10 @@ enum class TraceCode : uint8_t {
     /// Time when a SyncWrite replica ACK is received by the Active.
     SYNC_WRITE_ACK_REMOTE,
 };
+
+using SpanId = std::size_t;
+
 } // namespace tracing
 } // namespace cb
 
-MEMCACHED_PUBLIC_API std::string to_string(
-        const cb::tracing::TraceCode tracecode);
+MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::TraceCode tracecode);
