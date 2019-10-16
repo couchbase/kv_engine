@@ -139,6 +139,13 @@ struct FrontEndThread {
 
     /// Is the thread running or not
     std::atomic_bool running{false};
+
+    /// We have a bug where we can end up in a hang situation during shutdown
+    /// and stuck in a tight loop logging (and flooding) the log files.
+    /// While trying to solve that bug let's reduce the amount being logged
+    /// so that we only log every 5 second (so that we can find the root cause
+    /// of the problem)
+    time_t shutdown_next_log = 0;
 };
 
 void notify_thread(FrontEndThread& thread);

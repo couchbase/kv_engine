@@ -68,14 +68,14 @@ static void release_connection(Connection* c);
 
 /** External functions *******************************************************/
 
-int signal_idle_clients(FrontEndThread& me) {
+int signal_idle_clients(FrontEndThread& me, bool dumpConnection) {
     int connected = 0;
     const auto index = me.index;
 
     iterate_thread_connections(
-            &me, [index, &connected](Connection& connection) {
+            &me, [index, &connected, dumpConnection](Connection& connection) {
                 ++connected;
-                if (!connection.signalIfIdle()) {
+                if (!connection.signalIfIdle() && dumpConnection) {
                     auto details = connection.toJSON().dump();
                     LOG_INFO("Worker thread {}: {}", index, details);
                 }

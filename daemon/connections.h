@@ -83,7 +83,7 @@ Connection* conn_new(SOCKET sfd,
  * @param me The connections to inspect must be bound to this thread
  * @return The number of clients connections bound to this thread
  */
-int signal_idle_clients(FrontEndThread& me);
+int signal_idle_clients(FrontEndThread& me, bool dumpConnection);
 
 /**
  * Iterate over all of the connections and call the callback function

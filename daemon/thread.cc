@@ -280,7 +280,7 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
             return;
         }
 
-        if (signal_idle_clients(me) == 0) {
+        if (signal_idle_clients(me, false) == 0) {
             LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
             return;
@@ -347,11 +347,17 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
-        auto connected = signal_idle_clients(me);
+        time_t now = time(nullptr);
+        bool log = now > me.shutdown_next_log;
+        if (log) {
+            me.shutdown_next_log = now + 5;
+        }
+
+        auto connected = signal_idle_clients(me, log);
         if (connected == 0) {
             LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
-        } else {
+        } else if (log) {
             LOG_INFO("Waiting for {} connected clients on worker thread {}",
                      connected,
                      me.index);
