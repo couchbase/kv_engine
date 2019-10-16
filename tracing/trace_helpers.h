@@ -20,10 +20,6 @@
 
 #include "daemon/cookie.h"
 
-// #define DISABLE_SESSION_TRACING 1
-
-#ifndef DISABLE_SESSION_TRACING
-
 /**
  * Traces a scope
  * Usage:
@@ -153,14 +149,3 @@ protected:
  */
 #define TRACE_END(ck, code, ...) \
     InstantTracer(ck, code, /*begin*/ false, __VA_ARGS__)
-
-#else
-/**
- * if DISABLE_SESSION_TRACING is set
- * unset all TRACE macros
- */
-#define TRACE_SCOPE(ck, code)
-#define TRACE_BEGIN(ck, code)
-#define TRACE_END(ck, code)
-
-#endif
