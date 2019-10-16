@@ -45,6 +45,7 @@
 #include "stats-info.h"
 #include "statwriter.h"
 #include "string_utils.h"
+#include "trace_helpers.h"
 #include "vb_count_visitor.h"
 #include "warmup.h"
 
@@ -52,6 +53,7 @@
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/engine.h>
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/util.h>
@@ -62,16 +64,14 @@
 #include <platform/compress.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
-#include <tracing/trace_helpers.h>
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 
 #include <fcntl.h>
-#include <memcached/limits.h>
-#include <stdarg.h>
-#include <xattr/blob.h>
 #include <chrono>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -5190,11 +5190,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
             storeEngineSpecific(cookie, nullptr);
         } else {
             startTime = std::chrono::steady_clock::now();
-            auto& traceable = *cookie2traceable(cookie);
-            if (traceable.isTracingEnabled()) {
-                NonBucketAllocationGuard guard;
-                traceable.getTracer().begin(TraceCode::SETWITHMETA);
-            }
         }
     }
 
@@ -5241,7 +5236,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         auto endTime = std::chrono::steady_clock::now();
         auto& traceable = *cookie2traceable(cookie);
         if (traceable.isTracingEnabled()) {
-            traceable.getTracer().end(TraceCode::SETWITHMETA, endTime);
+            NonBucketAllocationGuard guard;
+            auto& tracer = traceable.getTracer();
+            auto spanid = tracer.begin(TraceCode::SETWITHMETA, startTime);
+            tracer.end(spanid, endTime);
         }
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - startTime);

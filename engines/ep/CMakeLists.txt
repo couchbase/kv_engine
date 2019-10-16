@@ -363,6 +363,7 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/mem_allocator_stats_bench.cc
                    benchmarks/vbucket_bench.cc
                    benchmarks/probabilistic_counter_bench.cc
+                   benchmarks/tracing_bench.cc
                    $<TARGET_OBJECTS:ep_objs>
                    $<TARGET_OBJECTS:ep_mocks>
                    $<TARGET_OBJECTS:memory_tracking>

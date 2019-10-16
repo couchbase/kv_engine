@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include "objectregistry.h"
+
 #include <memcached/tracer.h>
 
 static inline cb::tracing::Traceable* cookie2traceable(const void* cc) {
@@ -35,6 +37,7 @@ public:
     ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::TraceCode code)
         : traceable(traceable) {
         if (traceable.isTracingEnabled()) {
+            NonBucketAllocationGuard guard;
             spanId = traceable.getTracer().begin(code);
         }
     }
@@ -62,9 +65,8 @@ protected:
  * Tracer objects, by storing the cookie and code in the object. To be used
  * with ScopeTimer classes.
  *
- * It's stop() and start() methods (which only take a
- * std::chrono::steady_clock::time_point) use the stored cookie and TraceCode to
- * record the times in the appropriate tracer object.
+ * The start and stop methods record the duration of the span and it is
+ * injected into the provided traceable object as part of object destruction.
  */
 class TracerStopwatch {
 public:
@@ -78,23 +80,27 @@ public:
         : TracerStopwatch(cookie2traceable(cookie), code) {
     }
 
-    void start(std::chrono::steady_clock::time_point startTime) {
+    ~TracerStopwatch() {
         if (traceable && traceable->isTracingEnabled()) {
-            spanId = traceable->getTracer().begin(code, startTime);
+            NonBucketAllocationGuard guard;
+            auto& tracer = traceable->getTracer();
+            const auto spanId = tracer.begin(code, startTime);
+            tracer.end(spanId, stopTime);
         }
     }
 
-    void stop(std::chrono::steady_clock::time_point stopTime) {
-        if (traceable && traceable->isTracingEnabled()) {
-            traceable->getTracer().end(spanId, stopTime);
-        }
+    void start(std::chrono::steady_clock::time_point tp) {
+        startTime = tp;
+    }
+
+    void stop(std::chrono::steady_clock::time_point tp) {
+        stopTime = tp;
     }
 
 protected:
     cb::tracing::Traceable* const traceable;
+    const cb::tracing::TraceCode code;
 
-    /// ID of our Span.
-    cb::tracing::SpanId spanId = {};
-
-    cb::tracing::TraceCode code;
+    std::chrono::steady_clock::time_point startTime;
+    std::chrono::steady_clock::time_point stopTime;
 };

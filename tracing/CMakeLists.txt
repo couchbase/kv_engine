@@ -1,4 +1,4 @@
-add_library(mcd_tracing STATIC tracer.cc trace_helpers.h)
+add_library(mcd_tracing STATIC tracer.cc)
 set_property(TARGET mcd_tracing PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(mcd_tracing engine_utilities platform)
 add_sanitizers(mcd_tracing)
@@ -12,9 +12,4 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND tracing_test)
 
-    add_executable(tracing_bench tracing_bench.cc)
-    target_include_directories(tracing_bench SYSTEM PRIVATE
-                               ${benchmark_SOURCE_DIR}/include)
-    target_link_libraries(tracing_bench PRIVATE benchmark mock_server)
-    add_sanitizers(tracing_bench)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

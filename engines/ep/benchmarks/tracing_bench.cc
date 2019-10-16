@@ -24,7 +24,7 @@
 #include <platform/scope_timer.h>
 
 #include "programs/engine_testapp/mock_server.h"
-#include "tracing/trace_helpers.h"
+#include "trace_helpers.h"
 
 #define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
 
@@ -90,5 +90,3 @@ void SessionTracingEncode(benchmark::State& state) {
 BENCHMARK(SessionTracingRecordMutationSpan);
 BENCHMARK(SessionTracingScopeTimer);
 BENCHMARK(SessionTracingEncode);
-
-BENCHMARK_MAIN()

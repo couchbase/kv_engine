@@ -24,7 +24,7 @@
 
 #include "ep_engine.h"
 
-#include "tracing/trace_helpers.h"
+#include "trace_helpers.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <platform/sized_buffer.h>

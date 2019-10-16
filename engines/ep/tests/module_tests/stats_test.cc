@@ -32,7 +32,7 @@
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
-#include "tracing/trace_helpers.h"
+#include "trace_helpers.h"
 
 #include <folly/portability/GMock.h>
 #include <memcached/server_cookie_iface.h>

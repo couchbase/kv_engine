@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 #include "tests/mcbp/mock_connection.h"
-#include "tracing/trace_helpers.h"
 
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
