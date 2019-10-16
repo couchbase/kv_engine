@@ -366,6 +366,7 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     // The item count must not increase when flushing Pending SyncWrites
     EXPECT_EQ(1, vb.getNumItems());
     EXPECT_EQ(1, vb.opsCreate) << "pending op increased opsCreate?";
+    EXPECT_EQ(0, vb.opsUpdate) << "pending op increased opsUpdate?";
 
     // @TODO RocksDB
     // @TODO Durability
@@ -466,6 +467,8 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
     EXPECT_EQ(0, stats.diskQueueSize);
     EXPECT_EQ(0, vb.opsCreate); // nothing committed
+    EXPECT_EQ(0, vb.opsUpdate); // nothing updated
+    EXPECT_EQ(0, vb.opsDelete); // nothing deleted
 
     // At persist-dedup, the Abort survives
     auto* store = vb.getShard()->getROUnderlying();
@@ -646,6 +649,8 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     EXPECT_EQ(1, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    EXPECT_EQ(0, vb.opsDelete);
 
     // prepare SyncDelete and commit.
     uint64_t cas = 0;
@@ -662,7 +667,10 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
+    // Counts shouldn't change when preparing.
     EXPECT_EQ(1, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    EXPECT_EQ(0, vb.opsDelete);
 
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
@@ -683,6 +691,14 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_TRUE(gv.item->isCommitted());
     EXPECT_TRUE(gv.item->isDeleted());
     EXPECT_EQ(delInfo.seqno + 1, gv.item->getBySeqno());
+
+    EXPECT_EQ(1, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    if (!isRocksDB()) {
+        // TODO: opsDelete not updated correctly under RocksDB as persistence
+        // callback doesn't know if the document previously existed or not.
+        EXPECT_EQ(1, vb.opsDelete);
+    }
 }
 
 /// Test SyncDelete on top of SyncWrite
@@ -698,6 +714,11 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+    EXPECT_EQ(0, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    EXPECT_EQ(0, vb.opsDelete);
+
     ASSERT_EQ(ENGINE_SUCCESS,
               vb.commit(key,
                         pending->getBySeqno(),
@@ -716,6 +737,10 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
     flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(1, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    EXPECT_EQ(0, vb.opsDelete);
 
     // prepare SyncDelete and commit.
     uint64_t cas = 0;
@@ -739,6 +764,9 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
 
     EXPECT_EQ(1, vb.getNumItems());
     EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(1, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    EXPECT_EQ(0, vb.opsDelete);
 
     ASSERT_EQ(2, ckptList.size());
     ASSERT_EQ(1, ckptList.back()->getNumItems());
@@ -754,6 +782,9 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(0, vb.getNumItems());
+    EXPECT_EQ(1, vb.opsCreate);
+    EXPECT_EQ(0, vb.opsUpdate);
+    EXPECT_EQ(1, vb.opsDelete);
 
     ASSERT_EQ(2, ckptList.size());
     ASSERT_EQ(2, ckptList.back()->getNumItems());

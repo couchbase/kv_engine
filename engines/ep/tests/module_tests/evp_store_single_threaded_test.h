@@ -298,6 +298,10 @@ public:
         return persistent() && std::get<1>(GetParam()) == "full_eviction";
     }
 
+    bool isRocksDB() const {
+        return std::get<0>(GetParam()).find("Rocksdb") != std::string::npos;
+    }
+
     /// @returns a string representing this tests' parameters.
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info);

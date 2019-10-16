@@ -75,8 +75,10 @@ void PersistenceCallback::operator()(
         return;
     }
     case KVStore::MutationSetResultState::Update: {
-        // Update in value-only or full eviction mode.
-        ++vbucket.opsUpdate;
+        if (queuedItem->isCommitted()) {
+            // ops_update should only count committed, not prepared items.
+            ++vbucket.opsUpdate;
+        }
 
         vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
         --epCtx.stats.diskQueueSize;

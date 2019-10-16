@@ -313,6 +313,11 @@ TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
                                  {},
                                  vbucket->lockCollections(key),
                                  cookie));
+
+        // Abort shouldn't result in any operation counts being incremented.
+        EXPECT_EQ(0, vbucket->opsCreate);
+        EXPECT_EQ(0, vbucket->opsUpdate);
+        EXPECT_EQ(0, vbucket->opsDelete);
     }
 }
 
@@ -1240,6 +1245,8 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
             cookie};
     ASSERT_EQ(MutationStatus::WasDirty,
               public_processSoftDelete(key, ctx).first);
+    EXPECT_EQ(0, vbucket->opsDelete)
+            << "opsDelete should not be incremented by prepared SyncDelete";
 
     // Test - commit the pending SyncDelete.
     writeView = ht->findForWrite(key).storedValue;
