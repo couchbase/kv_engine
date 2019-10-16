@@ -1283,22 +1283,6 @@ static test_result execute_test(engine_test_t test,
                 cfg.append("max_size=1073741824;");
             }
             test.cfg = cfg.c_str();
-        // Necessary configuration to run tests under magma
-        } else if (std::string(test.cfg).find("backend=magma") != std::string::npos) {
-            if (!cfg.empty() && cfg.back() != ';') {
-                cfg.append(";");
-            }
-            // Couchstore creates a rollback point with each batch commit.
-            // By default, magma creates a rollback point every 2 min.
-            // For testing purposes, we need to simulate couchstore so
-            // create a rollback point with each batch and increase the # 
-            // of commit points for magma to keep track of.
-            cfg.append(
-                "magma_max_commit_points=20;"
-                "magma_commit_point_interval=0;"
-                "magma_commit_point_every_batch=true;"
-                );
-            test.cfg = cfg.c_str();
         }
     }
 
