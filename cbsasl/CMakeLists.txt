@@ -63,6 +63,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME cbsasl-pwconv-test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_pwconv_test)
+    add_sanitizers(cbsasl_pwconv_test)
 
     add_executable(cbsasl_password_database_test
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
@@ -77,6 +78,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME cbsasl-password-database
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_password_database_test)
+    add_sanitizers(cbsasl_password_database_test)
 
     add_executable(cbsasl_client_server_test
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
@@ -85,6 +87,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME cbsasl-client-server
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_client_server_test)
+    add_sanitizers(cbsasl_client_server_test)
 
     add_executable(cbsasl_server_test sasl_server_test.cc)
     target_link_libraries(cbsasl_server_test
@@ -96,4 +99,5 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME cbsasl-server-sasl
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_server_test)
+    add_sanitizers(cbsasl_server_test)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

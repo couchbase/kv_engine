@@ -18,6 +18,7 @@ target_link_libraries(cluster_framework PUBLIC
 add_executable(cluster_test durability_tests.cc main.cc)
 target_link_libraries(cluster_test cluster_framework)
 add_dependencies(cluster_test memcached ep default_engine)
+add_sanitizers(cluster_test)
 
 add_test(NAME cluster_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

@@ -91,6 +91,7 @@ TARGET_LINK_LIBRARIES(gencode platform dirutils)
 
 ADD_EXECUTABLE(genconfig tools/genconfig.cc)
 TARGET_LINK_LIBRARIES(genconfig platform dirutils mcd_util)
+add_sanitizers(genconfig)
 
 add_subdirectory(tools/couchfile_upgrade)
 include_directories(tools/couchfile_upgrade)
@@ -346,6 +347,7 @@ if (NOT EP_BYPASS_TESTS)
             mcd_util
             platform
             ${LIBEVENT_LIBRARIES})
+    add_sanitizers(ep_perfsuite)
 
     ADD_EXECUTABLE(ep_engine_benchmarks
                    benchmarks/access_scanner_bench.cc

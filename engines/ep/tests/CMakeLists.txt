@@ -151,6 +151,7 @@ TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test
         mcd_util
         platform
         phosphor)
+add_sanitizers(ep-engine_couch-fs-stats_test)
 
 ADD_EXECUTABLE(ep-engine_misc_test module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)
@@ -178,6 +179,7 @@ TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcbp mcd_util
         ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
         platform xattr
         ${LIBEVENT_LIBRARIES})
+add_sanitizers(ep_testsuite)
 
 ADD_LIBRARY(ep_testsuite_basic MODULE
         ep_testsuite_basic.cc
@@ -195,6 +197,7 @@ TARGET_LINK_LIBRARIES(ep_testsuite_basic
         platform
         ${LIBEVENT_LIBRARIES}
         ${SNAPPY_LIBRARIES})
+add_sanitizers(ep_testsuite_basic)
 
 ADD_LIBRARY(ep_testsuite_dcp MODULE
         ep_testsuite_dcp.cc
@@ -212,6 +215,7 @@ TARGET_LINK_LIBRARIES(ep_testsuite_dcp
         platform
         ${LIBEVENT_LIBRARIES}
         ${SNAPPY_LIBRARIES})
+add_sanitizers(ep_testsuite_dcp)
 
 ADD_LIBRARY(ep_testsuite_checkpoint MODULE
         ep_testsuite_checkpoint.cc
@@ -227,6 +231,7 @@ TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
         platform
         ${LIBEVENT_LIBRARIES}
         ${SNAPPY_LIBRARIES})
+add_sanitizers(ep_testsuite_checkpoint)
 
 ADD_LIBRARY(ep_testsuite_xdcr MODULE
         ep_testsuite_xdcr.cc
@@ -235,6 +240,7 @@ SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities
         mcbp JSON_checker dirutils platform xattr
         ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+add_sanitizers(ep_testsuite_xdcr)
 
 # MB-35234: Currently broken due to data race during warmup when enabling
 # durability.

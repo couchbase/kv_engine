@@ -272,6 +272,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME client_cert_config_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND client_cert_config_test)
+    add_sanitizers(client_cert_config_test)
 
     add_executable(memcached_unit_tests
                    connection_unit_tests.cc)

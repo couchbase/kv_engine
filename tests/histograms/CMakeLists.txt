@@ -4,3 +4,4 @@ target_include_directories(histo-test-bench
 target_link_libraries(histo-test-bench benchmark
         hdr_histogram_static
         mcd_util memcached_daemon gtest)
+add_sanitizers(histo-test-bench)

@@ -6,3 +6,5 @@ ADD_SANITIZERS(memcached-doc-server-api-test)
 ADD_TEST(NAME memcached-doc-server-api-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached-doc-server-api-test)
+
+add_sanitizers(memcached-doc-server-api-test)

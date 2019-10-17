@@ -15,4 +15,5 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME memcached-rbac-test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached_rbac_test)
+    add_sanitizers(memcached_rbac_test)
 endif ()

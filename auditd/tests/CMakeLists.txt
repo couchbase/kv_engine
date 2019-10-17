@@ -13,6 +13,7 @@ TARGET_LINK_LIBRARIES(memcached_auditfile_test memcached_logger mcd_time
 ADD_TEST(NAME memcached-auditfile-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_auditfile_test)
+add_sanitizers(memcached_auditfile_test)
 
 ADD_EXECUTABLE(memcached_auditconfig_test auditconfig_test.cc
                ${Memcached_SOURCE_DIR}/auditd/src/auditconfig.h
@@ -22,6 +23,7 @@ TARGET_LINK_LIBRARIES(memcached_auditconfig_test memcached_logger dirutils
 ADD_TEST(NAME memcached-auditconfig-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_auditconfig_test)
+add_sanitizers(memcached_auditconfig_test)
 
 ADD_EXECUTABLE(memcached_auditd_tests
                ${Memcached_SOURCE_DIR}/auditd/src/audit.h
