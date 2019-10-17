@@ -13,7 +13,8 @@
 
 #include <statistics/cbstat_collector.h>
 
-VBReadyQueue::VBReadyQueue(size_t maxVBuckets) : queuedValues(maxVBuckets) {
+VBReadyQueue::VBReadyQueue(size_t maxVBuckets)
+    : readyQueue(maxVBuckets), queuedValues(maxVBuckets) {
 }
 
 bool VBReadyQueue::exists(Vbid vbucket) {
@@ -23,9 +24,7 @@ bool VBReadyQueue::exists(Vbid vbucket) {
 
 bool VBReadyQueue::popFront(Vbid& frontValue) {
     std::lock_guard<std::mutex> lh(lock);
-    if (!readyQueue.empty()) {
-        frontValue = readyQueue.front();
-        readyQueue.pop();
+    if (readyQueue.read(frontValue)) {
         queuedValues.reset(frontValue.get());
         return true;
     }
@@ -33,21 +32,19 @@ bool VBReadyQueue::popFront(Vbid& frontValue) {
 }
 
 void VBReadyQueue::pop() {
-    std::lock_guard<std::mutex> lh(lock);
-    if (!readyQueue.empty()) {
-        queuedValues.reset(readyQueue.front().get());
-        readyQueue.pop();
-    }
+    Vbid dummy;
+    popFront(dummy);
 }
 
 bool VBReadyQueue::pushUnique(Vbid vbucket) {
     bool wasEmpty;
     {
         std::lock_guard<std::mutex> lh(lock);
-        wasEmpty = readyQueue.empty();
+        wasEmpty = readyQueue.size() == 0;
         const bool wasSet = queuedValues.test_set(vbucket.get());
         if (!wasSet) {
-            readyQueue.push(vbucket);
+            auto result = readyQueue.write(vbucket);
+            Expects(result);
         }
     }
     return wasEmpty;
@@ -60,13 +57,14 @@ size_t VBReadyQueue::size() const {
 
 bool VBReadyQueue::empty() {
     std::lock_guard<std::mutex> lh(lock);
-    return readyQueue.empty();
+    return readyQueue.isEmpty();
 }
 
 void VBReadyQueue::clear() {
     std::lock_guard<std::mutex> lh(lock);
-    while (!readyQueue.empty()) {
-        readyQueue.pop();
+    Vbid vbid;
+    while (!readyQueue.isEmpty()) {
+        readyQueue.read(vbid);
     }
     queuedValues.reset();
 }
@@ -74,7 +72,12 @@ void VBReadyQueue::clear() {
 std::queue<Vbid> VBReadyQueue::swap() {
     std::lock_guard<std::mutex> lh(lock);
     std::queue<Vbid> result;
-    readyQueue.swap(result);
+    // TODO: Fix this - either remove swap() or reconsider MPMCQueue; given
+    // the below implementation is not O(1) anymore.
+    Vbid element;
+    while (readyQueue.read(element)) {
+        result.push(element);
+    }
     queuedValues.reset();
 
     return result;
@@ -83,30 +86,20 @@ std::queue<Vbid> VBReadyQueue::swap() {
 void VBReadyQueue::addStats(const std::string& prefix,
                             const AddStatFn& add_stat,
                             const void* c) const {
-    // Take a copy of the queue data under lock; then format it to stats.
-    std::queue<Vbid> qCopy;
+    // Take a copy of the queue data under lock; then format it to stats. We
+    // can't copy the readyQueue as it wouldn't be thread safe so folly removed
+    // the copy ctor so we'll just grab the size.
     boost::dynamic_bitset<> qMapCopy;
+    auto size = 0;
     {
         std::lock_guard<std::mutex> lh(lock);
-        qCopy = readyQueue;
         qMapCopy = queuedValues;
+        size = readyQueue.size();
     }
 
-    add_casted_stat((prefix + "size").c_str(), qCopy.size(), add_stat, c);
+    add_casted_stat((prefix + "size").c_str(), size, add_stat, c);
     add_casted_stat(
             (prefix + "map_size").c_str(), qMapCopy.count(), add_stat, c);
-
-    // Form a comma-separated string of the queue's contents.
-    std::string contents;
-    while (!qCopy.empty()) {
-        contents += std::to_string(qCopy.front().get()) + ",";
-        qCopy.pop();
-    }
-    if (!contents.empty()) {
-        contents.pop_back();
-    }
-    add_casted_stat(
-            (prefix + "contents").c_str(), contents.c_str(), add_stat, c);
 
     // Form a comma-separated string of the queue map's contents.
     std::string qMapContents;

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <boost/dynamic_bitset.hpp>
+#include <folly/MPMCQueue.h>
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
 
@@ -20,12 +21,8 @@
 #include <unordered_set>
 
 /**
- * VBReadyQueue is a std::queue wrapper for managing a queue of vbuckets that
- * are ready for some task to process. The queue does not allow duplicates and
- * the push_unique method enforces this.
- *
- * Internally a std::queue and std::set track the contents and the std::set
- * enables a fast exists method which is used by front-end threads.
+ * VBReadyQueue is a queue of vbuckets that are ready for some task to process.
+ * The queue does not allow duplicates and the push_unique method enforces this.
  */
 class VBReadyQueue {
 public:
@@ -81,8 +78,8 @@ private:
     // Mutable so that we can lock in addStats (const) to copy the queue/set
     mutable std::mutex lock;
 
-    /* a queue of vbuckets that are ready for producing */
-    std::queue<Vbid> readyQueue;
+    /// A queue of Vbid for vBuckets needing work
+    folly::MPMCQueue<Vbid> readyQueue;
 
     /**
      * maintain a set of values that are in the readyQueue.
