@@ -17,6 +17,7 @@
 
 #include "environment.h"
 
+#include <gsl.h>
 #include <cstdint>
 
 Environment& Environment::get() {
@@ -25,6 +26,10 @@ Environment& Environment::get() {
 }
 
 size_t Environment::getMaxBackendFileDescriptors() const {
+    // Better to crash here than return a bad number if we haven't set up our
+    // env yet.
+    Expects(engineFileDescriptors > 0);
+
     // We always support Couchstore as a backend
     uint8_t backends = 1;
 

@@ -155,7 +155,11 @@ struct MockServerCoreApi : public ServerCoreIface {
         return {};
     }
     size_t getMaxEngineFileDescriptors() override {
-        return 0;
+        // 1024 is kind of an abitrary limit (it just needs to be greater than
+        // the number of reserved file descriptors in the environment) but we
+        // don't link to the engine in mock_server so we can't get the
+        // environment to calculate the value.
+        return 1024;
     }
     bool isCollectionsEnabled() const override {
         return true;

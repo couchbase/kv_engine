@@ -25,6 +25,7 @@
 #include "configuration.h"
 #include "ep_time.h"
 #include "hash_table.h"
+#include <engines/ep/src/environment.h>
 #include <folly/portability/GMock.h>
 #include <getopt.h>
 #include <logger/logger.h>
@@ -158,6 +159,18 @@ int main(int argc, char **argv) {
     // Need to initialize ep_real_time and friends.
     UnitTestServerCore unitTestServerCore;
     initialize_time_functions(&unitTestServerCore);
+
+    // Need to set engine file descriptors as tests using CouchKVStore will use
+    // a file cache that requires a fixed limit
+    {
+        // Set to 2 x the number of reserved file descriptors (i.e. the minimum
+        // number of file descriptors required). This number will then be split
+        // between all the backends compiled in (couchstore/rocks/magma). This
+        // number won't be particularly high, but should be fine for unit
+        // testing.
+        auto& env = Environment::get();
+        env.engineFileDescriptors = env.reservedFileDescriptors * 2;
+    }
 
     auto ret = RUN_ALL_TESTS();
 
