@@ -17,15 +17,19 @@
 
 #include "../mock/gmock_dcp_msg_producers.h"
 #include "checkpoint_manager.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/response.h"
 #include "dcp_stream_test.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
 #include "vbucket.h"
+
 #include <engines/ep/tests/mock/mock_dcp.h>
+#include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include <engines/ep/tests/mock/mock_dcp_producer.h>
 #include <engines/ep/tests/mock/mock_stream.h>
+#include <programs/engine_testapp/mock_server.h>
 
 /**
  * Tests if `arg` (an item*, aka void*) is equal to expected, excluding the
@@ -166,6 +170,82 @@ TEST_P(DcpStreamSyncReplTest, NoPendingWriteWithoutSyncReplica) {
 
 TEST_P(DcpStreamSyncReplTest, NoPendingDeleteWithoutSyncReplica) {
     testNoPendingWithoutSyncReplica(DocumentState::Deleted);
+}
+
+TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
+    // Put the Producer in the ConnMap so that we attempt to notify it
+    auto& connMap = engine->getDcpConnMap();
+    auto producerCookie = create_mock_cookie();
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->dcpOpen(producerCookie,
+                              0 /*opaque*/,
+                              0 /*seqno*/,
+                              cb::mcbp::request::DcpOpenPayload::Producer,
+                              "producer",
+                              {}));
+
+    auto* producer =
+            dynamic_cast<DcpProducer*>(engine->getConnHandler(producerCookie));
+
+    GMockDcpMsgProducers producers; // no expectations set.
+    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    // Step to empty the ready queue of the Producer
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+
+    // Verify number of io notification calls for the producer
+    connMap.processPendingNotifications();
+    EXPECT_EQ(1, get_number_of_mock_cookie_io_notifications(producerCookie));
+
+    // Store our doc
+    storePending(DocumentState::Alive, "key", "value");
+
+    // We should not notify the producer as it does not support SyncWrites
+    connMap.processPendingNotifications();
+    EXPECT_EQ(1, get_number_of_mock_cookie_io_notifications(producerCookie));
+
+    connMap.disconnect(producerCookie);
+    connMap.manageConnections();
+    destroy_mock_cookie(producerCookie);
+}
+
+TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
+    // Put the Producer in the ConnMap so that we attempt to notify it
+    auto& connMap = engine->getDcpConnMap();
+    auto producerCookie = create_mock_cookie();
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->dcpOpen(producerCookie,
+                              0 /*opaque*/,
+                              0 /*seqno*/,
+                              cb::mcbp::request::DcpOpenPayload::Producer,
+                              "producer",
+                              {}));
+
+    auto* producer =
+            dynamic_cast<DcpProducer*>(engine->getConnHandler(producerCookie));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->control(0, "enable_sync_writes", "true"));
+
+    GMockDcpMsgProducers producers; // no expectations set.
+    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    // Step to empty the ready queue of the Producer
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+
+    // Verify number of io notification calls for the producer
+    connMap.processPendingNotifications();
+    EXPECT_EQ(1, get_number_of_mock_cookie_io_notifications(producerCookie));
+
+    // Store our doc
+    storePending(DocumentState::Alive, "key", "value");
+
+    // We should notify the producer as it supports SyncWrites
+    connMap.processPendingNotifications();
+    EXPECT_EQ(2, get_number_of_mock_cookie_io_notifications(producerCookie));
+
+    connMap.disconnect(producerCookie);
+    connMap.manageConnections();
+    destroy_mock_cookie(producerCookie);
 }
 
 void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(

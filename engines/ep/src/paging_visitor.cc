@@ -342,7 +342,9 @@ void PagingVisitor::removeClosedUnrefCheckpoints(VBucket& vb) {
     // corresponding paused DCP connections.
     if (newCheckpointCreated) {
         store.getEPEngine().getDcpConnMap().notifyVBConnections(
-                vb.getId(), vb.checkpointManager->getHighSeqno());
+                vb.getId(),
+                vb.checkpointManager->getHighSeqno(),
+                SyncWriteOperation::No);
     }
 }
 

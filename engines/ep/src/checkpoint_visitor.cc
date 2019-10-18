@@ -43,7 +43,9 @@ void CheckpointVisitor::visitBucket(const VBucketPtr& vb) {
     // corresponding paused DCP connections.
     if (newCheckpointCreated) {
         store->getEPEngine().getDcpConnMap().notifyVBConnections(
-                vb->getId(), vb->checkpointManager->getHighSeqno());
+                vb->getId(),
+                vb->checkpointManager->getHighSeqno(),
+                SyncWriteOperation::No);
     }
 
     stats.itemsRemovedFromCheckpoints.fetch_add(removed);

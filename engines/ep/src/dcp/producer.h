@@ -111,7 +111,9 @@ public:
 
     void setDisconnect() override;
 
-    void notifySeqnoAvailable(Vbid vbucket, uint64_t seqno);
+    void notifySeqnoAvailable(Vbid vbucket,
+                              uint64_t seqno,
+                              SyncWriteOperation syncWriteOnly);
 
     void closeStreamDueToVbStateChange(Vbid vbucket, vbucket_state_t state);
 

@@ -18,6 +18,7 @@
 #pragma once
 
 #include "connmap.h"
+#include "ep_types.h"
 
 #include <memcached/engine.h>
 #include <platform/sized_buffer.h>
@@ -78,7 +79,9 @@ public:
                              const std::string& name,
                              const std::string& consumerName = {});
 
-    void notifyVBConnections(Vbid vbid, uint64_t bySeqno);
+    void notifyVBConnections(Vbid vbid,
+                             uint64_t bySeqno,
+                             SyncWriteOperation syncWrite);
 
     /**
      * Send a SeqnoAck message over the PassiveStream for the given VBucket.

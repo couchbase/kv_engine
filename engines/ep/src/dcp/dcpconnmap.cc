@@ -432,7 +432,9 @@ void DcpConnMap::removeVBConnections(DcpProducer& prod) {
     }
 }
 
-void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
+void DcpConnMap::notifyVBConnections(Vbid vbid,
+                                     uint64_t bySeqno,
+                                     SyncWriteOperation syncWrite) {
     size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
@@ -443,7 +445,7 @@ void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
         }
         auto* producer = dynamic_cast<DcpProducer*>(connection.get());
         if (producer) {
-            producer->notifySeqnoAvailable(vbid, bySeqno);
+            producer->notifySeqnoAvailable(vbid, bySeqno, syncWrite);
         }
     }
 }

@@ -2122,7 +2122,8 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream->isActive());
 
-    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+    producer->notifySeqnoAvailable(
+            vb->getId(), vb->getHighSeqno(), SyncWriteOperation::No);
 
     // Step which will notify the snapshot task
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));

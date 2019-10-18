@@ -2575,8 +2575,10 @@ void KVBucket::notifyFlusher(const Vbid vbid) {
     }
 }
 
-void KVBucket::notifyReplication(const Vbid vbid, const int64_t bySeqno) {
-    engine.getDcpConnMap().notifyVBConnections(vbid, bySeqno);
+void KVBucket::notifyReplication(const Vbid vbid,
+                                 const int64_t bySeqno,
+                                 SyncWriteOperation syncWrite) {
+    engine.getDcpConnMap().notifyVBConnections(vbid, bySeqno, syncWrite);
 }
 
 void KVBucket::initializeExpiryPager(Configuration& config) {

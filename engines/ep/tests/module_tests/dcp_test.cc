@@ -286,7 +286,8 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
 void DCPTest::prepareCheckpointItemsForStep(dcp_message_producers& msgProducers,
                                             MockDcpProducer& producer,
                                             VBucket& vb) {
-    producer.notifySeqnoAvailable(vb.getId(), vb.getHighSeqno());
+    producer.notifySeqnoAvailable(
+            vb.getId(), vb.getHighSeqno(), SyncWriteOperation::No);
     ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(&msgProducers));
     ASSERT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
     producer.getCheckpointSnapshotTask()->run();

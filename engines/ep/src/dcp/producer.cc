@@ -1368,7 +1368,18 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
     aggregator.conn_queueRemaining += getItemsRemaining();
 }
 
-void DcpProducer::notifySeqnoAvailable(Vbid vbucket, uint64_t seqno) {
+void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
+                                       uint64_t seqno,
+                                       SyncWriteOperation syncWrite) {
+    if (syncWrite == SyncWriteOperation::Yes &&
+        getSyncReplSupport() == SyncReplication::No) {
+        // Don't bother notifying this Producer if the operation is a prepare
+        // and we do not support SyncWrites or SyncReplication. It wouldn't send
+        // anything anyway and we'd run a bunch of tasks on NonIO threads, front
+        // end worker threads and potentially AuxIO threads.
+        return;
+    }
+
     auto rv = streams.find(vbucket.get());
 
     if (rv != streams.end()) {
