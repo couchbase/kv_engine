@@ -449,42 +449,28 @@ void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
 }
 
 void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
-    std::vector<std::shared_ptr<DcpConsumer>> conns;
-    { // Locking scope for vbConnsLocks[index]
-        size_t index = vbid.get() % vbConnLockNum;
-        std::lock_guard<std::mutex> lg(vbConnLocks[index]);
-
-        // Note: logically we should only have one Consumer per vBucket but
-        // we may keep around old Consumers with either no PassiveStream for
-        // this vBucket or a dead PassiveStream. We need to search the list of
-        // ConnHandlers for the Consumer with the alive PassiveStream for this
-        // vBucket.
-        for (auto& weakPtr : vbConns[vbid.get()]) {
-            auto connection = weakPtr.lock();
-            if (!connection) {
-                continue;
-            }
-            auto consumer = dynamic_pointer_cast<DcpConsumer>(connection);
-            if (consumer) {
-                // We need to search for the alive stream in the Consumers but
-                // can't do so inside the vbConnLock due to lock order inversion
-                // so store the Consumers for later processing.
-                conns.push_back(std::move(consumer));
-            }
+    // Note: logically we should only have one Consumer per vBucket but
+    // we may keep around old Consumers with either no PassiveStream for
+    // this vBucket or a dead PassiveStream. We need to search the list of
+    // ConnHandlers for the Consumer with the alive PassiveStream for this
+    // vBucket. We will just ack all alive Consumers and allow the Consumer to
+    // determine if it needs to do any work.
+    size_t index = vbid.get() % vbConnLockNum;
+    std::lock_guard<std::mutex> lg(vbConnLocks[index]);
+    for (auto& weakPtr : vbConns[vbid.get()]) {
+        auto connection = weakPtr.lock();
+        if (!connection) {
+            continue;
         }
-    }
-
-    for (auto& conn : conns) {
-        // Note: Sync Repl enabled at Consumer only if Producer supports it.
-        //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to
-        //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
-        //     where a new pre-6.5 Active is elected).
-        if (conn->isSyncReplicationEnabled()) {
-            // Ideally, we would verify here that we only ack a single consumer,
-            // however, that is not possible without adding additional locking
-            // to ensure that no consumer can add new streams whilst this loop
-            // runs.
-            conn->seqnoAckStream(vbid, seqno);
+        auto consumer = dynamic_pointer_cast<DcpConsumer>(connection);
+        if (consumer) {
+            // Note: Sync Repl enabled at Consumer only if Producer supports it.
+            //     This is to prevent that 6.5 Consumers send DCP_SEQNO_ACK to
+            //     pre-6.5 Producers (e.g., topology change in a 6.5 cluster
+            //     where a new pre-6.5 Active is elected).
+            if (consumer->isSyncReplicationEnabled()) {
+                consumer->seqnoAckStream(vbid, seqno);
+            }
         }
     }
 }

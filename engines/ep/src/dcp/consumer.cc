@@ -1324,24 +1324,28 @@ bool DcpConsumer::isValidOpaque(uint32_t opaque, Vbid vbucket) {
 }
 
 void DcpConsumer::closeAllStreams() {
+    std::vector<Vbid> vbvector;
 
-    // Need to synchronise the disconnect and clear, therefore use
-    // external locking here.
-    std::lock_guard<PassiveStreamMap> guard(streams);
+    {
+        // Need to synchronise the disconnect and clear, therefore use
+        // external locking here.
+        std::lock_guard<PassiveStreamMap> guard(streams);
 
-    streams.for_each(
-            [this](PassiveStreamMap::value_type& iter) {
-                auto* stream = iter.second.get();
-                stream->setDead(END_STREAM_DISCONNECTED);
-                // From MB-32886 we need to add DCP Consumers to the DCP
-                // Connection Map (done only for Producers previously). So, we
-                // have to ensure that this connection is removed from the
-                // Connection Map when a stream is closed.
-                engine_.getDcpConnMap().removeVBConnByVBId(
-                        getCookie(), stream->getVBucket());
-            },
-            guard);
-    streams.clear(guard);
+        streams.for_each(
+                [&vbvector](PassiveStreamMap::value_type& iter) {
+                    auto* stream = iter.second.get();
+                    stream->setDead(END_STREAM_DISCONNECTED);
+                    vbvector.push_back(stream->getVBucket());
+                },
+                guard);
+        streams.clear(guard);
+    }
+
+    // We put the ConnHandler in the vbConns "map" for seqno acking so we need
+    // to remove them when we close streams.
+    for (auto vbid : vbvector) {
+        engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
+    }
 }
 
 void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
