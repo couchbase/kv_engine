@@ -214,12 +214,12 @@ ADD_LIBRARY(memcached_daemon STATIC
 
 if (KV_USE_OPENTRACING)
    target_include_directories(memcached_daemon
-                              PRIVATE AFTER ${OPENTRACING_INCLUDE_DIR})
+                              SYSTEM PRIVATE ${OPENTRACING_INCLUDE_DIR})
    list(APPEND MEMCACHED_EXTRA_LIBS ${OPENTRACING_LIBRARIES})
 endif()
 
 target_include_directories(memcached_daemon
-                           SYSTEM PRIVATE AFTER ${FOLLY_INCLUDE_DIR})
+                           SYSTEM PRIVATE ${FOLLY_INCLUDE_DIR})
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
 TARGET_LINK_LIBRARIES(memcached_daemon
