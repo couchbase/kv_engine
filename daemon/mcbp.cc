@@ -257,7 +257,7 @@ void mcbp_collect_timings(Cookie& cookie) {
     const auto opcode = header.getRequest().getClientOpcode();
     const auto endTime = std::chrono::steady_clock::now();
     const auto elapsed = endTime - cookie.getStart();
-    cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
+    cookie.getTracer().end(cb::tracing::Code::Request, endTime);
 
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed);

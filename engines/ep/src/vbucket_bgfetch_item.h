@@ -46,7 +46,7 @@ public:
         if (traceable && traceable->isTracingEnabled()) {
             NonBucketAllocationGuard guard;
             traceSpanId = traceable->getTracer().begin(
-                    cb::tracing::TraceCode::BG_WAIT, init_time);
+                    cb::tracing::Code::BackgroundWait, init_time);
         }
     }
 

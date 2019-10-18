@@ -24,24 +24,30 @@
 namespace cb {
 namespace tracing {
 
-enum class TraceCode : uint8_t {
-    REQUEST, /* Whole Request */
-
+enum class Code : uint8_t {
+    /// Time spent in the entire request
+    Request,
     /// Time spent waiting for a background fetch operation to be scheduled.
-    BG_WAIT,
+    BackgroundWait,
     /// Time spent performing the actual background load from disk.
-    BG_LOAD,
-    GET,
-    GETIF,
-    GETSTATS,
-    SETWITHMETA,
-    STORE,
+    BackgroundLoad,
+    /// Time spent in EngineIface::get
+    Get,
+    /// Time spent in EngineIface::get_if
+    GetIf,
+    /// Time spent in EngineIface::getStats
+    GetStats,
+    /// Time spent in EngineIface::setWithMeta
+    /// (only success.. @todo This seems weird and should be fixed)
+    SetWithMeta,
+    /// Time spent in EngineIface::store and EngineIface::store_if
+    Store,
     /// Time spent by a SyncWrite in Prepared state before being completed.
-    SYNC_WRITE_PREPARE,
+    SyncWritePrepare,
     /// Time when a SyncWrite local ACK is received by the Active.
-    SYNC_WRITE_ACK_LOCAL,
+    SyncWriteAckLocal,
     /// Time when a SyncWrite replica ACK is received by the Active.
-    SYNC_WRITE_ACK_REMOTE,
+    SyncWriteAckRemote,
 };
 
 using SpanId = std::size_t;
@@ -52,14 +58,14 @@ public:
     /// gives maximum duration of 35.79minutes.
     using Duration = std::chrono::duration<int32_t, std::micro>;
 
-    Span(TraceCode code,
+    Span(Code code,
          std::chrono::steady_clock::time_point start,
          Duration duration = Duration::max())
         : start(start), duration(duration), code(code) {
     }
     std::chrono::steady_clock::time_point start;
     Duration duration;
-    TraceCode code;
+    Code code;
 };
 
 /**
@@ -69,7 +75,7 @@ public:
 class MEMCACHED_PUBLIC_CLASS Tracer {
 public:
     /// Begin a Span starting from the specified time point (defaults to now)
-    SpanId begin(TraceCode tracecode,
+    SpanId begin(Code tracecode,
                  std::chrono::steady_clock::time_point startTime =
                          std::chrono::steady_clock::now());
 
@@ -78,7 +84,7 @@ public:
                      std::chrono::steady_clock::now());
 
     /// End a Span, stopping at the specified time point (defaults to now).
-    bool end(TraceCode tracecode,
+    bool end(Code tracecode,
              std::chrono::steady_clock::time_point endTime =
                      std::chrono::steady_clock::now());
 
@@ -130,4 +136,4 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
                                            bool raw = true);
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer);
-MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::TraceCode tracecode);
+MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::Code tracecode);

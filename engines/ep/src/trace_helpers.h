@@ -34,7 +34,7 @@ static inline cb::tracing::Traceable* cookie2traceable(const void* cc) {
  */
 class ScopedTracer {
 public:
-    ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::TraceCode code)
+    ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::Code code)
         : traceable(traceable) {
         if (traceable.isTracingEnabled()) {
             NonBucketAllocationGuard guard;
@@ -43,7 +43,7 @@ public:
     }
 
     /// Constructor from Cookie (void*)
-    ScopedTracer(const void* cookie, cb::tracing::TraceCode code)
+    ScopedTracer(const void* cookie, cb::tracing::Code code)
         : ScopedTracer(*cookie2traceable(cookie), code) {
     }
 
@@ -71,12 +71,12 @@ protected:
 class TracerStopwatch {
 public:
     TracerStopwatch(cb::tracing::Traceable* traceable,
-                    const cb::tracing::TraceCode code)
+                    const cb::tracing::Code code)
         : traceable(traceable), code(code) {
     }
 
     /// Constructor from Cookie (void*)
-    TracerStopwatch(const void* cookie, const cb::tracing::TraceCode code)
+    TracerStopwatch(const void* cookie, const cb::tracing::Code code)
         : TracerStopwatch(cookie2traceable(cookie), code) {
     }
 
@@ -99,7 +99,7 @@ public:
 
 protected:
     cb::tracing::Traceable* const traceable;
-    const cb::tracing::TraceCode code;
+    const cb::tracing::Code code;
 
     std::chrono::steady_clock::time_point startTime;
     std::chrono::steady_clock::time_point stopTime;

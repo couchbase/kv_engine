@@ -198,13 +198,14 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     const auto fetchEnd = std::chrono::steady_clock::now();
     updateBGStats(fetched_item.initTime, startTime, fetchEnd);
 
-    // Close the BG_WAIT span; and add a BG_LOAD span
+    // Close the BackgroundWait span; and add a BackgroundLoad span
     auto* traceable = cookie2traceable(fetched_item.cookie);
     if (traceable && traceable->isTracingEnabled()) {
         NonBucketAllocationGuard guard;
         auto& tracer = traceable->getTracer();
         tracer.end(fetched_item.traceSpanId, startTime);
-        auto spanId = tracer.begin(cb::tracing::TraceCode::BG_LOAD, startTime);
+        auto spanId =
+                tracer.begin(cb::tracing::Code::BackgroundLoad, startTime);
         tracer.end(spanId, fetchEnd);
     }
 

@@ -41,14 +41,14 @@ TEST_F(TracingTest, Basic) {
     // empty tracer
     EXPECT_EQ(tracer.getTotalMicros().count(), 0);
 
-    EXPECT_EQ(tracer.begin(cb::tracing::TraceCode::REQUEST), 0);
+    EXPECT_EQ(tracer.begin(cb::tracing::Code::Request), 0);
     std::this_thread::sleep_for(std::chrono::microseconds(10000));
 
     // invalid end check
-    EXPECT_FALSE(tracer.end(cb::tracing::TraceCode::GET));
+    EXPECT_FALSE(tracer.end(cb::tracing::Code::Get));
 
     // valid end
-    EXPECT_TRUE(tracer.end(cb::tracing::TraceCode::REQUEST));
+    EXPECT_TRUE(tracer.end(cb::tracing::Code::Request));
 
     // valid micros
     EXPECT_GE(tracer.getTotalMicros().count(), 10000);
@@ -84,7 +84,7 @@ protected:
         cookie.setTracingEnabled(true);
     }
 
-    void SetUp() {
+    void SetUp() override {
         // Record initial time as an epoch (all subsequent times should be
         // greater or equal to this).
         epoch = std::chrono::steady_clock::now();

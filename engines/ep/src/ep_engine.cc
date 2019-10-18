@@ -82,7 +82,7 @@
 #include <string>
 #include <vector>
 
-using cb::tracing::TraceCode;
+using cb::tracing::Code;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -2313,7 +2313,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
                                                   get_options_t options) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats->getCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::TraceCode::GET));
+            TracerStopwatch(cookie, cb::tracing::Code::Get));
 
     GetValue gv(kvBucket->get(key, vbucket, cookie, options));
     ENGINE_ERROR_CODE ret = gv.getStatus();
@@ -2377,7 +2377,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
 
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats->getCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::TraceCode::GETIF));
+            TracerStopwatch(cookie, cb::tracing::Code::GetIf));
 
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
     // and pass it through the filter. If the filter accepts the document
@@ -2495,7 +2495,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         const cb::StoreIfPredicate& predicate) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats->storeCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::TraceCode::STORE));
+            TracerStopwatch(cookie, cb::tracing::Code::Store));
 
     // Check if this is a in-progress durable store which has now completed -
     // (see 'case EWOULDBLOCK' at the end of this function where we record
@@ -4487,7 +4487,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         const AddStatFn& add_stat) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats->getStatsCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
+            TracerStopwatch(cookie, cb::tracing::Code::GetStats));
 
     if (key.empty()) {
         EP_LOG_DEBUG("stats engine");
@@ -5238,7 +5238,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         if (traceable.isTracingEnabled()) {
             NonBucketAllocationGuard guard;
             auto& tracer = traceable.getTracer();
-            auto spanid = tracer.begin(TraceCode::SETWITHMETA, startTime);
+            auto spanid = tracer.begin(Code::SetWithMeta, startTime);
             tracer.end(spanid, endTime);
         }
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(

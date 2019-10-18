@@ -241,7 +241,7 @@ void OpenTracingThread::pushOne(
                                          steady_now - d.start);
 
             std::string text;
-            if (d.code == cb::tracing::TraceCode::REQUEST) {
+            if (d.code == cb::tracing::Code::Request) {
                 if (cb::mcbp::is_client_magic(entry.magic)) {
                     text = to_string(cb::mcbp::ClientOpcode(entry.opcode));
                 } else {
@@ -255,7 +255,7 @@ void OpenTracingThread::pushOne(
                                           {opentracing::ChildOf(parent->get()),
                                            opentracing::StartTimestamp(start)});
             if (span) {
-                if (d.code == cb::tracing::TraceCode::REQUEST) {
+                if (d.code == cb::tracing::Code::Request) {
                     if (!entry.rawKey.empty()) {
                         span->SetTag("key", entry.rawKey);
                     }

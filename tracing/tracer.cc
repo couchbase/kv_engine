@@ -31,22 +31,23 @@ std::chrono::microseconds to_micros(
 namespace cb {
 namespace tracing {
 
-SpanId Tracer::begin(TraceCode tracecode,
+SpanId Tracer::begin(Code tracecode,
                      std::chrono::steady_clock::time_point startTime) {
     vecSpans.emplace_back(tracecode, startTime);
     return vecSpans.size() - 1;
 }
 
 bool Tracer::end(SpanId spanId, std::chrono::steady_clock::time_point endTime) {
-    if (spanId >= vecSpans.size())
+    if (spanId >= vecSpans.size()) {
         return false;
+    }
     auto& span = vecSpans[spanId];
     span.duration =
             std::chrono::duration_cast<Span::Duration>(endTime - span.start);
     return true;
 }
 
-bool Tracer::end(TraceCode tracecode,
+bool Tracer::end(Code tracecode,
                  std::chrono::steady_clock::time_point endTime) {
     // Locate the ID for this tracecode (when we begin the Span).
     SpanId spanId = 0;
@@ -130,32 +131,30 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
     return os.str();
 }
 
-MEMCACHED_PUBLIC_API std::string to_string(
-        const cb::tracing::TraceCode tracecode) {
-    using cb::tracing::TraceCode;
+MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
+    using cb::tracing::Code;
     switch (tracecode) {
-    case TraceCode::REQUEST:
+    case Code::Request:
         return "request";
-
-    case TraceCode::BG_WAIT:
+    case Code::BackgroundWait:
         return "bg.wait";
-    case TraceCode::BG_LOAD:
+    case Code::BackgroundLoad:
         return "bg.load";
-    case TraceCode::GET:
+    case Code::Get:
         return "get";
-    case TraceCode::GETIF:
+    case Code::GetIf:
         return "get.if";
-    case TraceCode::GETSTATS:
+    case Code::GetStats:
         return "get.stats";
-    case TraceCode::SETWITHMETA:
+    case Code::SetWithMeta:
         return "set.with.meta";
-    case TraceCode::STORE:
+    case Code::Store:
         return "store";
-    case TraceCode::SYNC_WRITE_PREPARE:
+    case Code::SyncWritePrepare:
         return "sync_write.prepare";
-    case TraceCode::SYNC_WRITE_ACK_LOCAL:
+    case Code::SyncWriteAckLocal:
         return "sync_write.ack_local";
-    case TraceCode::SYNC_WRITE_ACK_REMOTE:
+    case Code::SyncWriteAckRemote:
         return "sync_write.ack_remote";
     }
     return "unknown tracecode";

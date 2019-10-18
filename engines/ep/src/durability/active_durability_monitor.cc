@@ -630,10 +630,9 @@ void ActiveDurabilityMonitor::State::advanceAndAckForPosition(
     auto* cookie = pos.it->getCookie();
     if (cookie) {
         const auto ackTime = std::chrono::steady_clock::now();
-        const auto event =
-                (node == getActive())
-                        ? cb::tracing::TraceCode::SYNC_WRITE_ACK_LOCAL
-                        : cb::tracing::TraceCode::SYNC_WRITE_ACK_REMOTE;
+        const auto event = (node == getActive())
+                                   ? cb::tracing::Code::SyncWriteAckLocal
+                                   : cb::tracing::Code::SyncWriteAckRemote;
         TracerStopwatch ackTimer(cookie, event);
         ackTimer.start(ackTime);
         ackTimer.stop(ackTime);
@@ -810,8 +809,8 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
         // the cookie before the response to the client is actually sent (and we
         // report the end of the request), which is done within
         // VBucket::commit().
-        TracerStopwatch prepareDuration(
-                cookie, cb::tracing::TraceCode::SYNC_WRITE_PREPARE);
+        TracerStopwatch prepareDuration(cookie,
+                                        cb::tracing::Code::SyncWritePrepare);
         prepareDuration.start(sw.getStartTime());
         prepareDuration.stop(prepareEnd);
     }

@@ -514,7 +514,7 @@ void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
                       Settings::instance().alwaysCollectTraceInfo());
     setPacket(Cookie::PacketContent::Header, header);
     start = std::chrono::steady_clock::now();
-    tracer.begin(cb::tracing::TraceCode::REQUEST, start);
+    tracer.begin(cb::tracing::Code::Request, start);
 }
 
 void Cookie::reset() {
