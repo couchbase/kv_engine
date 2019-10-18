@@ -45,7 +45,7 @@ public:
      * @param cookie Cookie representing the client
      * @param name Full name of the connection
      * @param connType Logging string (Producer/Consumer)
-     * @return shared_ptr to the connection
+     * @return shared_ptr to the connection if found, else null
      */
     std::shared_ptr<ConnHandler> checkForAndRemoveExistingConn(
             LockHolder& lh,
