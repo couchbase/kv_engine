@@ -20,6 +20,7 @@
 #include "item_eviction.h"
 #include "objectregistry.h"
 
+#include <folly/lang/Assume.h>
 #include <platform/compress.h>
 #include <xattr/utils.h>
 #include <chrono>
@@ -343,6 +344,24 @@ void Item::setCommittedviaPrepareSyncWrite() {
 
 void Item::setAbortSyncWrite() {
     op = queue_op::abort_sync_write;
+}
+
+bool Item::isAnySyncWriteOp() const {
+    switch (op) {
+        case queue_op::pending_sync_write:
+        case queue_op::commit_sync_write:
+        case queue_op::abort_sync_write:
+            return true;
+        case queue_op::mutation:
+        case queue_op::system_event:
+        case queue_op::flush:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+        case queue_op::set_vbucket_state:
+            return false;
+    }
+    folly::assume_unreachable();
 }
 
 item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
