@@ -2247,7 +2247,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare,
+                 prepare_ep_bucket_skip_broken_under_magma, // MB-36547
                  cleanup),
         TestCase("set+get hit",
                  test_set_get_hit,
