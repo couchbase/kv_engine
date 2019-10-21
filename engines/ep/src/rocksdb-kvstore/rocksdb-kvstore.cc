@@ -623,7 +623,7 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
         const auto& key = request.getKey();
         /* update ep stats */
         ++st.io_num_write;
-        st.io_write_bytes += (key.size() + dataSize);
+        st.io_document_write_bytes += (key.size() + dataSize);
 
         auto mutationStatus = getMutationStatus(status);
         if (request.isDelete()) {

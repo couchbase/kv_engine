@@ -2186,8 +2186,8 @@ static enum test_result test_io_stats(EngineIface* h) {
             get_int_stat(h, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
             "Expected reset stats to set io_bg_fetch_doc_bytes to zero");
     checkeq(0,
-            get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
-            "Expected reset stats to set io_write_bytes to zero");
+            get_int_stat(h, "rw_0:io_document_write_bytes", "kvstore"),
+            "Expected reset stats to set io_document_write_bytes to zero");
 
     const std::string key("a");
     const std::string value("b\r\n");
@@ -2202,7 +2202,7 @@ static enum test_result test_io_stats(EngineIface* h) {
             get_int_stat(h, "rw_0:io_num_write", "kvstore"),
             "Expected storing the key to update the write counter");
     checkeq(exp_write_bytes,
-            get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
+            get_int_stat(h, "rw_0:io_document_write_bytes", "kvstore"),
             "Expected storing the key to update the write bytes");
 
     // Exact write amplification varies, bur expect it to be at least 10.0x
@@ -2251,7 +2251,7 @@ static enum test_result test_io_stats(EngineIface* h) {
             "Expected reading the value back in to not update the write "
             "counter");
     checkeq(exp_write_bytes,
-            get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
+            get_int_stat(h, "rw_0:io_document_write_bytes", "kvstore"),
             "Expected reading the value back in to not update the write bytes");
 
     return SUCCESS;
@@ -6564,7 +6564,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "ro_0:io_bg_fetch_doc_bytes",
                 "ro_0:io_total_read_bytes",
                 "ro_0:io_total_write_bytes",
-                "ro_0:io_write_bytes",
+                "ro_0:io_document_write_bytes",
                 "ro_0:numLoadedVb",
                 "ro_0:open",
                 "ro_1:backend_type",
@@ -6579,7 +6579,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "ro_1:io_bg_fetch_doc_bytes",
                 "ro_1:io_total_read_bytes",
                 "ro_1:io_total_write_bytes",
-                "ro_1:io_write_bytes",
+                "ro_1:io_document_write_bytes",
                 "ro_1:numLoadedVb",
                 "ro_1:open",
                 "ro_2:backend_type",
@@ -6594,7 +6594,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "ro_2:io_bg_fetch_doc_bytes",
                 "ro_2:io_total_read_bytes",
                 "ro_2:io_total_write_bytes",
-                "ro_2:io_write_bytes",
+                "ro_2:io_document_write_bytes",
                 "ro_2:numLoadedVb",
                 "ro_2:open",
                 "ro_3:backend_type",
@@ -6609,7 +6609,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "ro_3:io_bg_fetch_doc_bytes",
                 "ro_3:io_total_read_bytes",
                 "ro_3:io_total_write_bytes",
-                "ro_3:io_write_bytes",
+                "ro_3:io_document_write_bytes",
                 "ro_3:numLoadedVb",
                 "ro_3:open"
     };
@@ -6632,7 +6632,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_0:io_bg_fetch_doc_bytes",
                 "rw_0:io_total_read_bytes",
                 "rw_0:io_total_write_bytes",
-                "rw_0:io_write_bytes",
+                "rw_0:io_document_write_bytes",
                 "rw_0:lastCommDocs",
                 "rw_0:numLoadedVb",
                 "rw_0:open",
@@ -6653,7 +6653,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_1:io_bg_fetch_doc_bytes",
                 "rw_1:io_total_read_bytes",
                 "rw_1:io_total_write_bytes",
-                "rw_1:io_write_bytes",
+                "rw_1:io_document_write_bytes",
                 "rw_1:lastCommDocs",
                 "rw_1:numLoadedVb",
                 "rw_1:open",
@@ -6674,7 +6674,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_2:io_bg_fetch_doc_bytes",
                 "rw_2:io_total_read_bytes",
                 "rw_2:io_total_write_bytes",
-                "rw_2:io_write_bytes",
+                "rw_2:io_document_write_bytes",
                 "rw_2:lastCommDocs",
                 "rw_2:numLoadedVb",
                 "rw_2:open",
@@ -6695,7 +6695,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "rw_3:io_bg_fetch_doc_bytes",
                 "rw_3:io_total_read_bytes",
                 "rw_3:io_total_write_bytes",
-                "rw_3:io_write_bytes",
+                "rw_3:io_document_write_bytes",
                 "rw_3:lastCommDocs",
                 "rw_3:numLoadedVb",
                 "rw_3:open"
@@ -7137,7 +7137,10 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_io_bg_fetch_read_count",
               "ep_io_compaction_read_bytes",
               "ep_io_compaction_write_bytes",
+              "ep_io_document_write_bytes",
+              "ep_io_flusher_write_amplification",
               "ep_io_total_read_bytes",
+              "ep_io_total_write_amplification",
               "ep_io_total_write_bytes",
               "ep_item_compressor_chunk_duration",
               "ep_item_compressor_interval",

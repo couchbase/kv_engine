@@ -2985,6 +2985,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                                  KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_data_read_failed",  value, add_stat, cookie);
     }
+    if (kvBucket->getKVStoreStat("io_document_write_bytes",
+                                 value,
+                                 KVBucketIface::KVSOption::RW)) {
+        add_casted_stat("ep_io_document_write_bytes", value, add_stat, cookie);
+
+        // Lambda to print a Write Amplification stat for the given bytes
+        // written counter.
+        auto printWriteAmpStat = [this, add_stat, cookie, docBytes = value](
+                                         const char* writeBytesStat,
+                                         const char* writeAmpStat) {
+            double writeAmp = std::numeric_limits<double>::infinity();
+            size_t bytesWritten;
+            if (docBytes &&
+                kvBucket->getKVStoreStat(writeBytesStat,
+                                         bytesWritten,
+                                         KVBucketIface::KVSOption::RW)) {
+                writeAmp = bytesWritten / docBytes;
+            }
+            add_casted_stat(writeAmpStat, writeAmp, add_stat, cookie);
+        };
+
+        printWriteAmpStat("io_flusher_write_bytes",
+                          "ep_io_flusher_write_amplification");
+        printWriteAmpStat("io_total_write_bytes",
+                          "ep_io_total_write_amplification");
+    }
+
     if (kvBucket->getKVStoreStat("io_total_read_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_total_read_bytes",  value, add_stat, cookie);

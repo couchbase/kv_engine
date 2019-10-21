@@ -1387,6 +1387,12 @@ bool CouchKVStore::getStat(const char* name, size_t& value)  {
     } else if (strcmp("failure_get", name) == 0) {
         value = st.numGetFailure.load();
         return true;
+    } else if (strcmp("io_document_write_bytes", name) == 0) {
+        value = st.io_document_write_bytes;
+        return true;
+    } else if (strcmp("io_flusher_write_bytes", name) == 0) {
+        value = st.fsStats.totalBytesWritten;
+        return true;
     } else if (strcmp("io_total_read_bytes", name) == 0) {
         value = st.fsStats.totalBytesRead.load() +
                 st.fsStatsCompaction.totalBytesRead.load();
@@ -2343,7 +2349,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                 calcLogicalDataSize(*committed.getDbDocInfo());
         /* update ep stats */
         ++st.io_num_write;
-        st.io_write_bytes += docLogicalSize;
+        st.io_document_write_bytes += docLogicalSize;
 
         if (committed.isDelete()) {
             auto mutationStatus = getMutationStatus(errCode);

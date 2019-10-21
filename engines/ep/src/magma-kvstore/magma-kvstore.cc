@@ -747,7 +747,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
         size_t mutationSize =
                 req.getKeyLen() + req.getBodySize() + req.getMetaSize();
         st.io_num_write++;
-        st.io_write_bytes += mutationSize;
+        st.io_document_write_bytes += mutationSize;
 
         // Note:
         // There are 3 cases for setting rv based on errCode

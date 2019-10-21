@@ -113,7 +113,7 @@ void KVStoreStats::reset() {
     io_bg_fetch_docs_read = 0;
     io_num_write = 0;
     io_bgfetch_doc_bytes = 0;
-    io_write_bytes = 0;
+    io_document_write_bytes = 0;
 
     readTimeHisto.reset();
     readSizeHisto.reset();
@@ -357,7 +357,11 @@ void KVStore::addStats(const AddStatFn& add_stat,
             st.io_bgfetch_doc_bytes,
             add_stat,
             c);
-    addStat(prefix, "io_write_bytes", st.io_write_bytes, add_stat, c);
+    addStat(prefix,
+            "io_document_write_bytes",
+            st.io_document_write_bytes,
+            add_stat,
+            c);
 
     const size_t read = st.fsStats.totalBytesRead.load() +
                         st.fsStatsCompaction.totalBytesRead.load();
@@ -373,7 +377,8 @@ void KVStore::addStats(const AddStatFn& add_stat,
         // written later by compaction (after initial flush). Used to measure
         // the impact of KVstore on persistTo times.
         const double flusherWriteAmp =
-                double(st.fsStats.totalBytesWritten.load()) / st.io_write_bytes;
+                double(st.fsStats.totalBytesWritten.load()) /
+                st.io_document_write_bytes;
         addStat(prefix,
                 "io_flusher_write_amplification",
                 flusherWriteAmp,
@@ -384,7 +389,8 @@ void KVStore::addStats(const AddStatFn& add_stat,
         // to "useful" user data written over entire disk lifecycle. Includes
         // bytes during initial item flush to disk  and compaction.
         // Used to measure the overall write amplification.
-        const double totalWriteAmp = double(written) / st.io_write_bytes;
+        const double totalWriteAmp =
+                double(written) / st.io_document_write_bytes;
         addStat(prefix,
                 "io_total_write_amplification",
                 totalWriteAmp,

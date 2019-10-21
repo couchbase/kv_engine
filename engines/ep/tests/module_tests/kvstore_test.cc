@@ -309,7 +309,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     std::map<std::string, std::string> stats;
     kvstore->addStats(add_stat_callback, &stats, "");
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
-    const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
+    const size_t io_write_bytes = stoul(stats["rw_0:io_document_write_bytes"]);
     // 1 (for the namespace)
     EXPECT_EQ(1 + key.size() + value.size() +
                       MetaData::getMetaDataSize(MetaData::Version::V1),
@@ -350,7 +350,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     std::map<std::string, std::string> stats;
     kvstore->addStats(add_stat_callback, &stats, "");
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
-    const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
+    const size_t io_write_bytes = stoul(stats["rw_0:io_document_write_bytes"]);
 
     // Hard to determine exactly how many bytes should have been written, but
     // expect non-zero, and at least twice as many as the actual documents for

@@ -320,7 +320,7 @@ public:
     //! Document bytes (key+meta+value) read for background fetch operations.
     cb::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
     //! Number of bytes written (key + value + application rev metadata)
-    cb::RelaxedAtomic<size_t> io_write_bytes;
+    cb::RelaxedAtomic<size_t> io_document_write_bytes;
 
     /* for flush and vb delete, no error handling in KVStore, such
      * failure should be tracked in MC-engine  */
