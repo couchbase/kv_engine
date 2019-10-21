@@ -2294,7 +2294,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         // i.e. for each byte of user data (key+value+meta) how many overhead
         // bytes were written.
         auto* stats = couchstore_get_db_filestats(db);
-        if (stats != nullptr) {
+        if (stats != nullptr && docsLogicalBytes) {
             const auto writeBytes = stats->getWriteBytes();
             uint64_t writeAmp = (writeBytes * 10) / docsLogicalBytes;
             st.flusherWriteAmplificationHisto.addValue(writeAmp);
