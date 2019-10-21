@@ -953,35 +953,14 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // CommitSyncWrite. If this Stream does not support SyncReplication then we
     // will only send Mutation messages.
     //
-    // There are cases for SyncReplication streams in which the consumer may not
-    // have the corresponding Prepare for this Commit. If the consumer were to
-    // receive this Commit then it would not have the required information (the
-    // value) to commit. In these cases, we must send a Mutation message instead
-    // of a CommitSyncWrite.
-    //
-    // - New Stream (from 0):
-    //
-    // A new stream will backfill from disk. In this case, the first item we see
-    // may be a Commit (if there is an in-flight Prepare that has been
-    // persisted). We must send a Mutation in this case as the consumer will
-    // not have a corresponding Prepare at all. This is covered by the condition
-    // testing if the prepare seqno is less than the first seqno sent.
-    //
-    // - Resuming Stream (from x):
-    //
-    // A resuming stream may backfill from disk. In this case, the consumer
-    // may have no corresponding Prepare (same as above case when streaming from
-    // 0) or a Prepare that is out of date. In the case where the Prepare may be
-    // out of date, we want to send the Mutation if the prepare seqno is greater
-    // than the requested stream start seqno (if it were less then the replica
-    // already has the corresponding prepare so we can send a Commit).
-    bool prepareSeqnoGTRequestedStart =
-            start_seqno_ < static_cast<uint64_t>(item->getPrepareSeqno());
-
+    // We will send a CommitSyncWrite when streaming from Checkpoints, and a
+    // Mutation instead of a Commit (as this contains the full value) when
+    // streaming from disk/backfill. If we have a Disk Checkpoint then we will
+    // send Mutations as all of our Items will be mutations (streamed to us by
+    // and old active as a Mutation).
     if ((item->getOperation() == queue_op::commit_sync_write) &&
         (supportSyncWrites()) &&
-        (!prepareSeqnoGTRequestedStart ||
-         sendCommitSyncWriteAs == SendCommitSyncWriteAs::Commit)) {
+        sendCommitSyncWriteAs == SendCommitSyncWriteAs::Commit) {
         return std::make_unique<CommitSyncWrite>(opaque_,
                                                  item->getVBucketId(),
                                                  item->getPrepareSeqno(),

@@ -708,58 +708,6 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     EXPECT_EQ(5, prepare.getItem()->getBySeqno());
 }
 
-TEST_P(DurabilityActiveStreamTest, SendCommitForResumeIfPrepareReceived) {
-    setUpSendSetInsteadOfCommitTest();
-
-    auto vb = engine->getVBucket(vbid);
-    const auto key = makeStoredDocKey("key");
-
-    // Disconnect and resume from our prepare. We resume from prepare 3 in this
-    // case so that the producers data will just be [4: Commit, 5:Prepare].
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                3 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                3 /*snap_start_seqno*/,
-                                                ~3 /*snap_end_seqno*/);
-
-    stream->transitionStateToBackfilling();
-    ASSERT_TRUE(stream->isBackfilling());
-    auto& bfm = producer->getBFM();
-    bfm.backfill();
-    // First backfill only sends the SnapshotMarker so repeat
-    bfm.backfill();
-
-    // Stream::readyQ must contain SnapshotMarker
-    ASSERT_EQ(3, stream->public_readyQSize());
-    auto resp = stream->public_popFromReadyQ();
-    ASSERT_TRUE(resp);
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-
-    // Followed by a commit because the producer knows we are not missing a
-    // prepare.
-    resp = stream->public_popFromReadyQ();
-    ASSERT_TRUE(resp);
-    ASSERT_EQ(DcpResponse::Event::Commit, resp->getEvent());
-    const auto& commit = static_cast<CommitSyncWrite&>(*resp);
-    EXPECT_EQ(key, commit.getKey());
-    EXPECT_EQ(4, *commit.getBySeqno());
-    EXPECT_EQ(3, commit.getPreparedSeqno());
-
-    // Followed by a prepare
-    resp = stream->public_popFromReadyQ();
-    ASSERT_TRUE(resp);
-    ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
-    const auto& prepare = static_cast<MutationResponse&>(*resp);
-    EXPECT_EQ(key, prepare.getItem()->getKey());
-    EXPECT_TRUE(prepare.getItem()->isPending());
-    EXPECT_EQ(5, prepare.getItem()->getBySeqno());
-}
-
 /**
  * This test checks that we can deal with a seqno ack from a replica going
  * "backwards" when it shuts down and warms back up. This can happen when a
