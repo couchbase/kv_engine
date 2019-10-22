@@ -538,11 +538,14 @@ void VBucket::setState_UNLOCKED(
         checkpointManager->setOpenCheckpointId(2);
     }
 
-    EP_LOG_INFO("VBucket::setState: transitioning {} from:{} to:{}{}",
-                id,
-                VBucket::toString(oldstate),
-                VBucket::toString(to),
-                meta.is_null() ? ""s : (" meta:"s + meta.dump()));
+    EP_LOG_INFO(
+            "VBucket::setState: transitioning {} with high seqno:{} from:{} "
+            "to:{}{}",
+            id,
+            getHighSeqno(),
+            VBucket::toString(oldstate),
+            VBucket::toString(to),
+            meta.is_null() ? ""s : (" meta:"s + meta.dump()));
 
     if (state == vbucket_state_active && to != vbucket_state_active) {
         // About to transition away from active.
