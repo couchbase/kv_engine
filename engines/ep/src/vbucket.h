@@ -519,6 +519,15 @@ public:
      */
     std::vector<const void*> getCookiesForInFlightSyncWrites();
 
+    /**
+     * Prepare the transition away from active by doing necessary work in the
+     * ADM.
+     *
+     * @return cookies for all in-flight SyncWrites so that clients can be
+     *         notified
+     */
+    std::vector<const void*> prepareTransitionAwayFromActive();
+
     size_t size();
 
     struct ItemsToFlush {

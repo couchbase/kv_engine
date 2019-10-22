@@ -19,12 +19,14 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
+#include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
+#include "vbucket_utils.h"
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <engines/ep/tests/mock/mock_ep_bucket.h>
@@ -303,6 +305,13 @@ protected:
 
         EXPECT_EQ(ENGINE_SUCCESS, store->prepare(item, cookie));
     }
+
+    /**
+     * Test that prepares in the resolvedQueue of the ADM are returned to
+     * trackedWrites when transitioning away from ADM
+     */
+    void testResolvedSyncWritesReturnedToTrackedWritesVBStateChange(
+            vbucket_state_t newState);
 
     void takeoverSendsDurabilityAmbiguous(vbucket_state_t newState);
 
@@ -2988,6 +2997,126 @@ TEST_P(DurabilityBucketTest, GetAndGetReplicaDontHonorStates) {
             std::string(getValue.item->getData(), getValue.item->getNBytes()));
 
     checkReplicaValue(key, "value", options);
+}
+
+// If a vbucket is changed from active when there are SyncWrites which have been
+// resolved (i.e. we have decided to commit / abort) but *not* yet completed,
+// then we need to put them back into trackedWrites. Previously we would
+// complete them but this is incorrect as the DCP Stream will have already been
+// set to dead so no Abort or Commit message will make it to the replica. In the
+// case where this node becomes a replica, this node could have received a "re"
+// Commit for the same key without having a Prepare in the DurabilityMonitor.
+void DurabilityBucketTest::
+        testResolvedSyncWritesReturnedToTrackedWritesVBStateChange(
+                vbucket_state_t newState) {
+    setVBucketToActiveWithValidTopology();
+
+    // Setup: Make pending item, and simulate sufficient ACKs so it's in the
+    // ResolvedQueue (but not yet Committed).
+    using namespace cb::durability;
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
+              store->set(*makePendingItem(makeStoredDocKey("key"),
+                                          "value",
+                                          {Level::Majority, Timeout(10000)}),
+                         cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+
+    // ACK, locally and remotely, but *don't* process the resolved Queue yet.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      1 /*preparedSeqno*/));
+    vb->notifyActiveDMOfLocalSyncWrite();
+
+    // SyncWrite should now be in ResolvedQueue, but not yet Committed.
+    auto key = makeStoredDocKey("key");
+    {
+        const auto sv = vb->ht.findForSyncWrite(key).storedValue;
+        ASSERT_TRUE(sv);
+        ASSERT_EQ(CommittedState::Pending, sv->getCommitted());
+    }
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    // We have 0 items in trackedWrites (but 1 in the resolvedQueue)
+    ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    // Test: Change vbstate to non-active (dead which is what a takeover would
+    // do. This should result in the resolved SyncWrite getting completed.
+    store->setVBucketState(vbid, newState);
+
+    // Check that the item is still pending in the HashTable. It will actually
+    // be PreparedMaybeVisible as we have transitioned from active to non-active
+    {
+        const auto sv = vb->ht.findForWrite(key).storedValue;
+        ASSERT_TRUE(sv);
+        EXPECT_EQ(CommittedState::PreparedMaybeVisible, sv->getCommitted());
+    }
+    EXPECT_EQ(1, vb->getHighSeqno());
+
+    const auto& dm = vb->getDurabilityMonitor();
+    EXPECT_EQ(1, dm.getNumTracked());
+    EXPECT_EQ(1, dm.getHighPreparedSeqno());
+    EXPECT_EQ(0, dm.getHighCompletedSeqno());
+
+    // Set us back to active so that we can check a few things in regards to the
+    // state of the SynWrite objects.
+    setVBucketToActiveWithValidTopology();
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
+
+    // A dead vbucket will keep the ADM but setting the topology will move
+    // writes from trackedWrites to the completed queue as we will not touch the
+    // ackCount. Deal with this separately so we can continue testing other
+    // states
+    if (newState == vbucket_state_dead) {
+        EXPECT_EQ(0, adm.getNumTracked());
+        EXPECT_EQ(1, adm.getHighPreparedSeqno());
+        EXPECT_EQ(0, adm.getHighCompletedSeqno());
+
+        adm.processCompletedSyncWriteQueue();
+        EXPECT_EQ(1, adm.getHighCompletedSeqno());
+        return;
+    }
+
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+
+    // We should not transfer the ack count
+    adm.checkForCommit();
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+
+    // Or the cookies
+    auto cookies = adm.getCookiesForInFlightSyncWrites();
+    EXPECT_TRUE(cookies.empty());
+
+    // We SHOULD have set the timeout to infinite
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::seconds(70));
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+}
+
+TEST_P(DurabilityBucketTest,
+       ResolvedSyncWritesReturnedToTrackedWritesAtReplica) {
+    testResolvedSyncWritesReturnedToTrackedWritesVBStateChange(
+            vbucket_state_replica);
+}
+
+TEST_P(DurabilityBucketTest,
+       ResolvedSyncWritesReturnedToTrackedWritesAtPending) {
+    testResolvedSyncWritesReturnedToTrackedWritesVBStateChange(
+            vbucket_state_pending);
+}
+
+TEST_P(DurabilityBucketTest, ResolvedSyncWritesReturnedToTrackedWritesAtDead) {
+    testResolvedSyncWritesReturnedToTrackedWritesVBStateChange(
+            vbucket_state_dead);
 }
 
 // Test cases which run against couchstore

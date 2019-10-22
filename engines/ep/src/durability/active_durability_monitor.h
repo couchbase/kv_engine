@@ -204,6 +204,16 @@ public:
      */
     std::vector<const void*> getCookiesForInFlightSyncWrites();
 
+    /**
+     * Prepare for a transition away from active by moving every prepare in the
+     * resolvedQueue to trackedWrites then returning the cookies to be responded
+     * to with ambiguous.
+     *
+     * @return The cookies of all in-flight SyncWrites. Return value of
+     *         getCookiesForInFlightSyncWrites.
+     */
+    std::vector<const void*> prepareTransitionAwayFromActive();
+
     void notifyLocalPersistence() override;
 
     /**

@@ -112,6 +112,19 @@ public:
         return queue.empty();
     }
 
+    /**
+     * Reset the queue. Locked to prevent races with other consumers. Requires
+     * that the queue has already been drained as we shouldn't just allow any
+     * reset.
+     *
+     * @param clg Consumer lock guard which must be acquired to attempt
+     *            consumuption (to enforce single consumer).
+     */
+    void reset(const std::lock_guard<ConsumerLock>& clg) {
+        Expects(queue.empty());
+        highEnqueuedSeqno.reset(0);
+    }
+
 private:
     // Unbounded, Single-producer, single-consumer Queue of ActiveSyncWrite
     // objects, non-blocking variant. Initially holds 2^5 (32) SyncWrites
@@ -444,30 +457,33 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
     // called from under a WriteHolder of the vBucket state lock so it's safe to
     // release the resolvedQueue consumer lock afterwards.
     Container writesToTrack;
-    std::lock_guard<ResolvedQueue::ConsumerLock> lock(
-            resolvedQueue->getConsumerLock());
-    while (auto sw = resolvedQueue->try_dequeue(lock)) {
-        switch (sw->getStatus()) {
-        case SyncWriteStatus::Pending:
-        case SyncWriteStatus::Completed:
-            throw std::logic_error(
-                    "ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue "
-                    "found a SyncWrite with unexpected state: " +
-                    to_string(sw->getStatus()));
-        case SyncWriteStatus::ToCommit:
-        case SyncWriteStatus::ToAbort:
-            // Instead of trying to reset the state of the SyncWrite back to
-            // a valid state for a PassiveDM, just create a new SyncWrite in
-            // the same way.
-            // @TODO Split SyncWrite implementation for Active and Passive.
-            writesToTrack.push_back(
-                    ActiveSyncWrite(nullptr,
-                                    std::move(sw->getItem()),
-                                    nullptr,
-                                    nullptr,
-                                    ActiveSyncWrite::InfiniteTimeout{}));
-            continue;
+    { // Scope for ResolvedQueue::ConsumerLock
+        std::lock_guard<ResolvedQueue::ConsumerLock> lock(
+                resolvedQueue->getConsumerLock());
+        while (auto sw = resolvedQueue->try_dequeue(lock)) {
+            switch (sw->getStatus()) {
+            case SyncWriteStatus::Pending:
+            case SyncWriteStatus::Completed:
+                throw std::logic_error(
+                        "ActiveDurabilityMonitor::"
+                        "unresolveCompletedSyncWriteQueue "
+                        "found a SyncWrite with unexpected state: " +
+                        to_string(sw->getStatus()));
+            case SyncWriteStatus::ToCommit:
+            case SyncWriteStatus::ToAbort:
+                // Put our ActiveSyncWrite back into trackedWrites. When we
+                // transition to replica we will strip all active only state as
+                // required and we need to ensure that our cookie is intact as
+                // it will yet be used to respond ambiguous to the client
+                writesToTrack.push_back(*sw);
+                continue;
+            }
         }
+
+        // Reset the resolvedQueue so that if we transition active->dead->active
+        // then we do not throw any monotonicity exceptions when completing
+        // writes (as the active->dead transition keeps the ADM).
+        resolvedQueue->reset(lock);
     }
 
     // Second, whack them back into trackedWrites. The container should be in
@@ -859,6 +875,19 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
     s->lastAbortedSeqno = sw.getBySeqno();
     s->updateHighCompletedSeqno();
     s->totalAborted++;
+}
+
+std::vector<const void*>
+ActiveDurabilityMonitor::prepareTransitionAwayFromActive() {
+    // Put everything in the resolvedQueue back into trackedWrites. This is
+    // necessary as we may have decided to resolve something that our new active
+    // will try to send us a commit for and we need to have the prepare in
+    // trackedWrites to deal with that
+    unresolveCompletedSyncWriteQueue();
+
+    // Return the cookies so that the caller can respond to all of your clients
+    // with ambiguous (in a background task)
+    return getCookiesForInFlightSyncWrites();
 }
 
 std::vector<const void*>

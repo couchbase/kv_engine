@@ -375,6 +375,10 @@ std::vector<const void*> VBucket::getCookiesForInFlightSyncWrites() {
     return getActiveDM().getCookiesForInFlightSyncWrites();
 }
 
+std::vector<const void*> VBucket::prepareTransitionAwayFromActive() {
+    return getActiveDM().prepareTransitionAwayFromActive();
+}
+
 size_t VBucket::size() {
     HashTableDepthStatVisitor v;
     ht.visitDepth(v);
@@ -546,19 +550,6 @@ void VBucket::setState_UNLOCKED(
             VBucket::toString(oldstate),
             VBucket::toString(to),
             meta.is_null() ? ""s : (" meta:"s + meta.dump()));
-
-    if (state == vbucket_state_active && to != vbucket_state_active) {
-        // About to transition away from active.
-        // If we have any SyncWrites which are resolved (we have decided they
-        // should be committed / aborted), then we need to put them back into
-        // trackedWrites. The previous attempt to fix this issue would complete
-        // them, but this was incorrect as we never streamed the completion to
-        // the replica that was being promoted (we have already set the Streams
-        // to dead) so the replica would attempt to re-commit all writes. This
-        // node would either have to rollback or have a different item with the
-        // same seqno.
-        getActiveDM().unresolveCompletedSyncWriteQueue();
-    }
 
     state = to;
 
