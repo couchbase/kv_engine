@@ -468,18 +468,6 @@ void Cookie::maybeLogSlowCommand(
             command.assign(opcode_s);
         }
 
-        if (opcode == cb::mcbp::ClientOpcode::Stat) {
-            // Log which stat command took a long time
-            const auto key = getPrintableRequestKey();
-
-            if (key.find("key ") == 0) {
-                // stat key username1324423e; truncate the actual item key
-                command.append("key <TRUNCATED>");
-            } else if (!key.empty()) {
-                command.append(key);
-            }
-        }
-
         auto& c = getConnection();
 
         TRACE_COMPLETE2("memcached/slow",
@@ -493,7 +481,7 @@ void Cookie::maybeLogSlowCommand(
 
         const std::string traceData = to_string(tracer);
         LOG_WARNING(
-                R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}","bucket":"{}"}})",
+                R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}","bucket":"{}","packet":{}}})",
                 c.getId(),
                 c.getConnectionId().data(),
                 ntohl(getHeader().getOpaque()),
@@ -501,7 +489,8 @@ void Cookie::maybeLogSlowCommand(
                 traceData,
                 command,
                 c.getPeername(),
-                c.getBucket().name);
+                c.getBucket().name,
+                getHeader().toJSON(validated));
     }
 }
 
