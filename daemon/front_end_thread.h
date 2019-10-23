@@ -21,6 +21,7 @@
 #include <event.h>
 #include <memcached/engine_error.h>
 #include <platform/platform_thread.h>
+#include <platform/socket.h>
 #include <subdoc/operations.h>
 
 #include <atomic>
@@ -66,6 +67,15 @@ struct FrontEndThread {
 
     /// listen event for notify pipe
     struct event notify_event = {};
+
+    /**
+     * notification pipe.
+     *
+     * The various worker threads are listening on index 0,
+     * and in order to notify the thread other threads will
+     * write data to index 1.
+     */
+    SOCKET notify[2] = {INVALID_SOCKET, INVALID_SOCKET};
 
     /**
      * The dispatcher accepts new clients and needs to dispatch them
@@ -140,3 +150,4 @@ struct FrontEndThread {
 
 void notify_thread(FrontEndThread& thread);
 void notify_dispatcher();
+void drain_notification_channel(evutil_socket_t fd);

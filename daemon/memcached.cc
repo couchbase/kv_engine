@@ -856,6 +856,8 @@ void listen_event_handler(evutil_socket_t, short, void *arg) {
 }
 
 static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
+    // Start by draining the notification pipe fist
+    drain_notification_channel(fd);
     if (check_listen_conn) {
         check_listen_conn = false;
 
