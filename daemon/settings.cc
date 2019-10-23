@@ -37,32 +37,10 @@
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
-/**
- * Initialize all members to "null" to preserve backwards
- * compatibility with the previous versions.
- */
-Settings::Settings()
-    : num_threads(0),
-      bio_drain_buffer_sz(0),
-      datatype_json(false),
-      datatype_snappy(false),
-      reqs_per_event_high_priority(0),
-      reqs_per_event_med_priority(0),
-      reqs_per_event_low_priority(0),
-      default_reqs_per_event(00),
-      max_packet_size(0),
-      topkeys_size(0) {
-    verbose.store(0);
-    connection_idle_time.reset();
-    dedupe_nmvb_maps.store(false);
-    xattr_enabled.store(false);
-    privilege_debug.store(false);
-    collections_enabled.store(true);
+Settings::Settings() = default;
+Settings::~Settings() = default;
 
-    memset(&has, 0, sizeof(has));
-}
-
-Settings::Settings(const nlohmann::json& json) : Settings() {
+Settings::Settings(const nlohmann::json& json) {
     reconfigure(json);
 }
 

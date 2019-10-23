@@ -43,7 +43,6 @@ enum class EventPriority {
     Default
 };
 
-/* When adding a setting, be sure to update process_stat_settings */
 /**
  * Globally accessible settings as derived from the commandline / JSON config
  * file.
@@ -53,6 +52,8 @@ enum class EventPriority {
 class Settings {
 public:
     Settings();
+    ~Settings();
+
     /**
      * Create and initialize a settings object from the given JSON
      *
@@ -101,11 +102,11 @@ public:
     /**
      * Set the name of the file containing the RBAC data
      *
-     * @param rbac_file the absolute path to the rbac file
+     * @param file the absolute path to the rbac file
      */
-    void setRbacFile(const std::string& rbac_file) {
+    void setRbacFile(std::string file) {
         has.rbac_file = true;
-        Settings::rbac_file = rbac_file;
+        rbac_file = std::move(file);
     }
 
     /**
@@ -139,11 +140,11 @@ public:
     /**
      * Set the number of frontend worker threads
      *
-     * @param num_threads the new number of threads
+     * @param num the new number of threads
      */
-    void setNumWorkerThreads(size_t num_threads) {
+    void setNumWorkerThreads(size_t num) {
         has.threads = true;
-        Settings::num_threads = num_threads;
+        num_threads = num;
         notify_changed("threads");
     }
 
@@ -214,11 +215,11 @@ public:
     /**
      * Set the name of the file containing the audit configuration
      *
-     * @param audit_file the new name of the file containing audit configuration
+     * @param file the new name of the file containing audit configuration
      */
-    void setAuditFile(const std::string& audit_file) {
+    void setAuditFile(std::string file) {
         has.audit = true;
-        Settings::audit_file = audit_file;
+        audit_file = std::move(file);
         notify_changed("audit_file");
     }
 
@@ -226,9 +227,9 @@ public:
         return Settings::error_maps_dir;
     }
 
-    void setErrorMapsDir(const std::string& dir) {
+    void setErrorMapsDir(std::string dir) {
         has.error_maps = true;
-        Settings::error_maps_dir = dir;
+        error_maps_dir = std::move(dir);
         notify_changed("error_maps_dir");
     }
 
@@ -277,7 +278,7 @@ public:
      *
      * @return the idle time in seconds
      */
-    const size_t getConnectionIdleTime() const {
+    size_t getConnectionIdleTime() const {
         return connection_idle_time;
     }
 
@@ -309,8 +310,8 @@ public:
      *
      * @param root The root directory of the installation
      */
-    void setRoot(const std::string& root) {
-        Settings::root = root;
+    void setRoot(std::string value) {
+        root = std::move(value);
         has.root = true;
         notify_changed("root");
     }
@@ -319,9 +320,8 @@ public:
         return max_connections.load(std::memory_order_consume);
     }
 
-    void setMaxConnections(size_t max_connections, bool notify = true) {
-        Settings::max_connections.store(max_connections,
-                                        std::memory_order_release);
+    void setMaxConnections(size_t num, bool notify = true) {
+        max_connections.store(num, std::memory_order_release);
         has.max_connections = true;
         if (notify) {
             notify_changed("max_connections");
@@ -332,9 +332,8 @@ public:
         return system_connections.load(std::memory_order_consume);
     }
 
-    void setSystemConnections(size_t system_connections) {
-        Settings::system_connections.store(system_connections,
-                                           std::memory_order_release);
+    void setSystemConnections(size_t num) {
+        system_connections.store(num, std::memory_order_release);
         has.system_connections = true;
         notify_changed("system_connections");
     }
@@ -354,8 +353,7 @@ public:
      * @param num the number of requests to handle
      * @param priority The priority to update
      */
-    void setRequestsPerEventNotification(int num,
-                                         const EventPriority& priority) {
+    void setRequestsPerEventNotification(int num, EventPriority priority) {
         switch (priority) {
         case EventPriority::High:
             reqs_per_event_high_priority = num;
@@ -389,7 +387,7 @@ public:
      * @param priority the priority of interest
      * @return the number of request to handle per callback
      */
-    int getRequestsPerEventNotification(const EventPriority& priority) const {
+    int getRequestsPerEventNotification(EventPriority priority) const {
         switch (priority) {
         case EventPriority::High:
             return reqs_per_event_high_priority;
@@ -459,8 +457,8 @@ public:
      *
      * @param bio_drain_buffer_sz the new size in bytes
      */
-    void setBioDrainBufferSize(unsigned int bio_drain_buffer_sz) {
-        Settings::bio_drain_buffer_sz = bio_drain_buffer_sz;
+    void setBioDrainBufferSize(unsigned int buffer_sz) {
+        bio_drain_buffer_sz = buffer_sz;
         has.bio_drain_buffer_sz = true;
         notify_changed("bio_drain_buffer_sz");
     }
@@ -479,10 +477,10 @@ public:
      * Set the maximum size of a packet the system should try to inspect.
      * Packets exceeding this limit will cause the client to be disconnected
      *
-     * @param max_packet_size the new maximum size in bytes
+     * @param max the new maximum size in bytes
      */
-    void setMaxPacketSize(uint32_t max_packet_size) {
-        Settings::max_packet_size = max_packet_size;
+    void setMaxPacketSize(uint32_t max) {
+        max_packet_size = max;
         has.max_packet_size = true;
         notify_changed("max_packet_size");
     }
@@ -578,10 +576,10 @@ public:
     /**
      * Set the number of keys to track
      *
-     * @param topkeys_size the new limit
+     * @param size the new limit
      */
-    void setTopkeysSize(int topkeys_size) {
-        Settings::topkeys_size = topkeys_size;
+    void setTopkeysSize(int size) {
+        topkeys_size = size;
         has.topkeys_size = true;
     }
 
@@ -619,7 +617,7 @@ public:
      *
      * @return true if the node should deduplicate such maps
      */
-    const bool isDedupeNmvbMaps() const {
+    bool isDedupeNmvbMaps() const {
         return dedupe_nmvb_maps.load();
     }
 
@@ -627,10 +625,10 @@ public:
      * Set if the server should return the cluster map it has already sent a
      * client as part of the payload of <em>not my vbucket</em> errors.
      *
-     * @param dedupe_nmvb_maps true if the node should deduplicate such maps
+     * @param enable true if the node should deduplicate such maps
      */
-    void setDedupeNmvbMaps(const bool& dedupe_nmvb_maps) {
-        Settings::dedupe_nmvb_maps.store(dedupe_nmvb_maps);
+    void setDedupeNmvbMaps(bool enable) {
+        dedupe_nmvb_maps.store(enable);
         has.dedupe_nmvb_maps = true;
         notify_changed("dedupe_nmvb_maps");
     }
@@ -649,8 +647,8 @@ public:
      *
      * @param breakpad the new breakpad settings
      */
-    void setBreakpadSettings(const cb::breakpad::Settings& breakpad) {
-        Settings::breakpad = breakpad;
+    void setBreakpadSettings(const cb::breakpad::Settings& config) {
+        breakpad = config;
         has.breakpad = true;
         notify_changed("breakpad");
     }
@@ -684,17 +682,17 @@ public:
      *
      * @return true if xattrs may be used
      */
-    const bool isXattrEnabled() const {
+    bool isXattrEnabled() const {
         return xattr_enabled.load();
     }
 
     /**
      * Set if the server should allow the use of xattrs
      *
-     * @param xattr_enabled true if the system may use xattrs
+     * @param enable true if the system may use xattrs
      */
-    void setXattrEnabled(const bool xattr_enabled) {
-        Settings::xattr_enabled.store(xattr_enabled);
+    void setXattrEnabled(bool enable) {
+        xattr_enabled.store(enable);
         has.xattr_enabled = true;
         notify_changed("xattr_enabled");
     }
@@ -713,15 +711,15 @@ public:
     /**
      * Set if the server should enable collection support
      *
-     * @param collections_enabled true if the system should enable collections
+     * @param enable true if the system should enable collections
      */
-    void setCollectionsPrototype(const bool collections_enabled) {
-        Settings::collections_enabled.store(collections_enabled);
-        has.collections_enabled = collections_enabled;
+    void setCollectionsPrototype(bool enable) {
+        collections_enabled.store(enable);
+        has.collections_enabled = true;
         notify_changed("collections_enabled");
     }
 
-    const std::string getOpcodeAttributesOverride() const {
+    std::string getOpcodeAttributesOverride() const {
         return std::string{*opcode_attributes_override.rlock()};
     }
 
@@ -835,12 +833,12 @@ protected:
     /**
      * Is privilege debug enabled or not
      */
-    std::atomic_bool privilege_debug;
+    std::atomic_bool privilege_debug{false};
 
     /**
      * Number of worker (without dispatcher) libevent threads to run
      * */
-    size_t num_threads;
+    size_t num_threads = 0;
 
     /// Array of interface settings we are listening on
     folly::Synchronized<std::vector<NetworkInterface>> interfaces;
@@ -863,12 +861,12 @@ protected:
     /**
      * level of versosity to log at.
      */
-    std::atomic_int verbose;
+    std::atomic_int verbose{0};
 
     /**
      * The number of seconds a client may be idle before it is disconnected
      */
-    cb::RelaxedAtomic<size_t> connection_idle_time;
+    cb::RelaxedAtomic<size_t> connection_idle_time{0};
 
     /**
      * The root directory of the installation
@@ -878,22 +876,22 @@ protected:
     /**
      * size of the SSL bio buffers
      */
-    unsigned int bio_drain_buffer_sz;
+    unsigned int bio_drain_buffer_sz = 0;
 
     /**
      * is datatype json/snappy enabled?
      */
-    bool datatype_json;
-    std::atomic_bool datatype_snappy;
+    bool datatype_json = false;
+    std::atomic_bool datatype_snappy{false};
 
     /**
      * Maximum number of io events to process based on the priority of the
      * connection
      */
-    int reqs_per_event_high_priority;
-    int reqs_per_event_med_priority;
-    int reqs_per_event_low_priority;
-    int default_reqs_per_event;
+    int reqs_per_event_high_priority = 0;
+    int reqs_per_event_med_priority = 0;
+    int reqs_per_event_low_priority = 0;
+    int default_reqs_per_event = 0;
 
     /**
      * Breakpad crash catcher settings
@@ -906,7 +904,7 @@ protected:
      * tries to send packets bigger than this max_packet_size. See
      * the man page for more information.
      */
-    uint32_t max_packet_size;
+    uint32_t max_packet_size = 0;
 
     /// The SSL cipher list to use for TLS < 1.3
     folly::Synchronized<std::string> ssl_cipher_list;
@@ -921,7 +919,7 @@ protected:
      * The minimum ssl protocol to use (by default this is TLS1)
      */
     std::string ssl_minimum_protocol;
-    std::atomic_long ssl_protocol_mask;
+    std::atomic_long ssl_protocol_mask{0};
 
     /**
      * ssl client authentication
@@ -931,7 +929,7 @@ protected:
     /**
      * The number of topkeys to track
      */
-    int topkeys_size;
+    int topkeys_size = 0;
 
     /// The available sasl mechanism list
     folly::Synchronized<std::string> sasl_mechanisms;
@@ -942,7 +940,7 @@ protected:
     /**
      * Should we deduplicate the cluster maps from the Not My VBucket messages
      */
-    std::atomic_bool dedupe_nmvb_maps;
+    std::atomic_bool dedupe_nmvb_maps{false};
 
     /**
      * Map of version -> string for error maps
@@ -952,12 +950,12 @@ protected:
     /**
      * May xattrs be used or not
      */
-    std::atomic_bool xattr_enabled;
+    std::atomic_bool xattr_enabled{false};
 
     /**
-     * Should collections be enabled (off by default as it's a work in progress)
+     * Should collections be enabled
      */
-    std::atomic_bool collections_enabled;
+    std::atomic_bool collections_enabled{true};
 
     /// Any settings to override opcode attributes
     folly::Synchronized<std::string> opcode_attributes_override;
@@ -980,7 +978,7 @@ protected:
     /**
      * Should we allow for using the external authentication service or not
      */
-    std::atomic_bool external_auth_service;
+    std::atomic_bool external_auth_service{false};
 
     std::atomic<std::chrono::microseconds> active_external_users_push_interval{
             std::chrono::minutes(5)};
@@ -1003,6 +1001,21 @@ protected:
     std::string portnumber_file;
     /// The identifier to use for the parent monitor
     int parent_identifier = -1;
+    /// The salt to return to users we don't know about
+    folly::Synchronized<std::string> scramsha_fallback_salt;
+
+    /**
+     * Note that it is not safe to add new listeners after we've spun up
+     * new threads as we don't try to lock the object.
+     *
+     * the usecase for this is to be able to have logic elsewhere to update
+     * state if a settings change.
+     */
+    std::map<std::string,
+             std::deque<void (*)(const std::string& key, Settings& obj)>>
+            change_listeners;
+
+    void notify_changed(const std::string& key);
 
 public:
     /**
@@ -1013,63 +1026,48 @@ public:
      */
     struct {
         bool always_collect_trace_info = false;
-        bool rbac_file;
-        bool privilege_debug;
-        bool threads;
-        bool interfaces;
-        bool logger;
-        bool audit;
-        bool reqs_per_event_high_priority;
-        bool reqs_per_event_med_priority;
-        bool reqs_per_event_low_priority;
-        bool default_reqs_per_event;
-        bool verbose;
-        bool connection_idle_time;
-        bool bio_drain_buffer_sz;
-        bool datatype_json;
-        bool datatype_snappy;
-        bool root;
-        bool breakpad;
-        bool max_packet_size;
-        bool ssl_cipher_list;
-        bool ssl_cipher_order;
-        bool ssl_cipher_suites;
-        bool ssl_minimum_protocol;
-        bool client_cert_auth;
-        bool topkeys_size;
-        bool sasl_mechanisms;
-        bool ssl_sasl_mechanisms;
-        bool dedupe_nmvb_maps;
-        bool error_maps;
-        bool xattr_enabled;
-        bool collections_enabled;
-        bool opcode_attributes_override;
-        bool topkeys_enabled;
-        bool tracing_enabled;
-        bool stdin_listener;
-        bool scramsha_fallback_salt;
-        bool external_auth_service;
+        bool rbac_file = false;
+        bool privilege_debug = false;
+        bool threads = false;
+        bool interfaces = false;
+        bool logger = false;
+        bool audit = false;
+        bool reqs_per_event_high_priority = false;
+        bool reqs_per_event_med_priority = false;
+        bool reqs_per_event_low_priority = false;
+        bool default_reqs_per_event = false;
+        bool verbose = false;
+        bool connection_idle_time = false;
+        bool bio_drain_buffer_sz = false;
+        bool datatype_json = false;
+        bool datatype_snappy = false;
+        bool root = false;
+        bool breakpad = false;
+        bool max_packet_size = false;
+        bool ssl_cipher_list = false;
+        bool ssl_cipher_order = false;
+        bool ssl_cipher_suites = false;
+        bool ssl_minimum_protocol = false;
+        bool client_cert_auth = false;
+        bool topkeys_size = false;
+        bool sasl_mechanisms = false;
+        bool ssl_sasl_mechanisms = false;
+        bool dedupe_nmvb_maps = false;
+        bool error_maps = false;
+        bool xattr_enabled = false;
+        bool collections_enabled = false;
+        bool opcode_attributes_override = false;
+        bool topkeys_enabled = false;
+        bool tracing_enabled = false;
+        bool stdin_listener = false;
+        bool scramsha_fallback_salt = false;
+        bool external_auth_service = false;
         bool active_external_users_push_interval = false;
         bool max_connections = false;
         bool system_connections = false;
         bool max_concurrent_commands_per_connection = false;
         bool opentracing_config = false;
-
         bool portnumber_file = false;
         bool parent_identifier = false;
     } has;
-
-protected:
-    folly::Synchronized<std::string> scramsha_fallback_salt;
-
-    /**
-     * Note that it is not safe to add new listeners after we've spun up
-     * new threads as we don't try to lock the object.
-     *
-     * the usecase for this is to be able to have logic elsewhere to update
-     * state if a settings change.
-     */
-    std::map<std::string, std::deque<void (*)(const std::string& key, Settings& obj)> > change_listeners;
-
-    void notify_changed(const std::string& key);
 };

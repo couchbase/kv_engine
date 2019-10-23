@@ -197,7 +197,7 @@ public:
         return priority.load();
     }
 
-    void setPriority(const Priority priority);
+    void setPriority(Priority priority);
 
     /**
      * Create a JSON representation of the members of the connection
@@ -285,8 +285,8 @@ public:
         return clustermap_revno;
     }
 
-    void setClustermapRevno(int clustermap_revno) {
-        Connection::clustermap_revno = clustermap_revno;
+    void setClustermapRevno(int revno) {
+        clustermap_revno = revno;
     }
 
     /**
@@ -299,16 +299,16 @@ public:
         return xerror_support;
     }
 
-    void setXerrorSupport(bool xerror_support) {
-        Connection::xerror_support = xerror_support;
+    void setXerrorSupport(bool enable) {
+        xerror_support = enable;
     }
 
     bool isCollectionsSupported() const {
         return collections_support;
     }
 
-    void setCollectionsSupported(bool collections_support) {
-        Connection::collections_support = collections_support;
+    void setCollectionsSupported(bool enable) {
+        collections_support = enable;
     }
 
     DocKey makeDocKey(cb::const_byte_buffer key) {
@@ -322,24 +322,24 @@ public:
         return duplex_support;
     }
 
-    void setDuplexSupported(bool duplex_support) {
-        Connection::duplex_support = duplex_support;
+    void setDuplexSupported(bool enable) {
+        duplex_support = enable;
     }
 
     bool isClustermapChangeNotificationSupported() const {
         return cccp.load(std::memory_order_acquire);
     }
 
-    void setClustermapChangeNotificationSupported(bool cccp) {
-        Connection::cccp.store(cccp, std::memory_order_release);
+    void setClustermapChangeNotificationSupported(bool enable) {
+        cccp.store(enable, std::memory_order_release);
     }
 
     bool allowUnorderedExecution() const {
         return allow_unordered_execution;
     }
 
-    void setAllowUnorderedExecution(bool allow_unordered_execution) {
-        Connection::allow_unordered_execution = allow_unordered_execution;
+    void setAllowUnorderedExecution(bool enable) {
+        allow_unordered_execution = enable;
     }
 
     /**
@@ -420,12 +420,12 @@ public:
         return dcpXattrAware;
     }
 
-    void setDcpXattrAware(bool dcpXattrAware) {
-        Connection::dcpXattrAware = dcpXattrAware;
+    void setDcpXattrAware(bool enable) {
+        dcpXattrAware = enable;
     }
 
-    void setDcpDeleteTimeEnabled(bool dcpDeleteTimeEnabled) {
-        Connection::dcpDeleteTimeEnabled = dcpDeleteTimeEnabled;
+    void setDcpDeleteTimeEnabled(bool enable) {
+        dcpDeleteTimeEnabled = enable;
     }
 
     bool isDcpDeleteTimeEnabled() const {
@@ -442,8 +442,8 @@ public:
         return dcpNoValue;
     }
 
-    void setDcpNoValue(bool dcpNoValue) {
-        Connection::dcpNoValue = dcpNoValue;
+    void setDcpNoValue(bool enable) {
+        dcpNoValue = enable;
     }
 
     /**
@@ -578,12 +578,12 @@ public:
      */
     TryReadResult tryReadNetwork();
 
-    const StateMachine::State getWriteAndGo() const {
+    StateMachine::State getWriteAndGo() const {
         return write_and_go;
     }
 
-    void setWriteAndGo(StateMachine::State write_and_go) {
-        Connection::write_and_go = write_and_go;
+    void setWriteAndGo(StateMachine::State state) {
+        write_and_go = state;
     }
 
     /**
@@ -713,8 +713,8 @@ public:
         return supports_mutation_extras;
     }
 
-    void setSupportsMutationExtras(bool supports_mutation_extras) {
-        Connection::supports_mutation_extras = supports_mutation_extras;
+    void setSupportsMutationExtras(bool enable) {
+        supports_mutation_extras = enable;
     }
 
     bool isTracingEnabled() const {
