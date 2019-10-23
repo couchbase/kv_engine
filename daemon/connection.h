@@ -134,10 +134,6 @@ public:
         return sockname;
     }
 
-    bool isConnectedToSystemPort() const {
-        return connectedToSystemPort;
-    }
-
     /**
      * Returns a descriptive name for the connection, of the form:
      *   "[peer_name - local_name ]"
@@ -155,16 +151,6 @@ public:
      * @return true if the connection was idle, false otherwise
      */
     bool signalIfIdle();
-
-    /**
-     * Terminate the eventloop for the current event base. This method doesn't
-     * really fit as a member for the class, but I don't want clients to access
-     * the libevent details from outside the class (so I didn't want to make
-     * a "getEventBase()" method.
-     */
-    void eventBaseLoopbreak() {
-        event_base_loopbreak(base);
-    }
 
     /**
      * Is the connection representing a system internal user
