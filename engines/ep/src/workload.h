@@ -18,6 +18,7 @@
 
 #include <atomic>
 
+#include <platform/sysinfo.h>
 #include <string>
 
 enum bucket_priority_t {
@@ -37,8 +38,22 @@ enum workload_pattern_t {
  */
 class WorkLoadPolicy {
 public:
-    WorkLoadPolicy(int m, int s)
-        : maxNumWorkers(m), maxNumShards(s), workloadPattern(READ_HEAVY) { }
+    WorkLoadPolicy(int m, int numShards)
+        : maxNumWorkers(m),
+          maxNumShards(numShards),
+          workloadPattern(READ_HEAVY) {
+        if (maxNumShards == 0) {
+            // If user didn't specify a maximum shard count, then auto-select
+            // based on the number of available CPUs.
+            maxNumShards = cb::get_available_cpu_count();
+
+            // Sanity - must always have at least 1 shard, but not more than 64
+            // given we don't have machines commonly available to test at
+            // greater sizes.
+            maxNumShards = std::max(1, maxNumShards);
+            maxNumShards = std::min(64, maxNumShards);
+        }
+    }
 
     size_t getNumShards(void) {
         return maxNumShards;

@@ -32,11 +32,11 @@
 #endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
-KVShard::KVShard(uint16_t id, Configuration& config)
+KVShard::KVShard(id_type numShards, id_type id, Configuration& config)
     : vbuckets(config.getMaxVbuckets()), highPriorityCount(0) {
     const std::string backend = config.getBackend();
     if (backend == "couchdb") {
-        kvConfig = std::make_unique<KVStoreConfig>(config, id);
+        kvConfig = std::make_unique<KVStoreConfig>(config, numShards, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
         roStore = std::move(stores.ro);
@@ -46,14 +46,15 @@ KVShard::KVShard(uint16_t id, Configuration& config)
         // magma has its own bloom filters and should not use
         // kv_engine's bloom filters. Should save some memory.
         config.setBfilterEnabled(false);
-        kvConfig = std::make_unique<MagmaKVStoreConfig>(config, id);
+        kvConfig = std::make_unique<MagmaKVStoreConfig>(config, numShards, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
     }
 #endif
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
-        kvConfig = std::make_unique<RocksDBKVStoreConfig>(config, id);
+        kvConfig =
+                std::make_unique<RocksDBKVStoreConfig>(config, numShards, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
     }

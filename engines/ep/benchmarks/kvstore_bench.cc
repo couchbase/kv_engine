@@ -27,6 +27,7 @@
 #include "vbucket_state.h"
 
 #include <benchmark/benchmark.h>
+#include <engines/ep/src/workload.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -94,20 +95,27 @@ protected:
         auto configStr = "dbname=KVStoreBench.db"s;
         config.setMaxSize(536870912);
         switch (storage) {
-        case COUCHSTORE:
+        case COUCHSTORE: {
             state.SetLabel("Couchstore");
             config.parseConfiguration((configStr + ";backend=couchdb").c_str(),
                                       get_mock_server_api());
-            kvstoreConfig = std::make_unique<KVStoreConfig>(config, shardId);
+            WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                                    config.getMaxNumShards());
+            kvstoreConfig = std::make_unique<KVStoreConfig>(
+                    config, workload.getNumShards(), shardId);
             break;
+        }
 #ifdef EP_USE_ROCKSDB
-        case ROCKSDB:
+        case ROCKSDB: {
             state.SetLabel("CouchRocks");
             config.parseConfiguration((configStr + ";backend=rocksdb").c_str(),
                                       get_mock_server_api());
-            kvstoreConfig =
-                    std::make_unique<RocksDBKVStoreConfig>(config, shardId);
+            WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                                    config.getMaxNumShards());
+            kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+                    config, workload.getNumShards(), shardId);
             break;
+        }
 #endif
         }
 

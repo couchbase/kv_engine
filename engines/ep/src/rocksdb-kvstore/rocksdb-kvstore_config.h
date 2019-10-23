@@ -30,7 +30,9 @@ class Configuration;
 class RocksDBKVStoreConfig : public KVStoreConfig {
 public:
     // Initialize the object from the central EPEngine Configuration
-    RocksDBKVStoreConfig(Configuration& config, uint16_t shardid);
+    RocksDBKVStoreConfig(Configuration& config,
+                         uint16_t numShards,
+                         uint16_t shardid);
 
     // Return the Bucket Quota
     size_t getBucketQuota() {

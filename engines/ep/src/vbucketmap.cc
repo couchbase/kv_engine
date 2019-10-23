@@ -25,8 +25,9 @@
 VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
     : size(config.getMaxVbuckets()) {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
-    for (size_t shardId = 0; shardId < workload.getNumShards(); shardId++) {
-        shards.push_back(std::make_unique<KVShard>(shardId, config));
+    const auto numShards = workload.getNumShards();
+    for (size_t shardId = 0; shardId < numShards; shardId++) {
+        shards.push_back(std::make_unique<KVShard>(numShards, shardId, config));
     }
 
     config.addValueChangedListener(

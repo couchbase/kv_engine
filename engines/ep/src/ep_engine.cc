@@ -2107,8 +2107,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             "allow_del_with_meta_prune_user_data",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
-    workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(),
-                                  configuration.getMaxNumShards());
+    auto numShards = configuration.getMaxNumShards();
+    workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(), numShards);
     if ((unsigned int)workload->getNumShards() >
                                               configuration.getMaxVbuckets()) {
         EP_LOG_WARN(

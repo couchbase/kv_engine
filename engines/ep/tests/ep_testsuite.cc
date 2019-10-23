@@ -8650,7 +8650,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb19687_fixed,
                  test_setup,
                  teardown,
-                 NULL,
+                 // Set a fixed number of shards for stats checking.
+                 "max_num_shards=4",
                  // TODO RDB: Needs to fix some missing/unexpected stats
                  // magma has no support for upgrades
                  prepare_skip_broken_under_rocks_and_magma,

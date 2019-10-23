@@ -61,7 +61,7 @@ class KVShard {
 public:
     // Identifier for a KVShard
     typedef uint16_t id_type;
-    KVShard(KVShard::id_type id, Configuration& config);
+    KVShard(id_type numShards, KVShard::id_type id, Configuration& config);
     ~KVShard();
 
     /// Enable persistence for this KVShard; setting up flusher and BGFetcher.
