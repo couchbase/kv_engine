@@ -37,10 +37,19 @@ int main(int argc, char** argv) {
     cb::logger::createBlackholeLogger();
     mock_init_alloc_hooks();
     init_mock_server();
+    initialize_time_functions(get_mock_server_api()->core);
+
+    ::benchmark::Initialize(&argc, argv);
+
+    // Don't set the logger API until after we call initialize. If we attempt to
+    // call this with --help then ::benchmark::Initialize calls exit(0) which
+    // causes us to abort when we throw due to inability to lock a mutex in the
+    // spdlog registry when we try to destruct the globalBucketLogger. If we
+    // defer the API setup then we won't be able to get to the registry to cause
+    // the abort.
     BucketLogger::setLoggerAPI(get_mock_server_api()->log);
     globalBucketLogger->set_level(spdlog::level::level_enum::critical);
-    initialize_time_functions(get_mock_server_api()->core);
-    ::benchmark::Initialize(&argc, argv);
+
     /*
      * Run the benchmarks. From benchmark.cc, 0 gets returned if
      * there is an error, else it returns the number of benchmark tests.
