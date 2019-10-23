@@ -163,12 +163,12 @@ LOGGER_PUBLIC_API const bool isInitialized();
 } // namespace logger
 } // namespace cb
 
-#define CB_LOG_ENTRY(severity, ...)               \
-    do {                                          \
-        auto _logger_ = cb::logger::get();        \
-        if (_logger_->should_log(severity)) {     \
-            _logger_->log(severity, __VA_ARGS__); \
-        }                                         \
+#define CB_LOG_ENTRY(severity, ...)                       \
+    do {                                                  \
+        auto _logger_ = cb::logger::get();                \
+        if (_logger_ && _logger_->should_log(severity)) { \
+            _logger_->log(severity, __VA_ARGS__);         \
+        }                                                 \
     } while (false)
 
 #define LOG_TRACE(...) \
