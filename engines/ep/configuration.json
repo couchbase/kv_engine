@@ -638,7 +638,7 @@
         },
         "max_threads": {
             "default": "0",
-            "descr": "Maximum number of threads in global pool",
+            "descr": "Maximum number of threads of any single class (0 = automatically select based on core count)",
             "dynamic": false,
             "type": "size_t"
         },
@@ -674,7 +674,7 @@
         },
         "num_reader_threads": {
             "default": "0",
-            "descr": "Throttle max number of reader threads",
+            "descr": "Number of reader threads (0 = automatic based on core count)",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -686,7 +686,7 @@
         },
         "num_writer_threads": {
             "default": "0",
-            "descr": "Throttle max number of writer threads",
+            "descr": "Number of writer threads (0 = automatic based on core count)",
             "dynamic": true,
             "type": "size_t",
             "validator": {
