@@ -879,6 +879,7 @@ void mcbp_execute_packet(Cookie& cookie) {
     if (header.isResponse()) {
         execute_response_packet(cookie, header.getResponse());
     } else {
+        cookie.getTracer().ensureSpace();
         // We've already verified that the packet is a legal packet
         // so it must be a request
         execute_request_packet(cookie, header.getRequest());

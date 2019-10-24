@@ -110,6 +110,10 @@ public:
     friend std::string(::to_string)(const cb::tracing::Tracer& tracer,
                                     bool raw);
 
+    /// Ensure that there is space in the tracer so that we won't have to do
+    /// additional memory allcation when inserting a span
+    void ensureSpace();
+
 protected:
     std::vector<Span> vecSpans;
 };

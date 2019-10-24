@@ -92,6 +92,11 @@ void Tracer::clear() {
     vecSpans.clear();
 }
 
+void Tracer::ensureSpace() {
+    const size_t minimumSpaceAvailable = 10;
+    vecSpans.reserve(vecSpans.size() + minimumSpaceAvailable);
+}
+
 } // end namespace tracing
 } // end namespace cb
 
