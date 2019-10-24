@@ -54,15 +54,7 @@ boost::optional<nlohmann::json> validate_proposed_config_changes(
 
 void reload_config_file() {
     LOG_INFO("Reloading config file {}", get_config_file());
-
-    try {
-        auto content = cb::io::loadFile(get_config_file());
-        Settings new_settings(nlohmann::json::parse(content));
-        Settings::instance().updateSettings(new_settings, true);
-    } catch (const std::exception& exception) {
-        LOG_WARNING(
-                "Validation failed while reloading config file '{}'. Error: {}",
-                get_config_file(),
-                exception.what());
-    }
+    auto content = cb::io::loadFile(get_config_file());
+    Settings new_settings(nlohmann::json::parse(content));
+    Settings::instance().updateSettings(new_settings, true);
 }
