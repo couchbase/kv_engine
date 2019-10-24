@@ -24,18 +24,57 @@
 #include <logger/logger.h>
 #include <platform/platform_thread.h>
 
-static void cbsasl_refresh_main(void* cookie) {
+static void cbsasl_refresh_main(void* void_cookie) {
+    auto& cookie = *reinterpret_cast<Cookie*>(void_cookie);
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    std::string error;
     try {
         using namespace cb::sasl;
-        server::refresh();
-        set_default_bucket_enabled(
-                mechanism::plain::authenticate("default", "") == Error::OK);
+        switch (server::refresh()) {
+        case Error::OK:
+            rv = ENGINE_SUCCESS;
+            set_default_bucket_enabled(
+                    mechanism::plain::authenticate("default", "") == Error::OK);
+            break;
+        case Error::NO_MEM:
+            rv = ENGINE_ENOMEM;
+            break;
+        case Error::FAIL:
+            rv = ENGINE_FAILED;
+            break;
+
+        case Error::CONTINUE:
+        case Error::BAD_PARAM:
+        case Error::NO_MECH:
+        case Error::NO_USER:
+        case Error::PASSWORD_ERROR:
+        case Error::NO_RBAC_PROFILE:
+        case Error::AUTH_PROVIDER_DIED:
+            cookie.setErrorContext("Internal error");
+            LOG_WARNING(
+                    "{}: {} - Internal error - Invalid return code from "
+                    "cb::sasl::server::refresh()",
+                    cookie.getConnection().getId(),
+                    cookie.getEventId());
+            rv = ENGINE_FAILED;
+        }
+    } catch (const std::exception& e) {
+        rv = ENGINE_FAILED;
+        error = e.what();
+        cookie.setErrorContext(error);
+        LOG_WARNING("{}: Failed to refresh password database: {}",
+                    cookie.getConnection().getId(),
+                    error);
     } catch (...) {
         rv = ENGINE_FAILED;
+        error = "Unknown error";
+        cookie.setErrorContext(error);
+        LOG_WARNING("{}: Failed to refresh password database: {}",
+                    cookie.getConnection().getId(),
+                    error);
     }
 
-    notify_io_complete(cookie, rv);
+    notify_io_complete(void_cookie, rv);
 }
 
 ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {
@@ -48,10 +87,12 @@ ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {
                                          1,
                                          "mc:refresh_sasl");
     if (status != 0) {
-        LOG_WARNING("{}: Failed to create cbsasl db update thread: {}",
+        cookie.setErrorContext("Failed to create cbsasl db update thread");
+        LOG_WARNING("{}: {}: {}",
                     connection.getId(),
+                    cookie.getErrorContext(),
                     strerror(status));
-        return ENGINE_DISCONNECT;
+        return ENGINE_TMPFAIL;
     }
 
     return ENGINE_EWOULDBLOCK;

@@ -52,7 +52,7 @@ std::string listmech();
  * Refresh the internal data (this may result in loading password
  * databases etc)
  */
-void refresh();
+cb::sasl::Error refresh();
 
 /**
  * Set the HMAC interation count to use.

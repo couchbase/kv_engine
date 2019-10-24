@@ -83,8 +83,8 @@ std::pair<cb::sasl::Error, cb::const_char_buffer> ServerContext::start(
     return backend->start(input);
 }
 
-void refresh() {
-    load_user_db();
+cb::sasl::Error refresh() {
+    return load_user_db();
 }
 
 void initialize() {

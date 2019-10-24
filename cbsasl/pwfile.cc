@@ -73,6 +73,7 @@ cb::sasl::Error parse_user_db(const std::string content, bool file) {
         message.append(content);
         message.append("]: Unknown error");
         cb::sasl::logging::log(cb::sasl::logging::Level::Error, message);
+        return cb::sasl::Error::FAIL;
     }
 
     return cb::sasl::Error::OK;
