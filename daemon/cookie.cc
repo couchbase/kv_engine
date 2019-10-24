@@ -208,11 +208,6 @@ const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {
     return ret->getRequest();
 }
 
-const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
-    const auto* ret = reinterpret_cast<const cb::mcbp::Header*>(packet.data());
-    return ret->getResponse();
-}
-
 ENGINE_ERROR_CODE Cookie::swapAiostat(ENGINE_ERROR_CODE value) {
     auto ret = getAiostat();
     setAiostat(value);

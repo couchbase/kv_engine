@@ -284,20 +284,6 @@ public:
     std::string getPrintableRequestKey() const;
 
     /**
-     * Get the packet as a response packet
-     *
-     * @param content if we want just the header or the entire response
-     *                available. In some cases we want to inspect the packet
-     *                header before requiring the entire packet to be read
-     *                off disk (ex: someone ship a 2GB packet and we don't want
-     *                to read all of that into an in-memory buffer)
-     * @return the packet if it is a response, or nullptr if it is a requests
-     * @throws std::invalid_argument if the packet is of an invalid type
-     */
-    const cb::mcbp::Response& getResponse(
-            PacketContent content = PacketContent::Header) const;
-
-    /**
      * Log the start of processing a command received from the client in the
      * generic form which (may change over time, but currently it) looks like:
      *
