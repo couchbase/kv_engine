@@ -61,60 +61,42 @@ DcpConnMap::~DcpConnMap() {
     LOG(EXTENSION_LOG_NOTICE, "Deleted dcpConnMap_");
 }
 
-std::shared_ptr<ConnHandler> DcpConnMap::checkForAndRemoveExistingConn(
-        LockHolder& lh,
-        const void* cookie,
-        const std::string& name,
-        const std::string& connType) {
-    /*
-     * If we request a connection of the same name then mark the existing
-     * connection as "want to disconnect" and erase it from the map. The caller
-     * will put it in deadConnections for us after it cancels associated
-     * background tasks as we do that outside of the connsLock.
-     */
-    auto oldConnection = findByName_UNLOCKED(lh, name);
-    if (oldConnection) {
-      LOG(EXTENSION_LOG_NOTICE,
-          "%s Disconnecting existing Dcp %s %s as it has the same "
-          "name as a new connection %p",
-          oldConnection->logHeader(), connType.c_str(), name.c_str(), cookie);
-        oldConnection->setDisconnect();
-        map_.erase(oldConnection->getCookie());
-    }
-
-    return oldConnection;
-}
-
-DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
-                                     const std::string& name) {
-    DcpConsumer* result = nullptr;
-    std::shared_ptr<ConnHandler> oldConnection;
+DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
+                                     const std::string &name)
+{
+    LockHolder lh(connsLock);
 
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    {
-        LockHolder lh(connsLock);
-        const auto& iter = map_.find(cookie);
-        if (iter != map_.end()) {
-            iter->second->setDisconnect();
-          LOG(EXTENSION_LOG_NOTICE,
-                  "Failed to create Dcp Consumer because connection "
-                  "(%p) already exists.", cookie);
-            return nullptr;
-        }
-
-        oldConnection = checkForAndRemoveExistingConn(
-                lh, cookie, conn_name, "Consumer");
-        auto consumer = std::make_shared<DcpConsumer>(engine, cookie, conn_name);
-
-        LOG(EXTENSION_LOG_INFO, "%s Connection created", consumer->logHeader());
-
-        result = consumer.get();
-        map_[cookie] = std::move(consumer);
+    const auto& iter = map_.find(cookie);
+    if (iter != map_.end()) {
+        iter->second->setDisconnect();
+        LOG(EXTENSION_LOG_NOTICE,
+            "Failed to create Dcp Consumer because connection "
+            "(%p) already exists.", cookie);
+        return nullptr;
     }
 
-    disconnectConn(std::move(oldConnection));
+    /*
+     *  If we request a connection of the same name then
+     *  mark the existing connection as "want to disconnect".
+     */
+    for (const auto& cookieToConn : map_) {
+        if (cookieToConn.second->getName() == conn_name) {
+            LOG(EXTENSION_LOG_NOTICE,
+                "%s Disconnecting existing Dcp Consumer %p as it has the same "
+                "name as a new connection %p",
+                cookieToConn.second->logHeader(), cookieToConn.first, cookie);
+            cookieToConn.second->setDisconnect();
+        }
+    }
+
+    std::shared_ptr<DcpConsumer> dc =
+            std::make_shared<DcpConsumer>(engine, cookie, conn_name);
+    auto* result = dc.get();
+    LOG(EXTENSION_LOG_INFO, "%s Connection created", dc->logHeader());
+    map_[cookie] = std::move(dc);
     return result;
 }
 
@@ -153,35 +135,43 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                      const std::string& name,
                                      uint32_t flags,
                                      Collections::Filter filter) {
-    DcpProducer* result = nullptr;
-    std::shared_ptr<ConnHandler> oldConnection;
+    LockHolder lh(connsLock);
 
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
-    {
-        LockHolder lh(connsLock);
 
-        const auto& iter = map_.find(cookie);
-        if (iter != map_.end()) {
-          iter->second->setDisconnect();
-          LOG(EXTENSION_LOG_NOTICE,
-              "Failed to create Dcp Producer because connection "
-              "(%p) already exists.", cookie);
-          return nullptr;
-        }
-
-        oldConnection = checkForAndRemoveExistingConn(
-            lh, cookie, conn_name, "Producer");
-        auto producer = std::make_shared<DcpProducer>(
-            engine, cookie, conn_name, flags, std::move(filter), true /*startTask*/);
-
-        LOG(EXTENSION_LOG_INFO, "%s Connection created", producer->logHeader());
-
-        result = producer.get();
-        map_[cookie] = std::move(producer);
+    const auto& iter = map_.find(cookie);
+    if (iter != map_.end()) {
+        iter->second->setDisconnect();
+        LOG(EXTENSION_LOG_NOTICE,
+            "Failed to create Dcp Producer because connection "
+            "(%p) already exists.", cookie);
+        return nullptr;
     }
 
-    disconnectConn(std::move(oldConnection));
+    /*
+     *  If we request a connection of the same name then
+     *  mark the existing connection as "want to disconnect".
+     */
+    for (const auto& cookieToConn : map_) {
+        if (cookieToConn.second->getName() == conn_name) {
+            LOG(EXTENSION_LOG_NOTICE,
+                "%s Disconnecting existing Dcp Producer %p as it has the same "
+                "name as a new connection %p",
+                cookieToConn.second->logHeader(), cookieToConn.first, cookie);
+            cookieToConn.second->setDisconnect();
+        }
+    }
+
+    auto producer = std::make_shared<DcpProducer>(engine,
+                                                  cookie,
+                                                  conn_name,
+                                                  flags,
+                                                  std::move(filter),
+                                                  true /*startTask*/);
+    LOG(EXTENSION_LOG_INFO, "%s Connection created", producer->logHeader());
+    auto* result = producer.get();
+    map_[cookie] = std::move(producer);
 
     return result;
 }
@@ -313,10 +303,6 @@ void DcpConnMap::disconnect(const void *cookie) {
     // acquire PassiveStream::buffer.bufMutex; and that could deadlock
     // in EPBucket::setVBucketState, via
     // PassiveStream::processBufferedMessages.
-    disconnectConn(std::move(conn));
-}
-
-void DcpConnMap::disconnectConn(std::shared_ptr<ConnHandler>&& conn) {
     if (conn) {
         auto producer = std::dynamic_pointer_cast<DcpProducer>(conn);
         if (producer) {
@@ -519,11 +505,6 @@ void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
 
 std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
     LockHolder lh(connsLock);
-    return findByName_UNLOCKED(lh, name);
-}
-
-std::shared_ptr<ConnHandler> DcpConnMap::findByName_UNLOCKED(
-        LockHolder& lh, const std::string& name) {
     for (const auto& cookieToConn : map_) {
         // If the connection is NOT about to be disconnected
         // and the names match

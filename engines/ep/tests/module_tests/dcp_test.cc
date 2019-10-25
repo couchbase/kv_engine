@@ -1879,16 +1879,6 @@ protected:
      */
     void processConsumerMutationsNearThreshold(bool beyondThreshold);
 
-    /**
-     * Tests that when we open a DCP connection with the same name as an
-     * existing one the old one is correctly put into
-     * DcpConnMap::deadConnections and de-referenced by manageConnections
-     *
-     * @param DCP Open flags so we can test any type of connection
-     */
-    void testDCPConnectionWIthSameNameCorrectlyDereferencesOldOne(
-            uint32_t flags);
-
     /* vbucket associated with this connection */
     uint16_t vbid;
 };
@@ -2105,82 +2095,6 @@ TEST_P(ConnectionTest, test_deadConnections) {
     // Should be zero deadConnections
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
-}
-
-void ConnectionTest::testDCPConnectionWIthSameNameCorrectlyDereferencesOldOne(
-        uint32_t flags) {
-    auto& connMap = engine->getDcpConnMap();
-
-    // 1) Create a new DCP connection
-    const void* cookie1 = create_mock_cookie();
-
-    // Cookie ref count is initialized to 1 (like it would be for an actual
-    // server connection)
-    ASSERT_EQ(1, get_number_of_mock_cookie_references(cookie1));
-
-    // Need to hit the engine level function because it will do the cookie ref
-    // counting only if the DCP Open is successful
-    ASSERT_EQ(ENGINE_SUCCESS,
-              engine->dcpOpen(cookie1,
-                              0 /*opaque*/,
-                              0 /*seqno*/,
-                              flags /*flags*/,
-                              "test_conn",
-                              {} /*value*/));
-
-    // Should be able to find the connection with the given cookie
-    ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_conn"));
-    EXPECT_EQ(2, get_number_of_mock_cookie_references(cookie1));
-
-    // 2) Create a new DCP connection with the same name
-    const void* cookie2 = create_mock_cookie();
-    ASSERT_EQ(1, get_number_of_mock_cookie_references(cookie2));
-    ASSERT_EQ(ENGINE_SUCCESS,
-              engine->dcpOpen(cookie2,
-                              0 /*opaque*/,
-                              0 /*seqno*/,
-                              flags,
-                              "test_conn",
-                              {} /*value*/));
-
-    // Should be able to find the connection with the given cookie. We will
-    // always return the new connections here as we skip disconnecting
-    // connections when we search by name (and we should have marked the
-    // original connection as disconnecting.
-    auto conn = connMap.findByName("eq_dcpq:test_conn");
-    ASSERT_TRUE(conn);
-    EXPECT_EQ(cookie2, conn->getCookie());
-
-    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
-    EXPECT_EQ(2, get_number_of_mock_cookie_references(cookie1));
-    EXPECT_EQ(2, get_number_of_mock_cookie_references(cookie2));
-
-    // Manage connections is called whenever we have some connection
-    // notification work to do. This is where we deal with deadConnections and
-    // de-reference the cookie.
-    connMap.manageConnections();
-    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
-    EXPECT_EQ(1, get_number_of_mock_cookie_references(cookie1));
-    EXPECT_EQ(2, get_number_of_mock_cookie_references(cookie2));
-
-    connMap.disconnect(cookie2);
-
-    destroy_mock_cookie(cookie1);
-    destroy_mock_cookie(cookie2);
-}
-
-TEST_P(ConnectionTest, NewDcpConsumerWithSameNameCorrectlyShutsdownOldOne) {
-    testDCPConnectionWIthSameNameCorrectlyDereferencesOldOne(0 /*no flags*/);
-}
-
-TEST_P(ConnectionTest, NewDcpProducerWithSameNameCorrectlyShutsdownOldOne) {
-    testDCPConnectionWIthSameNameCorrectlyDereferencesOldOne(
-        DCP_OPEN_PRODUCER);
-}
-
-TEST_P(ConnectionTest, NewDcpNotifierWithSameNameCorrectlyShutsdownOldOne) {
-    testDCPConnectionWIthSameNameCorrectlyDereferencesOldOne(
-        DCP_OPEN_NOTIFIER);
 }
 
 TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
