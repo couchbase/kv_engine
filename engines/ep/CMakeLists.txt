@@ -7,7 +7,7 @@ INCLUDE(CheckTypeSize)
 INCLUDE(CMakeDependentOption)
 INCLUDE(CTest)
 
-CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
+CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" OFF
     "MAGMA_INCLUDE_DIR" OFF)
 
 CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
