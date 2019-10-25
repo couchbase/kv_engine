@@ -10,7 +10,7 @@ INCLUDE(CTest)
 CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" OFF
     "MAGMA_INCLUDE_DIR" OFF)
 
-CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
+CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" OFF
         "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
 
 # The test in ep-engine is time consuming (and given that we run some of
