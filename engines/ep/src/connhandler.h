@@ -310,6 +310,13 @@ public:
     }
 
     virtual void setDisconnect() {
+        flagDisconnect();
+    }
+
+    /**
+     * Just flags this connection as disconnected.
+     */
+    void flagDisconnect() {
         disconnect.store(true);
     }
 

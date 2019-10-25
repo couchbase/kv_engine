@@ -316,7 +316,13 @@ void DcpConnMap::disconnect(const void *cookie) {
                     conn->getLogger().info("Removing connection {}", cookie);
                 }
                 ObjectRegistry::onSwitchThread(epe);
-                conn->setDisconnect();
+                // MB-36557: Just flag the connection as disconnected, defer
+                // streams-shutdown (ie, close-stream + notify-connection) to
+                // disconnectConn below (ie, after we release the connLock).
+                // Potential deadlock by lock-inversion with
+                // KVBucket::setVBucketState otherwise (on connLock /
+                // vbstateLock).
+                conn->flagDisconnect();
                 map_.erase(itr);
             }
         }
@@ -334,8 +340,10 @@ void DcpConnMap::disconnect(const void *cookie) {
             producer->cancelCheckpointCreatorTask();
         } else {
             // Cancel consumer's processer task before closing all streams
-            std::dynamic_pointer_cast<DcpConsumer>(conn)->cancelTask();
-            std::dynamic_pointer_cast<DcpConsumer>(conn)->closeAllStreams();
+            auto consumer = std::dynamic_pointer_cast<DcpConsumer>(conn);
+            consumer->cancelTask();
+            consumer->closeAllStreams();
+            consumer->scheduleNotify();
         }
     }
 

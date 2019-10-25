@@ -2045,8 +2045,8 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
 TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
     const void* cookie = create_mock_cookie();
     const uint32_t flags = 0;
-    auto* producer =
-            engine->getDcpConnMap().newProducer(cookie, "producer", flags);
+    auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto* producer = connMap.newProducer(cookie, "producer", flags);
 
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -2068,32 +2068,74 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
                                       fakeDcpAddFailoverLog,
                                       {} /*collection_filter*/));
 
-    auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
-
-    // Need to simulate warmup completion to allow setVBucketState
-    auto* warmup = engine->getKVBucket()->getWarmup();
-    ASSERT_TRUE(warmup);
-    warmup->processCreateVBucketsComplete();
-    ASSERT_FALSE(warmup->maybeWaitForVBucketWarmup(cookie));
 
     engine->getKVBucket()->setVBucketState(
             vbid,
             vbucket_state_t::vbucket_state_replica,
             {} /*meta*/,
-            TransferVB::No,
-            cookie);
-
-    // @todo: Remove this line. Temporarily the connection is manually removed
-    // to prevent TSAN from blocking this patch on CV by spotting the
-    // lock-inversion fixed in MB-36557 (lock-inversion on connLock and
-    // vbstateLock in setVBState and DcpConnMap::disconnect, the latter executed
-    // in detroy_mock_cookie and avoided by this line).
-    connMap.removeConn(cookie);
+            TransferVB::No);
 
     // Cleanup
     connMap.manageConnections();
     destroy_mock_cookie(cookie);
+}
+
+/**
+ * MB-36557: With a recent change, we unconditionally acquire an exclusive lock
+ * to vbstate in KVBucket::setVBucketState. But, the new lock introduces a
+ * potential deadlock by lock inversion with EPE::handleDisconnect on connLock
+ * and vbstateLock.
+ * TSAN easily spots the issue as soon as we have an execution where two threads
+ * run in parallel and execute the code responsible for the potential deadlock,
+ * which is what this test achieves.
+ */
+TEST_F(DcpConnMapTest, AvoidLockInversionInSetVBucketStateAndDisconnect) {
+    const void* cookie = create_mock_cookie();
+    const uint32_t flags = 0;
+    auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto* producer = connMap.newProducer(cookie, "producer", flags);
+
+    const uint32_t opaque = 0xdead;
+    // Vbstate lock acquired in ActiveStream::setDead (executed by
+    // DcpConnMap::disconnect) only if SyncRepl is enabled
+    producer->control(opaque, "enable_sync_writes", "true");
+    producer->control(opaque, "consumer_name", "consumer");
+
+    uint64_t rollbackSeqno = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(flags,
+                                      opaque,
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      fakeDcpAddFailoverLog,
+                                      {} /*collection_filter*/));
+
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
+
+    std::thread t1 = std::thread([this]() -> void {
+        engine->getKVBucket()->setVBucketState(
+                vbid,
+                vbucket_state_t::vbucket_state_replica,
+                {} /*meta*/,
+                TransferVB::No);
+    });
+
+    // Disconnect in this thread
+    connMap.disconnect(cookie);
+
+    t1.join();
+
+    // Check that streams have been shutdown at disconnect
+    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
+
+    // Cleanup
+    connMap.manageConnections();
 }
 
 class NotifyTest : public DCPTest {
