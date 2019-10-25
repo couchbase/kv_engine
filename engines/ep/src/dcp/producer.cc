@@ -1392,9 +1392,11 @@ void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
     }
 }
 
-void DcpProducer::closeStreamDueToVbStateChange(Vbid vbucket,
-                                                vbucket_state_t state) {
-    if (setStreamDeadStatus(vbucket, {}, END_STREAM_STATE)) {
+void DcpProducer::closeStreamDueToVbStateChange(
+        Vbid vbucket,
+        vbucket_state_t state,
+        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
+    if (setStreamDeadStatus(vbucket, {}, END_STREAM_STATE, vbstateLock)) {
         logger->debug("({}) State changed to {}, closing active stream!",
                       vbucket,
                       VBucket::toString(state));
@@ -1427,9 +1429,11 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
     return false;
 }
 
-bool DcpProducer::setStreamDeadStatus(Vbid vbid,
-                                      cb::mcbp::DcpStreamId sid,
-                                      end_stream_status_t status) {
+bool DcpProducer::setStreamDeadStatus(
+        Vbid vbid,
+        cb::mcbp::DcpStreamId sid,
+        end_stream_status_t status,
+        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
     auto rv = streams.find(vbid.get());
     if (rv != streams.end()) {
         std::shared_ptr<Stream> streamPtr;
@@ -1443,9 +1447,18 @@ bool DcpProducer::setStreamDeadStatus(Vbid vbid,
                 break;
             }
         }
-        if (streamPtr) {
+
+        // MB-36637: At KVBucket::setVBucketState we acquire an exclusive lock
+        // to vbstate and pass it down here. If that is the case, then we have
+        // to avoid the call to ActiveStream::setDead(status) as it may deadlock
+        // by acquiring the same lock again.
+        auto* activeStream = dynamic_cast<ActiveStream*>(streamPtr.get());
+        if (activeStream && vbstateLock) {
+            activeStream->setDead(status, *vbstateLock);
+        } else if (streamPtr) {
             streamPtr->setDead(status);
         }
+
         return true;
     }
 

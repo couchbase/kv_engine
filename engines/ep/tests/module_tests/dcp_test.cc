@@ -47,6 +47,7 @@
 #include "objectregistry.h"
 #include "test_helpers.h"
 #include "vbucket.h"
+#include "warmup.h"
 
 #include <folly/portability/GTest.h>
 #include <memcached/server_cookie_iface.h>
@@ -2115,6 +2116,70 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     connMap.manageConnections();
     destroy_mock_cookie(producerCookie);
     destroy_mock_cookie(consumerCookie);
+}
+
+/**
+ * MB-36637: With a recent change, we unconditionally acquire an exclusive lock
+ * to vbstate in KVBucket::setVBucketState. But, deep down in the call hierarchy
+ * (ActiveStream::setDead) we may lock again on the same mutex. That happens
+ * if we are closing streams that support SyncReplication. So in this test we:
+ * 1) create a Producer and enable SyncReplication
+ * 2) create an ActiveStream (which implicitly supports SyncReplication)
+ * 3) issue a KVBucket::setVBucketState, with newState != oldState
+ * Step (3) deadlocks before this fix.
+ */
+TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
+    const void* cookie = create_mock_cookie();
+    const uint32_t flags = 0;
+    auto* producer =
+            engine->getDcpConnMap().newProducer(cookie, "producer", flags);
+
+    const uint32_t opaque = 0xdead;
+    // Vbstate lock acquired in ActiveStream::setDead (executed by
+    // DcpConnMap::disconnect) only if SyncRepl is enabled
+    producer->control(opaque, "enable_sync_writes", "true");
+    producer->control(opaque, "consumer_name", "consumer");
+
+    uint64_t rollbackSeqno = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(flags,
+                                      opaque,
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      fakeDcpAddFailoverLog,
+                                      {} /*collection_filter*/));
+
+    auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
+
+    // Need to simulate warmup completion to allow setVBucketState
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    ASSERT_TRUE(warmup);
+    warmup->processCreateVBucketsComplete();
+    ASSERT_FALSE(warmup->maybeWaitForVBucketWarmup(cookie));
+
+    engine->getKVBucket()->setVBucketState(
+            vbid,
+            vbucket_state_t::vbucket_state_replica,
+            {} /*meta*/,
+            TransferVB::No,
+            cookie);
+
+    // @todo: Remove this line. Temporarily the connection is manually removed
+    // to prevent TSAN from blocking this patch on CV by spotting the
+    // lock-inversion fixed in MB-36557 (lock-inversion on connLock and
+    // vbstateLock in setVBState and DcpConnMap::disconnect, the latter executed
+    // in detroy_mock_cookie and avoided by this line).
+    connMap.removeConn(cookie);
+
+    // Cleanup
+    connMap.manageConnections();
+    destroy_mock_cookie(cookie);
 }
 
 class NotifyTest : public DCPTest {

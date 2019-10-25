@@ -23,6 +23,7 @@
 #include <memcached/engine.h>
 #include <platform/sized_buffer.h>
 
+#include <folly/SharedMutex.h>
 #include <atomic>
 #include <list>
 #include <string>
@@ -103,10 +104,13 @@ public:
      * @param vbucket the vbucket id
      * @param state the new state of the vbucket
      * @closeInboundStreams bool flag indicating failover
+     * @param vbstateLock (optional) Exclusive lock to vbstate
      */
-    void vbucketStateChanged(Vbid vbucket,
-                             vbucket_state_t state,
-                             bool closeInboundStreams = true);
+    void vbucketStateChanged(
+            Vbid vbucket,
+            vbucket_state_t state,
+            bool closeInboundStreams = true,
+            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock = {});
 
     /**
      * Close outbound (active) streams for a vbucket on vBucket rollback.

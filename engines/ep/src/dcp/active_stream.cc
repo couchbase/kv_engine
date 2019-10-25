@@ -1189,7 +1189,7 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
     }
 }
 
-uint32_t ActiveStream::setDead(end_stream_status_t status) {
+void ActiveStream::setDeadInner(end_stream_status_t status) {
     {
         LockHolder lh(streamMutex);
         endStream(status);
@@ -1198,7 +1198,22 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
     if (status != END_STREAM_DISCONNECTED) {
         notifyStreamReady();
     }
+}
 
+uint32_t ActiveStream::setDead(end_stream_status_t status) {
+    setDeadInner(status);
+    removeAcksFromDM();
+    return 0;
+}
+
+void ActiveStream::setDead(end_stream_status_t status,
+                           folly::SharedMutex::WriteHolder& vbstateLock) {
+    setDeadInner(status);
+    removeAcksFromDM(vbstateLock);
+}
+
+void ActiveStream::removeAcksFromDM(
+        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
     // Remove any unknown acks for the stream. Why here and not on
     // destruction of the object? We could be replacing an existing
     // DcpProducer with another. This old ActiveStream may then live on
@@ -1206,7 +1221,7 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
     if (supportSyncReplication()) {
         auto vb = engine->getVBucket(vb_);
         if (!vb) {
-            return 0;
+            return;
         }
 
         // Get the consumer name from the producer so that we can clear the
@@ -1218,7 +1233,7 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
                 log(spdlog::level::warn,
                     "Producer could not be locked when"
                     "attempting to clear queued seqno acks");
-                return 0;
+                return;
             }
             consumerName = p->getConsumerName();
         }
@@ -1227,18 +1242,17 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
             log(spdlog::level::warn,
                 "Consumer name not found for producer when"
                 "attempting to clear queued seqno acks");
-            return 0;
+            return;
         }
 
-        // Take the vb state lock so that we don't change the state of
-        // this vb
-        folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_active) {
-            vb->removeQueuedAckFromDM(consumerName);
+        if (vbstateLock) {
+            vb->removeAcksFromADM(consumerName, *vbstateLock);
+        } else {
+            vb->removeAcksFromADM(
+                    consumerName,
+                    folly::SharedMutex::ReadHolder(vb->getStateLock()));
         }
     }
-
-    return 0;
 }
 
 void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {

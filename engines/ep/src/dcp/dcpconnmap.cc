@@ -234,14 +234,17 @@ void DcpConnMap::shutdownAllConnections() {
     cancelTasks(mapCopy);
 }
 
-void DcpConnMap::vbucketStateChanged(Vbid vbucket,
-                                     vbucket_state_t state,
-                                     bool closeInboundStreams) {
+void DcpConnMap::vbucketStateChanged(
+        Vbid vbucket,
+        vbucket_state_t state,
+        bool closeInboundStreams,
+        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
     LockHolder lh(connsLock);
     for (const auto& cookieToConn : map_) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
-            producer->closeStreamDueToVbStateChange(vbucket, state);
+            producer->closeStreamDueToVbStateChange(
+                    vbucket, state, vbstateLock);
         } else if (closeInboundStreams) {
             static_cast<DcpConsumer*>(cookieToConn.second.get())
                     ->closeStreamDueToVbStateChange(vbucket, state);

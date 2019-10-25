@@ -3875,8 +3875,22 @@ ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(const Item& item) {
     return ENGINE_SUCCESS;
 }
 
-void VBucket::removeQueuedAckFromDM(const std::string& node) {
-    getActiveDM().removedQueuedAck(node);
+void VBucket::removeAcksFromADM(const std::string& node) {
+    if (state == vbucket_state_active) {
+        getActiveDM().removedQueuedAck(node);
+    }
+}
+
+void VBucket::removeAcksFromADM(
+        const std::string& node,
+        const folly::SharedMutex::WriteHolder& vbstateLock) {
+    removeAcksFromADM(node);
+}
+
+void VBucket::removeAcksFromADM(
+        const std::string& node,
+        const folly::SharedMutex::ReadHolder& vbstateLock) {
+    removeAcksFromADM(node);
 }
 
 void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
