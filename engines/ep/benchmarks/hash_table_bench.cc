@@ -76,7 +76,6 @@ public:
 
             if (pendingSyncWritesPcnt > 0) {
                 if (i % (100 / pendingSyncWritesPcnt) == 0) {
-                    items.emplace_back(key, 0, 0, data.data(), data.size());
                     items.back().setPendingSyncWrite({});
                 }
             }
