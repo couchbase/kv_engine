@@ -3026,11 +3026,11 @@ bool VBucket::hasMemoryForStoredValue(
     }
 }
 
-void VBucket::_addStats(bool details,
+void VBucket::_addStats(VBucketStatsDetailLevel detail,
                         const AddStatFn& add_stat,
                         const void* c) {
-    addStat(NULL, toString(state), add_stat, c);
-    if (details) {
+    switch (detail) {
+    case VBucketStatsDetailLevel::Full: {
         size_t numItems = getNumItems();
         size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
@@ -3061,19 +3061,16 @@ void VBucket::_addStats(bool details,
         addStat("queue_age", getQueueAge(), add_stat, c);
         addStat("pending_writes", dirtyQueuePendingWrites.load(), add_stat, c);
 
-        addStat("high_seqno", getHighSeqno(), add_stat, c);
         addStat("uuid", failovers->getLatestUUID(), add_stat, c);
         addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
-        addStat("bloom_filter", getFilterStatusString().data(),
-                add_stat, c);
+        addStat("bloom_filter", getFilterStatusString().data(), add_stat, c);
         addStat("bloom_filter_size", getFilterSize(), add_stat, c);
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
-        addStat("topology", getReplicationTopology().dump(), add_stat, c);
-        addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+
         addStat("high_completed_seqno", getHighCompletedSeqno(), add_stat, c);
         addStat("sync_write_accepted_count",
                 getSyncWriteAcceptedCount(),
@@ -3089,6 +3086,21 @@ void VBucket::_addStats(bool details,
                 c);
 
         hlc.addStats(statPrefix, add_stat, c);
+    }
+        // fallthrough
+    case VBucketStatsDetailLevel::Durability:
+        addStat("high_seqno", getHighSeqno(), add_stat, c);
+        addStat("topology", getReplicationTopology().dump(), add_stat, c);
+        addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+        // fallthrough
+    case VBucketStatsDetailLevel::State:
+        // adds the vbucket state stat (unnamed stat)
+        addStat(NULL, toString(state), add_stat, c);
+        break;
+    case VBucketStatsDetailLevel::PreviousState:
+        throw std::invalid_argument(
+                "VBucket::_addStats: unexpected detail level");
+        break;
     }
 }
 

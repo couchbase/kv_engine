@@ -3223,38 +3223,26 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         const AddStatFn& add_stat,
         const char* stat_key,
         int nkey,
-        bool prevStateRequested,
-        bool details) {
+        VBucketStatsDetailLevel detail) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
         StatVBucketVisitor(KVBucketIface* store,
                            const void* c,
                            const AddStatFn& a,
-                           bool isPrevStateRequested,
-                           bool detailsRequested)
-            : eps(store),
-              cookie(c),
-              add_stat(a),
-              isPrevState(isPrevStateRequested),
-              isDetailsRequested(detailsRequested) {
+                           VBucketStatsDetailLevel detail)
+            : eps(store), cookie(c), add_stat(a), detail(detail) {
         }
 
         void visitBucket(const VBucketPtr& vb) override {
-            addVBStats(cookie,
-                       add_stat,
-                       *vb,
-                       eps,
-                       isPrevState,
-                       isDetailsRequested);
+            addVBStats(cookie, add_stat, *vb, eps, detail);
         }
 
         static void addVBStats(const void* cookie,
                                const AddStatFn& add_stat,
                                VBucket& vb,
                                KVBucketIface* store,
-                               bool isPrevStateRequested,
-                               bool detailsRequested) {
-            if (isPrevStateRequested) {
+                               VBucketStatsDetailLevel detail) {
+            if (detail == VBucketStatsDetailLevel::PreviousState) {
                 try {
                     char buf[16];
                     checked_snprintf(
@@ -3268,7 +3256,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
                                 error.what());
                 }
             } else {
-                vb.addStats(detailsRequested, add_stat, cookie);
+                vb.addStats(detail, add_stat, cookie);
             }
         }
 
@@ -3276,8 +3264,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         KVBucketIface* eps;
         const void *cookie;
         AddStatFn add_stat;
-        bool isPrevState;
-        bool isDetailsRequested;
+        VBucketStatsDetailLevel detail;
     };
 
     if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
@@ -3285,6 +3272,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
     }
 
     if (nkey > 16 && strncmp(stat_key, "vbucket-details", 15) == 0) {
+        Expects(detail == VBucketStatsDetailLevel::Full);
         std::string vbid(&stat_key[16], nkey - 16);
         uint16_t vbucket_id(0);
         if (!parseUint16(vbid.c_str(), &vbucket_id)) {
@@ -3300,12 +3288,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
                                        add_stat,
                                        *vb,
                                        kvBucket.get(),
-                                       prevStateRequested,
-                                       details);
-    }
-    else {
-        StatVBucketVisitor svbv(kvBucket.get(), cookie, add_stat,
-                                prevStateRequested, details);
+                                       VBucketStatsDetailLevel::Full);
+    } else if (nkey > 25 &&
+               strncmp(stat_key, "vbucket-durability-state", 24) == 0) {
+        Expects(detail == VBucketStatsDetailLevel::Durability);
+        std::string vbid(&stat_key[25], nkey - 25);
+        uint16_t vbucket_id(0);
+        if (!parseUint16(vbid.c_str(), &vbucket_id)) {
+            return ENGINE_EINVAL;
+        }
+        Vbid vbucketId = Vbid(vbucket_id);
+        VBucketPtr vb = getVBucket(vbucketId);
+        if (!vb) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+
+        StatVBucketVisitor::addVBStats(cookie,
+                                       add_stat,
+                                       *vb,
+                                       kvBucket.get(),
+                                       VBucketStatsDetailLevel::Durability);
+    } else {
+        StatVBucketVisitor svbv(kvBucket.get(), cookie, add_stat, detail);
         kvBucket->visit(svbv);
     }
     return ENGINE_SUCCESS;
@@ -4528,19 +4532,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return doHashStats(cookie, add_stat);
     }
     if (key == "vbucket"_ccb) {
-        return doVBucketStats(
-                cookie, add_stat, key.data(), key.size(), false, false);
+        return doVBucketStats(cookie,
+                              add_stat,
+                              key.data(),
+                              key.size(),
+                              VBucketStatsDetailLevel::State);
+    }
+    if (key == "prev-vbucket"_ccb) {
+        return doVBucketStats(cookie,
+                              add_stat,
+                              key.data(),
+                              key.size(),
+                              VBucketStatsDetailLevel::PreviousState);
+    }
+    if (cb_isPrefix(key, "vbucket-durability-state")) {
+        return doVBucketStats(cookie,
+                              add_stat,
+                              key.data(),
+                              key.size(),
+                              VBucketStatsDetailLevel::Durability);
     }
     if (cb_isPrefix(key, "vbucket-details")) {
-        return doVBucketStats(
-                cookie, add_stat, key.data(), key.size(), false, true);
+        return doVBucketStats(cookie,
+                              add_stat,
+                              key.data(),
+                              key.size(),
+                              VBucketStatsDetailLevel::Full);
     }
     if (cb_isPrefix(key, "vbucket-seqno")) {
         return doSeqnoStats(cookie, add_stat, key.data(), key.size());
-    }
-    if (key == "prev-vbucket"_ccb) {
-        return doVBucketStats(
-                cookie, add_stat, key.data(), key.size(), true, false);
     }
     if (cb_isPrefix(key, "checkpoint")) {
         return doCheckpointStats(cookie, add_stat, key.data(), key.size());

@@ -159,13 +159,13 @@ bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
     return true;
 }
 
-void EphemeralVBucket::addStats(bool details,
+void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                                 const AddStatFn& add_stat,
                                 const void* c) {
     // Include base class statistics:
-    _addStats(details, add_stat, c);
+    _addStats(detail, add_stat, c);
 
-    if (details) {
+    if (detail == VBucketStatsDetailLevel::Full) {
         // Ephemeral-specific details
         addStat("auto_delete_count", autoDeleteCount.load(), add_stat, c);
         addStat("ht_tombstone_purged_count",
