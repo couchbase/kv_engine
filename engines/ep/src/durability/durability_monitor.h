@@ -72,7 +72,7 @@ public:
     virtual void notifyLocalPersistence() = 0;
 
     /**
-     * Inform the DM of a non-SyncWrite that it needs to track in some way to
+     * Inform the DM of a non-prepare that it needs to track in some way to
      * move the HPS for non-durable writes.
      *
      * @param item The item of the normal write
