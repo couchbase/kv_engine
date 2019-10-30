@@ -61,6 +61,7 @@ bool SslContext::havePendingInputData() {
 bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     const auto& settings = Settings::instance();
     ctx = SSL_CTX_new(SSLv23_server_method());
+    SSL_CTX_set_dh_auto(ctx, 1);
     SSL_CTX_set_options(ctx, settings.getSslProtocolMask());
     SSL_CTX_set_mode(ctx,
                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
