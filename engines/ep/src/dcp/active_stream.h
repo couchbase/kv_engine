@@ -135,6 +135,15 @@ public:
 
     uint32_t setDead(end_stream_status_t status) override;
 
+    /**
+     * Ends the stream.
+     *
+     * @param status The stream end status
+     * @param vbstateLock Exclusive lock to vbstate
+     */
+    void setDead(end_stream_status_t status,
+                 folly::SharedMutex::WriteHolder& vbstateLock);
+
     StreamState getState() const {
         return state_;
     }
@@ -434,6 +443,23 @@ private:
      */
     spdlog::level::level_enum getTransitionStateLogLevel(StreamState currState,
                                                          StreamState newState);
+
+    /**
+     * Performs the basic actions for closing a stream (ie, queueing a
+     * stream-end message and notifying the connection).
+     *
+     * @param status The end stream status
+     */
+    void setDeadInner(end_stream_status_t status);
+
+    /**
+     * Remove the acks from the ActiveDurabilityMonitor for this stream.
+     *
+     * @param vbstateLock (optional) Exclusive lock to vbstate. The function
+     *     acquires the lock if not provided.
+     */
+    void removeAcksFromDM(
+            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock = {});
 
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */

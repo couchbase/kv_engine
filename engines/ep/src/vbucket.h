@@ -1631,12 +1631,26 @@ public:
     void addSyncWriteForRollback(const Item& item);
 
     /**
-     * Remove any queued acks for the given node from the Durability Monitor.
-     * (should be Active)
+     * Remove any queued acks for the given node from the ActiveDM.
+     * Note that we can remove acks only from the ActiveDM, so we need lock the
+     * vbstate to prevent a concurrent state change active->non-active
      *
      * @param node Name of the node for which we wish to remove the ack
+     * @param vbstateLock Exclusive lock to vbstate
      */
-    void removeQueuedAckFromDM(const std::string& node);
+    void removeAcksFromADM(const std::string& node,
+                           const folly::SharedMutex::WriteHolder& vbstateLock);
+
+    /**
+     * Remove any queued acks for the given node from the ActiveDM.
+     * Note that we can remove acks only from the ActiveDM, so we need lock the
+     * vbstate to prevent a concurrent state change active->non-active
+     *
+     * @param node Name of the node for which we wish to remove the ack
+     * @param vbstateLock Shared lock to vbstate
+     */
+    void removeAcksFromADM(const std::string& node,
+                           const folly::SharedMutex::ReadHolder& vbstateLock);
 
     /**
      * Set the window for which a duplicate abort/prepare may be valid.
@@ -2369,6 +2383,13 @@ private:
      */
     virtual void processImplicitlyCompletedPrepare(
             HashTable::StoredValueProxy& v) = 0;
+
+    /**
+     * Remove any queued acks for the given node from the ActiveDM.
+     *
+     * @param node Name of the node for which we wish to remove the ack
+     */
+    void removeAcksFromADM(const std::string& node);
 
     Vbid id;
     std::atomic<vbucket_state_t>    state;

@@ -17,12 +17,11 @@
 
 #include "ep_bucket.h"
 
-#include <utilities/hdrhistogram.h>
-
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
+#include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
@@ -39,9 +38,10 @@
 #include "vbucket_state.h"
 #include "warmup.h"
 
-#include "dcp/dcpconnmap.h"
 
 #include <platform/timeutils.h>
+#include <utilities/hdrhistogram.h>
+#include <utilities/logtags.h>
 
 #include <gsl.h>
 
@@ -1261,7 +1261,8 @@ void EPBucket::completeStatsVKey(const void* cookie,
  */
 class EPDiskRollbackCB : public RollbackCB {
 public:
-    EPDiskRollbackCB(EventuallyPersistentEngine& e) : RollbackCB(), engine(e) {
+    EPDiskRollbackCB(EventuallyPersistentEngine& e, uint64_t rollbackSeqno)
+        : RollbackCB(), engine(e), rollbackSeqno(rollbackSeqno) {
     }
 
     void callback(GetValue& val) {
@@ -1289,6 +1290,22 @@ public:
         // which will restore everything to the way it should be and this is
         // far easier than dealing with individual states.
         if (postRbSeqnoItem->isPending() || postRbSeqnoItem->isAbort()) {
+            // Log any prepares with majority level as they are vulnerable to
+            // being "lost" to an active bounce if it comes back up within the
+            // failover window. Only log from the rollback seqno as the active
+            // will have any that came before this.
+            if (postRbSeqnoItem->isPending() &&
+                postRbSeqnoItem->getDurabilityReqs().getLevel() ==
+                        cb::durability::Level::Majority &&
+                postRbSeqnoItem->getBySeqno() >=
+                        static_cast<int64_t>(rollbackSeqno)) {
+                EP_LOG_INFO(
+                        "({}) Rolling back a Majority level prepare with "
+                        "key:{} and seqno:{}",
+                        vb->getId(),
+                        cb::UserData(postRbSeqnoItem->getKey().to_string()),
+                        postRbSeqnoItem->getBySeqno());
+            }
             removeDeletedDoc(*vb, *postRbSeqnoItem);
             return;
         }
@@ -1393,16 +1410,15 @@ public:
         }
     }
 
-    // Prepares that need to be added to the Passive DM post rollback. Will be
-    // added to as each callback is made.
-    std::vector<queued_item> preparesToAdd;
-
 private:
     EventuallyPersistentEngine& engine;
+
+    /// The seqno to which we are rolling back
+    uint64_t rollbackSeqno;
 };
 
 RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
-    auto cb = std::make_shared<EPDiskRollbackCB>(engine);
+    auto cb = std::make_shared<EPDiskRollbackCB>(engine, rollbackSeqno);
     KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
     auto result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
     return result;
@@ -1430,6 +1446,13 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
             // prepare from the HashTable. We will "warm up" any incomplete
             // prepares in a later stage of rollback.
             if (item->isPending()) {
+                EP_LOG_INFO(
+                        "({}) Rolling back an unpersisted {} prepare with "
+                        "key:{} and seqno:{}",
+                        vb.getId(),
+                        to_string(item->getDurabilityReqs().getLevel()),
+                        cb::UserData(item->getKey().to_string()),
+                        item->getBySeqno());
                 vb.removeItemFromMemory(*item);
                 continue;
             }
