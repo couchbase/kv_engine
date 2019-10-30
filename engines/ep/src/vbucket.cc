@@ -2526,6 +2526,22 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
             v->markDirty();
             v->setExptime(exptime);
             v->setRevSeqno(v->getRevSeqno() + 1);
+
+            auto committedState = v->getCommitted();
+
+            Expects(committedState == CommittedState::CommittedViaMutation ||
+                    committedState == CommittedState::CommittedViaPrepare);
+
+            if (committedState == CommittedState::CommittedViaPrepare) {
+                // we are updating an item which was set through a sync write
+                // we should not queueDirty a queue_op::commit_sync_write
+                // because this touch op is *not* a sync write, and doesn't
+                // even support durability. queueDirty expects durability reqs
+                // for a commit, as a real commit would have a prepareSeqno.
+                // Change the committed state to reflect that the new
+                // value is from a non-sync write op.
+                v->setCommitted(CommittedState::CommittedViaMutation);
+            }
         }
 
         const auto hideLockedCas = (v->isLocked(ep_current_time())
