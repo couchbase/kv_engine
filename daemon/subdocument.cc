@@ -1685,7 +1685,7 @@ static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
             "{}: subdoc_response - invalid traits.path - closing connection {}",
             connection.getId(),
             connection.getDescription());
-    connection.setState(StateMachine::State::closing);
+    connection.setWriteAndGo(StateMachine::State::closing);
 }
 
 void subdoc_get_executor(Cookie& cookie) {

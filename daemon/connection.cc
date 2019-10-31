@@ -206,6 +206,8 @@ nlohmann::json Connection::toJSON() const {
     ret["nevents"] = numEvents;
     ret["state"] = getStateName();
 
+    ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
+
     ret["ssl"] = client_ctx != nullptr;
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
