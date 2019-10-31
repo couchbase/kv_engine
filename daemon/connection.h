@@ -466,12 +466,21 @@ public:
     /**
      * If we've got a response (key, extras and body) of the provided
      * size. Should Cookie::sendResponse be used to send the data
-     * instead of chaining io requests
+     * instead of addIov
      *
      * @param size the total size to return to the other end
      * @return true if Cookie::sendResponse
      */
     bool useCookieSendResponse(std::size_t size) const;
+
+    /**
+     * Add a chunk of memory to the the IO vector to send
+     *
+     * @param buf pointer to the data to send
+     * @param len number of bytes to send
+     * @throws std::bad_alloc
+     */
+    void addIov(const void* buf, size_t len);
 
     /**
      * Copy the provided data to the end of the output stream

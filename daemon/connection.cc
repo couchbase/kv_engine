@@ -691,6 +691,10 @@ bool Connection::dcpUseWriteBuffer(size_t size) const {
     return size < dcpTlsBlockBuffer.size();
 }
 
+void Connection::addIov(const void* buf, size_t len) {
+    copyToOutputStream({static_cast<const char*>(buf), len});
+}
+
 void Connection::copyToOutputStream(cb::const_char_buffer data) {
     if (data.empty()) {
         return;
