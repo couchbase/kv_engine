@@ -594,16 +594,22 @@ public:
     bool isPacketAvailable() const;
 
     /**
+     * Check to see if the next packet header is available
+     *
+     * @return true if we've got the packet header available.. false otherwise
+     */
+    bool isPacketHeaderAvailable() const;
+
+    /**
      * Get the next packet available in the stream.
      *
      * The returned pointer is a pointer directly into the input buffer (and
      * not allocated, so the user should NOT keep the pointer around or try
      * to free it.
      *
-     * @return the next packet
-     * @throws std::runtime_error if the packet isn't available
+     * @return nullptr if the entire packet isn't available
      */
-    const cb::mcbp::Header& getPacket() const;
+    const cb::mcbp::Header* getPacket() const;
 
     /**
      * Get all of the available bytes (up to a maximum bumber of bytes) in

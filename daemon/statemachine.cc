@@ -67,8 +67,10 @@ const char* StateMachine::getStateName(State state) const {
         return "new_cmd";
     case StateMachine::State::waiting:
         return "waiting";
-    case StateMachine::State::read_packet:
-        return "read_packet";
+    case StateMachine::State::read_packet_header:
+        return "read_packet_header";
+    case StateMachine::State::read_packet_body:
+        return "read_packet_body";
     case StateMachine::State::closing:
         return "closing";
     case StateMachine::State::pending_close:
@@ -94,7 +96,8 @@ const char* StateMachine::getStateName(State state) const {
 
 bool StateMachine::isIdleState() const {
     switch (currentState) {
-    case State::read_packet:
+    case State::read_packet_header:
+    case State::read_packet_body:
     case State::waiting:
     case State::new_cmd:
     case State::ship_log:
@@ -121,8 +124,10 @@ bool StateMachine::execute() {
         return conn_new_cmd();
     case StateMachine::State::waiting:
         return conn_waiting();
-    case StateMachine::State::read_packet:
-        return conn_read_packet();
+    case StateMachine::State::read_packet_header:
+        return conn_read_packet_header();
+    case StateMachine::State::read_packet_body:
+        return conn_read_packet_body();
     case StateMachine::State::closing:
         return conn_closing();
     case StateMachine::State::pending_close:
@@ -222,7 +227,7 @@ bool StateMachine::conn_ship_log() {
     auto& cookie = connection.getCookieObject();
     cookie.setEwouldblock(false);
 
-    if (connection.isPacketAvailable()) {
+    if (connection.isPacketHeaderAvailable()) {
         try_read_mcbp_command(cookie);
         return true;
     }
@@ -256,16 +261,16 @@ bool StateMachine::conn_waiting() {
         return true;
     }
 
-    setCurrentState(State::read_packet);
+    setCurrentState(State::read_packet_header);
     return true;
 }
 
-bool StateMachine::conn_read_packet() {
+bool StateMachine::conn_read_packet_header() {
     if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
 
-    if (connection.isPacketAvailable()) {
+    if (connection.isPacketHeaderAvailable()) {
         // Parse the data in the input pipe and prepare the cookie for
         // execution. If all data is available we'll move over to the execution
         // phase, otherwise we'll wait for the data to arrive
@@ -282,13 +287,20 @@ bool StateMachine::conn_new_cmd() {
         return true;
     }
 
+    /*
+     * In order to ensure that all clients will be served each
+     * connection will only process a certain number of operations
+     * before they will back off.
+     */
     connection.getCookieObject().reset();
+    if (!connection.maybeYield()) {
+        if (connection.isPacketHeaderAvailable()) {
+            connection.setState(StateMachine::State::read_packet_header);
+            return true;
+        }
+    }
     setCurrentState(State::waiting);
-
-    // In order to ensure that all clients will be served each
-    // connection will only process a certain number of operations
-    // before they will back off.
-    return !connection.maybeYield();
+    return false;
 }
 
 bool StateMachine::conn_validate() {
@@ -382,6 +394,26 @@ bool StateMachine::conn_execute() {
     // want to preserve the error context and id.
     cookie.clearPacket();
     return true;
+}
+
+bool StateMachine::conn_read_packet_body() {
+    if (is_bucket_dying(connection)) {
+        return true;
+    }
+
+    if (connection.isPacketAvailable()) {
+        const auto* header = connection.getPacket();
+        // we might have reallocated stuff after calling isPacketAvailabe
+        connection.getCookieObject().setPacket(
+                Cookie::PacketContent::Full,
+                cb::const_byte_buffer{
+                        reinterpret_cast<const uint8_t*>(header),
+                        header->getBodylen() + sizeof(cb::mcbp::Request)});
+        connection.setState(StateMachine::State::validate);
+        return true;
+    }
+
+    return false;
 }
 
 bool StateMachine::conn_send_data() {
