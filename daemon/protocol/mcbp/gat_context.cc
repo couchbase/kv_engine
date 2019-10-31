@@ -140,15 +140,14 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
         cookie.setCas(info.cas);
         mcbp_add_header(cookie,
                         cb::mcbp::Status::Success,
-                        sizeof(info.flags),
-                        0, // no key
-                        bodylen,
+                        {reinterpret_cast<const char*>(&info.flags),
+                         sizeof(info.flags)},
+                        {}, // no key
+                        payload.size(),
                         datatype);
 
-        // Add the flags
-        connection.addIov(&info.flags, sizeof(info.flags));
         // Add the value
-        connection.addIov(payload.buf, payload.len);
+        connection.copyToOutputStream(payload);
         connection.setState(StateMachine::State::send_data);
     }
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);

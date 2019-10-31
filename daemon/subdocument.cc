@@ -1531,18 +1531,12 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(
-            cookie,
-            status_code,
-            gsl::narrow<uint8_t>(extlen),
-            /*keylen*/ 0,
-            gsl::narrow<uint32_t>(extlen + response_buf_needed + iov_len),
-            PROTOCOL_BINARY_RAW_BYTES);
-
-    // Append extras if requested.
-    if (extlen > 0) {
-        connection.addIov(reinterpret_cast<void*>(extras_ptr), extlen);
-    }
+    mcbp_add_header(cookie,
+                    status_code,
+                    {const_cast<const char*>(extras_ptr), extlen},
+                    {},
+                    response_buf_needed + iov_len,
+                    PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.
     uint8_t index = 0;
@@ -1637,9 +1631,9 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
 
     mcbp_add_header(cookie,
                     status_code,
-                    /*extlen*/ 0, /*keylen*/
-                    0,
-                    gsl::narrow<uint32_t>(context.response_val_len),
+                    {},
+                    {},
+                    context.response_val_len,
                     PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.

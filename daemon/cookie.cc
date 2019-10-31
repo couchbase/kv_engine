@@ -257,8 +257,8 @@ void Cookie::sendNotMyVBucket() {
         // client
         mcbp_add_header(*this,
                         cb::mcbp::Status::NotMyVbucket,
-                        0,
-                        0,
+                        {},
+                        {},
                         0,
                         PROTOCOL_BINARY_RAW_BYTES);
         connection.setState(StateMachine::State::send_data);
@@ -301,7 +301,7 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
             return;
         }
 
-        mcbp_add_header(*this, status, 0, 0, 0, PROTOCOL_BINARY_RAW_BYTES);
+        mcbp_add_header(*this, status, {}, {}, 0, PROTOCOL_BINARY_RAW_BYTES);
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
@@ -361,25 +361,11 @@ void Cookie::sendResponse(cb::mcbp::Status status,
 
     mcbp_add_header(*this,
                     status,
-                    uint8_t(extras.size()),
-                    uint16_t(key.size()),
-                    uint32_t(value.size() + key.size() + extras.size()),
+                    extras,
+                    key,
+                    value.size(),
                     connection.getEnabledDatatypes(
                             protocol_binary_datatype_t(datatype)));
-
-    if (!extras.empty()) {
-        auto wdata = connection.write->wdata();
-        std::copy(extras.begin(), extras.end(), wdata.begin());
-        connection.write->produced(extras.size());
-        connection.addIov(wdata.data(), extras.size());
-    }
-
-    if (!key.empty()) {
-        auto wdata = connection.write->wdata();
-        std::copy(key.begin(), key.end(), wdata.begin());
-        connection.write->produced(key.size());
-        connection.addIov(wdata.data(), key.size());
-    }
 
     if (!value.empty()) {
         auto wdata = connection.write->wdata();

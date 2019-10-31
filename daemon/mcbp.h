@@ -31,17 +31,17 @@
  *
  * @param cookie the command context to add the header for
  * @param status The error code to use
- * @param ext_len The length of the ext field
- * @param key_len The length of the key field
- * @param body_len THe length of the body field
+ * @param extras The data to put in the extras field
+ * @param key The data to put in the data field
+ * @param value_len The length of the value field (without extras and key)
  * @param datatype The datatype to inject into the header
  * @throws std::bad_alloc
  */
 void mcbp_add_header(Cookie& cookie,
                      cb::mcbp::Status status,
-                     uint8_t ext_len,
-                     uint16_t key_len,
-                     uint32_t body_len,
+                     cb::const_char_buffer extras,
+                     cb::const_char_buffer key,
+                     std::size_t value_length,
                      uint8_t datatype);
 
 extern AddResponseFn mcbpResponseHandlerFn;

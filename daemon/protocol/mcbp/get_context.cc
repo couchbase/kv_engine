@@ -84,8 +84,8 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     info.datatype = connection.getEnabledDatatypes(info.datatype);
 
-    uint16_t keylen = 0;
-    uint32_t bodylen = gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
+    std::size_t keylen = 0;
+    std::size_t bodylen = sizeof(info.flags) + payload.size();
     auto key = info.key;
 
     if (shouldSendKey()) {
@@ -93,48 +93,30 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
         if (!connection.isCollectionsSupported()) {
             key = key.makeDocKeyWithoutCollectionID();
         }
-        keylen = gsl::narrow<uint16_t>(key.size());
+        keylen = key.size();
         bodylen += keylen;
     }
 
     // Set the CAS to add into the header
     if (connection.useCookieSendResponse(bodylen)) {
-        if (shouldSendKey()) {
-            cookie.sendResponse(
-                    cb::mcbp::Status::Success,
-                    {reinterpret_cast<const char*>(&info.flags),
-                     sizeof(info.flags)},
-                    {reinterpret_cast<const char*>(key.data()), key.size()},
-                    {payload.buf, payload.len},
-                    cb::mcbp::Datatype(info.datatype),
-                    info.cas);
-        } else {
-            cookie.sendResponse(cb::mcbp::Status::Success,
-                                {reinterpret_cast<const char*>(&info.flags),
-                                 sizeof(info.flags)},
-                                {},
-                                {payload.buf, payload.len},
-                                cb::mcbp::Datatype(info.datatype),
-                                info.cas);
-        }
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {reinterpret_cast<const char*>(&info.flags),
+                             sizeof(info.flags)},
+                            {reinterpret_cast<const char*>(key.data()), keylen},
+                            payload,
+                            cb::mcbp::Datatype(info.datatype),
+                            info.cas);
     } else {
         cookie.setCas(info.cas);
         mcbp_add_header(cookie,
                         cb::mcbp::Status::Success,
-                        sizeof(info.flags),
-                        keylen,
-                        bodylen,
+                        {reinterpret_cast<const char*>(&info.flags),
+                         sizeof(info.flags)},
+                        {reinterpret_cast<const char*>(key.data()), keylen},
+                        payload.size(),
                         info.datatype);
 
-        // Add the flags
-        connection.addIov(&info.flags, sizeof(info.flags));
-
-        // Add the value
-        if (shouldSendKey()) {
-            connection.addIov(key.data(), key.size());
-        }
-
-        connection.addIov(payload.buf, payload.len);
+        connection.copyToOutputStream(payload);
         connection.setState(StateMachine::State::send_data);
     }
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
