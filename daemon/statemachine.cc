@@ -291,13 +291,19 @@ bool StateMachine::conn_new_cmd() {
      * In order to ensure that all clients will be served each
      * connection will only process a certain number of operations
      * before they will back off.
+     *
+     * Trond Norbye 20171004
+     * @todo I've temorarily disabled the fair sharing while moving
+     *       over to bufferevents. It'll reappear once we've ironed
+     *       out all of the corner cases in the code
+     *       (note that this is less of an issue in couchbase than
+     *       with memcached as we're more likely to hit an item
+     *       which would cause us to block)
      */
     connection.getCookieObject().reset();
-    if (!connection.maybeYield()) {
-        if (connection.isPacketHeaderAvailable()) {
-            connection.setState(StateMachine::State::read_packet_header);
-            return true;
-        }
+    if (connection.isPacketHeaderAvailable()) {
+        connection.setState(StateMachine::State::read_packet_header);
+        return true;
     }
     setCurrentState(State::waiting);
     return false;

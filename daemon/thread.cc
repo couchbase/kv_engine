@@ -330,6 +330,7 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
 
     // Notify the connections we haven't notified yet
     for (auto& c : notify) {
+        c->setNumEvents(1);
         const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
         bufferevent_trigger(c->bev.get(), EV_READ | EV_WRITE, opt);
     }

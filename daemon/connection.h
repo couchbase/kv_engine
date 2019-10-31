@@ -421,6 +421,29 @@ public:
     }
 
     /**
+     * Decrement the number of events to process and return the new value
+     */
+    int decrementNumEvents() {
+        return --numEvents;
+    }
+
+    /**
+     * Set the number of events to process per timeslice of the worker
+     * thread before yielding.
+     */
+    void setNumEvents(int nevents) {
+        Connection::numEvents = nevents;
+    }
+
+    /**
+     * Get the maximum number of events we should process per invocation
+     * for a connection object (to avoid starvation of other connections)
+     */
+    int getMaxReqsPerEvent() const {
+        return max_reqs_per_event;
+    }
+
+    /**
      * Disable read event for this connection (we won't get notified if
      * more data arrives on the socket).
      */
@@ -671,14 +694,13 @@ public:
      */
     void setConnectionId(cb::const_char_buffer uuid);
 
-    /**
-     * Check to see if it is time to back off the CPU to let other
-     * connections perform operations. If it is time to back off the
-     * CPU reschedule execution by setting a callback in libevent
-     *
-     * @return true if it is time yield, false otherwise
-     */
-    bool maybeYield();
+    /// Notify that this connection is going to yield the CPU to allow
+    /// other connections to perform operations
+    void yield() {
+        yields++;
+        // Update the aggregated stat
+        get_thread_stats(this)->conn_yields++;
+    }
 
     /// Check if DCP should use the write buffer for the message or if it
     /// should use an IOVector to do so
