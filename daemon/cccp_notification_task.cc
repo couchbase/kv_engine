@@ -78,9 +78,9 @@ public:
                         4 + // rev number in extdata
                         name.size() + // the name of the bucket
                         payload.second->size(); // The actual payload
-
-        connection.write->ensureCapacity(needed);
-        FrameBuilder<Request> builder(connection.write->wdata());
+        std::string buffer;
+        buffer.resize(needed);
+        RequestBuilder builder(buffer);
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
         builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
@@ -96,9 +96,7 @@ public:
                  payload.second->size()});
 
         // Inject our packet into the stream!
-        connection.addIov(connection.write->wdata().data(), needed);
-        connection.write->produced(needed);
-
+        connection.copyToOutputStream(builder.getFrame()->getFrame());
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
         return true;
