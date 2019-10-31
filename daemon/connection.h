@@ -614,7 +614,7 @@ public:
 
     bool shouldDelete();
 
-    void runEventLoop();
+    void runEventLoop(short which);
 
     Cookie& getCookieObject() {
         return *cookies.front();

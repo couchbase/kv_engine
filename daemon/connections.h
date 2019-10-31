@@ -34,7 +34,7 @@ void destroy_connections();
 void close_all_connections();
 
 /* Run the connection event loop; until an event handler returns false. */
-void run_event_loop(Connection& c);
+void run_event_loop(Connection* c, short which);
 
 /**
  * Cerate a new client connection
