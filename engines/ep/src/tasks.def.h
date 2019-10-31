@@ -46,7 +46,6 @@ TASK(WarmupCompletion, READER_TASK_IDX, 0)
 TASK(VKeyStatBGFetchTask, READER_TASK_IDX, 3)
 
 // Aux IO tasks
-TASK(BackfillDiskLoad, AUXIO_TASK_IDX, 1)
 TASK(VBucketMemoryAndDiskDeletionTask, AUXIO_TASK_IDX, 1)
 TASK(AccessScanner, AUXIO_TASK_IDX, 3)
 TASK(AccessScannerVisitor, AUXIO_TASK_IDX, 3)
