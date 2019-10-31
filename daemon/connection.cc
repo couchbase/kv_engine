@@ -835,7 +835,9 @@ Connection::Connection(SOCKET sfd,
         //       and parse the PEM format every time we accept a client!
         //       (which we shouldn't be doing!!!!)
         server_ctx = SSL_CTX_new(SSLv23_server_method());
-        SSL_CTX_set_options(server_ctx, Settings::instance().getSslProtocolMask());
+        SSL_CTX_set_dh_auto(server_ctx, 1);
+        SSL_CTX_set_options(server_ctx,
+                            Settings::instance().getSslProtocolMask());
         SSL_CTX_set_mode(server_ctx,
                          SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
                          SSL_MODE_ENABLE_PARTIAL_WRITE);

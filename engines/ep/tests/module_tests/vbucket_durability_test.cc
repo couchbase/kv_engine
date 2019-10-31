@@ -526,19 +526,19 @@ TEST_P(VBucketDurabilityTest,
     ASSERT_EQ(0, monitor.getHighPreparedSeqno());
     // Note: simulating a snapshot:[10, 30]
     vbucket->notifyPassiveDMOfSnapEndReceived(30 /*snapEnd*/);
-    EXPECT_EQ(20, monitor.getHighPreparedSeqno());
+    EXPECT_EQ(30, monitor.getHighPreparedSeqno());
 
     vbucket->setState(vbucket_state_pending);
 
     auto& monitor2 = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     EXPECT_EQ(2, monitor2.getNumTracked());
-    EXPECT_EQ(20, monitor2.getHighPreparedSeqno());
+    EXPECT_EQ(30, monitor2.getHighPreparedSeqno());
 
     vbucket->setState(vbucket_state_replica);
 
     auto& monitor3 = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     EXPECT_EQ(2, monitor3.getNumTracked());
-    EXPECT_EQ(20, monitor3.getHighPreparedSeqno());
+    EXPECT_EQ(30, monitor3.getHighPreparedSeqno());
 }
 
 TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
@@ -1651,7 +1651,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopology(
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
     // And we commit our prepares
-    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+    EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 }
@@ -1687,7 +1687,9 @@ void VBucketDurabilityTest::
     vbucket->setPersistenceSeqno(3);
     adm.notifyLocalPersistence();
     adm.processCompletedSyncWriteQueue();
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    // once all the prepares are prepared, the HPS will advance over
+    // non-sync writes and commits too.
+    EXPECT_EQ(6, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 }
@@ -1721,9 +1723,10 @@ void VBucketDurabilityTest::
     simulateSetVBState(vbucket_state_active,
                        {{"topology", nlohmann::json::array({{active}})}});
 
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(6, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(6, vbucket->getHighSeqno());
 }
 
 TEST_P(EPVBucketDurabilityTest,
@@ -1782,25 +1785,25 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
                        {{"topology", nlohmann::json::array({{active}})}});
 
     // And we commit our prepares
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(5, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 
     auto key = makeStoredDocKey("newPrepare");
     auto newPrepare = makePendingItem(key, "value");
-    newPrepare->setBySeqno(4);
+    newPrepare->setBySeqno(6);
 
     // Adding a SyncWrite does not update the HPS
     ht->set(*newPrepare.get());
     adm.addSyncWrite(nullptr /*cookie*/, newPrepare);
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(5, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
     EXPECT_EQ(1, adm.getNumTracked());
 
     adm.checkForCommit();
     adm.processCompletedSyncWriteQueue();
-    EXPECT_EQ(4, adm.getHighPreparedSeqno());
-    EXPECT_EQ(4, adm.getHighCompletedSeqno());
+    EXPECT_EQ(6, adm.getHighPreparedSeqno());
+    EXPECT_EQ(6, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 }
 
@@ -1910,7 +1913,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistBeforeChange(
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
     EXPECT_EQ(0, adm.getNumTracked());
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
     EXPECT_EQ(4, vbucket->getHighSeqno());
 }
@@ -1941,8 +1944,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistAfterChange(
     adm.checkForCommit();
     adm.processCompletedSyncWriteQueue();
 
-    // HPS is equal to seqno of last prepare
-    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+    EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
     EXPECT_EQ(4, vbucket->getHighSeqno());
@@ -2134,7 +2136,7 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMCompletedSyncWrites) {
     adm.seqnoAckReceived(replica1, 1);
     vbucket->processResolvedSyncWrites();
     ASSERT_EQ(2, adm.getNumTracked());
-    ASSERT_EQ(3, adm.getHighPreparedSeqno());
+    ASSERT_EQ(4, adm.getHighPreparedSeqno());
     ASSERT_EQ(1, adm.getHighCompletedSeqno());
 
     // Test: Convert to PassiveDM (via dead as ns_server can do).
@@ -2144,7 +2146,7 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMCompletedSyncWrites) {
     // Check: state on newly created PassiveDM.
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     EXPECT_EQ(2, pdm.getNumTracked());
-    EXPECT_EQ(3, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(4, pdm.getHighPreparedSeqno());
     EXPECT_EQ(1, pdm.getHighCompletedSeqno());
 
     // Test(2): Commit the remaining outstanding prepares.
@@ -2236,7 +2238,9 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
         simulateLocalAck(4);
 
         EXPECT_EQ(0, pdm.getNumTracked());
-        EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+        // HPS should equal the snap end if everything has been persisted
+        EXPECT_EQ(4, vbucket->getPersistenceSeqno());
+        EXPECT_EQ(4, pdm.getHighPreparedSeqno());
         EXPECT_EQ(2, pdm.getHighCompletedSeqno());
     }
 }
@@ -2689,7 +2693,8 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     // completed Prepares.
     EXPECT_EQ(0, vbucket->durabilityMonitor->getNumTracked());
     EXPECT_EQ(writes.back().seqno, pdm.getHighCompletedSeqno());
-    EXPECT_EQ(writes.back().seqno, pdm.getHighPreparedSeqno());
+    // We move the HPS for non durable writes up to the snap end
+    EXPECT_EQ(4, pdm.getHighPreparedSeqno());
 }
 
 TEST_P(VBucketDurabilityTest, Replica_Commit) {

@@ -740,7 +740,9 @@ TEST_P(DurabilityActiveStreamTest,
     stream->public_nextQueuedItem();
 
     EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
-    EXPECT_EQ(1, vb->getHighPreparedSeqno());
+    // once all the prepares are prepared, the HPS will advance over
+    // non-sync writes and commits too.
+    EXPECT_EQ(2, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
     { // Locking scope for collections handle
@@ -764,7 +766,7 @@ TEST_P(DurabilityActiveStreamTest,
     stream->public_nextQueuedItem();
 
     EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 3));
-    EXPECT_EQ(3, vb->getHighPreparedSeqno());
+    EXPECT_EQ(4, vb->getHighPreparedSeqno());
     EXPECT_EQ(3, vb->getHighCompletedSeqno());
 
     stream = std::make_shared<MockActiveStream>(engine.get(),
@@ -931,7 +933,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
 
-    ASSERT_EQ(3, stream->public_readyQ().size());
+    EXPECT_EQ(3, stream->public_readyQ().size());
     resp = stream->public_popFromReadyQ();
     EXPECT_EQ(DcpResponse::Event::StreamReq, resp->getEvent());
     resp = stream->public_popFromReadyQ();
@@ -1487,7 +1489,8 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
               readyQ.front()->getEvent());
     const auto* seqnoAck =
             static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(swSeqno, seqnoAck->getPreparedSeqno());
+    // the commit for the sent item will also advance the HPS
+    EXPECT_EQ(swSeqno + 1, seqnoAck->getPreparedSeqno());
 }
 
 TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
@@ -1558,14 +1561,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
 
     // HPS must have moved to the (already) persisted s:2 and we must have a
     // SeqnoAck with payload HPS in readyQ.
-    // Note that s:3 and s:4 (which is a non-sync write) don't affect HPS, which
-    // is set to the last locally-satisfied Prepare.
     ASSERT_EQ(1, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
               readyQ.front()->getEvent());
     const auto* seqnoAck =
             static_cast<const SeqnoAcknowledgement*>(readyQ.front().get());
-    EXPECT_EQ(swSeqno, seqnoAck->getPreparedSeqno());
+    // HPS should equal the last snapshot end seqno
+    EXPECT_EQ(4, seqnoAck->getPreparedSeqno());
 }
 
 /**
@@ -1695,11 +1697,19 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(
                       makeMutationConsumerMessage(10, vbid, value, opaque)));
-    checkSeqnoAckInReadyQ(4 /*HPS*/);
+    {
+        SCOPED_TRACE("");
+        // We bump the HPS for the non-durable write at seqno 5
+        checkSeqnoAckInReadyQ(5 /*HPS*/);
+    }
 
     // Flusher persists all -> ack (HPS=8)
     flushVBucketToDiskIfPersistent(vbid, 10 /*expectedNumFlushed*/);
-    checkSeqnoAckInReadyQ(8 /*HPS*/);
+    {
+        SCOPED_TRACE("");
+        // We bump the HPS for the non durable writes at seqno 9 and 10.
+        checkSeqnoAckInReadyQ(10 /*HPS*/);
+    }
 }
 
 queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
@@ -2527,6 +2537,37 @@ TEST_P(DurabilityPassiveStreamTest,
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
+TEST_P(DurabilityPassiveStreamTest, NonDurableWriteBumpsHPS) {
+    uint32_t opaque = 0;
+
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          1 /*snapStart*/,
+                          1 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                          {} /*HCS*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto key = makeStoredDocKey("key");
+    using namespace cb::durability;
+    auto mutation = makeCommittedItem(key, "value");
+    mutation->setCas(1);
+    mutation->setBySeqno(1);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      mutation,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    EXPECT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+}
+
 void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
     auto key1 = makeStoredDocKey("key1");
     uint64_t cas = 1;
@@ -2561,8 +2602,6 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
-
-    ASSERT_EQ(true, stream->getCurSnapshotPrepare());
 }
 
 TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
@@ -2577,10 +2616,6 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
-
-    // We should have unset (acked the second prepare) the bool flag if we
-    // handled the snapshot end
-    EXPECT_EQ(false, stream->getCurSnapshotPrepare());
 }
 
 TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
@@ -2593,10 +2628,6 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
     ASSERT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, 1 /*prepareSeqno*/, abortSeqno)));
-
-    // We should have unset (acked the second prepare) the bool flag if we
-    // handled the snapshot end
-    EXPECT_EQ(false, stream->getCurSnapshotPrepare());
 }
 
 TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {

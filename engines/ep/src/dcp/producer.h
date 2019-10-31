@@ -115,7 +115,15 @@ public:
                               uint64_t seqno,
                               SyncWriteOperation syncWriteOnly);
 
-    void closeStreamDueToVbStateChange(Vbid vbucket, vbucket_state_t state);
+    /**
+     * @param vbucket
+     * @param state The current vbstate
+     * @param vbstateLock (optional) Exclusive lock to vbstate
+     */
+    void closeStreamDueToVbStateChange(
+            Vbid vbucket,
+            vbucket_state_t state,
+            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock);
 
     void closeStreamDueToRollback(Vbid vbucket);
 
@@ -409,13 +417,22 @@ protected:
                                      std::unique_ptr<Item> itmCpy,
                                      ENGINE_ERROR_CODE ret,
                                      cb::mcbp::DcpStreamId sid);
+
     /**
      * Set the dead-status of the specified stream associated with the specified
      * vbucket.
+     *
+     * @param vbid
+     * @param sid The stream id
+     * @param status The stream end status
+     * @param vbstateLock (optional) Exclusive lock to vbstate
+     * @return true if the operation succeeds, false otherwise
      */
-    bool setStreamDeadStatus(Vbid vbid,
-                             cb::mcbp::DcpStreamId sid,
-                             end_stream_status_t status);
+    bool setStreamDeadStatus(
+            Vbid vbid,
+            cb::mcbp::DcpStreamId sid,
+            end_stream_status_t status,
+            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock = {});
 
     /**
      * Return the hotness value to use for this item in a DCP message.

@@ -166,3 +166,10 @@ TEST_P(TlsTests, ECDHE_RSA_AES256_GCM_SHA384) {
     reloadConfig();
     shouldPass("tlsv1_2");
 }
+
+TEST_P(TlsTests, DHE_RSA_AES256_SHA256) {
+    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "DHE-RSA-AES256-SHA256";
+    memcached_cfg["ssl_cipher_list"]["tls 1.3"] = "";
+    reloadConfig();
+    shouldPass("tlsv1_2");
+}

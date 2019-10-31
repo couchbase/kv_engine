@@ -888,7 +888,7 @@ void KVBucket::setVBucketState_UNLOCKED(
             closeInboundStreams = true;
         }
         engine.getDcpConnMap().vbucketStateChanged(
-                vb->getId(), to, closeInboundStreams);
+                vb->getId(), to, closeInboundStreams, {vbStateLock});
     }
 
     /**

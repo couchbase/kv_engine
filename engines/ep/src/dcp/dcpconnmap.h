@@ -23,6 +23,7 @@
 #include <memcached/engine.h>
 #include <platform/sized_buffer.h>
 
+#include <folly/SharedMutex.h>
 #include <atomic>
 #include <list>
 #include <string>
@@ -38,21 +39,6 @@ public:
     DcpConnMap(EventuallyPersistentEngine &engine);
 
     ~DcpConnMap();
-
-    /**
-     * Checks for a connection with the same name and sets it to disconnected
-     * whilst removing it from the map
-     *
-     * @param cookie Cookie representing the client
-     * @param name Full name of the connection
-     * @param connType Logging string (Producer/Consumer)
-     * @return shared_ptr to the connection if found, else null
-     */
-    std::shared_ptr<ConnHandler> checkForAndRemoveExistingConn(
-            LockHolder& lh,
-            const void* cookie,
-            const std::string& name,
-            const std::string& connType);
 
     /**
      * Find or build a dcp connection for the given cookie and with
@@ -103,10 +89,13 @@ public:
      * @param vbucket the vbucket id
      * @param state the new state of the vbucket
      * @closeInboundStreams bool flag indicating failover
+     * @param vbstateLock (optional) Exclusive lock to vbstate
      */
-    void vbucketStateChanged(Vbid vbucket,
-                             vbucket_state_t state,
-                             bool closeInboundStreams = true);
+    void vbucketStateChanged(
+            Vbid vbucket,
+            vbucket_state_t state,
+            bool closeInboundStreams = true,
+            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock = {});
 
     /**
      * Close outbound (active) streams for a vbucket on vBucket rollback.
@@ -129,17 +118,7 @@ public:
      */
     bool handleSlowStream(Vbid vbid, const CheckpointCursor* cursor);
 
-    /**
-     * Disconnect the connection for the given cookie
-     */
     void disconnect(const void *cookie);
-
-    /**
-     * ConnHandler specific disconnection.
-     *
-     * @param conn RValue conn to prevent any later use by caller
-     */
-    void disconnectConn(std::shared_ptr<ConnHandler>&& conn);
 
     void manageConnections();
 
@@ -199,9 +178,6 @@ protected:
      * of the module test ep-engine_dead_connections_test
      */
     std::list<std::shared_ptr<ConnHandler>> deadConnections;
-
-    std::shared_ptr<ConnHandler> findByName_UNLOCKED(LockHolder& lh,
-                                                     const std::string& name);
 
     /*
      * Change the value at which a DcpConsumer::Processor task will yield
