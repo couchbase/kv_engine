@@ -3476,6 +3476,96 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
     EXPECT_EQ(2, ackedSeqno);
 }
 
+TEST_P(PassiveDurabilityMonitorPersistentTest, HpsOnDiskSnapshotBoundary) {
+    auto& pdm = getPassiveDM();
+    ASSERT_EQ(0, pdm.getNumTracked());
+
+    // Add a single prepare in a disk snapshot
+    auto diskPrepareKey = makeStoredDocKey("diskPrepare");
+    using namespace cb::durability;
+    auto diskPrepare =
+            makePendingItem(diskPrepareKey,
+                            "value",
+                            Requirements{Level::Majority, Timeout::Infinity()});
+    diskPrepare->setBySeqno(1);
+    pdm.addSyncWrite(diskPrepare);
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    // Make this look like a disk snapshot to the PDM and notify it of the end
+    // of the snapshot. We won't move the HPS because we need to persist the
+    // entire disk snapshot.
+    vb->checkpointManager->updateCurrentSnapshot(1, CheckpointType::Disk);
+    pdm.notifySnapshotEndReceived(1);
+    EXPECT_EQ(0, vb->getHighPreparedSeqno());
+
+    // Add a non prepare which will bump the desiredHPS of the prepare in the
+    // disk snapshot
+    auto nonPrepareKey = makeStoredDocKey("nonPrepareKey");
+    auto nonPrepare = makeCommittedItem(nonPrepareKey, "value");
+    nonPrepare->setBySeqno(2);
+    pdm.notifyNonPrepare(*nonPrepare);
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    // And another prepare so that we take the failing code path in
+    // PassiveDM::updateHighPreparedSeqno().
+    auto memoryPrepareKey = makeStoredDocKey("memoryPrepare");
+    auto memoryPrepare =
+            makePendingItem(memoryPrepareKey,
+                            "value",
+                            Requirements{Level::Majority, Timeout::Infinity()});
+    memoryPrepare->setBySeqno(3);
+    pdm.addSyncWrite(memoryPrepare);
+
+    // Finally persist the disk snapshot. We shouldn't throw here.
+    vb->setPersistenceSeqno(1);
+    pdm.notifyLocalPersistence();
+
+    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorPersistentTest, HpsOnMemorySnapshotBoundary) {
+    auto& pdm = getPassiveDM();
+    ASSERT_EQ(0, pdm.getNumTracked());
+
+    // Add a single persist level prepare in a memory snapshot
+    auto persistPrepareKey = makeStoredDocKey("persistPrepare");
+    using namespace cb::durability;
+    auto persistPrepare = makePendingItem(
+            persistPrepareKey,
+            "value",
+            Requirements{Level::PersistToMajority, Timeout::Infinity()});
+    persistPrepare->setBySeqno(1);
+    pdm.addSyncWrite(persistPrepare);
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    pdm.notifySnapshotEndReceived(1);
+    EXPECT_EQ(0, vb->getHighPreparedSeqno());
+
+    // Add a non prepare which will bump the desiredHPS of the prepare in the
+    // disk snapshot
+    auto nonPrepareKey = makeStoredDocKey("nonPrepareKey");
+    auto nonPrepare = makeCommittedItem(nonPrepareKey, "value");
+    nonPrepare->setBySeqno(2);
+    pdm.notifyNonPrepare(*nonPrepare);
+    ASSERT_EQ(1, pdm.getNumTracked());
+
+    // And another prepare so that we take the failing code path in
+    // PassiveDM::updateHighPreparedSeqno().
+    auto majorityPrepareKey = makeStoredDocKey("memoryPrepare");
+    auto majorityPrepare =
+            makePendingItem(majorityPrepareKey,
+                            "value",
+                            Requirements{Level::Majority, Timeout::Infinity()});
+    majorityPrepare->setBySeqno(3);
+    pdm.addSyncWrite(majorityPrepare);
+
+    // Finally persist the disk snapshot. We shouldn't throw here.
+    vb->setPersistenceSeqno(1);
+    pdm.notifyLocalPersistence();
+
+    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
+}
+
 class ActiveDurabilityMonitorAbortTest
     : public ActiveDurabilityMonitorPersistentTest {
 public:
