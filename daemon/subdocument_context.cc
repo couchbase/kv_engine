@@ -22,7 +22,6 @@
 #include "subdocument.h"
 
 #include <logger/logger.h>
-#include <nlohmann/json.hpp>
 #include <platform/crc32c.h>
 #include <platform/string_hex.h>
 #include <utilities/logtags.h>

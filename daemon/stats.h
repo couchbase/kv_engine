@@ -60,6 +60,10 @@ struct thread_stats {
         bytes_subdoc_mutation_total = 0;
         bytes_subdoc_mutation_inserted = 0;
 
+        rbufs_allocated = 0;
+        rbufs_loaned = 0;
+        rbufs_existing = 0;
+
         iovused_high_watermark = 0;
         msgused_high_watermark = 0;
     }
@@ -94,6 +98,10 @@ struct thread_stats {
         bytes_subdoc_lookup_extracted += other.bytes_subdoc_lookup_extracted;
         bytes_subdoc_mutation_total += other.bytes_subdoc_mutation_total;
         bytes_subdoc_mutation_inserted += other.bytes_subdoc_mutation_inserted;
+
+        rbufs_allocated += other.rbufs_allocated;
+        rbufs_loaned += other.rbufs_loaned;
+        rbufs_existing += other.rbufs_existing;
 
         iovused_high_watermark.setIfGreater(other.iovused_high_watermark);
         msgused_high_watermark.setIfGreater(other.msgused_high_watermark);
@@ -151,6 +159,14 @@ struct thread_stats {
     /* # of bytes inserted during a subdoc mutation operation (which were
        received from the client). */
     cb::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_inserted;
+
+    /* # of read buffers allocated. */
+    cb::RelaxedAtomic<uint64_t> rbufs_allocated;
+    /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
+    cb::RelaxedAtomic<uint64_t> rbufs_loaned;
+    /* # of read buffers which already existed (with partial data) on the connection
+       (and hence didn't need to be allocated). */
+    cb::RelaxedAtomic<uint64_t> rbufs_existing;
 
     /* Highest value iovsize has got to */
     cb::RelaxedAtomic<int> iovused_high_watermark;

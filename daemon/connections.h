@@ -37,6 +37,30 @@ void close_all_connections();
 void run_event_loop(Connection* c, short which);
 
 /**
+ * If the connection doesn't already have read/write buffers, ensure that it
+ * does.
+ *
+ * In the common case, only one read/write buffer is created per worker thread,
+ * and this buffer is loaned to the connection the worker is currently
+ * handling. As long as the connection doesn't have a partial read/write (i.e.
+ * the buffer is totally consumed) when it goes idle, the buffer is simply
+ * returned back to the worker thread.
+ *
+ * If there is a partial read/write, then the buffer is left loaned to that
+ * connection and the worker thread will allocate a new one.
+ */
+void conn_loan_buffers(Connection* c);
+
+/**
+ * Return any empty buffers back to the owning worker thread.
+ *
+ * Converse of conn_loan_buffer(); if any of the read/write buffers are empty
+ * (have no partial data) then return the buffer back to the worker thread.
+ * If there is partial data, then keep the buffer with the connection.
+ */
+void conn_return_buffers(Connection* c);
+
+/**
  * Cerate a new client connection
  *
  * @param sfd the socket descriptor

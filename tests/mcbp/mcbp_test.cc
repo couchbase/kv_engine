@@ -23,7 +23,6 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
-#include <nlohmann/json.hpp>
 #include <gsl/gsl>
 #include <memory>
 

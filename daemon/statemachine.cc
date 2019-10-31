@@ -32,7 +32,6 @@
 #include <event2/bufferevent_ssl.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
-#include <nlohmann/json.hpp>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <gsl/gsl>
@@ -232,9 +231,18 @@ bool StateMachine::conn_ship_log() {
     auto& cookie = connection.getCookieObject();
     cookie.setEwouldblock(false);
 
-    if (connection.isPacketHeaderAvailable()) {
-        try_read_mcbp_command(cookie);
+    switch (connection.tryReadNetwork()) {
+    case Connection::TryReadResult::Error:
+        // state already set
         return true;
+
+    case Connection::TryReadResult::NoDataReceived:
+    case Connection::TryReadResult::DataReceived:
+        if (connection.isPacketAvailable()) {
+            try_read_mcbp_command(cookie);
+            return true;
+        }
+        break;
     }
 
     const auto ret = connection.getBucket().getDcpIface()->step(
@@ -276,13 +284,26 @@ bool StateMachine::conn_read_packet_header() {
         return true;
     }
 
-    if (connection.isPacketHeaderAvailable()) {
-        setCurrentState(State::parse_cmd);
+    auto res = connection.tryReadNetwork();
+    switch (res) {
+    case Connection::TryReadResult::NoDataReceived:
+        setCurrentState(State::waiting);
+        return false;
+    case Connection::TryReadResult::DataReceived:
+        if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
+            setCurrentState(State::parse_cmd);
+        } else {
+            setCurrentState(State::waiting);
+        }
+        return true;
+    case Connection::TryReadResult::Error:
+        setCurrentState(State::closing);
         return true;
     }
 
-    connection.setState(StateMachine::State::waiting);
-    return false;
+    throw std::logic_error(
+            "conn_read_packet_header: Invalid value returned from "
+            "tryReadNetwork");
 }
 
 bool StateMachine::conn_parse_cmd() {
@@ -312,12 +333,15 @@ bool StateMachine::conn_new_cmd() {
      *       which would cause us to block)
      */
     connection.getCookieObject().reset();
-    if (connection.isPacketHeaderAvailable()) {
+    if (connection.read->rsize() >= sizeof(cb::mcbp::Request)) {
         setCurrentState(State::parse_cmd);
-        return true;
+    } else if (connection.isSslEnabled()) {
+        setCurrentState(State::read_packet_header);
+    } else {
+        setCurrentState(State::waiting);
     }
-    setCurrentState(State::waiting);
-    return false;
+
+    return true;
 }
 
 bool StateMachine::conn_validate() {
@@ -402,13 +426,16 @@ bool StateMachine::conn_execute() {
     mcbp_collect_timings(cookie);
 
     // Consume the packet we just executed from the input buffer
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    if (evbuffer_drain(bufferevent_get_input(connection.bev.get()),
-                       packet.size()) == -1) {
-        throw std::runtime_error("conn_execute: Failed to drain buffer");
-    }
-
-    // We've consumed the memory for this packet so we need to mark it
+    connection.read->consume([&cookie](
+                                     cb::const_byte_buffer buffer) -> ssize_t {
+        size_t size = cookie.getPacket(Cookie::PacketContent::Full).size();
+        if (size > buffer.size()) {
+            throw std::logic_error(
+                    "conn_execute: Not enough data in input buffer");
+        }
+        return gsl::narrow<ssize_t>(size);
+    });
+    // We've cleared the memory for this packet so we need to mark it
     // as cleared in the cookie to avoid having it dumped in toJSON and
     // using freed memory. We cannot call reset on the cookie as we
     // want to preserve the error context and id.
@@ -421,19 +448,32 @@ bool StateMachine::conn_read_packet_body() {
         return true;
     }
 
-    if (connection.isPacketAvailable()) {
-        const auto* header = connection.getPacket();
-        // we might have reallocated stuff after calling isPacketAvailabe
-        connection.getCookieObject().setPacket(
-                Cookie::PacketContent::Full,
-                cb::const_byte_buffer{
-                        reinterpret_cast<const uint8_t*>(header),
-                        header->getBodylen() + sizeof(cb::mcbp::Request)});
-        connection.setState(StateMachine::State::validate);
+    switch (connection.tryReadNetwork()) {
+    case Connection::TryReadResult::Error:
+        // state already set
         return true;
+
+    case Connection::TryReadResult::DataReceived:
+        if (connection.isPacketAvailable()) {
+            auto& cookie = connection.getCookieObject();
+            auto input = connection.read->rdata();
+            const auto* req =
+                    reinterpret_cast<const cb::mcbp::Request*>(input.data());
+            cookie.setPacket(Cookie::PacketContent::Full,
+                             cb::const_byte_buffer{input.data(),
+                                                   sizeof(cb::mcbp::Request) +
+                                                           req->getBodylen()});
+            setCurrentState(State::validate);
+            return true;
+        }
+        // fallthrough
+    case Connection::TryReadResult::NoDataReceived:
+        return false;
     }
 
-    return false;
+    // Notreached
+    throw std::logic_error(
+            "conn_read_packet_body: tryReadNetwork returned invalid value");
 }
 
 bool StateMachine::conn_send_data() {

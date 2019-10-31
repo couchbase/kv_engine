@@ -28,7 +28,6 @@
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
-#include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/string_hex.h>
 
