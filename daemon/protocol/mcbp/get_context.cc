@@ -23,7 +23,6 @@
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
-#include <daemon/sendbuffer.h>
 #include <logger/logger.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
@@ -100,43 +99,42 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     // Set the CAS to add into the header
     if (connection.useCookieSendResponse(bodylen)) {
-        cb::const_char_buffer keybuf = {};
         if (shouldSendKey()) {
-            keybuf = {reinterpret_cast<const char*>(key.data()), key.size()};
+            cookie.sendResponse(
+                    cb::mcbp::Status::Success,
+                    {reinterpret_cast<const char*>(&info.flags),
+                     sizeof(info.flags)},
+                    {reinterpret_cast<const char*>(key.data()), key.size()},
+                    {payload.buf, payload.len},
+                    cb::mcbp::Datatype(info.datatype),
+                    info.cas);
+        } else {
+            cookie.sendResponse(cb::mcbp::Status::Success,
+                                {reinterpret_cast<const char*>(&info.flags),
+                                 sizeof(info.flags)},
+                                {},
+                                {payload.buf, payload.len},
+                                cb::mcbp::Datatype(info.datatype),
+                                info.cas);
         }
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {reinterpret_cast<const char*>(&info.flags),
-                             sizeof(info.flags)},
-                            keybuf,
-                            {payload.buf, payload.len},
-                            cb::mcbp::Datatype(info.datatype),
-                            info.cas);
     } else {
         cookie.setCas(info.cas);
-        cb::const_char_buffer keybuf = {};
+        mcbp_add_header(cookie,
+                        cb::mcbp::Status::Success,
+                        sizeof(info.flags),
+                        keylen,
+                        bodylen,
+                        info.datatype);
+
+        // Add the flags
+        connection.addIov(&info.flags, sizeof(info.flags));
+
+        // Add the value
         if (shouldSendKey()) {
-            keybuf = {reinterpret_cast<const char*>(key.data()), key.size()};
+            connection.addIov(key.data(), key.size());
         }
 
-        std::unique_ptr<SendBuffer> sendbuffer;
-        // we may use the item if we've didn't inflate it
-        if (buffer.empty()) {
-            sendbuffer = std::make_unique<ItemSendBuffer>(
-                    std::move(it), payload, connection.getBucket());
-        } else {
-            sendbuffer =
-                    std::make_unique<CompressionSendBuffer>(buffer, payload);
-        }
-
-        mcbp_send_response(cookie,
-                           cb::mcbp::Status::Success,
-                           {reinterpret_cast<const char*>(&info.flags),
-                            sizeof(info.flags)},
-                           keybuf,
-                           payload,
-                           info.datatype,
-                           std::move(sendbuffer));
-
+        connection.addIov(payload.buf, payload.len);
         connection.setState(StateMachine::State::send_data);
     }
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);

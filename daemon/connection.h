@@ -637,6 +637,9 @@ public:
      */
     std::unique_ptr<cb::Pipe> read;
 
+    /** Write buffer */
+    std::unique_ptr<cb::Pipe> write;
+
     Cookie& getCookieObject() {
         return *cookies.front();
     }
@@ -998,9 +1001,6 @@ protected:
 
     /** Is this connection used by a DCP connection? */
     bool dcp = false;
-
-    std::unique_ptr<uint8_t[]> dcpTlsBlockBufferMemory;
-    cb::byte_buffer dcpTlsBlockBuffer = {};
 
     /** Is this DCP channel XAttrAware */
     bool dcpXattrAware = false;

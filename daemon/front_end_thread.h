@@ -122,6 +122,9 @@ struct FrontEndThread {
     /// Shared read buffer for all connections serviced by this thread.
     std::unique_ptr<cb::Pipe> read;
 
+    /// Shared write buffer for all connections serviced by this thread.
+    std::unique_ptr<cb::Pipe> write;
+
     /**
      * Shared sub-document operation for all connections serviced by this
      * thread

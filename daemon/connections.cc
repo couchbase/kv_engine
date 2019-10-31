@@ -204,6 +204,18 @@ void conn_loan_buffers(Connection* c) {
         ts->rbufs_allocated++;
         break;
     }
+
+    switch (loan_single_buffer(*c, c->getThread().write, c->write)) {
+    case BufferLoan::Existing:
+        ts->wbufs_existing++;
+        break;
+    case BufferLoan::Loaned:
+        ts->wbufs_loaned++;
+        break;
+    case BufferLoan::Allocated:
+        ts->wbufs_allocated++;
+        break;
+    }
 }
 
 void conn_return_buffers(Connection* c) {
@@ -217,6 +229,7 @@ void conn_return_buffers(Connection* c) {
     }
 
     maybe_return_single_buffer(*c, c->getThread().read, c->read);
+    maybe_return_single_buffer(*c, c->getThread().write, c->write);
 }
 
 /** Internal functions *******************************************************/

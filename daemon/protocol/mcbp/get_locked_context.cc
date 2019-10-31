@@ -21,7 +21,6 @@
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
-#include <daemon/sendbuffer.h>
 #include <daemon/stats.h>
 #include <logger/logger.h>
 #include <xattr/utils.h>
@@ -105,22 +104,16 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     } else {
         // Set the CAS to add into the header
         cookie.setCas(info.cas);
-        std::unique_ptr<SendBuffer> sendbuffer;
-        // we may use the item if we've didn't inflate it
-        if (buffer.empty()) {
-            sendbuffer = std::make_unique<ItemSendBuffer>(
-                    std::move(it), payload, connection.getBucket());
-        } else {
-            sendbuffer = std::make_unique<CompressionSendBuffer>(buffer, payload);
-        }
-        mcbp_send_response(cookie,
-                           cb::mcbp::Status::Success,
-                           {reinterpret_cast<const char*>(&info.flags),
-                            sizeof(info.flags)},
-                           {},
-                           payload,
-                           datatype,
-                           std::move(sendbuffer));
+        mcbp_add_header(cookie,
+                        cb::mcbp::Status::Success,
+                        sizeof(info.flags),
+                        0 /* keylength */,
+                        bodylength,
+                        datatype);
+        // Add the flags
+        connection.addIov(&info.flags, sizeof(info.flags));
+        // Add the value
+        connection.addIov(payload.buf, payload.len);
         connection.setState(StateMachine::State::send_data);
     }
 

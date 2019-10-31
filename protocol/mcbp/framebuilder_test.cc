@@ -136,7 +136,7 @@ TEST(ResponseBuilder, SetFields) {
     compare(value, response->getValue());
 
     // nuke the extras.. value should be correct
-    builder.setExtras(cb::const_byte_buffer{});
+    builder.setExtras({nullptr, 0});
     ASSERT_EQ(value.size(), response->getBodylen());
     compare(value, response->getValue());
     ASSERT_EQ(backing_store.data() + sizeof(*response),
@@ -237,7 +237,7 @@ TEST(RequestBuilder, SetFields) {
     compare(value, request->getValue());
 
     // nuke the extras.. value should be correct
-    builder.setExtras(cb::const_byte_buffer{});
+    builder.setExtras({nullptr, 0});
     ASSERT_EQ(value.size(), request->getBodylen());
     compare(value, request->getValue());
     ASSERT_EQ(backing_store.data() + sizeof(*request),

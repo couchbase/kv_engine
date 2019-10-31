@@ -98,7 +98,7 @@ TEST_F(FrameExtrasValidatorTests, DurabilityRequirementInvalidCommand) {
     auto fe = encodeFrameInfo(FrameInfoId::DurabilityRequirement, {&level, 1});
     builder.setFramingExtras({fe.data(), fe.size()});
     builder.setOpcode(ClientOpcode::Get);
-    builder.setExtras(cb::const_byte_buffer{});
+    builder.setExtras({});
     EXPECT_EQ("The requested command does not support durability requirements",
               validate_error_context(ClientOpcode::Get, blob, Status::Einval));
 }

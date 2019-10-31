@@ -55,9 +55,8 @@ public:
         using namespace cb::mcbp;
 
         const size_t needed = sizeof(cb::mcbp::Request) + payload.size();
-        std::string buffer;
-        buffer.resize(needed);
-        RequestBuilder builder(buffer);
+        connection.write->ensureCapacity(needed);
+        RequestBuilder builder(connection.write->wdata());
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
         builder.setOpcode(ServerOpcode::Authenticate);
@@ -68,7 +67,9 @@ public:
                           payload.size()});
 
         // Inject our packet into the stream!
-        connection.copyToOutputStream(builder.getFrame()->getFrame());
+        connection.addIov(connection.write->wdata().data(), needed);
+        connection.write->produced(needed);
+
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
         return true;
@@ -97,9 +98,8 @@ public:
         using namespace cb::mcbp;
 
         const size_t needed = sizeof(cb::mcbp::Request) + payload.size();
-        std::string buffer;
-        buffer.resize(needed);
-        RequestBuilder builder(buffer);
+        connection.write->ensureCapacity(needed);
+        RequestBuilder builder(connection.write->wdata());
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
         builder.setOpcode(ServerOpcode::ActiveExternalUsers);
@@ -107,7 +107,8 @@ public:
                           payload.size()});
 
         // Inject our packet into the stream!
-        connection.copyToOutputStream(builder.getFrame()->getFrame());
+        connection.addIov(connection.write->wdata().data(), needed);
+        connection.write->produced(needed);
 
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
