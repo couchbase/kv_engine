@@ -43,7 +43,7 @@ public:
          *
          * possible next state:
          *   * closing - if the bucket is currently being deleted
-         *   * read_packet_header - if the input buffer contains the next header
+         *   * parse_cmd - if the input buffer contains the next header
          *   * waiting - we need more data
          *   * ship_log - (for DCP connections)
          */
@@ -66,11 +66,21 @@ public:
          *   * closing - if the bucket is currently being deleted
          *   * waiting - if we failed to read more data from the network
          *               (DCP connections will enter ship_log)
+         *   * parse_cmd - if the entire packet header is available
+         */
+        read_packet_header,
+
+        /**
+         * parse_cmd parse the command header
+         *
+         * possible next state:
+         *   * closing - if the bucket is currently being deleted (or protocol
+         *               error)
          *   * read_packet_body - to fetch the rest of the data in the packet
          *   * send_data - if an error occurs and we want to tell the user
          *                 about the error before disconnecting.
          */
-        read_packet_header,
+        parse_cmd,
 
         /**
          * Make sure that the entire packet is available
@@ -226,6 +236,7 @@ protected:
     bool conn_new_cmd();
     bool conn_waiting();
     bool conn_read_packet_header();
+    bool conn_parse_cmd();
     bool conn_read_packet_body();
     bool conn_closing();
     bool conn_pending_close();
