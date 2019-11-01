@@ -123,9 +123,6 @@ struct FrontEndThread {
     /// Shared read buffer for all connections serviced by this thread.
     std::unique_ptr<cb::Pipe> read;
 
-    /// Shared write buffer for all connections serviced by this thread.
-    std::unique_ptr<cb::Pipe> write;
-
     /**
      * Shared sub-document operation for all connections serviced by this
      * thread
@@ -147,6 +144,11 @@ struct FrontEndThread {
     /// header, frame extras, extras and key.. make sure that you don't
     /// change that or things will break)
     std::array<char, 2048> scratch_buffer;
+
+    cb::char_buffer getScratchBuffer() const {
+        return cb::char_buffer{const_cast<char*>(scratch_buffer.data()),
+                               scratch_buffer.size()};
+    }
 
     /// We have a bug where we can end up in a hang situation during shutdown
     /// and stuck in a tight loop logging (and flooding) the log files.

@@ -199,10 +199,6 @@ nlohmann::json Connection::toJSON() const {
         ret["read"] = read->to_json();
     }
 
-    if (write) {
-        ret["write"] = write->to_json();
-    }
-
     ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
     ret["ssl"] = client_ctx != nullptr;
@@ -703,7 +699,7 @@ Connection::TryReadResult Connection::tryReadNetwork() {
 }
 
 bool Connection::dcpUseWriteBuffer(size_t size) const {
-    return isSslEnabled() && size < write->wsize();
+    return isSslEnabled() && size < thread.scratch_buffer.size();
 }
 
 void Connection::addIov(const void* buf, size_t len) {
@@ -1455,7 +1451,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
                        sizeof(cb::mcbp::Request);
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
@@ -1573,7 +1569,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                        sizeof(cb::mcbp::Request);
 
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
 
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
@@ -1658,7 +1654,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                        sizeof(cb::mcbp::Request);
 
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
@@ -1742,7 +1738,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
                        sizeof(cb::mcbp::Request);
 
     if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
         builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                              : cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
@@ -1944,7 +1940,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
                    sizeof(cb::mcbp::Request);
     if (dcpUseWriteBuffer(total)) {
         // Format a local copy and send
-        cb::mcbp::RequestBuilder builder(write->wdata());
+        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
         builder.setMagic(cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);
         builder.setExtras(extras.getBuffer());

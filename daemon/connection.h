@@ -627,9 +627,6 @@ public:
      */
     std::unique_ptr<cb::Pipe> read;
 
-    /** Write buffer */
-    std::unique_ptr<cb::Pipe> write;
-
     Cookie& getCookieObject() {
         return *cookies.front();
     }
