@@ -555,7 +555,10 @@ private:
         compaction_ctx* ctx;
         MagmaKVHandle kvHandle;
     };
-    std::vector<std::unique_ptr<MagmaCompactionCtx>> compaction_ctxList;
+    // This needs to be a shared_ptr because its possible an implicit
+    // compaction kicks off while an explicit compaction is happening
+    // and we don't want to free it while the implicit compaction is working.
+    std::vector<std::shared_ptr<MagmaCompactionCtx>> compaction_ctxList;
     std::mutex compactionCtxMutex;
 
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
@@ -569,12 +572,11 @@ private:
                     *this, keySlice, metaSlice, valueSlice);
         }
         MagmaKVStore& magmaKVStore;
-        bool initialized = false;
-        compaction_ctx* ctx = nullptr;
-        MagmaKVStore::MagmaKVHandle kvHandle;
+        bool initialized{false};
+        std::shared_ptr<MagmaCompactionCtx> magmaCompactionCtx;
+        compaction_ctx* ctx{nullptr};
+        MagmaKVHandle kvHandle;
         Vbid vbid;
-        // TODO add code for collections to keep track of # of deletes.
-        // Requires code in ~MagmaCompactionCB() to update magmaInfo docCount
     };
 
     bool compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,

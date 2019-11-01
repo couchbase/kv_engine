@@ -397,8 +397,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         {
             std::lock_guard<std::mutex> lock(compactionCtxMutex);
             if (compaction_ctxList[cbCtx.vbid.get()]) {
-                cbCtx.ctx = compaction_ctxList[cbCtx.vbid.get()]->ctx;
-                cbCtx.kvHandle = compaction_ctxList[cbCtx.vbid.get()]->kvHandle;
+                cbCtx.magmaCompactionCtx = compaction_ctxList[cbCtx.vbid.get()];
+                cbCtx.ctx = cbCtx.magmaCompactionCtx->ctx;
+                cbCtx.kvHandle = cbCtx.magmaCompactionCtx->kvHandle;
             }
         }
         if (!cbCtx.ctx) {
@@ -2020,7 +2021,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     {
         std::lock_guard<std::mutex> lock(compactionCtxMutex);
         compaction_ctxList[vbid.get()] =
-                std::make_unique<MagmaCompactionCtx>(ctx, kvHandle);
+                std::make_shared<MagmaCompactionCtx>(ctx, kvHandle);
     }
 
     auto dropped = getDroppedCollections(vbid);
