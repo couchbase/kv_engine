@@ -24,6 +24,7 @@
 #include <platform/socket.h>
 #include <subdoc/operations.h>
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -139,6 +140,13 @@ struct FrontEndThread {
 
     /// Is the thread running or not
     std::atomic_bool running{false};
+
+    /// A temporary buffer the connections may utilize (never expect anything
+    /// about the content of the buffer (expect it to be overwritten when your
+    /// method returns) (It is currently big enough to keep a protocol
+    /// header, frame extras, extras and key.. make sure that you don't
+    /// change that or things will break)
+    std::array<char, 2048> scratch_buffer;
 
     /// We have a bug where we can end up in a hang situation during shutdown
     /// and stuck in a tight loop logging (and flooding) the log files.

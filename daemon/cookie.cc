@@ -326,14 +326,6 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                           cb::const_char_buffer value,
                           cb::mcbp::Datatype datatype,
                           uint64_t cas) {
-    if (!connection.write->empty()) {
-        // We can't continue as we might already have references
-        // in the IOvector stack pointing into the existing buffer!
-        throw std::logic_error(
-                "Cookie::sendResponse: No data should have been inserted "
-                "in the write buffer!");
-    }
-
     if (status == cb::mcbp::Status::NotMyVbucket) {
         sendNotMyVBucket();
         return;
@@ -352,13 +344,6 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                                  : cb::mcbp::Datatype::JSON;
     }
 
-    size_t needed = sizeof(cb::mcbp::Header) + value.size() + key.size() +
-                    extras.size();
-    if (isTracingEnabled()) {
-        needed += MCBP_TRACING_RESPONSE_SIZE;
-    }
-    connection.write->ensureCapacity(needed);
-
     mcbp_add_header(*this,
                     status,
                     extras,
@@ -367,13 +352,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                     connection.getEnabledDatatypes(
                             protocol_binary_datatype_t(datatype)));
 
-    if (!value.empty()) {
-        auto wdata = connection.write->wdata();
-        std::copy(value.begin(), value.end(), wdata.begin());
-        connection.write->produced(value.size());
-        connection.addIov(wdata.data(), value.size());
-    }
-
+    connection.copyToOutputStream(value);
     connection.setState(StateMachine::State::send_data);
     connection.setWriteAndGo(StateMachine::State::new_cmd);
 }

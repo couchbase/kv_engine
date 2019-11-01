@@ -19,6 +19,7 @@
 #include "buckets.h"
 #include "cookie.h"
 #include "cookie_trace_context.h"
+#include "front_end_thread.h"
 #include "memcached.h"
 #include "opentracing.h"
 #include "settings.h"
@@ -32,6 +33,10 @@
 #include <platform/compress.h>
 #include <platform/string_hex.h>
 
+static_assert(sizeof(FrontEndThread::scratch_buffer) >
+                      (sizeof(cb::mcbp::Response) + 3),
+              "scratch buffer too small");
+
 void mcbp_add_header(Cookie& cookie,
                      cb::mcbp::Status status,
                      cb::const_char_buffer extras,
@@ -39,8 +44,10 @@ void mcbp_add_header(Cookie& cookie,
                      std::size_t value_len,
                      uint8_t datatype) {
     auto& connection = cookie.getConnection();
+    auto& thread = connection.getThread();
     const auto& request = cookie.getRequest();
-    auto wbuf = connection.write->wdata();
+    auto wbuf = cb::char_buffer{thread.scratch_buffer.data(),
+                                thread.scratch_buffer.size()};
     auto& response = *reinterpret_cast<cb::mcbp::Response*>(wbuf.data());
 
     response.setOpcode(request.getClientOpcode());
@@ -98,7 +105,8 @@ void mcbp_add_header(Cookie& cookie,
             // Failed.. do a raw dump instead
             LOG_TRACE("<{} Sending: {}",
                       connection.getId(),
-                      cb::to_hex({wbuf.data(), sizeof(cb::mcbp::Header)}));
+                      cb::to_hex({reinterpret_cast<const uint8_t*>(wbuf.data()),
+                                  sizeof(cb::mcbp::Header)}));
         }
     }
 
