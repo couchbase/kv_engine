@@ -35,6 +35,7 @@
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/dcp_system_event_executor.h"
+#include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/flush_command_context.h"

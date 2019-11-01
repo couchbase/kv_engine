@@ -1222,6 +1222,105 @@ size_t Connection::getSendQueueSize() const {
     return evbuffer_get_length(bufferevent_get_output(bev.get()));
 }
 
+void Connection::sendResponseHeaders(Cookie& cookie,
+                                     cb::mcbp::Status status,
+                                     cb::const_char_buffer extras,
+                                     cb::const_char_buffer key,
+                                     std::size_t value_len,
+                                     uint8_t datatype) {
+    static_assert(sizeof(FrontEndThread::scratch_buffer) >
+                          (sizeof(cb::mcbp::Response) + 3),
+                  "scratch buffer too small");
+    const auto& request = cookie.getRequest();
+    auto wbuf = cb::char_buffer{thread.scratch_buffer.data(),
+                                thread.scratch_buffer.size()};
+    auto& response = *reinterpret_cast<cb::mcbp::Response*>(wbuf.data());
+
+    response.setOpcode(request.getClientOpcode());
+    response.setExtlen(gsl::narrow_cast<uint8_t>(extras.size()));
+    response.setDatatype(cb::mcbp::Datatype(datatype));
+    response.setStatus(status);
+    response.setOpaque(request.getOpaque());
+    response.setCas(cookie.getCas());
+
+    if (cookie.isTracingEnabled()) {
+        // When tracing is enabled we'll be using the alternative
+        // response header where we inject the framing header.
+        // For now we'll just hard-code the adding of the bytes
+        // for the tracing info.
+        //
+        // Moving forward we should get a builder for encoding the
+        // framing header (but do that the next time we need to add
+        // something so that we have a better understanding on how
+        // we need to do that (it could be that we need to modify
+        // an already existing section etc).
+        response.setMagic(cb::mcbp::Magic::AltClientResponse);
+        // The framing extras when we just include the tracing information
+        // is 3 bytes. 1 byte with id and length, then the 2 bytes
+        // containing the actual data.
+        const uint8_t framing_extras_size = MCBP_TRACING_RESPONSE_SIZE;
+        const uint8_t tracing_framing_id = 0x02;
+
+        wbuf.data()[2] = framing_extras_size; // framing header extras 3 bytes
+        wbuf.data()[3] = gsl::narrow_cast<uint8_t>(key.size());
+        response.setBodylen(value_len + extras.size() + key.size() +
+                            framing_extras_size);
+
+        auto& tracer = cookie.getTracer();
+        const auto val = htons(tracer.getEncodedMicros());
+        auto* ptr = wbuf.data() + sizeof(cb::mcbp::Response);
+        *ptr = tracing_framing_id;
+        ptr++;
+        memcpy(ptr, &val, sizeof(val));
+        wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};
+    } else {
+        response.setMagic(cb::mcbp::Magic::ClientResponse);
+        response.setKeylen(gsl::narrow_cast<uint16_t>(key.size()));
+        response.setFramingExtraslen(0);
+        response.setBodylen(value_len + extras.size() + key.size());
+        wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
+    }
+
+    if (Settings::instance().getVerbose() > 1) {
+        auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
+        try {
+            LOG_TRACE("<{} Sending: {}", getId(), header->toJSON(true).dump());
+        } catch (const std::exception&) {
+            // Failed.. do a raw dump instead
+            LOG_TRACE("<{} Sending: {}",
+                      getId(),
+                      cb::to_hex({reinterpret_cast<const uint8_t*>(wbuf.data()),
+                                  sizeof(cb::mcbp::Header)}));
+        }
+    }
+
+    // Copy the data to the output stream
+    copyToOutputStream(wbuf);
+    copyToOutputStream(extras);
+    copyToOutputStream(key);
+    ++getBucket().responseCounters[uint16_t(status)];
+}
+
+void Connection::sendResponse(Cookie& cookie,
+                              cb::mcbp::Status status,
+                              cb::const_char_buffer extras,
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value,
+                              uint8_t datatype,
+                              std::unique_ptr<SendBuffer> sendbuffer) {
+    sendResponseHeaders(cookie, status, extras, key, value.size(), datatype);
+    if (sendbuffer) {
+        if (sendbuffer->getPayload().size() != value.size()) {
+            throw std::runtime_error(
+                    "Connection::sendResponse: The sendbuffers payload must "
+                    "match the value encoded in the response");
+        }
+        chainDataToOutputStream(std::move(sendbuffer));
+    } else {
+        cookie.getConnection().copyToOutputStream(value);
+    }
+}
+
 ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
         cb::const_byte_buffer packet) {
     try {
@@ -1502,10 +1601,13 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
 
         // Add the value
         if (!value.empty()) {
-            std::unique_ptr<SendBuffer> sendbuffer;
-            sendbuffer = std::make_unique<ItemSendBuffer>(
-                    std::move(it), value, getBucket());
-            chainDataToOutputStream(std::move(sendbuffer));
+            if (value.size() > SendBuffer::MinimumDataSize) {
+                auto sendbuffer = std::make_unique<ItemSendBuffer>(
+                        std::move(it), value, getBucket());
+                chainDataToOutputStream(std::move(sendbuffer));
+            } else {
+                copyToOutputStream(value);
+            }
         }
     } catch (const std::bad_alloc&) {
         /// We might have written a partial message into the buffer so
@@ -1978,10 +2080,13 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
 
         // Add the value
         if (!buffer.empty()) {
-            std::unique_ptr<SendBuffer> sendbuffer;
-            sendbuffer = std::make_unique<ItemSendBuffer>(
-                    std::move(it), buffer, getBucket());
-            chainDataToOutputStream(std::move(sendbuffer));
+            if (buffer.size() > SendBuffer::MinimumDataSize) {
+                auto sendbuffer = std::make_unique<ItemSendBuffer>(
+                        std::move(it), buffer, getBucket());
+                chainDataToOutputStream(std::move(sendbuffer));
+            } else {
+                copyToOutputStream(buffer);
+            }
         }
     } catch (const std::bad_alloc&) {
         /// We might have written a partial message into the buffer so

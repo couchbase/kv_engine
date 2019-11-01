@@ -16,32 +16,6 @@
  */
 #pragma once
 
-/*
- * This file contains the interface to the implementation of the memcached
- * binary protocol
- */
-
-#include "connection.h"
-#include "protocol/mcbp/engine_errc_2_mcbp.h"
-#include <mcbp/protocol/datatype.h>
 #include <memcached/engine_common.h>
-
-/**
- * Add a header to the current memcached connection
- *
- * @param cookie the command context to add the header for
- * @param status The error code to use
- * @param extras The data to put in the extras field
- * @param key The data to put in the data field
- * @param value_len The length of the value field (without extras and key)
- * @param datatype The datatype to inject into the header
- * @throws std::bad_alloc
- */
-void mcbp_add_header(Cookie& cookie,
-                     cb::mcbp::Status status,
-                     cb::const_char_buffer extras,
-                     cb::const_char_buffer key,
-                     std::size_t value_length,
-                     uint8_t datatype);
 
 extern AddResponseFn mcbpResponseHandlerFn;

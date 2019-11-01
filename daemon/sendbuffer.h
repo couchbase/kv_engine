@@ -29,6 +29,15 @@ class Bucket;
  */
 class SendBuffer {
 public:
+    /// Using a SendBuffer have an overhead as we need to allocate memory
+    /// to hold it _AND_ it may result into multiple system calls being used
+    /// as the underlying system may not fit all of the data into a single
+    /// system call (for TLS it gets even worse as it'll result in multiple
+    /// TLS frames which add extra CPU cycles and network overhead)
+    ///.
+    /// A sendbuffer should not be used unless the payload is >4k
+    constexpr static std::size_t MinimumDataSize = 4096;
+
     explicit SendBuffer(cb::const_char_buffer view) : payload(view) {
     }
     virtual ~SendBuffer() = default;

@@ -23,6 +23,7 @@
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
+#include <daemon/sendbuffer.h>
 #include <logger/logger.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
@@ -97,15 +98,28 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
-    mcbp_add_header(
+
+    std::unique_ptr<SendBuffer> sendbuffer;
+    if (payload.size() > SendBuffer::MinimumDataSize) {
+        // we may use the item if we've didn't inflate it
+        if (buffer.empty()) {
+            sendbuffer = std::make_unique<ItemSendBuffer>(
+                    std::move(it), payload, connection.getBucket());
+        } else {
+            sendbuffer =
+                    std::make_unique<CompressionSendBuffer>(buffer, payload);
+        }
+    }
+
+    connection.sendResponse(
             cookie,
             cb::mcbp::Status::Success,
             {reinterpret_cast<const char*>(&info.flags), sizeof(info.flags)},
             {reinterpret_cast<const char*>(key.data()), keylen},
-            payload.size(),
-            info.datatype);
+            payload,
+            info.datatype,
+            std::move(sendbuffer));
 
-    connection.copyToOutputStream(payload);
     connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
 

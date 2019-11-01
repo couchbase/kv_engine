@@ -23,6 +23,7 @@
 #include "front_end_thread.h"
 #include "mcaudit.h"
 #include "mcbp.h"
+#include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
 #include "subdoc/util.h"
@@ -1531,12 +1532,13 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(cookie,
-                    status_code,
-                    {const_cast<const char*>(extras_ptr), extlen},
-                    {},
-                    response_buf_needed + iov_len,
-                    PROTOCOL_BINARY_RAW_BYTES);
+    connection.sendResponseHeaders(
+            cookie,
+            status_code,
+            {const_cast<const char*>(extras_ptr), extlen},
+            {},
+            response_buf_needed + iov_len,
+            PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.
     uint8_t index = 0;
@@ -1629,12 +1631,12 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         status_code = cb::mcbp::Status::SubdocMultiPathFailureDeleted;
     }
 
-    mcbp_add_header(cookie,
-                    status_code,
-                    {},
-                    {},
-                    context.response_val_len,
-                    PROTOCOL_BINARY_RAW_BYTES);
+    connection.sendResponseHeaders(cookie,
+                                   status_code,
+                                   {},
+                                   {},
+                                   context.response_val_len,
+                                   PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.
     for (auto phase : phases) {

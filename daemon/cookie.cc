@@ -22,6 +22,8 @@
 #include "cookie_trace_context.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
+#include "protocol/mcbp/engine_errc_2_mcbp.h"
+#include "sendbuffer.h"
 #include "settings.h"
 
 #include <logger/logger.h>
@@ -255,12 +257,13 @@ void Cookie::sendNotMyVBucket() {
                              Settings::instance().isDedupeNmvbMaps())) {
         // We don't have a vbucket map, or we've already sent it to the
         // client
-        mcbp_add_header(*this,
-                        cb::mcbp::Status::NotMyVbucket,
-                        {},
-                        {},
-                        0,
-                        PROTOCOL_BINARY_RAW_BYTES);
+        connection.sendResponse(*this,
+                                cb::mcbp::Status::NotMyVbucket,
+                                {},
+                                {},
+                                {},
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                {});
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
@@ -301,7 +304,8 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
             return;
         }
 
-        mcbp_add_header(*this, status, {}, {}, 0, PROTOCOL_BINARY_RAW_BYTES);
+        connection.sendResponse(
+                *this, status, {}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, {});
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
@@ -344,15 +348,15 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                                  : cb::mcbp::Datatype::JSON;
     }
 
-    mcbp_add_header(*this,
-                    status,
-                    extras,
-                    key,
-                    value.size(),
-                    connection.getEnabledDatatypes(
-                            protocol_binary_datatype_t(datatype)));
+    connection.sendResponse(*this,
+                            status,
+                            extras,
+                            key,
+                            value,
+                            connection.getEnabledDatatypes(
+                                    protocol_binary_datatype_t(datatype)),
+                            {});
 
-    connection.copyToOutputStream(value);
     connection.setState(StateMachine::State::send_data);
     connection.setWriteAndGo(StateMachine::State::new_cmd);
 }

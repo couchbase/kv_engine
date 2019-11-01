@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "engine_errc_2_mcbp.h"
 #include "executors.h"
 
 #include <daemon/buckets.h>

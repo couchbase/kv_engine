@@ -14,8 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <daemon/mcbp.h>
 #include "dcp_add_failover_log.h"
+#include <daemon/mcbp.h>
+#include <mcbp/protocol/datatype.h>
 
 /** Callback from the engine adding the response */
 ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,

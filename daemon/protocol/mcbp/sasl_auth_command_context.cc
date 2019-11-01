@@ -17,6 +17,7 @@
 
 #include "sasl_auth_command_context.h"
 
+#include <daemon/connection.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>

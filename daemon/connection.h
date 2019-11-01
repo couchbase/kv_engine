@@ -703,6 +703,46 @@ public:
         get_thread_stats(this)->conn_yields++;
     }
 
+    /**
+     * Add a header, extras and key to the output socket
+     *
+     * @param cookie the command context to add the header for
+     * @param status The error code to use
+     * @param extras The data to put in the extras field
+     * @param key The data to put in the data field
+     * @param value_len The length of the value field (without extras and key)
+     * @param datatype The datatype to inject into the header
+     * @throws std::bad_alloc
+     */
+    void sendResponseHeaders(Cookie& cookie,
+                             cb::mcbp::Status status,
+                             cb::const_char_buffer extras,
+                             cb::const_char_buffer key,
+                             std::size_t value_length,
+                             uint8_t datatype);
+
+    /**
+     * Format and put a response into the send buffer
+     *
+     * @param cookie The command we're sending the response for
+     * @param status The status code for the response
+     * @param extras The extras section to insert into the response
+     * @param key The key to insert into the response
+     * @param value The value to insert into the response
+     * @param datatype The value to specify as the datatype of the response
+     * @param sendbuffer An optional send buffer to chain into the response
+     *                   if present (instead of copying the content).
+     * @throws std::runtime_error if the sendbuffers payload don't match the
+     *                   provided value.
+     */
+    void sendResponse(Cookie& cookie,
+                      cb::mcbp::Status status,
+                      cb::const_char_buffer extras,
+                      cb::const_char_buffer key,
+                      cb::const_char_buffer value,
+                      uint8_t datatype,
+                      std::unique_ptr<SendBuffer> sendbuffer);
+
     /// Check if DCP should use the write buffer for the message or if it
     /// should use an IOVector to do so
     bool dcpUseWriteBuffer(size_t total) const;

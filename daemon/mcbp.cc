@@ -17,6 +17,7 @@
 #include "mcbp.h"
 
 #include "buckets.h"
+#include "connection.h"
 #include "cookie.h"
 #include "cookie_trace_context.h"
 #include "front_end_thread.h"
@@ -32,90 +33,6 @@
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/string_hex.h>
-
-static_assert(sizeof(FrontEndThread::scratch_buffer) >
-                      (sizeof(cb::mcbp::Response) + 3),
-              "scratch buffer too small");
-
-void mcbp_add_header(Cookie& cookie,
-                     cb::mcbp::Status status,
-                     cb::const_char_buffer extras,
-                     cb::const_char_buffer key,
-                     std::size_t value_len,
-                     uint8_t datatype) {
-    auto& connection = cookie.getConnection();
-    auto& thread = connection.getThread();
-    const auto& request = cookie.getRequest();
-    auto wbuf = cb::char_buffer{thread.scratch_buffer.data(),
-                                thread.scratch_buffer.size()};
-    auto& response = *reinterpret_cast<cb::mcbp::Response*>(wbuf.data());
-
-    response.setOpcode(request.getClientOpcode());
-    response.setExtlen(gsl::narrow_cast<uint8_t>(extras.size()));
-    response.setDatatype(cb::mcbp::Datatype(datatype));
-    response.setStatus(status);
-    response.setOpaque(request.getOpaque());
-    response.setCas(cookie.getCas());
-
-    if (cookie.isTracingEnabled()) {
-        // When tracing is enabled we'll be using the alternative
-        // response header where we inject the framing header.
-        // For now we'll just hard-code the adding of the bytes
-        // for the tracing info.
-        //
-        // Moving forward we should get a builder for encoding the
-        // framing header (but do that the next time we need to add
-        // something so that we have a better understanding on how
-        // we need to do that (it could be that we need to modify
-        // an already existing section etc).
-        response.setMagic(cb::mcbp::Magic::AltClientResponse);
-        // The framing extras when we just include the tracing information
-        // is 3 bytes. 1 byte with id and length, then the 2 bytes
-        // containing the actual data.
-        const uint8_t framing_extras_size = MCBP_TRACING_RESPONSE_SIZE;
-        const uint8_t tracing_framing_id = 0x02;
-
-        wbuf.data()[2] = framing_extras_size; // framing header extras 3 bytes
-        wbuf.data()[3] = gsl::narrow_cast<uint8_t>(key.size());
-        response.setBodylen(value_len + extras.size() + key.size() +
-                            framing_extras_size);
-
-        auto& tracer = cookie.getTracer();
-        const auto val = htons(tracer.getEncodedMicros());
-        auto* ptr = wbuf.data() + sizeof(cb::mcbp::Response);
-        *ptr = tracing_framing_id;
-        ptr++;
-        memcpy(ptr, &val, sizeof(val));
-        wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};
-    } else {
-        response.setMagic(cb::mcbp::Magic::ClientResponse);
-        response.setKeylen(gsl::narrow_cast<uint16_t>(key.size()));
-        response.setFramingExtraslen(0);
-        response.setBodylen(value_len + extras.size() + key.size());
-        wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
-    }
-
-    if (Settings::instance().getVerbose() > 1) {
-        auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
-        try {
-            LOG_TRACE("<{} Sending: {}",
-                      connection.getId(),
-                      header->toJSON(true).dump());
-        } catch (const std::exception&) {
-            // Failed.. do a raw dump instead
-            LOG_TRACE("<{} Sending: {}",
-                      connection.getId(),
-                      cb::to_hex({reinterpret_cast<const uint8_t*>(wbuf.data()),
-                                  sizeof(cb::mcbp::Header)}));
-        }
-    }
-
-    // Copy the data to the output stream
-    connection.copyToOutputStream(wbuf);
-    connection.copyToOutputStream(extras);
-    connection.copyToOutputStream(key);
-    ++connection.getBucket().responseCounters[uint16_t(status)];
-}
 
 static bool mcbp_response_handler(const void* key,
                                   uint16_t keylen,
