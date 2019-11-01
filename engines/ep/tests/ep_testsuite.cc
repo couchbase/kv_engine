@@ -8133,9 +8133,12 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  // Need to cap at <number of items written, so we create
-                 // >1 checkpoint.
+                 // >1 checkpoint. Also given bucket quota is being
+                 // constrained, also limit shards to 4 so amount of memory
+                 // overhead is more or less constant.
                  "chk_max_items=500;"
                  "chk_remover_stime=1;"
+                 "max_num_shards=4;"
                  "max_size=6291456",
                  // TODO RDB: This test requires full control and accurate
                  // tracking on how memory is allocated by the underlying

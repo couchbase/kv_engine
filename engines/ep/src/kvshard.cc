@@ -33,7 +33,12 @@
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(id_type numShards, id_type id, Configuration& config)
-    : vbuckets(config.getMaxVbuckets()), highPriorityCount(0) {
+    : // Size vBuckets to have sufficient slots for the maximum number of
+      // vBuckets each shard is responsible for. To ensure correct behaviour
+      // when vbuckets isn't a multiple of num_shards, apply ceil() to the
+      // division so we round up where necessary.
+      vbuckets(std::ceil(float(config.getMaxVbuckets()) / numShards)),
+      highPriorityCount(0) {
     const std::string backend = config.getBackend();
     if (backend == "couchdb") {
         kvConfig = std::make_unique<KVStoreConfig>(config, numShards, id);
@@ -85,19 +90,38 @@ BgFetcher *KVShard::getBgFetcher() {
 }
 
 VBucketPtr KVShard::getBucket(Vbid id) const {
-    if (id.get() < vbuckets.size()) {
-        return vbuckets[id.get()].lock().get();
+    if (id.get() < kvConfig->getMaxVBuckets()) {
+        auto element = getElement(id);
+        Expects(element.get() == nullptr || element.get()->getId() == id);
+        return element.get();
     } else {
         return NULL;
     }
 }
 
+KVShard::VBMapElement::Access<KVShard::VBMapElement&> KVShard::getElement(
+        Vbid id) {
+    Expects(id.get() % kvConfig->getMaxShards() == kvConfig->getShardId());
+    auto index = id.get() / this->kvConfig->getMaxShards();
+    auto element = this->vbuckets.at(index).lock();
+    return element;
+}
+
+KVShard::VBMapElement::Access<const KVShard::VBMapElement&> KVShard::getElement(
+        Vbid id) const {
+    Expects(id.get() % kvConfig->getMaxShards() == kvConfig->getShardId());
+
+    auto index = id.get() / this->kvConfig->getMaxShards();
+    auto element = this->vbuckets.at(index).lock();
+    return element;
+}
+
 void KVShard::setBucket(VBucketPtr vb) {
-    vbuckets[vb->getId().get()].lock().set(vb);
+    getElement(vb->getId()).set(vb);
 }
 
 void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie) {
-    auto vb = vbuckets[id.get()].lock();
+    auto vb = getElement(id);
     auto vbPtr = vb.get();
     vbPtr->setupDeferredDeletion(cookie);
     vb.reset();
