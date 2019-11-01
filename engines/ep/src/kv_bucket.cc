@@ -2553,7 +2553,7 @@ std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
 void KVBucket::notifyFlusher(const Vbid vbid) {
     KVShard* shard = vbMap.getShardByVbId(vbid);
     if (shard) {
-        shard->getFlusher()->notifyFlushEvent();
+        shard->getFlusher()->notifyFlushEvent(vbid);
     } else {
         throw std::logic_error("KVBucket::notifyFlusher() : shard null for " +
                                vbid.to_string());

@@ -203,7 +203,7 @@ public:
 
     void callback(Vbid& vb) override {
         if (shard->getBucket(vb)) {
-            shard->getFlusher()->notifyFlushEvent();
+            shard->getFlusher()->notifyFlushEvent(vb);
         }
     }
 
