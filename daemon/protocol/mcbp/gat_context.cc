@@ -124,32 +124,19 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     }
     datatype = connection.getEnabledDatatypes(datatype);
 
-    const auto bodylen =
-            gsl::narrow<uint32_t>(sizeof(info.flags) + payload.size());
+    // Set the CAS to add into the header
+    cookie.setCas(info.cas);
+    mcbp_add_header(
+            cookie,
+            cb::mcbp::Status::Success,
+            {reinterpret_cast<const char*>(&info.flags), sizeof(info.flags)},
+            {}, // no key
+            payload.size(),
+            datatype);
 
-    if (connection.useCookieSendResponse(bodylen)) {
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {reinterpret_cast<const char*>(&info.flags),
-                             sizeof(info.flags)},
-                            {},
-                            {payload.buf, payload.len},
-                            cb::mcbp::Datatype(info.datatype),
-                            info.cas);
-    } else {
-        // Set the CAS to add into the header
-        cookie.setCas(info.cas);
-        mcbp_add_header(cookie,
-                        cb::mcbp::Status::Success,
-                        {reinterpret_cast<const char*>(&info.flags),
-                         sizeof(info.flags)},
-                        {}, // no key
-                        payload.size(),
-                        datatype);
-
-        // Add the value
-        connection.copyToOutputStream(payload);
-        connection.setState(StateMachine::State::send_data);
-    }
+    // Add the value
+    connection.copyToOutputStream(payload);
+    connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     state = State::Done;
     return ENGINE_SUCCESS;

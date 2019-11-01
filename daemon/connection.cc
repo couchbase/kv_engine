@@ -57,17 +57,6 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
-/// The TLS packet is using the following format:
-/// Byte 0 - Content type
-/// Byte 1 and 2 - Version
-/// Byte 3 and 4 - length
-///   n bytes of user payload
-///   m bytes of MAC
-///   o bytes of padding for block ciphers
-/// Create a constant which represents the maxium amount of data we
-/// may put in a single TLS frame
-static constexpr std::size_t TlsFrameSize = 16 * 1024;
-
 std::string to_string(Connection::Priority priority) {
     switch (priority) {
     case Connection::Priority::High:
@@ -225,18 +214,8 @@ nlohmann::json Connection::toJSON() const {
     return ret;
 }
 
-void Connection::setDCP(bool dcp) {
-    Connection::dcp = dcp;
-
-    if (isSslEnabled()) {
-        try {
-            // Make sure that we have space for up to a single TLS frame
-            // in our send buffer (so that we can stick all of the mutations
-            // in that buffer)
-            write->ensureCapacity(TlsFrameSize);
-        } catch (const std::bad_alloc&) {
-        }
-    }
+void Connection::setDCP(bool enable) {
+    dcp = enable;
 }
 
 void Connection::restartAuthentication() {
@@ -721,17 +700,6 @@ Connection::TryReadResult Connection::tryReadNetwork() {
 
     get_thread_stats(this)->bytes_read += nr;
     return TryReadResult::DataReceived;
-}
-
-bool Connection::useCookieSendResponse(std::size_t size) const {
-    // The limit for when to copy the data into a separate response
-    // buffer instead of using the IO vector to send the data. The limit
-    // is currently hardcoded, but it should probably be possible to tune
-    // the value. (when the cost of copying exceeds the cost of creating
-    // two (or 3) extra TLS frames. Start by keep it fixed to see if it
-    // makes any difference in showfast.
-    static constexpr std::size_t SslCopyLimit = 4096;
-    return isSslEnabled() && size < SslCopyLimit;
 }
 
 bool Connection::dcpUseWriteBuffer(size_t size) const {

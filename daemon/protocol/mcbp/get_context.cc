@@ -85,7 +85,6 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     info.datatype = connection.getEnabledDatatypes(info.datatype);
 
     std::size_t keylen = 0;
-    std::size_t bodylen = sizeof(info.flags) + payload.size();
     auto key = info.key;
 
     if (shouldSendKey()) {
@@ -94,31 +93,20 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
             key = key.makeDocKeyWithoutCollectionID();
         }
         keylen = key.size();
-        bodylen += keylen;
     }
 
     // Set the CAS to add into the header
-    if (connection.useCookieSendResponse(bodylen)) {
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {reinterpret_cast<const char*>(&info.flags),
-                             sizeof(info.flags)},
-                            {reinterpret_cast<const char*>(key.data()), keylen},
-                            payload,
-                            cb::mcbp::Datatype(info.datatype),
-                            info.cas);
-    } else {
-        cookie.setCas(info.cas);
-        mcbp_add_header(cookie,
-                        cb::mcbp::Status::Success,
-                        {reinterpret_cast<const char*>(&info.flags),
-                         sizeof(info.flags)},
-                        {reinterpret_cast<const char*>(key.data()), keylen},
-                        payload.size(),
-                        info.datatype);
+    cookie.setCas(info.cas);
+    mcbp_add_header(
+            cookie,
+            cb::mcbp::Status::Success,
+            {reinterpret_cast<const char*>(&info.flags), sizeof(info.flags)},
+            {reinterpret_cast<const char*>(key.data()), keylen},
+            payload.size(),
+            info.datatype);
 
-        connection.copyToOutputStream(payload);
-        connection.setState(StateMachine::State::send_data);
-    }
+    connection.copyToOutputStream(payload);
+    connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
