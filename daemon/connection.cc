@@ -1294,10 +1294,21 @@ void Connection::sendResponseHeaders(Cookie& cookie,
         }
     }
 
-    // Copy the data to the output stream
-    copyToOutputStream(wbuf);
-    copyToOutputStream(extras);
-    copyToOutputStream(key);
+    // if we can fit the key and extras in the scratch buffer lets copy them
+    // in to avoid the extra mutex lock
+    if ((wbuf.size() + extras.size() + key.size()) <
+        thread.scratch_buffer.size()) {
+        std::copy(extras.begin(), extras.end(), wbuf.end());
+        wbuf = {wbuf.data(), wbuf.size() + extras.size()};
+        std::copy(key.begin(), key.end(), wbuf.end());
+        wbuf = {wbuf.data(), wbuf.size() + key.size()};
+        copyToOutputStream(wbuf);
+    } else {
+        // Copy the data to the output stream
+        copyToOutputStream(wbuf);
+        copyToOutputStream(extras);
+        copyToOutputStream(key);
+    }
     ++getBucket().responseCounters[uint16_t(status)];
 }
 
