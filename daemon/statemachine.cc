@@ -238,7 +238,6 @@ bool StateMachine::conn_ship_log() {
     case ENGINE_SUCCESS:
         /* The engine got more data it wants to send */
         connection.setState(StateMachine::State::send_data);
-        connection.setWriteAndGo(StateMachine::State::ship_log);
         break;
     case ENGINE_EWOULDBLOCK:
         // the engine don't have more data to send at this moment
@@ -345,10 +344,7 @@ bool StateMachine::conn_validate() {
                 audit_invalid_packet(cookie.getConnection(),
                                      cookie.getPacket());
                 cookie.sendResponse(result);
-                // sendResponse sets the write and go to continue
-                // execute the next command. Instead we want to
-                // close the connection. Override the write and go setting
-                connection.setWriteAndGo(StateMachine::State::closing);
+                setCurrentState(State::closing);
                 return true;
             }
             cookie.setValidated(true);
@@ -428,7 +424,7 @@ bool StateMachine::conn_send_data() {
         return false;
     }
 
-    setCurrentState(connection.getWriteAndGo());
+    setCurrentState(State::new_cmd);
     return true;
 }
 
@@ -437,7 +433,7 @@ bool StateMachine::conn_drain_send_buffer() {
         return false;
     }
 
-    connection.setState(connection.getWriteAndGo());
+    setCurrentState(State::new_cmd);
     return true;
 }
 

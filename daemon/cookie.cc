@@ -262,7 +262,6 @@ void Cookie::sendDynamicBuffer() {
                 cookie_free_dynbuffer,
                 dynamicBuffer.getRoot());
         connection.setState(StateMachine::State::send_data);
-        connection.setWriteAndGo(StateMachine::State::new_cmd);
         dynamicBuffer.takeOwnership();
     }
 }
@@ -281,28 +280,18 @@ void Cookie::sendNotMyVBucket() {
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 {});
         connection.setState(StateMachine::State::send_data);
-        connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
     }
 
-    const size_t needed = sizeof(cb::mcbp::Response) + pair.second->size();
-    if (!growDynamicBuffer(needed)) {
-        throw std::bad_alloc();
-    }
-    auto& buffer = getDynamicBuffer();
-    auto* buf = reinterpret_cast<uint8_t*>(buffer.getCurrent());
-    const auto& header = getHeader();
-    cb::mcbp::ResponseBuilder builder({buf, needed});
-    builder.setMagic(cb::mcbp::Magic::ClientResponse);
-    builder.setOpcode(header.getRequest().getClientOpcode());
-    builder.setStatus(cb::mcbp::Status::NotMyVbucket);
-    builder.setOpaque(header.getOpaque());
-    builder.setValue({reinterpret_cast<const uint8_t*>(pair.second->data()),
-                      pair.second->size()});
-    builder.validate();
-
-    buffer.moveOffset(needed);
-    sendDynamicBuffer();
+    // Send the new payload
+    connection.sendResponse(*this,
+                            cb::mcbp::Status::NotMyVbucket,
+                            {},
+                            {},
+                            {pair.second->data(), pair.second->size()},
+                            PROTOCOL_BINARY_DATATYPE_JSON,
+                            {});
+    connection.setState(StateMachine::State::send_data);
     connection.setClustermapRevno(pair.first);
 }
 
@@ -323,7 +312,6 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
         connection.sendResponse(
                 *this, status, {}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, {});
         connection.setState(StateMachine::State::send_data);
-        connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
     }
 
@@ -374,7 +362,6 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                             {});
 
     connection.setState(StateMachine::State::send_data);
-    connection.setWriteAndGo(StateMachine::State::new_cmd);
 }
 
 const DocKey Cookie::getRequestKey() const {

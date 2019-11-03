@@ -456,14 +456,6 @@ public:
      */
     void enableReadEvent();
 
-    StateMachine::State getWriteAndGo() const {
-        return write_and_go;
-    }
-
-    void setWriteAndGo(StateMachine::State state) {
-        write_and_go = state;
-    }
-
     /**
      * Copy the provided data to the end of the output stream
      *
@@ -1064,9 +1056,6 @@ public:
     std::unique_ptr<bufferevent, EventDeleter> bev;
 
 protected:
-    /** which state to go into after finishing current write */
-    StateMachine::State write_and_go = StateMachine::State::new_cmd;
-
     /**
      * If the client enabled the mutation seqno feature each mutation
      * command will return the vbucket UUID and sequence number for the
