@@ -702,18 +702,6 @@ bool Connection::dcpUseWriteBuffer(size_t size) const {
     return isSslEnabled() && size < thread.scratch_buffer.size();
 }
 
-void Connection::addIov(const void* buf, size_t len) {
-    if (len == 0) {
-        return;
-    }
-
-    int nw = bufferevent_write(bev.get(), buf, len);
-    if (nw == -1) {
-        throw std::bad_alloc();
-    }
-    totalSend += len;
-}
-
 void Connection::copyToOutputStream(cb::const_char_buffer data) {
     if (data.empty()) {
         return;

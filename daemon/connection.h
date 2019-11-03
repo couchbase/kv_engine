@@ -477,15 +477,6 @@ public:
     }
 
     /**
-     * Add a chunk of memory to the the IO vector to send
-     *
-     * @param buf pointer to the data to send
-     * @param len number of bytes to send
-     * @throws std::bad_alloc
-     */
-    void addIov(const void* buf, size_t len);
-
-    /**
      * Copy the provided data to the end of the output stream
      *
      * @param data the data to send
