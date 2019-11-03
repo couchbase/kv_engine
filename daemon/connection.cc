@@ -922,42 +922,66 @@ size_t Connection::getNumberOfCookies() const {
 }
 
 bool Connection::isPacketAvailable() const {
-    // Drain all of the data available in bufferevent into the
-    // socket read buffer
     auto* event = bev.get();
     auto* input = bufferevent_get_input(event);
-    auto nb = evbuffer_get_length(input);
-    if (nb < sizeof(cb::mcbp::Header)) {
+    auto size = evbuffer_get_length(input);
+    if (size < sizeof(cb::mcbp::Header)) {
         return false;
     }
 
     const auto* header = reinterpret_cast<const cb::mcbp::Header*>(
             evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
-    if (nb < (sizeof(cb::mcbp::Header) + header->getBodylen())) {
-        return false;
+    if (header == nullptr) {
+        throw std::runtime_error(
+                "Connection::isPacketAvailable(): Failed to reallocate event "
+                "input buffer: " +
+                std::to_string(sizeof(cb::mcbp::Header)));
     }
 
-    evbuffer_pullup(input, sizeof(cb::mcbp::Header) + header->getBodylen());
-    return true;
+    if (!header->isValid()) {
+        audit_invalid_packet(*this, getAvailableBytes());
+        throw std::runtime_error(
+                "Connection::isPacketAvailable(): Invalid packet header "
+                "detected");
+    }
+
+    const auto framesize = sizeof(*header) + header->getBodylen();
+    if (size >= framesize) {
+        // We've got the entire buffer available.. make sure it is continuous
+        if (evbuffer_pullup(input, framesize) == nullptr) {
+            throw std::runtime_error(
+                    "Connection::isPacketAvailable(): Failed to reallocate "
+                    "event input buffer: " +
+                    std::to_string(framesize));
+        }
+        return true;
+    }
+
+    // We don't have the entire frame available.. Are we receiving an
+    // incredible big packet so that we want to disconnect the client?
+    if (framesize > Settings::instance().getMaxPacketSize()) {
+        throw std::runtime_error(
+                "Connection::isPacketAvailable(): The packet size " +
+                std::to_string(framesize) +
+                " exceeds the max allowed packet size " +
+                std::to_string(Settings::instance().getMaxPacketSize()));
+    }
+
+    return false;
 }
 
-bool Connection::isPacketHeaderAvailable() const {
-    auto* event = bev.get();
-    auto nb = evbuffer_get_length(bufferevent_get_input(event));
-    return (nb >= sizeof(cb::mcbp::Header));
-}
-
-const cb::mcbp::Header* Connection::getPacket() const {
+const cb::mcbp::Header& Connection::getPacket() const {
     // Drain all of the data available in bufferevent into the
     // socket read buffer
     auto* event = bev.get();
     auto* input = bufferevent_get_input(event);
     auto nb = evbuffer_get_length(input);
     if (nb < sizeof(cb::mcbp::Header)) {
-        return nullptr;
+        throw std::runtime_error(
+                "Connection::getPacket(): packet not available");
     }
 
-    return reinterpret_cast<const cb::mcbp::Header*>(
+    return *reinterpret_cast<const cb::mcbp::Header*>(
             evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
 }
 

@@ -43,7 +43,7 @@ public:
          *
          * possible next state:
          *   * closing - if the bucket is currently being deleted
-         *   * parse_cmd - if the input buffer contains the next header
+         *   * read_packet - if the input buffer contains the next header
          *   * waiting - we need more data
          *   * ship_log - (for DCP connections)
          */
@@ -54,32 +54,22 @@ public:
          *
          * possible next state:
          *   * closing - if the bucket is currently being deleted
-         *   * read_packet_header - the bucket isn't being deleted
+         *   * read_packet - the bucket isn't being deleted
          */
         waiting,
 
         /**
-         * read_packet_header tries to read from the network and fill the
-         * input buffer.
+         * read_packet tries to read the next packet from the packet.
          *
          * possible next state:
          *   * closing - if the bucket is currently being deleted
          *   * waiting - if we failed to read more data from the network
          *               (DCP connections will enter ship_log)
-         *   * read_packet_body - read more data
-         *   * execute - execute the command
-         */
-        read_packet_header,
-
-        /**
-         * Make sure that the entire packet is available
-         *
-         * possible next state:
-         *   * closing - if the bucket is currently being deleted (or protocol
-         *               error)
          *   * execute - the entire packet is available in memory
+         *   * send_data - if an error occurs and we want to tell the user
+         *                 about the error before disconnecting.
          */
-        read_packet_body,
+        read_packet,
 
         /**
          * Validate the packet
@@ -134,8 +124,7 @@ public:
          *
          * possible next state:
          *   * closing - if the bucket is currently being deleted
-         *   * read_packet_header - to process input packet
-         *   * read_packet_body - to process input packet
+         *   * read_packet - to process input packet
          *   * send_data - send the data from the engine
          */
         ship_log,
@@ -224,8 +213,7 @@ protected:
     bool conn_ssl_init();
     bool conn_new_cmd();
     bool conn_waiting();
-    bool conn_read_packet_header();
-    bool conn_read_packet_body();
+    bool conn_read_packet();
     bool conn_closing();
     bool conn_pending_close();
     bool conn_immediate_close();

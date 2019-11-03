@@ -996,69 +996,26 @@ void execute_response_packet(Cookie& cookie,
 
 void try_read_mcbp_command(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    if (!c.isPacketHeaderAvailable()) {
-        throw std::logic_error("try_read_mcbp_command: header not present");
-    }
-
-    const auto* header = c.getPacket();
-    if (header == nullptr) {
-        throw std::logic_error("try_read_mcbp_command: header not present");
-    }
-
-    if (!header->isValid()) {
-        LOG_WARNING(
-                "{}: Invalid packet format detected (magic: {:#x}), closing "
-                "connection",
-                c.getId(),
-                header->getMagic());
-        audit_invalid_packet(c, c.getAvailableBytes());
-        c.setState(StateMachine::State::closing);
-        return;
-    }
-
-    // Protect ourself from someone trying to kill us by sending insanely
-    // large packets.
-    if (header->getBodylen() > Settings::instance().getMaxPacketSize()) {
-        LOG_WARNING(
-                "{}: The package size ({}) exceeds the limit ({}) for what "
-                "the system accepts.. Disconnecting client",
-                c.getId(),
-                header->getBodylen(),
-                Settings::instance().getMaxPacketSize());
-        c.setState(StateMachine::State::closing);
-        return;
-    }
+    const auto& header = c.getPacket();
 
     if (Settings::instance().getVerbose() > 1) {
         try {
             LOG_TRACE(">{} Read command {}",
                       c.getId(),
-                      header->toJSON(false).dump());
+                      header.toJSON(false).dump());
         } catch (const std::exception&) {
             // Failed to decode the header.. do a raw dump instead
             LOG_TRACE(">{} Read command {}",
                       c.getId(),
-                      cb::to_hex({reinterpret_cast<const uint8_t*>(header),
-                                  sizeof(*header)}));
+                      cb::to_hex({reinterpret_cast<const uint8_t*>(&header),
+                                  sizeof(header)}));
         }
     }
 
-    if (c.isPacketAvailable()) {
-        // we might have reallocated stuff after calling isPacketAvailabe
-        header = c.getPacket();
-        cookie.initialize(
-                Cookie::PacketContent::Full,
-                cb::const_byte_buffer{
-                        reinterpret_cast<const uint8_t*>(header),
-                        header->getBodylen() + sizeof(cb::mcbp::Request)},
-                c.isTracingEnabled());
-        c.setState(StateMachine::State::validate);
-    } else {
-        cookie.initialize(
-                Cookie::PacketContent::Header,
-                cb::const_byte_buffer{reinterpret_cast<const uint8_t*>(header),
-                                      sizeof(cb::mcbp::Request)},
-                c.isTracingEnabled());
-        c.setState(StateMachine::State::read_packet_body);
-    }
+    cookie.initialize(Cookie::PacketContent::Full,
+                      cb::const_byte_buffer{
+                              reinterpret_cast<const uint8_t*>(&header),
+                              header.getBodylen() + sizeof(cb::mcbp::Request)},
+                      c.isTracingEnabled());
+    c.setState(StateMachine::State::validate);
 }
