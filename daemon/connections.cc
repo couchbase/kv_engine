@@ -125,18 +125,18 @@ void close_all_connections() {
     } while (!done);
 }
 
-void run_event_loop(Connection* c, short which) {
+void run_event_loop(Connection& c) {
     const auto start = std::chrono::steady_clock::now();
-    c->runEventLoop(which);
+    c.runEventLoop();
     const auto stop = std::chrono::steady_clock::now();
 
     using namespace std::chrono;
     const auto ns = duration_cast<nanoseconds>(stop - start);
-    c->addCpuTime(ns);
-    scheduler_info[c->getThread().index].add(duration_cast<microseconds>(ns));
+    c.addCpuTime(ns);
+    scheduler_info[c.getThread().index].add(duration_cast<microseconds>(ns));
 
-    if (c->shouldDelete()) {
-        release_connection(c);
+    if (c.shouldDelete()) {
+        release_connection(&c);
     }
 }
 
