@@ -50,6 +50,12 @@ struct EngineIface;
 struct FrontEndThread;
 class SendBuffer;
 
+namespace cb {
+namespace mcbp {
+class Header;
+} // namespace mcbp
+} // namespace cb
+
 /**
  * The maximum number of character the core preserves for the
  * agent name for each connection
@@ -634,6 +640,33 @@ public:
      * @return true if we've got the entire packet, false otherwise
      */
     bool isPacketAvailable() const;
+
+    /**
+     * Check to see if the next packet header is available
+     *
+     * @return true if we've got the packet header available.. false otherwise
+     */
+    bool isPacketHeaderAvailable() const;
+
+    /**
+     * Get the next packet available in the stream.
+     *
+     * The returned pointer is a pointer directly into the input buffer (and
+     * not allocated, so the user should NOT keep the pointer around or try
+     * to free it.
+     *
+     * @return nullptr if the entire packet isn't available
+     */
+    const cb::mcbp::Header* getPacket() const;
+
+    /**
+     * Get all of the available bytes (up to a maximum bumber of bytes) in
+     * the input stream in a continuous byte buffer.
+     *
+     * NOTE: THIS MIGHT CAUSE REALLOCATION of the input stream so it should
+     * NOT be used unless strictly needed
+     */
+    cb::const_byte_buffer getAvailableBytes(size_t max = 1024) const;
 
     /**
      * Is SASL disabled for this connection or not? (connection authenticated

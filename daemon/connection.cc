@@ -982,6 +982,24 @@ bool Connection::isPacketAvailable() const {
     return buffer.size() >= sizeof(cb::mcbp::Request) + req->getBodylen();
 }
 
+bool Connection::isPacketHeaderAvailable() const {
+    return (read->rdata().size() >= sizeof(cb::mcbp::Request));
+}
+
+const cb::mcbp::Header* Connection::getPacket() const {
+    auto buffer = read->rdata();
+    if (buffer.size() < sizeof(cb::mcbp::Header)) {
+        return nullptr;
+    }
+
+    return reinterpret_cast<const cb::mcbp::Header*>(buffer.data());
+}
+
+cb::const_byte_buffer Connection::getAvailableBytes(size_t max) const {
+    auto buffer = read->rdata();
+    return {buffer.data(), std::min(buffer.size(), max)};
+}
+
 bool Connection::processServerEvents() {
     if (server_events.empty()) {
         return false;
