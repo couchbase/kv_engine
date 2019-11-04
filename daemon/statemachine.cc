@@ -31,6 +31,7 @@
 #include <event2/bufferevent_ssl.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
+#include <nlohmann/json.hpp>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <gsl/gsl>

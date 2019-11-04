@@ -39,6 +39,7 @@
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
 #include <platform/checked_snprintf.h>
+#include <cinttypes>
 
 #include <gsl/gsl>
 
