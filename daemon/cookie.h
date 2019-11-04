@@ -55,6 +55,14 @@ public:
     explicit Cookie(Connection& conn);
 
     /**
+     * The cookie is created for every command we want to execute, but in
+     * some cases we don't want to (or can't) get the entire packet content
+     * in memory (for instance if a client tries to send us a 2GB packet we
+     * want to just keep the header and disconnect the client instead).
+     */
+    enum class PacketContent { Header, Full };
+
+    /**
      * Initialize this cookie.
      *
      * At some point we'll refactor this into being the constructor
@@ -64,10 +72,13 @@ public:
      * in the future we'll have multiple commands per connection and
      * this method should be the constructor).
      *
-     * @param header the packet header
+     * @param content Which part of the content to set
+     * @param buffer the actual payload to set
      * @param tracing_enabled if tracing is enabled for this request
      */
-    void initialize(cb::const_byte_buffer header, bool tacing_enabled);
+    void initialize(PacketContent content,
+                    cb::const_byte_buffer buffer,
+                    bool tacing_enabled);
 
     /**
      * Reset the Cookie object to allow it to be reused in the same
@@ -188,14 +199,6 @@ public:
      *         false if the command blocked (ewouldblock)
      */
     bool execute();
-
-    /**
-     * The cookie is created for every command we want to execute, but in
-     * some cases we don't want to (or can't) get the entire packet content
-     * in memory (for instance if a client tries to send us a 2GB packet we
-     * want to just keep the header and disconnect the client instead).
-     */
-    enum class PacketContent { Header, Full };
 
     /**
      * Set the packet used by this command context.

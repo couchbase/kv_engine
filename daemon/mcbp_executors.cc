@@ -1004,6 +1004,7 @@ void try_read_mcbp_command(Cookie& cookie) {
                 std::to_string(sizeof(cb::mcbp::Request)) + ")");
     }
     cookie.initialize(
+            Cookie::PacketContent::Header,
             cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)},
             c.isTracingEnabled());
 
