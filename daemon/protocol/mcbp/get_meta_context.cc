@@ -22,7 +22,6 @@
 #include <daemon/cookie.h>
 #include <daemon/debug_helpers.h>
 #include <daemon/mcaudit.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <xattr/utils.h>
 

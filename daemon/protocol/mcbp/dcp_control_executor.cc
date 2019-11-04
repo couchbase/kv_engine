@@ -19,7 +19,6 @@
 
 #include "engine_wrapper.h"
 #include "utilities.h"
-#include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
 

@@ -19,7 +19,6 @@
 #include "engine_wrapper.h"
 
 #include <daemon/debug_helpers.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
 #include <daemon/stats.h>

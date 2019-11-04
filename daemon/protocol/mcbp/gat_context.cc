@@ -21,7 +21,6 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
-#include <daemon/mcbp.h>
 #include <daemon/sendbuffer.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>

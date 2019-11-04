@@ -22,7 +22,6 @@
 #include "debug_helpers.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
-#include "mcbp.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"

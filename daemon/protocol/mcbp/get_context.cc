@@ -21,7 +21,6 @@
 #include <daemon/buckets.h>
 #include <daemon/debug_helpers.h>
 #include <daemon/mcaudit.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
 #include <logger/logger.h>

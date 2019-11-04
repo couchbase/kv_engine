@@ -18,7 +18,6 @@
 #include "dcp_mutation.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
-#include "../../mcbp.h"
 
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>

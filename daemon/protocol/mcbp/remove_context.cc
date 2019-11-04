@@ -18,7 +18,6 @@
 #include "engine_wrapper.h"
 
 #include <daemon/buckets.h>
-#include <daemon/mcbp.h>
 #include <memcached/durability_spec.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

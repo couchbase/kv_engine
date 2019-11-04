@@ -20,7 +20,6 @@
 #include <daemon/connection.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/runtime.h>
 #include <daemon/settings.h>

@@ -19,7 +19,6 @@
 #include "utilities.h"
 
 #include <daemon/buckets.h>
-#include <daemon/mcbp.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
 #include <utilities/hdrhistogram.h>

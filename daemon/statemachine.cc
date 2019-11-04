@@ -23,7 +23,6 @@
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
-#include "mcbp.h"
 #include "mcbp_executors.h"
 #include "runtime.h"
 #include "sasl_tasks.h"

@@ -21,7 +21,6 @@
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
-#include <daemon/mcbp.h>
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 

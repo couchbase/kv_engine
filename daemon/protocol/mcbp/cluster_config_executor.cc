@@ -21,7 +21,6 @@
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/session_cas.h>
 #include <logger/logger.h>

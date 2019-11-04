@@ -19,7 +19,6 @@
 
 #include "engine_wrapper.h"
 #include "utilities.h"
-#include <daemon/mcbp.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_buffer_acknowledgement_executor(Cookie& cookie) {

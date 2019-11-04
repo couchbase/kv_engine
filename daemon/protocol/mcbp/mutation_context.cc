@@ -21,7 +21,6 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>

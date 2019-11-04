@@ -19,7 +19,6 @@
 #include "executors.h"
 #include "utilities.h"
 #include <daemon/mcaudit.h>
-#include <daemon/mcbp.h>
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <string>

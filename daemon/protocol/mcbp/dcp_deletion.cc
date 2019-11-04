@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 #include "dcp_deletion.h"
-#include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
 #include <mcbp/protocol/header.h>

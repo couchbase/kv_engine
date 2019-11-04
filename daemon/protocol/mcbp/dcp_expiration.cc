@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 #include "dcp_expiration.h"
-#include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
 #include <memcached/limits.h>

@@ -20,7 +20,6 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 
 std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {

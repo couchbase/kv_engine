@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "../../mcbp.h"
+
 #include "engine_wrapper.h"
 #include "utilities.h"
 #include <memcached/protocol_binary.h>

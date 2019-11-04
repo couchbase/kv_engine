@@ -19,7 +19,6 @@
 #include "engine_wrapper.h"
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
 #include <memcached/util.h>
