@@ -3194,6 +3194,292 @@ TEST_P(DurabilityPassiveStreamTest,
                       cb::mcbp::DcpStreamId{})));
 }
 
+void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
+        cb::durability::Level level, Resolution res) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ht = vb->ht;
+    const auto& ckptMgr = *vb->checkpointManager;
+    const auto& dm = vb->getDurabilityMonitor();
+
+    const auto key = makeStoredDocKey("key1");
+
+    // Checking the state of HT, CM and DM at every meaningful step,
+    // all empty at this point.
+    ASSERT_EQ(0, ht.getNumItems());
+    {
+        const auto htRes = ht.findForUpdate(key);
+        ASSERT_FALSE(htRes.pending);
+        ASSERT_FALSE(htRes.committed);
+    }
+    ASSERT_EQ(0, ckptMgr.getHighSeqno());
+    ASSERT_EQ(0, dm.getNumTracked());
+
+    // First we check the behaviour at receiving a memory snapshot
+    const uint32_t opaque = 0;
+    auto prepareSeqno = 1;
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          prepareSeqno /*snapStart*/,
+                          prepareSeqno /*snapEnd*/,
+                          MARKER_FLAG_MEMORY | MARKER_FLAG_CHK /*flags*/,
+                          {} /*HCS*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // Replica receives PRE(key)
+    using namespace cb::durability;
+    const auto prepare =
+            makePendingItem(key, "value", {level, Timeout::Infinity()});
+    prepare->setBySeqno(prepareSeqno);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      prepare,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr /*ext-meta*/,
+                      cb::mcbp::DcpStreamId{})));
+
+    EXPECT_EQ(1, ht.getNumItems());
+    {
+        const auto htRes = ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.pending);
+        EXPECT_EQ(prepareSeqno, htRes.pending->getBySeqno());
+        EXPECT_TRUE(htRes.pending->isPending());
+        ASSERT_FALSE(htRes.committed);
+    }
+    EXPECT_EQ(prepareSeqno, ckptMgr.getHighSeqno());
+    EXPECT_EQ(1, dm.getNumTracked());
+
+    // Replica receives a legal Commit/Abort for PRE(key).
+    // Note: Active queues Durability items into different checkpoints for
+    // avoiding deduplication, so Replica never expects Prepare+Commit/Abort
+    // within the same snapshot.
+    auto completeSeqno = 2;
+    marker = SnapshotMarker(opaque,
+                            vbid,
+                            completeSeqno /*snapStart*/,
+                            completeSeqno + 10 /*snapEnd*/,
+                            MARKER_FLAG_CHK | MARKER_FLAG_MEMORY /*flags*/,
+                            {} /*HCS*/,
+                            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    std::unique_ptr<DcpResponse> msg;
+    switch (res) {
+    case Resolution::Commit: {
+        msg = std::make_unique<CommitSyncWrite>(
+                opaque, vbid, prepareSeqno, completeSeqno, key);
+        break;
+    }
+    case Resolution::Abort: {
+        msg = std::make_unique<AbortSyncWrite>(
+                opaque, vbid, key, prepareSeqno, completeSeqno);
+        break;
+    }
+    }
+    ASSERT_EQ(ENGINE_SUCCESS, stream->messageReceived(std::move(msg)));
+
+    {
+        const auto htRes = ht.findForUpdate(key);
+
+        switch (res) {
+        case Resolution::Commit: {
+            ASSERT_TRUE(htRes.committed);
+            EXPECT_EQ(CommittedState::CommittedViaPrepare,
+                      htRes.committed->getCommitted());
+            EXPECT_EQ(completeSeqno, htRes.committed->getBySeqno());
+            if (persistent()) {
+                EXPECT_EQ(1, ht.getNumItems());
+                ASSERT_FALSE(htRes.pending);
+            } else {
+                // Keeping the Prepare SV in HT for Ephemeral.
+                EXPECT_EQ(2, ht.getNumItems());
+                ASSERT_TRUE(htRes.pending);
+                EXPECT_TRUE(htRes.pending->isCompleted());
+                // SV is turned into a PrepareCommitted, seqno is still
+                // prepareSeqno.
+                EXPECT_EQ(CommittedState::PrepareCommitted,
+                          htRes.pending->getCommitted());
+                EXPECT_EQ(prepareSeqno, htRes.pending->getBySeqno());
+            }
+            break;
+        }
+        case Resolution::Abort: {
+            ASSERT_FALSE(htRes.committed);
+            if (persistent()) {
+                EXPECT_EQ(0, ht.getNumItems());
+                ASSERT_FALSE(htRes.pending);
+            } else {
+                // Keeping the Prepare SV in HT for Ephemeral.
+                EXPECT_EQ(1, ht.getNumItems());
+                ASSERT_TRUE(htRes.pending);
+                EXPECT_TRUE(htRes.pending->isCompleted());
+                // SV is turned into a PrepareAborted, seqno is set to
+                // abortSeqno.
+                EXPECT_EQ(CommittedState::PrepareAborted,
+                          htRes.pending->getCommitted());
+                EXPECT_EQ(completeSeqno, htRes.pending->getBySeqno());
+            }
+            break;
+        }
+        }
+    }
+    EXPECT_EQ(completeSeqno, ckptMgr.getHighSeqno());
+    EXPECT_EQ(0, dm.getNumTracked());
+
+    // Here the important part of the test begins.
+    // From this point onward, we have a Completed (Committed / Aborted) Prepare
+    // in the HT, but no in-flight Prepare for key.
+    // Before the fix, at VBucket::abort for Ephemeral we wrongly process the
+    // Abort as if an in-flight Prepare is present in the HT (and at some point
+    // we throw).
+
+    // Unprepared Abort unexpected at this point as Replica is still receiving
+    // a memory snapshot.
+    ASSERT_EQ(ENGINE_EINVAL,
+              stream->messageReceived(
+                      std::make_unique<AbortSyncWrite>(opaque,
+                                                       vbid,
+                                                       key,
+                                                       10 /*prepareSeqno*/,
+                                                       11 /*abortSeqno*/)));
+
+    // Now Replica receives a disk snapshot
+    marker = SnapshotMarker(opaque,
+                            vbid,
+                            13 /*snapStart*/,
+                            20 /*snapEnd*/,
+                            MARKER_FLAG_CHK | MARKER_FLAG_DISK /*flags*/,
+                            {} /*HCS*/,
+                            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // This tests the failure path triggered by that prepareSeqno is less than
+    // snapStart.
+    ASSERT_EQ(ENGINE_EINVAL,
+              stream->messageReceived(
+                      std::make_unique<AbortSyncWrite>(opaque,
+                                                       vbid,
+                                                       key,
+                                                       12 /*prepareSeqno*/,
+                                                       13 /*abortSeqno*/)));
+
+    // This time the unprepared abort is legal, the related Prepare could have
+    // been deduplicated at Active.
+    auto abortSeqno = 16;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+                      opaque, vbid, key, 15 /*prepareSeqno*/, abortSeqno)));
+
+    {
+        const auto htRes = ht.findForUpdate(key);
+
+        switch (res) {
+        case Resolution::Commit: {
+            ASSERT_TRUE(htRes.committed);
+            EXPECT_EQ(CommittedState::CommittedViaPrepare,
+                      htRes.committed->getCommitted());
+            EXPECT_EQ(completeSeqno, htRes.committed->getBySeqno());
+            if (persistent()) {
+                EXPECT_EQ(1, ht.getNumItems());
+                ASSERT_FALSE(htRes.pending);
+            } else {
+                // Keeping the Prepare SV in HT for Ephemeral.
+                EXPECT_EQ(2, ht.getNumItems());
+            }
+            break;
+        }
+        case Resolution::Abort: {
+            ASSERT_FALSE(htRes.committed);
+            if (persistent()) {
+                EXPECT_EQ(0, ht.getNumItems());
+                ASSERT_FALSE(htRes.pending);
+            } else {
+                // Keeping the Prepare SV in HT for Ephemeral.
+                EXPECT_EQ(1, ht.getNumItems());
+            }
+            break;
+        }
+        }
+        if (ephemeral()) {
+            // The old PrepareCommitted SV is turned into a PrepareAborted,
+            // seqno is set to abortSeqno.
+            ASSERT_TRUE(htRes.pending);
+            EXPECT_TRUE(htRes.pending->isCompleted());
+            EXPECT_EQ(CommittedState::PrepareAborted,
+                      htRes.pending->getCommitted());
+            EXPECT_EQ(abortSeqno, htRes.pending->getBySeqno());
+        }
+    }
+    EXPECT_EQ(abortSeqno, ckptMgr.getHighSeqno());
+    EXPECT_EQ(0, dm.getNumTracked());
+}
+
+TEST_P(DurabilityPassiveStreamTest, MajorityPrepareAbortedAtAbort) {
+    testPrepareCompletedAtAbort(cb::durability::Level::Majority,
+                                Resolution::Abort);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       MajorityAndPersistOnMasterPrepareAbortedAtAbort) {
+    // @todo: Skip the test until MB-36772 is done (Replica should reject
+    //  PersistTo prepare)
+    if (ephemeral()) {
+        return;
+    }
+    testPrepareCompletedAtAbort(
+            cb::durability::Level::MajorityAndPersistOnMaster,
+            Resolution::Abort);
+}
+
+/**
+ * @todo: Fails for MB-36735, enable when fixed
+ */
+TEST_P(DurabilityPassiveStreamTest,
+       DISABLED_PersistToMajorityPrepareAbortedAtAbort) {
+    // @todo: Skip the test until MB-36772 is done (Replica should reject
+    //  PersistTo prepare)
+    if (ephemeral()) {
+        return;
+    }
+    testPrepareCompletedAtAbort(cb::durability::Level::PersistToMajority,
+                                Resolution::Abort);
+}
+
+TEST_P(DurabilityPassiveStreamTest, MajorityPrepareCommittedAtAbort) {
+    testPrepareCompletedAtAbort(cb::durability::Level::Majority,
+                                Resolution::Commit);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       MajorityAndPersistOnMasterPrepareCommittedAtAbort) {
+    // @todo: Skip the test until MB-36772 is done (Replica should reject
+    //  PersistTo prepare)
+    if (ephemeral()) {
+        return;
+    }
+    testPrepareCompletedAtAbort(
+            cb::durability::Level::MajorityAndPersistOnMaster,
+            Resolution::Commit);
+}
+
+/**
+ * @todo: Fails for MB-36735, enable when fixed
+ */
+TEST_P(DurabilityPassiveStreamTest,
+       DISABLED_PersistToMajorityPrepareCommittedAtAbort) {
+    // @todo: Skip the test until MB-36772 is done (Replica should reject
+    //  PersistTo prepare)
+    if (ephemeral()) {
+        return;
+    }
+    testPrepareCompletedAtAbort(cb::durability::Level::PersistToMajority,
+                                Resolution::Commit);
+}
+
 void DurabilityPromotionStreamTest::SetUp() {
     // Set up as a replica
     DurabilityPassiveStreamTest::SetUp();
