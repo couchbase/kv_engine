@@ -298,7 +298,13 @@ public:
         return static_cast<DeleteSource>(deletionCause);
     }
 
-    uint32_t getQueuedTime(void) const { return queuedTime; }
+    void setQueuedTime() {
+        queuedTime = std::chrono::steady_clock::now();
+    }
+
+    std::chrono::steady_clock::time_point getQueuedTime() const {
+        return queuedTime;
+    }
 
     queue_op getOperation(void) const {
         return op;
@@ -530,7 +536,6 @@ private:
     // last Committed or Aborted Prepare.
     cb::uint48_t prepareSeqno;
 
-    uint32_t queuedTime;
     Vbid vbucketId;
     queue_op op;
     uint8_t nru  : 2;
@@ -555,6 +560,13 @@ private:
      */
     cb::durability::Requirements durabilityReqs =
             cb::durability::NoRequirements;
+
+    /**
+     * Time the Item was enqueued into the CheckpointManager. Only set for
+     * mutations. Used to measure how long it takes for the flusher to visit the
+     * Item. See dirtyAge stat and storage_age histogram.
+     */
+    std::chrono::steady_clock::time_point queuedTime;
 
     static std::atomic<uint64_t> casCounter;
     DISALLOW_ASSIGN(Item);

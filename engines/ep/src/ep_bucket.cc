@@ -873,9 +873,10 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
 
     int64_t bySeqno = qi->getBySeqno();
     const bool deleted = qi->isDeleted() && !qi->isPending();
-    rel_time_t queued(qi->getQueuedTime());
 
-    auto dirtyAge = std::chrono::seconds(ep_current_time() - queued);
+    std::chrono::microseconds dirtyAge =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - qi->getQueuedTime());
     stats.dirtyAgeHisto.add(dirtyAge);
     stats.dirtyAge.store(static_cast<rel_time_t>(dirtyAge.count()));
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
