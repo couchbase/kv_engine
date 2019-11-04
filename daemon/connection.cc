@@ -754,7 +754,8 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
 }
 
 Connection::Connection(FrontEndThread& thr)
-    : socketDescriptor(INVALID_SOCKET),
+    : read(std::make_unique<cb::Pipe>(DATA_BUFFER_SIZE)),
+      socketDescriptor(INVALID_SOCKET),
       connectedToSystemPort(false),
       base(nullptr),
       thread(thr),
@@ -772,7 +773,8 @@ Connection::Connection(SOCKET sfd,
                        event_base* b,
                        const ListeningPort& ifc,
                        FrontEndThread& thr)
-    : socketDescriptor(sfd),
+    : read(std::make_unique<cb::Pipe>(DATA_BUFFER_SIZE)),
+      socketDescriptor(sfd),
       connectedToSystemPort(ifc.system),
       base(b),
       thread(thr),
@@ -998,7 +1000,6 @@ bool Connection::processServerEvents() {
 }
 
 void Connection::runEventLoop(short) {
-    conn_loan_buffers(this);
     numEvents = max_reqs_per_event;
 
     try {
@@ -1068,8 +1069,6 @@ void Connection::runEventLoop(short) {
             }
         }
     }
-
-    conn_return_buffers(this);
 }
 
 bool Connection::close() {

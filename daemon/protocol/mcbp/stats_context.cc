@@ -235,12 +235,6 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
                  "threads",
                  Settings::instance().getNumWorkerThreads());
         add_stat(cookie, add_stat_callback, "conn_yields", thread_stats.conn_yields);
-        add_stat(cookie, add_stat_callback, "rbufs_allocated",
-                 thread_stats.rbufs_allocated);
-        add_stat(cookie, add_stat_callback, "rbufs_loaned",
-                 thread_stats.rbufs_loaned);
-        add_stat(cookie, add_stat_callback, "rbufs_existing",
-                 thread_stats.rbufs_existing);
         add_stat(cookie, add_stat_callback, "iovused_high_watermark",
                  thread_stats.iovused_high_watermark);
         add_stat(cookie, add_stat_callback, "msgused_high_watermark",
