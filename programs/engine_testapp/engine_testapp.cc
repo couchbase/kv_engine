@@ -1339,7 +1339,7 @@ int main(int argc, char **argv) {
     bool dot = false;
     bool loop = false;
     bool terminate_on_error = false;
-    const char* engine = nullptr;
+    std::string engine;
     const char* engine_args = nullptr;
     const char* test_suite = nullptr;
     std::unique_ptr<std::regex> test_case_regex;
@@ -1466,15 +1466,18 @@ int main(int argc, char **argv) {
     }
 
     /* validate args */
-    if (engine == nullptr) {
+    if (engine.empty()) {
         fprintf(stderr, "-E <ep|mc> is a required parameter.\n");
         return 1;
+    }
+
+    if (engine == "ep") {
+        harness.bucketType = BucketType::Couchstore;
+    } else if (engine == "mc") {
+        harness.bucketType = BucketType::Memcached;
     } else {
-        if (strncmp(engine, "ep", 2) == 0) {
-            harness.bucketType = BucketType::Couchstore;
-        } else if (strncmp(engine, "mc", 2) == 0) {
-            harness.bucketType = BucketType::Memcached;
-        }
+        fprintf(stderr, R"(Engine must be "ep" or "mc"\n)");
+        return 1;
     }
 
     if (test_suite == nullptr) {
@@ -1574,7 +1577,7 @@ int main(int argc, char **argv) {
                         // this else if can be removed.
                         try {
                             ecode = execute_test(
-                                    testcases[i], engine, engine_args);
+                                    testcases[i], engine.c_str(), engine_args);
                         } catch (const TestExpectationFailed&) {
                             ecode = FAIL;
                         } catch (const std::exception& e) {
