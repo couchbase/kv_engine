@@ -669,7 +669,10 @@ class MemcachedClient(object):
         """Get the name of all buckets."""
         opaque, cas, data = self._doCmd(
             memcacheConstants.CMD_LIST_BUCKETS, '', '', b'', 0)
-        return data.decode().strip().split(' ')
+        stripped = data.decode().strip()
+        if not stripped:
+            return []
+        return stripped.split(' ')
 
     def get_error_map(self):
         _, _, errmap = self._doCmd(memcacheConstants.CMD_GET_ERROR_MAP, '',
