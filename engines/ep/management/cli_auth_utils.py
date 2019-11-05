@@ -81,6 +81,8 @@ def cmd_decorator(f):
         try:
             if kwargs.pop('allBuckets', None):
                 buckets = mc.list_buckets()
+                if not buckets:
+                    print("No accessible buckets found")
                 for bucket in buckets:
                     print('*' * 78)
                     print(bucket)
