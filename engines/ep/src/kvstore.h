@@ -993,6 +993,10 @@ struct KVStoreRWRO {
     KVStoreRWRO(KVStore* rw, KVStore* ro) : rw(rw), ro(ro) {
     }
 
+    KVStoreRWRO(std::unique_ptr<KVStore> rw, std::unique_ptr<KVStore> ro)
+        : rw(std::move(rw)), ro(std::move(ro)) {
+    }
+
     std::unique_ptr<KVStore> rw;
     std::unique_ptr<KVStore> ro;
 };

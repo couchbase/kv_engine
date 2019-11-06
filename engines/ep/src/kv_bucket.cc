@@ -2666,3 +2666,14 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
         engine.getDcpConnMap().seqnoAckVBPassiveStream(vbid, seqno);
     };
 }
+
+KVStoreRWRO KVBucket::takeRWRO(size_t shardId) {
+    return vbMap.shards[shardId]->takeRWRO();
+}
+
+void KVBucket::setRWRO(size_t shardId,
+                       std::unique_ptr<KVStore> rw,
+                       std::unique_ptr<KVStore> ro) {
+    vbMap.shards[shardId]->setROUnderlying(std::move(ro));
+    vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
+}

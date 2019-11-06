@@ -55,6 +55,7 @@ class BgFetcher;
 class Configuration;
 class EPBucket;
 class Flusher;
+struct KVStoreRWRO;
 
 class KVShard {
 public:
@@ -76,6 +77,16 @@ public:
         }
         return rwStore.get();
     }
+
+    void setRWUnderlying(std::unique_ptr<KVStore> newStore);
+
+    void setROUnderlying(std::unique_ptr<KVStore> newStore);
+
+    /**
+     * move the rw/ro stores out of the shard, the shard will be left with no
+     * KVStores after calling this method
+     */
+    KVStoreRWRO takeRWRO();
 
     template <class UnaryFunction>
     void forEachKVStore(UnaryFunction f) {

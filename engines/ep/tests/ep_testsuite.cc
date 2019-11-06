@@ -7760,9 +7760,9 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
 
     wait_for_stat_change(h, "vb_active_ops_reject", 0);
 
-    checkeq(1,
+    checkne(0,
             get_int_stat(h, "vb_0:ops_reject", "vbucket-details 0"),
-            "Expected rejected ops to be equal to 1");
+            "Expected rejected ops to not be 0");
 
     fclose(fp);
 

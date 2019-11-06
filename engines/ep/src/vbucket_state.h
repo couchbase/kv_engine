@@ -37,6 +37,9 @@ struct vbucket_transition_state {
     /// update this from the Item, assumes the Item's value was set by ::toItem
     void fromItem(const Item& item);
 
+    bool operator==(const vbucket_transition_state& other) const;
+    bool operator!=(const vbucket_transition_state& other) const;
+
     std::string failovers = "";
 
     /**
@@ -92,6 +95,9 @@ struct vbucket_state {
     bool needsToBePersisted(const vbucket_state& vbstate);
 
     void reset();
+
+    bool operator==(const vbucket_state& other) const;
+    bool operator!=(const vbucket_state& other) const;
 
     vbucket_state_t state = vbucket_state_dead;
     cb::uint48_t maxDeletedSeqno = 0;

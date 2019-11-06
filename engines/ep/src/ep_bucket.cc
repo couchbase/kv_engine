@@ -349,7 +349,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         moreAvailable = toFlush.moreAvailable;
 
         KVStore* rwUnderlying = getRWUnderlying(vb->getId());
-        vbucket_state vbstate;
+        vbucket_state vbstate, vbstateRollback;
         if (!items.empty()) {
             while (!rwUnderlying->begin(
                     std::make_unique<EPTransactionContext>(stats, *vb))) {
@@ -372,8 +372,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // so we may not (if this is the first flush) have a state returned
             // from the KVStore.
             if (persistedVbState) {
-                // Copies, we don't actually modify the value at the pointer.
-                vbstate = *persistedVbState;
+                // Take two copies.
+                // First will be mutated as the new state
+                // Second remains unchanged and will be used on failure
+                vbstateRollback = vbstate = *persistedVbState;
             }
             // We need to set a few values from the in-memory state.
             uint64_t maxSeqno = 0;
@@ -608,7 +610,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
              * of items to flush.
              */
             if (items_flushed > 0) {
-                commit(*rwUnderlying, collectionFlush);
+                commit(vb->getId(), *rwUnderlying, collectionFlush);
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
@@ -660,6 +662,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 //     (write+sync to disk), then we can just afford to calling
                 //     back to the DM unconditionally.
                 vb->notifyPersistenceToDurabilityMonitor();
+            } else {
+                // Flusher failed to commit the batch, rollback vbstate
+                items_flushed = 0;
+                if (rwUnderlying->getVBucketState(vbid)) {
+                    *rwUnderlying->getVBucketState(vbid) = vbstateRollback;
+                }
             }
 
             auto flush_end = std::chrono::steady_clock::now();
@@ -705,19 +713,19 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     flusherBatchSplitTrigger = limit;
 }
 
-void EPBucket::commit(KVStore& kvstore,
+void EPBucket::commit(Vbid vbid,
+                      KVStore& kvstore,
                       Collections::VB::Flush& collectionsFlush) {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
-    while (!kvstore.commit(collectionsFlush)) {
+    if (!kvstore.commit(collectionsFlush)) {
         ++stats.commitFailed;
-        EP_LOG_WARN(
-                "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
+    } else {
+        ++stats.flusherCommits;
     }
 
-    ++stats.flusherCommits;
     auto commit_end = std::chrono::steady_clock::now();
     auto commit_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                                commit_end - commit_start)

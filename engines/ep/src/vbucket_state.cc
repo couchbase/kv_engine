@@ -50,6 +50,20 @@ void vbucket_transition_state::fromItem(const Item& item) {
     }
 }
 
+bool vbucket_transition_state::operator==(
+        const vbucket_transition_state& other) const {
+    bool rv = true;
+    rv = rv && (failovers == other.failovers);
+    rv = rv && (replicationTopology == other.replicationTopology);
+    rv = rv && (state == other.state);
+    return rv;
+}
+
+bool vbucket_transition_state::operator!=(
+        const vbucket_transition_state& other) const {
+    return !(*this == other);
+}
+
 bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
     /*
      * The vbucket state information is to be persisted only if a change is
@@ -81,6 +95,30 @@ void vbucket_state::reset() {
     persistedPreparedSeqno = 0;
     onDiskPrepares = 0;
     transition = vbucket_transition_state{};
+}
+
+bool vbucket_state::operator==(const vbucket_state& other) const {
+    bool rv = true;
+    rv = rv && (maxDeletedSeqno == other.maxDeletedSeqno);
+    rv = rv && (highSeqno == other.highSeqno);
+    rv = rv && (purgeSeqno == other.purgeSeqno);
+    rv = rv && (lastSnapStart == other.lastSnapStart);
+    rv = rv && (lastSnapEnd == other.lastSnapEnd);
+    rv = rv && (maxCas == other.maxCas);
+    rv = rv && (hlcCasEpochSeqno == other.hlcCasEpochSeqno);
+    rv = rv && (mightContainXattrs == other.mightContainXattrs);
+    rv = rv && (supportsNamespaces == other.supportsNamespaces);
+    rv = rv && (version == other.version);
+    rv = rv && (persistedCompletedSeqno == other.persistedCompletedSeqno);
+    rv = rv && (persistedPreparedSeqno == other.persistedCompletedSeqno);
+    rv = rv && (onDiskPrepares == other.onDiskPrepares);
+    rv = rv && (checkpointType == other.checkpointType);
+    rv = rv && (transition == other.transition);
+    return rv;
+}
+
+bool vbucket_state::operator!=(const vbucket_state& other) const {
+    return !(*this == other);
 }
 
 void to_json(nlohmann::json& json, const vbucket_state& vbs) {

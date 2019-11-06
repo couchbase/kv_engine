@@ -23,6 +23,7 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
+#include "kvstore.h"
 #ifdef EP_USE_MAGMA
 #include "magma-kvstore/magma-kvstore_config.h"
 #endif
@@ -127,4 +128,16 @@ std::vector<Vbid> KVShard::getVBuckets() {
         }
     }
     return rv;
+}
+
+void KVShard::setRWUnderlying(std::unique_ptr<KVStore> newStore) {
+    rwStore.swap(newStore);
+}
+
+void KVShard::setROUnderlying(std::unique_ptr<KVStore> newStore) {
+    roStore.swap(newStore);
+}
+
+KVStoreRWRO KVShard::takeRWRO() {
+    return {std::move(rwStore), std::move(roStore)};
 }
