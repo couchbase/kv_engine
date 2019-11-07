@@ -512,6 +512,26 @@ void Connection::read_callback(bufferevent*, void* ctx) {
                           "Connection::read_callback::threadLock",
                           SlowMutexThreshold);
 
+    // Drain all of the data available in bufferevent into the
+    // socket read buffer
+    auto* event = instance->bev.get();
+    auto nb = evbuffer_get_length(bufferevent_get_input(event));
+    if (nb > 0) {
+        try {
+            instance->read->ensureCapacity(nb);
+            auto nr = instance->read->produce(
+                    [event](cb::byte_buffer buffer) -> ssize_t {
+                        return ssize_t(bufferevent_read(
+                                event, buffer.data(), buffer.size()));
+                    });
+
+            get_thread_stats(instance)->bytes_read += nr;
+        } catch (const std::bad_alloc&) {
+            LOG_WARNING("{}: Failed to allocate memory in network read buffer.",
+                        instance->getId());
+        }
+    }
+
     // Remove the connection from the list of pending io's (in case the
     // object was scheduled to run in the dispatcher before the
     // callback for the worker thread is executed.
@@ -656,46 +676,6 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
         return false;
     }
     return true;
-}
-
-/**
- * To protect us from someone flooding a connection with bogus data causing
- * the connection to eat up all available memory, break out and start
- * looking at the data I've got after a number of reallocs...
- */
-Connection::TryReadResult Connection::tryReadNetwork() {
-    // Drain the buffer used by libevent by moving the data into our
-    // internal read buffer. This cause an extra memory copy, and will be
-    // refactored in the future.
-    // @todo this code will be fixed as part of getting rid of of the read
-    // buffer
-    auto nb = evbuffer_get_length(bufferevent_get_input(bev.get()));
-    if (nb == 0) {
-        return TryReadResult::NoDataReceived;
-    }
-
-    try {
-        read->ensureCapacity(nb);
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING(
-                "{}: Failed to allocate memory for package header. Closing "
-                "connection {}",
-                getId(),
-                getDescription());
-        return TryReadResult::Error;
-    }
-
-    auto* event = bev.get();
-    auto nr = read->produce([event](cb::byte_buffer buffer) -> ssize_t {
-        return ssize_t(bufferevent_read(event, buffer.data(), buffer.size()));
-    });
-
-    if (nr < 0) {
-        return TryReadResult::Error;
-    }
-
-    get_thread_stats(this)->bytes_read += nr;
-    return TryReadResult::DataReceived;
 }
 
 bool Connection::dcpUseWriteBuffer(size_t size) const {

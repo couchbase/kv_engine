@@ -456,24 +456,6 @@ public:
      */
     void enableReadEvent();
 
-    enum class TryReadResult {
-        /** Data received on the socket and ready to parse */
-        DataReceived,
-        /** No data received on the socket */
-        NoDataReceived,
-        /** An error occurred on the socket */
-        Error,
-    };
-
-    /**
-     * read from network as much as we can, handle buffer overflow and
-     * connection close. Before reading, move the remaining incomplete fragment
-     * of a command (if any) to the beginning of the buffer.
-     *
-     * @return enum try_read_result
-     */
-    TryReadResult tryReadNetwork();
-
     StateMachine::State getWriteAndGo() const {
         return write_and_go;
     }
