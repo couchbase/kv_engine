@@ -2069,16 +2069,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        stats->mem_low_wat_percent.store(0.75);
-        configuration.setMemLowWat(percentOf(
-                configuration.getMaxSize(), stats->mem_low_wat_percent.load()));
+        stats.mem_low_wat_percent.store(0.75);
+        configuration.setMemLowWat(percentOf(configuration.getMaxSize(),
+                                             stats.mem_low_wat_percent.load()));
     }
 
     if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        stats->mem_high_wat_percent.store(0.85);
-        configuration.setMemHighWat(
-                percentOf(configuration.getMaxSize(),
-                          stats->mem_high_wat_percent.load()));
+        stats.mem_high_wat_percent.store(0.85);
+        configuration.setMemHighWat(percentOf(
+                configuration.getMaxSize(), stats.mem_high_wat_percent.load()));
     }
 
 
@@ -2176,11 +2175,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 }
 
 void EventuallyPersistentEngine::destroyInner(bool force) {
-    stats->forceShutdown = force;
-    stats->isShutdown = true;
+    stats.forceShutdown = force;
+    stats.isShutdown = true;
 
     // Perform a snapshot of the stats before shutting down so we can persist
-    // the type of shutdown (stats->forceShutdown), and consequently on the
+    // the type of shutdown (stats.forceShutdown), and consequently on the
     // next warmup can determine is there was a clean shutdown - see
     // Warmup::cleanShutdown
     if (kvBucket) {
@@ -2227,7 +2226,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
     if (*itm == NULL) {
         return memoryCondition();
     } else {
-        stats->itemAllocSizeHisto.addValue(nbytes);
+        stats.itemAllocSizeHisto.addValue(nbytes);
         return ENGINE_SUCCESS;
     }
 }
@@ -2282,7 +2281,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
         break;
 
     case ENGINE_SUCCESS:
-        ++stats->numOpsDelete;
+        ++stats.numOpsDelete;
         break;
 
     default:
@@ -2302,7 +2301,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
                                                   Vbid vbucket,
                                                   get_options_t options) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats->getCmdHisto),
+            HdrMicroSecStopwatch(stats.getCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::Get));
 
     GetValue gv(kvBucket->get(key, vbucket, cookie, options));
@@ -2311,7 +2310,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
     if (ret == ENGINE_SUCCESS) {
         *itm = gv.item.release();
         if (options & TRACK_STATISTICS) {
-            ++stats->numOpsGet;
+            ++stats.numOpsGet;
         }
     } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
         if (isDegradedMode()) {
@@ -2332,8 +2331,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
 
     auto rv = gv.getStatus();
     if (rv == ENGINE_SUCCESS) {
-        ++stats->numOpsGet;
-        ++stats->numOpsStore;
+        ++stats.numOpsGet;
+        ++stats.numOpsStore;
         return cb::makeEngineErrorItemPair(
                 cb::engine_errc::success, gv.item.release(), handle);
     }
@@ -2366,7 +2365,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
     auto* handle = reinterpret_cast<EngineIface*>(this);
 
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats->getCmdHisto),
+            HdrMicroSecStopwatch(stats.getCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::GetIf));
 
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
@@ -2463,7 +2462,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
                                       lock_timeout, cookie);
 
     if (result.getStatus() == ENGINE_SUCCESS) {
-        ++stats->numOpsGet;
+        ++stats.numOpsGet;
         *itm = result.item.release();
     }
 
@@ -2484,7 +2483,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats->storeCmdHisto),
+            HdrMicroSecStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::Store));
 
     // Check if this is a in-progress durable store which has now completed -
@@ -2539,7 +2538,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
 
     switch (status) {
     case ENGINE_SUCCESS:
-        ++stats->numOpsStore;
+        ++stats.numOpsStore;
         // If success - check if we're now in need of some memory freeing
         kvBucket->checkAndMaybeFreeMemory();
         break;
@@ -2588,7 +2587,7 @@ void EventuallyPersistentEngine::initializeEngineCallbacks() {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
     // Do we think it's possible we could free something?
     bool haveEvidenceWeCanFreeMemory =
-            (stats->getMaxDataSize() > stats->getMemOverhead());
+            (stats.getMaxDataSize() > stats.getMemOverhead());
     if (haveEvidenceWeCanFreeMemory) {
         // Look for more evidence by seeing if we have resident items.
         VBucketCountVisitor countVisitor(vbucket_state_active);
@@ -2598,27 +2597,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
             countVisitor.getNumItems();
     }
     if (haveEvidenceWeCanFreeMemory) {
-        ++stats->tmp_oom_errors;
+        ++stats.tmp_oom_errors;
         // Wake up the item pager task as memory usage
         // seems to have exceeded high water mark
         getKVBucket()->attemptToFreeMemory();
         return ENGINE_TMPFAIL;
     } else {
         if (getKVBucket()->getItemEvictionPolicy() == EvictionPolicy::Full) {
-            ++stats->tmp_oom_errors;
+            ++stats.tmp_oom_errors;
             getKVBucket()->wakeUpCheckpointRemover();
             return ENGINE_TMPFAIL;
         }
 
-        ++stats->oom_errors;
+        ++stats.oom_errors;
         return ENGINE_ENOMEM;
     }
 }
 
 bool EventuallyPersistentEngine::hasMemoryForItemAllocation(
         uint32_t totalItemSize) {
-    return (stats->getEstimatedTotalMemoryUsed() + totalItemSize) <=
-           stats->getMaxDataSize();
+    return (stats.getEstimatedTotalMemoryUsed() + totalItemSize) <=
+           stats.getMaxDataSize();
 }
 
 bool EventuallyPersistentEngine::enableTraffic(bool enable) {
@@ -2708,53 +2707,49 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
     add_casted_stat("ep_persist_vbstate_total",
                     epstats.totalPersistVBState, add_stat, cookie);
 
-    // Read the estimate first so any difference with precise can be seen
+    size_t memUsed = stats.getPreciseTotalMemoryUsed();
+    add_casted_stat("mem_used", memUsed, add_stat, cookie);
     add_casted_stat("mem_used_estimate",
-                    stats->getEstimatedTotalMemoryUsed(),
+                    stats.getEstimatedTotalMemoryUsed(),
                     add_stat,
                     cookie);
-    size_t memUsed = stats->getPreciseTotalMemoryUsed();
-    add_casted_stat("mem_used", memUsed, add_stat, cookie);
-
     add_casted_stat("ep_mem_low_wat_percent",
-                    stats->mem_low_wat_percent,
+                    stats.mem_low_wat_percent,
                     add_stat,
                     cookie);
     add_casted_stat("ep_mem_high_wat_percent",
-                    stats->mem_high_wat_percent,
+                    stats.mem_high_wat_percent,
                     add_stat,
                     cookie);
     add_casted_stat("bytes", memUsed, add_stat, cookie);
-    add_casted_stat("ep_kv_size", stats->getCurrentSize(), add_stat, cookie);
-    add_casted_stat("ep_blob_num", stats->getNumBlob(), add_stat, cookie);
+    add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
+    add_casted_stat("ep_blob_num", stats.getNumBlob(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
     add_casted_stat(
-            "ep_blob_overhead", stats->getBlobOverhead(), add_stat, cookie);
+            "ep_blob_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
 #endif
     add_casted_stat(
-            "ep_value_size", stats->getTotalValueSize(), add_stat, cookie);
+            "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);
     add_casted_stat(
-            "ep_storedval_size", stats->getStoredValSize(), add_stat, cookie);
+            "ep_storedval_size", stats.getStoredValSize(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat("ep_storedval_overhead",
-                    stats->getBlobOverhead(),
-                    add_stat,
-                    cookie);
+    add_casted_stat(
+            "ep_storedval_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
 #endif
     add_casted_stat(
-            "ep_storedval_num", stats->getNumStoredVal(), add_stat, cookie);
-    add_casted_stat("ep_overhead", stats->getMemOverhead(), add_stat, cookie);
-    add_casted_stat("ep_item_num", stats->getNumItem(), add_stat, cookie);
+            "ep_storedval_num", stats.getNumStoredVal(), add_stat, cookie);
+    add_casted_stat("ep_overhead", stats.getMemOverhead(), add_stat, cookie);
+    add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
 
-    add_casted_stat("ep_oom_errors", stats->oom_errors, add_stat, cookie);
+    add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat(
-            "ep_tmp_oom_errors", stats->tmp_oom_errors, add_stat, cookie);
+            "ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
     add_casted_stat("ep_mem_tracker_enabled",
-                    stats->memoryTrackerEnabled,
+                    stats.memoryTrackerEnabled,
                     add_stat,
                     cookie);
     add_casted_stat("ep_bg_fetched", epstats.bg_fetched,
@@ -3153,59 +3148,56 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(
         const void* cookie, const AddStatFn& add_stat) {
-    // Read the estimate first so any difference to precise can be seen
     add_casted_stat("mem_used_estimate",
-                    stats->getEstimatedTotalMemoryUsed(),
+                    stats.getEstimatedTotalMemoryUsed(),
                     add_stat,
                     cookie);
-    auto memUsed = stats->getPreciseTotalMemoryUsed();
+    auto memUsed = stats.getPreciseTotalMemoryUsed();
     add_casted_stat("bytes", memUsed, add_stat, cookie);
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
 
     add_casted_stat("mem_used_merge_threshold",
-                    stats->getMemUsedMergeThreshold(),
+                    stats.getMemUsedMergeThreshold(),
                     add_stat,
                     cookie);
 
-    add_casted_stat("ep_kv_size", stats->getCurrentSize(), add_stat, cookie);
+    add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
     add_casted_stat(
-            "ep_value_size", stats->getTotalValueSize(), add_stat, cookie);
-    add_casted_stat("ep_overhead", stats->getMemOverhead(), add_stat, cookie);
-    add_casted_stat("ep_max_size", stats->getMaxDataSize(), add_stat, cookie);
-    add_casted_stat("ep_mem_low_wat", stats->mem_low_wat, add_stat, cookie);
+            "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);
+    add_casted_stat("ep_overhead", stats.getMemOverhead(), add_stat, cookie);
+    add_casted_stat("ep_max_size", stats.getMaxDataSize(), add_stat, cookie);
+    add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat_percent",
-                    stats->mem_low_wat_percent,
+                    stats.mem_low_wat_percent,
                     add_stat,
                     cookie);
-    add_casted_stat("ep_mem_high_wat", stats->mem_high_wat, add_stat, cookie);
+    add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat_percent",
-                    stats->mem_high_wat_percent,
+                    stats.mem_high_wat_percent,
                     add_stat,
                     cookie);
-    add_casted_stat("ep_oom_errors", stats->oom_errors, add_stat, cookie);
+    add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat(
-            "ep_tmp_oom_errors", stats->tmp_oom_errors, add_stat, cookie);
+            "ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
 
-    add_casted_stat("ep_blob_num", stats->getNumBlob(), add_stat, cookie);
+    add_casted_stat("ep_blob_num", stats.getNumBlob(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
     add_casted_stat(
-            "ep_blob_overhead", stats->getBlobOverhead(), add_stat, cookie);
+            "ep_blob_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
 #endif
     add_casted_stat(
-            "ep_storedval_size", stats->getStoredValSize(), add_stat, cookie);
+            "ep_storedval_size", stats.getStoredValSize(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat("ep_storedval_overhead",
-                    stats->getBlobOverhead(),
-                    add_stat,
-                    cookie);
+    add_casted_stat(
+            "ep_storedval_overhead", stats.getBlobOverhead(), add_stat, cookie);
 #else
     add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
 #endif
     add_casted_stat(
-            "ep_storedval_num", stats->getNumStoredVal(), add_stat, cookie);
-    add_casted_stat("ep_item_num", stats->getNumItem(), add_stat, cookie);
+            "ep_storedval_num", stats.getNumStoredVal(), add_stat, cookie);
+    add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
 
     std::map<std::string, size_t> alloc_stats;
     MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
@@ -3877,11 +3869,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEvictionStats(
      * the hifi_mfu algorithm.
      */
     add_casted_stat("ep_active_or_pending_eviction_values_evicted",
-                    stats->activeOrPendingFrequencyValuesEvictedHisto,
+                    stats.activeOrPendingFrequencyValuesEvictedHisto,
                     add_stat,
                     cookie);
     add_casted_stat("ep_replica_eviction_values_evicted",
-                    stats->replicaFrequencyValuesEvictedHisto,
+                    stats.replicaFrequencyValuesEvictedHisto,
                     add_stat,
                     cookie);
     /**
@@ -3890,11 +3882,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEvictionStats(
      * algorithm.
      */
     add_casted_stat("ep_active_or_pending_eviction_values_snapshot",
-                    stats->activeOrPendingFrequencyValuesSnapshotHisto,
+                    stats.activeOrPendingFrequencyValuesSnapshotHisto,
                     add_stat,
                     cookie);
     add_casted_stat("ep_replica_eviction_values_snapshot",
-                    stats->replicaFrequencyValuesSnapshotHisto,
+                    stats.replicaFrequencyValuesSnapshotHisto,
                     add_stat,
                     cookie);
     return ENGINE_SUCCESS;
@@ -3994,73 +3986,71 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(
         const void* cookie, const AddStatFn& add_stat) {
-    add_casted_stat("bg_wait", stats->bgWaitHisto, add_stat, cookie);
-    add_casted_stat("bg_load", stats->bgLoadHisto, add_stat, cookie);
-    add_casted_stat("set_with_meta", stats->setWithMetaHisto, add_stat, cookie);
-    add_casted_stat("pending_ops", stats->pendingOpsHisto, add_stat, cookie);
+    add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
+    add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
+    add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
+    add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
 
     // Vbucket visitors
     add_casted_stat(
-            "access_scanner", stats->accessScannerHisto, add_stat, cookie);
+            "access_scanner", stats.accessScannerHisto, add_stat, cookie);
     add_casted_stat("checkpoint_remover",
-                    stats->checkpointRemoverHisto,
+                    stats.checkpointRemoverHisto,
                     add_stat,
                     cookie);
-    add_casted_stat("item_pager", stats->itemPagerHisto, add_stat, cookie);
-    add_casted_stat("expiry_pager", stats->expiryPagerHisto, add_stat, cookie);
+    add_casted_stat("item_pager", stats.itemPagerHisto, add_stat, cookie);
+    add_casted_stat("expiry_pager", stats.expiryPagerHisto, add_stat, cookie);
 
-    add_casted_stat("storage_age", stats->dirtyAgeHisto, add_stat, cookie);
+    add_casted_stat("storage_age", stats.dirtyAgeHisto, add_stat, cookie);
 
     // Regular commands
-    add_casted_stat("get_cmd", stats->getCmdHisto, add_stat, cookie);
-    add_casted_stat("store_cmd", stats->storeCmdHisto, add_stat, cookie);
-    add_casted_stat("arith_cmd", stats->arithCmdHisto, add_stat, cookie);
-    add_casted_stat("get_stats_cmd", stats->getStatsCmdHisto, add_stat, cookie);
+    add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);
+    add_casted_stat("store_cmd", stats.storeCmdHisto, add_stat, cookie);
+    add_casted_stat("arith_cmd", stats.arithCmdHisto, add_stat, cookie);
+    add_casted_stat("get_stats_cmd", stats.getStatsCmdHisto, add_stat, cookie);
     // Admin commands
-    add_casted_stat("get_vb_cmd", stats->getVbucketCmdHisto, add_stat, cookie);
-    add_casted_stat("set_vb_cmd", stats->setVbucketCmdHisto, add_stat, cookie);
-    add_casted_stat("del_vb_cmd", stats->delVbucketCmdHisto, add_stat, cookie);
-    add_casted_stat("chk_persistence_cmd",
-                    stats->chkPersistenceHisto,
-                    add_stat,
-                    cookie);
+    add_casted_stat("get_vb_cmd", stats.getVbucketCmdHisto, add_stat, cookie);
+    add_casted_stat("set_vb_cmd", stats.setVbucketCmdHisto, add_stat, cookie);
+    add_casted_stat("del_vb_cmd", stats.delVbucketCmdHisto, add_stat, cookie);
+    add_casted_stat(
+            "chk_persistence_cmd", stats.chkPersistenceHisto, add_stat, cookie);
     // Misc
-    add_casted_stat("notify_io", stats->notifyIOHisto, add_stat, cookie);
-    add_casted_stat("batch_read", stats->getMultiHisto, add_stat, cookie);
+    add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);
+    add_casted_stat("batch_read", stats.getMultiHisto, add_stat, cookie);
 
     // Disk stats
-    add_casted_stat("disk_insert", stats->diskInsertHisto, add_stat, cookie);
-    add_casted_stat("disk_update", stats->diskUpdateHisto, add_stat, cookie);
-    add_casted_stat("disk_del", stats->diskDelHisto, add_stat, cookie);
-    add_casted_stat("disk_vb_del", stats->diskVBDelHisto, add_stat, cookie);
-    add_casted_stat("disk_commit", stats->diskCommitHisto, add_stat, cookie);
+    add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);
+    add_casted_stat("disk_update", stats.diskUpdateHisto, add_stat, cookie);
+    add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
+    add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
+    add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
 
     add_casted_stat(
-            "item_alloc_sizes", stats->itemAllocSizeHisto, add_stat, cookie);
+            "item_alloc_sizes", stats.itemAllocSizeHisto, add_stat, cookie);
     add_casted_stat(
-            "bg_batch_size", stats->getMultiBatchSizeHisto, add_stat, cookie);
+            "bg_batch_size", stats.getMultiBatchSizeHisto, add_stat, cookie);
 
     // Checkpoint cursor stats
     add_casted_stat("persistence_cursor_get_all_items",
-                    stats->persistenceCursorGetItemsHisto,
+                    stats.persistenceCursorGetItemsHisto,
                     add_stat,
                     cookie);
     add_casted_stat("dcp_cursors_get_all_items",
-                    stats->dcpCursorsGetItemsHisto,
+                    stats.dcpCursorsGetItemsHisto,
                     add_stat,
                     cookie);
 
     // SyncWrite stats
     add_casted_stat("sync_write_commit_majority",
-                    stats->syncWriteCommitTimes.at(0),
+                    stats.syncWriteCommitTimes.at(0),
                     add_stat,
                     cookie);
     add_casted_stat("sync_write_commit_majority_and_persist_on_master",
-                    stats->syncWriteCommitTimes.at(1),
+                    stats.syncWriteCommitTimes.at(1),
                     add_stat,
                     cookie);
     add_casted_stat("sync_write_commit_persist_to_majority",
-                    stats->syncWriteCommitTimes.at(2),
+                    stats.syncWriteCommitTimes.at(2),
                     add_stat,
                     cookie);
 
@@ -4076,7 +4066,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(
         const void* cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
         add_casted_stat(getTaskDescrForStats(id).c_str(),
-                        stats->schedulingHisto[static_cast<int>(id)],
+                        stats.schedulingHisto[static_cast<int>(id)],
                         add_stat,
                         cookie);
     }
@@ -4088,7 +4078,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(
         const void* cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
         add_casted_stat(getTaskDescrForStats(id).c_str(),
-                        stats->taskRuntimeHisto[static_cast<int>(id)],
+                        stats.taskRuntimeHisto[static_cast<int>(id)],
                         add_stat,
                         cookie);
     }
@@ -4507,7 +4497,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         cb::const_char_buffer value,
         const AddStatFn& add_stat) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats->getStatsCmdHisto),
+            HdrMicroSecStopwatch(stats.getStatsCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::GetStats));
 
     if (key.empty()) {
@@ -4658,7 +4648,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
 }
 
 void EventuallyPersistentEngine::resetStats() {
-    stats->reset();
+    stats.reset();
     if (kvBucket) {
         kvBucket->resetUnderlyingStats();
     }
@@ -4742,7 +4732,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
     }
 
     uint64_t persist_time = 0;
-    auto queue_size = static_cast<double>(stats->diskQueueSize);
+    auto queue_size = static_cast<double>(stats.diskQueueSize);
     double item_trans_time = kvBucket->getTransactionTimePerItem();
 
     if (item_trans_time > 0 && queue_size > 0) {
@@ -5269,7 +5259,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
                 cookie, cb::audit::document::Operation::Modify);
-        ++stats->numOpsSetMeta;
+        ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
         auto& traceable = *cookie2traceable(cookie);
         if (traceable.isTracingEnabled()) {
@@ -5280,13 +5270,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         }
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - startTime);
-        stats->setWithMetaHisto.add(elapsed);
+        stats.setWithMetaHisto.add(elapsed);
 
         cas = commandCas;
     } else if (ret == ENGINE_ENOMEM) {
         return memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
-        ++stats->numOpsGetMetaOnSetWithMeta;
+        ++stats.numOpsGetMetaOnSetWithMeta;
         auto* startTimeC = cb_malloc(sizeof(hrtime_t));
         memcpy(startTimeC, &startTime, sizeof(hrtime_t));
         storeEngineSpecific(cookie, startTimeC);
@@ -5580,7 +5570,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
                 cookie, cb::audit::document::Operation::Delete);
-        stats->numOpsDelMeta++;
+        stats.numOpsDelMeta++;
     } else if (ret == ENGINE_ENOMEM) {
         return memoryCondition();
     } else {
@@ -5822,7 +5812,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
                     cookie, cb::audit::document::Operation::Modify);
-            ++stats->numOpsSetRetMeta;
+            ++stats.numOpsSetRetMeta;
         }
         cas = itm->getCas();
         seqno = htonll(itm->getRevSeqno());
@@ -5840,7 +5830,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
                     cookie, cb::audit::document::Operation::Delete);
-            ++stats->numOpsDelRetMeta;
+            ++stats.numOpsDelRetMeta;
         }
         flags = itm_meta.flags;
         exp = gsl::narrow<uint32_t>(itm_meta.exptime);
@@ -6084,7 +6074,7 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
     if (cookie == NULL) {
         EP_LOG_WARN("Tried to signal a NULL cookie!");
     } else {
-        HdrMicroSecBlockTimer bt(&stats->notifyIOHisto);
+        HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
         NonBucketAllocationGuard guard;
         serverApi->cookie->notify_io_complete(cookie, status);
     }
