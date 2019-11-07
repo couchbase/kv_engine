@@ -406,13 +406,12 @@ bool StateMachine::conn_read_packet_body() {
 
     if (connection.isPacketAvailable()) {
         auto& cookie = connection.getCookieObject();
-        auto input = connection.read->rdata();
-        const auto* req =
-                reinterpret_cast<const cb::mcbp::Request*>(input.data());
-        cookie.setPacket(Cookie::PacketContent::Full,
-                         cb::const_byte_buffer{input.data(),
-                                               sizeof(cb::mcbp::Request) +
-                                                       req->getBodylen()});
+        const auto* header = connection.getPacket();
+        cookie.setPacket(
+                Cookie::PacketContent::Full,
+                cb::const_byte_buffer{
+                        reinterpret_cast<const uint8_t*>(header),
+                        sizeof(cb::mcbp::Header) + header->getBodylen()});
         setCurrentState(State::validate);
         return true;
     }

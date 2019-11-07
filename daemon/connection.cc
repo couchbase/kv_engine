@@ -195,10 +195,6 @@ nlohmann::json Connection::toJSON() const {
     ret["nevents"] = numEvents;
     ret["state"] = getStateName();
 
-    if (read) {
-        ret["read"] = read->to_json();
-    }
-
     ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
     ret["ssl"] = client_ctx != nullptr;
@@ -512,26 +508,6 @@ void Connection::read_callback(bufferevent*, void* ctx) {
                           "Connection::read_callback::threadLock",
                           SlowMutexThreshold);
 
-    // Drain all of the data available in bufferevent into the
-    // socket read buffer
-    auto* event = instance->bev.get();
-    auto nb = evbuffer_get_length(bufferevent_get_input(event));
-    if (nb > 0) {
-        try {
-            instance->read->ensureCapacity(nb);
-            auto nr = instance->read->produce(
-                    [event](cb::byte_buffer buffer) -> ssize_t {
-                        return ssize_t(bufferevent_read(
-                                event, buffer.data(), buffer.size()));
-                    });
-
-            get_thread_stats(instance)->bytes_read += nr;
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING("{}: Failed to allocate memory in network read buffer.",
-                        instance->getId());
-        }
-    }
-
     // Remove the connection from the list of pending io's (in case the
     // object was scheduled to run in the dispatcher before the
     // callback for the worker thread is executed.
@@ -734,8 +710,7 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
 }
 
 Connection::Connection(FrontEndThread& thr)
-    : read(std::make_unique<cb::Pipe>(DATA_BUFFER_SIZE)),
-      socketDescriptor(INVALID_SOCKET),
+    : socketDescriptor(INVALID_SOCKET),
       connectedToSystemPort(false),
       base(nullptr),
       thread(thr),
@@ -753,8 +728,7 @@ Connection::Connection(SOCKET sfd,
                        event_base* b,
                        const ListeningPort& ifc,
                        FrontEndThread& thr)
-    : read(std::make_unique<cb::Pipe>(DATA_BUFFER_SIZE)),
-      socketDescriptor(sfd),
+    : socketDescriptor(sfd),
       connectedToSystemPort(ifc.system),
       base(b),
       thread(thr),
@@ -950,34 +924,49 @@ size_t Connection::getNumberOfCookies() const {
 }
 
 bool Connection::isPacketAvailable() const {
-    auto buffer = read->rdata();
-
-    if (buffer.size() < sizeof(cb::mcbp::Request)) {
-        // we don't have the header, so we can't even look at the body
-        // length
+    // Drain all of the data available in bufferevent into the
+    // socket read buffer
+    auto* event = bev.get();
+    auto* input = bufferevent_get_input(event);
+    auto nb = evbuffer_get_length(input);
+    if (nb < sizeof(cb::mcbp::Header)) {
         return false;
     }
 
-    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
-    return buffer.size() >= sizeof(cb::mcbp::Request) + req->getBodylen();
+    const auto* header = reinterpret_cast<const cb::mcbp::Header*>(
+            evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
+    if (nb < (sizeof(cb::mcbp::Header) + header->getBodylen())) {
+        return false;
+    }
+
+    evbuffer_pullup(input, sizeof(cb::mcbp::Header) + header->getBodylen());
+    return true;
 }
 
 bool Connection::isPacketHeaderAvailable() const {
-    return (read->rdata().size() >= sizeof(cb::mcbp::Request));
+    auto* event = bev.get();
+    auto nb = evbuffer_get_length(bufferevent_get_input(event));
+    return (nb >= sizeof(cb::mcbp::Header));
 }
 
 const cb::mcbp::Header* Connection::getPacket() const {
-    auto buffer = read->rdata();
-    if (buffer.size() < sizeof(cb::mcbp::Header)) {
+    // Drain all of the data available in bufferevent into the
+    // socket read buffer
+    auto* event = bev.get();
+    auto* input = bufferevent_get_input(event);
+    auto nb = evbuffer_get_length(input);
+    if (nb < sizeof(cb::mcbp::Header)) {
         return nullptr;
     }
 
-    return reinterpret_cast<const cb::mcbp::Header*>(buffer.data());
+    return reinterpret_cast<const cb::mcbp::Header*>(
+            evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
 }
 
 cb::const_byte_buffer Connection::getAvailableBytes(size_t max) const {
-    auto buffer = read->rdata();
-    return {buffer.data(), std::min(buffer.size(), max)};
+    auto* input = bufferevent_get_input(bev.get());
+    auto nb = std::min(evbuffer_get_length(input), max);
+    return {evbuffer_pullup(input, nb), nb};
 }
 
 bool Connection::processServerEvents() {

@@ -203,9 +203,13 @@ void Cookie::clearPacket() {
     if (received_packet) {
         received_packet.reset();
     } else {
-        // We don't have a copy of the packet, so we need to tell the owner
-        // of the buffer that we're done with it
-        connection.read->consumed(packet.size());
+        // We don't have a copy of the packet, so we need to consume it
+        // from libevent
+        auto* ev = connection.bev.get();
+        if (evbuffer_drain(bufferevent_get_input(ev), packet.size()) == -1) {
+            // @todo fixme
+            std::abort();
+        }
     }
 
     packet = {};

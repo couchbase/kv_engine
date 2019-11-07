@@ -598,14 +598,6 @@ public:
 
     void runEventLoop(short which);
 
-    /**
-     * Input buffer containing the data we've read of the socket. It is
-     * assigned to the connection when the connection is to be served, and
-     * returned to the thread context if the pipe is empty when we're done
-     * serving this connection.
-     */
-    std::unique_ptr<cb::Pipe> read;
-
     Cookie& getCookieObject() {
         return *cookies.front();
     }
