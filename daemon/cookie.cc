@@ -199,6 +199,18 @@ cb::const_byte_buffer Cookie::getPacket(PacketContent content) const {
             "Cookie::getPacket(): Invalid content requested");
 }
 
+void Cookie::clearPacket() {
+    if (received_packet) {
+        received_packet.reset();
+    } else {
+        // We don't have a copy of the packet, so we need to tell the owner
+        // of the buffer that we're done with it
+        connection.read->consumed(packet.size());
+    }
+
+    packet = {};
+}
+
 const cb::mcbp::Header& Cookie::getHeader() const {
     const auto packet = getPacket(PacketContent::Header);
     return *reinterpret_cast<const cb::mcbp::Header*>(packet.data());

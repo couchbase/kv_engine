@@ -237,9 +237,7 @@ public:
     cb::const_byte_buffer getPacket(
             PacketContent content = PacketContent::Full) const;
 
-    void clearPacket() {
-        packet = {};
-    }
+    void clearPacket();
 
     /**
      * Preserve the input packet by allocating memory and copy the

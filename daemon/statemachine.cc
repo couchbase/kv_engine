@@ -391,16 +391,6 @@ bool StateMachine::conn_execute() {
 
     mcbp_collect_timings(cookie);
 
-    // Consume the packet we just executed from the input buffer
-    connection.read->consume([&cookie](
-                                     cb::const_byte_buffer buffer) -> ssize_t {
-        size_t size = cookie.getPacket(Cookie::PacketContent::Full).size();
-        if (size > buffer.size()) {
-            throw std::logic_error(
-                    "conn_execute: Not enough data in input buffer");
-        }
-        return gsl::narrow<ssize_t>(size);
-    });
     // We've cleared the memory for this packet so we need to mark it
     // as cleared in the cookie to avoid having it dumped in toJSON and
     // using freed memory. We cannot call reset on the cookie as we
