@@ -99,6 +99,8 @@ public:
 
     StorageProperties getStorageProperties() override;
 
+    void setMaxDataSize(size_t size) override;
+
     /**
      * Adds a request to a queue for batch processing at commit()
      */

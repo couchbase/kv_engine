@@ -619,6 +619,15 @@ public:
                                    GetMetaOnly getMetaOnly) = 0;
 
     /**
+     * Set the max bucket quota to the given size.
+     *
+     * @param size  The new max bucket quota size.
+     */
+    virtual void setMaxDataSize(size_t size) {
+        // Might be overloaded to do some work
+    }
+
+    /**
      * Retrieve multiple documents from the underlying storage system at once.
      *
      * @param vb vbucket id of a document

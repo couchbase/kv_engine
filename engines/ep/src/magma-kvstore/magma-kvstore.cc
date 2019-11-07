@@ -826,6 +826,10 @@ StorageProperties MagmaKVStore::getStorageProperties() {
     return rv;
 }
 
+void MagmaKVStore::setMaxDataSize(size_t size) {
+    // Magma can set its max bucket quota size to the correct value.
+}
+
 // Note: This routine is only called during warmup. The caller
 // can not make changes to the vbstate or it would cause race conditions.
 std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {

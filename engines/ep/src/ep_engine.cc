@@ -6639,4 +6639,10 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     getDcpConnMap().updateMaxActiveSnoozingBackfills(size);
     getKVBucket()->setCursorDroppingLowerUpperThresholds(size);
     getDcpConnMap().updateMaxActiveSnoozingBackfills(size);
+    // Pass the max bucket quota size down to the storage layer.
+    for (uint16_t ii = 0; ii < getKVBucket()->getVBuckets().getNumShards();
+         ++ii) {
+        getKVBucket()->getVBuckets().getShard(ii)->forEachKVStore(
+                [size](KVStore* kvs) { kvs->setMaxDataSize(size); });
+    }
 }
