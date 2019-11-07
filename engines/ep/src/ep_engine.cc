@@ -2991,7 +2991,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                 kvBucket->getKVStoreStat(writeBytesStat,
                                          bytesWritten,
                                          KVBucketIface::KVSOption::RW)) {
-                writeAmp = bytesWritten / docBytes;
+                writeAmp = double(bytesWritten) / docBytes;
             }
             add_casted_stat(writeAmpStat, writeAmp, add_stat, cookie);
         };
