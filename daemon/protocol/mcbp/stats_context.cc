@@ -207,6 +207,15 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
         add_stat(cookie, add_stat_callback, "cmd_total_sets", total_mutations);
         add_stat(cookie, add_stat_callback, "cmd_total_gets", total_retrivals);
         add_stat(cookie, add_stat_callback, "cmd_total_ops", total_ops);
+
+        // bucket specific totals
+        auto& current_bucket_timings =
+                cookie.getConnection().getBucket().timings;
+        uint64_t mutations = current_bucket_timings.get_aggregated_mutation_stats();
+        uint64_t lookups = current_bucket_timings.get_aggregated_retrival_stats();
+        add_stat(cookie, add_stat_callback, "cmd_mutation", mutations);
+        add_stat(cookie, add_stat_callback, "cmd_lookup", lookups);
+
         add_stat(cookie, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
         add_stat(cookie, add_stat_callback, "auth_errors", thread_stats.auth_errors);
         add_stat(cookie, add_stat_callback, "get_hits", thread_stats.get_hits);
