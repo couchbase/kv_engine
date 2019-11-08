@@ -541,13 +541,10 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
             // Note: Update last-write-seqno first to enforce monotonicity
             // and avoid any state-change if monotonicity checks fail.
             // We move the HPS up to the seqno of the highest non-prepare we
-            // saw before the one we can't advance over. If next is the end
-            // (i.e. this is the last prepare) then the case below will set the
-            // seqno to the current snap end.
-            if (getIteratorNext(next) != trackedWrites.end()) {
-                highPreparedSeqno.lastWriteSeqno = next->getDesiredHPS();
-            }
-
+            // saw before the one we can't advance over. We can't advance beyond
+            // the snapshot end though
+            highPreparedSeqno.lastWriteSeqno =
+                    std::min(snapshotEnd.seqno, next->getDesiredHPS());
             highPreparedSeqno.it = next;
         }
 

@@ -277,7 +277,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       itemCompressorTask(nullptr),
       itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
-      diskDeleteAll(false),
       backfillMemoryThreshold(0.95),
       statsSnapshotTaskId(0),
       lastTransTimePerItem(0),
@@ -1195,7 +1194,6 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     } while (0)
 
     // Top-level stats:
-    DO_STAT("ep_flush_all", isDeleteAllScheduled());
     DO_STAT("curr_items", active.getNumItems());
     DO_STAT("curr_temp_items", active.getNumTempItems());
     DO_STAT("curr_items_tot",
@@ -1494,7 +1492,6 @@ GetValue KVBucket::getInternal(const DocKey& key,
         return vb->getInternal(cookie,
                                engine,
                                options,
-                               diskDeleteAll,
                                VBucket::GetKeyOnly::No,
                                cHandle,
                                getReplicaItem);
@@ -2011,18 +2008,6 @@ void KVBucket::reset() {
         }
     }
     EP_LOG_INFO("KVBucket::reset(): Successfully flushed bucket");
-}
-
-void KVBucket::setDeleteAllComplete() {
-    // Notify memcached about delete all task completion, and
-    // set diskFlushall flag to false
-    if (deleteAllTaskCtx.cookie) {
-        engine.notifyIOComplete(deleteAllTaskCtx.cookie, ENGINE_SUCCESS);
-    }
-    bool inverse = false;
-    deleteAllTaskCtx.delay.compare_exchange_strong(inverse, true);
-    inverse = true;
-    diskDeleteAll.compare_exchange_strong(inverse, false);
 }
 
 bool KVBucket::isWarmingUp() {

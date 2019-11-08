@@ -707,7 +707,9 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
     ++dirtyQueueSize;
     dirtyQueueMem.fetch_add(sizeof(Item));
     ++dirtyQueueFill;
-    dirtyQueueAge.fetch_add(qi.getQueuedTime());
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+            qi.getQueuedTime().time_since_epoch());
+    dirtyQueueAge.fetch_add(us.count());
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
@@ -715,7 +717,9 @@ void VBucket::doStatsForFlushing(const Item& qi, size_t itemBytes) {
     --dirtyQueueSize;
     decrDirtyQueueMem(sizeof(Item));
     ++dirtyQueueDrain;
-    decrDirtyQueueAge(qi.getQueuedTime());
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+            qi.getQueuedTime().time_since_epoch());
+    decrDirtyQueueAge(us.count());
     decrDirtyQueuePendingWrites(itemBytes);
 }
 
@@ -747,11 +751,21 @@ void VBucket::resetStats() {
 
 uint64_t VBucket::getQueueAge() {
     uint64_t currDirtyQueueAge = dirtyQueueAge.load(std::memory_order_relaxed);
-    rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
-    if (currentAge < currDirtyQueueAge) {
+    // dirtyQueue size is 0, so the queueAge is 0.
+    if (currDirtyQueueAge == 0) {
         return 0;
     }
-    return (currentAge - currDirtyQueueAge) * 1000;
+
+    // Get time now multiplied by the queue size. We need to subtract
+    // dirtyQueueAge from this to offset time_since_epoch.
+    auto currentAge =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count() *
+            dirtyQueueSize;
+
+    // Return the time in milliseconds
+    return (currentAge - currDirtyQueueAge) / 1000;
 }
 
 template <typename T>
@@ -1285,6 +1299,11 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
                             StoredValue::HideLockedCas::No,
                             StoredValue::IncludeValue::Yes,
                             durabilityReqs));
+
+    // Set queue time to now. Why not in the ctor of the Item? We only need to
+    // do this in certain places for new items as it's used to determine how
+    // long it took an item to get flushed.
+    qi->setQueuedTime();
 
     if (qi->isCommitSyncWrite()) {
         Expects(ctx.durability.is_initialized());
@@ -2526,6 +2545,22 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
             v->markDirty();
             v->setExptime(exptime);
             v->setRevSeqno(v->getRevSeqno() + 1);
+
+            auto committedState = v->getCommitted();
+
+            Expects(committedState == CommittedState::CommittedViaMutation ||
+                    committedState == CommittedState::CommittedViaPrepare);
+
+            if (committedState == CommittedState::CommittedViaPrepare) {
+                // we are updating an item which was set through a sync write
+                // we should not queueDirty a queue_op::commit_sync_write
+                // because this touch op is *not* a sync write, and doesn't
+                // even support durability. queueDirty expects durability reqs
+                // for a commit, as a real commit would have a prepareSeqno.
+                // Change the committed state to reflect that the new
+                // value is from a non-sync write op.
+                v->setCommitted(CommittedState::CommittedViaMutation);
+            }
         }
 
         const auto hideLockedCas = (v->isLocked(ep_current_time())
@@ -2602,7 +2637,6 @@ GetValue VBucket::getInternal(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         get_options_t options,
-        bool diskFlushAll,
         GetKeyOnly getKeyOnly,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const ForGetReplicaOp getReplicaItem) {
@@ -2691,8 +2725,7 @@ GetValue VBucket::getInternal(
                         !v->isResident(),
                         v->getNRUValue());
     } else {
-        if (!getDeletedValue &&
-            (eviction == EvictionPolicy::Value || diskFlushAll)) {
+        if (!getDeletedValue && (eviction == EvictionPolicy::Value)) {
             return GetValue();
         }
 

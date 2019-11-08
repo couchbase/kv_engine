@@ -42,7 +42,6 @@ Item::Item(const DocKey& k,
       value(TaggedPtr<Blob>(val.get().get(), initialFreqCount)),
       key(k),
       bySeqno(i),
-      queuedTime(ep_current_time()),
       vbucketId(vbid),
       op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
                                                      : queue_op::mutation),
@@ -73,7 +72,6 @@ Item::Item(const DocKey& k,
       value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
       key(k),
       bySeqno(i),
-      queuedTime(ep_current_time()),
       vbucketId(vbid),
       op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
                                                      : queue_op::mutation),
@@ -98,7 +96,6 @@ Item::Item(const DocKey& k,
       value(TaggedPtr<Blob>(nullptr, ItemEviction::initialFreqCount)),
       key(k),
       bySeqno(bySeq),
-      queuedTime(ep_current_time()),
       vbucketId(vb),
       op(o),
       nru(INITIAL_NRU_VALUE),
@@ -116,7 +113,7 @@ Item::Item(const Item& other)
       value(other.value), // Implicitly also copies the frequency counter
       key(other.key),
       bySeqno(other.bySeqno.load()),
-      queuedTime(other.queuedTime),
+      prepareSeqno(other.prepareSeqno),
       vbucketId(other.vbucketId),
       op(other.op),
       nru(other.nru),
@@ -124,7 +121,8 @@ Item::Item(const Item& other)
       deletionCause(other.deletionCause),
       maybeVisible(other.maybeVisible),
       datatype(other.datatype),
-      durabilityReqs(other.durabilityReqs) {
+      durabilityReqs(other.durabilityReqs),
+      queuedTime(other.queuedTime) {
     ObjectRegistry::onCreateItem(this);
 }
 
@@ -190,8 +188,11 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
         os << "\tvalue:nullptr\n";
     }
     os << "\tmetadata:" << i.metaData << "\n"
-       << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime << " "
-       << i.vbucketId << " op:" << to_string(i.op);
+       << "\tbySeqno:" << i.bySeqno << " queuedTime:"
+       << std::chrono::duration_cast<std::chrono::milliseconds>(
+                  i.queuedTime.time_since_epoch())
+                    .count()
+       << " " << i.vbucketId << " op:" << to_string(i.op);
     if (i.maybeVisible) {
         os << "(maybeVisible)";
     }

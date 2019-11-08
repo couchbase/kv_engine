@@ -2597,6 +2597,35 @@ TEST_P(VBucketDurabilityTest, PendingSyncDeleteToPendingDeleteFails) {
               public_processSoftDelete(key, ctx).first);
 }
 
+TEST_P(VBucketDurabilityTest, TouchAfterCommitIsNormalMutation) {
+    // MB-36698: Touch failed when updating an item stored through a
+    // sync write.
+    // Touch read the existing queue_op::commit_sync_write, updated the
+    // exptime, and queueDirty'd it again. This was interpreted as a
+    // commit, and an expects was thrown because durability requirements were
+    // not provided (needed for prepareSeqno).
+    // Touch does not support durability, so it is reasonable to alter the
+    // stored item to be a plain mutation; it logically *is* a mutation of a
+    // previously committed value.
+    auto key = makeStoredDocKey("key");
+    doSyncWriteAndCommit();
+
+    using namespace std::chrono;
+    auto expiry = system_clock::now() + seconds(10);
+
+    GetValue gv;
+    MutationStatus status;
+
+    // prior to fix, fails expects when queueDirty-ing a
+    // queue_op::commit_sync_write after fix, succeeds, stores the item as a
+    // normal mutation.
+    std::tie(status, gv) =
+            public_getAndUpdateTtl(key, system_clock::to_time_t(expiry));
+
+    ASSERT_EQ(MutationStatus::WasClean, status);
+    EXPECT_EQ(CommittedState::CommittedViaMutation, gv.item->getCommitted());
+}
+
 void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
                                                       Resolution res) {
     const std::vector<SyncWriteSpec>& writes{1, 2, 3}; // seqnos

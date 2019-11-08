@@ -118,7 +118,8 @@ protected:
 
     bool public_deleteStoredValue(const DocKey& key);
 
-    GetValue public_getAndUpdateTtl(const DocKey& key, time_t exptime);
+    std::pair<MutationStatus, GetValue> public_getAndUpdateTtl(
+            const DocKey& key, time_t exptime);
 
     SWCompleteTrace swCompleteTrace;
 
