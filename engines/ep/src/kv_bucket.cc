@@ -2525,7 +2525,7 @@ std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
 void KVBucket::notifyFlusher(const Vbid vbid) {
     KVShard* shard = vbMap.getShardByVbId(vbid);
     if (shard) {
-        shard->getFlusher()->notifyFlushEvent();
+        shard->getFlusher()->notifyFlushEvent(vbid);
     } else {
         throw std::logic_error("KVBucket::notifyFlusher() : shard null for " +
                                vbid.to_string());
@@ -2637,4 +2637,15 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
     return [&engine](Vbid vbid, int64_t seqno) {
         engine.getDcpConnMap().seqnoAckVBPassiveStream(vbid, seqno);
     };
+}
+
+KVStoreRWRO KVBucket::takeRWRO(size_t shardId) {
+    return vbMap.shards[shardId]->takeRWRO();
+}
+
+void KVBucket::setRWRO(size_t shardId,
+                       std::unique_ptr<KVStore> rw,
+                       std::unique_ptr<KVStore> ro) {
+    vbMap.shards[shardId]->setROUnderlying(std::move(ro));
+    vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
 }

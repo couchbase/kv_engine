@@ -845,8 +845,7 @@ protected:
                                      const AddStatFn& add_stat,
                                      const char* stat_key,
                                      int nkey,
-                                     bool prevStateRequested,
-                                     bool details);
+                                     VBucketStatsDetailLevel detail);
     ENGINE_ERROR_CODE doHashStats(const void* cookie,
                                   const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doHashDump(const void* cookie,

@@ -148,6 +148,25 @@ protected:
             DocumentState docState);
 
     void setUpHandleSnapshotEndTest();
+
+    /**
+     * The resolution type of a SyncWrite.
+     */
+    enum class Resolution : uint8_t {
+        Commit,
+        Abort,
+    };
+
+    /**
+     * The test checks that Replica is resilient to receiving Abort messages
+     * for deduplicated Prepares in the case where a previous Prepare has been
+     * already received and completed (Committed/Aborted) for the same key.
+     *
+     * @param level The durability level of the Prepare under test
+     * @param res Resolution type (Commit/Abort) of the Prepare under test
+     */
+    void testPrepareCompletedAtAbort(cb::durability::Level level,
+                                     Resolution res);
 };
 
 /**

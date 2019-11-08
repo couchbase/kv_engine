@@ -159,13 +159,13 @@ bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
     return true;
 }
 
-void EphemeralVBucket::addStats(bool details,
+void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                                 const AddStatFn& add_stat,
                                 const void* c) {
     // Include base class statistics:
-    _addStats(details, add_stat, c);
+    _addStats(detail, add_stat, c);
 
-    if (details) {
+    if (detail == VBucketStatsDetailLevel::Full) {
         // Ephemeral-specific details
         addStat("auto_delete_count", autoDeleteCount.load(), add_stat, c);
         addStat("ht_tombstone_purged_count",
@@ -676,10 +676,13 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         StoredValue& prepared,
         int64_t prepareSeqno,
         boost::optional<int64_t> abortSeqno) {
-    if (!prepared.isPending()) {
+    // From MB-36650 this function is enabled to accept also Completed Prepares
+    // (Committed/Aborted) for converting/updating the SV in input to
+    // PrepareAborted.
+    if (!(prepared.isPending() || prepared.isCompleted())) {
         throw std::invalid_argument(
                 "EphemeralVBucket::abortStoredValue: Cannot call on a "
-                "non-Pending StoredValue");
+                "non-Pending and non-Completed StoredValue");
     }
 
     // Aborting an item in an Ephemeral VBucket consists of:

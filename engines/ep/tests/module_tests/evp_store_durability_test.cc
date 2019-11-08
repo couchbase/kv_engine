@@ -19,14 +19,19 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
+#include "couch-kvstore/couch-kvstore.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
 #include "item.h"
 #include "kv_bucket.h"
+#include "src/internal.h" // this is couchstore/src/internal.h
 #include "test_helpers.h"
+#include "tests/test_fileops.h"
 #include "vbucket_state.h"
 #include "vbucket_utils.h"
+
+#include <folly/portability/GMock.h>
 
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <engines/ep/tests/mock/mock_ep_bucket.h>
@@ -2519,6 +2524,52 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     kvstore = store->getOneRWUnderlying();
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+}
+
+TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
+    // Replace RW kvstore and use a gmocked ops so we an inject failure
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+
+    // Inject one fsync error when writing the pending mutation
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    setVBucketToActiveWithValidTopology();
+    vbucket_state vbs = *store->getRWUnderlying(vbid)->getVBucketState(vbid);
+    using namespace cb::durability;
+
+    auto key = makeStoredDocKey("key");
+    auto req = Requirements(Level::Majority, Timeout(1000));
+    auto pending = makePendingItem(key, "value", req);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+    // Flush prepare, expect fail, then success on retry
+    bool moreAvailable;
+    size_t flushedCount{0};
+    std::tie(moreAvailable, flushedCount) =
+            dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_TRUE(moreAvailable);
+    EXPECT_EQ(0, flushedCount);
+    EXPECT_EQ(1, engine->getEpStats().commitFailed);
+    EXPECT_EQ(0, engine->getEpStats().flusherCommits);
+    EXPECT_EQ(vbs, *store->getRWUnderlying(vbid)->getVBucketState(vbid));
+
+    std::tie(moreAvailable, flushedCount) =
+            dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_FALSE(moreAvailable);
+    EXPECT_EQ(1, engine->getEpStats().commitFailed);
+    EXPECT_EQ(1, engine->getEpStats().flusherCommits);
+    EXPECT_EQ(1, flushedCount);
+
+    // Now expect that the vbucket state has been mutated by the flush
+    vbucket_state newState =
+            *store->getRWUnderlying(vbid)->getVBucketState(vbid);
+    EXPECT_NE(vbs, newState);
+    EXPECT_EQ(1, newState.persistedPreparedSeqno);
 }
 
 template <typename F>

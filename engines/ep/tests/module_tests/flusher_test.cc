@@ -69,13 +69,12 @@ TEST_F(FlusherTest, MissingWakeupBeforeSnooze) {
     // Setup: Mark a vBucket as active, and notify a pending mutation on a
     // vBucket.
     engine->getKVBucket()->setVBucketState(Vbid(0), vbucket_state_active);
-    flusher->notifyFlushEvent();
 
     // Setup: Set the testing hook in Flusher::step() to trigger another notify
     // event just before we have decided to snooze (but before snooze() is
     // actually called).
     flusher->stepPreSnoozeHook = [this]() {
-        this->flusher->notifyFlushEvent();
+        this->flusher->notifyFlushEvent(Vbid(0));
     };
 
     // Test: Run the flusher task. This should flush the oustanding setVBstate

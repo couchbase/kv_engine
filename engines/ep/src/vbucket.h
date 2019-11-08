@@ -663,7 +663,7 @@ public:
      */
     virtual bool areDeletedItemsAlwaysResident() const = 0;
 
-    virtual void addStats(bool details,
+    virtual void addStats(VBucketStatsDetailLevel detail,
                           const AddStatFn& add_stat,
                           const void* c) = 0;
 
@@ -2026,7 +2026,9 @@ protected:
             UseActiveVBMemThreshold useActiveVBMemThrehsold =
                     UseActiveVBMemThreshold::No);
 
-    void _addStats(bool details, const AddStatFn& add_stat, const void* c);
+    void _addStats(VBucketStatsDetailLevel detail,
+                   const AddStatFn& add_stat,
+                   const void* c);
 
     template <typename T>
     void addStat(const char* nm,

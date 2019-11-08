@@ -206,31 +206,32 @@ bool Flusher::step(GlobalTask *task) {
         task->snooze(INT_MAX);
         return true;
 
-    case State::Running:
+    case State::Running: {
         // Start by putting ourselves back to sleep once step() completes.
         // If a new VB is notified (or a VB is re-notified after it is processed
         // in the loop below) then that will cause the task to be re-awoken.
         task->snooze(INT_MAX);
 
-        flushVB();
+        auto more = flushVB();
 
         if (_state == State::Running) {
             /// If there's still work to do for this shard, wake up the Flusher
             /// to run again.
-            const bool shouldWakeUp =
-                    !canSnooze() || (shard->highPriorityCount.load() > 0);
+            const bool shouldSnooze = hpVbs.empty() &&
+                                      shard->highPriorityCount.load() == 0 &&
+                                      !more;
 
             // Testing hook
             if (stepPreSnoozeHook) {
                 stepPreSnoozeHook();
             }
 
-            if (shouldWakeUp) {
+            if (!shouldSnooze) {
                 task->updateWaketime(std::chrono::steady_clock::now());
             }
         }
         return true;
-
+    }
     case State::Stopping:
         EP_LOG_DEBUG(
                 "Flusher::step: stopping flusher (write of all dirty items)");
@@ -250,26 +251,17 @@ bool Flusher::step(GlobalTask *task) {
 }
 
 void Flusher::completeFlush() {
-    while(!canSnooze()) {
-        flushVB();
+    // Flush all of our vBuckets
+    while (flushVB()) {
     }
 }
 
-void Flusher::flushVB(void) {
-    // If the low-priority vBucket queue is empty, see if there's any
-    // pending mutations - and if so re-populate the low pri queue.
-    if (lpVbs.empty()) {
-        if (hpVbs.empty()) {
-            doHighPriority = false;
-        }
-        bool inverse = true;
-        if (pendingMutation.compare_exchange_strong(inverse, false)) {
-            for (auto vbid : shard->getVBucketsSortedByState()) {
-                lpVbs.push(vbid);
-            }
-        }
+bool Flusher::flushVB() {
+    if (hpVbs.empty()) {
+        doHighPriority = false;
     }
 
+    // Search for any high priority vBuckets to flush.
     if (!doHighPriority && shard->highPriorityCount.load() > 0) {
         for (auto vbid : shard->getVBuckets()) {
             VBucketPtr vb = store->getVBucket(vbid);
@@ -283,25 +275,39 @@ void Flusher::flushVB(void) {
         }
     }
 
-    if (hpVbs.empty() && lpVbs.empty()) {
-        EP_LOG_DEBUG("Flusher::flushVB: Trying to flush but no vbuckets exist");
-        return;
-    } else if (!hpVbs.empty()) {
+    // Flush a high priority vBucket if applicable
+    if (!hpVbs.empty()) {
         Vbid vbid = hpVbs.front();
         hpVbs.pop();
         if (store->flushVBucket(vbid).first) {
             // More items still available, add vbid back to pending set.
             hpVbs.push(vbid);
         }
-    } else {
-        if (doHighPriority && --numHighPriority == 0) {
-            doHighPriority = false;
-        }
-        Vbid vbid = lpVbs.front();
-        lpVbs.pop();
-        if (store->flushVBucket(vbid).first) {
-            // More items still available, add vbid back to pending set.
-            lpVbs.push(vbid);
-        }
+
+        // Return false (don't re-wake) if the lpVbs is empty (i.e. nothing to
+        // do on our next iteration). If another vBucket joins this queue after
+        // then it will wake the task.
+        return !lpVbs.empty();
     }
+
+    // Below here we are flushing low priority vBuckets
+    if (doHighPriority && --numHighPriority == 0) {
+        // Now we flush a number of low priority vBuckets equal to the number of
+        // high priority vBuckets that we just flushed (or until we run out)
+        doHighPriority = false;
+    }
+
+    Vbid vbid;
+    if (!lpVbs.popFront(vbid)) {
+        // Return no more so we don't rewake the task
+        return false;
+    }
+
+    if (store->flushVBucket(vbid).first) {
+        // More items still available, add vbid back to pending set.
+        lpVbs.pushUnique(vbid);
+    }
+
+    // Return more (as we may have low priority vBuckets to flush)
+    return true;
 }

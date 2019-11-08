@@ -34,6 +34,7 @@
 
 #include <memory>
 
+class FileOpsInterface;
 class ItemMetaData;
 class KVBucket;
 
@@ -220,6 +221,12 @@ public:
      * @return a non-const version of the store's collections manager object.
      */
     Collections::Manager& getCollectionsManager();
+
+    /**
+     * Replace the r/w KVStore with one that uses the given ops. This function
+     * will test the config to be sure the KVBucket is persistent/couchstore.
+     */
+    void replaceCouchKVStore(FileOpsInterface& ops);
 
 private:
     /**

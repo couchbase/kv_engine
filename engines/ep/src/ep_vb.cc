@@ -414,12 +414,12 @@ bool EPVBucket::areDeletedItemsAlwaysResident() const {
     return false;
 }
 
-void EPVBucket::addStats(bool details,
+void EPVBucket::addStats(VBucketStatsDetailLevel detail,
                          const AddStatFn& add_stat,
                          const void* c) {
-    _addStats(details, add_stat, c);
+    _addStats(detail, add_stat, c);
 
-    if (details) {
+    if (detail == VBucketStatsDetailLevel::Full) {
         uint64_t spaceUsed = 0;
         uint64_t fileSize = 0;
 

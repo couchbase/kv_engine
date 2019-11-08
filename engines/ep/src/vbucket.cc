@@ -894,18 +894,16 @@ ENGINE_ERROR_CODE VBucket::abort(
         const void* cookie) {
     auto htRes = ht.findForUpdate(key);
 
-    if (!htRes.pending) {
-        // Did not find a prepare
-        // if persistent bucket -> any prepares for this key have been completed
-        //                         and are not in HT, or prepare was never seen
-        // if ephemeral bucket -> we have never seen a prepare for this key
-
-        // If we are aborting without previously seeing the associated prepare,
-        // either this is an error, or we are a replica receiving an abort from
-        // a disk snapshot and the prepare was deduped.
-
+    // This block handles the case where at Replica we receive an Abort but we
+    // do not have any in-flight Prepare in the HT. That is possible when
+    // Replica receives a Backfill (Disk) Snapshot (for both EP and Ephemeral
+    // bucket).
+    // Note that, while for EP we just expect no-pending in the HT, for
+    // Ephemeral we may have no-pending or a pre-existing completed (Committed
+    // or Aborted) Prepare in the HT.
+    if (!htRes.pending || (htRes.pending && htRes.pending->isCompleted())) {
+        // Active should always find the pending item.
         if (getState() == vbucket_state_active) {
-            // Active  - /should/ always find the pending item.
             if (htRes.committed) {
                 std::stringstream ss;
                 ss << *htRes.committed;
@@ -953,34 +951,30 @@ ENGINE_ERROR_CODE VBucket::abort(
             return ENGINE_EINVAL;
         }
 
-        // We have an abort for a prepare we do not know about that is in a
-        // valid range for which this can occur (replica)
-        // As we do not have the corresponding prepare, we cannot use
-        // abortStoredValue so create the abort with addNewAbort
+        // Replica is receiving a legal Abort but we do not have any in-flight
+        // Prepare in the HT.
+        // 1) If we do not have any pending in the HT, then we just proceed to
+        //     creating a new Abort item
+        // 2) Else, if we have a Completed pending in the HT (possible only at
+        //     Ephemeral) then we have to convert/update the existing pending
+        //     into a new PersistedAborted item
+        VBNotifyCtx ctx;
+        if (!htRes.pending) {
+            ctx = addNewAbort(
+                    htRes.pending.getHBL(), key, prepareSeqno, *abortSeqno);
+        } else {
+            // This code path can be reached only at Ephemeral
+            Expects(htRes.pending->isCompleted());
+            ctx = abortStoredValue(htRes.pending.getHBL(),
+                                   *htRes.pending.release(),
+                                   prepareSeqno,
+                                   *abortSeqno);
+        }
 
-        auto notify = addNewAbort(
-                htRes.pending.getHBL(), key, prepareSeqno, *abortSeqno);
-
-        notifyNewSeqno(notify);
-        doCollectionsStats(cHandle, notify);
+        notifyNewSeqno(ctx);
+        doCollectionsStats(cHandle, ctx);
 
         return ENGINE_SUCCESS;
-    }
-
-    // We found a (potentially completed if ephemeral) prepare
-    if (!htRes.pending->isPending() && !isReceivingDiskSnapshot()) {
-        // We may find a completed StoredValue if the Abort is received from
-        // backfill as a previous prepare may have been deduped. If we are not
-        // receiving a disk snapshot, this is an error - we received an abort
-        // for something we haven't prepared.
-        std::stringstream ss;
-        ss << (htRes.committed ? *htRes.committed : *htRes.pending);
-        EP_LOG_ERR(
-                "VBucket::abort ({}) failed as HashTable value is not "
-                "CommittedState::Pending - {}",
-                id,
-                cb::UserData(ss.str()));
-        return ENGINE_EINVAL;
     }
 
     // If prepare seqno is not the same as our stored seqno then we should be
@@ -3032,11 +3026,11 @@ bool VBucket::hasMemoryForStoredValue(
     }
 }
 
-void VBucket::_addStats(bool details,
+void VBucket::_addStats(VBucketStatsDetailLevel detail,
                         const AddStatFn& add_stat,
                         const void* c) {
-    addStat(NULL, toString(state), add_stat, c);
-    if (details) {
+    switch (detail) {
+    case VBucketStatsDetailLevel::Full: {
         size_t numItems = getNumItems();
         size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
@@ -3067,19 +3061,16 @@ void VBucket::_addStats(bool details,
         addStat("queue_age", getQueueAge(), add_stat, c);
         addStat("pending_writes", dirtyQueuePendingWrites.load(), add_stat, c);
 
-        addStat("high_seqno", getHighSeqno(), add_stat, c);
         addStat("uuid", failovers->getLatestUUID(), add_stat, c);
         addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
-        addStat("bloom_filter", getFilterStatusString().data(),
-                add_stat, c);
+        addStat("bloom_filter", getFilterStatusString().data(), add_stat, c);
         addStat("bloom_filter_size", getFilterSize(), add_stat, c);
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
-        addStat("topology", getReplicationTopology().dump(), add_stat, c);
-        addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+
         addStat("high_completed_seqno", getHighCompletedSeqno(), add_stat, c);
         addStat("sync_write_accepted_count",
                 getSyncWriteAcceptedCount(),
@@ -3095,6 +3086,21 @@ void VBucket::_addStats(bool details,
                 c);
 
         hlc.addStats(statPrefix, add_stat, c);
+    }
+        // fallthrough
+    case VBucketStatsDetailLevel::Durability:
+        addStat("high_seqno", getHighSeqno(), add_stat, c);
+        addStat("topology", getReplicationTopology().dump(), add_stat, c);
+        addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+        // fallthrough
+    case VBucketStatsDetailLevel::State:
+        // adds the vbucket state stat (unnamed stat)
+        addStat(NULL, toString(state), add_stat, c);
+        break;
+    case VBucketStatsDetailLevel::PreviousState:
+        throw std::invalid_argument(
+                "VBucket::_addStats: unexpected detail level");
+        break;
     }
 }
 

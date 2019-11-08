@@ -571,6 +571,26 @@ public:
 
     virtual KVStore* getROUnderlying(Vbid vbId) = 0;
 
+    /**
+     * takeRWRO and setRWRO are used for changing the kvstore(s) in unit tests
+     * takeRWRO will move the value of ro/rw out of this object, leaving the
+     * KVBucket with no store, setRWRO should be after take to put back valid
+     * KVStores
+     * @param shardId the shard to take from
+     */
+    virtual KVStoreRWRO takeRWRO(size_t shardId) = 0;
+
+    /**
+     * takeRWRO and  setRWRO are used for changing the kvstore(s) in unit tests
+     * setRWRO will move the value of ro/rw over the current ro/rw
+     * @param shardId the shared to set onto
+     * @param ro the read only KVStore
+     * @param rw the read write KVStore
+     */
+    virtual void setRWRO(size_t shardId,
+                         std::unique_ptr<KVStore> ro,
+                         std::unique_ptr<KVStore> rw) = 0;
+
     virtual void deleteExpiredItem(Item& it,
                                    time_t startTime,
                                    ExpireBy source) = 0;
