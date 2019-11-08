@@ -2904,4 +2904,9 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
     EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
 }
 
+TEST_F(MagmaKVStoreTest, getStat) {
+    size_t val;
+    ASSERT_FALSE(kvstore->getStat("foobar", val));
+    ASSERT_TRUE(kvstore->getStat("memory_quota", val));
+}
 #endif

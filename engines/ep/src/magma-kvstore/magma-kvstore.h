@@ -102,6 +102,15 @@ public:
     void setMaxDataSize(size_t size) override;
 
     /**
+     * Get magma stats
+     *
+     * @param name stat name
+     * @param value returned value when function return is true
+     * @return true if stat found, value is set
+     */
+    bool getStat(const char* name, size_t& value) override;
+
+    /**
      * Adds a request to a queue for batch processing at commit()
      */
     void set(const Item& item, SetCallback cb) override;

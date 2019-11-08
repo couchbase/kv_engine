@@ -2522,3 +2522,19 @@ magma::Status MagmaKVStore::updateScopes(Vbid vbid,
     std::string s{reinterpret_cast<const char*>(buf.data()), buf.size()};
     return setLocalDoc(commitBatch, openScopesKey, s);
 }
+
+bool MagmaKVStore::getStat(const char* name, size_t& value) {
+    Magma::MagmaStats magmaStats;
+    if (strncmp(name, "memory_quota", sizeof("memory_quota")) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.MemoryQuota);
+    } else if (strncmp(name,
+                       "write_cache_quota",
+                       sizeof("write_cache_quota")) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.WriteCacheQuota);
+    } else {
+        return false;
+    }
+    return true;
+}
