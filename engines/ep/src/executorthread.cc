@@ -25,6 +25,8 @@
 #include "globaltask.h"
 #include "taskqueue.h"
 
+#include <folly/Portability.h>
+#include <folly/portability/SysResource.h>
 #include <platform/timeutils.h>
 #include <sstream>
 
@@ -54,6 +56,38 @@ void ExecutorThread::start() {
         ss << name.c_str() << ": Initialization error!!!";
         throw std::runtime_error(ss.str().c_str());
     }
+
+    // Decrease the priority of Writer threads to lessen their impact on
+    // other threads (esp front-end workers which should be prioritized ahead
+    // of non-critical path Writer tasks (both Flusher and Compaction).
+    // TODO: Investigate if it is worth increasing the priority of Flusher tasks
+    // which _are_ on the critical path for front-end operations - i.e.
+    // SyncWrites at level=persistMajority / persistActive.
+    // This could be done by having two different priority thread pools (say
+    // Low and High IO threads and putting critical path Reader (BGFetch) and
+    // Writer (SyncWrite flushes) on the High IO thread pool; keeping
+    // non-persist SyncWrites / normal mutations & compaction on the Low IO
+    // pool.
+#if defined(__linux__) || defined(_WIN32)
+    // Only doing this for Linux & Windows at present:
+    // - On macOS setpriority(PRIO_PROCESS) affects the entire process (unlike
+    //   Linux where it's only the current thread), hence calling setpriority()
+    //   would be pointless.
+    if (taskType == WRITER_TASK_IDX) {
+        // Note Linux uses the range -19..20; whereas the Folly implementation
+        // of setpriority uses 0..39.
+        const int lowestPriority = folly::kIsLinux ? 19 : 39;
+        if (setpriority(PRIO_PROCESS,
+                        /*Current thread*/ 0,
+                        lowestPriority)) {
+            EP_LOG_INFO("Set thread {} to background priority", getName());
+        } else {
+            EP_LOG_WARN("Failed to set thread {} to background priority - {}",
+                        getName(),
+                        strerror(errno));
+        }
+    }
+#endif
 
     EP_LOG_DEBUG("{}: Started", name);
 }
