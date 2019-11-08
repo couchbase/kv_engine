@@ -337,7 +337,7 @@ page is a good reference for exception handling best practices.
 ```C++
 bool found = false;
 switch (enumVar) {
-case CmdStat::TOTAL_RETRIVAL:
+case CmdStat::TOTAL_RETRIEVAL:
     found = true;
     break;
 ...

@@ -203,10 +203,10 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
         // index 0 contains the aggregated timings for all buckets
         auto& timings = all_buckets[0].timings;
         uint64_t total_mutations = timings.get_aggregated_mutation_stats();
-        uint64_t total_retrivals = timings.get_aggregated_retrival_stats();
-        uint64_t total_ops = total_retrivals + total_mutations;
+        uint64_t total_retrievals = timings.get_aggregated_retrieval_stats();
+        uint64_t total_ops = total_retrievals + total_mutations;
         add_stat(cookie, add_stat_callback, "cmd_total_sets", total_mutations);
-        add_stat(cookie, add_stat_callback, "cmd_total_gets", total_retrivals);
+        add_stat(cookie, add_stat_callback, "cmd_total_gets", total_retrievals);
         add_stat(cookie, add_stat_callback, "cmd_total_ops", total_ops);
         add_stat(cookie, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
         add_stat(cookie, add_stat_callback, "auth_errors", thread_stats.auth_errors);

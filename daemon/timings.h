@@ -42,7 +42,7 @@ public:
     void sample(std::chrono::seconds sample_interval);
     std::string generate(cb::mcbp::ClientOpcode opcode);
     uint64_t get_aggregated_mutation_stats();
-    uint64_t get_aggregated_retrival_stats();
+    uint64_t get_aggregated_retrieval_stats();
 
     cb::sampling::Interval get_interval_mutation_latency();
     cb::sampling::Interval get_interval_lookup_latency();
