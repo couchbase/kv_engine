@@ -27,9 +27,9 @@ For introductory information on stats within Couchbase, start with the
 |---------------------------------------+-----------------------------------------|
 | uuid                                  | The unique identifier for the bucket    |
 | ep_version                            | Version number of ep_engine             |
-| ep_storage_age                        | Seconds since most recently             |
+| ep_storage_age                        | Microseconds since most recently        |
 |                                       | stored object was initially queued      |
-| ep_storage_age_highwat                | ep_storage_age high water mark          |
+| ep_storage_age_highwat                | ep_storage_age high water mark (us)     |
 | ep_startup_time                       | System-generated engine startup time    |
 | ep_data_age                           | Seconds since most recently             |
 |                                       | stored object was modified              |
@@ -77,7 +77,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_pending_compactions                | Number of pending vbucket compactions   |
 | ep_rollback_count                     | Number of rollbacks on consumer         |
 | ep_flush_duration_total               | Cumulative milliseconds spent flushing  |
-| ep_flush_all                          | True if disk flush_all is scheduled     |
 | ep_num_ops_get_meta                   | Number of getMeta operations            |
 | ep_num_ops_set_meta                   | Number of setWithMeta operations        |
 | ep_num_ops_del_meta                   | Number of delWithMeta operations        |

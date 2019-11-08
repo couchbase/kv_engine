@@ -380,7 +380,7 @@ TEST_F(EphemeralVBucketTest, GetAndUpdateTtl) {
 
     /* --- basic test --- */
     /* set the ttl of one item */
-    GetValue gv1 = public_getAndUpdateTtl(keys[0], 100);
+    GetValue gv1 = public_getAndUpdateTtl(keys[0], 100).second;
 
     /* New seqno should have been used */
     EXPECT_EQ(numItems + 1, vbucket->getHighSeqno());
@@ -396,7 +396,7 @@ TEST_F(EphemeralVBucketTest, GetAndUpdateTtl) {
 
     /* --- Repeat the above test with a similated ReadRange --- */
     mockEpheVB->registerFakeReadRange(1, numItems);
-    GetValue gv2 = public_getAndUpdateTtl(keys[1], 101);
+    GetValue gv2 = public_getAndUpdateTtl(keys[1], 101).second;
 
     /* New seqno should have been used */
     EXPECT_EQ(numItems + 2, vbucket->getHighSeqno());

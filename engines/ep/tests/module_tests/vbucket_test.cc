@@ -277,16 +277,13 @@ bool VBucketTestBase::public_deleteStoredValue(const DocKey& key) {
     return vbucket->deleteStoredValue(hbl_sv.first, *hbl_sv.second);
 }
 
-GetValue VBucketTestBase::public_getAndUpdateTtl(const DocKey& key,
-                                                 time_t exptime) {
+std::pair<MutationStatus, GetValue> VBucketTestBase::public_getAndUpdateTtl(
+        const DocKey& key, time_t exptime) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto hbl = lockAndFind(key);
-    GetValue gv;
-    MutationStatus status;
-    std::tie(status, gv) = vbucket->processGetAndUpdateTtl(
+    return vbucket->processGetAndUpdateTtl(
             hbl.first, hbl.second, exptime, cHandle);
-    return gv;
 }
 
 bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs) {

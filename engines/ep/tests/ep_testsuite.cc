@@ -7116,7 +7116,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_expired_pager",
               "ep_expiry_pager_task_time",
               "ep_failpartialwarmup",
-              "ep_flush_all",
               "ep_flush_duration_total",
               "ep_flusher_batch_split_trigger",
               "ep_fsync_after_every_n_bytes_written",

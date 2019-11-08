@@ -38,8 +38,6 @@ public:
 
     void deinitialize() override;
 
-    void reset() override;
-
     /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush
@@ -198,8 +196,6 @@ protected:
     friend class LoadStorageKVPairCallback;
 
     class ValueChangedListener;
-
-    void flushOneDeleteAll();
 
     void flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb);
 
