@@ -983,7 +983,7 @@
             "type": "size_t"
         },
         "magma_delete_frag_ratio": {
-            "default": "0.5",
+            "default": "0.50",
             "dynamic": false,
             "descr": "Magma compaction always removes duplicate keys but not all sstables are visited during compaction.. This is the minimum fragmentation ratio threshold for when a compaction will be triggerred.",
             "type": "float"
@@ -995,9 +995,9 @@
             "type": "size_t"
         },
         "magma_commit_point_interval": {
-            "default": "2",
+            "default": "1",
             "dynamic": false,
-            "descr": "frequency of commit point interval; in minutes.",
+            "descr": "Frequency of commit point interval; in minutes. A commit point interval provides a rollback point to which the data store can rollback to in the event of a failure.",
             "type": "size_t"
         },
         "magma_value_separation_size": {
@@ -1006,23 +1006,29 @@
             "descr": "Values smaller than this will not be separated from their keys.",
             "type": "size_t"
         },
-        "magma_min_write_cache": {
-            "default": "8388608",
+        "magma_write_cache_ratio": {
+            "default": "0.2",
             "dynamic": false,
-            "descr": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. A too small write cache can lead to very small sstables and high write amplification. A lower value can be used if the number of kvstores per shard is smaller.",
-            "type": "size_t"
+            "descr": "Memory is maintained across 3 magma components; Bloom filters, Block cache and Write cache. The least important of these is the write cache. If there is insufficent memory for the write cache, the write cache will grow to the size of the batch and then be immediately flushed and freed. If there is available memory, the write cache is limited to 20% of the available memory (after bloom filter and block cache get their memory up to magma_max_write_cache (128MB). Bloom filters are the most important and are never paged out. Bloom filter memory can cause magma to go above the memory quota. To allevaite this, the bottom layer where the majority of bloom filter memory is, won't use bloom filters when OptimizeBloomFilterForMisses is on (which it is by default). The block cache grows each time the index sizes change. But its growth is bounded by the available memory or what's left over after the bloom filter memory is subtracted.",  
+            "type": "float"
         },
         "magma_max_write_cache": {
             "default": "134217728",
             "dynamic": false,
-            "descr": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. A too large write cache can lead to high space amplification.",
+            "descr": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. Regardless of how much memory might be available, this would be the maximum amount that could be allocated.",
             "type": "size_t"
         },
         "magma_mem_quota_ratio": {
             "default": "0.1",
-            "descr": "Magma total memory ratio of the Bucket Quota across all shards.",
             "dynamic": false,
+            "descr": "Magma total memory ratio of the Bucket Quota across all shards.",
             "type": "float"
+        },
+        "magma_enable_direct_io": {
+            "default": "false",
+            "dynamic": false,
+            "descr": "Using direct IO tells magma to bypass the file system cache when writing or reading sstables.",
+            "type": "bool"
         },
         "magma_wal_buffer_size": {
             "default": "2097152",
@@ -1071,6 +1077,12 @@
             "dynamic": false,
             "descr": "All compactions perform tombstone removal but not all sstables are visited by compaction. Magma tracks tombstone counts and will perform compaction on the range of sstables which have a significant number of tombstones. The frag threshold is the number of tombstones vs keys in the data store.",
             "type": "float"
+        },
+        "magma_enable_block_cache": {
+            "default": "false",
+            "dynamic": false,
+            "descr": "The block cache is an LRU policy driven cache that is used to maintain index blocks for the sstable's btrees.",
+            "type": "bool"
         },
         "retain_erroneous_tombstones": {
             "default": "true",

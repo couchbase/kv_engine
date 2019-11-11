@@ -27,9 +27,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaMaxCommitPoints = config.getMagmaMaxCommitPoints();
     magmaCommitPointInterval = config.getMagmaCommitPointInterval();
     magmaValueSeparationSize = config.getMagmaValueSeparationSize();
-    magmaMinWriteCache = config.getMagmaMinWriteCache();
-    magmaMaxWriteCache = config.getMagmaMaxWriteCache();
     magmaMemQuotaRatio = config.getMagmaMemQuotaRatio();
+    magmaWriteCacheRatio = config.getMagmaWriteCacheRatio();
+    magmaMaxWriteCache = config.getMagmaMaxWriteCache();
+    magmaEnableDirectIo = config.isMagmaEnableDirectIo();
     magmaWalBufferSize = config.getMagmaWalBufferSize();
     magmaWalNumBuffers = config.getMagmaWalNumBuffers();
     magmaNumFlushers = config.getMagmaNumFlushers();
@@ -38,4 +39,5 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaEnableUpsert = config.isMagmaEnableUpsert();
     magmaExpiryFragThreshold = config.getMagmaExpiryFragThreshold();
     magmaTombstoneFragThreshold = config.getMagmaTombstoneFragThreshold();
+    magmaEnableBlockCache = config.isMagmaEnableBlockCache();
 }

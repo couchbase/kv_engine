@@ -520,18 +520,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       scanCounter(0),
       cachedMagmaInfo(configuration.getMaxVBuckets()),
       compaction_ctxList(configuration.getMaxVBuckets()) {
-    const size_t memtablesQuota = configuration.getBucketQuota() /
-                                  configuration.getMaxShards() *
-                                  configuration.getMagmaMemQuotaRatio();
-
-    // The writeCacheSize is based on the bucketQuota but also must be
-    // between minWriteCacheSize(8MB) and maxWriteCacheSize(128MB).
-    // Too small of a writeCache, high write amplification.
-    // Too large of a writeCache, high space amplification.
-    size_t writeCacheSize =
-            std::min(memtablesQuota, configuration.getMagmaMaxWriteCache());
-    writeCacheSize =
-            std::max(writeCacheSize, configuration.getMagmaMinWriteCache());
 
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
@@ -546,7 +534,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             commitPointInterval * std::chrono::milliseconds{1min};
     configuration.magmaCfg.MinValueSize =
             configuration.getMagmaValueSeparationSize();
-    configuration.magmaCfg.MaxWriteCacheSize = writeCacheSize;
+    configuration.magmaCfg.MaxWriteCacheSize =
+            configuration.getMagmaMaxWriteCache();
     configuration.magmaCfg.WALBufferSize =
             configuration.getMagmaWalBufferSize();
     configuration.magmaCfg.NumWALBuffers =
@@ -562,6 +551,12 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.GetSeqNum = getSeqNum;
     configuration.magmaCfg.GetExpiryTime = getExpiryTime;
     configuration.magmaCfg.IsTombstone = isDeleted;
+    configuration.magmaCfg.EnableDirectIO =
+            configuration.getMagmaEnableDirectIo();
+    configuration.magmaCfg.EnableBlockCache =
+            configuration.getMagmaEnableBlockCache();
+    configuration.magmaCfg.WriteCacheRatio =
+            configuration.getMagmaWriteCacheRatio();
 
     cachedVBStates.resize(configuration.getMaxVBuckets());
 
@@ -577,17 +572,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     auto currEngine = ObjectRegistry::getCurrentEngine();
     configuration.magmaCfg.SetupThreadContext = [currEngine]() {
         ObjectRegistry::onSwitchThread(currEngine, false);
-    };
-
-    // This allows magma writeCache to include its memory in the memory
-    // tracking.
-    configuration.magmaCfg.WriteCacheAllocationCallback = [](size_t size,
-                                                             bool alloc) {
-        if (alloc) {
-            ObjectRegistry::memoryAllocated(size);
-        } else {
-            ObjectRegistry::memoryDeallocated(size);
-        }
     };
 
     // Populate the magmaKVHandles
@@ -612,48 +596,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     logger = BucketLogger::createBucketLogger(loggerName, loggerName);
     configuration.magmaCfg.LogContext = logger;
 
-    logger->info(
-            "MagmaKVStore Constructor"
-            " Path:{}"
-            " BucketQuota:{}MB"
-            " #Shards:{}"
-            " MemQuotaRatio:{}"
-            " MaxWriteCacheSize:{}MB"
-            " MaxKVStores:{}"
-            " MaxKVStoreLSDBufferSize:{}"
-            " LSDFragmentationRatio:{} "
-            " MaxCommitPoints:{}"
-            " CommitPointInterval:{}min"
-            " BatchCommitPoint:{}"
-            " MinValueSize:{}"
-            " UseUpsert:{}"
-            " WALBufferSize:{}KB"
-            " WalSyncTime:{}ms"
-            " NumFlushers:{}"
-            " NumCompactors:{}"
-            " ExpiryFragThreshold:{}"
-            " TombstoneFragThreshold:{}",
-            configuration.magmaCfg.Path,
-            configuration.getBucketQuota() / 1024 / 1024,
-            configuration.getMaxShards(),
-            configuration.getMagmaMemQuotaRatio(),
-            configuration.magmaCfg.MaxWriteCacheSize / 1024 / 1024,
-            configuration.magmaCfg.MaxKVStores,
-            configuration.magmaCfg.MaxKVStoreLSDBufferSize,
-            configuration.magmaCfg.LSDFragmentationRatio,
-            configuration.magmaCfg.MaxCommitPoints,
-            configuration.getMagmaCommitPointInterval(),
-            commitPointEveryBatch,
-            configuration.magmaCfg.MinValueSize,
-            useUpsertForSet,
-            configuration.magmaCfg.WALBufferSize / 1024,
-            int(configuration.magmaCfg.WALSyncTime /
-                std::chrono::milliseconds{1ms}),
-            configuration.magmaCfg.NumFlushers,
-            configuration.magmaCfg.NumCompactors,
-            configuration.magmaCfg.ExpiryFragThreshold,
-            configuration.magmaCfg.TombstoneFragThreshold);
-
     // Open the magma instance for this shard and populate the
     // vbstate and magmaInfo.
     magma = std::make_unique<Magma>(configuration.magmaCfg);
@@ -664,6 +606,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         logger->critical(err);
         throw std::logic_error(err);
     }
+
+    setMaxDataSize(configuration.getBucketQuota());
+
     auto kvstoreList = magma->GetKVStoreList();
     for (auto& kvid : kvstoreList) {
         // No need to get vbHandle or vbstateMutex as we are just
@@ -827,7 +772,11 @@ StorageProperties MagmaKVStore::getStorageProperties() {
 }
 
 void MagmaKVStore::setMaxDataSize(size_t size) {
-    // Magma can set its max bucket quota size to the correct value.
+    auto& configuration =
+            dynamic_cast<MagmaKVStoreConfig&>(this->configuration);
+    const size_t memoryQuota = (size / configuration.getMaxShards()) *
+                               configuration.getMagmaMemQuotaRatio();
+    magma->SetMemoryQuota(memoryQuota);
 }
 
 // Note: This routine is only called during warmup. The caller

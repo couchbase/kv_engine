@@ -49,14 +49,17 @@ public:
     size_t getMagmaValueSeparationSize() const {
         return magmaValueSeparationSize;
     }
-    size_t getMagmaMinWriteCache() const {
-        return magmaMinWriteCache;
-    }
     size_t getMagmaMaxWriteCache() const {
         return magmaMaxWriteCache;
     }
     float getMagmaMemQuotaRatio() const {
         return magmaMemQuotaRatio;
+    }
+    float getMagmaWriteCacheRatio() const {
+        return magmaWriteCacheRatio;
+    }
+    bool getMagmaEnableDirectIo() const {
+        return magmaEnableDirectIo;
     }
     size_t getMagmaWalBufferSize() const {
         return magmaWalBufferSize;
@@ -81,6 +84,9 @@ public:
     }
     float getMagmaTombstoneFragThreshold() const {
         return magmaTombstoneFragThreshold;
+    }
+    bool getMagmaEnableBlockCache() const {
+        return magmaEnableBlockCache;
     }
 
     magma::Magma::Config magmaCfg;
@@ -128,10 +134,6 @@ private:
     // called the write cache. The write cache contains items from all the
     // kvstores that are part of the shard and when it is flushed, each
     // kvstore will receive a few items each.
-    //
-    // A too large write cache size can lead to high space amplification.
-    // A too small write cache size can lead to space amplfication issues.
-    size_t magmaMinWriteCache;
     size_t magmaMaxWriteCache;
 
     // Magma Memory Quota as a ratio of Bucket Quota
@@ -161,4 +163,15 @@ private:
     // but accurate document counts for the data store or collections can
     // not be maintained.
     bool magmaEnableUpsert;
+
+    // Ratio of available memory that magma write cache can utilized up
+    // to the magmaMaxWriteCache limit.
+    float magmaWriteCacheRatio;
+
+    // When true, directs magma to use direct io when writing sstables.
+    bool magmaEnableDirectIo;
+
+    // Magma can utilize an LRU policy driven block cache that maintains
+    // the index blocks from sstables.
+    bool magmaEnableBlockCache;
 };

@@ -2909,4 +2909,37 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_FALSE(kvstore->getStat("foobar", val));
     ASSERT_TRUE(kvstore->getStat("memory_quota", val));
 }
+
+TEST_F(MagmaKVStoreTest, setMaxDataSize) {
+    uint64_t seqno{1};
+    WriteCallback wc;
+
+    // Magma's memory quota is recalculated on each commit batch.
+    kvstore->begin(std::make_unique<TransactionContext>());
+    Item item(makeStoredDocKey("key"), 0, 0, "value", 5);
+    item.setBySeqno(seqno++);
+    kvstore->set(item, wc);
+    kvstore->commit(flush);
+
+    size_t memQuota;
+    ASSERT_TRUE(kvstore->getStat("memory_quota", memQuota));
+    size_t writeCacheQuota;
+    ASSERT_TRUE(kvstore->getStat("write_cache_quota", writeCacheQuota));
+
+    kvstore->setMaxDataSize(memQuota / 10);
+
+    // Magma's memory quota is recalculated on each commit batch.
+    kvstore->begin(std::make_unique<TransactionContext>());
+    item.setBySeqno(seqno++);
+    kvstore->set(item, wc);
+    kvstore->commit(flush);
+
+    size_t memQuotaAfter;
+    ASSERT_TRUE(kvstore->getStat("memory_quota", memQuotaAfter));
+    ASSERT_LT(memQuotaAfter, memQuota);
+
+    size_t writeCacheQuotaAfter;
+    ASSERT_TRUE(kvstore->getStat("write_cache_quota", writeCacheQuotaAfter));
+    ASSERT_LT(writeCacheQuotaAfter, writeCacheQuota);
+}
 #endif
