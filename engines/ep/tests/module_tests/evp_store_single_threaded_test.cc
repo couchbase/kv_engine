@@ -46,6 +46,7 @@
 #include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
+#include "vb_commit.h"
 
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -3788,7 +3789,7 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     } dc;
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->del(*(itm.get()), dc);
-    Collections::VB::Flush f(epstore.getVBucket(vbid)->getManifest());
+    VB::Commit f(epstore.getVBucket(vbid)->getManifest());
     kvstore->commit(f);
 
     // Add another item to ensure that seqno of the deleted item

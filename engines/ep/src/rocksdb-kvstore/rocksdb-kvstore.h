@@ -146,7 +146,7 @@ public:
      *
      * Returns false if the commit fails.
      */
-    bool commit(Collections::VB::Flush& collectionsFlush) override;
+    bool commit(VB::Commit& commitData) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -455,7 +455,7 @@ private:
                                        rocksdb::WriteBatch& batch);
 
     rocksdb::Status saveDocs(Vbid vbid,
-                             Collections::VB::Flush& collectionsFlush,
+                             VB::Commit& commitData,
                              const PendingRequestQueue& commitBatch);
 
     rocksdb::Status addRequestToWriteBatch(const VBHandle& db,

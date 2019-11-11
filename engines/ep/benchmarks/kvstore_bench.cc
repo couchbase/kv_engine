@@ -20,6 +20,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#include "vb_commit.h"
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
@@ -141,7 +142,8 @@ protected:
             kvstore->set(item, wc);
         }
         Collections::VB::Manifest m;
-        Collections::VB::Flush f(m);
+        VB::Commit f(m);
+
         kvstore->commit(f);
         // Just check that the VBucket High Seqno has been updated correctly
         EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, numItems);

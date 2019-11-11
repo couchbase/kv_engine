@@ -34,10 +34,10 @@
 #include "rollback_result.h"
 #include "statwriter.h"
 #include "tasks.h"
+#include "vb_commit.h"
 #include "vb_visitors.h"
 #include "vbucket_state.h"
 #include "warmup.h"
-
 
 #include <platform/timeutils.h>
 #include <utilities/hdrhistogram.h>
@@ -384,7 +384,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             bool mustCheckpointVBState = false;
 
-            Collections::VB::Flush collectionFlush(vb->getManifest());
+            VB::Commit commitData(vb->getManifest());
 
             // HCS is optional because we have to update it on disk only if some
             // Commit/Abort SyncWrite is found in the flush-batch. If we're
@@ -643,7 +643,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
              * of items to flush.
              */
             if (items_flushed > 0) {
-                commit(vb->getId(), *rwUnderlying, collectionFlush);
+                commit(vb->getId(), *rwUnderlying, commitData);
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
@@ -716,7 +716,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             stats.flusher_todo.store(0);
             stats.totalPersistVBState++;
 
-            collectionFlush.checkAndTriggerPurge(vb->getId(), *this);
+            commitData.collections.checkAndTriggerPurge(vb->getId(), *this);
         }
 
         rwUnderlying->pendingTasks();
@@ -746,13 +746,11 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     flusherBatchSplitTrigger = limit;
 }
 
-void EPBucket::commit(Vbid vbid,
-                      KVStore& kvstore,
-                      Collections::VB::Flush& collectionsFlush) {
+void EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
-    if (!kvstore.commit(collectionsFlush)) {
+    if (!kvstore.commit(commitData)) {
         ++stats.commitFailed;
         EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
     } else {

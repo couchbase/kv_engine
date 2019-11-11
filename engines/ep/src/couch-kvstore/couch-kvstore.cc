@@ -25,6 +25,7 @@
 #include "item.h"
 #include "kvstore_config.h"
 #include "rollback_result.h"
+#include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
@@ -1369,14 +1370,14 @@ StorageProperties CouchKVStore::getStorageProperties() {
     return rv;
 }
 
-bool CouchKVStore::commit(Collections::VB::Flush& collectionsFlush) {
+bool CouchKVStore::commit(VB::Commit& commitData) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "
                         "object.");
     }
 
     if (intransaction) {
-        if (commit2couchstore(collectionsFlush)) {
+        if (commit2couchstore(commitData)) {
             intransaction = false;
             transactionCtx.reset();
         }
@@ -2046,7 +2047,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
+bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
     bool success = true;
 
     size_t pendingCommitCnt = pendingReqsQ.size();
@@ -2072,8 +2073,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
         docinfos[i] = req.getDbDocInfo();
     }
 
-    // The docinfo callback needs to know if the CollectionID feature is on
-    kvstats_ctx kvctx(collectionsFlush);
+    kvstats_ctx kvctx(commitData);
     // flush all
     couchstore_error_t errCode = saveDocs(vbucket2flush, docs, docinfos, kvctx);
 
@@ -2136,14 +2136,14 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     switch (itemCountDelta) {
     case -1:
         if (newKey.isCommitted()) {
-            cbCtx->collectionsFlush.decrementDiskCount(docKey);
+            cbCtx->commitData.collections.decrementDiskCount(docKey);
         } else {
             cbCtx->onDiskPrepareDelta--;
         }
         break;
     case 1:
         if (newKey.isCommitted()) {
-            cbCtx->collectionsFlush.incrementDiskCount(docKey);
+            cbCtx->commitData.collections.incrementDiskCount(docKey);
         } else {
             cbCtx->onDiskPrepareDelta++;
         }
@@ -2164,7 +2164,7 @@ static void saveDocsCallback(const DocInfo* oldInfo,
 
     // Set the highest seqno that we are persisting regardless of if it
     // is a mutation or deletion
-    cbCtx->collectionsFlush.setPersistedHighSeqno(
+    cbCtx->commitData.collections.setPersistedHighSeqno(
             docKey, newInfo->db_seq, newInfo->deleted);
 }
 
@@ -2249,7 +2249,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
             }
         }
 
-        kvctx.collectionsFlush.saveCollectionStats(
+        kvctx.commitData.collections.saveCollectionStats(
                 std::bind(&CouchKVStore::saveCollectionStats,
                           this,
                           std::ref(*db),
@@ -2266,7 +2266,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         }
 
         if (collectionsMeta.needsCommit) {
-            errCode = updateCollectionsMeta(*db, kvctx.collectionsFlush);
+            errCode = updateCollectionsMeta(*db, kvctx.commitData.collections);
             if (errCode) {
                 logger.warn(
                         "CouchKVStore::saveDocs: updateCollectionsMeta "

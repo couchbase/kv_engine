@@ -51,10 +51,13 @@ class Request;
 }
 } // namespace cb
 
+namespace VB {
+class Commit;
+} // namespace VB
+
 namespace Collections {
 namespace VB {
 struct PersistedStats;
-class Flush;
 } // namespace VB
 } // namespace Collections
 
@@ -136,13 +139,12 @@ struct compaction_ctx {
 };
 
 struct kvstats_ctx {
-    kvstats_ctx(Collections::VB::Flush& collectionsFlush)
-        : collectionsFlush(collectionsFlush) {
+    kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
     }
     /// A map of key to bool. If true, the key exists in the VB datafile
     std::unordered_map<DiskDocKey, bool> keyStats;
-    /// Collection flusher data for managing manifest changes and item counts
-    Collections::VB::Flush& collectionsFlush;
+    /// flusher data for managing manifest changes, item counts, vbstate
+    VB::Commit& commitData;
 
     /**
      * Delta of onDiskPrepares that we should add to the value tracked in
@@ -595,11 +597,11 @@ public:
     /**
      * Commit a transaction (unless not currently in one).
      *
-     * @param collectionsFlush a reference to a Collections::VB::Flush object
-     *        which is required for persisted metadata updates and item counting
+     * @param commitData a reference to a VB::Commit object which is required
+     *        for persisted metadata updates and collection item counting
      * @return false if the commit fails
      */
-    virtual bool commit(Collections::VB::Flush& collectionsFlush) = 0;
+    virtual bool commit(VB::Commit& commitData) = 0;
 
     /**
      * Rollback the current transaction.

@@ -90,7 +90,7 @@ public:
      *
      * Returns false if the commit fails.
      */
-    bool commit(Collections::VB::Flush& collectionsFlush) override;
+    bool commit(VB::Commit& commitData) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -506,7 +506,7 @@ private:
                           const magma::Slice& valueSlice,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    int saveDocs(Collections::VB::Flush& collectionsFlush,
+    int saveDocs(VB::Commit& commitData,
                  kvstats_ctx& kvctx,
                  const MagmaKVHandle& kvHandle);
 

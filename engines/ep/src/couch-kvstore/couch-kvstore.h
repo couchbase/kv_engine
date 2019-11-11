@@ -156,12 +156,10 @@ public:
     /**
      * Commit a transaction (unless not currently in one).
      *
-     * @param collectionsManifest a pointer to an Item which is a SystemEvent
-     *        that contains a collections manifest to be written in the commit.
-     *        Can be nullptr if the commit has no manifest to write.
+     * @param flushData - see KVStore::commit
      * @return true if the commit is completed successfully.
      */
-    bool commit(Collections::VB::Flush& collectionsFlush) override;
+    bool commit(VB::Commit& commitData) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -525,7 +523,7 @@ protected:
     void operator=(const CouchKVStore &from);
 
     void close();
-    bool commit2couchstore(Collections::VB::Flush& collectionsFlush);
+    bool commit2couchstore(VB::Commit& commitData);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string>& filenames,

@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include "collections/flush.h"
 #include "collections/vbucket_manifest.h"
+#include "vb_commit.h"
 
 #include <folly/portability/GTest.h>
 
@@ -42,7 +42,7 @@ protected:
 
     std::string data_dir;
     Collections::VB::Manifest manifest;
-    Collections::VB::Flush flush;
+    VB::Commit flush;
     Vbid vbid = Vbid(0);
 };
 

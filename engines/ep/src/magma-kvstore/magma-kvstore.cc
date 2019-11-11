@@ -21,6 +21,7 @@
 #include "item.h"
 #include "magma-kvstore_config.h"
 #include "statwriter.h"
+#include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
@@ -651,7 +652,7 @@ bool MagmaKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
     return in_transaction;
 }
 
-bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
+bool MagmaKVStore::commit(VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
     if (!in_transaction) {
@@ -664,13 +665,13 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
         return true;
     }
 
-    kvstats_ctx kvctx(collectionsFlush);
+    kvstats_ctx kvctx(commitData);
     bool success = true;
 
     auto kvHandle = getMagmaKVHandle(transactionCtx->vbid);
 
     // Flush all documents to disk
-    auto errCode = saveDocs(collectionsFlush, kvctx, kvHandle);
+    auto errCode = saveDocs(commitData, kvctx, kvHandle);
     if (errCode != ENGINE_SUCCESS) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
                      pendingReqs->front().getVbID(),
@@ -1273,7 +1274,7 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                     0);
 }
 
-int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
+int MagmaKVStore::saveDocs(VB::Commit& commitData,
                            kvstats_ctx& kvctx,
                            const MagmaKVHandle& kvHandle) {
     uint64_t ninserts = 0;
@@ -1346,7 +1347,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
                 if (!req.isDelete()) {
                     ninserts++;
                     if (diskDocKey.isCommitted()) {
-                        collectionsFlush.incrementDiskCount(docKey);
+                        commitData.collections.incrementDiskCount(docKey);
                     } else {
                         kvctx.onDiskPrepareDelta++;
                     }
@@ -1355,7 +1356,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
                 // Old item is insert and new is delete.
                 ndeletes++;
                 if (diskDocKey.isCommitted()) {
-                    collectionsFlush.decrementDiskCount(docKey);
+                    commitData.collections.decrementDiskCount(docKey);
                 } else {
                     kvctx.onDiskPrepareDelta--;
                 }
@@ -1365,7 +1366,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
             if (!req.isDelete()) {
                 ninserts++;
                 if (diskDocKey.isCommitted()) {
-                    collectionsFlush.incrementDiskCount(docKey);
+                    commitData.collections.incrementDiskCount(docKey);
                 } else {
                     kvctx.onDiskPrepareDelta++;
                 }
@@ -1384,11 +1385,11 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
             }
         }
 
-        collectionsFlush.setPersistedHighSeqno(
+        commitData.collections.setPersistedHighSeqno(
                 docKey, req.getDocMeta().bySeqno, int(req.isDelete()));
     }
 
-    collectionsFlush.saveCollectionStats(
+    commitData.collections.saveCollectionStats(
             std::bind(&MagmaKVStore::saveCollectionStats,
                       this,
                       std::ref(*(batch.get())),
@@ -1416,7 +1417,8 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
     }
 
     if (collectionsMeta.needsCommit) {
-        status = updateCollectionsMeta(vbid, *(batch.get()), collectionsFlush);
+        status = updateCollectionsMeta(
+                vbid, *(batch.get()), commitData.collections);
         if (!status) {
             logger->warn(
                     "MagmaKVStore::saveDocs: updateCollectionsMeta status:{}",

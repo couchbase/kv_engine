@@ -23,6 +23,7 @@
 #include "item.h"
 #include "kvstore_priv.h"
 #include "statwriter.h"
+#include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
@@ -552,7 +553,7 @@ bool RocksDBKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
     return in_transaction;
 }
 
-bool RocksDBKVStore::commit(Collections::VB::Flush& collectionsFlush) {
+bool RocksDBKVStore::commit(VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
     if (!in_transaction) {
@@ -576,7 +577,7 @@ bool RocksDBKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     auto vbid = transactionCtx->vbid;
 
     // Flush all documents to disk
-    auto status = saveDocs(vbid, collectionsFlush, commitBatch);
+    auto status = saveDocs(vbid, commitData, commitBatch);
     if (!status.ok()) {
         logger.warn(
                 "RocksDBKVStore::commit: saveDocs error:{}, "
@@ -1266,7 +1267,7 @@ rocksdb::Status RocksDBKVStore::writeAndTimeBatch(rocksdb::WriteBatch batch) {
 
 rocksdb::Status RocksDBKVStore::saveDocs(
         Vbid vbid,
-        Collections::VB::Flush& collectionsFlush,
+        VB::Commit& commitData,
         const PendingRequestQueue& commitBatch) {
     auto reqsSize = commitBatch.size();
     if (reqsSize == 0) {

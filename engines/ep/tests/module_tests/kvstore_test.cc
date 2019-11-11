@@ -24,6 +24,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#include "vb_commit.h"
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
@@ -716,7 +717,7 @@ protected:
     std::unique_ptr<CouchKVStore> kvstore;
     std::vector<Item> items;
     Collections::VB::Manifest manifest;
-    Collections::VB::Flush flush;
+    VB::Commit flush;
     Vbid vbid = Vbid(0);
 };
 
@@ -1536,7 +1537,7 @@ protected:
     Vbid vbid;
     KVStoreConfig config;
     Collections::VB::Manifest manifest;
-    Collections::VB::Flush flush;
+    VB::Commit flush;
 };
 
 template<class T>
