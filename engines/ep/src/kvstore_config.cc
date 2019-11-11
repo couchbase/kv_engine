@@ -48,9 +48,11 @@ private:
     KVStoreConfig& config;
 };
 
-KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
+KVStoreConfig::KVStoreConfig(Configuration& config,
+                             uint16_t numShards,
+                             uint16_t shardid)
     : KVStoreConfig(config.getMaxVbuckets(),
-                    config.getMaxNumShards(),
+                    numShards,
                     config.getDbname(),
                     config.getBackend(),
                     shardid) {

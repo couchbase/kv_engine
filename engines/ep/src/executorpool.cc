@@ -35,14 +35,8 @@
 std::mutex ExecutorPool::initGuard;
 std::atomic<ExecutorPool*> ExecutorPool::instance;
 
-static const size_t EP_MIN_NUM_THREADS    = 10;
-static const size_t EP_MIN_READER_THREADS = 4;
-static const size_t EP_MIN_WRITER_THREADS = 4;
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
-
-static const size_t EP_MAX_READER_THREADS = 12;
-static const size_t EP_MAX_WRITER_THREADS = 8;
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
 
@@ -78,19 +72,29 @@ size_t ExecutorPool::getNumAuxIO(void) {
     return count;
 }
 
-size_t ExecutorPool::getNumWriters(void) {
-    size_t count = 0;
-    // 1. compute: floor of Half of what remains after nonIO, auxIO threads
-    if (maxGlobalThreads > (getNumAuxIO() + getNumNonIO())) {
-        count = maxGlobalThreads - getNumAuxIO() - getNumNonIO();
-        count = count >> 1;
-    }
-    // 2. adjust computed value to be within range
-    if (count > EP_MAX_WRITER_THREADS) {
-        count = EP_MAX_WRITER_THREADS;
-    } else if (count < EP_MIN_WRITER_THREADS) {
-        count = EP_MIN_WRITER_THREADS;
-    }
+size_t ExecutorPool::getNumWriters() {
+    // 1. Configure as many Writer threads as available threads (default:
+    // number of CPU cores).
+    //
+    // Writer threads are typically IO-bound, so a Writer thread should only
+    // consume a fraction of a CPU core. As such, creating one per CPU core
+    // shouldn't cause too much contention with other, CPU-bound
+    // threads in the system.
+    //
+    // Note: For maximum IO throughput we should create as many Writer threads
+    // as concurrent iops the system can support, given we use synchronous
+    // (blocking) IO and hence could utilise more threads than CPU cores.
+    // However, knowing the number of concurrent IOPs the system can support is
+    // hard, so we use #CPUs as a proxy for it - machines with lots of CPU
+    // cores are more likely to have more IO than little machines.
+    size_t count = maxGlobalThreads;
+
+    // 2. adjust computed value to be at least 2.
+    // We always want at least 2 Writer threads so ensure that if a Compaction
+    // task is running on one thread there's at least a second thread which
+    // Flusher tasks can continue to run on.
+    count = std::max(count, size_t{2});
+
     // 3. Override with user's value if specified
     if (numWorkers[WRITER_TASK_IDX]) {
         count = numWorkers[WRITER_TASK_IDX];
@@ -98,21 +102,24 @@ size_t ExecutorPool::getNumWriters(void) {
     return count;
 }
 
-size_t ExecutorPool::getNumReaders(void) {
-    size_t count = 0;
-    // 1. compute: what remains after writers, nonIO & auxIO threads are taken
-    if (maxGlobalThreads >
-            (getNumWriters() + getNumAuxIO() + getNumNonIO())) {
-        count = maxGlobalThreads
-              - getNumWriters() - getNumAuxIO() - getNumNonIO();
-    }
-    // 2. adjust computed value to be within range
-    if (count > EP_MAX_READER_THREADS) {
-        count = EP_MAX_READER_THREADS;
-    } else if (count < EP_MIN_READER_THREADS) {
-        count = EP_MIN_READER_THREADS;
-    }
-    // 3. Override with user's value if specified
+size_t ExecutorPool::getNumReaders() {
+    // 1. Configure as many Reader threads as available threads (default:
+    // number of CPU cores).
+    //
+    // Reader threads are typically IO-bound, so a Reader thread should only
+    // consume a fraction of a CPU core. As such, creating one per CPU core
+    // shouldn't cause too much contention with other, CPU-bound
+    // threads in the system.
+    //
+    // Note: For maximum IO throughput we should create as many Reader threads
+    // as concurrent iops the system can support, given we use synchronous
+    // (blocking) IO and hence could utilise more threads than CPU cores.
+    // However, knowing the number of concurrent IOPs the system can support is
+    // hard, so we use #CPUs as a proxy for it - machines with lots of CPU
+    // cores are more likely to have more IO than little machines.
+    size_t count = maxGlobalThreads;
+
+    // 2. Override with user's value if specified
     if (numWorkers[READER_TASK_IDX]) {
         count = numWorkers[READER_TASK_IDX];
     }
@@ -153,18 +160,23 @@ void ExecutorPool::shutdown(void) {
     }
 }
 
-ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
-                           size_t maxReaders, size_t maxWriters,
-                           size_t maxAuxIO,   size_t maxNonIO) :
-                  numTaskSets(nTaskSets), totReadyTasks(0),
-                  isHiPrioQset(false), isLowPrioQset(false), numBuckets(0),
-                  numSleepers(0), curWorkers(nTaskSets), numWorkers(nTaskSets),
-                  numReadyTasks(nTaskSets) {
-    size_t numCPU = Couchbase::get_available_cpu_count();
-    size_t numThreads = (size_t)((numCPU * 3)/4);
-    numThreads = (numThreads < EP_MIN_NUM_THREADS) ?
-                        EP_MIN_NUM_THREADS : numThreads;
-    maxGlobalThreads = maxThreads ? maxThreads : numThreads;
+ExecutorPool::ExecutorPool(size_t maxThreads,
+                           size_t nTaskSets,
+                           size_t maxReaders,
+                           size_t maxWriters,
+                           size_t maxAuxIO,
+                           size_t maxNonIO)
+    : numTaskSets(nTaskSets),
+      maxGlobalThreads(maxThreads ? maxThreads
+                                  : Couchbase::get_available_cpu_count()),
+      totReadyTasks(0),
+      isHiPrioQset(false),
+      isLowPrioQset(false),
+      numBuckets(0),
+      numSleepers(0),
+      curWorkers(nTaskSets),
+      numWorkers(nTaskSets),
+      numReadyTasks(nTaskSets) {
     for (size_t i = 0; i < nTaskSets; i++) {
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
@@ -586,11 +598,6 @@ bool ExecutorPool::_startWorkers(void) {
     size_t numWriters = getNumWriters();
     size_t numAuxIO = getNumAuxIO();
     size_t numNonIO = getNumNonIO();
-
-    if (!numWorkers[WRITER_TASK_IDX]) {
-        // MB-12279: Limit writers to 4 for faster bgfetches in DGM by default
-        numWriters = 4;
-    }
 
     _adjustWorkers(READER_TASK_IDX, numReaders);
     _adjustWorkers(WRITER_TASK_IDX, numWriters);

@@ -42,6 +42,7 @@
 #include "tools/couchfile_upgrade/output_couchfile.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
+#include "workload.h"
 
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
@@ -2145,20 +2146,23 @@ void KVStoreParamTest::SetUp() {
     // implementation.
     auto configStr = "dbname="s + data_dir + ";backend="s + GetParam();
     config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+    WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                            config.getMaxNumShards());
 
     if (config.getBackend() == "couchdb") {
-        kvstoreConfig = std::make_unique<KVStoreConfig>(config, 0 /*shardId*/);
+        kvstoreConfig = std::make_unique<KVStoreConfig>(
+                config, workload.getNumShards(), 0 /*shardId*/);
     }
 #ifdef EP_USE_ROCKSDB
     else if (config.getBackend() == "rocksdb") {
-        kvstoreConfig =
-                std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
+        kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+                config, workload.getNumShards(), 0 /*shardId*/);
     }
 #endif
 #ifdef EP_USE_MAGMA
     else if (config.getBackend() == "magma") {
-        kvstoreConfig =
-                std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
+        kvstoreConfig = std::make_unique<MagmaKVStoreConfig>(
+                config, workload.getNumShards(), 0 /*shardId*/);
     }
 #endif
     kvstore = setup_kv_store(*kvstoreConfig);
@@ -2697,9 +2701,11 @@ protected:
         config.parseConfiguration(
                 ("dbname="s + data_dir + ";backend=rocksdb").c_str(),
                 get_mock_server_api());
+        WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                                config.getMaxNumShards());
 
-        kvstoreConfig =
-                std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
+        kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+                config, workload.getNumShards(), 0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);
     }
 
@@ -2736,9 +2742,11 @@ TEST_F(RocksDBKVStoreTest, StatsTest) {
     auto configStr = ("dbname="s + data_dir +
                       ";backend=rocksdb;rocksdb_stats_level=kAll");
     config.parseConfiguration(configStr.c_str(), get_mock_server_api());
+    WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                            config.getMaxNumShards());
 
-    kvstoreConfig =
-            std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
+    kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+            config, workload.getNumShards(), 0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration
@@ -2770,8 +2778,11 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     config.parseConfiguration(
             (baseConfig + ";rocksdb_stats_level=wrong_value").c_str(),
             get_mock_server_api());
-    kvstoreConfig =
-            std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
+    WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                            config.getMaxNumShards());
+    kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+            config, workload.getNumShards(), 0 /*shardId*/);
+
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration
@@ -2782,8 +2793,8 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     config.parseConfiguration(
             (baseConfig + ";rocksdb_stats_level=kAll").c_str(),
             get_mock_server_api());
-    kvstoreConfig =
-            std::make_unique<RocksDBKVStoreConfig>(config, 0 /*shardId*/);
+    kvstoreConfig = std::make_unique<RocksDBKVStoreConfig>(
+            config, workload.getNumShards(), 0 /*shardId*/);
     // Close the opened DB instance
     kvstore.reset();
     // Re-open with the new configuration
@@ -2804,8 +2815,10 @@ protected:
                      ";magma_commit_point_interval=0"s;
         Configuration config;
         config.parseConfiguration(configStr.c_str(), get_mock_server_api());
-        kvstoreConfig =
-                std::make_unique<MagmaKVStoreConfig>(config, 0 /*shardId*/);
+        WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                                config.getMaxNumShards());
+        kvstoreConfig = std::make_unique<MagmaKVStoreConfig>(
+                config, workload.getNumShards(), 0 /*shardId*/);
         kvstore = setup_kv_store(*kvstoreConfig);
     }
 

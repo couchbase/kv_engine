@@ -511,6 +511,40 @@ TEST_P(StatsTest, TestTracingStats) {
     EXPECT_NE(stats.end(), enabled);
 }
 
+TEST_P(StatsTest, TestSingleBucketOpStats) {
+    MemcachedConnection& conn = getConnection();
+    conn.authenticate("@admin", "password", "PLAIN");
+
+    conn.selectBucket("default");
+
+    std::string key = "key";
+
+    // Set a document
+    Document doc;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = key;
+    doc.value = "asdf";
+
+    // mutate to bump stat
+    conn.mutate(doc, Vbid(0), MutationType::Set);
+    // lookup to bump stat
+    conn.get(key, Vbid(0), {} /* getFrameInfo */);
+
+    auto stats = conn.stats("");
+
+    EXPECT_FALSE(stats.empty());
+
+    auto lookup = stats.find("cmd_lookup");
+    auto mutation = stats.find("cmd_mutation");
+
+    ASSERT_NE(stats.end(), lookup);
+    ASSERT_NE(stats.end(), mutation);
+
+    EXPECT_EQ(1, int(*lookup));
+    EXPECT_EQ(1, int(*mutation));
+}
+
 /**
  * Subclass of StatsTest which doesn't have a default bucket; hence connections
  * will intially not be associated with any bucket.

@@ -162,11 +162,20 @@ protected:
      * for deduplicated Prepares in the case where a previous Prepare has been
      * already received and completed (Committed/Aborted) for the same key.
      *
+     * MB-36735: The test covers also the specific case where the completed
+     * Prepare is Level::PersistToMajority and the unprepared Abort us received
+     * before the Prepare is locally-satisfied (ie, the flusher has not
+     * persisted the entire snapshot containing the Prepare, which is still
+     * tracked in PassiveDM).
+     *
      * @param level The durability level of the Prepare under test
      * @param res Resolution type (Commit/Abort) of the Prepare under test
+     * @param flush Whether the flusher has persisted the snapshot containing
+     *     the Prepare. Used for covering MB-36735.
      */
     void testPrepareCompletedAtAbort(cb::durability::Level level,
-                                     Resolution res);
+                                     Resolution res,
+                                     bool flush = false);
 };
 
 /**

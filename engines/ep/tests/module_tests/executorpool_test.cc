@@ -175,27 +175,31 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
 
     pool.registerTaskable(taskable);
 
-    EXPECT_EQ(expected.reader, pool.getNumReaders());
-    EXPECT_EQ(expected.writer, pool.getNumWriters());
-    EXPECT_EQ(expected.auxIO, pool.getNumAuxIO());
-    EXPECT_EQ(expected.nonIO, pool.getNumNonIO());
+    EXPECT_EQ(expected.reader, pool.getNumReaders())
+            << "When maxThreads=" << expected.maxThreads;
+    EXPECT_EQ(expected.writer, pool.getNumWriters())
+            << "When maxThreads=" << expected.maxThreads;
+    EXPECT_EQ(expected.auxIO, pool.getNumAuxIO())
+            << "When maxThreads=" << expected.maxThreads;
+    EXPECT_EQ(expected.nonIO, pool.getNumNonIO())
+            << "When maxThreads=" << expected.maxThreads;
 
     pool.unregisterTaskable(taskable, false);
     pool.shutdown();
 }
 
-std::vector<ExpectedThreadCounts> threadCountValues = {{1, 4, 4, 1, 2},
-                                                       {2, 4, 4, 1, 2},
+std::vector<ExpectedThreadCounts> threadCountValues = {{1, 1, 2, 1, 2},
+                                                       {2, 2, 2, 1, 2},
                                                        {4, 4, 4, 1, 2},
-                                                       {8, 4, 4, 1, 2},
-                                                       {10, 4, 4, 1, 3},
-                                                       {14, 4, 4, 2, 4},
-                                                       {20, 6, 4, 2, 6},
-                                                       {24, 7, 4, 3, 7},
-                                                       {32, 12, 4, 4, 8},
-                                                       {48, 12, 4, 5, 8},
-                                                       {64, 12, 4, 7, 8},
-                                                       {128, 12, 4, 8, 8}};
+                                                       {8, 8, 8, 1, 2},
+                                                       {10, 10, 10, 1, 3},
+                                                       {14, 14, 14, 2, 4},
+                                                       {20, 20, 20, 2, 6},
+                                                       {24, 24, 24, 3, 7},
+                                                       {32, 32, 32, 4, 8},
+                                                       {48, 48, 48, 5, 8},
+                                                       {64, 64, 64, 7, 8},
+                                                       {128, 128, 128, 8, 8}};
 
 INSTANTIATE_TEST_CASE_P(ThreadCountTest,
                         ExecutorPoolTestWithParam,

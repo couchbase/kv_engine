@@ -203,9 +203,27 @@ public:
     static void shutdown(void);
 
 protected:
+    /**
+     * Construct an ExecutorPool.
+     *
+     * @param maxThreads Maximum number of threads in any given thread class
+     *                   (Reader, Writer, NonIO, AuxIO). A value of 0 means
+     *                   use number of CPU cores.
+     * @param nTaskSets Number of task sets.
+     * @param maxReaders Number of Reader threads to create (0 =
+     *                   auto-configure).
+     * @param maxWriters Number of Writer threads to create (0 =
+     *                   auto-configure).
+     * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
+     * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
+     */
+    ExecutorPool(size_t maxThreads,
+                 size_t nTaskSets,
+                 size_t maxReaders,
+                 size_t maxWriters,
+                 size_t maxAuxIO,
+                 size_t maxNonIO);
 
-    ExecutorPool(size_t t, size_t nTaskSets, size_t r, size_t w, size_t a,
-                 size_t n);
     virtual ~ExecutorPool(void);
 
     TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
@@ -230,8 +248,15 @@ protected:
     TaskQueue* _getTaskQueue(const Taskable& t, task_type_t qidx);
     void _stopAndJoinThreads();
 
-    size_t numTaskSets; // safe to read lock-less not altered after creation
-    size_t maxGlobalThreads;
+    const size_t numTaskSets;
+
+    /**
+     * Maximum number of threads of any given class (Reader, Writer, AuxIO,
+     * NonIO).
+     * If not overridden by Configuration::getMaxThreads, set to the number
+     * of available CPU cores.
+     */
+    const size_t maxGlobalThreads;
 
     std::atomic<size_t> totReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex

@@ -3195,11 +3195,17 @@ TEST_P(DurabilityPassiveStreamTest,
 }
 
 void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
-        cb::durability::Level level, Resolution res) {
+        cb::durability::Level level, Resolution res, bool flush) {
     auto vb = engine->getVBucket(vbid);
     auto& ht = vb->ht;
     const auto& ckptMgr = *vb->checkpointManager;
     const auto& dm = vb->getDurabilityMonitor();
+
+    auto checkDM = [&dm](size_t numTracked, int64_t hps, int64_t hcs) -> void {
+        EXPECT_EQ(numTracked, dm.getNumTracked());
+        EXPECT_EQ(hps, dm.getHighPreparedSeqno());
+        EXPECT_EQ(hcs, dm.getHighCompletedSeqno());
+    };
 
     const auto key = makeStoredDocKey("key1");
 
@@ -3212,15 +3218,19 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
         ASSERT_FALSE(htRes.committed);
     }
     ASSERT_EQ(0, ckptMgr.getHighSeqno());
-    ASSERT_EQ(0, dm.getNumTracked());
+    {
+        SCOPED_TRACE("");
+        checkDM(0 /*numTracked*/, 0 /*HPS*/, 0 /*HCS*/);
+    }
 
     // First we check the behaviour at receiving a memory snapshot
     const uint32_t opaque = 0;
     auto prepareSeqno = 1;
+    auto snapEnd = prepareSeqno;
     SnapshotMarker marker(opaque,
                           vbid,
                           prepareSeqno /*snapStart*/,
-                          prepareSeqno /*snapEnd*/,
+                          snapEnd,
                           MARKER_FLAG_MEMORY | MARKER_FLAG_CHK /*flags*/,
                           {} /*HCS*/,
                           {} /*streamId*/);
@@ -3242,6 +3252,21 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                       nullptr /*ext-meta*/,
                       cb::mcbp::DcpStreamId{})));
 
+    // MB-36735: This is added for covering both when:
+    // 1) The flusher has persisted the snapshot containing the prepare when
+    //     the unprepared Abort is received
+    // 2) The flusher has not persisted the entire snapshot
+    //
+    // In the second case (!flush) the Prepare is not locally-satisfied and so
+    // still tracked in the PDM (as in PDM we can only remove up to the HPS).
+    // In that scenario, before this fix the PDM throws when it processes the
+    // unprepared Abort, as it does not expect to find an already-Completed
+    // Prepare in tracked-writes.
+    if (flush) {
+        vb->setPersistenceSeqno(snapEnd);
+        vb->notifyPersistenceToDurabilityMonitor();
+    }
+
     EXPECT_EQ(1, ht.getNumItems());
     {
         const auto htRes = ht.findForUpdate(key);
@@ -3251,17 +3276,24 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
         ASSERT_FALSE(htRes.committed);
     }
     EXPECT_EQ(prepareSeqno, ckptMgr.getHighSeqno());
-    EXPECT_EQ(1, dm.getNumTracked());
+    if (persistent() && !flush && level == Level::PersistToMajority) {
+        SCOPED_TRACE("");
+        checkDM(1 /*numTracked*/, 0 /*HPS*/, 0 /*HCS*/);
+    } else {
+        SCOPED_TRACE("");
+        checkDM(1 /*numTracked*/, 1 /*HPS*/, 0 /*HCS*/);
+    }
 
     // Replica receives a legal Commit/Abort for PRE(key).
     // Note: Active queues Durability items into different checkpoints for
     // avoiding deduplication, so Replica never expects Prepare+Commit/Abort
     // within the same snapshot.
     auto completeSeqno = 2;
+    snapEnd = completeSeqno + 10;
     marker = SnapshotMarker(opaque,
                             vbid,
                             completeSeqno /*snapStart*/,
-                            completeSeqno + 10 /*snapEnd*/,
+                            snapEnd,
                             MARKER_FLAG_CHK | MARKER_FLAG_MEMORY /*flags*/,
                             {} /*HCS*/,
                             {} /*streamId*/);
@@ -3328,7 +3360,15 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
         }
     }
     EXPECT_EQ(completeSeqno, ckptMgr.getHighSeqno());
-    EXPECT_EQ(0, dm.getNumTracked());
+    using namespace cb::durability;
+    if (persistent() && !flush && level == Level::PersistToMajority) {
+        // Completed Prepare still tracked in PDM as HPS has never covered it.
+        SCOPED_TRACE("");
+        checkDM(1 /*numTracked*/, 0 /*HPS*/, 1 /*HCS*/);
+    } else {
+        SCOPED_TRACE("");
+        checkDM(0 /*numTracked*/, 1 /*HPS*/, 1 /*HCS*/);
+    }
 
     // Here the important part of the test begins.
     // From this point onward, we have a Completed (Committed / Aborted) Prepare
@@ -3339,6 +3379,8 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
 
     // Unprepared Abort unexpected at this point as Replica is still receiving
     // a memory snapshot.
+    // Note: This throws before the fix for MB-36735 if !flush, read comment
+    // above.
     ASSERT_EQ(ENGINE_EINVAL,
               stream->messageReceived(
                       std::make_unique<AbortSyncWrite>(opaque,
@@ -3415,7 +3457,14 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
         }
     }
     EXPECT_EQ(abortSeqno, ckptMgr.getHighSeqno());
-    EXPECT_EQ(0, dm.getNumTracked());
+    if (persistent() && !flush && level == Level::PersistToMajority) {
+        // Completed Prepare still tracked in PDM as HPS has never covered it.
+        SCOPED_TRACE("");
+        checkDM(1 /*numTracked*/, 0 /*HPS*/, 1 /*HCS*/);
+    } else {
+        SCOPED_TRACE("");
+        checkDM(0 /*numTracked*/, 1 /*HPS*/, 1 /*HCS*/);
+    }
 }
 
 TEST_P(DurabilityPassiveStreamTest, MajorityPrepareAbortedAtAbort) {
@@ -3435,11 +3484,7 @@ TEST_P(DurabilityPassiveStreamTest,
             Resolution::Abort);
 }
 
-/**
- * @todo: Fails for MB-36735, enable when fixed
- */
-TEST_P(DurabilityPassiveStreamTest,
-       DISABLED_PersistToMajorityPrepareAbortedAtAbort) {
+TEST_P(DurabilityPassiveStreamTest, PersistToMajorityPrepareAbortedAtAbort) {
     // @todo: Skip the test until MB-36772 is done (Replica should reject
     //  PersistTo prepare)
     if (ephemeral()) {
@@ -3447,6 +3492,19 @@ TEST_P(DurabilityPassiveStreamTest,
     }
     testPrepareCompletedAtAbort(cb::durability::Level::PersistToMajority,
                                 Resolution::Abort);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       PersistToMajorityPrepareAbortedAndFlushedAtAbort) {
+    // @todo: Skip the test until MB-36772 is done (Replica should reject
+    //  PersistTo prepare)
+    if (ephemeral()) {
+        return;
+    }
+    testPrepareCompletedAtAbort(
+            cb::durability::Level::PersistToMajority,
+            Resolution::Abort,
+            true /*flusher persists the snapshot containing the prepare*/);
 }
 
 TEST_P(DurabilityPassiveStreamTest, MajorityPrepareCommittedAtAbort) {
@@ -3466,11 +3524,7 @@ TEST_P(DurabilityPassiveStreamTest,
             Resolution::Commit);
 }
 
-/**
- * @todo: Fails for MB-36735, enable when fixed
- */
-TEST_P(DurabilityPassiveStreamTest,
-       DISABLED_PersistToMajorityPrepareCommittedAtAbort) {
+TEST_P(DurabilityPassiveStreamTest, PersistToMajorityPrepareCommittedAtAbort) {
     // @todo: Skip the test until MB-36772 is done (Replica should reject
     //  PersistTo prepare)
     if (ephemeral()) {
@@ -3478,6 +3532,19 @@ TEST_P(DurabilityPassiveStreamTest,
     }
     testPrepareCompletedAtAbort(cb::durability::Level::PersistToMajority,
                                 Resolution::Commit);
+}
+
+TEST_P(DurabilityPassiveStreamTest,
+       PersistToMajorityPrepareCommittedAndFlushedAtAbort) {
+    // @todo: Skip the test until MB-36772 is done (Replica should reject
+    //  PersistTo prepare)
+    if (ephemeral()) {
+        return;
+    }
+    testPrepareCompletedAtAbort(
+            cb::durability::Level::PersistToMajority,
+            Resolution::Commit,
+            true /*flusher persists the snapshot containing the prepare*/);
 }
 
 void DurabilityPromotionStreamTest::SetUp() {

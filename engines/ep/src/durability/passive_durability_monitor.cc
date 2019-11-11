@@ -393,10 +393,24 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     // Mark this prepare as completed so that we can allow non-completed
     // duplicates in trackedWrites in case it is not removed because it requires
     // persistence.
-    Expects(!next->isCompleted());
-    next->setStatus(SyncWriteStatus::Completed);
 
-    // HCS has moved, which could make some Prepare eligible for removal.
+    // MB-36735: There is only one case where we may legally end-up with
+    // "completing twice" a tracked Prepare at Replica:
+    // 1) PDM is tracking a Level::PersistToMajority completed Prepare (that
+    //     may happen if the prepare is not locally-satisfied), and..
+    // 2) Replica is receiving a disk-snapshot, and..
+    // 3) Replica receives an "unprepared abort" (possible only for disk-snap)
+    if (next->isCompleted()) {
+        Expects(next->getDurabilityReqs().getLevel() ==
+                cb::durability::Level::PersistToMajority);
+        Expects(s->highPreparedSeqno.lastWriteSeqno < next->getBySeqno());
+        Expects(vb.isReceivingDiskSnapshot());
+        Expects(res == Resolution::Abort);
+    } else {
+        next->setStatus(SyncWriteStatus::Completed);
+    }
+
+    // HCS may have moved, which could make some Prepare eligible for removal.
     s->checkForAndRemovePrepares();
 
     switch (res) {

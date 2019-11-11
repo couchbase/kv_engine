@@ -50,6 +50,21 @@
  *   | roUnderlying: KVStore (read)    |----> (CouchKVStore)
  *   -----------------------------------
  *
+ * vBuckets are mapped to Shards by (vbid modulo numShards) - see
+ * VBucketMap::getShardByVbId(). For example, with 4 shards, the following
+ * vBuckets map to:
+ *
+ *     VB        Shard
+ *     ====================
+ *     0         0
+ *     1            1
+ *     2               2
+ *     3                  3
+ *     4         0
+ *     5            1
+ *     ...
+ *     1022            2
+ *     1023               3
  */
 class BgFetcher;
 class Configuration;
@@ -61,7 +76,7 @@ class KVShard {
 public:
     // Identifier for a KVShard
     typedef uint16_t id_type;
-    KVShard(KVShard::id_type id, Configuration& config);
+    KVShard(id_type numShards, KVShard::id_type id, Configuration& config);
     ~KVShard();
 
     /// Enable persistence for this KVShard; setting up flusher and BGFetcher.
@@ -213,6 +228,20 @@ private:
         VBucketPtr vbPtr;
     };
 
+    /**
+     * Helper methods to lookup and lock the VBMap element for the given id.
+     * @returns a RAII-style Access object which has the element locked while
+     * valid.
+     */
+    VBMapElement::Access<VBMapElement&> getElement(Vbid id);
+    VBMapElement::Access<const KVShard::VBMapElement&> getElement(
+            Vbid id) const;
+
+    /**
+     * VBuckets owned by this Shard.
+     * Note that elements are indexed by the vbid % numShards, e.g for shard 1
+     * the first element in the vector is vb:1, second is vb:5, 3rd is vb:9 ...
+     */
     std::vector<VBMapElement> vbuckets;
 
     std::unique_ptr<KVStore> rwStore;

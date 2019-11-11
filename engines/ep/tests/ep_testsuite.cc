@@ -3692,15 +3692,13 @@ static enum test_result test_workload_stats(EngineIface* h) {
     int max_nonio_threads =
             get_int_stat(h, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
-    checkeq(4, num_read_threads, "Incorrect number of readers");
-    // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    checkeq(4, num_write_threads, "Incorrect number of writers");
+    checkeq(10, num_read_threads, "Incorrect number of readers");
+    checkeq(10, num_write_threads, "Incorrect number of writers");
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");
     check(num_nonio_threads > 1 && num_nonio_threads <= 8,
           "Incorrect number of nonio threads");
-    checkeq(4, max_read_threads, "Incorrect limit of readers");
-    // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    checkeq(4, max_write_threads, "Incorrect limit of writers");
+    checkeq(10, max_read_threads, "Incorrect limit of readers");
+    checkeq(10, max_write_threads, "Incorrect limit of writers");
     checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");
     check(max_nonio_threads > 1 && max_nonio_threads <=8,
           "Incorrect limit of nonio threads");
@@ -3731,16 +3729,13 @@ static enum test_result test_max_workload_stats(EngineIface* h) {
     int max_nonio_threads =
             get_int_stat(h, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
-    // if max limit on other groups missing use remaining for readers & writers
-    checkeq(5, num_read_threads, "Incorrect number of readers");
-    // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    checkeq(4, num_write_threads, "Incorrect number of writers");
+    checkeq(14, num_read_threads, "Incorrect number of readers");
+    checkeq(14, num_write_threads, "Incorrect number of writers");
 
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");// config
     checkeq(4, num_nonio_threads, "Incorrect number of nonio threads");// config
-    checkeq(5, max_read_threads, "Incorrect limit of readers");// derived
-    // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    checkeq(4, max_write_threads, "Incorrect limit of writers");// max-capped
+    checkeq(14, max_read_threads, "Incorrect limit of readers"); // derived
+    checkeq(14, max_write_threads, "Incorrect limit of writers"); // derived
     checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");// config
     checkeq(4, max_nonio_threads, "Incorrect limit of nonio threads");// config
     checkeq(5, num_shards, "Incorrect number of shards");
@@ -3796,7 +3791,7 @@ static enum test_result test_worker_stats(EngineIface* h) {
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
-    checkeq(11,
+    checkeq(19,
             get_int_stat(h, "ep_num_workers"), // cannot spawn less
             "Incorrect number of threads spawned");
     return SUCCESS;
@@ -8134,9 +8129,12 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  // Need to cap at <number of items written, so we create
-                 // >1 checkpoint.
+                 // >1 checkpoint. Also given bucket quota is being
+                 // constrained, also limit shards to 4 so amount of memory
+                 // overhead is more or less constant.
                  "chk_max_items=500;"
                  "chk_remover_stime=1;"
+                 "max_num_shards=4;"
                  "max_size=6291456",
                  // TODO RDB: This test requires full control and accurate
                  // tracking on how memory is allocated by the underlying
@@ -8651,7 +8649,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb19687_fixed,
                  test_setup,
                  teardown,
-                 NULL,
+                 // Set a fixed number of shards for stats checking.
+                 "max_num_shards=4",
                  // TODO RDB: Needs to fix some missing/unexpected stats
                  // magma has no support for upgrades
                  prepare_skip_broken_under_rocks_and_magma,
