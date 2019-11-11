@@ -1275,12 +1275,6 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         return rocksdb::Status::OK();
     }
 
-    auto& vbstate = cachedVBStates[vbid.get()];
-    if (vbstate == nullptr) {
-        throw std::logic_error("RocksDBKVStore::saveDocs: cachedVBStates[" +
-                               vbid.to_string() + "] is NULL");
-    }
-
     rocksdb::Status status;
     int64_t maxDBSeqno = 0;
     rocksdb::WriteBatch batch;
@@ -1326,7 +1320,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         }
     }
 
-    status = saveVBStateToBatch(*vbh, *vbstate, batch);
+    status = saveVBStateToBatch(*vbh, commitData.proposedVBState, batch);
     if (!status.ok()) {
         logger.warn("RocksDBKVStore::saveDocs: saveVBStateToBatch error:{}",
                     status.code());
@@ -1347,7 +1341,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     st.docsCommitted = reqsSize;
 
     // Update high seqno
-    vbstate->highSeqno = maxDBSeqno;
+    commitData.proposedVBState.highSeqno = maxDBSeqno;
 
     return rocksdb::Status::OK();
 }

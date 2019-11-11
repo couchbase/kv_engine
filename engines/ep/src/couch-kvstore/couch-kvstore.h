@@ -509,9 +509,9 @@ protected:
      */
     DbInfo getDbInfo(Vbid vbid);
 
-    bool setVBucketState(Vbid vbucketId,
-                         const vbucket_state& vbstate,
-                         VBStatePersist options);
+    bool writeVBucketState(Vbid vbucketId,
+                           const vbucket_state& vbstate,
+                           VBStatePersist options);
 
     template <typename T>
     void addStat(const std::string& prefix,

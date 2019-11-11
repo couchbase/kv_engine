@@ -273,7 +273,8 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
                   i);
         kvstore->set(item, wc);
     }
-
+    // Ensure a valid vbstate is committed
+    flush.proposedVBState.lastSnapEnd = 5;
     kvstore->commit(flush);
 
     auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
@@ -694,6 +695,8 @@ protected:
         for(const auto& item: items) {
             kvstore->set(item, set_callback);
         }
+        // Ensure a valid vbstate is committed
+        flush.proposedVBState.lastSnapEnd = items.back().getBySeqno();
         kvstore->commit(flush);
     }
 
@@ -1208,6 +1211,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     for(const auto item: items) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item, set_callback);
+        // Commit a valid vbstate
+        flush.proposedVBState.lastSnapEnd = item.getBySeqno();
         kvstore->commit(flush);
     }
 
@@ -2475,13 +2480,15 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
 // the current view of the fileMap causing scan to fail.
 TEST_P(KVStoreParamTest, CompactAndScan) {
     WriteCallback wc;
-    int64_t seqno = 1;
+    int64_t seqno = 0;
     for (int i = 1; i < 10; i++) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         auto item = make_item(
                 Vbid(0), makeStoredDocKey(std::string(i, 'k')), "value");
-        item.setBySeqno(seqno++);
+        item.setBySeqno(++seqno);
         kvstore->set(item, wc);
+        // Ensure a valid vbstate is committed
+        flush.proposedVBState.lastSnapEnd = seqno;
         kvstore->commit(flush);
     }
 
@@ -2551,7 +2558,11 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
                   vbid);
         kvstore->set(item, wc);
     }
+    // Ensure a valid vbstate is committed
+    flush.proposedVBState.lastSnapEnd = 10;
     kvstore->commit(flush);
+    // KVStore::commit does not update in-memory vbstate, so manually do it
+    kvstore->setVBucketState(vbid, flush.proposedVBState);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);

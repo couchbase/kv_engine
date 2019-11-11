@@ -18,6 +18,7 @@
 #pragma once
 
 #include "collections/flush.h"
+#include "vbucket_state.h"
 
 namespace Collections {
 namespace VB {
@@ -33,11 +34,25 @@ namespace VB {
  */
 class Commit {
 public:
-    Commit(Collections::VB::Manifest& manifest) : collections(manifest) {
+    /**
+     * Create the commit object to reference the given manifest and carry the
+     * given vbucket_state. The  vbucket_state use a default parameter for test
+     * code which just wants to all kvstore::commit
+     */
+    Commit(Collections::VB::Manifest& manifest, const vbucket_state& vbs = {})
+        : collections(manifest), proposedVBState(vbs) {
     }
 
     /// Object for updating the collection's meta-data during commit
     Collections::VB::Flush collections;
+
+    /**
+     * state to be used by the commit if successful, written to the KVStore
+     * in-memory copy.
+     * The commit itself may make changes to this object which will be
+     * part of the in-memory update.
+     */
+    vbucket_state proposedVBState;
 };
 
 } // end namespace VB

@@ -453,7 +453,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
         unlinkCouchFile(vbucketId, (*dbFileRevMap)[vbucketId.get()]);
         prepareToCreateImpl(vbucketId);
 
-        setVBucketState(
+        writeVBucketState(
                 vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
     } else {
         throw std::invalid_argument(
@@ -1254,9 +1254,9 @@ vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
     return cachedVBStates[vbucketId.get()].get();
 }
 
-bool CouchKVStore::setVBucketState(Vbid vbucketId,
-                                   const vbucket_state& vbstate,
-                                   VBStatePersist options) {
+bool CouchKVStore::writeVBucketState(Vbid vbucketId,
+                                     const vbucket_state& vbstate,
+                                     VBStatePersist options) {
     std::map<Vbid, uint64_t>::iterator mapItr;
     couchstore_error_t errorCode;
 
@@ -1268,7 +1268,7 @@ bool CouchKVStore::setVBucketState(Vbid vbucketId,
         if (errorCode != COUCHSTORE_SUCCESS) {
             ++st.numVbSetFailure;
             logger.warn(
-                    "CouchKVStore::setVBucketState: openDB error:{}, "
+                    "CouchKVStore::writeVBucketState: openDB error:{}, "
                     "{}, fileRev:{}",
                     couchstore_strerror(errorCode),
                     vbucketId,
@@ -1280,7 +1280,7 @@ bool CouchKVStore::setVBucketState(Vbid vbucketId,
         if (errorCode != COUCHSTORE_SUCCESS) {
             ++st.numVbSetFailure;
             logger.warn(
-                    "CouchKVStore:setVBucketState: saveVBState error:{}, "
+                    "CouchKVStore:writeVBucketState: saveVBState error:{}, "
                     "{}, fileRev:{}",
                     couchstore_strerror(errorCode),
                     vbucketId,
@@ -1293,7 +1293,7 @@ bool CouchKVStore::setVBucketState(Vbid vbucketId,
             if (errorCode != COUCHSTORE_SUCCESS) {
                 ++st.numVbSetFailure;
                 logger.warn(
-                        "CouchKVStore:setVBucketState: couchstore_commit "
+                        "CouchKVStore:writeVBucketState: couchstore_commit "
                         "error:{} [{}], {}, rev:{}",
                         couchstore_strerror(errorCode),
                         couchkvstore_strerrno(db, errorCode),
@@ -1307,7 +1307,7 @@ bool CouchKVStore::setVBucketState(Vbid vbucketId,
         errorCode = couchstore_db_info(db, &info);
         if (errorCode != COUCHSTORE_SUCCESS) {
             logger.warn(
-                    "CouchKVStore::setVBucketState: couchstore_db_info "
+                    "CouchKVStore::writeVBucketState: couchstore_db_info "
                     "error:{}, {}",
                     couchstore_strerror(errorCode),
                     vbucketId);
@@ -1317,7 +1317,7 @@ bool CouchKVStore::setVBucketState(Vbid vbucketId,
         }
     } else {
         throw std::invalid_argument(
-                "CouchKVStore::setVBucketState: invalid vb state "
+                "CouchKVStore::writeVBucketState: invalid vb state "
                 "persist option specified for " +
                 vbucketId.to_string());
     }
@@ -1341,9 +1341,9 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
          (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
           options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
         vbucket_state* vbs = getVBucketState(vbucketId);
-        if (!setVBucketState(vbucketId, *vbs, options)) {
+        if (!writeVBucketState(vbucketId, *vbs, options)) {
             logger.warn(
-                    "CouchKVStore::snapshotVBucket: setVBucketState failed "
+                    "CouchKVStore::snapshotVBucket: writeVBucketState failed "
                     "state:{}, {}",
                     VBucket::toString(vbstate.transition.state),
                     vbucketId);
@@ -2196,12 +2196,6 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                 uint64_t(docs.size()));
         return errCode;
     } else {
-        vbucket_state* state = getVBucketState(vbid);
-        if (state == nullptr) {
-            throw std::logic_error("CouchKVStore::saveDocs: cachedVBStates[" +
-                                   vbid.to_string() + "] is NULL");
-        }
-
         uint64_t maxDBSeqno = 0;
 
         // Count of logical bytes written (key + ep-engine meta + value),
@@ -2256,8 +2250,9 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                           std::placeholders::_1,
                           std::placeholders::_2));
 
-        state->onDiskPrepares += kvctx.onDiskPrepareDelta;
-        errCode = saveVBState(db, *state);
+        vbucket_state& state = kvctx.commitData.proposedVBState;
+        state.onDiskPrepares += kvctx.onDiskPrepareDelta;
+        errCode = saveVBState(db, state);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn("CouchKVStore::saveDocs: saveVBState error:{} [{}]",
                         couchstore_strerror(errCode),
@@ -2326,7 +2321,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                     maxDBSeqno,
                     vbid);
         }
-        state->highSeqno = info.last_sequence;
+        state.highSeqno = info.last_sequence;
     }
 
     /* update stat */

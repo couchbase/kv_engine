@@ -181,6 +181,14 @@ void KVStore::createDataDir(const std::string& dbname) {
     }
 }
 
+void KVStore::setVBucketState(Vbid vbid, const vbucket_state& vbs) {
+    if (!cachedVBStates[vbid.get()]) {
+        cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(vbs);
+    } else {
+        *cachedVBStates[vbid.get()] = vbs;
+    }
+}
+
 bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbucket_state* vbState = getVBucketState(vbid);
 

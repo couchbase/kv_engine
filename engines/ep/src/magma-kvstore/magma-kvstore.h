@@ -591,6 +591,11 @@ private:
                             const magma::Slice& metaSlice,
                             const magma::Slice& valueSlice);
 
+    /**
+     * @return a reference to the MagmaInfo for the vbid, created on demand
+     */
+    MagmaInfo& getMagmaInfo(Vbid vbid);
+
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;
 

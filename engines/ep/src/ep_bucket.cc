@@ -348,7 +348,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         moreAvailable = toFlush.moreAvailable;
 
         KVStore* rwUnderlying = getRWUnderlying(vb->getId());
-        vbucket_state vbstate, vbstateRollback;
         if (!items.empty()) {
             while (!rwUnderlying->begin(
                     std::make_unique<EPTransactionContext>(stats, *vb))) {
@@ -364,6 +363,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             // Read the vbucket_state from disk as many values from the
             // in-memory vbucket_state may be ahead of what we are flushing.
+            vbucket_state vbstate;
             const auto* persistedVbState =
                     rwUnderlying->getVBucketState(vb->getId());
 
@@ -371,11 +371,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // so we may not (if this is the first flush) have a state returned
             // from the KVStore.
             if (persistedVbState) {
-                // Take two copies.
-                // First will be mutated as the new state
-                // Second remains unchanged and will be used on failure
-                vbstateRollback = vbstate = *persistedVbState;
+                vbstate = *persistedVbState;
             }
+            VB::Commit commitData(vb->getManifest(), vbstate);
+            vbucket_state& proposedVBState = commitData.proposedVBState;
+
             // We need to set a few values from the in-memory state.
             uint64_t maxSeqno = 0;
             uint64_t maxVbStateOpCas = 0;
@@ -383,8 +383,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             auto minSeqno = std::numeric_limits<uint64_t>::max();
 
             bool mustCheckpointVBState = false;
-
-            VB::Commit commitData(vb->getManifest());
 
             // HCS is optional because we have to update it on disk only if some
             // Commit/Abort SyncWrite is found in the flush-batch. If we're
@@ -415,10 +413,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             // items will not be sent). This value is also used at warmup so
             // that vbuckets can resume with the same visible seqno as before
             // the restart.
-            Monotonic<uint64_t> maxVisibleSeqno{vbstate.maxVisibleSeqno};
+            Monotonic<uint64_t> maxVisibleSeqno{
+                    proposedVBState.maxVisibleSeqno};
 
             if (toFlush.maxDeletedRevSeqno) {
-                vbstate.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
+                proposedVBState.maxDeletedSeqno =
+                        toFlush.maxDeletedRevSeqno.get();
             }
 
             // Iterate through items, checking if we (a) can skip persisting,
@@ -490,7 +490,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                         mustCheckpointVBState = true;
 
                         // Process the Item's value into the transition struct
-                        vbstate.transition.fromItem(*item);
+                        proposedVBState.transition.fromItem(*item);
                     }
                     // Update queuing stats now this item has logically been
                     // processed.
@@ -503,7 +503,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     ++items_flushed;
 
                     if (mcbp::datatype::is_xattr(item->getDataType())) {
-                        vbstate.mightContainXattrs = true;
+                        proposedVBState.mightContainXattrs = true;
                     }
 
                     flushOneDelOrSet(item, vb.getVB());
@@ -512,14 +512,15 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
                     // Track the lowest seqno, so we can set the HLC epoch
                     minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
-                    vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
+                    proposedVBState.maxCas =
+                            std::max(proposedVBState.maxCas, item->getCas());
                     ++stats.flusher_todo;
 
                     if (!range.is_initialized()) {
                         range = snapshot_range_t{
-                                vbstate.lastSnapStart,
+                                proposedVBState.lastSnapStart,
                                 toFlush.ranges.empty()
-                                        ? vbstate.lastSnapEnd
+                                        ? proposedVBState.lastSnapEnd
                                         : toFlush.ranges.back().getEnd()};
                     }
 
@@ -548,7 +549,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                         // snapshot instead of relaxing the general constraint.
                         if (toFlush.checkpointType == CheckpointType::Disk &&
                             itr->highCompletedSeqno !=
-                                    vbstate.persistedCompletedSeqno) {
+                                    proposedVBState.persistedCompletedSeqno) {
                             hcs = itr->highCompletedSeqno;
                         }
 
@@ -559,8 +560,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                                                           CheckpointType::Memory
                                                   ? *(itr->highPreparedSeqno)
                                                   : itr->getEnd();
-                            vbstate.highPreparedSeqno =
-                                    std::max(vbstate.highPreparedSeqno, newHps);
+                            proposedVBState.highPreparedSeqno = std::max(
+                                    proposedVBState.highPreparedSeqno, newHps);
                         }
                     }
                 } else {
@@ -594,48 +595,32 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 // We also update the checkpointType here as this should only
                 // change with snapshots.
                 if (range) {
-                    vbstate.lastSnapStart = range->getStart();
-                    vbstate.lastSnapEnd = range->getEnd();
-                    vbstate.checkpointType = toFlush.checkpointType;
+                    proposedVBState.lastSnapStart = range->getStart();
+                    proposedVBState.lastSnapEnd = range->getEnd();
+                    proposedVBState.checkpointType = toFlush.checkpointType;
                 }
                 // Track the lowest seqno written in spock and record it as
                 // the HLC epoch, a seqno which we can be sure the value has a
                 // HLC CAS.
-                vbstate.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
-                if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
+                proposedVBState.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+                if (proposedVBState.hlcCasEpochSeqno ==
+                            HlcCasSeqnoUninitialised &&
                     minSeqno != std::numeric_limits<uint64_t>::max()) {
-                    vbstate.hlcCasEpochSeqno = minSeqno;
-                    vb->setHLCEpochSeqno(vbstate.hlcCasEpochSeqno);
-                }
-
-                // Do we need to trigger a persist of the state?
-                // If there are no "real" items to flush, and we encountered
-                // a set_vbucket_state meta-item.
-                auto options = VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY;
-                if ((items_flushed == 0) && mustCheckpointVBState) {
-                    options = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
+                    proposedVBState.hlcCasEpochSeqno = minSeqno;
+                    vb->setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
                 }
 
                 if (hcs) {
-                    Expects(hcs > vbstate.persistedCompletedSeqno);
-                    vbstate.persistedCompletedSeqno = *hcs;
+                    Expects(hcs > proposedVBState.persistedCompletedSeqno);
+                    proposedVBState.persistedCompletedSeqno = *hcs;
                 }
 
                 if (hps) {
-                    Expects(hps > vbstate.persistedPreparedSeqno);
-                    vbstate.persistedPreparedSeqno = *hps;
+                    Expects(hps > proposedVBState.persistedPreparedSeqno);
+                    proposedVBState.persistedPreparedSeqno = *hps;
                 }
 
-                vbstate.maxVisibleSeqno = maxVisibleSeqno;
-
-                if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
-                                                  options) != true) {
-                    return {true, 0};
-                }
-
-                if (vb->setBucketCreation(false)) {
-                    EP_LOG_DEBUG("{} created", vbid);
-                }
+                proposedVBState.maxVisibleSeqno = maxVisibleSeqno;
             }
 
             /* Perform an explicit commit to disk if the commit
@@ -643,11 +628,17 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
              * of items to flush.
              */
             if (items_flushed > 0) {
-                commit(vb->getId(), *rwUnderlying, commitData);
-
-                // Now the commit is complete, vBucket file must exist.
-                if (vb->setBucketCreation(false)) {
-                    EP_LOG_DEBUG("{} created", vbid);
+                commit(vbid, *rwUnderlying, commitData);
+            } else if (mustCheckpointVBState) {
+                if (!rwUnderlying->snapshotVBucket(
+                            vbid,
+                            proposedVBState,
+                            VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
+                    // @todo: MB-36773, vbstate update is not retried
+                    return {true, 0};
+                } else {
+                    // Update in-memory vbstate
+                    rwUnderlying->setVBucketState(vbid, proposedVBState);
                 }
             }
 
@@ -695,12 +686,14 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 //     (write+sync to disk), then we can just afford to calling
                 //     back to the DM unconditionally.
                 vb->notifyPersistenceToDurabilityMonitor();
-            } else {
-                // Flusher failed to commit the batch, rollback vbstate
-                items_flushed = 0;
-                if (rwUnderlying->getVBucketState(vbid)) {
-                    *rwUnderlying->getVBucketState(vbid) = vbstateRollback;
+
+                // Now the commit is complete, vBucket file must exist.
+                if (vb->setBucketCreation(false)) {
+                    EP_LOG_DEBUG("{} created", vbid);
                 }
+            } else {
+                // Flush failed
+                items_flushed = 0;
             }
 
             auto flush_end = std::chrono::steady_clock::now();
@@ -750,11 +743,13 @@ void EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
-    if (!kvstore.commit(commitData)) {
+    if (kvstore.commit(commitData)) {
+        ++stats.flusherCommits;
+        // Update in-memory vbstate
+        kvstore.setVBucketState(vbid, commitData.proposedVBState);
+    } else {
         ++stats.commitFailed;
         EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
-    } else {
-        ++stats.flusherCommits;
     }
 
     auto commit_end = std::chrono::steady_clock::now();

@@ -1083,7 +1083,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
         // Initial checkpoint for an active vbucket has an ID of 2 (see
         // VBucket::setState which does the same when a new vbucket is created)
-        if (vbs.state == vbucket_state_active) {
+        if (vbs.transition.state == vbucket_state_active) {
             vb->checkpointManager->setOpenCheckpointId(2);
         }
 

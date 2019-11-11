@@ -99,7 +99,6 @@ struct vbucket_state {
     bool operator==(const vbucket_state& other) const;
     bool operator!=(const vbucket_state& other) const;
 
-    vbucket_state_t state = vbucket_state_dead;
     cb::uint48_t maxDeletedSeqno = 0;
     int64_t highSeqno = 0;
     uint64_t purgeSeqno = 0;
