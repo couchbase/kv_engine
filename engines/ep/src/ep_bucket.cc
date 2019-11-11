@@ -630,10 +630,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             if (items_flushed > 0) {
                 commit(vbid, *rwUnderlying, commitData);
             } else if (mustCheckpointVBState) {
-                if (!rwUnderlying->snapshotVBucket(
-                            vbid,
-                            proposedVBState,
-                            VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
+                if (!rwUnderlying->snapshotVBucket(vbid, proposedVBState)) {
                     // @todo: MB-36773, vbstate update is not retried
                     return {true, 0};
                 } else {

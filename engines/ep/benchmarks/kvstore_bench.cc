@@ -159,8 +159,7 @@ private:
         auto kvstore = KVStoreFactory::create(config);
         vbucket_state state;
         state.transition.state = vbucket_state_active;
-        kvstore.rw->snapshotVBucket(
-                vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
+        kvstore.rw->snapshotVBucket(vbid, state);
         return std::move(kvstore.rw);
     }
 

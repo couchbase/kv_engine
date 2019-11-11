@@ -820,14 +820,11 @@ void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
 }
 
 bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
-                                     const vbucket_state& vbstate,
-                                     VBStatePersist options) {
+                                     const vbucket_state& vbstate) {
     // TODO RDB: Refactor out behaviour common to this and CouchKVStore
     auto start = std::chrono::steady_clock::now();
 
-    if (updateCachedVBState(vbucketId, vbstate) &&
-        (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
-         options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
+    if (updateCachedVBState(vbucketId, vbstate)) {
         const auto vbh = getVBHandle(vbucketId);
         rocksdb::WriteBatch batch;
         auto status = saveVBStateToBatch(*vbh, vbstate, batch);

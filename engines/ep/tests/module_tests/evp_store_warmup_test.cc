@@ -1133,8 +1133,7 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
     auto vbstate = *kvstore->getVBucketState(vbid);
     vbstate.transition.replicationTopology.clear();
-    kvstore->snapshotVBucket(
-            vbid, vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
+    kvstore->snapshotVBucket(vbid, vbstate);
 
     resetEngineAndWarmup();
     EXPECT_EQ(0, store->getEPEngine().getEpStats().warmedUpPrepares);

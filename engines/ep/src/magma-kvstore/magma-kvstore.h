@@ -148,9 +148,7 @@ public:
     /**
      * Take a snapshot of the vbucket states in the main DB.
      */
-    bool snapshotVBucket(Vbid vbucketId,
-                         const vbucket_state& vbstate,
-                         VBStatePersist options) override;
+    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
     // Compaction in magma is asynchronous. Its triggered by 3 conditions:
     //  - Level compaction

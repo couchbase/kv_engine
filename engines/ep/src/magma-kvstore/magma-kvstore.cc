@@ -1024,8 +1024,7 @@ void MagmaKVStore::reset(Vbid vbid) {
     }
 
     // We've released all our locks so snapshot the reset vbstate
-    snapshotVBucket(
-            vbid, *vbstate, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
+    snapshotVBucket(vbid, *vbstate);
 }
 
 void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
@@ -1099,9 +1098,7 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
 
 // Note: It is assumed this can only be called from bg flusher thread or
 // there will be issues with writes coming from multiple threads.
-bool MagmaKVStore::snapshotVBucket(Vbid vbid,
-                                   const vbucket_state& vbstate,
-                                   VBStatePersist options) {
+bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& vbstate) {
     auto kvHandle = getMagmaKVHandle(vbid);
     std::unique_lock<std::shared_timed_mutex> vbstateLock(
             kvHandle->vbstateMutex);
@@ -1110,42 +1107,14 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid,
     MagmaInfo minfo = getMagmaInfo(vbid);
 
     if (logger->should_log(spdlog::level::TRACE)) {
-        std::string opt;
-        switch (options) {
-        case VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY:
-            opt = "UPDATE_ONLY";
-            break;
-        case VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT:
-            opt = "WITHOUT_COMMIT";
-            break;
-        case VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT:
-            opt = "WITH_COMMIT";
-            break;
-        }
-        if (opt.empty()) {
-            throw std::logic_error(
-                    "MagmaKVStore::snapshotVBucket Unknown VBStatePersist "
-                    "option:" +
-                    std::to_string(static_cast<int>(options)));
-        }
         auto j = encodeVBState(vbstate, minfo);
-        logger->TRACE("MagmaKVStore::snapshotVBucket {} persist:{} vbstate:{}",
-                      vbid,
-                      opt,
-                      j.dump());
+        logger->TRACE(
+                "MagmaKVStore::snapshotVBucket {} vbstate:{}", vbid, j.dump());
     }
 
     auto start = std::chrono::steady_clock::now();
 
-    if (updateCachedVBState(vbid, vbstate) &&
-        // snapshotVBucket for magma doesn't really support a
-        // VBSTATE_PERSIST_WITHOUT_COMMIT option. Since this is going to write
-        // the vbstate to the local DB and its not part of an ongoing
-        // commitBatch, all we can do is create a commitBatch for this
-        // snapshotVBucket call and commit it to disk. Fortunately, it appears
-        // VBSTATE_PERSIST_WITHOUT_COMMIT is not used except in testing.
-        (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
-         options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
+    if (updateCachedVBState(vbid, vbstate)) {
         // At this point, we've updated cachedVBStates but we need to
         // release the vbstateMutex lock or it causes a lock inversion
         // error between transaction locks held in magma and the vbstateMutex.

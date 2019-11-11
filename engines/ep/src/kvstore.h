@@ -202,12 +202,6 @@ enum class ValueFilter {
     VALUES_DECOMPRESSED
 };
 
-enum class VBStatePersist {
-    VBSTATE_CACHE_UPDATE_ONLY,       //Update only cached state in-memory
-    VBSTATE_PERSIST_WITHOUT_COMMIT,  //Persist without committing to disk
-    VBSTATE_PERSIST_WITH_COMMIT      //Persist with commit to disk
-};
-
 struct vbucket_state;
 
 class ScanContext {
@@ -724,11 +718,9 @@ public:
      * @param vbucketId id of the vbucket that needs to be snapshotted
      * @param vbstate   state of the vbucket
      * @param cb        stats callback
-     * @param options   options for persisting the state
      */
     virtual bool snapshotVBucket(Vbid vbucketId,
-                                 const vbucket_state& vbstate,
-                                 VBStatePersist options) = 0;
+                                 const vbucket_state& vbstate) = 0;
 
     /**
      * Compact a database file.

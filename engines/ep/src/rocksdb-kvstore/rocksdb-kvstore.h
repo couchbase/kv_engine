@@ -213,9 +213,7 @@ public:
     /**
      * Take a snapshot of the vbucket states in the main DB.
      */
-    bool snapshotVBucket(Vbid vbucketId,
-                         const vbucket_state& vbstate,
-                         VBStatePersist options) override;
+    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
     void destroyInvalidVBuckets(bool);
 

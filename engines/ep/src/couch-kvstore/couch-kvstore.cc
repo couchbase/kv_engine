@@ -453,8 +453,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
         unlinkCouchFile(vbucketId, (*dbFileRevMap)[vbucketId.get()]);
         prepareToCreateImpl(vbucketId);
 
-        writeVBucketState(
-                vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
+        writeVBucketState(vbucketId, *state);
     } else {
         throw std::invalid_argument(
                 "CouchKVStore::reset: No entry in cached "
@@ -1255,79 +1254,66 @@ vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
 }
 
 bool CouchKVStore::writeVBucketState(Vbid vbucketId,
-                                     const vbucket_state& vbstate,
-                                     VBStatePersist options) {
+                                     const vbucket_state& vbstate) {
     std::map<Vbid, uint64_t>::iterator mapItr;
     couchstore_error_t errorCode;
 
-    if (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
-            options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT) {
-        DbHolder db(*this);
-        errorCode =
-                openDB(vbucketId, db, (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE);
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            ++st.numVbSetFailure;
-            logger.warn(
-                    "CouchKVStore::writeVBucketState: openDB error:{}, "
-                    "{}, fileRev:{}",
-                    couchstore_strerror(errorCode),
-                    vbucketId,
-                    db.getFileRev());
-            return false;
-        }
+    DbHolder db(*this);
+    errorCode = openDB(vbucketId, db, (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        ++st.numVbSetFailure;
+        logger.warn(
+                "CouchKVStore::writeVBucketState: openDB error:{}, "
+                "{}, fileRev:{}",
+                couchstore_strerror(errorCode),
+                vbucketId,
+                db.getFileRev());
+        return false;
+    }
 
-        errorCode = saveVBState(db, vbstate);
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            ++st.numVbSetFailure;
-            logger.warn(
-                    "CouchKVStore:writeVBucketState: saveVBState error:{}, "
-                    "{}, fileRev:{}",
-                    couchstore_strerror(errorCode),
-                    vbucketId,
-                    db.getFileRev());
-            return false;
-        }
+    errorCode = saveVBState(db, vbstate);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        ++st.numVbSetFailure;
+        logger.warn(
+                "CouchKVStore:writeVBucketState: saveVBState error:{}, "
+                "{}, fileRev:{}",
+                couchstore_strerror(errorCode),
+                vbucketId,
+                db.getFileRev());
+        return false;
+    }
 
-        if (options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT) {
-            errorCode = couchstore_commit(db);
-            if (errorCode != COUCHSTORE_SUCCESS) {
-                ++st.numVbSetFailure;
-                logger.warn(
-                        "CouchKVStore:writeVBucketState: couchstore_commit "
-                        "error:{} [{}], {}, rev:{}",
-                        couchstore_strerror(errorCode),
-                        couchkvstore_strerrno(db, errorCode),
-                        vbucketId,
-                        db.getFileRev());
-                return false;
-            }
-        }
+    errorCode = couchstore_commit(db);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        ++st.numVbSetFailure;
+        logger.warn(
+                "CouchKVStore:writeVBucketState: couchstore_commit "
+                "error:{} [{}], {}, rev:{}",
+                couchstore_strerror(errorCode),
+                couchkvstore_strerrno(db, errorCode),
+                vbucketId,
+                db.getFileRev());
+        return false;
+    }
 
-        DbInfo info;
-        errorCode = couchstore_db_info(db, &info);
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::writeVBucketState: couchstore_db_info "
-                    "error:{}, {}",
-                    couchstore_strerror(errorCode),
-                    vbucketId);
-        } else {
-            cachedSpaceUsed[vbucketId.get()] = info.space_used;
-            cachedFileSize[vbucketId.get()] = info.file_size;
-        }
+    DbInfo info;
+    errorCode = couchstore_db_info(db, &info);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::writeVBucketState: couchstore_db_info "
+                "error:{}, {}",
+                couchstore_strerror(errorCode),
+                vbucketId);
     } else {
-        throw std::invalid_argument(
-                "CouchKVStore::writeVBucketState: invalid vb state "
-                "persist option specified for " +
-                vbucketId.to_string());
+        cachedSpaceUsed[vbucketId.get()] = info.space_used;
+        cachedFileSize[vbucketId.get()] = info.file_size;
     }
 
     return true;
 }
 
 bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
-                                   const vbucket_state& vbstate,
-                                   VBStatePersist options) {
+                                   const vbucket_state& vbstate) {
     if (isReadOnly()) {
         logger.warn(
                 "CouchKVStore::snapshotVBucket: cannot be performed on a "
@@ -1337,11 +1323,9 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
 
     auto start = std::chrono::steady_clock::now();
 
-    if (updateCachedVBState(vbucketId, vbstate) &&
-         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
-          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
+    if (updateCachedVBState(vbucketId, vbstate)) {
         vbucket_state* vbs = getVBucketState(vbucketId);
-        if (!writeVBucketState(vbucketId, *vbs, options)) {
+        if (!writeVBucketState(vbucketId, *vbs)) {
             logger.warn(
                     "CouchKVStore::snapshotVBucket: writeVBucketState failed "
                     "state:{}, {}",
@@ -1501,7 +1485,7 @@ ScanContext* CouchKVStore::initScanContext(
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
         EP_LOG_WARN(
-                "CouchKVStore::initScanContext:Failed to obtain vbState for"
+                "CouchKVStore::initScanContext:Failed to obtain vbState for "
                 "the highCompletedSeqno");
         return NULL;
     }
@@ -2459,7 +2443,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
             couchstore_open_local_document(db, (void*)id.buf, id.size, &ldoc);
 
     if (couchStoreStatus == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        logger.info(
+        logger.warn(
                 "CouchKVStore::readVBState: '_local/vbstate' not found "
                 "for {}",
                 vbId);

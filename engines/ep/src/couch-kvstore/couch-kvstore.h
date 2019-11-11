@@ -245,12 +245,9 @@ public:
      *
      * @param vbucketId - vbucket id
      * @param vbstate   - vbucket state
-     * @param options   - options used for persisting the state to disk
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBucket(Vbid vbucketId,
-                         const vbucket_state& vbstate,
-                         VBStatePersist options) override;
+    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
     /**
     * Compact a database file in the underlying storage system.
@@ -509,9 +506,7 @@ protected:
      */
     DbInfo getDbInfo(Vbid vbid);
 
-    bool writeVBucketState(Vbid vbucketId,
-                           const vbucket_state& vbstate,
-                           VBStatePersist options);
+    bool writeVBucketState(Vbid vbucketId, const vbucket_state& vbstate);
 
     template <typename T>
     void addStat(const std::string& prefix,
