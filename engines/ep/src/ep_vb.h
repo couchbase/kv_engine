@@ -109,7 +109,7 @@ public:
 
     bool areDeletedItemsAlwaysResident() const override;
 
-    void addStats(bool details,
+    void addStats(VBucketStatsDetailLevel detail,
                   const AddStatFn& add_stat,
                   const void* c) override;
 

@@ -415,6 +415,12 @@ public:
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
+    KVStoreRWRO takeRWRO(size_t shardId) override;
+
+    void setRWRO(size_t shardId,
+                 std::unique_ptr<KVStore> rw,
+                 std::unique_ptr<KVStore> ro) override;
+
     cb::mcbp::Status evictKey(const DocKey& key,
                               Vbid vbucket,
                               const char** msg) override;

@@ -201,3 +201,10 @@ enum class TaskStatus {
     Complete, /* Complete in this run */
     Abort /* Abort task immediately */
 };
+
+enum class VBucketStatsDetailLevel {
+    State, // Only the vbucket state
+    PreviousState, // Only the vb.initialState
+    Durability, // state, high_seqno, topology, high_prepared_seqno
+    Full, // All the vbucket stats
+};

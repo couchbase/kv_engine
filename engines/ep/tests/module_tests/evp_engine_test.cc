@@ -300,6 +300,62 @@ TEST_P(DurabilityTest, TimeoutTaskScheduled) {
             executor->isTaskScheduled(NONIO_TASK_IDX, "DurabilityTimeoutTask"));
 }
 
+TEST_P(DurabilityTest, DurabilityStateStats) {
+    // test that vbucket-durability-state stats group includes (only) the
+    // expected stats
+    std::map<std::string, std::string> stats{};
+
+    auto expectStatsForVB = [&stats](int vb) {
+        EXPECT_NE(stats.end(),
+                  stats.find("vb_" + std::to_string(vb) + ":high_seqno"));
+        EXPECT_NE(stats.end(),
+                  stats.find("vb_" + std::to_string(vb) + ":topology"));
+        EXPECT_NE(stats.end(),
+                  stats.find("vb_" + std::to_string(vb) +
+                             ":high_prepared_seqno"));
+        EXPECT_NE(stats.end(), stats.find("vb_" + std::to_string(vb)));
+    };
+
+    auto dummyAddStats = [&stats](const char* key,
+                                  const uint16_t keyLen,
+                                  const char* val,
+                                  const uint32_t valLen,
+                                  gsl::not_null<const void*> cookie) {
+        stats[std::string(key, keyLen)] = std::string(val, valLen);
+    };
+
+    engine->getKVBucket()->setVBucketState(Vbid(1), vbucket_state_active);
+    engine->getKVBucket()->setVBucketState(Vbid(2), vbucket_state_active);
+
+    // get stats for all vbs
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->get_stats(
+                      cookie, "vbucket-durability-state", {}, dummyAddStats));
+
+    // 4 stats, 3 vbs, 12 total
+    EXPECT_EQ(12, stats.size());
+
+    for (int vb = 0; vb < 3; vb++) {
+        expectStatsForVB(vb);
+    }
+
+    stats.clear();
+
+    int vb = 1;
+
+    // get stats for vb 1
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            engine->get_stats(cookie,
+                              "vbucket-durability-state " + std::to_string(vb),
+                              {},
+                              dummyAddStats));
+
+    // 4 stats for one specified vb
+    EXPECT_EQ(4, stats.size());
+    expectStatsForVB(vb);
+}
+
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         DurabilityTest,
                         ::testing::Values("persistent", "ephemeral"),

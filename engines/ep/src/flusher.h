@@ -18,6 +18,7 @@
 
 #include "executorthread.h"
 #include "utility.h"
+#include "vb_ready_queue.h"
 
 #include <memcached/vbucket.h>
 
@@ -49,14 +50,13 @@ public:
 
     const char * stateName() const;
 
-    void notifyFlushEvent(void) {
-        // By setting pendingMutation to true we are guaranteeing that the given
-        // flusher will iterate the entire vbuckets under its shard from the
-        // begining and flush for all mutations
-        bool disable = false;
-        if (pendingMutation.compare_exchange_strong(disable, true)) {
-            wake();
+    void notifyFlushEvent(Vbid vbid) {
+        if (!lpVbs.pushUnique(vbid)) {
+            // Something is already in the queue, no need to wake the flusher
+            return;
         }
+
+        wake();
     }
     void setTaskId(size_t newId) { taskId = newId; }
 
@@ -76,16 +76,17 @@ private:
 
     bool transitionState(State to);
     bool validTransition(State to) const;
-    void flushVB();
+
+    /**
+     * Flush a single vBucket
+     * @return true if there is more work to do
+     */
+    bool flushVB();
     void completeFlush();
     void initialize();
     void schedule_UNLOCKED();
 
     const char* stateName(State st) const;
-
-    bool canSnooze(void) {
-        return lpVbs.empty() && hpVbs.empty() && !pendingMutation.load();
-    }
 
     EPBucket* store;
     std::atomic<State> _state;
@@ -97,7 +98,7 @@ private:
 
     std::atomic<bool> forceShutdownReceived;
     std::queue<Vbid> hpVbs;
-    std::queue<Vbid> lpVbs;
+    VBReadyQueue lpVbs;
     bool doHighPriority;
     size_t numHighPriority;
     std::atomic<bool> pendingMutation;
