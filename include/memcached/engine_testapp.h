@@ -16,9 +16,7 @@ enum test_result {
     SKIPPED = 12,
     FAIL = 13,
     DIED = 14,
-    CORE = 15,
     PENDING = 19,
-    TIMEOUT = 23,
     SUCCESS_AFTER_RETRY = 24,
     SKIPPED_UNDER_ROCKSDB = 25,
     SKIPPED_UNDER_MAGMA = 26

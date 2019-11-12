@@ -1017,16 +1017,6 @@ static int report_test(const char* name,
         msg = "DIED";
         rc = 1;
         break;
-    case TIMEOUT:
-        color = 31;
-        msg = "TIMED OUT";
-        rc = 1;
-        break;
-    case CORE:
-        color = 31;
-        msg = "CORE DUMPED";
-        rc = 1;
-        break;
     case PENDING:
         color = 33;
         msg = "PENDING";
