@@ -29,6 +29,7 @@
 #include <iostream>
 #include <map>
 #include <mutex>
+#include <random>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -2104,11 +2105,19 @@ static enum test_result test_stats(EngineIface* h) {
 }
 
 static enum test_result test_mem_stats(EngineIface* h) {
-    char value[2048];
-    memset(value, 'b', sizeof(value));
-    strcpy(value + sizeof(value) - 4, "\r\n");
+    std::string value(4096, 'b');
+
+    // If active compression - make a value that doesn't compress very well.
+    if (isActiveCompressionEnabled(h)) {
+        std::mt19937 generator; // Using the default seed is fine
+        std::uniform_int_distribution<int> distribution{'0', 'z'};
+        for (auto& dis : value) {
+            dis = distribution(generator);
+        }
+    }
+
     int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
-    wait_for_persisted_value(h, "key", value);
+    wait_for_persisted_value(h, "key", value.c_str());
     testHarness->time_travel(65);
     if (isPersistentBucket(h)) {
         wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
@@ -2136,8 +2145,8 @@ static enum test_result test_mem_stats(EngineIface* h) {
 
         check_key_value(h,
                         "key",
-                        value,
-                        strlen(value),
+                        value.c_str(),
+                        value.size(),
                         Vbid(0)); // Load an item from disk again.
 
         if (isActiveCompressionEnabled(h)) {
