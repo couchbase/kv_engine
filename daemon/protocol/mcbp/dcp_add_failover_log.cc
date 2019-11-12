@@ -29,16 +29,15 @@ ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
         entries[ii].seqno = htonll(entries[ii].seqno);
     }
 
-    if (mcbpResponseHandlerFn(NULL,
-                              0,
-                              NULL,
-                              0,
-                              entries,
-                              (uint32_t)(nentries * sizeof(vbucket_failover_t)),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              cb::mcbp::Status::Success,
-                              0,
-                              (void*)cookie.get())) {
+    if (mcbpResponseHandlerFn(
+                {},
+                {},
+                {reinterpret_cast<const char*>(entries),
+                 (uint32_t)(nentries * sizeof(vbucket_failover_t))},
+                PROTOCOL_BINARY_RAW_BYTES,
+                cb::mcbp::Status::Success,
+                0,
+                (void*)cookie.get())) {
         ret = ENGINE_SUCCESS;
     } else {
         ret = ENGINE_ENOMEM;

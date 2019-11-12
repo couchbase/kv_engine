@@ -43,12 +43,9 @@ void abort_msg(const char* expr, const char* msg, const char* file, int line);
 extern "C" {
 #endif
 
-bool add_response(const void* key,
-                  uint16_t keylen,
-                  const void* ext,
-                  uint8_t extlen,
-                  const void* body,
-                  uint32_t bodylen,
+bool add_response(cb::const_char_buffer key,
+                  cb::const_char_buffer extras,
+                  cb::const_char_buffer body,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,

@@ -603,12 +603,9 @@ public:
 
                 case EWBEngineMode::IncrementClusterMapRevno:
                     clustermap_revno++;
-                    response(nullptr,
-                             0,
-                             nullptr,
-                             0,
-                             nullptr,
-                             0,
+                    response({},
+                             {},
+                             {},
                              PROTOCOL_BINARY_RAW_BYTES,
                              cb::mcbp::Status::Success,
                              0,
@@ -636,12 +633,9 @@ public:
                         "EWB_Engine::unknown_command(): "
                         "Got unexpected mode={} for EWOULDBLOCK_CTL, ",
                         (unsigned int)mode);
-                response(nullptr,
-                         0,
-                         nullptr,
-                         0,
-                         nullptr,
-                         0,
+                response({},
+                         {},
+                         {},
                          PROTOCOL_BINARY_RAW_BYTES,
                          cb::mcbp::Status::Einval,
                          /*cas*/ 0,
@@ -665,12 +659,9 @@ public:
                                 id, std::make_pair(cookie, new_mode));
                     }
 
-                    response(nullptr,
-                             0,
-                             nullptr,
-                             0,
-                             nullptr,
-                             0,
+                    response({},
+                             {},
+                             {},
                              PROTOCOL_BINARY_RAW_BYTES,
                              cb::mcbp::Status::Success,
                              /*cas*/ 0,
@@ -1983,12 +1974,9 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(
             id,
             file.c_str());
 
-    response(nullptr,
-             0,
-             nullptr,
-             0,
-             nullptr,
-             0,
+    response({},
+             {},
+             {},
              PROTOCOL_BINARY_RAW_BYTES,
              cb::mcbp::Status::Success,
              /*cas*/ 0,
@@ -2001,12 +1989,9 @@ ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
                                             const AddResponseFn& response) {
     if (suspend(cookie, id)) {
         LOG_DEBUG("Registered connection {} as {} to be suspended", cookie, id);
-        response(nullptr,
-                 0,
-                 nullptr,
-                 0,
-                 nullptr,
-                 0,
+        response({},
+                 {},
+                 {},
                  PROTOCOL_BINARY_RAW_BYTES,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
@@ -2024,12 +2009,9 @@ ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie,
                                            const AddResponseFn& response) {
     if (resume(id)) {
         LOG_DEBUG("Connection with id {} will be resumed", id);
-        response(nullptr,
-                 0,
-                 nullptr,
-                 0,
-                 nullptr,
-                 0,
+        response({},
+                 {},
+                 {},
                  PROTOCOL_BINARY_RAW_BYTES,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
@@ -2063,12 +2045,9 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
 
     // item_set_cas has no return value!
     real_engine->item_set_cas(rv.second.get(), cas64);
-    response(nullptr,
-             0,
-             nullptr,
-             0,
-             nullptr,
-             0,
+    response({},
+             {},
+             {},
              PROTOCOL_BINARY_RAW_BYTES,
              cb::mcbp::Status::Success,
              0,
@@ -2082,12 +2061,9 @@ ENGINE_ERROR_CODE EWB_Engine::checkLogLevels(const void* cookie,
     auto level = spdlog::level::level_enum(value);
     auto rsp = cb::logger::checkLogLevels(level);
 
-    response(nullptr,
-             0,
-             nullptr,
-             0,
-             nullptr,
-             0,
+    response({},
+             {},
+             {},
              PROTOCOL_BINARY_RAW_BYTES,
              rsp ? cb::mcbp::Status::Success : cb::mcbp::Status::Einval,
              0,

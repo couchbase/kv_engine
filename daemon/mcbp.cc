@@ -34,12 +34,9 @@
 #include <platform/compress.h>
 #include <platform/string_hex.h>
 
-static bool mcbp_response_handler(const void* key,
-                                  uint16_t keylen,
-                                  const void* ext,
-                                  uint8_t extlen,
-                                  const void* body,
-                                  uint32_t bodylen,
+static bool mcbp_response_handler(cb::const_char_buffer key,
+                                  cb::const_char_buffer extras,
+                                  cb::const_char_buffer body,
                                   protocol_binary_datatype_t datatype,
                                   cb::mcbp::Status status,
                                   uint64_t cas,
@@ -49,7 +46,7 @@ static bool mcbp_response_handler(const void* key,
 
     Connection* c = &cookie->getConnection();
     cb::compression::Buffer buffer;
-    cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
+    cb::const_char_buffer payload = body;
 
     if ((!c->isSnappyEnabled() && mcbp::datatype::is_snappy(datatype)) ||
         (mcbp::datatype::is_snappy(datatype) &&
@@ -58,7 +55,7 @@ static bool mcbp_response_handler(const void* key,
         // snappy encoded data. Or it's xattr compressed. We need to inflate it!
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                       payload, buffer)) {
-            std::string mykey(reinterpret_cast<const char*>(key), keylen);
+            std::string mykey(key.data(), key.size());
             LOG_WARNING(
                     "<{} ERROR: Failed to inflate body, "
                     "Key: {} may have an incorrect datatype, "
@@ -93,13 +90,13 @@ static bool mcbp_response_handler(const void* key,
     default:
         //
         payload = {error_json.data(), error_json.size()};
-        keylen = 0;
-        extlen = 0;
+        key = {};
+        extras = {};
         datatype = payload.empty() ? PROTOCOL_BINARY_RAW_BYTES
                                    : PROTOCOL_BINARY_DATATYPE_JSON;
     }
 
-    const size_t needed = payload.len + keylen + extlen +
+    const size_t needed = payload.size() + key.size() + extras.size() +
                           sizeof(protocol_binary_response_header);
 
     auto& dbuf = cookie->getDynamicBuffer();
@@ -117,8 +114,8 @@ static bool mcbp_response_handler(const void* key,
     builder.setOpcode(header.getRequest().getClientOpcode());
     builder.setDatatype(cb::mcbp::Datatype(datatype));
     builder.setStatus(status);
-    builder.setExtras({static_cast<const uint8_t*>(ext), extlen});
-    builder.setKey({static_cast<const uint8_t*>(key), keylen});
+    builder.setExtras(extras);
+    builder.setKey(key);
     builder.setValue(
             {reinterpret_cast<const uint8_t*>(payload.data()), payload.size()});
     builder.setOpaque(header.getOpaque());

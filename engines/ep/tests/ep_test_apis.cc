@@ -196,12 +196,9 @@ void decayingSleep(useconds_t *sleepTime) {
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
 }
 
-bool add_response(const void* key,
-                  uint16_t keylen,
-                  const void* ext,
-                  uint8_t extlen,
-                  const void* body,
-                  uint32_t bodylen,
+bool add_response(cb::const_char_buffer key,
+                  cb::const_char_buffer extras,
+                  cb::const_char_buffer body,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
@@ -210,27 +207,23 @@ bool add_response(const void* key,
     static std::mutex m;
     std::lock_guard<std::mutex> lg(m);
     last_status.store(status);
-    last_body.assign(static_cast<const char*>(body), bodylen);
-    last_ext.assign(static_cast<const char*>(ext), extlen);
-    last_key.assign(static_cast<const char*>(key), keylen);
+    last_body.assign(body.data(), body.size());
+    last_ext.assign(extras.data(), extras.size());
+    last_key.assign(key.data(), key.size());
     last_cas.store(cas);
     last_datatype.store(datatype);
     return true;
 }
 
-bool add_response_set_del_meta(const void* key,
-                               uint16_t keylen,
-                               const void* ext,
-                               uint8_t extlen,
-                               const void* body,
-                               uint32_t bodylen,
+bool add_response_set_del_meta(cb::const_char_buffer key,
+                               cb::const_char_buffer extras,
+                               cb::const_char_buffer body,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t cas,
                                const void* cookie) {
-    (void)cookie;
-    const auto* ext_bytes = reinterpret_cast<const uint8_t*>(ext);
-    if (ext && extlen > 0) {
+    if (!extras.empty()) {
+        const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         uint64_t vb_uuid;
         uint64_t seqno;
         memcpy(&vb_uuid, ext_bytes, 8);
@@ -239,23 +232,18 @@ bool add_response_set_del_meta(const void* key,
         last_seqno.store(ntohll(seqno));
     }
 
-    return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
-                        status, cas, cookie);
+    return add_response(key, extras, body, datatype, status, cas, cookie);
 }
 
-bool add_response_ret_meta(const void* key,
-                           uint16_t keylen,
-                           const void* ext,
-                           uint8_t extlen,
-                           const void* body,
-                           uint32_t bodylen,
+bool add_response_ret_meta(cb::const_char_buffer key,
+                           cb::const_char_buffer extras,
+                           cb::const_char_buffer body,
                            uint8_t datatype,
                            cb::mcbp::Status status,
                            uint64_t cas,
                            const void* cookie) {
-    (void)cookie;
-    const auto* ext_bytes = reinterpret_cast<const uint8_t*>(ext);
-    if (ext && extlen == 16) {
+    if (extras.size() == 16) {
+        const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         memcpy(&last_meta.flags, ext_bytes, 4);
         memcpy(&last_meta.exptime, ext_bytes + 4, 4);
         last_meta.exptime = ntohl(last_meta.exptime);
@@ -264,8 +252,7 @@ bool add_response_ret_meta(const void* key,
         last_meta.revSeqno = ntohll(revId);
         last_meta.cas = cas;
     }
-    return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
-                        status, cas, cookie);
+    return add_response(key, extras, body, datatype, status, cas, cookie);
 }
 
 void add_stats(cb::const_char_buffer key,

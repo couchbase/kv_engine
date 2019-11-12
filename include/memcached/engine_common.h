@@ -3,7 +3,7 @@
 
 #include <mcbp/protocol/status.h>
 #include <platform/sized_buffer.h>
-#include <stdint.h>
+#include <cstdint>
 #include <functional>
 #include <gsl/gsl>
 
@@ -23,11 +23,8 @@ using AddStatFn = std::function<void(cb::const_char_buffer key,
 /**
  * Callback for adding a response backet
  * @param key The key to put in the response
- * @param keylen The length of the key
- * @param ext The data to put in the extended field in the response
- * @param extlen The number of bytes in the ext field
+ * @param extras The data to put in the extended field in the response
  * @param body The data body
- * @param bodylen The number of bytes in the body
  * @param datatype This is currently not used and should be set to 0
  * @param status The status code of the return packet (see in protocol_binary
  *               for the legal values)
@@ -36,12 +33,9 @@ using AddStatFn = std::function<void(cb::const_char_buffer key,
  * @return true if return message was successfully created, false if an
  *              error occured that prevented the message from being sent
  */
-using AddResponseFn = std::function<bool(const void* key,
-                                         uint16_t keylen,
-                                         const void* ext,
-                                         uint8_t extlen,
-                                         const void* body,
-                                         uint32_t bodylen,
+using AddResponseFn = std::function<bool(cb::const_char_buffer key,
+                                         cb::const_char_buffer extras,
+                                         cb::const_char_buffer body,
                                          uint8_t datatype,
                                          cb::mcbp::Status status,
                                          uint64_t cas,

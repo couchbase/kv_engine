@@ -691,12 +691,9 @@ static bool set_vbucket(struct default_engine* e,
     state = vbucket_state_t(ntohl(state));
 
     set_vbucket_state(e, request.getVBucket(), state);
-    return response(nullptr,
-                    0,
-                    nullptr,
-                    0,
-                    &state,
-                    sizeof(state),
+    return response({},
+                    {},
+                    {reinterpret_cast<const char*>(&state), sizeof(state)},
                     PROTOCOL_BINARY_RAW_BYTES,
                     cb::mcbp::Status::Success,
                     0,
@@ -711,12 +708,9 @@ static bool get_vbucket(struct default_engine* e,
     state = get_vbucket_state(e, request.getVBucket());
     state = vbucket_state_t(ntohl(state));
 
-    return response(nullptr,
-                    0,
-                    nullptr,
-                    0,
-                    &state,
-                    sizeof(state),
+    return response({},
+                    {},
+                    {reinterpret_cast<const char*>(&state), sizeof(state)},
                     PROTOCOL_BINARY_RAW_BYTES,
                     cb::mcbp::Status::Success,
                     0,
@@ -728,12 +722,9 @@ static bool rm_vbucket(struct default_engine* e,
                        const cb::mcbp::Request& request,
                        const AddResponseFn& response) {
     set_vbucket_state(e, request.getVBucket(), vbucket_state_dead);
-    return response(nullptr,
-                    0,
-                    nullptr,
-                    0,
-                    nullptr,
-                    0,
+    return response({},
+                    {},
+                    {},
                     PROTOCOL_BINARY_RAW_BYTES,
                     cb::mcbp::Status::Success,
                     0,
@@ -748,16 +739,7 @@ static bool scrub_cmd(struct default_engine* e,
         res = cb::mcbp::Status::Ebusy;
     }
 
-    return response(nullptr,
-                    0,
-                    nullptr,
-                    0,
-                    nullptr,
-                    0,
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    res,
-                    0,
-                    cookie);
+    return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
 }
 
 /**
@@ -807,12 +789,9 @@ static bool set_param(struct default_engine* e,
             e->config.min_compression_ratio = min_comp_ratio;
         }
 
-        return response(nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+        return response({},
+                        {},
+                        {},
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
@@ -844,12 +823,9 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
         sent = set_param(this, cookie, request, response);
         break;
     default:
-        sent = response(nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+        sent = response({},
+                        {},
+                        {},
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::UnknownCommand,
                         0,

@@ -319,12 +319,9 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
     return packet;
 }
 
-bool KVBucketTest::addResponse(const void* k,
-                               uint16_t keylen,
-                               const void* ext,
-                               uint8_t extlen,
-                               const void* body,
-                               uint32_t bodylen,
+bool KVBucketTest::addResponse(cb::const_char_buffer key,
+                               cb::const_char_buffer extras,
+                               cb::const_char_buffer body,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t pcas,

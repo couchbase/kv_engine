@@ -129,8 +129,13 @@ static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
                                       uint64_t cas,
                                       const void* cookie) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
-    if (response(key, keylen, ext, extlen, body, bodylen, datatype,
-                 status, cas, cookie)) {
+    if (response({reinterpret_cast<const char*>(key), size_t(keylen)},
+                 {reinterpret_cast<const char*>(ext), size_t(extlen)},
+                 {reinterpret_cast<const char*>(body), size_t(bodylen)},
+                 datatype,
+                 status,
+                 cas,
+                 cookie)) {
         rv = ENGINE_SUCCESS;
     }
     return rv;
@@ -151,12 +156,9 @@ static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
                                       uint64_t cas,
                                       const void* cookie) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
-    if (response(key.data(),
-                 key.size(),
-                 ext,
-                 extlen,
-                 body,
-                 bodylen,
+    if (response({reinterpret_cast<const char*>(key.data()), key.size()},
+                 {reinterpret_cast<const char*>(ext), extlen},
+                 {reinterpret_cast<const char*>(body), bodylen},
                  datatype,
                  status,
                  cas,
