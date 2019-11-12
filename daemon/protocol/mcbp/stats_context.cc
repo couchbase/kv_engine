@@ -213,7 +213,7 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
         auto& current_bucket_timings =
                 cookie.getConnection().getBucket().timings;
         uint64_t mutations = current_bucket_timings.get_aggregated_mutation_stats();
-        uint64_t lookups = current_bucket_timings.get_aggregated_retrival_stats();
+        uint64_t lookups = current_bucket_timings.get_aggregated_retrieval_stats();
         add_stat(cookie, add_stat_callback, "cmd_mutation", mutations);
         add_stat(cookie, add_stat_callback, "cmd_lookup", lookups);
 
