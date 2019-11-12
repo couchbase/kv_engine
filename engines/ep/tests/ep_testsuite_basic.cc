@@ -2447,7 +2447,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare,
+                 prepare_skip_broken_under_rocks_full_eviction,
                  cleanup),
         TestCase("set/delete (invalid cas)",
                  test_set_delete_invalid_cas,
