@@ -3443,7 +3443,8 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
     auto& pdm = getPassiveDM();
     ASSERT_EQ(0, pdm.getNumTracked());
 
-    Monotonic<int64_t> ackedSeqno = 0;
+    // Throws if not monotonic.
+    Monotonic<int64_t, ThrowExceptionPolicy> ackedSeqno = 0;
 
     // Set up our function hooks
     pdm.notifySnapEndSeqnoAckPreProcessHook = [this, &pdm]() {
