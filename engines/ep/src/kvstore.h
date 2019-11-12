@@ -798,7 +798,7 @@ public:
 
     uint64_t getLastPersistedSeqno(Vbid vbid);
 
-    bool isReadOnly(void) {
+    bool isReadOnly() const {
         return readOnly;
     }
 
@@ -933,6 +933,11 @@ public:
     getDroppedCollections(Vbid vbid) = 0;
 
 protected:
+    /// Get a string to use as the prefix for the stats. This is typically
+    /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the
+    /// read write store.
+    std::string getStatsPrefix() const;
+
     /**
      * Prepare for delete of the vbucket file - Implementation specific method
      * that is called by prepareToDelete
@@ -964,12 +969,6 @@ protected:
     Collections::KVStore::CommitMetaData collectionsMeta;
 
     void createDataDir(const std::string& dbname);
-    template <typename T>
-    void addStat(const std::string& prefix,
-                 const char* nm,
-                 T& val,
-                 const AddStatFn& add_stat,
-                 const void* c);
 
     /**
      * Updates the cached state for a vbucket

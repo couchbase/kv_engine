@@ -125,9 +125,9 @@ public:
      *
      * @param config    Configuration information
      */
-    RocksDBKVStore(RocksDBKVStoreConfig& config);
+    explicit RocksDBKVStore(RocksDBKVStoreConfig& config);
 
-    ~RocksDBKVStore();
+    ~RocksDBKVStore() override;
 
     void operator=(RocksDBKVStore& from) = delete;
 
@@ -152,6 +152,10 @@ public:
      * Rollback a transaction (unless not currently in one).
      */
     void rollback() override;
+
+    void addStats(const AddStatFn& add_stat,
+                  const void* c,
+                  const std::string& args) override;
 
     /*
      * Get a RocksDBKVStore specific stat

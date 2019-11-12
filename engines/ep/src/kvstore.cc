@@ -295,81 +295,71 @@ bool KVStore::snapshotStats(const std::map<std::string,
     return rv;
 }
 
-template <typename T>
-void KVStore::addStat(const std::string& prefix,
-                      const char* stat,
-                      T& val,
-                      const AddStatFn& add_stat,
-                      const void* c) {
-    std::stringstream fullstat;
-    fullstat << prefix << ":" << stat;
-    add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
-}
-
 KVStore::KVStore(KVStoreConfig& config, bool read_only)
     : configuration(config), readOnly(read_only) {
 }
 
 KVStore::~KVStore() = default;
 
+std::string KVStore::getStatsPrefix() const {
+    const auto shardId = configuration.getShardId();
+    if (isReadOnly()) {
+        return "ro_" + std::to_string(shardId);
+    }
+    return "rw_" + std::to_string(shardId);
+}
+
 void KVStore::addStats(const AddStatFn& add_stat,
                        const void* c,
                        const std::string& args) {
     const char* backend = configuration.getBackend().c_str();
-
-    uint16_t shardId = configuration.getShardId();
-    std::stringstream prefixStream;
-
-    if (isReadOnly()) {
-        prefixStream << "ro_" << shardId;
-    } else {
-        prefixStream << "rw_" << shardId;
-    }
-
-    const std::string& prefix = prefixStream.str();
+    const auto prefix = getStatsPrefix();
 
     /* stats for both read-only and read-write threads */
-    addStat(prefix, "backend_type",   backend,            add_stat, c);
-    addStat(prefix, "open",           st.numOpen,         add_stat, c);
-    addStat(prefix, "close",          st.numClose,        add_stat, c);
-    addStat(prefix, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
+    add_prefixed_stat(prefix, "backend_type", backend, add_stat, c);
+    add_prefixed_stat(prefix, "open", st.numOpen, add_stat, c);
+    add_prefixed_stat(prefix, "close", st.numClose, add_stat, c);
+    add_prefixed_stat(prefix, "numLoadedVb", st.numLoadedVb, add_stat, c);
 
     // failure stats
-    addStat(prefix, "failure_compaction", st.numCompactionFailure, add_stat, c);
-    addStat(prefix, "failure_open",   st.numOpenFailure, add_stat, c);
-    addStat(prefix, "failure_get",    st.numGetFailure,  add_stat, c);
+    add_prefixed_stat(
+            prefix, "failure_compaction", st.numCompactionFailure, add_stat, c);
+    add_prefixed_stat(prefix, "failure_open", st.numOpenFailure, add_stat, c);
+    add_prefixed_stat(prefix, "failure_get", st.numGetFailure, add_stat, c);
 
     if (!isReadOnly()) {
-        addStat(prefix, "failure_set",   st.numSetFailure,   add_stat, c);
-        addStat(prefix, "failure_del",   st.numDelFailure,   add_stat, c);
-        addStat(prefix, "failure_vbset", st.numVbSetFailure, add_stat, c);
-        addStat(prefix, "lastCommDocs",  st.docsCommitted,   add_stat, c);
+        add_prefixed_stat(prefix, "failure_set", st.numSetFailure, add_stat, c);
+        add_prefixed_stat(prefix, "failure_del", st.numDelFailure, add_stat, c);
+        add_prefixed_stat(
+                prefix, "failure_vbset", st.numVbSetFailure, add_stat, c);
+        add_prefixed_stat(
+                prefix, "lastCommDocs", st.docsCommitted, add_stat, c);
     }
 
-    addStat(prefix,
-            "io_bg_fetch_docs_read",
-            st.io_bg_fetch_docs_read,
-            add_stat,
-            c);
-    addStat(prefix, "io_num_write", st.io_num_write, add_stat, c);
-    addStat(prefix,
-            "io_bg_fetch_doc_bytes",
-            st.io_bgfetch_doc_bytes,
-            add_stat,
-            c);
-    addStat(prefix,
-            "io_document_write_bytes",
-            st.io_document_write_bytes,
-            add_stat,
-            c);
+    add_prefixed_stat(prefix,
+                      "io_bg_fetch_docs_read",
+                      st.io_bg_fetch_docs_read,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix, "io_num_write", st.io_num_write, add_stat, c);
+    add_prefixed_stat(prefix,
+                      "io_bg_fetch_doc_bytes",
+                      st.io_bgfetch_doc_bytes,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "io_document_write_bytes",
+                      st.io_document_write_bytes,
+                      add_stat,
+                      c);
 
     const size_t read = st.fsStats.totalBytesRead.load() +
                         st.fsStatsCompaction.totalBytesRead.load();
-    addStat(prefix, "io_total_read_bytes", read, add_stat, c);
+    add_prefixed_stat(prefix, "io_total_read_bytes", read, add_stat, c);
 
     const size_t written = st.fsStats.totalBytesWritten.load() +
                            st.fsStatsCompaction.totalBytesWritten.load();
-    addStat(prefix, "io_total_write_bytes", written, add_stat, c);
+    add_prefixed_stat(prefix, "io_total_write_bytes", written, add_stat, c);
 
     if (!isReadOnly()) {
         // Flusher Write Amplification - ratio of bytes written to disk by
@@ -379,11 +369,11 @@ void KVStore::addStats(const AddStatFn& add_stat,
         const double flusherWriteAmp =
                 double(st.fsStats.totalBytesWritten.load()) /
                 st.io_document_write_bytes;
-        addStat(prefix,
-                "io_flusher_write_amplification",
-                flusherWriteAmp,
-                add_stat,
-                c);
+        add_prefixed_stat(prefix,
+                          "io_flusher_write_amplification",
+                          flusherWriteAmp,
+                          add_stat,
+                          c);
 
         // Total Write Amplification - ratio of total bytes written to disk
         // to "useful" user data written over entire disk lifecycle. Includes
@@ -391,166 +381,69 @@ void KVStore::addStats(const AddStatFn& add_stat,
         // Used to measure the overall write amplification.
         const double totalWriteAmp =
                 double(written) / st.io_document_write_bytes;
-        addStat(prefix,
-                "io_total_write_amplification",
-                totalWriteAmp,
-                add_stat,
-                c);
+        add_prefixed_stat(prefix,
+                          "io_total_write_amplification",
+                          totalWriteAmp,
+                          add_stat,
+                          c);
     }
 
-    addStat(prefix, "io_compaction_read_bytes",
-            st.fsStatsCompaction.totalBytesRead, add_stat, c);
-    addStat(prefix, "io_compaction_write_bytes",
-            st.fsStatsCompaction.totalBytesWritten, add_stat, c);
-
-    // Specific to RocksDB. Per-shard stats.
-    size_t value = 0;
-    // Memory Usage
-    if (getStat("kMemTableTotal", value)) {
-        addStat(prefix, "rocksdb_kMemTableTotal", value, add_stat, c);
-    }
-    if (getStat("kMemTableUnFlushed", value)) {
-        addStat(prefix, "rocksdb_kMemTableUnFlushed", value, add_stat, c);
-    }
-    if (getStat("kTableReadersTotal", value)) {
-        addStat(prefix, "rocksdb_kTableReadersTotal", value, add_stat, c);
-    }
-    if (getStat("kCacheTotal", value)) {
-        addStat(prefix, "rocksdb_kCacheTotal", value, add_stat, c);
-    }
-    // MemTable Size per-CF
-    if (getStat("default_kSizeAllMemTables", value)) {
-        addStat(prefix,
-                "rocksdb_default_kSizeAllMemTables",
-                value,
-                add_stat,
-                c);
-    }
-    if (getStat("seqno_kSizeAllMemTables", value)) {
-        addStat(prefix, "rocksdb_seqno_kSizeAllMemTables", value, add_stat, c);
-    }
-    // Block Cache hit/miss
-    if (getStat("rocksdb.block.cache.hit", value)) {
-        addStat(prefix, "rocksdb_block_cache_hit", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.miss", value)) {
-        addStat(prefix, "rocksdb_block_cache_miss", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.data.hit", value)) {
-        addStat(prefix, "rocksdb_block_cache_data_hit", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.data.miss", value)) {
-        addStat(prefix, "rocksdb_block_cache_data_miss", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.index.hit", value)) {
-        addStat(prefix, "rocksdb_block_cache_index_hit", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.index.miss", value)) {
-        addStat(prefix, "rocksdb_block_cache_index_miss", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.filter.hit", value)) {
-        addStat(prefix, "rocksdb_block_cache_filter_hit", value, add_stat, c);
-    }
-    if (getStat("rocksdb.block.cache.filter.miss", value)) {
-        addStat(prefix, "rocksdb_block_cache_filter_miss", value, add_stat, c);
-    }
-    // BlockCache Hit Ratio
-    size_t hit = 0;
-    size_t miss = 0;
-    if (getStat("rocksdb.block.cache.data.hit", hit) &&
-        getStat("rocksdb.block.cache.data.miss", miss) && (hit + miss) != 0) {
-        const auto ratio =
-                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        addStat(prefix,
-                "rocksdb_block_cache_data_hit_ratio",
-                ratio,
-                add_stat,
-                c);
-    }
-    if (getStat("rocksdb.block.cache.index.hit", hit) &&
-        getStat("rocksdb.block.cache.index.miss", miss) && (hit + miss) != 0) {
-        const auto ratio =
-                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        addStat(prefix,
-                "rocksdb_block_cache_index_hit_ratio",
-                ratio,
-                add_stat,
-                c);
-    }
-    if (getStat("rocksdb.block.cache.filter.hit", hit) &&
-        getStat("rocksdb.block.cache.filter.miss", miss) && (hit + miss) != 0) {
-        const auto ratio =
-                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        addStat(prefix,
-                "rocksdb_block_cache_filter_hit_ratio",
-                ratio,
-                add_stat,
-                c);
-    }
-    // Disk Usage per-CF
-    if (getStat("default_kTotalSstFilesSize", value)) {
-        addStat(prefix,
-                "rocksdb_default_kTotalSstFilesSize",
-                value,
-                add_stat,
-                c);
-    }
-    if (getStat("seqno_kTotalSstFilesSize", value)) {
-        addStat(prefix, "rocksdb_seqno_kTotalSstFilesSize", value, add_stat, c);
-    }
-    // Scan stats
-    if (getStat("scan_totalSeqnoHits", value)) {
-        addStat(prefix, "rocksdb_scan_totalSeqnoHits", value, add_stat, c);
-    }
-    if (getStat("scan_oldSeqnoHits", value)) {
-        addStat(prefix, "rocksdb_scan_oldSeqnoHits", value, add_stat, c);
-    }
+    add_prefixed_stat(prefix,
+                      "io_compaction_read_bytes",
+                      st.fsStatsCompaction.totalBytesRead,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "io_compaction_write_bytes",
+                      st.fsStatsCompaction.totalBytesWritten,
+                      add_stat,
+                      c);
 }
 
 void KVStore::addTimingStats(const AddStatFn& add_stat, const void* c) {
-    uint16_t shardId = configuration.getShardId();
-    std::stringstream prefixStream;
+    const auto prefix = getStatsPrefix();
 
-    if (isReadOnly()) {
-        prefixStream << "ro_" << shardId;
-    } else {
-        prefixStream << "rw_" << shardId;
-    }
+    add_prefixed_stat(prefix, "commit", st.commitHisto, add_stat, c);
+    add_prefixed_stat(prefix, "compact", st.compactHisto, add_stat, c);
+    add_prefixed_stat(prefix, "snapshot", st.snapshotHisto, add_stat, c);
+    add_prefixed_stat(prefix, "delete", st.delTimeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "save_documents", st.saveDocsHisto, add_stat, c);
+    add_prefixed_stat(prefix, "readTime", st.readTimeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "readSize", st.readSizeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "writeTime", st.writeTimeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "writeSize", st.writeSizeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "saveDocCount", st.batchSize, add_stat, c);
 
-    const std::string& prefix = prefixStream.str();
-
-    addStat(prefix, "commit",      st.commitHisto,      add_stat, c);
-    addStat(prefix, "compact",     st.compactHisto,     add_stat, c);
-    addStat(prefix, "snapshot",    st.snapshotHisto,    add_stat, c);
-    addStat(prefix, "delete",      st.delTimeHisto,     add_stat, c);
-    addStat(prefix, "save_documents", st.saveDocsHisto, add_stat, c);
-    addStat(prefix, "readTime", st.readTimeHisto, add_stat, c);
-    addStat(prefix, "readSize", st.readSizeHisto, add_stat, c);
-    addStat(prefix, "writeTime",   st.writeTimeHisto,   add_stat, c);
-    addStat(prefix, "writeSize",   st.writeSizeHisto,   add_stat, c);
-    addStat(prefix, "saveDocCount",   st.batchSize,     add_stat, c);
-
-    addStat(prefix, "getMultiFsReadCount", st.getMultiFsReadHisto, add_stat, c);
-    addStat(prefix,
-            "getMultiFsReadPerDocCount",
-            st.getMultiFsReadPerDocHisto,
-            add_stat,
-            c);
-    addStat(prefix,
-            "flusherWriteAmplificationRatio",
-            st.flusherWriteAmplificationHisto,
-            add_stat,
-            c);
+    add_prefixed_stat(
+            prefix, "getMultiFsReadCount", st.getMultiFsReadHisto, add_stat, c);
+    add_prefixed_stat(prefix,
+                      "getMultiFsReadPerDocCount",
+                      st.getMultiFsReadPerDocHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "flusherWriteAmplificationRatio",
+                      st.flusherWriteAmplificationHisto,
+                      add_stat,
+                      c);
 
     //file ops stats
-    addStat(prefix, "fsReadTime",  st.fsStats.readTimeHisto,  add_stat, c);
-    addStat(prefix, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);
-    addStat(prefix, "fsSyncTime",  st.fsStats.syncTimeHisto,  add_stat, c);
-    addStat(prefix, "fsReadSize",  st.fsStats.readSizeHisto,  add_stat, c);
-    addStat(prefix, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
-    addStat(prefix, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
-    addStat(prefix, "fsReadCount", st.fsStats.readCountHisto, add_stat, c);
-    addStat(prefix, "fsWriteCount", st.fsStats.writeCountHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsReadTime", st.fsStats.readTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsSyncTime", st.fsStats.syncTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsReadSize", st.fsStats.readSizeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsReadSeek", st.fsStats.readSeekHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsReadCount", st.fsStats.readCountHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteCount", st.fsStats.writeCountHisto, add_stat, c);
 }
 
 void KVStore::optimizeWrites(std::vector<queued_item>& items) {

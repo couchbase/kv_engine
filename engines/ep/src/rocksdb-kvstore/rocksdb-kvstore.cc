@@ -22,6 +22,7 @@
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore_priv.h"
+#include "statwriter.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
@@ -1789,4 +1790,120 @@ size_t RocksDBKVStore::getVBucketsCount(
         }
     }
     return count;
+}
+
+void RocksDBKVStore::addStats(const AddStatFn& add_stat,
+                              const void* c,
+                              const std::string& args) {
+    KVStore::addStats(add_stat, c, args);
+    const auto prefix = getStatsPrefix();
+
+    // Per-shard stats.
+    size_t val = 0;
+    // Memory Usage
+    if (getStat("kMemTableTotal", val)) {
+        add_prefixed_stat(prefix, "rocksdb_kMemTableTotal", val, add_stat, c);
+    }
+    if (getStat("kMemTableUnFlushed", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_kMemTableUnFlushed", val, add_stat, c);
+    }
+    if (getStat("kTableReadersTotal", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_kTableReadersTotal", val, add_stat, c);
+    }
+    if (getStat("kCacheTotal", val)) {
+        add_prefixed_stat(prefix, "rocksdb_kCacheTotal", val, add_stat, c);
+    }
+    // MemTable Size per-CF
+    if (getStat("default_kSizeAllMemTables", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_default_kSizeAllMemTables", val, add_stat, c);
+    }
+    if (getStat("seqno_kSizeAllMemTables", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_seqno_kSizeAllMemTables", val, add_stat, c);
+    }
+    // Block Cache hit/miss
+    if (getStat("rocksdb.block.cache.hit", val)) {
+        add_prefixed_stat(prefix, "rocksdb_block_cache_hit", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.miss", val)) {
+        add_prefixed_stat(prefix, "rocksdb_block_cache_miss", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.data.hit", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_block_cache_data_hit", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.data.miss", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_block_cache_data_miss", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.index.hit", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_block_cache_index_hit", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.index.miss", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_block_cache_index_miss", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.filter.hit", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_block_cache_filter_hit", val, add_stat, c);
+    }
+    if (getStat("rocksdb.block.cache.filter.miss", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_block_cache_filter_miss", val, add_stat, c);
+    }
+    // BlockCache Hit Ratio
+    size_t hit = 0;
+    size_t miss = 0;
+    if (getStat("rocksdb.block.cache.data.hit", hit) &&
+        getStat("rocksdb.block.cache.data.miss", miss) && (hit + miss) != 0) {
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
+        add_prefixed_stat(prefix,
+                          "rocksdb_block_cache_data_hit_ratio",
+                          ratio,
+                          add_stat,
+                          c);
+    }
+    if (getStat("rocksdb.block.cache.index.hit", hit) &&
+        getStat("rocksdb.block.cache.index.miss", miss) && (hit + miss) != 0) {
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
+        add_prefixed_stat(prefix,
+                          "rocksdb_block_cache_index_hit_ratio",
+                          ratio,
+                          add_stat,
+                          c);
+    }
+    if (getStat("rocksdb.block.cache.filter.hit", hit) &&
+        getStat("rocksdb.block.cache.filter.miss", miss) && (hit + miss) != 0) {
+        const auto ratio =
+                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
+        add_prefixed_stat(prefix,
+                          "rocksdb_block_cache_filter_hit_ratio",
+                          ratio,
+                          add_stat,
+                          c);
+    }
+    // Disk Usage per-CF
+    if (getStat("default_kTotalSstFilesSize", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_default_kTotalSstFilesSize", val, add_stat, c);
+    }
+    if (getStat("seqno_kTotalSstFilesSize", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_seqno_kTotalSstFilesSize", val, add_stat, c);
+    }
+    // Scan stats
+    if (getStat("scan_totalSeqnoHits", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_scan_totalSeqnoHits", val, add_stat, c);
+    }
+    if (getStat("scan_oldSeqnoHits", val)) {
+        add_prefixed_stat(
+                prefix, "rocksdb_scan_oldSeqnoHits", val, add_stat, c);
+    }
 }
