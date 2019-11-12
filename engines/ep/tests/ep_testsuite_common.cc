@@ -106,8 +106,6 @@ engine_test_t* BaseTestCase::getTest() {
     if (skip) {
         nm.append(" (skipped)");
         ret->tfun = skipped_test_function;
-    } else {
-        nm.append(" (couchstore)");
     }
 
     ret->name = cb_strdup(nm.c_str());
