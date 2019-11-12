@@ -2748,11 +2748,15 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
         uint32_t& deleted,
         uint8_t& datatype) {
     deleted = 0;
-    auto htRes = ht.findForWrite(cHandle.getKey());
+    auto htRes = ht.findForRead(
+            cHandle.getKey(), TrackReference::Yes, WantsDeleted::Yes);
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
 
     if (v) {
+        if (v->isPreparedMaybeVisible()) {
+            return ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS;
+        }
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) {
             // Need bg meta fetch.

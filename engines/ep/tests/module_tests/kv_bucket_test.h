@@ -127,6 +127,8 @@ public:
      * @param itemMeta meta data for the item
      * @param deleted  whether deleted or not
      * @param datatype datatype of the item
+     * @param retryOnEWouldBlock whether to bgfetch and repeat the
+     * request on a persistent bucket if the result is EWOULDBLOCK
      *
      * @result engine error code signifying result of the operation
      */
@@ -135,7 +137,8 @@ public:
                               const void* cookie,
                               ItemMetaData& itemMeta,
                               uint32_t& deleted,
-                              uint8_t& datatype);
+                              uint8_t& datatype,
+                              bool retryOnEWouldBlock = true);
 
     /**
      * Schedules the ItemPager according to the current config. Allows testing
