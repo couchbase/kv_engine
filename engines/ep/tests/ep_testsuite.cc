@@ -7969,7 +7969,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("expiry with xattr", test_expiry_with_xattr,
                  test_setup, teardown, "exp_pager_enabled=false", prepare,
