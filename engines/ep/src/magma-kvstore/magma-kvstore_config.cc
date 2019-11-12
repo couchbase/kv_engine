@@ -17,8 +17,10 @@
 
 #include "magma-kvstore_config.h"
 
-MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config, uint16_t shardid)
-    : KVStoreConfig(config, shardid) {
+MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
+                                       uint16_t numShards,
+                                       uint16_t shardid)
+    : KVStoreConfig(config, numShards, shardid) {
     bucketQuota = config.getMaxSize();
     magmaDeleteMemtableWritecache = config.getMagmaDeleteMemtableWritecache();
     magmaDeleteFragRatio = config.getMagmaDeleteFragRatio();

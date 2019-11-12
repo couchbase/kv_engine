@@ -30,7 +30,7 @@ public:
      * This constructor intialises the object from a central
      * ep-engine Configuration instance.
      */
-    KVStoreConfig(Configuration& config, uint16_t shardId);
+    KVStoreConfig(Configuration& config, uint16_t numShards, uint16_t shardId);
 
     /**
      * This constructor sets the mandatory config options

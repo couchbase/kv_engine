@@ -27,7 +27,9 @@ class Configuration;
 class MagmaKVStoreConfig : public KVStoreConfig {
 public:
     // Initialize the object from the central EPEngine Configuration
-    MagmaKVStoreConfig(Configuration& config, uint16_t shardid);
+    MagmaKVStoreConfig(Configuration& config,
+                       uint16_t numShards,
+                       uint16_t shardid);
 
     size_t getBucketQuota() {
         return bucketQuota;
