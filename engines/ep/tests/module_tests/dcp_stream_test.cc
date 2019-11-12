@@ -204,9 +204,38 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
  */
 TEST_P(StreamTest, test_verifyProducerStats) {
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    vb->setState(
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    setup_dcp_stream(0,
+                     IncludeValue::No,
+                     IncludeXattrs::No,
+                     {{"enable_sync_writes", "true"},
+                      {"consumer_name", "test_consumer"}});
     store_item(vbid, "key1", "value1");
     store_item(vbid, "key2", "value2");
+    using namespace cb::durability;
+    auto reqs = Requirements{Level::Majority, Timeout()};
+    auto prepareToCommit = store_pending_item(vbid, "pending1", "value3", reqs);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->commit(prepareToCommit->getKey(),
+                         prepareToCommit->getBySeqno(),
+                         {},
+                         vb->lockCollections(prepareToCommit->getKey()),
+                         cookie));
+
+    // Clear our cookie, we don't actually care about the cas of the item but
+    // this is necessary to allow us to enqueue our next abort (which uses the
+    // same cookie)
+    engine->storeEngineSpecific(cookie, nullptr);
+
+    auto prepareToAbort = store_pending_item(vbid, "pending2", "value4", reqs);
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->abort(prepareToAbort->getKey(),
+                        prepareToAbort->getBySeqno(),
+                        {},
+                        vb->lockCollections(prepareToAbort->getKey())));
 
     MockDcpMessageProducers producers(engine);
 
@@ -246,6 +275,36 @@ TEST_P(StreamTest, test_verifyProducerStats) {
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(2, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    // Prepare
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(3, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    // Commit
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(4, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    // Prepare
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(5, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    // SnapshotMarker - doesn't bump items sent
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(5, producer->getItemsSent());
+    EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
+    totalBytes = producer->getTotalBytesSent();
+
+    // Abort
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(6, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
 
     destroy_dcp_stream();
