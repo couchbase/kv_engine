@@ -421,16 +421,12 @@ static enum test_result item_set_cas_test(EngineIface* h) {
 }
 
 uint32_t evictions;
-static void eviction_stats_handler(const char* key,
-                                   const uint16_t klen,
-                                   const char* val,
-                                   const uint32_t vlen,
+static void eviction_stats_handler(cb::const_char_buffer key,
+                                   cb::const_char_buffer value,
                                    gsl::not_null<const void*>) {
-    if (strncmp(key, "evictions", klen) == 0) {
-        char buffer[1024];
-        memcpy(buffer, val, vlen);
-        buffer[vlen] = '\0';
-        evictions = atoi(buffer);
+    if (key == "evictions"_ccb) {
+        std::string v{value.data(), value.size()};
+        evictions = atoi(v.c_str());
     }
 }
 

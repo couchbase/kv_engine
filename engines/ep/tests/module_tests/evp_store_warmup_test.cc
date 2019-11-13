@@ -258,10 +258,8 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
             get_number_of_mock_cookie_io_notifications(statsCookie3);
     notifications[delVbCookie] = get_number_of_mock_cookie_io_notifications(delVbCookie);
 
-    auto dummyAddStats = [](const char*,
-                            const uint16_t,
-                            const char*,
-                            const uint32_t,
+    auto dummyAddStats = [](cb::const_char_buffer,
+                            cb::const_char_buffer,
                             gsl::not_null<const void*>) {
 
     };

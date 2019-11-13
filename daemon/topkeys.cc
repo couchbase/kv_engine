@@ -277,11 +277,7 @@ static void tk_iterfunc(const std::string& key,
                         created_time,
                         created_time);
     if (vlen > 0 && vlen < int(sizeof(val_str) - 1)) {
-        c->add_stat(key.c_str(),
-                    gsl::narrow<uint16_t>(key.size()),
-                    val_str,
-                    vlen,
-                    c->cookie);
+        c->add_stat(key, val_str, c->cookie);
     }
 }
 

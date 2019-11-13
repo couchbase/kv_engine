@@ -35,8 +35,7 @@ inline void add_casted_stat(const char* k,
                             const char* v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_stat(k, static_cast<uint16_t>(strlen(k)),
-             v, static_cast<uint32_t>(strlen(v)), cookie);
+    add_stat(k, v, cookie);
 }
 
 template <typename T>
@@ -69,7 +68,7 @@ inline void add_casted_stat(const char* k,
                             const cb::const_char_buffer& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_stat(k, static_cast<uint16_t>(strlen(k)), v.data(), v.size(), cookie);
+    add_stat(k, v, cookie);
 }
 
 template <typename T>

@@ -1586,14 +1586,12 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_FALSE(stream->getNumBackfillItemsRemaining());
 
     bool statusFound = false;
-    auto checkStatusFn = [&statusFound](const char* key,
-                                        const uint16_t klen,
-                                        const char* val,
-                                        const uint32_t vlen,
+    auto checkStatusFn = [&statusFound](cb::const_char_buffer key,
+                                        cb::const_char_buffer value,
                                         gsl::not_null<const void*> cookie) {
-        if (std::string(key, klen) == "status") {
+        if (key == "status"_ccb) {
             EXPECT_EQ(std::string(reinterpret_cast<const char*>(cookie.get())),
-                      std::string(val, vlen));
+                      std::string(value.data(), value.size()));
             statusFound = true;
         }
     };

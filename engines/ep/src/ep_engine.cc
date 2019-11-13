@@ -3428,7 +3428,7 @@ public:
 
     ~AddStatsStream() {
         auto value = buf.str();
-        callback(key.data(), key.size(), value.data(), value.size(), cookie);
+        callback(key, value, cookie);
     }
 
 private:

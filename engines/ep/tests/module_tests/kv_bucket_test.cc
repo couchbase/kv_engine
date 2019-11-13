@@ -827,10 +827,8 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->schedule(task);
 
     // nop callback to serve as add_stat
-    auto dummy_cb = [](const char* key,
-                       const uint16_t klen,
-                       const char* val,
-                       const uint32_t vlen,
+    auto dummy_cb = [](cb::const_char_buffer key,
+                       cb::const_char_buffer value,
                        gsl::not_null<const void*> cookie) {};
 
     for (uint64_t i = 0; i < 10; ++i) {
@@ -1455,10 +1453,8 @@ TEST_P(KVBucketParamTest, MB_34346) {
 // Regression test for MB-35560.
 TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
     // Shouldn't see any stats calls if the vBucket doesn't exist.
-    auto mockStatFn = [](const char* key,
-                         const uint16_t klen,
-                         const char* val,
-                         const uint32_t vlen,
+    auto mockStatFn = [](cb::const_char_buffer key,
+                         cb::const_char_buffer value,
                          gsl::not_null<const void*> cookie) { ADD_FAILURE(); };
 
     auto expected = (GetParam() == "bucket_type=ephemeral") ? ENGINE_KEY_ENOENT

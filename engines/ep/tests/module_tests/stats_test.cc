@@ -54,15 +54,13 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
         std::map<std::string, std::string> map;
     };
     StatMap stats;
-    auto add_stats = [](const char* key,
-                        const uint16_t klen,
-                        const char* val,
-                        const uint32_t vlen,
+    auto add_stats = [](cb::const_char_buffer key,
+                        cb::const_char_buffer value,
                         gsl::not_null<const void*> cookie) {
         auto* stats =
                 reinterpret_cast<StatMap*>(const_cast<void*>(cookie.get()));
-        std::string k(key, klen);
-        std::string v(val, vlen);
+        std::string k(key.data(), key.size());
+        std::string v(value.data(), value.size());
         stats->map[k] = v;
     };
 
@@ -182,10 +180,8 @@ TEST_F(StatTest, HashStatsMemUsed) {
         int addStats_calls = 0;
     } state;
 
-    auto callback = [](const char* key,
-                       const uint16_t klen,
-                       const char* val,
-                       const uint32_t vlen,
+    auto callback = [](cb::const_char_buffer key,
+                       cb::const_char_buffer value,
                        gsl::not_null<const void*> cookie) {
         Cookie& state =
                 *reinterpret_cast<Cookie*>(const_cast<void*>(cookie.get()));

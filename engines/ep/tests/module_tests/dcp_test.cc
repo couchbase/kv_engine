@@ -360,10 +360,8 @@ TEST_F(DCPTest, MB30189_addStats) {
     class MockStats {
     } mockStats;
     producer->addStats(
-            [](const char* key,
-               const uint16_t klen,
-               const char* val,
-               const uint32_t vlen,
+            [](cb::const_char_buffer key,
+               cb::const_char_buffer val,
                gsl::not_null<const void*> cookie) {
                 // do nothing
             },
@@ -392,12 +390,10 @@ TEST_F(DCPTest, MB34280) {
     // Verify that the normal DCP producer stats don't exceed the max dcp stat
     // name
     producer->addStats(
-            [&name, validator](const char* key,
-                               const uint16_t klen,
-                               const char* val,
-                               const uint32_t vlen,
+            [&name, validator](cb::const_char_buffer key,
+                               cb::const_char_buffer value,
                                gsl::not_null<const void*> cookie) {
-                validator(name, std::string{key, klen});
+                validator(name, std::string{key.data(), key.size()});
             },
             cookie);
 
@@ -408,12 +404,10 @@ TEST_F(DCPTest, MB34280) {
             *engine, cookie, consumer_name, consumer_name);
     consumer->addStats(
             [name = consumer_name, validator](
-                    const char* key,
-                    const uint16_t klen,
-                    const char* val,
-                    const uint32_t vlen,
+                    cb::const_char_buffer key,
+                    cb::const_char_buffer value,
                     gsl::not_null<const void*> cookie) {
-                validator(name, std::string{key, klen});
+                validator(name, std::string{key.data(), key.size()});
             },
             cookie);
 
@@ -426,12 +420,10 @@ TEST_F(DCPTest, MB34280) {
                       {"consumer_name", "test_consumer"}});
 
     stream->addStats(
-            [&name, &max](const char* key,
-                          const uint16_t klen,
-                          const char* val,
-                          const uint32_t vlen,
+            [&name, &max](cb::const_char_buffer key,
+                          cb::const_char_buffer value,
                           gsl::not_null<const void*> cookie) {
-                std::string k{key, klen};
+                std::string k{key.data(), key.size()};
                 auto idx = k.find(name);
                 ASSERT_EQ(0, idx) << "Key: [" << key
                                   << "] does not start with [" << name << "]";
@@ -1479,10 +1471,8 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.disconnect(cookie);
 
     // Try to read stats. Shouldn't crash.
-    producer->addStats([](const char* key,
-                          const uint16_t klen,
-                          const char* val,
-                          const uint32_t vlen,
+    producer->addStats([](cb::const_char_buffer key,
+                          cb::const_char_buffer value,
                           gsl::not_null<const void*> cookie) {},
                        // Cookie is not being used in the callback, but the
                        // API requires it. Pass in the producer as cookie

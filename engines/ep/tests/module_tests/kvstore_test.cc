@@ -213,16 +213,14 @@ static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
  * 'cookie' is a std::unordered_map<std::string, std::string) which stats
  * are accumulated in.
  */
-static void add_stat_callback(const char* key,
-                              const uint16_t klen,
-                              const char* val,
-                              const uint32_t vlen,
+static void add_stat_callback(cb::const_char_buffer key,
+                              cb::const_char_buffer value,
                               gsl::not_null<const void*> cookie) {
     auto* map = reinterpret_cast<std::map<std::string, std::string>*>(
             const_cast<void*>(cookie.get()));
     ASSERT_NE(nullptr, map);
-    map->insert(std::make_pair(std::string(key, klen),
-                               std::string(val, vlen)));
+    map->insert(std::make_pair(std::string(key.data(), key.size()),
+                               std::string(value.data(), value.size())));
 }
 
 KVStoreTest::KVStoreTest() : flush(manifest) {

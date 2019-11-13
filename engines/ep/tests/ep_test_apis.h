@@ -54,10 +54,8 @@ bool add_response(const void* key,
                   uint64_t cas,
                   const void* cookie);
 
-void add_stats(const char* key,
-               const uint16_t klen,
-               const char* val,
-               const uint32_t vlen,
+void add_stats(cb::const_char_buffer key,
+               cb::const_char_buffer value,
                gsl::not_null<const void*> cookie);
 
 #ifdef __cplusplus

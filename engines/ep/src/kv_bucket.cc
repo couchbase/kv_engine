@@ -1119,16 +1119,14 @@ struct snapshot_add_stat_cookie : cb::tracing::Traceable {
     std::map<std::string, std::string> smap;
 };
 
-static void snapshot_add_stat(const char* key,
-                              const uint16_t klen,
-                              const char* val,
-                              const uint32_t vlen,
+static void snapshot_add_stat(cb::const_char_buffer key,
+                              cb::const_char_buffer value,
                               gsl::not_null<const void*> cookie) {
     void* ptr = const_cast<void*>(cookie.get());
     auto* snap = static_cast<snapshot_add_stat_cookie*>(ptr);
-    std::string k(key, klen);
-    std::string v(val, vlen);
-    snap->smap.insert(std::pair<std::string, std::string>(k, v));
+    snap->smap.insert(std::pair<std::string, std::string>(
+            std::string{key.data(), key.size()},
+            std::string{value.data(), value.size()}));
 }
 
 void KVBucket::snapshotStats() {

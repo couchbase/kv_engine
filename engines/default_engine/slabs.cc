@@ -321,9 +321,7 @@ void add_statistics(const void* cookie,
         return;
     }
 
-    klen += nw;
-
-    add_stats(name, klen, val, vlen, cookie);
+    add_stats(name, val, cookie);
 }
 
 /*@null@*/

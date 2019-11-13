@@ -459,21 +459,21 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {
-        char val[128];
-        int len;
-
-        len = sprintf(val, "%" PRIu64, stats.evictions.load());
-        add_stat("evictions", 9, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, stats.curr_items.load());
-        add_stat("curr_items", 10, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, stats.total_items.load());
-        add_stat("total_items", 11, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, stats.curr_bytes.load());
-        add_stat("bytes", 5, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, stats.reclaimed.load());
-        add_stat("reclaimed", 9, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)config.maxbytes);
-        add_stat("engine_maxbytes", 15, val, len, cookie);
+        add_stat("evictions"_ccb,
+                 std::to_string(stats.evictions.load()),
+                 cookie);
+        add_stat("curr_items"_ccb,
+                 std::to_string(stats.curr_items.load()),
+                 cookie);
+        add_stat("total_items"_ccb,
+                 std::to_string(stats.total_items.load()),
+                 cookie);
+        add_stat("bytes"_ccb, std::to_string(stats.curr_bytes.load()), cookie);
+        add_stat("reclaimed"_ccb,
+                 std::to_string(stats.reclaimed.load()),
+                 cookie);
+        add_stat(
+                "engine_maxbytes"_ccb, std::to_string(config.maxbytes), cookie);
     } else if (key == "slabs"_ccb) {
         slabs_stats(this, add_stat, cookie);
     } else if (key == "items"_ccb) {
@@ -481,37 +481,26 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
     } else if (key == "sizes"_ccb) {
         item_stats_sizes(this, add_stat, cookie);
     } else if (key == "uuid"_ccb) {
-        if (config.uuid) {
-            add_stat("uuid",
-                     4,
-                     config.uuid,
-                     (uint32_t)strlen(config.uuid),
-                     cookie);
-        } else {
-            add_stat("uuid", 4, "", 0, cookie);
-        }
+        add_stat("uuid"_ccb, config.uuid, cookie);
     } else if (key == "scrub"_ccb) {
-        char val[128];
-        int len;
-
         std::lock_guard<std::mutex> guard(scrubber.lock);
         if (scrubber.running) {
-            add_stat("scrubber:status", 15, "running", 7, cookie);
+            add_stat("scrubber:status"_ccb, "running"_ccb, cookie);
         } else {
-            add_stat("scrubber:status", 15, "stopped", 7, cookie);
+            add_stat("scrubber:status"_ccb, "stopped"_ccb, cookie);
         }
 
         if (scrubber.started != 0) {
             if (scrubber.stopped != 0) {
                 time_t diff = scrubber.started - scrubber.stopped;
-                len = sprintf(val, "%" PRIu64, (uint64_t)diff);
-                add_stat("scrubber:last_run", 17, val, len, cookie);
+                add_stat("scrubber:last_run"_ccb, std::to_string(diff), cookie);
             }
-
-            len = sprintf(val, "%" PRIu64, scrubber.visited);
-            add_stat("scrubber:visited", 16, val, len, cookie);
-            len = sprintf(val, "%" PRIu64, scrubber.cleaned);
-            add_stat("scrubber:cleaned", 16, val, len, cookie);
+            add_stat("scrubber:visited"_ccb,
+                     std::to_string(scrubber.visited),
+                     cookie);
+            add_stat("scrubber:cleaned"_ccb,
+                     std::to_string(scrubber.cleaned),
+                     cookie);
         }
     } else {
         ret = ENGINE_KEY_ENOENT;

@@ -499,7 +499,7 @@ static void do_item_stats_sizes(struct default_engine* engine,
                 vlen = snprintf(val, sizeof(val), "%u", histogram[i]);
                 if (klen > 0 && klen < int(sizeof(key)) && vlen > 0 &&
                     vlen < int(sizeof(val))) {
-                    add_stats(key, klen, val, vlen, c);
+                    add_stats(key, val, c);
                 }
             }
         }

@@ -118,13 +118,11 @@ static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
 }
 
 extern "C" {
-static void add_stats(const char* key,
-                      const uint16_t klen,
-                      const char* val,
-                      const uint32_t vlen,
+static void add_stats(cb::const_char_buffer key,
+                      cb::const_char_buffer value,
                       gsl::not_null<const void*>) {
-    std::string k(key, klen);
-    std::string v(val, vlen);
+    std::string k(key.data(), key.size());
+    std::string v(value.data(), value.size());
     vals[k] = v;
     }
 }

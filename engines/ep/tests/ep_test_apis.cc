@@ -268,13 +268,11 @@ bool add_response_ret_meta(const void* key,
                         status, cas, cookie);
 }
 
-void add_stats(const char* key,
-               const uint16_t klen,
-               const char* val,
-               const uint32_t vlen,
+void add_stats(cb::const_char_buffer key,
+               cb::const_char_buffer value,
                gsl::not_null<const void*>) {
-    std::string k(key, klen);
-    std::string v(val, vlen);
+    std::string k(key.data(), key.size());
+    std::string v(value.data(), value.size());
 
     if (dump_stats) {
         std::cout << "stat[" << k << "] = " << v << std::endl;
@@ -288,26 +286,25 @@ void add_stats(const char* key,
  * friends to lookup a specific stat. If `key` matches the requested key name,
  * then record its value in actual_stat_value.
  */
-void add_individual_stat(const char* key,
-                         const uint16_t klen,
-                         const char* val,
-                         const uint32_t vlen,
+void add_individual_stat(cb::const_char_buffer key,
+                         cb::const_char_buffer value,
                          gsl::not_null<const void*>) {
     if (get_stat_context.actual_stat_value.empty() &&
-            get_stat_context.requested_stat_name.compare(
-                    0, get_stat_context.requested_stat_name.size(),
-                    key, klen) == 0) {
-        get_stat_context.actual_stat_value = std::string(val, vlen);
+        get_stat_context.requested_stat_name.compare(
+                0,
+                get_stat_context.requested_stat_name.size(),
+                key.data(),
+                key.size()) == 0) {
+        get_stat_context.actual_stat_value =
+                std::string(value.data(), value.size());
     }
 }
 
-void add_individual_histo_stat(const char* key,
-                               const uint16_t klen,
-                               const char* val,
-                               const uint32_t vlen,
+void add_individual_histo_stat(cb::const_char_buffer key,
+                               cb::const_char_buffer value,
                                gsl::not_null<const void*> cookie) {
     /* Convert key to string */
-    std::string key_str(key, klen);
+    std::string key_str(key.data(), key.size());
     /* Exclude mean value keys e.g. backfill_tasks_mean */
     if (key_str.find("_mean") != std::string::npos) {
         return;
@@ -315,7 +312,7 @@ void add_individual_histo_stat(const char* key,
 
     size_t pos1 = key_str.find(get_stat_context.requested_stat_name);
     if (pos1 != std::string::npos) {
-        get_stat_context.actual_stat_value.append(val, vlen);
+        get_stat_context.actual_stat_value.append(value.data(), value.size());
         /* Parse start and end from the key.
            Key is in the format task_name_START,END (backfill_tasks_20,100)
          */
@@ -336,7 +333,7 @@ void add_individual_histo_stat(const char* key,
         }
         auto end = std::stoull(std::string(key_str, pos1, pos2));
         get_stat_context.histogram_stat_int_value->add_bin(
-                start, end, std::stoull(val));
+                start, end, std::stoull({value.data(), value.size()}));
     }
 }
 

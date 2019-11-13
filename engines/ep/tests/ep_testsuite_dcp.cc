@@ -7434,10 +7434,8 @@ static enum test_result test_mb19153(EngineIface* h) {
     return SUCCESS;
 }
 
-static void mb19982_add_stat(const char* key,
-                             const uint16_t klen,
-                             const char* val,
-                             const uint32_t vlen,
+static void mb19982_add_stat(cb::const_char_buffer key,
+                             cb::const_char_buffer value,
                              gsl::not_null<const void*> cookie) {
     // do nothing
 }

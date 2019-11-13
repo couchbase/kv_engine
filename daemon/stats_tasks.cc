@@ -44,11 +44,7 @@ Task::Status StatsTaskConnectionStats::execute() {
         iterate_all_connections([this](Connection& c) -> void {
             if (c.getSocketDescriptor() == fd || fd == -1) {
                 auto stats_str = c.toJSON().dump();
-                add_stats(nullptr,
-                          0,
-                          stats_str.data(),
-                          uint32_t(stats_str.size()),
-                          static_cast<void*>(&cookie));
+                add_stats({}, stats_str, static_cast<void*>(&cookie));
             }
         });
     } catch (const std::exception& exception) {

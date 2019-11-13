@@ -51,81 +51,14 @@ void add_stat(Cookie& cookie,
               const AddStatFn& add_stat_callback,
               const char* name,
               const T& val) {
-    std::string value = std::to_string(val);
-    add_stat_callback(name,
-                      uint16_t(strlen(name)),
-                      value.c_str(),
-                      uint32_t(value.length()),
-                      &cookie);
-}
-
-// Specializations for common, integer types. Uses stack buffer for
-// int-to-string conversion.
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              int32_t val) {
-    char buf[16];
-    int len = checked_snprintf(buf, sizeof(buf), "%" PRId32, val);
-    if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING("add_stat failed to add stat for {}", name);
-    } else {
-        add_stat_callback(
-                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
-    }
-}
-
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              uint32_t val) {
-    char buf[16];
-    int len = checked_snprintf(buf, sizeof(buf), "%" PRIu32, val);
-    if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING("add_stat failed to add stat for {}", name);
-    } else {
-        add_stat_callback(
-                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
-    }
-}
-
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              int64_t val) {
-    char buf[32];
-    int len = checked_snprintf(buf, sizeof(buf), "%" PRId64, val);
-    if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING("add_stat failed to add stat for {}", name);
-    } else {
-        add_stat_callback(
-                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
-    }
-}
-
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              uint64_t val) {
-    char buf[32];
-    int len = checked_snprintf(buf, sizeof(buf), "%" PRIu64, val);
-    if (len < 0 || size_t(len) >= sizeof(buf)) {
-        LOG_WARNING("add_stat failed to add stat for {}", name);
-    } else {
-        add_stat_callback(
-                name, uint16_t(strlen(name)), buf, uint32_t(len), &cookie);
-    }
+    add_stat_callback(name, std::to_string(val), &cookie);
 }
 
 void add_stat(Cookie& cookie,
               const AddStatFn& add_stat_callback,
               const char* name,
               const std::string& value) {
-    add_stat_callback(name,
-                      uint16_t(strlen(name)),
-                      value.c_str(),
-                      uint32_t(value.length()),
-                      &cookie);
+    add_stat_callback(name, value, &cookie);
 }
 
 void add_stat(Cookie& cookie,
@@ -133,9 +66,7 @@ void add_stat(Cookie& cookie,
               const char* name,
               const char* value) {
     add_stat_callback(name,
-                      uint16_t(strlen(name)),
                       value,
-                      uint32_t(strlen(value)),
                       &cookie);
 }
 
@@ -307,20 +238,20 @@ static void append_bin_stats(const char* key,
                     builder.getFrame()->getBodylen());
 }
 
-static void append_stats(const char* key,
-                         const uint16_t klen,
-                         const char* val,
-                         const uint32_t vlen,
+static void append_stats(cb::const_char_buffer key,
+                         cb::const_char_buffer value,
                          gsl::not_null<const void*> void_cookie) {
     size_t needed;
 
     auto& cookie = *const_cast<Cookie*>(
             reinterpret_cast<const Cookie*>(void_cookie.get()));
-    needed = vlen + klen + sizeof(protocol_binary_response_header);
+    needed =
+            value.size() + key.size() + sizeof(protocol_binary_response_header);
     if (!cookie.growDynamicBuffer(needed)) {
         return;
     }
-    append_bin_stats(key, klen, val, vlen, cookie);
+    append_bin_stats(
+            key.data(), key.size(), value.data(), value.size(), cookie);
 }
 
 // Create a static std::function to wrap append_stats, instead of creating a
@@ -348,11 +279,7 @@ static void process_bucket_details(Cookie& cookie) {
     json["buckets"] = array;
 
     const auto stats_str = json.dump();
-    append_stats("bucket details",
-                 14,
-                 stats_str.data(),
-                 uint32_t(stats_str.size()),
-                 static_cast<void*>(&cookie));
+    append_stats("bucket details"_ccb, stats_str, static_cast<void*>(&cookie));
 }
 
 /**
@@ -403,14 +330,12 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
              ++ii) {
             auto hist = scheduler_info[ii].to_string();
             std::string key = std::to_string(ii);
-            append_stats(key.data(),
-                         gsl::narrow<uint16_t>(key.size()),
-                         hist.data(),
-                         gsl::narrow<uint32_t>(hist.size()),
-                         &cookie);
+            append_stats(key, hist, &cookie);
         }
         return ENGINE_SUCCESS;
-    } else if (arg == "aggregate") {
+    }
+
+    if (arg == "aggregate") {
         static const std::string key = {"aggregate"};
         Hdr1sfMicroSecHistogram histogram{};
         for (const auto& h : scheduler_info) {
@@ -418,15 +343,11 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
         }
         // Add the stat
         auto hist = histogram.to_string();
-        append_stats(key.data(),
-                     gsl::narrow<uint16_t>(key.size()),
-                     hist.data(),
-                     gsl::narrow<uint32_t>(hist.size()),
-                     &cookie);
+        append_stats(key, hist, &cookie);
         return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_EINVAL;
     }
+
+    return ENGINE_EINVAL;
 }
 
 /**
@@ -551,13 +472,7 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
                                          mc_time_get_current_time());
 
         if (ret == ENGINE_SUCCESS) {
-            char key[] = "topkeys_json";
-            const auto topkeys_str = topkeys_doc.dump();
-            append_stats(key,
-                         (uint16_t)strlen(key),
-                         topkeys_str.data(),
-                         uint32_t(topkeys_str.size()),
-                         &cookie);
+            append_stats("topkeys_json"_ccb, topkeys_doc.dump(), &cookie);
         }
         return ret;
     } else {
@@ -589,11 +504,7 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
             auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
             json_str = bucket.subjson_operation_times.to_string();
         }
-        append_stats(nullptr,
-                     0,
-                     json_str.c_str(),
-                     gsl::narrow<uint32_t>(json_str.size()),
-                     &cookie);
+        append_stats({}, json_str, &cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -616,13 +527,7 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
             }
         }
 
-        std::string json_str = json.dump();
-        const std::string stat_name = "responses";
-        append_stats(stat_name.c_str(),
-                     gsl::narrow<uint16_t>(stat_name.size()),
-                     json_str.c_str(),
-                     gsl::narrow<uint32_t>(json_str.size()),
-                     &cookie);
+        append_stats("responses"_ccb, json.dump(), &cookie);
         return ENGINE_SUCCESS;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -638,48 +543,26 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
 
         void operator()(gsl_p::cstring_span key,
                         gsl_p::cstring_span value) override {
-            append_stats(key.data(),
-                         gsl::narrow<uint16_t>(key.size()),
-                         value.data(),
-                         gsl::narrow<uint32_t>(value.size()),
-                         &c);
+            append_stats(
+                    {key.data(), key.size()}, {value.data(), value.size()}, &c);
         }
 
         void operator()(gsl_p::cstring_span key, bool value) override {
             const auto svalue = value ? "true"_ccb : "false"_ccb;
-            append_stats(key.data(),
-                         gsl::narrow<uint16_t>(key.size()),
-                         svalue.data(),
-                         gsl::narrow<uint32_t>(svalue.size()),
-                         &c);
+            append_stats({key.data(), key.size()}, svalue.data(), &c);
         }
 
         void operator()(gsl_p::cstring_span key, size_t value) override {
-            const auto svalue = std::to_string(value);
-            append_stats(key.data(),
-                         gsl::narrow<uint16_t>(key.size()),
-                         svalue.data(),
-                         gsl::narrow<uint32_t>(svalue.size()),
-                         &c);
+            append_stats({key.data(), key.size()}, std::to_string(value), &c);
         }
 
         void operator()(gsl_p::cstring_span key,
                         phosphor::ssize_t value) override {
-            const auto svalue = std::to_string(value);
-            append_stats(key.data(),
-                         gsl::narrow<uint16_t>(key.size()),
-                         svalue.data(),
-                         gsl::narrow<uint32_t>(svalue.size()),
-                         &c);
+            append_stats({key.data(), key.size()}, std::to_string(value), &c);
         }
 
         void operator()(gsl_p::cstring_span key, double value) override {
-            const auto svalue = std::to_string(value);
-            append_stats(key.data(),
-                         gsl::narrow<uint16_t>(key.size()),
-                         svalue.data(),
-                         gsl::narrow<uint32_t>(svalue.size()),
-                         &c);
+            append_stats({key.data(), key.size()}, std::to_string(value), &c);
         }
 
     private:
@@ -869,7 +752,7 @@ ENGINE_ERROR_CODE StatsCommandContext::getTaskResult() {
 ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
     switch (command_exit_code) {
     case ENGINE_SUCCESS:
-        append_stats(nullptr, 0, nullptr, 0, static_cast<void*>(&cookie));
+        append_stats({}, {}, static_cast<void*>(&cookie));
 
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()

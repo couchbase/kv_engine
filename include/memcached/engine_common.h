@@ -2,6 +2,7 @@
 #pragma once
 
 #include <mcbp/protocol/status.h>
+#include <platform/sized_buffer.h>
 #include <stdint.h>
 #include <functional>
 #include <gsl/gsl>
@@ -12,15 +13,11 @@ struct EngineIface;
  * Callback for any function producing stats.
  *
  * @param key the stat's key
- * @param klen length of the key
- * @param val the stat's value in an ascii form (e.g. text form of a number)
- * @param vlen length of the value
+ * @param value the stat's value in an ascii form (e.g. text form of a number)
  * @param cookie magic callback cookie
  */
-using AddStatFn = std::function<void(const char* key,
-                                     const uint16_t klen,
-                                     const char* val,
-                                     const uint32_t vlen,
+using AddStatFn = std::function<void(cb::const_char_buffer key,
+                                     cb::const_char_buffer value,
                                      gsl::not_null<const void*> cookie)>;
 
 /**

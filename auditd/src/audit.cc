@@ -394,17 +394,9 @@ void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
 void AuditImpl::stats(const AddStatFn& add_stats,
                       gsl::not_null<const void*> cookie) {
     const auto* enabled = config.is_auditd_enabled() ? "true" : "false";
-    add_stats("enabled",
-              (uint16_t)strlen("enabled"),
-              enabled,
-              (uint32_t)strlen(enabled),
-              cookie.get());
-    const auto num_of_dropped_events = std::to_string(dropped_events);
-    add_stats("dropped_events",
-              (uint16_t)strlen("dropped_events"),
-              num_of_dropped_events.data(),
-              (uint32_t)num_of_dropped_events.length(),
-              cookie.get());
+    add_stats("enabled"_ccb, enabled, cookie.get());
+    add_stats(
+            "dropped_events"_ccb, std::to_string(dropped_events), cookie.get());
 }
 
 void AuditImpl::consume_events() {
