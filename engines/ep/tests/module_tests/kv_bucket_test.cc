@@ -388,6 +388,44 @@ void KVBucketTest::replaceCouchKVStore(FileOpsInterface& ops) {
     store->setRWRO(0, std::move(rw), std::move(rwro.ro));
 }
 
+unique_request_ptr KVBucketTest::createObserveRequest(
+        const std::vector<std::string>& keys) {
+    // EPE::observe documents the value format as:
+    //  Each entry is built up by:
+    //  2 bytes vb id
+    //  2 bytes key length
+    //  n bytes key
+
+    // create big enough string for all entries
+    const size_t valueSize =
+            (sizeof(Vbid) + sizeof(uint16_t)) * keys.size() +
+            std::accumulate(
+                    keys.begin(), keys.end(), 0, [](auto sum, auto key) {
+                        return sum + key.size();
+                    });
+    std::string valueStr(valueSize, '\0');
+    auto* value = &valueStr[0];
+
+    for (const auto& key : keys) {
+        Vbid entryVbid = vbid.hton();
+        uint16_t keylen = htons(key.size());
+
+        std::memcpy(value, &entryVbid, sizeof(Vbid));
+        value += sizeof(Vbid);
+        std::memcpy(value, &keylen, sizeof(uint16_t));
+        value += sizeof(uint16_t);
+        std::memcpy(value, key.data(), key.size());
+        value += key.size();
+    }
+
+    return createPacket(cb::mcbp::ClientOpcode::Observe,
+                        vbid,
+                        {/* cas */},
+                        {/* extras */},
+                        {/* key */},
+                        {valueStr});
+}
+
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on resident items works correctly.
