@@ -930,9 +930,11 @@ ENGINE_ERROR_CODE VBucket::abort(
             EP_LOG_ERR(
                     "VBucket::abort ({}) - replica - failed as we received "
                     "an abort for a prepare that does not exist and we are not "
-                    "currently receiving a disk snapshot. Prepare seqno: {}",
+                    "currently receiving a disk snapshot. Prepare seqno: {} "
+                    "Abort seqno: {}",
                     id,
-                    prepareSeqno);
+                    prepareSeqno,
+                    abortSeqno);
             return ENGINE_EINVAL;
         }
 
