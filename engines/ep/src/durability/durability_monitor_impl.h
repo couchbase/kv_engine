@@ -124,7 +124,7 @@ protected:
      * this, we simply store the seqno that we should set the HPS value to so
      * that we don't have to track other things in the durability monitors.
      */
-    Monotonic<int64_t> desiredHPS;
+    Monotonic<int64_t, ThrowExceptionPolicy> desiredHPS;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
@@ -709,16 +709,20 @@ public:
     // can by emptied by Commit/Abort.
     Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno = 0;
 
-    // Stores the last committed seqno.
-    Monotonic<int64_t> lastCommittedSeqno = 0;
+    // Stores the last committed seqno. Throws as this could be the result of an
+    // out of order completion that would break durability.
+    Monotonic<int64_t, ThrowExceptionPolicy> lastCommittedSeqno = 0;
 
-    // Stores the last aborted seqno.
-    Monotonic<int64_t> lastAbortedSeqno = 0;
+    // Stores the last aborted seqno. Throws as this could be the result of an
+    // out of order completion that would break durability.
+    Monotonic<int64_t, ThrowExceptionPolicy> lastAbortedSeqno = 0;
 
-    // Stores the highPreparedSeqno
-    WeaklyMonotonic<int64_t> highPreparedSeqno = 0;
+    // Stores the highPreparedSeqno. Throws as an incorrect value may mean we
+    // are doing durability wrong.
+    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> highPreparedSeqno = 0;
 
-    // Stores the highCompletedSeqno
+    // Stores the highCompletedSeqno. Does not throw as this is a stat used for
+    // debugging.
     Monotonic<int64_t> highCompletedSeqno = 0;
 
     // Cumulative count of accepted (tracked) SyncWrites.
@@ -739,8 +743,10 @@ public:
     // Map of node to seqno value for seqno acks that we have seen but
     // do not exist in the current replication topology. They may be
     // required to manually ack for a new node if we receive an ack before
-    // ns_server sends us a new replication topology.
-    std::unordered_map<std::string, Monotonic<int64_t>> queuedSeqnoAcks;
+    // ns_server sends us a new replication topology. Throws because a replica
+    // should never ack backwards.
+    std::unordered_map<std::string, Monotonic<int64_t, ThrowExceptionPolicy>>
+            queuedSeqnoAcks;
 
     friend std::ostream& operator<<(std::ostream& os, const State& s) {
         os << "#trackedWrites:" << s.trackedWrites.size()
