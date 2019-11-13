@@ -2276,7 +2276,7 @@ TYPED_TEST(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
     std::vector<queued_item> items;
     cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
 
-    WeaklyMonotonic<uint64_t> seqno = 0;
+    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno = 0;
     for (const auto& item : items) {
         seqno = item->getBySeqno();
     }
@@ -2312,7 +2312,7 @@ TYPED_TEST(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
     std::vector<queued_item> items;
     cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
 
-    WeaklyMonotonic<uint64_t> seqno = 0;
+    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno = 0;
     for (const auto& item : items) {
         seqno = item->getBySeqno();
     }

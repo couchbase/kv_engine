@@ -131,8 +131,10 @@ private:
     using Queue =
             folly::USPSCQueue<DurabilityMonitor::ActiveSyncWrite, false, 5>;
     Queue queue;
-    // Track the highest Enqueued Seqno to enforce enqueue ordering.
-    Monotonic<int64_t> highEnqueuedSeqno = {0};
+
+    // Track the highest Enqueued Seqno to enforce enqueue ordering. Throws as
+    // this could otherwise allow out of order commit on active.
+    Monotonic<int64_t, ThrowExceptionPolicy> highEnqueuedSeqno = {0};
 
     /// The lock guarding consumption of items.
     ConsumerLock consumerLock;
