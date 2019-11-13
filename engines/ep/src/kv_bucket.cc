@@ -463,13 +463,10 @@ bool KVBucket::initialize() {
     return true;
 }
 
-void KVBucket::deinitialize() {
-    // Stop all the tasks of the engine
-    ExecutorPool::get()->stopTaskGroup(
-            engine.getTaskable().getGID(), NO_TASK_TYPE, stats.forceShutdown);
-
-    ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
-                                            stats.forceShutdown);
+std::vector<ExTask> KVBucket::deinitialize() {
+    EP_LOG_INFO("KVBucket::deinitialize {}", stats.forceShutdown);
+    return ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
+                                                   stats.forceShutdown);
 }
 
 KVBucket::~KVBucket() {

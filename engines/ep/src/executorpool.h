@@ -112,8 +112,6 @@ public:
 
     bool cancel(size_t taskId, bool eraseTask=false);
 
-    bool stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);
-
     bool wake(size_t taskId);
 
     /**
@@ -129,7 +127,17 @@ public:
 
     void registerTaskable(Taskable& taskable);
 
-    void unregisterTaskable(Taskable& taskable, bool force);
+    /**
+     * Remove the client via the Taskable interface.
+     * Calling this method will find and trigger cancel on all tasks of the
+     * client and return the tasks (shared_ptr) to the caller.
+     *
+     * @param taskable caller's taskable interface (getGID used to find tasks)
+     * @param force should the shutdown be forced (may not wait for tasks)
+     * @return a container storing the caller's tasks, ownership is transferred
+     *         to the caller.
+     */
+    std::vector<ExTask> unregisterTaskable(Taskable& taskable, bool force);
 
     void doWorkerStat(EventuallyPersistentEngine* engine,
                       const void* cookie,
@@ -243,8 +251,10 @@ protected:
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task);
     void _registerTaskable(Taskable& taskable);
-    void _unregisterTaskable(Taskable& taskable, bool force);
-    bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);
+    std::vector<ExTask> _unregisterTaskable(Taskable& taskable, bool force);
+    std::vector<ExTask> _stopTaskGroup(task_gid_t taskGID,
+                                       std::unique_lock<std::mutex>& lh,
+                                       bool force);
     TaskQueue* _getTaskQueue(const Taskable& t, task_type_t qidx);
     void _stopAndJoinThreads();
 

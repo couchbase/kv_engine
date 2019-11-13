@@ -1121,6 +1121,13 @@ protected:
      */
     DocKey makeDocKey(const void* cookie, cb::const_byte_buffer key);
 
+    /**
+     * Wait for each ExTask (shared_ptr) to have a use_count of 1 before
+     * resetting the shared_ptr.
+     * This function will return once all tasks in the vector have been reset.
+     */
+    static void waitForTasks(std::vector<ExTask>& tasks);
+
     SERVER_HANDLE_V1 *serverApi;
 
     // Engine statistics. First concrete member as a number of other members

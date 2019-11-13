@@ -68,9 +68,7 @@ public:
                double sleeptime = 0,
                bool completeBeforeShutdown = true);
 
-    /* destructor */
-    virtual ~GlobalTask(void) {
-    }
+    virtual ~GlobalTask();
 
     /**
      * The invoked function when the task is executed.

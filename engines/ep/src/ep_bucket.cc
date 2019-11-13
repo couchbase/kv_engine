@@ -296,12 +296,11 @@ bool EPBucket::initialize() {
     return true;
 }
 
-void EPBucket::deinitialize() {
+std::vector<ExTask> EPBucket::deinitialize() {
     stopFlusher();
     stopBgFetcher();
-
     stopWarmup();
-    KVBucket::deinitialize();
+    return KVBucket::deinitialize();
 }
 
 /**

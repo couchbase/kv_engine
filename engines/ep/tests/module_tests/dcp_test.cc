@@ -188,6 +188,9 @@ void DCPTest::TearDown() {
     ExecutorPool::get()->setNumAuxIO(1);
     ExecutorPool::get()->setNumNonIO(1);
 
+    stream.reset();
+    producer.reset();
+
     EventuallyPersistentEngineTest::TearDown();
 
     MemoryTracker::destroyInstance();

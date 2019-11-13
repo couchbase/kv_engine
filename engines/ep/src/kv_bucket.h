@@ -108,7 +108,7 @@ public:
 
     bool initialize() override;
 
-    void deinitialize() override;
+    std::vector<ExTask> deinitialize() override;
 
     ENGINE_ERROR_CODE set(Item& item,
                           const void* cookie,

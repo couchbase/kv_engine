@@ -36,7 +36,7 @@ public:
 
     bool initialize() override;
 
-    void deinitialize() override;
+    std::vector<ExTask> deinitialize() override;
 
     /**
      * Flushes all items waiting for persistence in a given vbucket

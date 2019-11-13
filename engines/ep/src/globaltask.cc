@@ -57,6 +57,16 @@ GlobalTask::GlobalTask(EventuallyPersistentEngine* e,
     engine = e;
 }
 
+GlobalTask::~GlobalTask() {
+    // Why is this here? We are dereferencing this pointer to try and catch in
+    // CV any destruction ordering issues (where the engine was destructed
+    // before the task). ASAN should catch such an issue. Note that the engine
+    // can be null in some unit tests
+    if (engine) {
+        engine->getConfiguration();
+    }
+}
+
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);

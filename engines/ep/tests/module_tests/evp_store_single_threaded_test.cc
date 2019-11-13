@@ -125,8 +125,6 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
             }
         };
         runTasks(*task_executor->getLpTaskQ()[t]);
-        task_executor->stopTaskGroup(
-                ep->getTaskable().getGID(), t, ep->getEpStats().forceShutdown);
     }
 }
 
@@ -143,8 +141,6 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
             }
         };
         runTasks(*task_executor->getLpTaskQ()[t]);
-        task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
-                                     engine->getEpStats().forceShutdown);
     }
 }
 
@@ -2022,6 +2018,7 @@ public:
     }
 
     void TearDown() {
+        engine.reset();
         ExecutorPool::shutdown();
     }
 };
@@ -2170,7 +2167,11 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     // We need null as the engine to stop ~CheckedExecutor path from trying
     // to touch the engine
     ObjectRegistry::onSwitchThread(nullptr);
-    engine.reset();
+
+    // Call unregisterTaskable which will call _stopTaskGroup, but we keep the
+    // engine alive to ensure it is deleted after all tasks (CheckedExecutor is
+    // holding the backfill task)
+    ExecutorPool::get()->unregisterTaskable(engine->getTaskable(), false);
     destroy_mock_event_callbacks();
     concurrent_task_thread.join();
 }

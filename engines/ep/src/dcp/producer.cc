@@ -265,6 +265,7 @@ void DcpProducer::cancelCheckpointCreatorTask() {
                 checkpointCreator->task.get())
                 ->cancelTask();
         ExecutorPool::get()->cancel(checkpointCreator->task->getId());
+        checkpointCreator->task.reset();
     }
 }
 

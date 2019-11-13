@@ -6554,11 +6554,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     if (kvBucket) {
-        kvBucket->deinitialize();
+        auto tasks = kvBucket->deinitialize();
         // Need to reset the kvBucket as we need our ThreadLocal engine ptr to
         // be valid when destructing Items in CheckpointManagers but we need to
         // reset it before destructing EPStats.
         kvBucket.reset();
+
+        // Ensure tasks are all completed and deleted. This loop keeps checking
+        // each task in-turn, rather than spin and wait for each task. This is
+        // to be more defensive against deadlock caused by a task referencing
+        // another
+        EP_LOG_INFO("~EventuallyPersistentEngine: will wait for {} tasks",
+                    tasks.size());
+        waitForTasks(tasks);
     }
     EP_LOG_INFO("~EPEngine: Completed deinitialize.");
     delete workload;
@@ -6571,6 +6579,31 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     ObjectRegistry::onSwitchThread(nullptr);
 
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
+}
+
+void EventuallyPersistentEngine::waitForTasks(std::vector<ExTask>& tasks) {
+    bool taskStillRunning = !tasks.empty();
+
+    while (taskStillRunning) {
+        taskStillRunning = false;
+        for (auto& task : tasks) {
+            if (task && task.use_count() == 1) {
+                EP_LOG_DEBUG(
+                        "EventuallyPersistentEngine::waitForTasks: RESET {}",
+                        task->getDescription());
+                task.reset();
+            } else if (task) {
+                EP_LOG_DEBUG(
+                        "EventuallyPersistentEngine::waitForTasks: yielding "
+                        "use_count:{} "
+                        "for:{}",
+                        task.use_count(),
+                        task->getDescription());
+                std::this_thread::yield();
+                taskStillRunning = true;
+            }
+        }
+    }
 }
 
 ReplicationThrottle& EventuallyPersistentEngine::getReplicationThrottle() {

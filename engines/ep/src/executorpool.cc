@@ -607,22 +607,25 @@ bool ExecutorPool::_startWorkers(void) {
     return true;
 }
 
-bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
-                                  task_type_t taskType,
-                                  bool force) {
+std::vector<ExTask> ExecutorPool::_stopTaskGroup(
+        task_gid_t taskGID, std::unique_lock<std::mutex>& lh, bool force) {
     bool unfinishedTask;
-    bool retVal = false;
     std::map<size_t, TaskQpair>::iterator itr;
 
-    std::unique_lock<std::mutex> lh(tMutex);
+    std::vector<ExTask> tasks;
+    // Gather the tasks which match the taskGID
+    for (itr = taskLocator.begin(); itr != taskLocator.end(); itr++) {
+        if (itr->second.first->getTaskable().getGID() == taskGID) {
+            tasks.push_back(itr->second.first);
+        }
+    }
+
     do {
-        ExTask task;
         unfinishedTask = false;
         for (itr = taskLocator.begin(); itr != taskLocator.end(); itr++) {
-            task = itr->second.first;
-            TaskQueue *q = itr->second.second;
-            if (task->getTaskable().getGID() == taskGID &&
-                (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
+            ExTask& task = itr->second.first;
+            TaskQueue* q = itr->second.second;
+            if (task->getTaskable().getGID() == taskGID) {
                 EP_LOG_INFO("Stopping Task id {} {} {}",
                             uint64_t(task->getId()),
                             task->getTaskable().getName(),
@@ -634,34 +637,27 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
                 }
                 q->wake(task);
                 unfinishedTask = true;
-                retVal = true;
             }
         }
         if (unfinishedTask) {
-            tMutex.wait_for(lh, MIN_SLEEP_TIME); // Wait till task gets cancelled
+            // Wait till task gets cancelled
+            tMutex.wait_for(lh, MIN_SLEEP_TIME);
         }
     } while (unfinishedTask);
 
-    return retVal;
+    return tasks;
 }
 
-bool ExecutorPool::stopTaskGroup(task_gid_t taskGID,
-                                 task_type_t taskType,
-                                 bool force) {
-    // Note: Stopping a task group is special - any memory allocations /
-    // deallocations made while unregistering *should* be accounted to the
-    // bucket in question - hence no `onSwitchThread(NULL)` call.
-    return _stopTaskGroup(taskGID, taskType, force);
-}
-
-void ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
+std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
+                                                      bool force) {
     EP_LOG_INFO("Unregistering {} taskable {}",
                 (numBuckets == 1) ? "last" : "",
                 taskable.getName());
 
-    _stopTaskGroup(taskable.getGID(), NO_TASK_TYPE, force);
+    std::unique_lock<std::mutex> lh(tMutex);
 
-    LockHolder lh(tMutex);
+    auto rv = _stopTaskGroup(taskable.getGID(), lh, force);
+
     taskOwners.erase(&taskable);
     if (!(--numBuckets)) {
         if (taskLocator.size()) {
@@ -704,13 +700,15 @@ void ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
             isLowPrioQset = false;
         }
     }
+    return rv;
 }
 
-void ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
+std::vector<ExTask> ExecutorPool::unregisterTaskable(Taskable& taskable,
+                                                     bool force) {
     // Note: unregistering a bucket is special - any memory allocations /
     // deallocations made while unregistering *should* be accounted to the
     // bucket in question - hence no `onSwitchThread(NULL)` call.
-    _unregisterTaskable(taskable, force);
+    return _unregisterTaskable(taskable, force);
 }
 
 void ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,

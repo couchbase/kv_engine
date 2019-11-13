@@ -62,5 +62,5 @@ bool HashtableResizerTask::run(void) {
                      maxExpectedDurationForVisitorTask);
 
     snooze(engine->getConfiguration().getHtResizeInterval());
-    return true;
+    return !engine->getEpStats().isShutdown;
 }
