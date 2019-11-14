@@ -37,9 +37,7 @@ expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
 }
 
 DurabilityMonitor::SyncWrite::SyncWrite(queued_item item)
-    : item(item),
-      startTime(std::chrono::steady_clock::now()),
-      desiredHPS(item->getBySeqno()) {
+    : item(item), startTime(std::chrono::steady_clock::now()) {
 }
 
 const StoredDocKey& DurabilityMonitor::SyncWrite::getKey() const {

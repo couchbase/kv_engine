@@ -777,19 +777,9 @@ void EPVBucket::loadOutstandingPrepares(
     case vbucket_state_replica:
     case vbucket_state_pending:
     case vbucket_state_dead:
-        // If the latest snapshot has been fully persisted, the HPS can be set
-        // to the highSeqno. If the latest snapshot was only partially
-        // persisted, the highSeqno would not be a consistent point. Instead,
-        // the end of the /previous/ snapshot should be used. This reflects the
-        // in-memory movement of the HPS - it only advances when a snapshot has
-        // been fully received.
-        int64_t highPreparedSeqno =
-                static_cast<int64_t>(vbs.lastSnapEnd) == vbs.highSeqno
-                        ? vbs.highSeqno
-                        : std::max<int64_t>(0, vbs.lastSnapStart - 1);
         durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
                 *this,
-                highPreparedSeqno,
+                vbs.persistedPreparedSeqno,
                 vbs.persistedCompletedSeqno,
                 std::move(outstandingPrepares));
         return;

@@ -91,14 +91,6 @@ public:
         return status == SyncWriteStatus::Completed;
     }
 
-    void setDesiredHPS(int64_t hps) {
-        desiredHPS = hps;
-    }
-
-    int64_t getDesiredHPS() {
-        return desiredHPS;
-    }
-
 protected:
     // An Item stores all the info that the DurabilityMonitor needs:
     // - seqno
@@ -112,19 +104,6 @@ protected:
     const std::chrono::steady_clock::time_point startTime;
 
     SyncWriteStatus status = SyncWriteStatus::Pending;
-
-    /**
-     * The value that we can update the HPS to after we have prepared this
-     * SyncWrite. This allows us to move the HPS on non-durable writes when we
-     * have logically prepared something. Consider the case of a Persist level
-     * SyncWrite. It is only prepared once it has been persisted. Any other
-     * writes that take place after this SyncWrite has been accepted (but before
-     * it has been persisted) must also update the HPS, however, they can only
-     * do so once the Persist level SyncWrite has been persisted. To implement
-     * this, we simply store the seqno that we should set the HPS value to so
-     * that we don't have to track other things in the durability monitors.
-     */
-    Monotonic<int64_t, ThrowExceptionPolicy> desiredHPS;
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
@@ -568,8 +547,6 @@ struct ActiveDurabilityMonitor::State {
     void updateHighPreparedSeqno(ResolvedQueue& completed);
 
     void updateHighCompletedSeqno();
-
-    void notifyNonPrepare(const Item& item);
 
     /// Debug - print a textual description of this object to stderr.
     void dump() const;
