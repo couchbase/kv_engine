@@ -407,6 +407,32 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_acknowledged(
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE MockDcpMessageProducers::commit(uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  const DocKey& key,
+                                                  uint64_t prepare_seqno,
+                                                  uint64_t commit_seqno) {
+    last_op = cb::mcbp::ClientOpcode::DcpCommit;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_prepared_seqno = prepare_seqno;
+    last_commit_seqno = commit_seqno;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE MockDcpMessageProducers::abort(uint32_t opaque,
+                                                 Vbid vbucket,
+                                                 const DocKey& key,
+                                                 uint64_t prepared_seqno,
+                                                 uint64_t abort_seqno) {
+    last_op = cb::mcbp::ClientOpcode::DcpAbort;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_prepared_seqno = prepared_seqno;
+    last_abort_seqno = abort_seqno;
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                          uint16_t version) {
     clear_dcp_data();
@@ -449,5 +475,8 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_system_event_version = mcbp::systemevent::version::version0;
     last_collection_manifest_uid = 0;
     last_stream_id = cb::mcbp::DcpStreamId{};
+    last_prepared_seqno = 0;
     last_high_completed_seqno = 0;
+    last_commit_seqno = 0;
+    last_abort_seqno = 0;
 }
