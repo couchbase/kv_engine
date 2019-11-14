@@ -886,7 +886,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             result.ranges.push_back(
                     {{(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
                       (*cursor.currentCheckpoint)->getSnapshotEndSeqno()},
-                     (*cursor.currentCheckpoint)->getHighCompletedSeqno()});
+                     (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
+                     (*cursor.currentCheckpoint)->getHighPreparedSeqno()});
             enteredNewCp = false;
 
             // As we cross into new checkpoints, update the maxDeletedRevSeqno

@@ -73,11 +73,14 @@ bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
      * - the replication topology or
      *   (above owned by struct vbucket_transition_state)
      * - the persisted completed seqno or
-     * - the persisted prepared seqno
+     * - the persisted prepared seqno or
+     * - the high prepared seqno
      */
     return (transition.needsToBePersisted(vbstate.transition) ||
             persistedCompletedSeqno != vbstate.persistedCompletedSeqno ||
-            persistedPreparedSeqno != vbstate.persistedPreparedSeqno);
+            persistedPreparedSeqno != vbstate.persistedPreparedSeqno ||
+            highPreparedSeqno !=
+            vbstate.highPreparedSeqno);
 }
 
 void vbucket_state::reset() {
@@ -93,6 +96,7 @@ void vbucket_state::reset() {
     version = CurrentVersion;
     persistedCompletedSeqno = 0;
     persistedPreparedSeqno = 0;
+    highPreparedSeqno = 0;
     onDiskPrepares = 0;
     transition = vbucket_transition_state{};
 }
@@ -111,6 +115,8 @@ bool vbucket_state::operator==(const vbucket_state& other) const {
     rv = rv && (version == other.version);
     rv = rv && (persistedCompletedSeqno == other.persistedCompletedSeqno);
     rv = rv && (persistedPreparedSeqno == other.persistedCompletedSeqno);
+    rv = rv && (highPreparedSeqno ==
+                other.highPreparedSeqno);
     rv = rv && (onDiskPrepares == other.onDiskPrepares);
     rv = rv && (checkpointType == other.checkpointType);
     rv = rv && (transition == other.transition);
@@ -141,6 +147,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"version", vbs.version},
             {"completed_seqno", std::to_string(vbs.persistedCompletedSeqno)},
             {"prepared_seqno", std::to_string(vbs.persistedPreparedSeqno)},
+            {"high_prepared_seqno",
+             std::to_string(vbs.highPreparedSeqno)},
             {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)},
             {"checkpoint_type", to_string(vbs.checkpointType)}};
 
@@ -177,12 +185,20 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
         vbs.persistedCompletedSeqno = 0;
     }
 
-    // Note: We don't have any HPS in pre-6.5
-    auto hps = j.find("prepared_seqno");
-    if (hps != j.end()) {
-        vbs.persistedPreparedSeqno = std::stoull((*hps).get<std::string>());
+    // Note: We don't have any PPS in pre-6.5
+    auto pps = j.find("prepared_seqno");
+    if (pps != j.end()) {
+        vbs.persistedPreparedSeqno = std::stoull((*pps).get<std::string>());
     } else {
         vbs.persistedPreparedSeqno = 0;
+    }
+
+    // Note: We don't have any HPS in pre-6.5
+    auto hps = j.find("high_prepared_seqno");
+    if (hps != j.end()) {
+        vbs.highPreparedSeqno = std::stoull((*hps).get<std::string>());
+    } else {
+        vbs.highPreparedSeqno = 0;
     }
 
     // Note: We don't track on disk prepares pre-6.5

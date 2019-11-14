@@ -3194,6 +3194,66 @@ TEST_P(DurabilityBucketTest, getMetaReturnsRecommitInProgress) {
     ASSERT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, res);
 }
 
+TEST_P(DurabilityEPBucketTest, ActivePersistedDurabilitySeqnosAdvanceOnSyncWrites) {
+    // In general, for an active VB the HPS and PPS will both be the seqno
+    // of the most recent persisted prepare.
+    // (exceptions being a recently promoted replica, or if the active is
+    // ever changed to be able to persist partial snapshots).
+    setVBucketToActiveWithValidTopology();
+    // Store pending item, and simulate sufficient ACKs
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    store = engine->getKVBucket();
+    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    auto& pcs = persistedVbState->persistedCompletedSeqno;
+    auto& pps = persistedVbState->persistedPreparedSeqno;
+    auto& hps = persistedVbState->highPreparedSeqno;
+
+    // everything should be zero for now, no syncwrites
+    // have occurred
+    EXPECT_EQ(0, pcs);
+    EXPECT_EQ(0, pps);
+    EXPECT_EQ(0, hps);
+
+    using namespace cb::durability;
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
+              store->set(*makePendingItem(makeStoredDocKey("key"),
+                                          "value",
+                                          {Level::Majority, Timeout(10000)}),
+                         cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // the prepare has not yet been completed, but has been
+    // persisted to disk. the pps and hps should both
+    // advance, and should be equal as the vb was active
+    // at the time these values were flushed to disk.
+    EXPECT_EQ(0, pcs);
+    EXPECT_EQ(1, pps);
+    EXPECT_EQ(1, hps);
+
+    ASSERT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+
+    // ACK, locally and remotely
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      1 /*preparedSeqno*/));
+    vb->notifyActiveDMOfLocalSyncWrite();
+    vb->processResolvedSyncWrites();
+
+    ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // the commit has been persisted, which should update the PCS
+    EXPECT_EQ(1, pcs);
+    EXPECT_EQ(1, pps);
+    EXPECT_EQ(1, hps);
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,

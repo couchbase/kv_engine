@@ -192,6 +192,8 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
                     newState.transition.replicationTopology;
             vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
             vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
+            vbState->highPreparedSeqno =
+                    newState.highPreparedSeqno;
             vbState->onDiskPrepares = newState.onDiskPrepares;
         } else {
             state_change_detected = false;

@@ -347,6 +347,11 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         }
     }
 
+    // track the highest prepare seqno present in the checkpoint
+    if (qi->getOperation() == queue_op::pending_sync_write) {
+        setHighPreparedSeqno(qi->getBySeqno());
+    }
+
     // Notify flusher if in case queued item is a checkpoint meta item or
     // vbpersist state.
     if (qi->getOperation() == queue_op::checkpoint_start ||

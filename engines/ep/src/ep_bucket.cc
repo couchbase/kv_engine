@@ -400,6 +400,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
             // HPS is optional because we have to update it on disk only if a
             // prepare is found in the flush-batch
+            // This value is read at warmup to determine what seqno to stop
+            // loading prepares at (there will not be any prepares after this
+            // point) but cannot be used to initialise a PassiveDM after warmup
+            // as this value will advance into snapshots immediately, without
+            // the entire snapshot needing to be persisted.
             boost::optional<uint64_t> hps =
                     boost::make_optional(false, uint64_t());
 
@@ -530,6 +535,17 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                             itr->highCompletedSeqno !=
                                     vbstate.persistedCompletedSeqno) {
                             hcs = itr->highCompletedSeqno;
+                        }
+
+                        // Now that the end of a snapshot has been reached,
+                        // store the hps tracked by the checkpoint to disk
+                        if (itr->highPreparedSeqno) {
+                            auto newHps = toFlush.checkpointType ==
+                                                          CheckpointType::Memory
+                                                  ? *(itr->highPreparedSeqno)
+                                                  : itr->getEnd();
+                            vbstate.highPreparedSeqno =
+                                    std::max(vbstate.highPreparedSeqno, newHps);
                         }
                     }
                 } else {

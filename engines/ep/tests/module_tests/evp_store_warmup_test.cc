@@ -683,6 +683,23 @@ protected:
      */
     void testCheckpointTypePersistedAndLoadedIntoVBState(CheckpointType type);
 
+    void testFullyPersistedSnapshotSetsHPS(CheckpointType type);
+
+    void testPartiallyPersistedSnapshotDoesNotSetHPS(CheckpointType type);
+
+    /**
+     * Test that a vbucket which was promoted from replica to active
+     * mid-snapshot warms up the correct HPS value from the persisted state.
+     */
+    void testPromotedReplicaMidSnapshotHPS(CheckpointType type);
+
+    /**
+     * Test that a vbucket which was promoted from replica to active after
+     * fully persisting a snapshot warms up the correct HPS value from the
+     * persisted state.
+     */
+    void testPromotedReplicaCompleteSnapshotHPS(CheckpointType type);
+
     class PrePostStateChecker {
     public:
         PrePostStateChecker(VBucketPtr vb);
@@ -705,6 +722,10 @@ protected:
     };
 
     PrePostStateChecker resetEngineAndWarmup();
+
+    void storePrepare(const std::string& key, uint64_t seqno, uint64_t cas);
+
+    void storeMutation(const std::string& key, uint64_t seqno, uint64_t cas);
 };
 
 DurabilityWarmupTest::PrePostStateChecker::PrePostStateChecker(VBucketPtr vb) {
@@ -732,6 +753,48 @@ DurabilityWarmupTest::resetEngineAndWarmup() {
     DurabilityKVBucketTest::resetEngineAndWarmup();
     checker.setVBucket(engine->getVBucket(vbid));
     return checker;
+}
+
+void DurabilityWarmupTest::storePrepare(const std::string& key,
+                                        uint64_t seqno,
+                                        uint64_t cas) {
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    auto tracked = vb->getDurabilityMonitor().getNumTracked();
+
+    auto prepareKey = makeStoredDocKey(key);
+    using namespace cb::durability;
+    auto prepare = makePendingItem(
+            prepareKey, "value", {Level::Majority, Timeout::Infinity()});
+    prepare->setVBucketId(vbid);
+    prepare->setBySeqno(seqno);
+    prepare->setCas(cas);
+    EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+
+    EXPECT_EQ(tracked + 1, vb->getDurabilityMonitor().getNumTracked());
+}
+
+void DurabilityWarmupTest::storeMutation(const std::string& key,
+                                         uint64_t mutationSeqno,
+                                         uint64_t cas) {
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    auto mutationKey = makeStoredDocKey("unrelated");
+    auto mutation = makeCommittedItem(mutationKey, "value");
+    mutation->setBySeqno(mutationSeqno);
+    mutation->setCas(cas);
+    uint64_t* seqno = nullptr;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(*mutation,
+                                 0,
+                                 seqno,
+                                 cookie,
+                                 {vbucket_state_replica},
+                                 CheckConflicts::No,
+                                 true,
+                                 GenerateBySeqno::No,
+                                 GenerateCas::No,
+                                 nullptr));
+    EXPECT_EQ(mutationSeqno, vb->getHighSeqno());
 }
 
 GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
@@ -844,6 +907,10 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
     auto vb = engine->getVBucket(vbid);
     auto numTracked = vb->getDurabilityMonitor().getNumTracked();
     ASSERT_EQ(keys.size(), numTracked);
+
+    if (vbState != vbucket_state_active) {
+        vb->notifyPassiveDMOfSnapEndReceived(vb->getHighSeqno());
+    }
 
     auto prepareSeqno = 1;
     for (const auto& k : keys) {
@@ -1165,6 +1232,168 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
                       ->checkpointType);
 }
 
+void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
+        CheckpointType cpType) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    { // Scope for VBPtr (invalid after reset and warmup)
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+        // Receive a snapshot
+        // 1        2
+        // Prepare, Mutation
+        vb->checkpointManager->createSnapshot(
+                1 /*snapStart*/,
+                2 /*snapEnd*/,
+                boost::make_optional(cpType == CheckpointType::Disk,
+                                     static_cast<uint64_t>(1)) /*HCS*/,
+                cpType);
+        ASSERT_EQ(cpType == CheckpointType::Disk,
+                  vb->isReceivingDiskSnapshot());
+
+        // 1) Receive the prepare
+        storePrepare("prepare", 1, 1);
+
+        // 2) Unrelated mutation at seqno 2
+        storeMutation("mutation", 2, 2);
+
+        // Notify snap end to correct the in-memory HPS
+        vb->notifyPassiveDMOfSnapEndReceived(2);
+
+        // 3) Flush and shutdown
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        EXPECT_EQ(cpType,
+                  store->getRWUnderlying(vbid)
+                          ->getVBucketState(vbid)
+                          ->checkpointType);
+    }
+
+    // HCS will be different post warmup as we don't have a precise value during
+    // disk snapshots on replica (it will be 0 pre-reset because we have not
+    // seen the completion for the prepare).
+    // @TODO We could correct this by passing the HCS into the PDM when we pass
+    // it into the CheckpointManager.
+    resetEngineAndWarmup().disable();
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    // Check that the HPS loaded from disk matches the expected value
+    // disk -> HPS set to snap_end
+    // memory -> HPS set to seqno of last prepare
+    EXPECT_EQ(cpType == CheckpointType::Disk ? 2 : 1,
+              vb->getDurabilityMonitor().getHighPreparedSeqno());
+}
+
+void DurabilityWarmupTest::testPartiallyPersistedSnapshotDoesNotSetHPS(
+        CheckpointType cpType) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    { // Scope for VBPtr (invalid after reset and warmup)
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+        // Receive a partial snapshot
+        // 1        2         3
+        // Prepare, Mutation, NOT RECEIVED
+        vb->checkpointManager->createSnapshot(
+                1 /*snapStart*/,
+                3 /*snapEnd*/,
+                boost::make_optional(cpType == CheckpointType::Disk,
+                                     static_cast<uint64_t>(1)) /*HCS*/,
+                cpType);
+        ASSERT_EQ(cpType == CheckpointType::Disk,
+                  vb->isReceivingDiskSnapshot());
+
+        // 1) Receive the prepare
+        storePrepare("prepare", 1, 1);
+
+        // 2) Unrelated mutation at seqno 2
+        storeMutation("mutation", 2, 2);
+
+        // 3) Flush and shutdown WITHOUT receiving the last item/notifying the
+        // PDM of snap end
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        EXPECT_EQ(cpType,
+                  store->getRWUnderlying(vbid)
+                          ->getVBucketState(vbid)
+                          ->checkpointType);
+    }
+
+    // HCS will be different post warmup as we don't have a precise value during
+    // disk snapshots on replica (it will be 0 pre-reset because we have not
+    // seen the completion for the prepare).
+    // @TODO We could correct this by passing the HCS into the PDM when we pass
+    // it into the CheckpointManager.
+    resetEngineAndWarmup().disable();
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    // HPS loaded from disk should not have moved, snapshot is incomplete
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
+}
+
+void DurabilityWarmupTest::testPromotedReplicaMidSnapshotHPS(
+        CheckpointType type) {
+    // start as replica, and reach a state where the on disk hps != pps
+    testPartiallyPersistedSnapshotDoesNotSetHPS(type);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // HCS will be different post warmup as we don't have a precise value during
+    // disk snapshots on replica (it will be 0 pre-reset because we have not
+    // seen the completion for the prepare).
+    // @TODO We could correct this by passing the HCS into the PDM when we pass
+    // it into the CheckpointManager.
+    resetEngineAndWarmup().disable();
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    store = engine->getKVBucket();
+    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    auto pps = persistedVbState->persistedPreparedSeqno;
+    auto hps = persistedVbState->highPreparedSeqno;
+
+    ASSERT_EQ(0, hps);
+    ASSERT_EQ(1, pps);
+
+    // the active should warmup hps as the high prepared seqno.
+    // normally on an active hps==pps, as every flush batch persists
+    // an entire snapshot. However, if the vb was previously a replica,
+    // hps != pps may be found on disk.
+    EXPECT_EQ(hps, vb->getDurabilityMonitor().getHighPreparedSeqno());
+}
+
+void DurabilityWarmupTest::testPromotedReplicaCompleteSnapshotHPS(
+        CheckpointType type) {
+    // start as replica, and reach a state where the on disk hps != pps
+    testFullyPersistedSnapshotSetsHPS(type);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // HCS will be different post warmup as we don't have a precise value during
+    // disk snapshots on replica (it will be 0 pre-reset because we have not
+    // seen the completion for the prepare).
+    // @TODO We could correct this by passing the HCS into the PDM when we pass
+    // it into the CheckpointManager.
+    resetEngineAndWarmup().disable();
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    store = engine->getKVBucket();
+    KVStore* rwUnderlying = store->getRWUnderlying(vbid);
+    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    auto pps = persistedVbState->persistedPreparedSeqno;
+    auto hps = persistedVbState->highPreparedSeqno;
+
+    // Disk snapshots advance the HPS to the snapshot end
+    // to accomodate dedupe & purging
+    auto snapEnd = 2;
+    ASSERT_EQ(type == CheckpointType::Disk ? snapEnd : 1, hps);
+    ASSERT_EQ(1, pps);
+
+    // the active should warmup hps as the high prepared seqno.
+    // normally on an active hps==pps, as every flush batch persists
+    // an entire snapshot. However, if the vb was previously a replica,
+    // hps != pps may be found on disk.
+    EXPECT_EQ(hps, vb->getDurabilityMonitor().getHighPreparedSeqno());
+}
+
 TEST_P(DurabilityWarmupTest, TestCheckpointTypePersistedMemory) {
     testCheckpointTypePersistedAndLoadedIntoVBState(CheckpointType::Memory);
 }
@@ -1463,9 +1692,7 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
                           ->persistedCompletedSeqno);
     }
 
-    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
-    // post warmup when we move the HPS for non-durable writes.
-    resetEngineAndWarmup().disable();
+    resetEngineAndWarmup();
 
     EXPECT_EQ(0,
               store->getRWUnderlying(vbid)
@@ -1571,13 +1798,16 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         flushVBucketToDiskIfPersistent(vbid, 2);
     }
 
-    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
-    // post warmup when we move the HPS for non-durable writes.
+    // HCS will go backwards (to 0) so we can't make the normal checks here;
+    // this is because we flush it on snapshot end in the flusher and we have
+    // not received the snapshot end. This is expected.
     resetEngineAndWarmup().disable();
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     // We should not have loaded the prepare at seqno 1.
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
     // Check our warmup stats, should have visited both the prepare and the
     // logical commit
@@ -1621,14 +1851,14 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
 
         EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
-        // 2) Unrelated commit at seqno 4
-        auto completionKey = makeStoredDocKey("unrelated");
-        auto completion = makeCommittedItem(prepareKey, "value");
-        completion->setBySeqno(4);
-        completion->setCas(4);
+        // 2) Unrelated mutation at seqno 4
+        auto mutationKey = makeStoredDocKey("unrelated");
+        auto mutation = makeCommittedItem(mutationKey, "value");
+        mutation->setBySeqno(4);
+        mutation->setCas(4);
         uint64_t* seqno = nullptr;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  store->setWithMeta(*completion,
+                  store->setWithMeta(*mutation,
                                      0,
                                      seqno,
                                      cookie,
@@ -1640,13 +1870,8 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
                                      nullptr));
         EXPECT_EQ(4, vb->getHighSeqno());
 
-        // @TODO MB-36094 on completion, we should be able to remove this as
-        // we should persist the HCS at snapshot boundary instead of at
-        // checkpoint boundary.
-        vb->checkpointManager->createSnapshot(5 /*snapStart*/,
-                                              5 /*snapEnd*/,
-                                              {} /*HCS*/,
-                                              CheckpointType::Memory);
+        // Notify snap end to correct the HPS
+        vb->notifyPassiveDMOfSnapEndReceived(4);
 
         // 3) Flush and shutdown to simulate a partial snapshot. We should only
         // flush the Disk checkpoints
@@ -1657,14 +1882,19 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
                           ->checkpointType);
     }
 
-    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
-    // post warmup when we move the HPS for non-durable writes.
+    // HCS will be different post warmup as we don't have a precise value during
+    // disk snapshots on replica (it will be 0 pre-reset because we have not
+    // seen the completion for the prepare).
+    // @TODO We could correct this by passing the HCS into the PDM when we pass
+    // it into the CheckpointManager.
     resetEngineAndWarmup().disable();
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     // We should have loaded only the final prepare but we should not have
     // scanned the entire snapshot
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
+    EXPECT_EQ(2, vb->getDurabilityMonitor().getHighCompletedSeqno());
+    EXPECT_EQ(4, vb->getDurabilityMonitor().getHighPreparedSeqno());
     const auto& pdm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(3, pdm.getHighestTrackedSeqno());
@@ -1674,6 +1904,54 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
               store->getEPEngine()
                       .getEpStats()
                       .warmupItemsVisitedWhilstLoadingPrepares);
+}
+
+/**
+ * Test that the on disk HPS is set to the snap_end of a disk snapshot once
+ * fully persisted
+ */
+TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotSetsOnDiskHPSCorrectly) {
+    testFullyPersistedSnapshotSetsHPS(CheckpointType::Disk);
+}
+
+/**
+ * Test that the on disk HPS is set to the highest prepare seqno of a memory
+ * snapshot once fully persisted
+ */
+TEST_P(DurabilityWarmupTest, CompleteMemorySnapshotSetsOnDiskHPSCorrectly) {
+    testFullyPersistedSnapshotSetsHPS(CheckpointType::Memory);
+}
+
+/**
+ * Test that the on disk HPS is set to the snap_end of a disk snapshot once
+ * fully persisted
+ */
+TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotDoesNotSetOnDiskHPS) {
+    testPartiallyPersistedSnapshotDoesNotSetHPS(CheckpointType::Disk);
+}
+
+/**
+ * Test that the on disk HPS is set to the highest prepare seqno of a memory
+ * snapshot once fully persisted
+ */
+TEST_P(DurabilityWarmupTest, IncompleteMemorySnapshotDoesNotSetOnDiskHPS) {
+    testPartiallyPersistedSnapshotDoesNotSetHPS(CheckpointType::Memory);
+}
+
+TEST_P(DurabilityWarmupTest, promotedReplicaPartialSnapshotHPS_Memory) {
+    testPromotedReplicaMidSnapshotHPS(CheckpointType::Memory);
+}
+
+TEST_P(DurabilityWarmupTest, promotedReplicaPartialSnapshotHPS_Disk) {
+    testPromotedReplicaMidSnapshotHPS(CheckpointType::Disk);
+}
+
+TEST_P(DurabilityWarmupTest, promotedReplicaCompleteSnapshotHPS_Memory) {
+    testPromotedReplicaCompleteSnapshotHPS(CheckpointType::Memory);
+}
+
+TEST_P(DurabilityWarmupTest, promotedReplicaCompleteSnapshotHPS_Disk) {
+    testPromotedReplicaCompleteSnapshotHPS(CheckpointType::Disk);
 }
 
 INSTANTIATE_TEST_CASE_P(

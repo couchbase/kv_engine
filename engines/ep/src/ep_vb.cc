@@ -757,11 +757,12 @@ void EPVBucket::loadOutstandingPrepares(
     }
 
     EP_LOG_INFO(
-            "EPVBucket::loadOutstandingPrepares: ({}) created DM with HCS:{}, "
-            "HPS:{}, number of prepares loaded:{}",
+            "EPVBucket::loadOutstandingPrepares: ({}) created DM with PCS:{}, "
+            "PPS:{}, HPS:{}, number of prepares loaded:{}",
             getId(),
             vbs.persistedCompletedSeqno,
             vbs.persistedPreparedSeqno,
+            vbs.highPreparedSeqno,
             outstandingPrepares.size());
 
     // Second restore them into the appropriate DurabilityMonitor.
@@ -779,7 +780,7 @@ void EPVBucket::loadOutstandingPrepares(
     case vbucket_state_dead:
         durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
                 *this,
-                vbs.persistedPreparedSeqno,
+                vbs.highPreparedSeqno,
                 vbs.persistedCompletedSeqno,
                 std::move(outstandingPrepares));
         return;
