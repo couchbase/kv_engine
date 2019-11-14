@@ -361,7 +361,7 @@ void ActiveDurabilityMonitorTest::testSeqnoAckSmallerThanLastAck() {
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          1 /*expectedNumTracked*/,
-                         3 /*expectedHPS*/,
+                         2 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 
     // MB-35096: The active needs to be resilient to non-monotonic acking
@@ -494,7 +494,7 @@ void ActiveDurabilityMonitorTest::testRepeatedSeqnoAck(int64_t firstAck,
                          1 /*expectedLastWriteSeqno*/,
                          firstAck /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 
     testSeqnoAckReceived(replica1,
@@ -502,7 +502,7 @@ void ActiveDurabilityMonitorTest::testRepeatedSeqnoAck(int64_t firstAck,
                          1 /*expectedLastWriteSeqno*/,
                          std::max(firstAck, secondAck) /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 }
 
@@ -555,7 +555,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
                              ackSeqno /*expectedLastWriteSeqno*/,
                              ackSeqno /*expectedLastAckSeqno*/,
                              --numItems /*expectedNumTracked*/,
-                             ackSeqno + seqnoEnd /*expectedHPS*/,
+                             3 /*expectedHPS*/,
                              ackSeqno /*expectedHCS*/);
     }
 }
@@ -598,7 +598,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPendingTwoChains) {
                              ackSeqno /*expectedLastWriteSeqno*/,
                              ackSeqno /*expectedLastAckSeqno*/,
                              --numItems /*expectedNumTracked*/,
-                             ackSeqno + seqnoEnd /*expectedHPS*/,
+                             3 /*expectedHPS*/,
                              ackSeqno /*expectedHCS*/);
     }
 }
@@ -622,7 +622,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                              2 /*expectedLastWriteSeqno*/,
                              2 /*expectedLastAckSeqno*/,
                              1 /*expectedNumTracked*/,
-                             5 /*expectedHPS*/,
+                             3 /*expectedHPS*/,
                              2 /*expectedHCS*/);
     }
 }
@@ -661,7 +661,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                              2 /*expectedLastWriteSeqno*/,
                              2 /*expectedLastAckSeqno*/,
                              1 /*expectedNumTracked*/,
-                             5 /*expectedHPS*/,
+                             3 /*expectedHPS*/,
                              2 /*expectedHCS*/);
     }
 }
@@ -686,7 +686,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                              3 /*expectedLastWriteSeqno*/,
                              4 /*expectedLastAckSeqno*/,
                              1 /*expectedNumTracked*/,
-                             7 /*expectedHPS*/,
+                             5 /*expectedHPS*/,
                              3 /*expectedHCS*/);
     }
 }
@@ -727,7 +727,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                              3 /*expectedLastWriteSeqno*/,
                              4 /*expectedLastAckSeqno*/,
                              1 /*expectedNumTracked*/,
-                             7 /*expectedHPS*/,
+                             5 /*expectedHPS*/,
                              3 /*expectedHCS*/);
     }
 }
@@ -749,7 +749,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                          3 /*expectedLastWriteSeqno*/,
                          4 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         6 /*expectedHPS*/,
+                         3 /*expectedHPS*/,
                          3 /*expectedHCS*/);
 }
 
@@ -783,7 +783,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                          3 /*expectedLastWriteSeqno*/,
                          5 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         6 /*expectedHPS*/,
+                         3 /*expectedHPS*/,
                          3 /*expectedHCS*/);
 }
 
@@ -798,13 +798,12 @@ TEST_P(ActiveDurabilityMonitorTest,
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    // The 3 prepares are all committed, each commit bumps the HPS by one
     testSeqnoAckReceived(replica1,
                          10 /*ackSeqno*/,
                          5 /*expectedLastWriteSeqno*/,
                          10 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         5 + 3 /*expectedHPS*/,
+                         5 /*expectedHPS*/,
                          5 /*expectedHCS*/);
 }
 
@@ -839,7 +838,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                          5 /*expectedLastWriteSeqno*/,
                          9 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         5 + 3 /*expectedHPS*/,
+                         5 /*expectedHPS*/,
                          5 /*expectedHCS*/);
 }
 
@@ -887,42 +886,34 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwiceDoesNotIncreaseAckCountTwice) {
     }
 
     // one replica ack + active does not satisfy majority of 4
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             1 /*ackSeqno*/,
-                             1 /*expectedLastWriteSeqno*/,
-                             1 /*expectedLastAckSeqno*/,
-                             1 /*expectedNumTracked*/,
-                             1 /*expectedHPS*/,
-                             0 /*expectedHCS*/);
-    }
+    testSeqnoAckReceived(replica1,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
+
     // The same replica might ack again at the end of a disk snapshot
     // Should still be tracking the write as it should *not* be complete.
     // (majority still not satisfied, we need a *different* replica to ack
     // for majority to be reached)
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica1,
-                             4 /*ackSeqno*/,
-                             1 /*expectedLastWriteSeqno*/,
-                             4 /*expectedLastAckSeqno*/,
-                             1 /*expectedNumTracked*/,
-                             1 /*expectedHPS*/,
-                             0 /*expectedHCS*/);
-    }
+    testSeqnoAckReceived(replica1,
+                         4 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         4 /*expectedLastAckSeqno*/,
+                         1 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         0 /*expectedHCS*/);
 
     // reach majority
-    {
-        SCOPED_TRACE("");
-        testSeqnoAckReceived(replica2,
-                             1 /*ackSeqno*/,
-                             1 /*expectedLastWriteSeqno*/,
-                             1 /*expectedLastAckSeqno*/,
-                             0 /*expectedNumTracked*/,
-                             2 /*expectedHPS*/,
-                             1 /*expectedHCS*/);
-    }
+    testSeqnoAckReceived(replica2,
+                         1 /*ackSeqno*/,
+                         1 /*expectedLastWriteSeqno*/,
+                         1 /*expectedLastAckSeqno*/,
+                         0 /*expectedNumTracked*/,
+                         1 /*expectedHPS*/,
+                         1 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -960,7 +951,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                          5 /*expectedLastWriteSeqno*/,
                          ackSeqno /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         5 + 3 /*expectedHPS*/,
+                         5 /*expectedHPS*/,
                          5 /*expectedHCS*/);
 }
 
@@ -1002,7 +993,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
 
     // Check: Should be zero tracked after the two (concurrent)
     // seqnoAckReceived() calls.
-    assertNumTrackedAndHPSAndHCS(0, 4, 2);
+    assertNumTrackedAndHPSAndHCS(0, 2, 2);
 
     // Check: Commits in checkpoint should be in same order as prepares.
     std::vector<queued_item> items;
@@ -1138,7 +1129,6 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
     ASSERT_EQ(4, adm.getFirstChainSize());
 
     const int64_t preparedSeqno = 1;
-    const int64_t commitSeqno = 2;
     addSyncWrite(preparedSeqno);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
@@ -1168,7 +1158,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
                              preparedSeqno /*expectedLastWriteSeqno*/,
                              preparedSeqno /*expectedLastAckSeqno*/,
                              0 /*expectedNumTracked*/,
-                             commitSeqno /*expectedHPS*/,
+                             preparedSeqno /*expectedHPS*/,
                              1 /*expectedHCS*/);
     }
 
@@ -1188,7 +1178,6 @@ TEST_P(ActiveDurabilityMonitorTest,
     ASSERT_EQ(4, adm.getSecondChainSize());
 
     const int64_t preparedSeqno = 1;
-    const int64_t commitSeqno = 2;
     addSyncWrite(preparedSeqno);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
@@ -1222,7 +1211,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                              preparedSeqno /*expectedLastWriteSeqno*/,
                              preparedSeqno /*expectedLastAckSeqno*/,
                              0 /*expectedNumTracked*/,
-                             commitSeqno /*expectedHPS*/,
+                             preparedSeqno /*expectedHPS*/,
                              1 /*expectedHCS*/);
     }
 
@@ -1242,7 +1231,6 @@ TEST_P(ActiveDurabilityMonitorTest,
     ASSERT_EQ(4, adm.getSecondChainSize());
 
     const int64_t preparedSeqno = 1;
-    const int64_t commitSeqno = 2;
     addSyncWrite(preparedSeqno);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
@@ -1278,7 +1266,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                              preparedSeqno /*expectedLastWriteSeqno*/,
                              preparedSeqno /*expectedLastAckSeqno*/,
                              0 /*expectedNumTracked*/,
-                             commitSeqno /*expectedHPS*/,
+                             preparedSeqno /*expectedHPS*/,
                              1 /*expectedHCS*/);
     }
 
@@ -2447,31 +2435,21 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
     // @TODO send correct HCS
     vb->checkpointManager->createSnapshot(
             1, 3, {} /*HCS*/, CheckpointType::Disk);
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
     EXPECT_EQ(0, pdm.getNumTracked());
 
     EXPECT_TRUE(seqnoAcks.empty());
 
     // Partially persist snapshot
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(
-                2 /*persistedSeqno*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifyPersistence(
+            2 /*persistedSeqno*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // Shouldn't ack yet
     EXPECT_TRUE(seqnoAcks.empty());
 
     // Persist full snapshot
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(
-                3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifyPersistence(
+            3 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // Should have acked
     EXPECT_EQ(3, seqnoAcks.front());
@@ -2489,27 +2467,17 @@ void PassiveDurabilityMonitorTest::notifySnapEndReceived(int64_t snapEnd,
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
-    {
-        SCOPED_TRACE("");
-        DurabilityMonitorTest::addSyncWrite(
-                {1, 2, 3} /*seqnos*/,
-                cb::durability::Level::MajorityAndPersistOnMaster,
-                0 /*expectedHPS*/,
-                0 /*expectedHCS*/);
-    }
+    DurabilityMonitorTest::addSyncWrite(
+            {1, 2, 3} /*seqnos*/,
+            cb::durability::Level::MajorityAndPersistOnMaster,
+            0 /*expectedHPS*/,
+            0 /*expectedHCS*/);
 
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                500 /*snapEnd*/, 500 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifySnapEndReceived(
+            500 /*snapEnd*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(1000 /*persistedSeqno*/,
-                          500 /*expectedHPS*/,
-                          0 /*expectedHCS*/);
-    }
+    notifyPersistence(
+            1000 /*persistedSeqno*/, 3 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_MajorityAndPersistOnMaster) {
@@ -2552,12 +2520,9 @@ TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
 
     // The flusher persists the entire snapshot (and over), PersistToMajority
     // are locally-satisfied now, the HPS can move on to them.
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(snapEnd + 10 /*persistedSeqno*/,
-                          snapEnd /*expectedHPS*/,
-                          0 /*expectedHCS*/);
-    }
+    notifyPersistence(snapEnd + 10 /*persistedSeqno*/,
+                      3 /*expectedHPS*/,
+                      0 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_PersistToMajority) {
@@ -2592,11 +2557,8 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
                                         3 /*expectHPS*/,
                                         0 /*expectedHCS*/);
 
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                100 /*snapEnd*/, 100 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifySnapEndReceived(
+            100 /*snapEnd*/, 21 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
@@ -2625,26 +2587,18 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
                                         cb::durability::Level::Majority,
                                         0 /*expectHPS*/,
                                         0 /*expectedHCS*/);
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                1002 /*snapEnd*/, 1002 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
 
-    {
-        SCOPED_TRACE("");
-        DurabilityMonitorTest::addSyncWrite(
-                {1004, 1010, 2021} /*seqnos*/,
-                cb::durability::Level::MajorityAndPersistOnMaster,
-                1002 /*expectHPS*/,
-                0 /*expectedHCS*/);
-    }
+    notifySnapEndReceived(
+            1002 /*snapEnd*/, 1000 /*expectedHPS*/, 0 /*expectedHCS*/);
 
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                3000 /*snapEnd*/, 3000 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    DurabilityMonitorTest::addSyncWrite(
+            {1004, 1010, 2021} /*seqnos*/,
+            cb::durability::Level::MajorityAndPersistOnMaster,
+            1000 /*expectHPS*/,
+            0 /*expectedHCS*/);
+
+    notifySnapEndReceived(
+            3000 /*snapEnd*/, 2021 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorPersistentTest,
@@ -2657,19 +2611,15 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
                  0 /*expectedHCS*/);
 
     const std::vector<int64_t> seqnos{1004, 1010, 2021};
-    // addSyncWrite pads with non-durable writes to the requested seqno, moving
-    // the HPS
     addSyncWrite(seqnos,
                  cb::durability::Level::MajorityAndPersistOnMaster,
-                 1003 /*expectHPS*/,
+                 1000 /*expectHPS*/,
                  0 /*expectedHCS*/);
 
-    // once a sync write is completed, the HPS will advance over any following
-    // non-sync writes
-    notifyPersistence(
-            1004 /*persistedSeqno*/, 1009 /*expectedHPS*/, 0 /*expectedHCS*/);
-    notifyPersistence(1010, 2020, 0);
-    notifyPersistence(2021, 2021, 0);
+    for (const auto s : seqnos) {
+        notifyPersistence(
+                s /*persistedSeqno*/, s /*expectedHPS*/, 0 /*expectedHCS*/);
+    }
 }
 
 void PassiveDurabilityMonitorTest::testHPS_PersistToMajorityIsDurabilityFence(
@@ -2706,22 +2656,16 @@ void PassiveDurabilityMonitorTest::testHPS_PersistToMajorityIsDurabilityFence(
     // 2) cannot be locally-satisfied yet because we have not persisted the
     //     complete snapshot
     const uint64_t snapEnd = 50;
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(snapEnd, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifySnapEndReceived(snapEnd, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
 
-    // The HPS can move to the latest snap end now:
+    // The HPS can move to the latest Prepare now:
     // 1) We have persisted (even over) the complete snapshot
     // 2) PersistToMajority represented a durability-fence that has been removed
     //     now, so the HPS can move to covering all the following Majority or
     //     MajorityAndPersistOnMaster Prepares in the snapshot
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(snapEnd + 10 /*persistedSeqno*/,
-                          50 /*expectedHPS*/,
-                          0 /*expectedHCS*/);
-    }
+    notifyPersistence(snapEnd + 10 /*persistedSeqno*/,
+                      21 /*expectedHPS*/,
+                      0 /*expectedHCS*/);
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_PersistToMajority_Majority) {
@@ -2757,87 +2701,59 @@ void PassiveDurabilityMonitorTest::testHPS_LevelIsNotDurabilityFence(
                 testedLevel ==
                         cb::durability::Level::MajorityAndPersistOnMaster);
 
-    {
-        SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
-    }
+    assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
     // We receive a snapshot[1, 3000] with a mix of Majority or
     // MajorityAndPersistOnMaster (first) and PersistToMajority Prepares.
-    {
-        SCOPED_TRACE("");
-        DurabilityMonitorTest::addSyncWrite({1, 999, 1001} /*seqnos*/,
-                                            testedLevel,
-                                            0 /*expectHPS*/,
-                                            0 /*expectedHCS*/);
-    }
-
-    {
-        SCOPED_TRACE("");
-        DurabilityMonitorTest::addSyncWrite(
-                {2000, 2010, 2021} /*seqnos*/,
-                cb::durability::Level::PersistToMajority,
-                0 /*expectHPS*/,
-                0 /*expectedHCS*/);
-    }
+    DurabilityMonitorTest::addSyncWrite({1, 999, 1001} /*seqnos*/,
+                                        testedLevel,
+                                        0 /*expectHPS*/,
+                                        0 /*expectedHCS*/);
+    DurabilityMonitorTest::addSyncWrite(
+            {2000, 2010, 2021} /*seqnos*/,
+            cb::durability::Level::PersistToMajority,
+            0 /*expectHPS*/,
+            0 /*expectedHCS*/);
 
     // Note: We are persisting in the middle of a snapshot, which can happen
     // at Replica.
     // Check that persisting s:2500 doesn't moves HPS, as at any Level we
     // require that the snap-end mutation is received
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(
-                2500 /*persistedSeqno*/, 0 /*expectHPS*/, 0 /*expectedHCS*/);
-    }
+    notifyPersistence(
+            2500 /*persistedSeqno*/, 0 /*expectHPS*/, 0 /*expectedHCS*/);
 
     // Other PersistToMajority received in the same snapshot.
-    {
-        SCOPED_TRACE("");
-        DurabilityMonitorTest::addSyncWrite(
-                {2600, 2700} /*seqnos*/,
-                cb::durability::Level::PersistToMajority,
-                0 /*expectHPS*/,
-                0 /*expectedHCS*/);
-    }
+    DurabilityMonitorTest::addSyncWrite(
+            {2600, 2700} /*seqnos*/,
+            cb::durability::Level::PersistToMajority,
+            0 /*expectHPS*/,
+            0 /*expectedHCS*/);
 
     // We receive the snap-end mutation. The HPS does move, but only up to
     // before the durability-fence (ie, the first non-locally-satisfied
     // PersistToMajority Prepare), as the we have not persisted the complete
     // snapshot yet.
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                3000 /*snapEnd*/, 1001 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    notifySnapEndReceived(
+            3000 /*snapEnd*/, 1001 /*expectedHPS*/, 0 /*expectedHCS*/);
 
     // We receive another partial snapshot[3001, 3010] with only Majority or
     // MajorityAndPersistOnMaster Prepares. HPS doesn't move.
-    {
-        SCOPED_TRACE("");
-        DurabilityMonitorTest::addSyncWrite({3002} /*seqnos*/,
-                                            testedLevel,
-                                            1001 /*expectHPS*/,
-                                            0 /*expectedHCS*/);
-    }
+    DurabilityMonitorTest::addSyncWrite({3002} /*seqnos*/,
+                                        testedLevel,
+                                        1001 /*expectHPS*/,
+                                        0 /*expectedHCS*/);
 
     // We persist a seqno beyond the snap-end mutation of the first snapshot,
     // and the HPS moves to the last Prepare in the first snapshot.
     // Note that the HPS doesn't move into the second snapshot as at any Level
     // we require that the complete snapshot is received before the HPS can move
     // into the snapshot.
-    {
-        SCOPED_TRACE("");
-        notifyPersistence(
-                3005 /*persistedSeqno*/, 2700 /*expectHPS*/, 0 /*expectedHCS*/);
-    }
+    notifyPersistence(
+            3005 /*persistedSeqno*/, 2700 /*expectHPS*/, 0 /*expectedHCS*/);
 
-    // Second snapshot complete in memory, HPS moves to snap end
-    {
-        SCOPED_TRACE("");
-        notifySnapEndReceived(
-                3010 /*snapEnd*/, 3010 /*expectedHPS*/, 0 /*expectedHCS*/);
-    }
+    // Second snapshot complete in memory, HPS moves to the latest Prepare
+    notifySnapEndReceived(
+            3010 /*snapEnd*/, 3002 /*expectedHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
@@ -2852,17 +2768,13 @@ TEST_P(ActiveDurabilityMonitorPersistentTest, HPS_Majority_PersistToMajority) {
                  1001 /*expectHPS*/,
                  0 /*expectedHCS*/);
 
-    // the HPS will advance over any non-sync writes, stopping one before the
-    // first unprepared prepare
     addSyncWrite({2000, 2010, 2021} /*seqnos*/,
                  cb::durability::Level::PersistToMajority,
-                 1999 /*expectHPS*/,
+                 1001 /*expectHPS*/,
                  0 /*expectedHCS*/);
 
-    // once a sync write is completed, the HPS will advance over any following
-    // non-sync writes
     notifyPersistence(
-            2010 /*persistedSeqno*/, 2020 /*expectHPS*/, 0 /*expectedHCS*/);
+            2010 /*persistedSeqno*/, 2010 /*expectHPS*/, 0 /*expectedHCS*/);
 
     // Now, simulate persistence of s:4. HPS reaches the latest tracked as s:3
     // is the last durability-fence.
@@ -2896,9 +2808,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
     // Check that persisting s:4 moves HPS to 4 and not beyond, as s:4 is
     // Level::MajorityAndPersistOnMaster (i.e., a durability-fence on Active)
-    // once a sync write is completed, the HPS will advance over any following
-    // non-sync writes
-    notifyPersistence(4 /*persistedSeqno*/, 9 /*expectHPS*/, 0 /*expectedHCS*/);
+    notifyPersistence(4 /*persistedSeqno*/, 4 /*expectHPS*/, 0 /*expectedHCS*/);
 }
 
 TEST_P(PassiveDurabilityMonitorPersistentTest,
@@ -2930,7 +2840,7 @@ TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncWrite) {
     adm.setReplicationTopology(nlohmann::json::array({{active}}));
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
     addSyncWrite(1 /*seqno*/);
-    assertNumTrackedAndHPSAndHCS(0, 2, 1 /*expectedHCS*/);
+    assertNumTrackedAndHPSAndHCS(0, 1, 1 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncDelete) {
@@ -2938,8 +2848,7 @@ TEST_P(ActiveDurabilityMonitorTest, NoReplicaSyncDelete) {
     adm.setReplicationTopology(nlohmann::json::array({{active}}));
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
     addSyncDelete(2 /*seqno*/);
-    // committed at seqno 3
-    assertNumTrackedAndHPSAndHCS(0, 3, 2 /*expectedHCS*/);
+    assertNumTrackedAndHPSAndHCS(0, 2, 2 /*expectedHCS*/);
 }
 
 TEST_P(ActiveDurabilityMonitorTest,
@@ -2970,7 +2879,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // Should have committed
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
 
@@ -3009,7 +2918,7 @@ TEST_P(ActiveDurabilityMonitorTest, FirstChainNodeAckBeforeTopologySet) {
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 }
 
@@ -3045,7 +2954,7 @@ TEST_P(ActiveDurabilityMonitorTest, SecondChainNodeAckBeforeTopologySet) {
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 }
 
@@ -3090,11 +2999,11 @@ TEST_P(ActiveDurabilityMonitorTest,
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
 
@@ -3113,14 +3022,14 @@ TEST_P(ActiveDurabilityMonitorTest,
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 
     // We ack a new "unknown" node, already committed.
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 
     // Add the secondChain with the new node
@@ -3166,7 +3075,7 @@ TEST_P(ActiveDurabilityMonitorTest, BothChainNodeAckBeforeTopologySet) {
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
 }
 
@@ -3210,13 +3119,13 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount) {
                              1 /*expectedLastWriteSeqno*/,
                              1 /*expectedLastAckSeqno*/,
                              0 /*expectedNumTracked*/,
-                             2 /*expectedHPS*/,
+                             1 /*expectedHPS*/,
                              1 /*expectedHCS*/);
     }
 
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
 
@@ -3274,13 +3183,13 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
                              1 /*expectedLastWriteSeqno*/,
                              1 /*expectedLastAckSeqno*/,
                              0 /*expectedNumTracked*/,
-                             2 /*expectedHPS*/,
+                             1 /*expectedHPS*/,
                              1 /*expectedHCS*/);
     }
 
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
 
@@ -3298,21 +3207,21 @@ TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
                          1 /*expectedLastWriteSeqno*/,
                          1 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         2 /*expectedHPS*/,
+                         1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 
     // Add the secondChain with the new node
     EXPECT_NO_THROW(getActiveDM().setReplicationTopology(
             nlohmann::json::array({{active, replica1}, {active, replica2}})));
 
-    // HPS should still be 2.
+    // HPS should still be 1.
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
 
@@ -3339,7 +3248,7 @@ TEST_P(ActiveDurabilityMonitorTest,
 
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 2, 1);
+        assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
     EXPECT_EQ(0, getActiveDM().getNumCommitted());
     EXPECT_EQ(1, getActiveDM().getNumAborted());
@@ -3423,8 +3332,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
     {
         SCOPED_TRACE("");
-        // HPS moved on aborts at seqno 3 & 4
-        assertNumTrackedAndHPSAndHCS(0, 4, 2);
+        assertNumTrackedAndHPSAndHCS(0, 0, 2);
     }
 
     EXPECT_EQ(adm.getNumAborted(), 2);
@@ -3435,7 +3343,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
 
     {
         SCOPED_TRACE("");
-        assertNumTrackedAndHPSAndHCS(0, 4, 2);
+        assertNumTrackedAndHPSAndHCS(0, 0, 2);
     }
 }
 
@@ -3477,96 +3385,6 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
     EXPECT_EQ(2, ackedSeqno);
 }
 
-TEST_P(PassiveDurabilityMonitorPersistentTest, HpsOnDiskSnapshotBoundary) {
-    auto& pdm = getPassiveDM();
-    ASSERT_EQ(0, pdm.getNumTracked());
-
-    // Add a single prepare in a disk snapshot
-    auto diskPrepareKey = makeStoredDocKey("diskPrepare");
-    using namespace cb::durability;
-    auto diskPrepare =
-            makePendingItem(diskPrepareKey,
-                            "value",
-                            Requirements{Level::Majority, Timeout::Infinity()});
-    diskPrepare->setBySeqno(1);
-    pdm.addSyncWrite(diskPrepare);
-    ASSERT_EQ(1, pdm.getNumTracked());
-
-    // Make this look like a disk snapshot to the PDM and notify it of the end
-    // of the snapshot. We won't move the HPS because we need to persist the
-    // entire disk snapshot.
-    vb->checkpointManager->updateCurrentSnapshot(1, CheckpointType::Disk);
-    pdm.notifySnapshotEndReceived(1);
-    EXPECT_EQ(0, vb->getHighPreparedSeqno());
-
-    // Add a non prepare which will bump the desiredHPS of the prepare in the
-    // disk snapshot
-    auto nonPrepareKey = makeStoredDocKey("nonPrepareKey");
-    auto nonPrepare = makeCommittedItem(nonPrepareKey, "value");
-    nonPrepare->setBySeqno(2);
-    pdm.notifyNonPrepare(*nonPrepare);
-    ASSERT_EQ(1, pdm.getNumTracked());
-
-    // And another prepare so that we take the failing code path in
-    // PassiveDM::updateHighPreparedSeqno().
-    auto memoryPrepareKey = makeStoredDocKey("memoryPrepare");
-    auto memoryPrepare =
-            makePendingItem(memoryPrepareKey,
-                            "value",
-                            Requirements{Level::Majority, Timeout::Infinity()});
-    memoryPrepare->setBySeqno(3);
-    pdm.addSyncWrite(memoryPrepare);
-
-    // Finally persist the disk snapshot. We shouldn't throw here.
-    vb->setPersistenceSeqno(1);
-    pdm.notifyLocalPersistence();
-
-    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
-}
-
-TEST_P(PassiveDurabilityMonitorPersistentTest, HpsOnMemorySnapshotBoundary) {
-    auto& pdm = getPassiveDM();
-    ASSERT_EQ(0, pdm.getNumTracked());
-
-    // Add a single persist level prepare in a memory snapshot
-    auto persistPrepareKey = makeStoredDocKey("persistPrepare");
-    using namespace cb::durability;
-    auto persistPrepare = makePendingItem(
-            persistPrepareKey,
-            "value",
-            Requirements{Level::PersistToMajority, Timeout::Infinity()});
-    persistPrepare->setBySeqno(1);
-    pdm.addSyncWrite(persistPrepare);
-    ASSERT_EQ(1, pdm.getNumTracked());
-
-    pdm.notifySnapshotEndReceived(1);
-    EXPECT_EQ(0, vb->getHighPreparedSeqno());
-
-    // Add a non prepare which will bump the desiredHPS of the prepare in the
-    // disk snapshot
-    auto nonPrepareKey = makeStoredDocKey("nonPrepareKey");
-    auto nonPrepare = makeCommittedItem(nonPrepareKey, "value");
-    nonPrepare->setBySeqno(2);
-    pdm.notifyNonPrepare(*nonPrepare);
-    ASSERT_EQ(1, pdm.getNumTracked());
-
-    // And another prepare so that we take the failing code path in
-    // PassiveDM::updateHighPreparedSeqno().
-    auto majorityPrepareKey = makeStoredDocKey("memoryPrepare");
-    auto majorityPrepare =
-            makePendingItem(majorityPrepareKey,
-                            "value",
-                            Requirements{Level::Majority, Timeout::Infinity()});
-    majorityPrepare->setBySeqno(3);
-    pdm.addSyncWrite(majorityPrepare);
-
-    // Finally persist the disk snapshot. We shouldn't throw here.
-    vb->setPersistenceSeqno(1);
-    pdm.notifyLocalPersistence();
-
-    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
-}
-
 class ActiveDurabilityMonitorAbortTest
     : public ActiveDurabilityMonitorPersistentTest {
 public:
@@ -3599,7 +3417,7 @@ TEST_P(ActiveDurabilityMonitorAbortTest, MB_35661) {
                          1 /*expectedLastWriteSeqno*/,
                          2 /*expectedLastAckSeqno*/,
                          0 /*expectedNumTracked*/,
-                         4 /*expectedHPS*/,
+                         0 /*expectedHPS*/,
                          2 /*expectedHCS*/);
 }
 

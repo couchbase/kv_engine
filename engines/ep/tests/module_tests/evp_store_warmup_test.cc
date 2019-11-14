@@ -843,10 +843,6 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
     auto numTracked = vb->getDurabilityMonitor().getNumTracked();
     ASSERT_EQ(keys.size(), numTracked);
 
-    if (vbState != vbucket_state_active) {
-        vb->notifyPassiveDMOfSnapEndReceived(vb->getHighSeqno());
-    }
-
     auto prepareSeqno = 1;
     for (const auto& k : keys) {
         // Commit
@@ -854,7 +850,6 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         if (vbState == vbucket_state_active) {
             // Commit on active is driven by the ADM so we need to drive our
             // commit via seqno ack
-            // EXPECT_EQ(keys.size() +, vb->getHighPreparedSeqno());
             EXPECT_EQ(ENGINE_SUCCESS,
                       vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(
                                                     vb->getStateLock()),
@@ -862,21 +857,8 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
                                             prepareSeqno++));
             vb->processResolvedSyncWrites();
         } else {
-            // Need to poke the CheckpointManager with some valid snapshot info
-            // (like we do in PassiveStream::processMarker) or it will throw an
-            // assertion due to out of range seqnos.
-            auto commitSeqno = keys.size() + prepareSeqno;
-            vb->checkpointManager->updateCurrentSnapshot(
-                    commitSeqno, CheckpointType::Memory);
-
             // Commit on non-active is driven by VBucket::commit
-            vb->commit(
-                    key, prepareSeqno, commitSeqno, vb->lockCollections(key));
-
-            // Notify the snapshot end and move the HPS for the commit
-            vb->notifyPassiveDMOfSnapEndReceived(commitSeqno);
-            EXPECT_EQ(commitSeqno, vb->getHighPreparedSeqno());
-            prepareSeqno++;
+            vb->commit(key, prepareSeqno++, {}, vb->lockCollections(key));
         }
 
         flush_vbucket_to_disk(vbid, 1);
@@ -890,10 +872,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
 
         // About to destroy engine; reset vb shared_ptr.
         vb.reset();
-        {
-            SCOPED_TRACE("");
-            resetEngineAndWarmup();
-        }
+        resetEngineAndWarmup();
         vb = engine->getVBucket(vbid);
 
         // Check that the item is CommittedviaPrepare.
@@ -1252,8 +1231,7 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     checkHCS(preparedSeqno);
     EXPECT_EQ(preparedSeqno,
               engine->getKVBucket()->getVBucket(vbid)->getHighCompletedSeqno());
-    // The HPS for an active vb moves on all ops
-    EXPECT_EQ(preparedSeqno + 1,
+    EXPECT_EQ(preparedSeqno,
               engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
 }
 
@@ -1419,24 +1397,18 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*item, cookie));
     flush_vbucket_to_disk(vbid);
     vb->notifyPassiveDMOfSnapEndReceived(1);
-    EXPECT_EQ(1, vb->getHighPreparedSeqno());
 
     // snap 2
     vb->checkpointManager->createSnapshot(
             2, 2, {} /*HCS*/, CheckpointType::Memory);
     EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, 1, 2, vb->lockCollections(key)));
     flush_vbucket_to_disk(vbid, 1);
-    EXPECT_EQ(1, vb->getHighPreparedSeqno());
     vb->notifyPassiveDMOfSnapEndReceived(2);
-    EXPECT_EQ(2, vb->getHighPreparedSeqno());
 
     vb.reset();
 
     // Warmup and allow the pre/post checker to test the state
-    {
-        SCOPED_TRACE("");
-        resetEngineAndWarmup();
-    }
+    resetEngineAndWarmup();
 }
 
 /**
@@ -1489,7 +1461,9 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
                           ->persistedCompletedSeqno);
     }
 
-    resetEngineAndWarmup();
+    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
+    // post warmup when we move the HPS for non-durable writes.
+    resetEngineAndWarmup().disable();
 
     EXPECT_EQ(0,
               store->getRWUnderlying(vbid)
@@ -1595,16 +1569,13 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         flushVBucketToDiskIfPersistent(vbid, 2);
     }
 
-    // HCS will go backwards (to 0) so we can't make the normal checks here;
-    // this is because we flush it on snapshot end in the flusher and we have
-    // not received the snapshot end. This is expected.
+    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
+    // post warmup when we move the HPS for non-durable writes.
     resetEngineAndWarmup().disable();
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     // We should not have loaded the prepare at seqno 1.
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
-    EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
     // Check our warmup stats, should have visited both the prepare and the
     // logical commit
@@ -1648,14 +1619,14 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
 
         EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
-        // 2) Unrelated mutation at seqno 4
-        auto mutationKey = makeStoredDocKey("unrelated");
-        auto mutation = makeCommittedItem(mutationKey, "value");
-        mutation->setBySeqno(4);
-        mutation->setCas(4);
+        // 2) Unrelated commit at seqno 4
+        auto completionKey = makeStoredDocKey("unrelated");
+        auto completion = makeCommittedItem(prepareKey, "value");
+        completion->setBySeqno(4);
+        completion->setCas(4);
         uint64_t* seqno = nullptr;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  store->setWithMeta(*mutation,
+                  store->setWithMeta(*completion,
                                      0,
                                      seqno,
                                      cookie,
@@ -1667,8 +1638,13 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
                                      nullptr));
         EXPECT_EQ(4, vb->getHighSeqno());
 
-        // Notify snap end to correct the HPS
-        vb->notifyPassiveDMOfSnapEndReceived(4);
+        // @TODO MB-36094 on completion, we should be able to remove this as
+        // we should persist the HCS at snapshot boundary instead of at
+        // checkpoint boundary.
+        vb->checkpointManager->createSnapshot(5 /*snapStart*/,
+                                              5 /*snapEnd*/,
+                                              {} /*HCS*/,
+                                              CheckpointType::Memory);
 
         // 3) Flush and shutdown to simulate a partial snapshot. We should only
         // flush the Disk checkpoints
@@ -1679,11 +1655,8 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
                           ->checkpointType);
     }
 
-    // HCS will be different post warmup as we don't have a precise value during
-    // disk snapshots on replica (it will be 0 pre-reset because we have not
-    // seen the completion for the prepare).
-    // @TODO We could correct this by passing the HCS into the PDM when we pass
-    // it into the CheckpointManager.
+    // @TODO MB-35308 and MB-36133 we should have a consistent state pre and
+    // post warmup when we move the HPS for non-durable writes.
     resetEngineAndWarmup().disable();
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);

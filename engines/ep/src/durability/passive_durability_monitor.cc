@@ -215,21 +215,6 @@ void PassiveDurabilityMonitor::addSyncWrite(
     s->totalAccepted++;
 }
 
-void PassiveDurabilityMonitor::notifyNonPrepare(const Item& item) {
-    auto s = state.wlock();
-    // Can't immediately update the HPS if trackedWrites is empty like the
-    // ActiveDM can. The HPS on a replica should only move within snapshots
-    // which have been fully completed. This is handled by the
-    // updateHighPreparedSeqno logic, which will only check the SyncWrites when
-    // a snapshot end has been received. Just set the HPS value we should use
-    // on the last item in trackedWrites. If trackedWrites is empty then we will
-    // just move the HPS to snapshot end when we have received a complete
-    // snapshot.
-    if (!s->trackedWrites.empty()) {
-        s->trackedWrites.back().setDesiredHPS(item.getBySeqno());
-    }
-}
-
 size_t PassiveDurabilityMonitor::getNumTracked() const {
     return state.rlock()->trackedWrites.size();
 }
@@ -548,26 +533,16 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
         }
 
         // Advance the HPS, respecting maxLevelCanAdvanceOver
-        for (auto next = getIteratorNext(highPreparedSeqno.it);
-             inSnapshot(snapshotEnd.seqno, next) &&
-             next->getDurabilityReqs().getLevel() <= maxLevelCanAdvanceOver;
-             next = getIteratorNext(highPreparedSeqno.it)) {
-            // Note: Update last-write-seqno first to enforce monotonicity
-            // and avoid any state-change if monotonicity checks fail.
-            // We move the HPS up to the seqno of the highest non-prepare we
-            // saw before the one we can't advance over. We can't advance beyond
-            // the snapshot end though
-            highPreparedSeqno.lastWriteSeqno =
-                    std::min(snapshotEnd.seqno, next->getDesiredHPS());
-            highPreparedSeqno.it = next;
-        }
-
-        // If everything is prepared then just set HPS to snap end. HPS iterator
-        // is not precise for disk snapshots so we have to skip them here but we
-        // will set it to snap end once it's fully persisted
-        if (getIteratorNext(highPreparedSeqno.it) == trackedWrites.end() &&
-            !isDiskSnapshot) {
-            highPreparedSeqno.lastWriteSeqno = snapshotEnd.seqno;
+        if (!trackedWrites.empty()) {
+            for (auto next = getIteratorNext(highPreparedSeqno.it);
+                 inSnapshot(snapshotEnd.seqno, next) &&
+                 next->getDurabilityReqs().getLevel() <= maxLevelCanAdvanceOver;
+                 next = getIteratorNext(highPreparedSeqno.it)) {
+                // Note: Update last-write-seqno first to enforce monotonicity
+                // and avoid any state-change if monotonicity checks fail
+                highPreparedSeqno.lastWriteSeqno = next->getBySeqno();
+                highPreparedSeqno.it = next;
+            }
         }
 
         if (isDiskSnapshot && snapshotFullyPersisted) {
