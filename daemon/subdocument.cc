@@ -1369,14 +1369,11 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
 /* Encodes the context's mutation sequence number and vBucket UUID into the
  * given buffer.
- * @param descr Buffer to write to. Must be 16 bytes in size.
  */
-static void encode_mutation_descr(SubdocCmdContext& context, char* buffer)
-{
-    mutation_descr_t descr;
+static void encode_mutation_descr(SubdocCmdContext& context,
+                                  mutation_descr_t& descr) {
     descr.seqno = htonll(context.sequence_no);
     descr.vbucket_uuid = htonll(context.vbucket_uuid);
-    std::memcpy(buffer, &descr, sizeof(descr));
 }
 
 /* Encodes the specified multi-mutation result into the given the given buffer.
@@ -1385,11 +1382,17 @@ static void encode_mutation_descr(SubdocCmdContext& context, char* buffer)
  * @param buffer Buffer to encode into
  * @return The number of bytes written into the buffer.
  */
-static size_t encode_multi_mutation_result_spec(uint8_t index,
-                                                const SubdocCmdContext::OperationSpec& op,
-                                                char* buffer)
-{
-    char* cursor = buffer;
+static cb::const_char_buffer encode_multi_mutation_result_spec(
+        uint8_t index,
+        const SubdocCmdContext::OperationSpec& op,
+        cb::char_buffer buffer) {
+    if (buffer.size() <
+        (sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t))) {
+        throw std::runtime_error(
+                "encode_multi_mutation_result_spec: buffer too small");
+    }
+
+    char* cursor = buffer.data();
 
     // Always encode the index and status.
     *reinterpret_cast<uint8_t*>(cursor) = index;
@@ -1404,7 +1407,8 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
                 htonl(gsl::narrow<uint32_t>(mloc.length));
         cursor += sizeof(uint32_t);
     }
-    return cursor - buffer;
+    return {const_cast<const char*>(buffer.data()),
+            size_t(cursor - buffer.data())};
 }
 
 /* Construct and send a response to a single-path request back to the client.
@@ -1438,7 +1442,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     cb::const_char_buffer extras = {};
     mutation_descr_t descr = {};
     if (connection.isSupportsMutationExtras() && context.traits.is_mutator) {
-        encode_mutation_descr(context, reinterpret_cast<char*>(&descr));
+        encode_mutation_descr(context, descr);
         extras = {reinterpret_cast<const char*>(&descr), sizeof(descr)};
     }
 
@@ -1467,59 +1471,38 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     //
     // On failure body indicates the index and status code of the first failing
     // spec.
-    DynamicBuffer& response_buf = cookie.getDynamicBuffer();
-    size_t extlen = 0;
-    char* extras_ptr = nullptr;
+    mutation_descr_t descr = {};
+    cb::const_char_buffer extras = {};
 
     // Encode mutation extras into buffer if success & they were requested.
     if (context.overall_status == cb::mcbp::Status::Success &&
         connection.isSupportsMutationExtras()) {
-        extlen = sizeof(mutation_descr_t);
-        if (!response_buf.grow(extlen)) {
-            // Unable to form complete response.
-            cookie.sendResponse(cb::mcbp::Status::Enomem);
-            return;
-        }
-        extras_ptr = response_buf.getCurrent();
-        encode_mutation_descr(context, extras_ptr);
-        response_buf.moveOffset(extlen);
+        encode_mutation_descr(context, descr);
+        extras = {reinterpret_cast<const char*>(&descr), sizeof(descr)};
     }
 
-    // Calculate how much space we need in our dynamic buffer, and total body
-    // size to encode into the header.
-    size_t response_buf_needed;
+    // Calculate total body size to encode into the header.
     size_t iov_len = 0;
     if (context.overall_status == cb::mcbp::Status::Success) {
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Modify);
 
         // on success, one per each non-zero length result.
-        response_buf_needed = 0;
         for (auto phase : phases) {
-            for (size_t ii = 0;
-                 ii < context.getOperations(phase).size(); ii++) {
-                const auto& op = context.getOperations(phase)[ii];
+            for (const auto& op : context.getOperations(phase)) {
                 const auto mloc = op.result.matchloc();
                 if (op.traits.responseHasValue() && mloc.length > 0) {
-                    response_buf_needed += sizeof(uint8_t) + sizeof(uint16_t) +
-                                           sizeof(uint32_t);
+                    // add the size of the header
+                    iov_len += sizeof(uint8_t) + sizeof(uint16_t) +
+                               sizeof(uint32_t);
+                    // and the size of the actual data
                     iov_len += mloc.length;
                 }
             }
         }
     } else {
         // Just one - index and status of first failure.
-        response_buf_needed = sizeof(uint8_t) + sizeof(uint16_t);
-    }
-
-    // We need two iovecs per operation result:
-    // 1. result_spec header (index, status; resultlen for successful specs).
-    //    Use the dynamicBuffer for this.
-    // 2. actual value - this already resides in the Subdoc::Result.
-    if (!response_buf.grow(response_buf_needed)) {
-        // Unable to form complete response.
-        cookie.sendResponse(cb::mcbp::Status::Enomem);
-        return;
+        iov_len = sizeof(uint8_t) + sizeof(uint16_t);
     }
 
     auto status_code = context.overall_status;
@@ -1529,16 +1512,17 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     // Allocated required resource - build the header.
-    connection.sendResponseHeaders(
-            cookie,
-            status_code,
-            {const_cast<const char*>(extras_ptr), extlen},
-            {},
-            response_buf_needed + iov_len,
-            PROTOCOL_BINARY_RAW_BYTES);
+    connection.sendResponseHeaders(cookie,
+                                   status_code,
+                                   extras,
+                                   {},
+                                   iov_len,
+                                   PROTOCOL_BINARY_RAW_BYTES);
 
     // Append the iovecs for each operation result.
     uint8_t index = 0;
+    auto scratch = context.connection.getThread().getScratchBuffer();
+
     for (auto phase : phases) {
         for (size_t ii = 0; ii < context.getOperations(phase).size(); ii++, index++) {
             const auto& op = context.getOperations(phase)[ii];
@@ -1546,23 +1530,17 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
             if (context.overall_status == cb::mcbp::Status::Success) {
                 const auto mloc = op.result.matchloc();
                 if (op.traits.responseHasValue() && mloc.length > 0) {
-                    char* header = response_buf.getCurrent();
-                    size_t header_sz =
-                            encode_multi_mutation_result_spec(index, op, header);
-                    connection.copyToOutputStream({header, header_sz});
+                    connection.copyToOutputStream(
+                            encode_multi_mutation_result_spec(
+                                    index, op, scratch));
                     connection.copyToOutputStream({mloc.at, mloc.length});
-                    response_buf.moveOffset(header_sz);
                 }
             } else {
                 // Failure - encode first unsuccessful path index and status.
                 if (op.status != cb::mcbp::Status::Success) {
-                    char* header = response_buf.getCurrent();
-                    size_t header_sz =
-                            encode_multi_mutation_result_spec(index, op, header);
-
-                    connection.copyToOutputStream({header, header_sz});
-                    response_buf.moveOffset(header_sz);
-
+                    connection.copyToOutputStream(
+                            encode_multi_mutation_result_spec(
+                                    index, op, scratch));
                     // Only the first unsuccessful op is reported.
                     break;
                 }
@@ -1595,16 +1573,6 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
     // 1. status (uin16_t) & vallen (uint32_t). Use the dynamicBuffer for this
     // 2. actual value - this already resides either in the original document
     //                   (for lookups) or stored in the Subdoc::Result.
-    DynamicBuffer& response_buf = cookie.getDynamicBuffer();
-    size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) *
-        (context.getOperations(SubdocCmdContext::Phase::XATTR).size() +
-         context.getOperations(SubdocCmdContext::Phase::Body).size());
-
-    if (!response_buf.grow(needed)) {
-        // Unable to form complete response.
-        cookie.sendResponse(cb::mcbp::Status::Enomem);
-        return;
-    }
 
     // Allocated required resource - build the header.
     auto status_code = context.overall_status;
@@ -1638,22 +1606,31 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
 
             // Header is always included. Result value included if the response for
             // this command has a value (e.g. not for EXISTS).
-            char* header = response_buf.getCurrent();
-            const size_t header_sz = sizeof(uint16_t) + sizeof(uint32_t);
-            *reinterpret_cast<uint16_t*>(header) = htons(uint16_t(op.status));
-            uint32_t result_len = 0;
+#pragma pack(1)
+            struct Header {
+                explicit Header(cb::mcbp::Status s)
+                    : status(htons(uint16_t(s))) {
+                }
+                void setLength(uint32_t l) {
+                    length = htonl(l);
+                }
+                const uint16_t status;
+                uint32_t length = 0;
+                cb::const_char_buffer getBuffer() const {
+                    return {reinterpret_cast<const char*>(this), sizeof(*this)};
+                }
+            };
+#pragma pack()
+            static_assert(sizeof(Header) == 6, "Incorrect size");
+            Header h(op.status);
+
             if (op.traits.responseHasValue()) {
-                result_len = htonl(uint32_t(mloc.length));
-            }
-            *reinterpret_cast<uint32_t*>(header +
-                                         sizeof(uint16_t)) = result_len;
-
-            connection.copyToOutputStream({header, header_sz});
-
-            if (result_len != 0) {
+                h.setLength((mloc.length));
+                connection.copyToOutputStream(h.getBuffer());
                 connection.copyToOutputStream({mloc.at, mloc.length});
+            } else {
+                connection.copyToOutputStream(h.getBuffer());
             }
-            response_buf.moveOffset(header_sz);
         }
     }
 
