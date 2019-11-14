@@ -47,7 +47,7 @@ static bool check_access_to_global_config(Cookie& cookie) {
         if (xerror) {
             cookie.sendResponse(cb::mcbp::Status::Eaccess);
         } else {
-            conn.setState(StateMachine::State::closing);
+            conn.shutdown();
         }
 
         return false;
@@ -58,7 +58,7 @@ static bool check_access_to_global_config(Cookie& cookie) {
         if (xerror) {
             cookie.sendResponse(cb::mcbp::Status::AuthStale);
         } else {
-            conn.setState(StateMachine::State::closing);
+            conn.shutdown();
         }
 
         return false;
@@ -119,7 +119,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                         "selecting a bucket. Disconnecting {}",
                         connection.getId(),
                         connection.getDescription());
-                connection.setState(StateMachine::State::closing);
+                connection.shutdown();
             }
             return;
         }

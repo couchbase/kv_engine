@@ -45,7 +45,7 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
             // the replicas flusher
             if (v2Payload->getHighCompletedSeqno() == 0) {
                 // Not success so just disconnect
-                connection.setState(StateMachine::State::closing);
+                connection.shutdown();
                 return;
             }
             hcs = v2Payload->getHighCompletedSeqno();
@@ -67,7 +67,7 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
 
     case ENGINE_EWOULDBLOCK:

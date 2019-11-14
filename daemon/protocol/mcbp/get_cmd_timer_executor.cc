@@ -196,7 +196,7 @@ void get_cmd_timer_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         return;
     }
 

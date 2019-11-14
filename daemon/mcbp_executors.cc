@@ -147,7 +147,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
     default:
         // Release the dynamic buffer.. it may be partial..
@@ -236,7 +236,7 @@ static void quit_executor(Cookie& cookie) {
     LOG_DEBUG("{}: quit_executor - closing connection {}",
               connection.getId(),
               connection.getDescription());
-    connection.setState(StateMachine::State::closing);
+    connection.shutdown();
 }
 
 static void quitq_executor(Cookie& cookie) {
@@ -244,7 +244,7 @@ static void quitq_executor(Cookie& cookie) {
     LOG_DEBUG("{}: quitq_executor - closing connection {}",
               connection.getId(),
               connection.getDescription());
-    connection.setState(StateMachine::State::closing);
+    connection.shutdown();
 }
 
 static void sasl_list_mech_executor(Cookie& cookie) {
@@ -388,7 +388,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
     default:
         cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
@@ -424,7 +424,7 @@ static void ioctl_set_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
     default:
         cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
@@ -608,7 +608,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                 "closing connection {}",
                 c.getId(),
                 c.getDescription());
-        c.setState(StateMachine::State::closing);
+        c.shutdown();
         return;
     }
 
@@ -628,7 +628,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                     c.getId(),
                     c.getDescription());
         }
-        c.setState(StateMachine::State::closing);
+        c.shutdown();
     } else {
         c.setState(StateMachine::State::ship_log);
     }
@@ -874,7 +874,7 @@ void execute_client_request_packet(Cookie& cookie,
         audit_command_access_failed(cookie);
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
-            c->setState(StateMachine::State::closing);
+            c->shutdown();
         } else {
             cookie.sendResponse(cb::mcbp::Status::Eaccess);
         }
@@ -886,7 +886,7 @@ void execute_client_request_packet(Cookie& cookie,
         return;
     case cb::rbac::PrivilegeAccess::Stale:
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
-            c->setState(StateMachine::State::closing);
+            c->shutdown();
         } else {
             cookie.sendResponse(cb::mcbp::Status::AuthStale);
         }
@@ -898,7 +898,7 @@ void execute_client_request_packet(Cookie& cookie,
             "AuthResult - closing connection",
             c->getId(),
             uint32_t(res));
-    c->setState(StateMachine::State::closing);
+    c->shutdown();
 }
 
 void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
@@ -938,7 +938,7 @@ static void execute_client_response_packet(Cookie& cookie,
                 uint32_t(opcode),
                 is_valid_opcode(opcode) ? to_string(opcode)
                                         : "<invalid opcode>");
-        c.setState(StateMachine::State::closing);
+        c.shutdown();
     }
 }
 

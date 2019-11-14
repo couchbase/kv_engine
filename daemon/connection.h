@@ -623,6 +623,11 @@ public:
 
     bool selectedBucketIsXattrEnabled() const;
 
+    /// Initiate shutdown of the connection
+    void shutdown() {
+        setState(StateMachine::State::closing);
+    }
+
     /**
      * Try to process some of the server events. This may _ONLY_ be performed
      * after we've completely transferred the response for one command, and

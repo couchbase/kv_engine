@@ -33,7 +33,7 @@ void collections_get_scope_id_executor(Cookie& cookie) {
     auto remapErr = connection.remapErrorCode(rv.result);
 
     if (remapErr == cb::engine_errc::disconnect) {
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         return;
     }
 

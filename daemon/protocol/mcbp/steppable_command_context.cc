@@ -66,7 +66,7 @@ void SteppableCommandContext::drive() {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         return;
     default:
         cookie.sendResponse(cb::engine_errc(remapErr));

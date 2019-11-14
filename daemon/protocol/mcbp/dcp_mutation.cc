@@ -83,7 +83,7 @@ void dcp_mutation_executor(Cookie& cookie) {
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
 
     case ENGINE_EWOULDBLOCK:

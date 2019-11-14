@@ -42,7 +42,7 @@ void dcp_add_stream_executor(Cookie& cookie) {
         connection.setState(StateMachine::State::ship_log);
         break;
     case ENGINE_DISCONNECT:
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
 
     case ENGINE_EWOULDBLOCK:

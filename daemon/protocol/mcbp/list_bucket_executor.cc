@@ -93,7 +93,7 @@ void list_bucket_executor(Cookie& cookie) {
                             cb::mcbp::Datatype::Raw,
                             0);
     } else if (ret.first == ENGINE_DISCONNECT) {
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
     } else {
         cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret.first)));
     }

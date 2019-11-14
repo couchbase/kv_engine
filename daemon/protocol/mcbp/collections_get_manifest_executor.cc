@@ -43,7 +43,7 @@ void collections_get_manifest_executor(Cookie& cookie) {
         break;
     }
     case cb::engine_errc::disconnect:
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
     default:
         // Release the dynamic buffer.. it may be partial..

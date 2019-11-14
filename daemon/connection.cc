@@ -648,7 +648,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                     instance,
                     "Failed to use client provided X.509 certificate");
         }
-        instance.setState(StateMachine::State::closing);
+        instance.shutdown();
         if (!certResult.second.empty()) {
             LOG_WARNING(
                     "{}: conn_ssl_init: disconnection client due to error [{}]",
@@ -930,7 +930,7 @@ void Connection::runStateMachinery() {
                 // We've not had any progress on the socket for "n" secs
                 // Forcibly shut down the connection!
                 sendQueueInfo.term = true;
-                setState(StateMachine::State::closing);
+                shutdown();
             }
         }
     }
@@ -1115,7 +1115,7 @@ void Connection::runEventLoop() {
             }
         }
 
-        setState(StateMachine::State::closing);
+        shutdown();
         /*
          * In addition to setting the state to conn_closing
          * we need to move execution foward by executing

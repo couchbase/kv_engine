@@ -47,7 +47,7 @@ void dcp_get_failover_log_executor(Cookie& cookie) {
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(StateMachine::State::closing);
+        connection.shutdown();
         break;
 
     case ENGINE_EWOULDBLOCK:

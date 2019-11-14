@@ -30,11 +30,9 @@ void collections_set_manifest_executor(Cookie& cookie) {
     auto ret = connection.getBucketEngine()->set_collection_manifest(
             &cookie, jsonBuffer);
 
-    switch (ret) {
-    case cb::engine_errc::disconnect:
-        connection.setState(StateMachine::State::closing);
-        break;
-    default:
+    if (ret == cb::engine_errc::disconnect) {
+        connection.shutdown();
+    } else {
         cookie.sendResponse(ret);
     }
 }
