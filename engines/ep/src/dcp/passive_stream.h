@@ -254,6 +254,20 @@ protected:
     std::atomic<Snapshot> cur_snapshot_type;
     bool cur_snapshot_ack;
 
+    // For Durability, a Replica has to acknowledge the current High Prepared
+    // Seqno to the Active. For meeting the Durability consistency requirements,
+    // the HPS must advance at snapshot boundaries.
+    // To achieve that, (1) we sign the current snapshot as "containing at least
+    // one Prepare mutation" if any (done by setting the cur_snapshot_prepare
+    // flag when a Prepare is processed) and (2) we notify the DurabilityMonitor
+    // when the snapshot-end mutation is received (if the flag is set).
+    // The DM uses the snap-end seqno for implementing the correct move-logic
+    // for HPS.
+    // Note that we avoid to notify the DM when the snapshot doesn't contain any
+    // Prepare for prevent any performance degradation, as that is done in
+    // front-end threads.
+    std::atomic<bool> cur_snapshot_prepare;
+
     // To keep the collections manifest for the Replica consistent we cannot
     // allow it to stream from an Active that is behind in terms of the
     // collections manifest. Send the collections manifest uid to the Active

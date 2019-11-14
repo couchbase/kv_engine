@@ -41,7 +41,7 @@ class VBucket;
  * Lifecycle
  * =========
  *
- * All SyncWrites progress through the following lifecycle:
+ * All SyncWrites progess through the following lifecycle:
  *
  *     Prepared -> Resolved -> Completed
  *
@@ -69,16 +69,6 @@ class VBucket;
  * maintains an iterator (Position) into trackedWrites, to track what seqno that
  * node has acknowledged up to. Once sufficient nodes have ack'd then
  * the SyncWrite can be Committed.
- *
- * Each SyncWrite object tracks an additional seqno which is used to update the
- * high prepared seqno (HPS) value when the given SyncWrite object has been
- * prepared. Consider the case where we have a Persist level prepare. It has
- * only been prepared after it has been persisted. Any writes (durable or not)
- * that happen after it was accepted, but before it was persisted, need to also
- * move the HPS value once the first prepare has been persisted. For non-durable
- * writes we update this seqno; durable writes are queued into trackedWrites.
- * On "preparation" of the given prepare we move the HPS value to this seqno to
- * encompass any non-durable writes that may have happened in this window.
  *
  * Tracked Writes iterator semantics
  * =================================
@@ -166,8 +156,6 @@ public:
      * @return the High Completed Seqno, the last Committed or Aborted Prepare
      */
     int64_t getHighCompletedSeqno() const override;
-
-    void notifyNonPrepare(const Item& item) override;
 
     /**
      * @return true if the replication topology allows Majority being reached,

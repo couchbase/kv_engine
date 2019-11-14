@@ -1272,7 +1272,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
     const_cast<PassiveDurabilityMonitor&>(passiveDm).notifySnapshotEndReceived(
             commitSeqno);
     ASSERT_EQ(0, passiveDm.getNumTracked());
-    ASSERT_EQ(commitSeqno, passiveDm.getHighPreparedSeqno());
+    ASSERT_EQ(prepareSeqno, passiveDm.getHighPreparedSeqno());
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
 }
 
@@ -1313,7 +1313,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key) {
     const_cast<PassiveDurabilityMonitor&>(passiveDm).notifySnapshotEndReceived(
             abortSeqno);
     ASSERT_EQ(0, passiveDm.getNumTracked());
-    ASSERT_EQ(abortSeqno, passiveDm.getHighPreparedSeqno());
+    ASSERT_EQ(prepareSeqno, passiveDm.getHighPreparedSeqno());
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
 }
 
@@ -1352,8 +1352,7 @@ void RollbackDcpTest::rollbackPrepare(bool deleted) {
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    // the base item also moves the HPS;
-    EXPECT_EQ(1, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
@@ -1384,10 +1383,9 @@ TEST_P(RollbackDcpTest, RollbackDeletedPrepare) {
 void RollbackDcpTest::rollbackPrepareOnTopOfSyncWrite(bool syncDelete,
                                                       bool deletedPrepare) {
     writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     auto key = makeStoredDocKey("anykey_0_0");
     doPrepareAndCommit(key, "value2", syncDelete);
-    auto highPreparedSeqno = vb->getHighPreparedSeqno();
-    auto highCompletedSeqno = vb->getHighCompletedSeqno();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
 
@@ -1403,8 +1401,8 @@ void RollbackDcpTest::rollbackPrepareOnTopOfSyncWrite(bool syncDelete,
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    EXPECT_EQ(highPreparedSeqno, passiveDm.getHighPreparedSeqno());
-    EXPECT_EQ(highCompletedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1428,10 +1426,9 @@ TEST_P(RollbackDcpTest, RollbackDeletedPrepareOnTopOfSyncDelete) {
 void RollbackDcpTest::rollbackUnpersistedPrepareOnTopOfSyncWrite(
         bool syncDelete, bool deletedPrepare) {
     writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     auto key = makeStoredDocKey("anykey_0_0");
     doPrepareAndCommit(key, "value2", syncDelete);
-    auto highPreparedSeqno = vb->getHighPreparedSeqno();
-    auto highCompletedSeqno = vb->getHighCompletedSeqno();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
 
@@ -1447,8 +1444,8 @@ void RollbackDcpTest::rollbackUnpersistedPrepareOnTopOfSyncWrite(
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    EXPECT_EQ(highPreparedSeqno, passiveDm.getHighPreparedSeqno());
-    EXPECT_EQ(highCompletedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
     EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
@@ -1498,8 +1495,7 @@ void RollbackDcpTest::rollbackSyncWrite(bool deleted) {
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    // the base item also moves the HPS
-    EXPECT_EQ(1, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
@@ -1542,8 +1538,7 @@ void RollbackDcpTest::rollbackAbortedSyncWrite(bool deleted) {
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    // the base item also moves the HPS
-    EXPECT_EQ(1, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
@@ -1575,10 +1570,9 @@ TEST_P(RollbackDcpTest, RollbackAbortedSyncDelete) {
 void RollbackDcpTest::rollbackSyncWriteOnTopOfSyncWrite(bool syncDeleteFirst,
                                                         bool syncDeleteSecond) {
     writeBaseItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     auto key = makeStoredDocKey("anykey_0_0");
     doPrepareAndCommit(key, "value2", syncDeleteFirst);
-    auto highPreparedSeqno = vb->getHighPreparedSeqno();
-    auto highCompletedSeqno = vb->getHighCompletedSeqno();
     auto baseItems = vb->getNumTotalItems();
     auto rollbackSeqno = vb->getHighSeqno();
 
@@ -1594,8 +1588,8 @@ void RollbackDcpTest::rollbackSyncWriteOnTopOfSyncWrite(bool syncDeleteFirst,
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    EXPECT_EQ(highPreparedSeqno, passiveDm.getHighPreparedSeqno());
-    EXPECT_EQ(highCompletedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1635,10 +1629,9 @@ void RollbackDcpTest::rollbackSyncWriteOnTopOfAbortedSyncWrite(
         bool syncDeleteFirst, bool syncDeleteSecond) {
     writeBaseItems();
     auto baseItems = vb->getNumTotalItems();
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     auto key = makeStoredDocKey("anykey_0_0");
     doPrepareAndAbort(key, "value2", syncDeleteFirst);
-    auto highPreparedSeqno = vb->getHighPreparedSeqno();
-    auto highCompletedSeqno = vb->getHighCompletedSeqno();
     auto rollbackSeqno = vb->getHighSeqno();
 
     // Save the pre-rollback HashTable state for later comparison
@@ -1653,8 +1646,8 @@ void RollbackDcpTest::rollbackSyncWriteOnTopOfAbortedSyncWrite(
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    EXPECT_EQ(highPreparedSeqno, passiveDm.getHighPreparedSeqno());
-    EXPECT_EQ(highCompletedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1686,10 +1679,9 @@ void RollbackDcpTest::rollbackToZeroWithSyncWrite(bool deleted) {
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream);
 
+    auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     auto key = makeStoredDocKey("anykey_0_0");
     doPrepareAndCommit(key, "value2", deleted);
-    auto highPreparedSeqno = vb->getHighPreparedSeqno();
-    auto highCompletedSeqno = vb->getHighCompletedSeqno();
 
     // Rollback everything (because the rollback seqno is > seqno / 2)
     store->setVBucketState(vbid, vbStateAtRollback);
@@ -1700,8 +1692,8 @@ void RollbackDcpTest::rollbackToZeroWithSyncWrite(bool deleted) {
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(0, passiveDm.getNumTracked());
-    EXPECT_EQ(highPreparedSeqno, passiveDm.getHighPreparedSeqno());
-    EXPECT_EQ(highCompletedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
     auto newVb = store->getVBucket(vbid);
     EXPECT_EQ(0, newVb->getNumTotalItems());

@@ -63,6 +63,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_end(0),
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false),
+      cur_snapshot_prepare(false),
       vb_manifest_uid(vb_manifest_uid) {
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
@@ -633,6 +634,13 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
     case MessageType::Prepare:
         ret = engine->getKVBucket()->prepare(*message->getItem(),
                                              consumer->getCookie());
+        // If the the stream has received and successfully processed a pending
+        // SyncWrite, then we have to flag that the Replica must notify the
+        // DurabilityMonitor at snapshot-end received for the DM to move the
+        // HighPreparedSeqno.
+        if (ret == ENGINE_SUCCESS) {
+            cur_snapshot_prepare.store(true);
+        }
 
         switchComplete = true;
         break;
@@ -983,12 +991,19 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
         }
 
         // Notify the PassiveDM that the snapshot-end mutation has been
-        // received on PassiveStream. That is necessary for moving the High
-        // Prepared Seqno in PassiveDM. Note that the HPS is what the PassiveDM
-        // acks back to the Active. See comments in PassiveDM for details. We
-        // move the HPS for non durable writes too so we do this regardless of
-        // whether or not we have seen a prepare
-        vb->notifyPassiveDMOfSnapEndReceived(byseqno);
+        // received on PassiveStream, if the snapshot contains at least one
+        // Prepare. That is necessary for unblocking the High Prepared Seqno
+        // in PassiveDM. Note that the HPS is what the PassiveDM acks back to
+        // the Active. See comments in PassiveDM for details.
+
+        // Disk snapshots are subject to deduplication, and may be missing
+        // purged aborts. We must notify the PDM even if we have not seen a
+        // prepare, to account for possible unseen prepares.
+        if (cur_snapshot_prepare ||
+            cur_snapshot_type.load() == Snapshot::Disk) {
+            vb->notifyPassiveDMOfSnapEndReceived(byseqno);
+            cur_snapshot_prepare.store(false);
+        }
 
         cur_snapshot_type.store(Snapshot::None);
     }
@@ -1054,6 +1069,13 @@ void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
                              vb_.get());
             add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
         }
+
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_cur_snapshot_prepare",
+                         name_.c_str(),
+                         vb_.get());
+        add_casted_stat(buf, cur_snapshot_prepare.load(), add_stat, c);
 
         auto stream_req_value = createStreamReqValue();
 
