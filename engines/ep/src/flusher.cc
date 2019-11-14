@@ -75,7 +75,7 @@ void Flusher::wait(void) {
 }
 
 bool Flusher::pause(void) {
-    return transitionState(State::Pausing);
+    return transitionState(State::Paused);
 }
 
 bool Flusher::resume(void) {
@@ -92,11 +92,9 @@ bool Flusher::validTransition(State to) const {
 
     switch (_state.load()) {
     case State::Initializing:
-        return (to == State::Running || to == State::Pausing);
+        return (to == State::Running || to == State::Paused);
     case State::Running:
-        return (to == State::Pausing);
-    case State::Pausing:
-        return (to == State::Paused || to == State::Running);
+        return (to == State::Paused);
     case State::Paused:
         return (to == State::Running);
     case State::Stopping:
@@ -116,8 +114,6 @@ const char* Flusher::stateName(State st) const {
         return "initializing";
     case State::Running:
         return "running";
-    case State::Pausing:
-        return "pausing";
     case State::Paused:
         return "paused";
     case State::Stopping:
@@ -198,10 +194,6 @@ bool Flusher::step(GlobalTask *task) {
         return true;
 
     case State::Paused:
-    case State::Pausing:
-        if (currentState == State::Pausing) {
-            transitionState(State::Paused);
-        }
         // Indefinitely put task to sleep..
         task->snooze(INT_MAX);
         return true;
