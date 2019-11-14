@@ -395,13 +395,6 @@ public:
      */
     void maybeLogSlowCommand(std::chrono::steady_clock::duration elapsed) const;
 
-    /**
-     * Get the start time for this command
-     */
-    std::chrono::steady_clock::time_point getStart() const {
-        return start;
-    }
-
     uint8_t getRefcount() {
         return refcount;
     }
@@ -429,23 +422,6 @@ public:
     }
 
     void setOpenTracingContext(cb::const_byte_buffer context);
-
-    /**
-     * Is OpenTracing enabled for this cookie or not. By querying the
-     * cookie we don't have to read the atomic on/off switch unless
-     * people try to set the OpenTracing context in the command.
-     */
-    bool isOpenTracingEnabled() const {
-        return !openTracingContext.empty();
-    }
-
-    /**
-     * Extract the trace context.
-     * This method moves the tracer, OpenTracing context into
-     * a newly created TraceContext object which may be passed to the
-     * OpenTracing module and handled asynchronously
-     */
-    CookieTraceContext extractTraceContext();
 
     /**
      * @return true is setAuthorized has been called
@@ -483,6 +459,25 @@ public:
     }
 
 protected:
+    /**
+     * Is OpenTracing enabled for this cookie or not. By querying the
+     * cookie we don't have to read the atomic on/off switch unless
+     * people try to set the OpenTracing context in the command.
+     */
+    bool isOpenTracingEnabled() const {
+        return !openTracingContext.empty();
+    }
+
+    /**
+     * Extract the trace context.
+     * This method moves the tracer, OpenTracing context into
+     * a newly created TraceContext object which may be passed to the
+     * OpenTracing module and handled asynchronously
+     */
+    CookieTraceContext extractTraceContext();
+
+    void collectTimings();
+
     bool validated = false;
 
     bool reorder = false;

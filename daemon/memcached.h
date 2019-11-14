@@ -77,8 +77,6 @@ int add_conn_to_pending_io_list(Connection* c,
                                 ENGINE_ERROR_CODE status);
 void listen_event_handler(evutil_socket_t, short, void *);
 
-void mcbp_collect_timings(Cookie& cookie);
-
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *c);

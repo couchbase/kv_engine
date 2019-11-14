@@ -24,6 +24,7 @@
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "memcached.h"
+#include "opentracing.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "sendbuffer.h"
 #include "settings.h"
@@ -136,7 +137,7 @@ bool Cookie::execute() {
         return false;
     }
 
-    mcbp_collect_timings(*this);
+    collectTimings();
     return true;
 }
 
@@ -370,8 +371,8 @@ void Cookie::maybeLogSlowCommand(
 
         TRACE_COMPLETE2("memcached/slow",
                         "Slow cmd",
-                        getStart(),
-                        getStart() + elapsed,
+                        start,
+                        start + elapsed,
                         "opcode",
                         getHeader().getOpcode(),
                         "connection_id",
@@ -507,4 +508,38 @@ CookieTraceContext Cookie::extractTraceContext() {
                               header.getKey(),
                               std::move(openTracingContext),
                               std::move(tracer)};
+}
+
+void Cookie::collectTimings() {
+    // The state machinery cause this method to be called for all kinds
+    // of packets, but the header musts be a client request for the timings
+    // to make sense (and not when we handled a ServerResponse message etc ;)
+    if (!packet->isRequest() || connection.isDCP()) {
+        return;
+    }
+
+    const auto opcode = packet->getRequest().getClientOpcode();
+    const auto endTime = std::chrono::steady_clock::now();
+    const auto elapsed = endTime - start;
+    getTracer().end(cb::tracing::Code::Request, endTime);
+
+    // aggregated timing for all buckets
+    all_buckets[0].timings.collect(opcode, elapsed);
+
+    // timing for current bucket
+    const auto bucketid = connection.getBucketIndex();
+    /* bucketid will be zero initially before you run sasl auth
+     * (unless there is a default bucket), or if someone tries
+     * to delete the bucket you're associated with and your're idle.
+     */
+    if (bucketid != 0) {
+        all_buckets[bucketid].timings.collect(opcode, elapsed);
+    }
+
+    // Log operations taking longer than the "slow" threshold for the opcode.
+    maybeLogSlowCommand(elapsed);
+
+    if (isOpenTracingEnabled()) {
+        OpenTracing::pushTraceLog(extractTraceContext());
+    }
 }

@@ -22,15 +22,12 @@
 #include "cookie_trace_context.h"
 #include "front_end_thread.h"
 #include "memcached.h"
-#include "opentracing.h"
-#include "settings.h"
 #include "utilities/logtags.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
-#include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/string_hex.h>
 
@@ -125,47 +122,3 @@ static bool mcbp_response_handler(cb::const_char_buffer key,
 // a copy of it and run it on another thread.
 //
 AddResponseFn mcbpResponseHandlerFn = mcbp_response_handler;
-
-void mcbp_collect_timings(Cookie& cookie) {
-    // The state machinery cause this method to be called for all kinds
-    // of packets, but the header musts be a client request for the timings
-    // to make sense (and not when we handled a ServerResponse message etc ;)
-    const auto& header = cookie.getHeader();
-    if (!header.isRequest()) {
-        return;
-    }
-
-    auto* c = &cookie.getConnection();
-    if (c->isDCP()) {
-        // The state machinery works differently for the DCP connections
-        // so these timings isn't accurate!
-        //
-        // For now disable the timings, and add them back once they're
-        // correct
-        return;
-    }
-    const auto opcode = header.getRequest().getClientOpcode();
-    const auto endTime = std::chrono::steady_clock::now();
-    const auto elapsed = endTime - cookie.getStart();
-    cookie.getTracer().end(cb::tracing::Code::Request, endTime);
-
-    // aggregated timing for all buckets
-    all_buckets[0].timings.collect(opcode, elapsed);
-
-    // timing for current bucket
-    const auto bucketid = c->getBucketIndex();
-    /* bucketid will be zero initially before you run sasl auth
-     * (unless there is a default bucket), or if someone tries
-     * to delete the bucket you're associated with and your're idle.
-     */
-    if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(opcode, elapsed);
-    }
-
-    // Log operations taking longer than the "slow" threshold for the opcode.
-    cookie.maybeLogSlowCommand(elapsed);
-
-    if (cookie.isOpenTracingEnabled()) {
-        OpenTracing::pushTraceLog(cookie.extractTraceContext());
-    }
-}
