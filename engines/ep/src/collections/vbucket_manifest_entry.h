@@ -189,8 +189,7 @@ private:
      *           we can do stats updates as long as the read lock is held.
      *           The write lock is really for the Manifest map being changed.
      */
-    mutable cb::NonNegativeCounter<uint64_t, cb::ThrowExceptionUnderflowPolicy>
-            diskCount;
+    mutable cb::NonNegativeCounter<uint64_t> diskCount;
 
     /**
      * The highest seqno of any item (persisted or not) that belongs to this

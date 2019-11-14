@@ -800,11 +800,23 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        if (resp->getEvent() == DcpResponse::Event::Mutation ||
-            resp->getEvent() == DcpResponse::Event::Deletion ||
-            resp->getEvent() == DcpResponse::Event::Expiration ||
-            resp->getEvent() == DcpResponse::Event::SystemEvent) {
+        switch (resp->getEvent()) {
+        case DcpResponse::Event::Abort:
+        case DcpResponse::Event::Commit:
+        case DcpResponse::Event::Deletion:
+        case DcpResponse::Event::Expiration:
+        case DcpResponse::Event::Mutation:
+        case DcpResponse::Event::Prepare:
+        case DcpResponse::Event::SystemEvent:
             itemsSent++;
+            break;
+        case DcpResponse::Event::AddStream:
+        case DcpResponse::Event::SeqnoAcknowledgement:
+        case DcpResponse::Event::SetVbucket:
+        case DcpResponse::Event::SnapshotMarker:
+        case DcpResponse::Event::StreamReq:
+        case DcpResponse::Event::StreamEnd:
+            break;
         }
 
         totalBytesSent.fetch_add(resp->getMessageSize());

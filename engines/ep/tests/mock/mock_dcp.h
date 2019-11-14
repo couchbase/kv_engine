@@ -137,20 +137,18 @@ public:
     ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                          Vbid vbucket,
                                          uint64_t prepared_seqno) override;
+
     ENGINE_ERROR_CODE commit(uint32_t opaque,
                              Vbid vbucket,
                              const DocKey& key,
                              uint64_t prepare_seqno,
-                             uint64_t commit_seqno) override {
-        return ENGINE_ENOTSUP;
-    }
+                             uint64_t commit_seqno) override;
+
     ENGINE_ERROR_CODE abort(uint32_t opaque,
                             Vbid vbucket,
                             const DocKey& key,
                             uint64_t prepared_seqno,
-                            uint64_t abort_seqno) override {
-        return ENGINE_ENOTSUP;
-    }
+                            uint64_t abort_seqno) override;
 
     void clear_dcp_data();
 
@@ -187,6 +185,8 @@ public:
     std::string last_collection_filter;
     uint64_t last_prepared_seqno;
     uint64_t last_high_completed_seqno;
+    uint64_t last_commit_seqno;
+    uint64_t last_abort_seqno;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration
