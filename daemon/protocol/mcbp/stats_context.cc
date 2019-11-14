@@ -213,45 +213,27 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
     return ENGINE_SUCCESS;
 }
 
-static void append_bin_stats(const char* key,
-                             const uint16_t klen,
-                             const char* val,
-                             const uint32_t vlen,
-                             Cookie& cookie) {
-    auto& dbuf = cookie.getDynamicBuffer();
-    // We've ensured that there is enough room in the buffer before calling
-    // this method
-    auto* buf = reinterpret_cast<uint8_t*>(dbuf.getCurrent());
-    cb::mcbp::ResponseBuilder builder(
-            cb::byte_buffer(buf, dbuf.getSize() - dbuf.getOffset()));
-    builder.setMagic(cb::mcbp::Magic::ClientResponse);
-    builder.setOpcode(cb::mcbp::ClientOpcode::Stat);
-    builder.setDatatype(cb::mcbp::Datatype::Raw);
-    builder.setStatus(cb::mcbp::Status::Success);
-    builder.setKey(
-            cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(key), klen));
-    builder.setValue(
-            cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(val), vlen));
-    builder.setOpaque(cookie.getHeader().getOpaque());
-    builder.validate();
-    dbuf.moveOffset(sizeof(cb::mcbp::Response) +
-                    builder.getFrame()->getBodylen());
-}
-
 static void append_stats(cb::const_char_buffer key,
                          cb::const_char_buffer value,
                          gsl::not_null<const void*> void_cookie) {
-    size_t needed;
-
     auto& cookie = *const_cast<Cookie*>(
             reinterpret_cast<const Cookie*>(void_cookie.get()));
-    needed =
-            value.size() + key.size() + sizeof(protocol_binary_response_header);
-    if (!cookie.growDynamicBuffer(needed)) {
-        return;
-    }
-    append_bin_stats(
-            key.data(), key.size(), value.data(), value.size(), cookie);
+
+    cb::mcbp::Response header = {};
+    header.setMagic(cb::mcbp::Magic::ClientResponse);
+    header.setOpcode(cb::mcbp::ClientOpcode::Stat);
+    header.setDatatype(cb::mcbp::Datatype::Raw);
+    header.setStatus(cb::mcbp::Status::Success);
+    header.setFramingExtraslen(0);
+    header.setExtlen(0);
+    header.setKeylen(key.size());
+    header.setBodylen(key.size() + value.size());
+    header.setOpaque(cookie.getHeader().getOpaque());
+    auto& c = cookie.getConnection();
+    c.copyToOutputStream(
+            {reinterpret_cast<const char*>(&header), sizeof(header)});
+    c.copyToOutputStream(key);
+    c.copyToOutputStream(value);
 }
 
 // Create a static std::function to wrap append_stats, instead of creating a
@@ -421,7 +403,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
     }
 
     std::shared_ptr<Task> task = std::make_shared<StatsTaskConnectionStats>(
-            cookie.getConnection(), cookie, appendStatsFn, fd);
+            cookie.getConnection(), cookie, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task, true);
@@ -746,6 +728,11 @@ ENGINE_ERROR_CODE StatsCommandContext::getTaskResult() {
 
     state = State::CommandComplete;
     command_exit_code = stats_task.getCommandError();
+    if (command_exit_code == ENGINE_SUCCESS) {
+        for (const auto& s : stats_task.getStats()) {
+            append_stats(s.first, s.second, static_cast<const void*>(&cookie));
+        }
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -757,7 +744,7 @@ ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::Success)];
-        cookie.sendDynamicBuffer();
+        connection.setState(StateMachine::State::send_data);
         break;
     case ENGINE_EWOULDBLOCK:
         /* If the stats call returns ENGINE_EWOULDBLOCK then set the

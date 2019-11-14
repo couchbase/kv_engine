@@ -34,9 +34,7 @@ public:
 
     StatsTask(const StatsTask&) = delete;
 
-    StatsTask(Connection& connection_,
-              Cookie& cookie_,
-              const AddStatFn& add_stats_);
+    StatsTask(Connection& connection_, Cookie& cookie_);
 
     void notifyExecutionComplete() override;
 
@@ -44,11 +42,16 @@ public:
         return command_error;
     }
 
+    /// get all of the stats pairs produced by the task
+    const std::vector<std::pair<std::string, std::string>>& getStats() const {
+        return stats;
+    }
+
 protected:
     Connection& connection;
     Cookie& cookie;
-    AddStatFn add_stats;
     ENGINE_ERROR_CODE command_error;
+    std::vector<std::pair<std::string, std::string>> stats;
 };
 
 class StatsTaskConnectionStats : public StatsTask {
@@ -59,11 +62,10 @@ public:
 
     StatsTaskConnectionStats(Connection& connection_,
                              Cookie& cookie_,
-                             const AddStatFn& add_stats_,
-                             const int64_t fd_);
+                             int64_t fd_);
 
     Status execute() override;
 
 protected:
-    int64_t fd;
+    const int64_t fd;
 };

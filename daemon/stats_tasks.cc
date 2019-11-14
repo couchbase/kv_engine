@@ -24,10 +24,8 @@
 
 StatsTaskConnectionStats::StatsTaskConnectionStats(Connection& connection_,
                                                    Cookie& cookie_,
-                                                   const AddStatFn& add_stats_,
-                                                   const int64_t fd_)
-    : StatsTask(connection_, cookie_, add_stats_) {
-    fd = fd_;
+                                                   int64_t fd_)
+    : StatsTask(connection_, cookie_), fd(fd_) {
 }
 
 Task::Status StatsTaskConnectionStats::execute() {
@@ -42,9 +40,9 @@ Task::Status StatsTaskConnectionStats::execute() {
     getMutex().unlock();
     try {
         iterate_all_connections([this](Connection& c) -> void {
-            if (c.getSocketDescriptor() == fd || fd == -1) {
-                auto stats_str = c.toJSON().dump();
-                add_stats({}, stats_str, static_cast<void*>(&cookie));
+            if (fd == -1 || c.getSocketDescriptor() == fd) {
+                stats.emplace_back(std::make_pair<std::string, std::string>(
+                        {}, c.toJSON().dump()));
             }
         });
     } catch (const std::exception& exception) {
@@ -61,13 +59,8 @@ Task::Status StatsTaskConnectionStats::execute() {
     return Task::Status::Finished;
 }
 
-StatsTask::StatsTask(Connection& connection_,
-                     Cookie& cookie_,
-                     const AddStatFn& add_stats_)
-    : connection(connection_),
-      cookie(cookie_),
-      add_stats(add_stats_),
-      command_error(ENGINE_SUCCESS) {
+StatsTask::StatsTask(Connection& connection_, Cookie& cookie_)
+    : connection(connection_), cookie(cookie_), command_error(ENGINE_SUCCESS) {
 }
 
 void StatsTask::notifyExecutionComplete() {
