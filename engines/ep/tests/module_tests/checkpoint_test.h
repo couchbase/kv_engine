@@ -22,37 +22,22 @@
 #include "configuration.h"
 #include "evp_store_single_threaded_test.h"
 #include "stats.h"
+#include "vbucket_test.h"
 
+#include <engines/ep/src/ephemeral_vb.h>
 #include <folly/portability/GTest.h>
 
 class MockCheckpointManager;
 
 /**
- * Dummy callback to replace the flusher callback.
+ * Test fixture for Checkpoint tests.
  */
-class DummyCB : public Callback<Vbid> {
+class CheckpointTest : public VBucketTest {
 public:
-    DummyCB() {
-    }
+    void SetUp() override;
+    void TearDown() override;
 
-    void callback(Vbid& dummy) {
-        (void)dummy;
-    }
-};
-
-/**
- * Test fixture for Checkpoint tests. Once constructed provides a checkpoint
- * manager and single vBucket (VBID 0).
- *
- *@tparam V The VBucket class to use for the vbucket object.
- */
-template <typename V>
-class CheckpointTest : public ::testing::Test {
 protected:
-    CheckpointTest();
-
-    void createManager(int64_t last_seqno = 1000);
-
     // Creates a new item with the given key and queues it into the checkpoint
     // manager.
     bool queueNewItem(const std::string& key);
@@ -61,18 +46,15 @@ protected:
     // checkpoint manager.
     bool queueReplicatedItem(const std::string& key, int64_t seqno);
 
-    EPStats global_stats;
-    CheckpointConfig checkpoint_config;
-    Configuration config;
-    std::shared_ptr<Callback<Vbid>> callback;
-    std::unique_ptr<V> vbucket;
-    std::unique_ptr<MockCheckpointManager> manager;
-};
+    void createManager(int64_t lastSeqno = 1000);
 
-// Set of vBucket classes to test.
-// @todo: Why isn't Ephemeral in this set?
-class EPVBucket;
-using VBucketTypes = ::testing::Types<EPVBucket>;
+    void resetManager();
+
+    // Owned by VBucket
+    MockCheckpointManager* manager;
+    // Owned by CheckpointManager
+    CheckpointCursor* cursor;
+};
 
 /*
  * Test fixture for single-threaded Checkpoint tests

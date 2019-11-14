@@ -27,11 +27,8 @@
 
 /**
  * Test fixture for Checkpoint tests related to durability.
- *
- *@tparam V The VBucket class to use for the vbucket object.
  */
-template <typename V>
-class CheckpointDurabilityTest : public CheckpointTest<V> {
+class CheckpointDurabilityTest : public CheckpointTest {
 protected:
     // Helper method - test that the two queued ops first and second, when
     // queued in that order are not de-dupicated.
@@ -42,41 +39,36 @@ protected:
                                  std::vector<queued_item>& items);
 };
 
-template <typename V>
-void CheckpointDurabilityTest<V>::test_AvoidDeDuplication(
+void CheckpointDurabilityTest::test_AvoidDeDuplication(
         queued_item first,
         queued_item second,
         std::vector<queued_item>& items) {
     // Check expected starting state.
-    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
-
-    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumCheckpoints());
 
     // Setup: enqueue a first item.
-    ASSERT_TRUE(ckptMgr->queueDirty(*this->vbucket,
+    ASSERT_TRUE(manager->queueDirty(*this->vbucket,
                                     first,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));
-    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
-    ASSERT_EQ(1, ckptMgr->getNumOpenChkItems());
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
 
     // Test: enqueue second item
-    EXPECT_TRUE(ckptMgr->queueDirty(*this->vbucket,
+    EXPECT_TRUE(manager->queueDirty(*this->vbucket,
                                     second,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::Yes,
                                     /*preLinkDocCtx*/ nullptr));
 
-    ckptMgr->getNextItemsForPersistence(items);
+    manager->getNextItemsForPersistence(items);
 }
-
-TYPED_TEST_CASE(CheckpointDurabilityTest, VBucketTypes);
 
 // Check that an existing pending SyncWrite is not de-duplicated when a
 // Committed SyncWrite (with the same key) is added to the CheckpointManager.
-TYPED_TEST(CheckpointDurabilityTest,
-           AvoidDeDuplicationOfExistingPendingWithCommit) {
+TEST_P(CheckpointDurabilityTest,
+       AvoidDeDuplicationOfExistingPendingWithCommit) {
     auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
 
     auto committed = makeCommittedviaPrepareItem(makeStoredDocKey("durable"),
@@ -89,15 +81,14 @@ TYPED_TEST(CheckpointDurabilityTest,
                                  HasOperation(queue_op::pending_sync_write),
                                  HasOperation(queue_op::commit_sync_write)));
 
-    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
-    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
-    EXPECT_EQ(2, ckptMgr->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
 }
 
 // Check that an existing Committed SyncWrite is not de-duplicated when a
 // Pending SyncWrite (with the same key) is added to the CheckpointManager.
-TYPED_TEST(CheckpointDurabilityTest,
-           AvoidDeDuplicationOfExistingCommitWithPending) {
+TEST_P(CheckpointDurabilityTest,
+       AvoidDeDuplicationOfExistingCommitWithPending) {
     auto committed = makeCommittedviaPrepareItem(makeStoredDocKey("durable"),
                                                  "committed");
     auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
@@ -111,15 +102,14 @@ TYPED_TEST(CheckpointDurabilityTest,
                                  HasOperation(queue_op::pending_sync_write)));
 
     // Verify: Should not have de-duplicated, should be in one checkpoint
-    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
-    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
-    EXPECT_EQ(2, ckptMgr->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
 }
 
 // Check that an existing Committed SyncWrite is not de-duplicated when a
 // non-SyncWrite (with the same key) is added to the CheckpointManager.
-TYPED_TEST(CheckpointDurabilityTest,
-           AvoidDeDuplicationOfExistingCommitWithMutation) {
+TEST_P(CheckpointDurabilityTest,
+       AvoidDeDuplicationOfExistingCommitWithMutation) {
     auto committed = makeCommittedviaPrepareItem(makeStoredDocKey("durable"),
                                                  "committed");
     auto mutation = makeCommittedItem(makeStoredDocKey("durable"), "mutation");
@@ -133,15 +123,14 @@ TYPED_TEST(CheckpointDurabilityTest,
                                      HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation)));
     // Verify: Should not have de-duplicated, should be in two checkpoints
-    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
-    EXPECT_EQ(2, ckptMgr->getNumCheckpoints());
-    EXPECT_EQ(1, ckptMgr->getNumOpenChkItems());
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
 }
 
 // Check that an existing Committed non-SyncWrite is not de-duplicated when a
 // pending SyncWrite (with the same key) is added to the CheckpointManager.
-TYPED_TEST(CheckpointDurabilityTest,
-           AvoidDeDuplicationOfExistingCommitWithPrepare) {
+TEST_P(CheckpointDurabilityTest,
+       AvoidDeDuplicationOfExistingCommitWithPrepare) {
     auto mutation = makeCommittedItem(makeStoredDocKey("durable"), "mutation");
     auto pending = makePendingItem(makeStoredDocKey("durable"), "pending");
 
@@ -154,7 +143,6 @@ TYPED_TEST(CheckpointDurabilityTest,
                                  HasOperation(queue_op::pending_sync_write)));
 
     // Verify: Should not have de-duplicated, should be in one checkpoint
-    auto* ckptMgr = static_cast<MockCheckpointManager*>(this->manager.get());
-    EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
-    EXPECT_EQ(2, ckptMgr->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
 }
