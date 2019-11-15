@@ -80,11 +80,11 @@ void ExecutorThread::start() {
         if (setpriority(PRIO_PROCESS,
                         /*Current thread*/ 0,
                         lowestPriority)) {
-            EP_LOG_INFO("Set thread {} to background priority", getName());
-        } else {
             EP_LOG_WARN("Failed to set thread {} to background priority - {}",
                         getName(),
                         strerror(errno));
+        } else {
+            EP_LOG_INFO("Set thread {} to background priority", getName());
         }
     }
 #endif
