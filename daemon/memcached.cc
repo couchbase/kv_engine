@@ -602,6 +602,27 @@ static void settings_init() {
     }
 
     Settings::instance().setTopkeysEnabled(true);
+
+    Settings::instance().addChangeListener(
+            "num_reader_threads", [](const std::string&, Settings& s) -> void {
+                auto val = s.getNumReaderThreads();
+                bucketsForEach(
+                        [val](Bucket& b, void*) -> bool {
+                            b.getEngine()->set_num_reader_threads(val);
+                            return true;
+                        },
+                        nullptr);
+            });
+    Settings::instance().addChangeListener(
+            "num_writer_threads", [](const std::string&, Settings& s) -> void {
+                auto val = s.getNumReaderThreads();
+                bucketsForEach(
+                        [val](Bucket& b, void*) -> bool {
+                            b.getEngine()->set_num_writer_threads(val);
+                            return true;
+                        },
+                        nullptr);
+            });
 }
 
 /**
@@ -1419,6 +1440,12 @@ struct ServerCoreApi : public ServerCoreIface {
 
     void trigger_tick() override {
         mc_time_clock_tick();
+    }
+
+    ThreadPoolConfig getThreadPoolSizes() override {
+        auto& instance = Settings::instance();
+        return ThreadPoolConfig(instance.getNumReaderThreads(),
+                                instance.getNumWriterThreads());
     }
 };
 

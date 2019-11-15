@@ -91,4 +91,16 @@ struct ServerCoreIface {
      * Trigger a tick of the clock
      */
     virtual void trigger_tick() = 0;
+
+    struct ThreadPoolConfig {
+        ThreadPoolConfig() = default;
+        ThreadPoolConfig(size_t nr, size_t nw)
+            : num_readers(nr), num_writers(nw) {
+        }
+        size_t num_readers = 0;
+        size_t num_writers = 0;
+    };
+
+    /// Get the configured size for the reader and writer pool
+    virtual ThreadPoolConfig getThreadPoolSizes() = 0;
 };

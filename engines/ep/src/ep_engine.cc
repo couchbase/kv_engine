@@ -56,6 +56,7 @@
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
+#include <memcached/server_core_iface.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
@@ -2051,6 +2052,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // configuration with the actual number of each thread type we have (config
     // params are typically defaulted to "0" which means "auto-configure
     // thread counts"
+    auto threads = serverApi->core->getThreadPoolSizes();
+    if (threads.num_readers) {
+        // A value was specified; use that
+        configuration.setNumReaderThreads(threads.num_readers);
+    }
+
+    if (threads.num_writers) {
+        // A value was specified; use that
+        configuration.setNumWriterThreads(threads.num_writers);
+    }
     auto* pool = ExecutorPool::get();
     configuration.setNumReaderThreads(pool->getNumReaders());
     configuration.setNumWriterThreads(pool->getNumWriters());
@@ -6632,4 +6643,14 @@ void EventuallyPersistentEngine::setCompressionMode(
     } catch (const std::invalid_argument& e) {
         EP_LOG_WARN("{}", e.what());
     }
+}
+
+void EventuallyPersistentEngine::set_num_reader_threads(size_t num) {
+    getConfiguration().setNumReaderThreads(num);
+    ExecutorPool::get()->setNumReaders(num);
+}
+
+void EventuallyPersistentEngine::set_num_writer_threads(size_t num) {
+    getConfiguration().setNumWriterThreads(num);
+    ExecutorPool::get()->setNumWriters(num);
 }

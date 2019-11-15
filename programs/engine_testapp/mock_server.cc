@@ -188,6 +188,10 @@ struct MockServerCoreApi : public ServerCoreIface {
         throw std::runtime_error(
                 "MockServerCoreApi::trigger_tick() not implemented");
     }
+
+    ThreadPoolConfig getThreadPoolSizes() override {
+        return {};
+    }
 };
 
 struct MockServerLogApi : public ServerLogIface {

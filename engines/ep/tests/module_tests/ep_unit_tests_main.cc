@@ -80,6 +80,10 @@ public:
         throw std::runtime_error(
                 "UnitTestServerCore::trigger_tick() not implemented");
     }
+
+    ThreadPoolConfig getThreadPoolSizes() override {
+        return {};
+    }
 };
 
 int main(int argc, char **argv) {
