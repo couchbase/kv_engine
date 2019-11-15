@@ -746,6 +746,11 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         if (res == SequenceList::UpdateStatus::Append) {
             seqList->markItemStale(listWriteLg, std::move(oldSv), newSv);
         }
+
+        // We de-duped a prepare so we need to update the highest deduped seqno
+        // to prevent a backfill range read from ending without reaching this
+        // abort
+        seqList->updateHighestDedupedSeqno(listWriteLg, osv);
     }
 
     return notifyCtx;

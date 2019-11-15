@@ -623,7 +623,7 @@ public:
     ~EventuallyPersistentEngine();
 
     EPStats& getEpStats() {
-        return *stats.get();
+        return stats;
     }
 
     KVBucket* getKVBucket() {
@@ -1125,9 +1125,7 @@ protected:
 
     // Engine statistics. First concrete member as a number of other members
     // refer to it so needs to be constructed first (and destructed last).
-    // Cacheline padded as some data members have falsely shared with others in
-    // this class (Configuration)
-    folly::CachelinePadded<EPStats> stats;
+    EPStats stats;
     /**
      * Engine configuration. Referred to by various other members
      * (e.g. dcpConnMap_) so needs to be constructed before (and destructed

@@ -930,9 +930,11 @@ ENGINE_ERROR_CODE VBucket::abort(
             EP_LOG_ERR(
                     "VBucket::abort ({}) - replica - failed as we received "
                     "an abort for a prepare that does not exist and we are not "
-                    "currently receiving a disk snapshot. Prepare seqno: {}",
+                    "currently receiving a disk snapshot. Prepare seqno: {} "
+                    "Abort seqno: {}",
                     id,
-                    prepareSeqno);
+                    prepareSeqno,
+                    abortSeqno);
             return ENGINE_EINVAL;
         }
 
@@ -2748,11 +2750,15 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
         uint32_t& deleted,
         uint8_t& datatype) {
     deleted = 0;
-    auto htRes = ht.findForWrite(cHandle.getKey());
+    auto htRes = ht.findForRead(
+            cHandle.getKey(), TrackReference::Yes, WantsDeleted::Yes);
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
 
     if (v) {
+        if (v->isPreparedMaybeVisible()) {
+            return ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS;
+        }
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) {
             // Need bg meta fetch.

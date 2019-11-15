@@ -415,6 +415,88 @@ TEST_P(DurabilityActiveStreamEphemeralTest, BackfillDurabilityLevel) {
     EXPECT_TRUE(respItem->getDurabilityReqs().getTimeout().isInfinite());
 }
 
+TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    // Drop our stream early, we want to remove checkpoints from the checkpoint
+    // manager
+    stream.reset();
+    auto vb = engine->getVBucket(vbid);
+
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    auto prepareSeqno = vb->getHighSeqno();
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->abort(key,
+                        prepareSeqno,
+                        {} /*abortSeqno*/,
+                        vb->lockCollections(key)));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Remove our first checkpoint to backfill the prepare
+    bool newCkpt;
+    ckptMgr.removeClosedUnrefCheckpoints(*vb, newCkpt, 2 /*limit*/);
+
+    // Should not create a checkpoint
+    ASSERT_FALSE(newCkpt);
+
+    // Test that we actually dropped the checkpoint by number of items
+    ASSERT_EQ(2, ckptMgr.getNumItems());
+
+    // Create our new stream to plant our checkpoint cursor at the abort
+    stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                producer,
+                                                0 /*flags*/,
+                                                0 /*opaque*/,
+                                                *vb,
+                                                0 /*st_seqno*/,
+                                                ~0 /*en_seqno*/,
+                                                0x0 /*vb_uuid*/,
+                                                0 /*snap_start_seqno*/,
+                                                ~0 /*snap_end_seqno*/);
+
+    stream->setActive();
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    bfm.backfill();
+    const auto& readyQ = stream->public_readyQ();
+
+    // Just 2 items, SnapshotMarker and Mutation. Prepare has been de-duped by
+    // Abort
+    ASSERT_EQ(2, readyQ.size());
+
+    // First item is a snapshot marker so just skip it
+    auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // We don't receive the prepare, just the abort as it de-dupes the
+    // prepare.
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
 TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();

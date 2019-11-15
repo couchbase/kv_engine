@@ -1093,7 +1093,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         });
 
         if (stream) {
-            ActiveStream* as = static_cast<ActiveStream*>(stream.get());
+            auto* as = static_cast<ActiveStream*>(stream.get());
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
                 as->setVBucketStateAckRecieved();
             } else {
@@ -1117,6 +1117,20 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
                     "DcpProducer::handleResponse KeyEnoent received "
                     "response:{}",
                     resp->response.toJSON(true).dump());
+        } else if (resp->response.getStatus() == cb::mcbp::Status::Einval &&
+                   (opcode == cb::mcbp::ClientOpcode::DcpCommit ||
+                    opcode == cb::mcbp::ClientOpcode::DcpPrepare ||
+                    opcode == cb::mcbp::ClientOpcode::DcpAbort)) {
+            logger->error(
+                    "Disconnecting. Received status Einval for op:{} "
+                    "response:{}",
+                    to_string(opcode),
+                    resp->response.toJSON(true).dump());
+            // In this case we need to disconnect as we must have sent an
+            // invalid. Mutation or packet to the consumer e.g. we sent an abort
+            // to the consumer in a non disk snapshot without it having seen a
+            // prepare.
+            return false;
         } else {
             logger->warn(
                     "DcpProducer::handleResponse received unexpected "

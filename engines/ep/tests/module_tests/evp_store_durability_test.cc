@@ -3170,6 +3170,30 @@ TEST_P(DurabilityBucketTest, ResolvedSyncWritesReturnedToTrackedWritesAtDead) {
             vbucket_state_dead);
 }
 
+TEST_P(DurabilityBucketTest, getMetaReturnsRecommitInProgress) {
+    // check that getMeta respects recommit in progress
+    setVBucketToActiveWithValidTopology();
+
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(key, "value");
+    prepare->setPreparedMaybeVisible();
+    store->set(*prepare, cookie);
+
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    auto res = getMeta(vbid,
+                       key,
+                       cookie,
+                       itemMeta,
+                       deleted,
+                       datatype,
+                       false /* do not expect ewouldblock */);
+
+    // Verify that GetMeta failed with recommit in progress
+    ASSERT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, res);
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,

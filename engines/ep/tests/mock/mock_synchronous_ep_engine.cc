@@ -67,18 +67,17 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
             configuration.isAllowDelWithMetaPruneUserData();
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        stats->mem_low_wat_percent.store(0.75);
+        stats.mem_low_wat_percent.store(0.75);
     } else {
-        stats->mem_low_wat_percent.store(double(configuration.getMemLowWat()) /
-                                         configuration.getMaxSize());
+        stats.mem_low_wat_percent.store(double(configuration.getMemLowWat()) /
+                                        configuration.getMaxSize());
     }
 
     if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        stats->mem_high_wat_percent.store(0.85);
+        stats.mem_high_wat_percent.store(0.85);
     } else {
-        stats->mem_high_wat_percent.store(
-                double(configuration.getMemHighWat()) /
-                configuration.getMaxSize());
+        stats.mem_high_wat_percent.store(double(configuration.getMemHighWat()) /
+                                         configuration.getMaxSize());
     }
 }
 

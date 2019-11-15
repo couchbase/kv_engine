@@ -46,6 +46,7 @@
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
+#include <gmock/gmock-generated-matchers.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -859,14 +860,16 @@ ENGINE_ERROR_CODE KVBucketTest::getMeta(Vbid vbid,
                                         const void* cookie,
                                         ItemMetaData& itemMeta,
                                         uint32_t& deleted,
-                                        uint8_t& datatype) {
+                                        uint8_t& datatype,
+                                        bool retryOnEWouldBlock) {
     auto doGetMetaData = [&]() {
         return store->getMetaData(
                 key, vbid, cookie, itemMeta, deleted, datatype);
     };
 
     auto engineResult = doGetMetaData();
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketType() == "persistent" &&
+        retryOnEWouldBlock) {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
         runBGFetcherTask();

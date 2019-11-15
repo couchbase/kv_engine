@@ -2858,8 +2858,37 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
                     cb::mcbp::ClientOpcode::DcpCommit,
                     cb::mcbp::ClientOpcode::DcpPrepare,
                     cb::mcbp::ClientOpcode::DcpAbort}) {
-        protocol_binary_response_header message;
+        protocol_binary_response_header message{};
         message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+        message.response.setOpcode(op);
+        EXPECT_TRUE(producer->handleResponse(&message));
+    }
+}
+
+TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseEInValDuribility) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "ProducerHandleResponceEinVal", 0);
+    MockDcpMessageProducers producers(engine.get());
+
+    protocol_binary_response_header message{};
+    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.response.setStatus(cb::mcbp::Status::Einval);
+    // check we return false from DcpProducer::handleResponse when receiving an
+    // EINVAL for Commit, Prepare and abort
+    for (auto op : {cb::mcbp::ClientOpcode::DcpCommit,
+                    cb::mcbp::ClientOpcode::DcpPrepare,
+                    cb::mcbp::ClientOpcode::DcpAbort}) {
+        message.response.setOpcode(op);
+        EXPECT_FALSE(producer->handleResponse(&message));
+    }
+    // for the other ops check that we don't return false
+    for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
+                    cb::mcbp::ClientOpcode::DcpDeletion,
+                    cb::mcbp::ClientOpcode::DcpExpiration,
+                    cb::mcbp::ClientOpcode::DcpStreamEnd,
+                    cb::mcbp::ClientOpcode::DcpSystemEvent}) {
         message.response.setOpcode(op);
         EXPECT_TRUE(producer->handleResponse(&message));
     }
