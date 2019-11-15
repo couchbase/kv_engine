@@ -155,43 +155,64 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
 DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                      const std::string& name,
                                      uint32_t flags) {
-    LockHolder lh(connsLock);
+    DcpProducer* result{nullptr};
+    std::shared_ptr<ConnHandler> oldConn;
+    {
+        LockHolder lh(connsLock);
 
-    std::string conn_name("eq_dcpq:");
-    conn_name.append(name);
+        std::string conn_name("eq_dcpq:");
+        conn_name.append(name);
 
-    const auto& iter = map_.find(cookie);
-    if (iter != map_.end()) {
-        iter->second->setDisconnect();
-        EP_LOG_INFO(
-                "Failed to create Dcp Producer because connection "
-                "({}) already exists.",
-                cookie);
-        return nullptr;
-    }
-
-    /*
-     *  If we request a connection of the same name then
-     *  mark the existing connection as "want to disconnect".
-     */
-    for (const auto& cookieToConn : map_) {
-        if (cookieToConn.second->getName() == conn_name) {
+        const auto it = map_.find(cookie);
+        if (it != map_.end()) {
+            oldConn = it->second;
+            oldConn->flagDisconnect();
             EP_LOG_INFO(
-                    "{} Disconnecting existing Dcp Producer {} as it has the "
-                    "same "
-                    "name as a new connection {}",
-                    cookieToConn.second->logHeader(),
-                    cookieToConn.first,
+                    "Failed to create Dcp Producer because connection "
+                    "({}) already exists.",
                     cookie);
-            cookieToConn.second->setDisconnect();
+        } else {
+            // If we request a connection of the same name then mark the
+            // existing connection as "want to disconnect" and pull it out from
+            // the conn-map. Note (MB-36915): Just flag the connection here,
+            // defer stream-shutdown to oldConn->setDisconnect below (ie, after
+            // we release the connLock), potential deadlock by lock-inversion
+            // with KVBucket::setVBucketState otherwise (on connLock /
+            // vbstateLock).
+            for (const auto& cookieToConn : map_) {
+                if (cookieToConn.second->getName() == conn_name) {
+                    const auto* oldCookie = cookieToConn.first;
+                    oldConn = cookieToConn.second;
+                    EP_LOG_INFO(
+                            "{} Disconnecting existing Dcp Producer {} as it "
+                            "has the "
+                            "same "
+                            "name as a new connection {}",
+                            cookieToConn.second->logHeader(),
+                            oldCookie,
+                            cookie);
+                    oldConn->flagDisconnect();
+
+                    // Note: I thought that we need to 'map_.erase(oldCookie)'
+                    // here, the connection would stale in connMap forever
+                    // otherwise. But that is not the case. Memcached will call
+                    // down the disconnect-handle for oldCookie, which will be
+                    // correctly removed from conn-map. Any attempt to remove it
+                    // here will lead to issues described MB-36451.
+                }
+            }
+
+            auto producer = std::make_shared<DcpProducer>(
+                    engine, cookie, conn_name, flags, true /*startTask*/);
+            EP_LOG_DEBUG("{} Connection created", producer->logHeader());
+            result = producer.get();
+            map_[cookie] = std::move(producer);
         }
     }
 
-    auto producer = std::make_shared<DcpProducer>(
-            engine, cookie, conn_name, flags, true /*startTask*/);
-    EP_LOG_DEBUG("{} Connection created", producer->logHeader());
-    auto* result = producer.get();
-    map_[cookie] = std::move(producer);
+    if (oldConn) {
+        oldConn->setDisconnect();
+    }
 
     return result;
 }

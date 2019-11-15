@@ -1814,6 +1814,19 @@ protected:
         return ENGINE_SUCCESS;
     }
 
+    enum class ConnExistsBy : uint8_t { Cookie, Name };
+
+    /**
+     * MB-36915: With a recent change, we unconditionally acquire an exclusive
+     * lock to vbstate in KVBucket::setVBucketState. But, the new lock
+     * introduces a potential deadlock by lock-inversion on connLock and
+     * vbstateLock in EPE::dcpOpen if a connection with the same cookie or name
+     * already exists in conn-map. TSAN easily spots the issue as soon as we
+     * have an execution where two threads run in parallel and execute the code
+     * responsible for the potential deadlock, which is what this test achieves.
+     */
+    void testLockInversionInSetVBucketStateAndNewProducer(ConnExistsBy by);
+
     SynchronousEPEngineUniquePtr engine;
     const Vbid vbid = Vbid(0);
 };
@@ -2090,7 +2103,8 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
  * run in parallel and execute the code responsible for the potential deadlock,
  * which is what this test achieves.
  */
-TEST_F(DcpConnMapTest, AvoidLockInversionInSetVBucketStateAndDisconnect) {
+TEST_F(DcpConnMapTest,
+       AvoidLockInversionInSetVBucketStateAndConnMapDisconnect) {
     const void* cookie = create_mock_cookie();
     const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -2136,6 +2150,97 @@ TEST_F(DcpConnMapTest, AvoidLockInversionInSetVBucketStateAndDisconnect) {
 
     // Cleanup
     connMap.manageConnections();
+}
+
+void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
+        ConnExistsBy by) {
+    auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    const auto* cookie = create_mock_cookie();
+    const std::string connName = "producer";
+    const uint32_t flags = 0;
+    auto* producer = connMap.newProducer(cookie, connName, flags);
+
+    const uint32_t opaque = 0;
+    // Vbstate lock acquired in ActiveStream::setDead (executed by
+    // DcpConnMap::newProducer) only if SyncRepl is enabled
+    producer->control(opaque, "enable_sync_writes", "true");
+    producer->control(opaque, "consumer_name", "consumer");
+
+    const auto streamRequest =
+            [this, flags, opaque](DcpProducer& producer) -> void {
+        uint64_t rollbackSeqno = 0;
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  producer.streamRequest(flags,
+                                         opaque,
+                                         vbid,
+                                         0, // start_seqno
+                                         ~0ull, // end_seqno
+                                         0, // vbucket_uuid,
+                                         0, // snap_start_seqno,
+                                         0, // snap_end_seqno,
+                                         &rollbackSeqno,
+                                         fakeDcpAddFailoverLog,
+                                         {} /*collection_filter*/));
+    };
+
+    // Check that the conne has been created and exists in vbConns at stream-req
+    {
+        SCOPED_TRACE("");
+        streamRequest(*producer);
+    }
+    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:" + connName));
+
+    std::thread t1 = std::thread([this]() -> void {
+        engine->getKVBucket()->setVBucketState(
+                vbid,
+                vbucket_state_t::vbucket_state_replica,
+                {} /*meta*/,
+                TransferVB::No);
+    });
+
+    // New producer in this thread.
+    // Note: ActiveStream::setDead executed only if re-creating the same
+    // connection (ie, same cookie or connection name).
+    const auto* cookie2 = create_mock_cookie();
+    switch (by) {
+    case ConnExistsBy::Cookie: {
+        const std::string newConnName = "newName";
+        EXPECT_FALSE(connMap.newProducer(cookie, newConnName, flags));
+        // Note: Connection flagged as disconnected but not yet removed
+        // from conn-map. See comments in ConnMap::newProducer.
+        EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:" + connName));
+        break;
+    }
+    case ConnExistsBy ::Name: {
+        producer = connMap.newProducer(cookie2, connName, flags);
+        ASSERT_TRUE(producer);
+        // Check that the connection has been re-created with the same name
+        // and exists in vbConns at stream-req
+        {
+            SCOPED_TRACE("");
+            streamRequest(*producer);
+        }
+        EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:" + connName));
+        break;
+    }
+    }
+
+    t1.join();
+
+    // Cleanup
+    connMap.manageConnections();
+    destroy_mock_cookie(cookie);
+    destroy_mock_cookie(cookie2);
+}
+
+TEST_F(DcpConnMapTest,
+       AvoidLockInversionInSetVBucketStateAndNewProducerExistingCookie) {
+    testLockInversionInSetVBucketStateAndNewProducer(ConnExistsBy::Cookie);
+}
+
+TEST_F(DcpConnMapTest,
+       AvoidLockInversionInSetVBucketStateAndNewProducerExistingName) {
+    testLockInversionInSetVBucketStateAndNewProducer(ConnExistsBy::Name);
 }
 
 class NotifyTest : public DCPTest {
