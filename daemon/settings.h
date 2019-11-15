@@ -823,6 +823,26 @@ public:
         notify_changed("parent_identifier");
     }
 
+    size_t getNumReaderThreads() const {
+        return num_reader_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumReaderThreads(size_t val) {
+        num_reader_threads.store(val, std::memory_order_release);
+        has.num_reader_threads = true;
+        notify_changed("num_reader_threads");
+    }
+
+    size_t getNumWriterThreads() const {
+        return num_writer_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumWriterThreads(size_t val) {
+        num_writer_threads.store(val, std::memory_order_release);
+        has.num_writer_threads = true;
+        notify_changed("num_writer_threads");
+    }
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
@@ -1004,6 +1024,9 @@ protected:
     /// The identifier to use for the parent monitor
     int parent_identifier = -1;
 
+    std::atomic<size_t> num_reader_threads{0};
+    std::atomic<size_t> num_writer_threads{0};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1054,7 +1077,8 @@ public:
         bool system_connections = false;
         bool max_concurrent_commands_per_connection = false;
         bool opentracing_config = false;
-
+        bool num_reader_threads = false;
+        bool num_writer_threads = false;
         bool portnumber_file = false;
         bool parent_identifier = false;
     } has;

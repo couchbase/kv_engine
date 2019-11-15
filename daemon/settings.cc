@@ -582,6 +582,14 @@ static void handle_opcode_attributes_override(Settings& s,
     s.setOpcodeAttributesOverride(obj.dump());
 }
 
+static void handle_num_reader_threads(Settings& s,  const nlohmann::json& obj) {
+    s.setNumReaderThreads(obj.get<size_t>());
+}
+
+static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
+    s.setNumWriterThreads(obj.get<size_t>());
+}
+
 static void handle_extensions(Settings& s, const nlohmann::json& obj) {
     LOG_INFO("Extensions ignored");
 }
@@ -697,6 +705,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"client_cert_auth", handle_client_cert_auth},
             {"collections_enabled", handle_collections_enabled},
             {"opcode_attributes_override", handle_opcode_attributes_override},
+            {"num_reader_threads", handle_num_reader_threads},
+            {"num_writer_threads", handle_num_writer_threads},
             {"topkeys_enabled", handle_topkeys_enabled},
             {"tracing_enabled", handle_tracing_enabled},
             {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
@@ -1201,6 +1211,22 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setMaxConcurrentCommandsPerConnection(
                     other.getMaxConcurrentCommandsPerConnection());
         }
+    }
+
+    if (other.has.num_reader_threads &&
+        other.getNumReaderThreads() != getNumReaderThreads()) {
+        LOG_INFO("Change number of reader threads from: {} to {}",
+                 getNumReaderThreads(),
+                 other.getNumReaderThreads());
+        setNumReaderThreads(other.getNumReaderThreads());
+    }
+
+    if (other.has.num_writer_threads &&
+        other.getNumWriterThreads() != getNumWriterThreads()) {
+        LOG_INFO("Change number of writer threads from: {} to {}",
+                 getNumWriterThreads(),
+                 other.getNumWriterThreads());
+        setNumWriterThreads(other.getNumWriterThreads());
     }
 }
 

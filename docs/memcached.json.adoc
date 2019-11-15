@@ -356,6 +356,12 @@ The *topkeys_enabled* attribute is a boolean value to enable or disable
 collection of information about the most frequently used keys. If not
 specified its value is set to true.
 
+=== num_reader_threads and num_writer_threads
+
+Specifies the number of reader or writer threads, respectively.
+If 0 means that memcached should use the default number of reader or writer
+threads, which is computed based on the number of cores.
+
 === logger
 
 The *logger* attribute is used to specify properties for the logger

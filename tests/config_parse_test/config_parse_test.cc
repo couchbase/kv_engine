@@ -1050,6 +1050,14 @@ TEST_F(SettingsTest, ScramshaFallbackSalt) {
     }
 }
 
+TEST_F(SettingsTest, NumReaderThreads) {
+    nonNumericValuesShouldFail("num_reader_threads");
+}
+
+TEST_F(SettingsTest, NumWriterThreads) {
+    nonNumericValuesShouldFail("num_writer_threads");
+}
+
 TEST(SettingsUpdateTest, EmptySettingsShouldWork) {
     Settings updated;
     Settings settings;
