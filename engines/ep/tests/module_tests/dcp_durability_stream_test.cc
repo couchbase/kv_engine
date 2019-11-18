@@ -370,7 +370,8 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
     testSendCompleteSyncWrite(Resolution::Abort);
 }
 
-TEST_P(DurabilityActiveStreamEphemeralTest, BackfillDurabilityLevel) {
+TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
+    startCheckpointTask();
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
@@ -392,6 +393,9 @@ TEST_P(DurabilityActiveStreamEphemeralTest, BackfillDurabilityLevel) {
     // We don't account Prepares in VB stats
     EXPECT_EQ(0, vb->getNumItems());
 
+    // Required at for transitioning to backfill at EPBucket
+    flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
+
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
 
@@ -399,6 +403,12 @@ TEST_P(DurabilityActiveStreamEphemeralTest, BackfillDurabilityLevel) {
     // state
     auto& bfm = producer->getBFM();
     bfm.backfill();
+
+    // Ephemeral starts the scan-phase synchronously at backfill-init, while
+    // EP needs another run of the backfill task
+    if (persistent()) {
+        bfm.backfill();
+    }
 
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size());
@@ -3737,8 +3747,3 @@ INSTANTIATE_TEST_CASE_P(
         DurabilityPassiveStreamPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_CASE_P(Ephemeral,
-                        DurabilityActiveStreamEphemeralTest,
-                        STParameterizedBucketTest::ephConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);

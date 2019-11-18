@@ -1482,6 +1482,13 @@ void SingleThreadedActiveStreamTest::TearDown() {
     STParameterizedBucketTest::TearDown();
 }
 
+void SingleThreadedActiveStreamTest::startCheckpointTask() {
+    if (!producer->getCheckpointSnapshotTask()) {
+        producer->createCheckpointProcessorTask();
+        producer->scheduleCheckpointProcessorTask();
+    }
+}
+
 void SingleThreadedActiveStreamTest::setupProducer(
         const std::vector<std::pair<std::string, std::string>>& controls,
         bool startCheckpointProcessorTask) {
@@ -1496,10 +1503,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
                                                  flags,
                                                  false /*startTask*/);
 
-    if (startCheckpointProcessorTask &&
-        !producer->getCheckpointSnapshotTask()) {
-        producer->createCheckpointProcessorTask();
-        producer->scheduleCheckpointProcessorTask();
+    if (startCheckpointProcessorTask) {
+        startCheckpointTask();
     }
 
     for (const auto& c : controls) {

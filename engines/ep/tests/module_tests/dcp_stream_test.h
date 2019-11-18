@@ -52,6 +52,8 @@ protected:
     void SetUp() override;
     void TearDown() override;
 
+    void startCheckpointTask();
+
     void setupProducer(const std::vector<std::pair<std::string, std::string>>&
                                controls = {},
                        bool startCheckpointProcessorTask = false);
