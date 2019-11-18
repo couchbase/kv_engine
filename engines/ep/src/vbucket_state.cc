@@ -114,7 +114,7 @@ bool vbucket_state::operator==(const vbucket_state& other) const {
     rv = rv && (supportsNamespaces == other.supportsNamespaces);
     rv = rv && (version == other.version);
     rv = rv && (persistedCompletedSeqno == other.persistedCompletedSeqno);
-    rv = rv && (persistedPreparedSeqno == other.persistedCompletedSeqno);
+    rv = rv && (persistedPreparedSeqno == other.persistedPreparedSeqno);
     rv = rv && (highPreparedSeqno ==
                 other.highPreparedSeqno);
     rv = rv && (onDiskPrepares == other.onDiskPrepares);
