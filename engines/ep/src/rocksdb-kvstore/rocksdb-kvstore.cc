@@ -191,7 +191,7 @@ public:
      * @param del Flag indicating if it is an item deletion or not
      */
     RocksRequest(const Item& item, MutationRequestCallback callback)
-        : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
+        : IORequest(std::move(callback), DiskDocKey{item}),
           docBody(item.getValue()) {
         docMeta = rockskv::MetaData(
                 item.isDeleted(),
@@ -572,7 +572,7 @@ bool RocksDBKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     }
 
     bool success = true;
-    auto vbid = commitBatch[0].getVBucketId();
+    auto vbid = transactionCtx->vbid;
 
     // Flush all documents to disk
     auto status = saveDocs(vbid, collectionsFlush, commitBatch);
@@ -1354,7 +1354,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
         const VBHandle& vbh,
         rocksdb::WriteBatch& batch,
         const RocksRequest& request) {
-    Vbid vbid = request.getVBucketId();
+    Vbid vbid = transactionCtx->vbid;
 
     rocksdb::Slice keySlice = getKeySlice(request.getKey());
     rocksdb::SliceParts keySliceParts(&keySlice, 1);

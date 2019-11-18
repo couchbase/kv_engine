@@ -38,23 +38,17 @@ using MutationRequestCallback =
 class IORequest {
 public:
     /**
-     * @param vbid
      * @param cb callback to the engine. Also specifies if this is a set
      *        or delete based on the callback type.
      * @param key The key of the item to persist
      */
-    IORequest(Vbid vbid, MutationRequestCallback, DiskDocKey key);
+    IORequest(MutationRequestCallback, DiskDocKey key);
 
     ~IORequest();
 
     /// @returns true if the document to be persisted is for DELETE
     bool isDelete() const {
         return boost::get<KVStore::DeleteCallback>(&callback);
-    }
-
-    /// @returns vbucket id of document to be persisted.
-    Vbid getVBucketId() const {
-        return vbucketId;
     }
 
     std::chrono::microseconds getDelta() const {
@@ -78,5 +72,4 @@ protected:
     MutationRequestCallback callback;
     DiskDocKey key;
     std::chrono::steady_clock::time_point start;
-    Vbid vbucketId;
 };

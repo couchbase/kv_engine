@@ -712,7 +712,7 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     kvstats_ctx kvctx(collectionsFlush);
     bool success = true;
 
-    auto kvHandle = getMagmaKVHandle(pendingReqs->front().getVbID());
+    auto kvHandle = getMagmaKVHandle(transactionCtx->vbid);
 
     // Flush all documents to disk
     auto errCode = saveDocs(collectionsFlush, kvctx, kvHandle);

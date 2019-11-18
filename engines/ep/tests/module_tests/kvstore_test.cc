@@ -259,7 +259,7 @@ public:
 
 // Rocks doesn't support returning compressed values.
 TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
 
     WriteCallback wc;
     for (int i = 1; i <= 5; i++) {
@@ -298,7 +298,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     const std::string key{"key"};
     const std::string value{"value"};
     Item item(makeStoredDocKey(key), 0, 0, value.c_str(), value.size());
@@ -329,7 +329,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     const std::string key{"key"};
     const std::string value{"value"};
     Item item(makeStoredDocKey(key), 0, 0, value.c_str(), value.size());
@@ -468,7 +468,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
 
     // Test setup, create a new file
     auto kvstore = setup_kv_store(config1);
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
 
     // The key count is large enough to ensure the count uses more than 1 byte
     // of leb storage so we validate that leb encode/decode works on this path
@@ -494,7 +494,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
 
     kvstore->commit(flush);
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
 
     DeleteCallback dc;
     // Delete some keys. With and without a value (like xattr)
@@ -691,7 +691,7 @@ protected:
     void populate_items(size_t count) {
         generate_items(count);
         WriteCallback set_callback;
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for(const auto& item: items) {
             kvstore->set(item, set_callback);
         }
@@ -719,8 +719,8 @@ protected:
     std::vector<Item> items;
     Collections::VB::Manifest manifest;
     Collections::VB::Flush flush;
+    Vbid vbid = Vbid(0);
 };
-
 
 /**
  * Injects error during CouchKVStore::openDB_retry/couchstore_open_db_ex
@@ -729,7 +729,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     generate_items(1);
     WriteCallback set_callback;
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(items.front(), set_callback);
     {
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -755,7 +755,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
     generate_items(1);
     WriteCallback set_callback;
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -781,7 +781,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
     generate_items(1);
     WriteCallback set_callback;
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -808,7 +808,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
     generate_items(1);
     WriteCallback set_callback;
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -836,7 +836,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
     generate_items(1);
     WriteCallback set_callback;
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(items.front(), set_callback);
     {
         /* Establish Logger expectation */
@@ -1109,7 +1109,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     WriteCallback set_callback;
 
     for(const auto item: items) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item, set_callback);
         kvstore->commit(flush);
     }
@@ -1141,7 +1141,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     WriteCallback set_callback;
 
     for(const auto item: items) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item, set_callback);
         kvstore->commit(flush);
     }
@@ -1175,7 +1175,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     WriteCallback set_callback;
 
     for(const auto item: items) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item, set_callback);
         kvstore->commit(flush);
     }
@@ -1207,7 +1207,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     WriteCallback set_callback;
 
     for(const auto item: items) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item, set_callback);
         kvstore->commit(flush);
     }
@@ -1296,7 +1296,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     WriteCallback set_callback;
 
     for (const auto item : items) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item, set_callback);
         kvstore->commit(flush);
     }
@@ -1305,7 +1305,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
         generate_items(1);
         WriteCallback set_callback;
 
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(items.front(), set_callback);
         {
             /* Establish Logger expectation */
@@ -1596,7 +1596,7 @@ TEST_F(CouchstoreTest, noMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1613,7 +1613,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1639,7 +1639,7 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
               0xf00fcafe11225566ull);
 
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(item, wc);
     kvstore->commit(flush);
 
@@ -1668,7 +1668,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
               0xf00fcafe11225566ull);
     EXPECT_NE(0, datatype); // make sure we writing non-zero
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(item, wc);
     kvstore->commit(flush);
 
@@ -1687,7 +1687,7 @@ TEST_F(CouchstoreTest, fuzzV0) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1713,7 +1713,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Now directly mess with the metadata of the value which will be written
@@ -1757,7 +1757,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     meta.flags = 0x01020304;
 
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V0
@@ -1777,7 +1777,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     gc.callback(gv);
 
     // Write back the item we read (this will write out V1 meta)
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(*gc.getValue(), wc);
     kvstore->commit(flush);
 
@@ -1818,7 +1818,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     meta.legacyDeleted = 0x01;
 
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V2 (19 bytes)
@@ -1868,7 +1868,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
     meta.flags = 0x01020304;
 
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto* request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V0
@@ -1921,7 +1921,7 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     meta.legacyDeleted = 1;
 
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     auto request = kvstore->setAndReturnRequest(item, wc);
 
     // Force the meta to be V2
@@ -2264,7 +2264,7 @@ public:
 
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);
     item.setBySeqno(1);
@@ -2278,7 +2278,7 @@ TEST_P(KVStoreParamTest, BasicTest) {
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
 
     // Expect that the SET callback will not be called just after `set`
     MockPersistenceCallbacks mpc;
@@ -2307,10 +2307,10 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
     // called but not considered in any EXCPECT_CALL (GMock warning is
     // "Uninteresting mock function call".)
     NiceMock<MockPersistenceCallbacks> mpc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(item, std::ref(mpc));
     kvstore->commit(flush);
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
 
     // Expect that the DEL callback will not be called just after `del`
     auto status = KVStore::MutationStatus::Success;
@@ -2348,7 +2348,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
     // Store an item into each VBucket
     for (auto vbid : vbids) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         Item item(makeStoredDocKey("key-" + std::to_string(vbid.get())),
                   0 /*flags*/,
                   0 /*exptime*/,
@@ -2399,7 +2399,7 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
         int64_t seqno = 1;
         Item item(makeStoredDocKey("key"), 0, 0, "value", 5);
         while (!stop.load()) {
-            kvstore->begin(std::make_unique<TransactionContext>());
+            kvstore->begin(std::make_unique<TransactionContext>(vbid));
             item.setBySeqno(seqno++);
             kvstore->set(item, wc);
             auto ok = kvstore->commit(flush);
@@ -2478,7 +2478,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
     WriteCallback wc;
     int64_t seqno = 1;
     for (int i = 1; i < 10; i++) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         auto item = make_item(
                 Vbid(0), makeStoredDocKey(std::string(i, 'k')), "value");
         item.setBySeqno(seqno++);
@@ -2539,7 +2539,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     // Upsert an item 10 times in a single transaction (we want to test that
     // the VBucket state is updated with the highest seqno found in a commit
     // batch)
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     for (int i = 1; i <= 10; i++) {
         Item item(key,
                   0 /*flags*/,
@@ -2562,7 +2562,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
 // Test the getRange() function
 TEST_P(KVStoreParamTest, GetRangeBasic) {
     // Setup: store 5 keys, a, b, c, d, e (with matching values)
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     WriteCallback dummyCb;
     int64_t seqno = 1;
     for (char k = 'a'; k < 'f'; k++) {
@@ -2591,7 +2591,7 @@ TEST_P(KVStoreParamTest, GetRangeBasic) {
 TEST_P(KVStoreParamTest, GetRangeDeleted) {
     // Setup: 1) store 8 keys, a, b, c, d, e, f, g (with matching values)
     //        2) delete 3 of them (b, d, f)
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     WriteCallback dummyCb;
     int64_t seqno = 1;
     for (char k = 'a'; k < 'h'; k++) {
@@ -2602,7 +2602,7 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
     }
     kvstore->commit(flush);
 
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     DeleteCallback dummyDelCb;
     for (char k = 'b'; k < 'g'; k += 2) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
@@ -2641,7 +2641,7 @@ TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
     item.setBySeqno(1);
 
     WriteCallback wc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->set(item, wc);
     kvstore->commit(flush);
 
@@ -2668,7 +2668,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     item.setPrepareSeqno(999);
 
     DeleteCallback dc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->del(item, dc);
     kvstore->commit(flush);
 
@@ -2711,7 +2711,7 @@ TEST_P(KVStoreParamTest, OptimizeWrites) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     WriteCallback wc;
     int keys = 20;
     for (int i = 0; i < keys; i++) {
@@ -2921,7 +2921,7 @@ TEST_F(MagmaKVStoreTest, Rollback) {
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (int j = 0; j < 5; j++) {
             Item item(makeStoredDocKey("key" + std::to_string(seqno)),
                       0,
@@ -2964,7 +2964,7 @@ TEST_F(MagmaKVStoreTest, RollbackNoValidCommitPoint) {
     auto maxCommitPoints = cfg->getMagmaMaxCommitPoints();
 
     for (int i = 0; i < int(maxCommitPoints) + 1; i++) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (int j = 0; j < 5; j++) {
             Item item(makeStoredDocKey("key" + std::to_string(seqno)),
                       0,

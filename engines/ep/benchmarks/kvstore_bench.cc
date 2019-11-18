@@ -127,7 +127,7 @@ protected:
         std::string value = "value";
         MockWriteCallback wc;
         Vbid vbid = Vbid(0);
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (int i = 1; i <= numItems; i++) {
             Item item(makeStoredDocKey(key + std::to_string(i)),
                       0 /*flags*/,

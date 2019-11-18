@@ -3762,7 +3762,7 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
         void operator()(TransactionContext&, KVStore::MutationStatus) {
         }
     } dc;
-    kvstore->begin(std::make_unique<TransactionContext>());
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->del(*(itm.get()), dc);
     Collections::VB::Flush f(epstore.getVBucket(vbid)->getManifest());
     kvstore->commit(f);

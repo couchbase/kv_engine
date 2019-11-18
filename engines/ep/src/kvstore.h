@@ -158,7 +158,10 @@ struct kvstats_ctx {
  * callback.
  */
 struct TransactionContext {
+    TransactionContext(Vbid vbid) : vbid(vbid) {
+    }
     virtual ~TransactionContext(){};
+    Vbid vbid;
 };
 
 class NoLookupCallback : public StatusCallback<CacheLookup> {
