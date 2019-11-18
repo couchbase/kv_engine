@@ -1582,7 +1582,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
     EXPECT_EQ(swSeqno, seqnoAck->getPreparedSeqno());
 }
 
-TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSeqno) {
+TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
     // The consumer receives mutations {s:1, s:2, s:3} in the snapshot:[1, 4],
     // with only s:2 durable with Level:PersistToMajority.
     // We have to check that we do send a SeqnoAck for s:2, but only after:
