@@ -109,6 +109,12 @@ public:
 
     void aggregateQueueStats(ConnCounter& aggregator) override;
 
+    /**
+     * ALERT: Do NOT call this function while holding ConnMap::connLock.
+     * The call may acquire the VBucket::stateLock and raise a potential
+     * deadlock by lock-inversion with KVBucket::setVBucketState (where we
+     * aquire the two locks in opposite order).
+     */
     void setDisconnect() override;
 
     void notifySeqnoAvailable(Vbid vbucket,
