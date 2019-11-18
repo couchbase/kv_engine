@@ -24,7 +24,11 @@
 
 class Cookie;
 struct DumpContext;
-
+namespace cb {
+namespace mcbp {
+enum class Datatype : uint8_t;
+} // namespace mcbp
+} // namespace cb
 /**
  * When measuring mutex wait / lock durations, what is considered a default
  * "slow" wait/lock time and trace events should be logged?
@@ -47,7 +51,8 @@ void deinitializeTracing();
  */
 ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
                                         const StrToStrMap& arguments,
-                                        std::string& value);
+                                        std::string& value,
+                                        cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Get callback to get the last used tracing config
@@ -55,7 +60,14 @@ ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
  */
 ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
                                         const StrToStrMap& arguments,
-                                        std::string& value);
+                                        std::string& value,
+                                        cb::mcbp::Datatype& datatype);
+
+/// IOCT Get callback to get a list of all of the registered dumps
+ENGINE_ERROR_CODE ioctlGetTracingList(Cookie& cookie,
+                                      const StrToStrMap& arguments,
+                                      std::string& value,
+                                      cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Get callback to create a new dump from the last trace
@@ -63,7 +75,8 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
  */
 ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
                                            const StrToStrMap&,
-                                           std::string& value);
+                                           std::string& value,
+                                           cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Get callback to generate and return chunks from the specified dump
@@ -73,7 +86,8 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
  */
 ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
                                            const StrToStrMap& arguments,
-                                           std::string& value);
+                                           std::string& value,
+                                           cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Set callback to clear a tracing dump

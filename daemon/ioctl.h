@@ -21,6 +21,11 @@
 
 // forward decl
 class Cookie;
+namespace cb {
+namespace mcbp {
+enum class Datatype : uint8_t;
+} // namespace mcbp
+} // namespace cb
 
 /**
  * Attempts to read the given property.
@@ -30,7 +35,8 @@ class Cookie;
  */
 ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
                                      const std::string& key,
-                                     std::string& value);
+                                     std::string& value,
+                                     cb::mcbp::Datatype& datatype);
 
 /**
  * Attempts to set property `key` to the value `value`.

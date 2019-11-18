@@ -34,8 +34,11 @@
 /**
  * Function interface for ioctl_get callbacks
  */
-using GetCallbackFunc = std::function<ENGINE_ERROR_CODE(
-        Cookie& cookie, const StrToStrMap& arguments, std::string& value)>;
+using GetCallbackFunc =
+        std::function<ENGINE_ERROR_CODE(Cookie& cookie,
+                                        const StrToStrMap& arguments,
+                                        std::string& value,
+                                        cb::mcbp::Datatype& datatype)>;
 
 /**
  * Function interface for ioctl_set callbacks
@@ -96,18 +99,21 @@ static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
 
 ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
                                   const StrToStrMap& arguments,
-                                  std::string& value) {
+                                  std::string& value,
+                                  cb::mcbp::Datatype& datatype) {
     if (!arguments.empty() || !value.empty()) {
         return ENGINE_EINVAL;
     }
 
     value = cb::mcbp::sla::to_json().dump();
+    datatype = cb::mcbp::Datatype::JSON;
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
                                   const StrToStrMap& arguments,
-                                  std::string& value) {
+                                  std::string& value,
+                                  cb::mcbp::Datatype& datatype) {
     if (cookie.getConnection().checkPrivilege(
                 cb::rbac::Privilege::SecurityManagement, cookie) !=
         cb::rbac::PrivilegeAccess::Ok) {
@@ -134,12 +140,14 @@ ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
     }
 
     value = cb::rbac::to_json(domain).dump();
+    datatype = cb::mcbp::Datatype::JSON;
     return ENGINE_SUCCESS;
 }
 
 static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
         {"trace.config", ioctlGetTracingConfig},
         {"trace.status", ioctlGetTracingStatus},
+        {"trace.dump.list", ioctlGetTracingList},
         {"trace.dump.begin", ioctlGetTracingBeginDump},
         {"trace.dump.chunk", ioctlGetTracingDumpChunk},
         {"sla", ioctlGetMcbpSla},
@@ -147,7 +155,9 @@ static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
 
 ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
                                      const std::string& key,
-                                     std::string& value) {
+                                     std::string& value,
+                                     cb::mcbp::Datatype& datatype) {
+    datatype = cb::mcbp::Datatype::Raw;
     std::pair<std::string, StrToStrMap> request;
 
     try {
@@ -158,7 +168,7 @@ ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
 
     auto entry = ioctl_get_map.find(request.first);
     if (entry != ioctl_get_map.end()) {
-        return entry->second(cookie, request.second, value);
+        return entry->second(cookie, request.second, value, datatype);
     }
     return ENGINE_EINVAL;
 }

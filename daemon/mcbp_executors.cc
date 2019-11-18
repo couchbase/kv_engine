@@ -357,14 +357,14 @@ static void get_ctrl_token_executor(Cookie& cookie) {
 static void ioctl_get_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
-
+    cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw;
     std::string value;
     if (ret == ENGINE_SUCCESS) {
         auto& req = cookie.getRequest();
         auto key_data = req.getKey();
         const std::string key(reinterpret_cast<const char*>(key_data.data()),
                               key_data.size());
-        ret = ioctl_get_property(cookie, key, value);
+        ret = ioctl_get_property(cookie, key, value, datatype);
     }
 
     auto remapErr = connection.remapErrorCode(ret);
@@ -374,7 +374,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                             {},
                             {},
                             {value.data(), value.size()},
-                            cb::mcbp::Datatype::Raw,
+                            datatype,
                             0);
         break;
     case ENGINE_EWOULDBLOCK:

@@ -36,14 +36,16 @@ static std::mutex configMutex;
 
 ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
                                         const StrToStrMap&,
-                                        std::string& value) {
+                                        std::string& value,
+                                        cb::mcbp::Datatype& datatype) {
     value = PHOSPHOR_INSTANCE.isEnabled() ? "enabled" : "disabled";
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
                                         const StrToStrMap&,
-                                        std::string& value) {
+                                        std::string& value,
+                                        cb::mcbp::Datatype& datatype) {
     std::lock_guard<std::mutex> lh(configMutex);
     value = *lastConfig.toString();
     return ENGINE_SUCCESS;
@@ -109,7 +111,8 @@ void deinitializeTracing() {
 
 ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
                                            const StrToStrMap&,
-                                           std::string& value) {
+                                           std::string& value,
+                                           cb::mcbp::Datatype& datatype) {
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
     if (PHOSPHOR_INSTANCE.isEnabled()) {
         PHOSPHOR_INSTANCE.stop(lh);
@@ -181,7 +184,8 @@ struct ChunkBuilderContext : public CommandContext {
 
 ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
                                            const StrToStrMap& arguments,
-                                           std::string& value) {
+                                           std::string& value,
+                                           cb::mcbp::Datatype& datatype) {
     // If we have a context then we already generated the chunk
     auto* ctx = dynamic_cast<ChunkBuilderContext*>(cookie.getCommandContext());
     if (ctx != nullptr) {
@@ -301,5 +305,20 @@ ENGINE_ERROR_CODE ioctlSetTracingStop(Cookie& cookie,
                                       const StrToStrMap&,
                                       const std::string& value) {
     PHOSPHOR_INSTANCE.stop();
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE ioctlGetTracingList(Cookie& cookie,
+                                      const StrToStrMap& arguments,
+                                      std::string& value,
+                                      cb::mcbp::Datatype& datatype) {
+    std::lock_guard<std::mutex> lh(traceDumps.mutex);
+    std::vector<std::string> uuids;
+    for (const auto& dump : traceDumps.dumps) {
+        uuids.emplace_back(to_string(dump.first));
+    }
+    nlohmann::json json(uuids);
+    value = json.dump();
+    datatype = cb::mcbp::Datatype::JSON;
     return ENGINE_SUCCESS;
 }
