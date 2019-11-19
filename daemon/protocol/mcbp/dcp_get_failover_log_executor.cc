@@ -21,7 +21,6 @@
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
-#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
 
 void dcp_get_failover_log_executor(Cookie& cookie) {
@@ -29,21 +28,15 @@ void dcp_get_failover_log_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto& header = cookie.getHeader().getRequest();
-        ret = dcpGetFailoverLog(cookie,
-                                header.getOpaque(),
-                                header.getVBucket(),
-                                add_failover_log);
+        auto& req = cookie.getRequest();
+        ret = dcpGetFailoverLog(
+                cookie, req.getOpaque(), req.getVBucket(), add_failover_log);
     }
 
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        if (cookie.getDynamicBuffer().getRoot() != nullptr) {
-            cookie.sendDynamicBuffer();
-        } else {
-            cookie.sendResponse(cb::mcbp::Status::Success);
-        }
+        connection.setState(StateMachine::State::send_data);
         break;
 
     case ENGINE_DISCONNECT:

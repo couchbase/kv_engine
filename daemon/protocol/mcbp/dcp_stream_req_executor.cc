@@ -80,11 +80,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        if (cookie.getDynamicBuffer().getRoot() != nullptr) {
-            cookie.sendDynamicBuffer();
-        } else {
-            cookie.sendResponse(cb::mcbp::Status::Success);
-        }
+        connection.setState(StateMachine::State::send_data);
         break;
 
     case ENGINE_ROLLBACK:

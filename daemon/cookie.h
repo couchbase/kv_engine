@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "dynamic_buffer.h"
-
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/dockey.h>
@@ -167,25 +165,6 @@ public:
     }
 
     /**
-     *
-     * Clear the dynamic buffer
-     */
-    void clearDynamicBuffer() {
-        dynamicBuffer.clear();
-    }
-
-    /**
-     * Grow the dynamic buffer to
-     */
-    bool growDynamicBuffer(size_t needed) {
-        return dynamicBuffer.grow(needed);
-    }
-
-    DynamicBuffer& getDynamicBuffer() {
-        return dynamicBuffer;
-    }
-
-    /**
      * Execute the current packet
      *
      * Given that the method calls down into the engine it may throw a wide
@@ -329,11 +308,6 @@ public:
     void setCas(uint64_t cas) {
         Cookie::cas = cas;
     }
-
-    /**
-     * Send the dynamic buffer
-     */
-    void sendDynamicBuffer();
 
     /**
      * Sent back the not my vbucket response (piggyback a vbucket
@@ -530,12 +504,6 @@ protected:
      * the data (created by copying the input data)
      */
     std::unique_ptr<uint8_t[]> frame_copy;
-
-    /**
-     * The dynamic buffer is used to format output packets to be sent on
-     * the wire.
-     */
-    DynamicBuffer dynamicBuffer;
 
     /** The cas to return back to the client */
     uint64_t cas = 0;

@@ -96,34 +96,25 @@ static bool mcbp_response_handler(cb::const_char_buffer key,
                                    : PROTOCOL_BINARY_DATATYPE_JSON;
     }
 
-    const size_t needed = payload.size() + key.size() + extras.size() +
-                          sizeof(protocol_binary_response_header);
-
-    auto& dbuf = cookie->getDynamicBuffer();
-    if (!dbuf.grow(needed)) {
-        LOG_WARNING("<{} ERROR: Failed to allocate memory for response",
-                    c->getId());
-        return false;
-    }
-
-    auto* buf = reinterpret_cast<uint8_t*>(dbuf.getCurrent());
-    const auto& header = cookie->getHeader();
-
-    cb::mcbp::ResponseBuilder builder({buf, needed});
-    builder.setMagic(cb::mcbp::Magic::ClientResponse);
-    builder.setOpcode(header.getRequest().getClientOpcode());
-    builder.setDatatype(cb::mcbp::Datatype(datatype));
-    builder.setStatus(status);
-    builder.setExtras(extras);
-    builder.setKey(key);
-    builder.setValue(
-            {reinterpret_cast<const uint8_t*>(payload.data()), payload.size()});
-    builder.setOpaque(header.getOpaque());
-    builder.setCas(cas);
-    builder.validate();
+    const auto& request = cookie->getRequest();
+    cb::mcbp::Response response = {};
+    response.setMagic(cb::mcbp::Magic::ClientResponse);
+    response.setOpcode(request.getClientOpcode());
+    response.setDatatype(cb::mcbp::Datatype(datatype));
+    response.setStatus(status);
+    response.setFramingExtraslen(0);
+    response.setExtlen(extras.size());
+    response.setKeylen(key.size());
+    response.setBodylen(extras.size() + key.size() + payload.size());
+    response.setOpaque(request.getOpaque());
+    response.setCas(cas);
+    c->copyToOutputStream(
+            {reinterpret_cast<const char*>(&response), sizeof(response)});
+    c->copyToOutputStream(extras);
+    c->copyToOutputStream(key);
+    c->copyToOutputStream(payload);
 
     ++c->getBucket().responseCounters[uint16_t(status)];
-    dbuf.moveOffset(needed);
     return true;
 }
 

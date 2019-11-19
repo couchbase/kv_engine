@@ -204,24 +204,6 @@ void Cookie::setEwouldblock(bool ewouldblock) {
     Cookie::ewouldblock = ewouldblock;
 }
 
-static void cookie_free_dynbuffer(const void*, size_t, void* ptr) {
-    cb_free(ptr);
-}
-
-void Cookie::sendDynamicBuffer() {
-    if (dynamicBuffer.getRoot() == nullptr) {
-        throw std::logic_error(
-                "Cookie::sendDynamicBuffer(): Dynamic buffer not created");
-    } else {
-        connection.chainDataToOutputStream(
-                {dynamicBuffer.getRoot(), dynamicBuffer.getOffset()},
-                cookie_free_dynbuffer,
-                dynamicBuffer.getRoot());
-        connection.setState(StateMachine::State::send_data);
-        dynamicBuffer.takeOwnership();
-    }
-}
-
 void Cookie::sendNotMyVBucket() {
     auto pair = connection.getBucket().clusterConfiguration.getConfiguration();
     if (pair.first == -1 || (pair.first == connection.getClustermapRevno() &&
@@ -502,7 +484,6 @@ void Cookie::reset() {
     validated = false;
     cas = 0;
     commandContext.reset();
-    dynamicBuffer.clear();
     tracer.clear();
     ewouldblock = false;
     openTracingContext.clear();

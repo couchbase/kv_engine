@@ -50,8 +50,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             debug_helpers.h
             doc_pre_expiry.cc
             doc_pre_expiry.h
-            dynamic_buffer.cc
-            dynamic_buffer.h
             enginemap.cc
             enginemap.h
             executor.cc

@@ -30,24 +30,13 @@ void collections_get_manifest_executor(Cookie& cookie) {
 
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
-    case cb::engine_errc::success: {
-        if (cookie.getDynamicBuffer().getRoot() != nullptr) {
-            // We assume that if the underlying engine returns a success then
-            // it is sending a success to the client.
-            ++connection.getBucket()
-                      .responseCounters[int(cb::mcbp::Status::Success)];
-            cookie.sendDynamicBuffer();
-        } else {
-            connection.setState(StateMachine::State::new_cmd);
-        }
+    case cb::engine_errc::success:
+        connection.setState(StateMachine::State::send_data);
         break;
-    }
     case cb::engine_errc::disconnect:
         connection.shutdown();
         break;
     default:
-        // Release the dynamic buffer.. it may be partial..
-        cookie.clearDynamicBuffer();
         cookie.sendResponse(cb::engine_errc(ret));
     }
 }

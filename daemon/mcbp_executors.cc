@@ -131,15 +131,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
-        if (cookie.getDynamicBuffer().getRoot() != nullptr) {
-            // We assume that if the underlying engine returns a success then
-            // it is sending a success to the client.
-            ++connection.getBucket()
-                      .responseCounters[int(cb::mcbp::Status::Success)];
-            cookie.sendDynamicBuffer();
-        } else {
-            connection.setState(StateMachine::State::new_cmd);
-        }
+        connection.setState(StateMachine::State::send_data);
         update_topkeys(cookie);
         break;
     }
@@ -150,8 +142,6 @@ static void process_bin_unknown_packet(Cookie& cookie) {
         connection.shutdown();
         break;
     default:
-        // Release the dynamic buffer.. it may be partial..
-        cookie.clearDynamicBuffer();
         cookie.sendResponse(cb::engine_errc(ret));
     }
 }
