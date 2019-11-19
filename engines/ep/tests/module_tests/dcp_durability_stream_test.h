@@ -198,12 +198,6 @@ protected:
 };
 
 /**
- * ActiveStream tests for Durability against ephemeral buckets. Single-threaded.
- */
-class DurabilityActiveStreamEphemeralTest : public DurabilityActiveStreamTest {
-};
-
-/**
  * Test fixture for tests that begin with an active vBucket with Producer and
  * ActiveStream and end with a replica vBucket with a Consumer and PassiveStream
  * to test replica promotion scenarios.

@@ -66,9 +66,9 @@ std::string OutputCouchFile::moveDocToCollection(const sized_buf in,
     return rv;
 }
 
-void OutputCouchFile::processDocument(const Doc* doc, const DocInfo* docinfo) {
+void OutputCouchFile::processDocument(const Doc* doc, const DocInfo& docinfo) {
     if (bufferedOutput.addDocument(
-                moveDocToCollection(doc->id, collection), doc, docinfo)) {
+                moveDocToCollection(docinfo.id, collection), doc, docinfo)) {
         verbose("processDocument triggering write");
         writeDocuments();
     }
@@ -156,17 +156,21 @@ void OutputCouchFile::writeSupportsNamespaces(const std::string& vbs,
 }
 
 OutputCouchFile::BufferedOutputDocuments::Document::Document(
-        const std::string& newDocKey, const Doc* doc, const DocInfo* docInfo)
-    : newDocKey(newDocKey), newDoc(*doc), newDocInfo(*docInfo), doc(doc) {
+        const std::string& newDocKey, const Doc* doc, const DocInfo& docInfo)
+    : newDocKey(newDocKey), newDocInfo(docInfo), doc(doc) {
+    if (doc) {
+        newDoc = *doc;
+    }
+
     // Update the ID fields with the newDocKey
     newDoc.id.buf = const_cast<char*>(this->newDocKey.data());
     newDoc.id.size = this->newDocKey.size();
     newDocInfo.id = newDoc.id;
 
     // Copy the rev_meta
-    if (docInfo->rev_meta.buf) {
-        std::copy(docInfo->rev_meta.buf,
-                  docInfo->rev_meta.buf + docInfo->rev_meta.size,
+    if (docInfo.rev_meta.buf) {
+        std::copy(docInfo.rev_meta.buf,
+                  docInfo.rev_meta.buf + docInfo.rev_meta.size,
                   std::back_inserter(revMeta));
         newDocInfo.rev_meta = {revMeta.data(), revMeta.size()};
     }
@@ -204,11 +208,11 @@ OutputCouchFile::BufferedOutputDocuments::BufferedOutputDocuments(
 }
 
 bool OutputCouchFile::BufferedOutputDocuments::addDocument(
-        const std::string& newDocKey, const Doc* doc, const DocInfo* docInfo) {
+        const std::string& newDocKey, const Doc* doc, const DocInfo& docInfo) {
     outputDocuments.emplace_back(newDocKey, doc, docInfo);
 
     approxBufferedSize +=
-            (newDocKey.size() + docInfo->rev_meta.size + doc->id.size);
+            (newDocKey.size() + docInfo.rev_meta.size + docInfo.id.size);
 
     auto vectorSizes = (sizeof(Document) * outputDocuments.size()) +
                        (sizeof(Doc*) * outputDocs.size()) +
@@ -219,9 +223,13 @@ bool OutputCouchFile::BufferedOutputDocuments::addDocument(
 }
 
 void OutputCouchFile::BufferedOutputDocuments::prepareForWrite() {
-    for (auto& doc : outputDocuments) {
-        outputDocs.push_back(&doc.newDoc);
-        outputDocInfos.push_back(&doc.newDocInfo);
+    for (auto& document : outputDocuments) {
+        if (document.doc) {
+            outputDocs.push_back(&document.newDoc);
+        } else {
+            outputDocs.push_back(nullptr);
+        }
+        outputDocInfos.push_back(&document.newDocInfo);
     }
 }
 

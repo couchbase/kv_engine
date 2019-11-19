@@ -59,7 +59,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     switch (vbType) {
     case VBType::Persistent:
         vbucket.reset(
-                new EPVBucket(Vbid(0),
+                new EPVBucket(vbid,
                               vbucket_state_active,
                               global_stats,
                               checkpoint_config,
@@ -67,7 +67,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                               lastSeqno,
                               range.getStart(),
                               range.getEnd(),
-                              /*table*/ nullptr,
+                              std::make_unique<FailoverTable>(1 /*capacity*/),
                               /*flusher callback*/ nullptr,
                               /*newSeqnoCb*/ nullptr,
                               noOpSyncWriteResolvedCb,
@@ -77,28 +77,39 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                               eviction_policy,
                               std::make_unique<Collections::VB::Manifest>()));
         break;
-    case VBType::Ephemeral:
-        vbucket.reset(new MockEphemeralVBucket(Vbid(0),
-                                               vbucket_state_active,
-                                               global_stats,
-                                               checkpoint_config,
-                                               /*kvshard*/ nullptr,
-                                               lastSeqno,
-                                               range.getStart(),
-                                               range.getEnd(),
-                                               /*table*/ nullptr,
-                                               /*newSeqnoCb*/ nullptr,
-                                               noOpSyncWriteResolvedCb,
-                                               TracedSyncWriteCompleteCb,
-                                               NoopSeqnoAckCb,
-                                               config,
-                                               eviction_policy));
+    case VBType::Ephemeral: {
+        vbucket.reset(new MockEphemeralVBucket(
+                vbid,
+                vbucket_state_active,
+                global_stats,
+                checkpoint_config,
+                /*kvshard*/ nullptr,
+                lastSeqno,
+                range.getStart(),
+                range.getEnd(),
+                std::make_unique<FailoverTable>(1 /*capacity*/),
+                /*newSeqnoCb*/ nullptr,
+                noOpSyncWriteResolvedCb,
+                TracedSyncWriteCompleteCb,
+                NoopSeqnoAckCb,
+                config,
+                eviction_policy));
         break;
     }
+    }
+
+    checkpoint_config = CheckpointConfig(
+            DEFAULT_CHECKPOINT_PERIOD,
+            DEFAULT_CHECKPOINT_ITEMS,
+            DEFAULT_MAX_CHECKPOINTS,
+            true /*itemNumBasedNewCheckpoint*/,
+            false /*keepClosedCheckpoints*/,
+            (vbType == VBType::Persistent ? true
+                                          : false) /*persistenceEnabled*/);
 
     vbucket->checkpointManager = std::make_unique<MockCheckpointManager>(
             global_stats,
-            Vbid(0),
+            vbid,
             checkpoint_config,
             lastSeqno,
             range.getStart(),
@@ -496,6 +507,11 @@ TEST_P(VBucketTest, updateDeletedItem) {
 // Check that getItemsForCursor() can impose a limit on items fetched, but
 // that it always fetches complete checkpoints.
 TEST_P(VBucketTest, GetItemsForCursor_Limit) {
+    // @todo: Expand to Ephemeral
+    if (!persistent()) {
+        return;
+    }
+
     // Setup - Add two items each to three separate checkpoints.
     auto keys = generateKeys(2, 1);
     setMany(keys, MutationStatus::WasClean);
@@ -537,6 +553,10 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
 
 // Check that getItemsToPersist() can correctly impose a limit on items fetched.
 TEST_P(VBucketTest, GetItemsToPersist_Limit) {
+    if (!persistent()) {
+        return;
+    }
+
     // Setup - Add items to reject, backfill and checkpoint manager.
 
     this->vbucket->rejectQueue.push(makeQueuedItem("1"));
@@ -575,6 +595,10 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we
 // hit the CheckpointManager limit early.
 TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {
+    if (!persistent()) {
+        return;
+    }
+
     // Setup - Add an item to checkpoint manager (in addition to initial
     // checkpoint_start).
     ASSERT_EQ(MutationStatus::WasClean, setOne(makeStoredDocKey("1")));

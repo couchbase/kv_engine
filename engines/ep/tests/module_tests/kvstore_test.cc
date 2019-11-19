@@ -414,6 +414,48 @@ public:
     CollectionID expectedCid;
 };
 
+class CollectionsOfflineGetCallback : public StatusCallback<GetValue> {
+public:
+    CollectionsOfflineGetCallback(std::pair<int, int> deletedRange)
+        : deletedRange(deletedRange) {
+    }
+
+    void callback(GetValue& result) {
+        EXPECT_EQ(ENGINE_SUCCESS, result.getStatus());
+
+        if (result.item->isDeleted()) {
+            DocKey dk = result.item->getKey();
+            EXPECT_EQ(500, dk.getCollectionID());
+            auto noCollection = dk.makeDocKeyWithoutCollectionID();
+            EXPECT_EQ(2, noCollection.size());
+            std::string str(reinterpret_cast<const char*>(noCollection.data()),
+                            noCollection.size());
+            auto index = std::stoi(str);
+            EXPECT_GE(index, deletedRange.first);
+            EXPECT_LE(index, deletedRange.second);
+
+            if (index & 1) {
+                // The odd deleted docs have no body to validate
+                return;
+            } else {
+                EXPECT_TRUE(result.item->getDataType() &
+                            PROTOCOL_BINARY_DATATYPE_XATTR);
+            }
+        }
+        EXPECT_TRUE(PROTOCOL_BINARY_DATATYPE_SNAPPY &
+                    result.item->getDataType());
+        result.item->decompressValue();
+
+        EXPECT_EQ(0,
+                  strncmp("valuable",
+                          result.item->getData(),
+                          result.item->getNBytes()));
+    }
+
+private:
+    std::pair<int, int> deletedRange;
+};
+
 // Test the InputCouchFile/OutputCouchFile objects (in a simple test) to
 // check they do what we expect, that is create a new couchfile with all keys
 // moved into a specified collection.
@@ -429,20 +471,57 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     // The key count is large enough to ensure the count uses more than 1 byte
     // of leb storage so we validate that leb encode/decode works on this path
     const int keys = 129;
+    const int deletedKeys = 14;
     WriteCallback wc;
     for (int i = 0; i < keys; i++) {
-        std::string key("key" + std::to_string(i));
-        Item item(makeStoredDocKey(key),
+        auto key = std::to_string(i);
+        // create Item and use a raw key, but say it has a cid encoded so that
+        // the constructor doesn't push this key into the default collection.
+        // If we don't do this, the source file won't be representative of real
+        // source files when the upgrade is deployed
+        Item item(DocKey(key, DocKeyEncodesCollectionId::Yes),
                   0,
                   0,
-                  "value",
-                  5,
+                  "valuable",
+                  8,
                   PROTOCOL_BINARY_RAW_BYTES,
                   0,
                   i + 1);
         kvstore->set(item, wc);
     }
 
+    kvstore->commit(flush);
+
+    kvstore->begin(std::make_unique<TransactionContext>());
+
+    DeleteCallback dc;
+    // Delete some keys. With and without a value (like xattr)
+    for (int i = 18, j = 1; i < 18 + deletedKeys; ++i, ++j) {
+        std::unique_ptr<Item> item;
+        auto key = std::to_string(i);
+        if (i & 1) {
+            item.reset(Item::makeDeletedItem(
+                    DeleteSource::Explicit,
+                    DocKey(key, DocKeyEncodesCollectionId::Yes),
+                    0,
+                    0,
+                    nullptr,
+                    0));
+        } else {
+            // Note: this is not really xattr, just checking the datatype is
+            // preserved on upgrade
+            item.reset(Item::makeDeletedItem(
+                    DeleteSource::Explicit,
+                    DocKey(key, DocKeyEncodesCollectionId::Yes),
+                    0,
+                    0,
+                    "valuable",
+                    8,
+                    PROTOCOL_BINARY_DATATYPE_XATTR));
+        }
+        item->setBySeqno(keys + j);
+        kvstore->del(*item, dc);
+    }
     kvstore->commit(flush);
 
     rewriteCouchstoreVBState(Vbid(0), data_dir, 2, false /*no namespaces*/);
@@ -460,7 +539,8 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     output.commit();
 
     auto kvstore2 = KVStoreFactory::create(config2);
-    auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
+    auto cb = std::make_shared<CollectionsOfflineGetCallback>(
+            std::pair<int, int>{18, 18 + deletedKeys});
     auto cl = std::make_shared<CollectionsOfflineUpgadeCallback>(cid);
     ScanContext* scanCtx;
     scanCtx = kvstore2.rw->initScanContext(
@@ -479,8 +559,8 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     // Check item count
     auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
     auto stats = kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
-    EXPECT_EQ(keys, stats.itemCount);
-    EXPECT_EQ(keys, stats.highSeqno);
+    EXPECT_EQ(keys - deletedKeys, stats.itemCount);
+    EXPECT_EQ(keys + deletedKeys, stats.highSeqno);
 }
 
 /**

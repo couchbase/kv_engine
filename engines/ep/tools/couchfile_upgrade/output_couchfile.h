@@ -42,7 +42,7 @@ public:
 
     void commit();
 
-    void processDocument(const Doc* doc, const DocInfo* docinfo);
+    void processDocument(const Doc* doc, const DocInfo& docinfo);
 
     /**
      * Write to the output file that an upgrade has begun
@@ -94,10 +94,13 @@ protected:
         /**
          * Add a document to the buffer and return true if the buffer should
          * now be written to disk
+         * @param newDocKey Key to use instead of the 'id' from DocInfo/Doc
+         * @param doc the Doc which can be null for documents with no body
+         * @param docInfo the document's meta
          */
         bool addDocument(const std::string& newDocKey,
                          const Doc* doc,
-                         const DocInfo* docInfo);
+                         const DocInfo& docInfo);
 
         /**
          * the couchstore_save_docs expects a plain array of Doc* and DocInfo*
@@ -134,7 +137,7 @@ protected:
         struct Document {
             Document(const std::string& newDocKey,
                      const Doc* doc,
-                     const DocInfo* docInfo);
+                     const DocInfo& docInfo);
             ~Document();
 
             Document(const Document& other) = delete;
