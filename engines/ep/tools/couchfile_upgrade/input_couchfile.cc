@@ -63,16 +63,22 @@ struct UpgradeCouchFileContext {
 
 static int upgradeCallback(Db* db, DocInfo* docinfo, void* ctx) {
     Doc* doc = nullptr;
+    if (!docinfo) {
+        throw std::runtime_error(
+                "InputCouchFile::upgradeCallback with null docinfo");
+    }
+
     auto errcode = couchstore_open_doc_with_docinfo(
             db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
-    if (errcode) {
+
+    if (errcode && errcode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         throw std::runtime_error(
                 "InputCouchFile::upgradeCallback "
                 "couchstore_open_doc_with_docinfo errcode:" +
                 std::to_string(errcode));
     } else {
         auto* context = reinterpret_cast<UpgradeCouchFileContext*>(ctx);
-        context->output.processDocument(doc, docinfo);
+        context->output.processDocument(doc, *docinfo);
     }
     return 0;
 }
