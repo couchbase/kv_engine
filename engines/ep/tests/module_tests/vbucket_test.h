@@ -142,13 +142,14 @@ protected:
         return;
     };
 
+    const Vbid vbid{0};
     std::unique_ptr<VBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
     const void* cookie = {};
     const uint64_t lastSeqno{1000};
-    const snapshot_range_t range{5, lastSeqno};
+    snapshot_range_t range{5, lastSeqno};
 };
 
 /**
@@ -174,6 +175,10 @@ public:
 
     VBType getVbType() const {
         return std::get<0>(GetParam());
+    }
+
+    bool persistent() const {
+        return getVbType() == VBType::Persistent;
     }
 
     static std::string PrintToStringParamName(
