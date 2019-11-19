@@ -1043,15 +1043,15 @@
             "type": "size_t"
         },
         "magma_num_flushers": {
-            "default": "1",
+            "default": "4",
             "dynamic": false,
-            "descr": "Number of threads to write filled memtables to disk.",
+            "descr": "Number of threads across all magma instances to write filled memtables to disk.",
             "type": "size_t"
         },
         "magma_num_compactors": {
-            "default": "4",
+            "default": "16",
             "dynamic": false,
-            "descr": "Number of background compactor threads used by magma.",
+            "descr": "Number of background compactor threads across all magma instances used to compact magma tables.",
             "type": "size_t"
         },
         "magma_commit_point_every_batch": {
