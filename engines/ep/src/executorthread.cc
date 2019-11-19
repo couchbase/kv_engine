@@ -109,9 +109,13 @@ void ExecutorThread::stop(bool wait) {
 
 void ExecutorThread::run() {
     EP_LOG_DEBUG("Thread {} running..", getName());
+    // The run loop should not account to any bucket, only once inside a task
+    // will accounting be back on. GlobalTask::execute will switch to the bucket
+    // and ExecutorPool::cancel will guard the task delete clause with the
+    // BucketAllocationGuard to account task deletion to the bucket.
+    NonBucketAllocationGuard guard;
 
     for (uint8_t tick = 1;; tick++) {
-        resetCurrentTask();
 
         if (state != EXECUTOR_RUNNING) {
             break;
@@ -120,17 +124,10 @@ void ExecutorThread::run() {
         updateCurrentTime();
         if (TaskQueue *q = manager->nextTask(*this, tick)) {
             manager->startWork(taskType);
-            EventuallyPersistentEngine *engine = currentTask->getEngine();
-
-            // Not all tasks are associated with an engine, only switch
-            // for those that do.
-            if (engine) {
-                ObjectRegistry::onSwitchThread(engine);
-            }
 
             if (currentTask->isdead()) {
                 manager->doneWork(taskType);
-                manager->cancel(currentTask->uid, true);
+                cancelCurrentTask(*manager);
                 continue;
             }
 
@@ -184,7 +181,7 @@ void ExecutorThread::run() {
 
             // Now Run the Task ....
             currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
-            bool again = currentTask->run();
+            bool again = currentTask->execute();
 
             // Task done, log it ...
             const std::chrono::steady_clock::duration runtime(
@@ -206,7 +203,7 @@ void ExecutorThread::run() {
 
             // Check if task is run once or needs to be rescheduled..
             if (!again || currentTask->isdead()) {
-                manager->cancel(currentTask->uid, true);
+                cancelCurrentTask(*manager);
             } else {
                 // if a task has not set snooze, update its waketime to now
                 // before rescheduling for more accurate timing histograms
@@ -223,12 +220,11 @@ void ExecutorThread::run() {
                         curTaskDescr,
                         currentTask->getId(),
                         to_ns_since_epoch(currentTask->getWaketime()).count());
+                resetCurrentTask();
             }
             manager->doneWork(taskType);
         }
     }
-    // Thread is about to terminate - disassociate it from any engine.
-    ObjectRegistry::onSwitchThread(nullptr);
 
     state = EXECUTOR_DEAD;
 }
@@ -285,4 +281,10 @@ const std::string ExecutorThread::getStateName() {
     default:
         return std::string("dead");
     }
+}
+
+void ExecutorThread::cancelCurrentTask(ExecutorPool& manager) {
+    auto uid = currentTask->uid;
+    resetCurrentTask();
+    manager.cancel(uid, true);
 }

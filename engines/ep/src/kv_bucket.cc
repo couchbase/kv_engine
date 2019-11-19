@@ -2454,11 +2454,11 @@ void KVBucket::wakeUpCheckpointRemover() {
 }
 
 void KVBucket::runDefragmenterTask() {
-    defragmenterTask->run();
+    defragmenterTask->execute();
 }
 
 void KVBucket::runItemFreqDecayerTask() {
-    itemFreqDecayerTask->run();
+    itemFreqDecayerTask->execute();
 }
 
 bool KVBucket::runAccessScannerTask() {

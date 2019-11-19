@@ -67,6 +67,12 @@ GlobalTask::~GlobalTask() {
     }
 }
 
+bool GlobalTask::execute() {
+    // Invoke run with the engine as the target for alloc/dalloc
+    BucketAllocationGuard guard(engine);
+    return run();
+}
+
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);

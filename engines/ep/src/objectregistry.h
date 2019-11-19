@@ -71,3 +71,16 @@ public:
 private:
     EventuallyPersistentEngine* engine = nullptr;
 };
+
+/**
+ * BucketAllocationGuard will place the given engine pointer into
+ * ObjectRegistry and switch back to the previous state on destruction
+ */
+class BucketAllocationGuard {
+public:
+    BucketAllocationGuard(EventuallyPersistentEngine* engine);
+    ~BucketAllocationGuard();
+
+private:
+    EventuallyPersistentEngine* previous = nullptr;
+};

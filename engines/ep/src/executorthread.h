@@ -103,8 +103,6 @@ public:
 
     void schedule(ExTask &task);
 
-    void reschedule(ExTask &task);
-
     void wake(ExTask &task);
 
     // Changes this threads' current task to the specified task
@@ -143,6 +141,7 @@ public:
     }
 
 protected:
+    void cancelCurrentTask(ExecutorPool& manager);
 
     cb_thread_t thread;
     ExecutorPool *manager;

@@ -221,4 +221,12 @@ NonBucketAllocationGuard::~NonBucketAllocationGuard() {
     th->set(engine);
 }
 
+BucketAllocationGuard::BucketAllocationGuard(EventuallyPersistentEngine* engine)
+    : previous(ObjectRegistry::onSwitchThread(engine, true)) {
+}
+
+BucketAllocationGuard::~BucketAllocationGuard() {
+    ObjectRegistry::onSwitchThread(previous);
+}
+
 #endif

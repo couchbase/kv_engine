@@ -70,18 +70,8 @@ public:
 
     virtual ~GlobalTask();
 
-    /**
-     * The invoked function when the task is executed.
-     *
-     * If the task wants to run again, it should return true - it will be
-     * added back onto the ready queue and scheduled according to it's
-     * priority. To run again but at a later time, call snooze() specifying
-     * how long to sleep before it should be scheduled again.
-     * If the task is complete (and should never be run again), return false.
-     *
-     * @return Whether or not this task should be rescheduled
-     */
-    virtual bool run() = 0;
+    /// execute the task and return true if it should be rescheduled
+    bool execute();
 
     /**
      * Gives a description of this task.
@@ -240,6 +230,19 @@ public:
     static std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> allTaskIds;
 
 protected:
+    /**
+     * The invoked function when the task is executed.
+     *
+     * If the task wants to run again, it should return true - it will be
+     * added back onto the ready queue and scheduled according to it's
+     * priority. To run again but at a later time, call snooze() specifying
+     * how long to sleep before it should be scheduled again.
+     * If the task is complete (and should never be run again), return false.
+     *
+     * @return Whether or not this task should be rescheduled
+     */
+    virtual bool run() = 0;
+
     /**
      * Wake up a task, setting it's wakeTime to "now".
      *

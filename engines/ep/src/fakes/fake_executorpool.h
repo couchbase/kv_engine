@@ -242,7 +242,7 @@ private:
             rescheduled = false;
             return;
         }
-        rescheduled = currentTask->run();
+        rescheduled = currentTask->execute();
     }
 
     TaskQueue& queue;

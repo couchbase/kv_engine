@@ -244,7 +244,6 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
 }
 
 TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
-    NonBucketAllocationGuard guard;
     TaskQueue *tq = _nextTask(t, tick);
     return tq;
 }
@@ -322,6 +321,11 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
                                    "cancel() on it");
         }
         taskLocator.erase(itr);
+        {
+            // Account the task reset to its engine
+            BucketAllocationGuard guard(task->getEngine());
+            task.reset();
+        }
         tMutex.notify_all();
     } else { // wake up the task from the TaskQ so a thread can safely erase it
              // otherwise we may race with unregisterTaskable where a unlocated
