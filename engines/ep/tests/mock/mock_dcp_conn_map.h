@@ -28,7 +28,7 @@ public:
         return deadConnections.size();
     }
 
-    AtomicQueue<std::weak_ptr<ConnHandler>>& getPendingNotifications() {
+    DcpConnMap::PendingNotificationQueue& getPendingNotifications() {
         return pendingNotifications;
     }
 

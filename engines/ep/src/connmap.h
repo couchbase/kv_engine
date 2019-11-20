@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "atomicqueue.h"
 #include "conn_store_fwd.h"
 #include "dcp/dcp-types.h"
+#include <folly/concurrency/UnboundedQueue.h>
 
 // Forward declaration
 class ConnNotifier;
@@ -105,7 +105,12 @@ protected:
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
 
-    AtomicQueue<std::weak_ptr<ConnHandler>> pendingNotifications;
+    // Unbounded, multi-producer, multi-consumer(*), non-blocking queue of
+    // ConnHandlers to be notified.
+    // Initially holds 2^5 (32) elements.
+    using PendingNotificationQueue =
+            folly::UMPMCQueue<std::weak_ptr<ConnHandler>, false, 5>;
+    PendingNotificationQueue pendingNotifications;
 
     const std::shared_ptr<ConnNotifier> connNotifier;
 

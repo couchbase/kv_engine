@@ -157,9 +157,7 @@ In addition to the basic synchronization primitives described above,
 there are also the following higher-level data structures which
 support atomic / thread-safe access from multiple threads:
 
-1. `AtomicQueue`: thread-safe, approximate-FIFO queue, optimized for
-   multiple-writers, one reader - [atomicqueue.h](./src/atomicqueue.h)
-2. `AtomicUnorderedMap` : thread-safe unordered map -
+1. `AtomicUnorderedMap` : thread-safe unordered map -
    [atomic_unordered_map.h](./src/atomic_unordered_map.h)
 
 ## Thread Local Storage (ObjectRegistry).

@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include "atomicqueue.h"
 #include "configuration.h"
 #include "couch-fs-stats.h"
 #include "couch-kvstore-metadata.h"
@@ -29,6 +28,7 @@
 
 #include <map>
 #include <memory>
+#include <queue>
 #include <string>
 #include <vector>
 
