@@ -365,10 +365,6 @@ struct ServerCookieApi : public ServerCookieIface {
 class ServerApi : public SERVER_HANDLE_V1 {
 public:
     ServerApi() : server_handle_v1_t() {
-        hooks_api.add_new_hook = AllocHooks::add_new_hook;
-        hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
-        hooks_api.add_delete_hook = AllocHooks::add_delete_hook;
-        hooks_api.remove_delete_hook = AllocHooks::remove_delete_hook;
         hooks_api.get_extra_stats_size = AllocHooks::get_extra_stats_size;
         hooks_api.get_allocator_stats = AllocHooks::get_allocator_stats;
         hooks_api.get_allocation_size = AllocHooks::get_allocation_size;

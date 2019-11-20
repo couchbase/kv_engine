@@ -102,22 +102,6 @@ void JemallocHooks::initialize() {
     // No initialization required.
 }
 
-bool JemallocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return cb_add_new_hook(hook);
-}
-
-bool JemallocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return cb_remove_new_hook(hook);
-}
-
-bool JemallocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
-    return cb_add_delete_hook(hook);
-}
-
-bool JemallocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
-    return cb_remove_delete_hook(hook);
-}
-
 int JemallocHooks::get_extra_stats_size() {
     return 0;
 }

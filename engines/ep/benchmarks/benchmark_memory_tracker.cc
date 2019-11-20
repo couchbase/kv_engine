@@ -89,7 +89,6 @@ void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
         currentAlloc += alloc;
         maxTotalAllocation.store(
                 std::max(currentAlloc.load(), maxTotalAllocation.load()));
-        ObjectRegistry::memoryAllocated(alloc);
     }
 }
 void BenchmarkMemoryTracker::DeleteHook(const void* ptr) {
@@ -98,7 +97,6 @@ void BenchmarkMemoryTracker::DeleteHook(const void* ptr) {
         void* p = const_cast<void*>(ptr);
         size_t alloc = tracker->hooks_api.get_allocation_size(p);
         currentAlloc -= alloc;
-        ObjectRegistry::memoryDeallocated(alloc);
     }
 }
 

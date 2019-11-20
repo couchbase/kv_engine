@@ -25,7 +25,6 @@
 
 #if 1
 static ThreadLocal<EventuallyPersistentEngine*> *th;
-static ThreadLocal<std::atomic<size_t>*> *initial_track;
 
 extern "C" {
     static size_t defaultGetAllocSize(const void *) {
@@ -46,12 +45,10 @@ public:
    installer() {
       if (th == NULL) {
          th = new ThreadLocal<EventuallyPersistentEngine*>();
-         initial_track = new ThreadLocal<std::atomic<size_t>*>();
       }
    }
 
    ~installer() {
-       delete initial_track;
        delete th;
    }
 } install;
@@ -190,38 +187,6 @@ EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
         cb::ArenaMalloc::switchFromClient();
     }
     return old_engine;
-}
-
-// @todo remove the initial_track and associated code, no longer used.
-void ObjectRegistry::setStats(std::atomic<size_t>* init_track) {
-    initial_track->set(init_track);
-}
-
-// @todo remove the memory hooks and associated code, no longer called.
-bool ObjectRegistry::memoryAllocated(size_t mem) {
-    EventuallyPersistentEngine *engine = th->get();
-    if (initial_track->get()) {
-        initial_track->get()->fetch_add(mem);
-    }
-    if (!engine) {
-        return false;
-    }
-    EPStats &stats = engine->getEpStats();
-    stats.memAllocated(mem);
-    return true;
-}
-
-bool ObjectRegistry::memoryDeallocated(size_t mem) {
-    EventuallyPersistentEngine *engine = th->get();
-    if (initial_track->get()) {
-        initial_track->get()->fetch_sub(mem);
-    }
-    if (!engine) {
-        return false;
-    }
-    EPStats &stats = engine->getEpStats();
-    stats.memDeallocated(mem);
-    return true;
 }
 
 NonBucketAllocationGuard::NonBucketAllocationGuard()

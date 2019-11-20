@@ -59,15 +59,11 @@ public:
 private:
     MemoryTracker(const ServerAllocatorIface& hooks_api_);
 
-    // Helper function for construction - connects the tracker
-    // to the memory allocator via alloc_hooks.
-    void connectHooks();
+    // Helper function for starting statsThreadMainLoop in a thread
+    void startThread();
 
     // Function for the stats updater main loop.
     static void statsThreadMainLoop(void* arg);
-
-    static void NewHook(const void* ptr, size_t);
-    static void DeleteHook(const void* ptr);
 
     // Wheter or not we have the ability to accurately track memory allocations
     static std::atomic<bool> tracking;

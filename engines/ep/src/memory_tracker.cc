@@ -16,13 +16,13 @@
  */
 
 #include <memcached/engine.h>
+#include <platform/cb_arena_malloc.h>
 
 #include <string>
 #include <utility>
 
 #include "bucket_logger.h"
 #include "memory_tracker.h"
-#include "objectregistry.h"
 #include "utility.h"
 
 std::atomic<bool> MemoryTracker::tracking{false};
@@ -60,11 +60,11 @@ MemoryTracker* MemoryTracker::getInstance(
             // split. The issue is that until the constructor
             // completes (and {instance} is assigned) it is not
             // possible to 'service' any memory allocator callbacks -
-            // as the New/Delete hooks need to read {instance}.hooks_api
+            // as the hooks need to read {instance}.hooks_api
             tmp = new MemoryTracker(hooks_api_);
             instance.store(tmp);
 
-            instance.load()->connectHooks();
+            instance.load()->startThread();
         }
     }
     return tmp;
@@ -79,59 +79,35 @@ void MemoryTracker::destroyInstance() {
     }
 }
 
-void MemoryTracker::NewHook(const void* ptr, size_t) {
-    if (ptr != NULL) {
-        const auto* tracker = MemoryTracker::instance.load();
-        void* p = const_cast<void*>(ptr);
-        size_t alloc = tracker->hooks_api.get_allocation_size(p);
-        ObjectRegistry::memoryAllocated(alloc);
-    }
-}
-
-void MemoryTracker::DeleteHook(const void* ptr) {
-    if (ptr != NULL) {
-        const auto* tracker = MemoryTracker::instance.load();
-        void* p = const_cast<void*>(ptr);
-        size_t alloc = tracker->hooks_api.get_allocation_size(p);
-        ObjectRegistry::memoryDeallocated(alloc);
-    }
-}
-
 MemoryTracker::MemoryTracker(const ServerAllocatorIface& hooks_api_)
     : hooks_api(hooks_api_) {
     // Just create the object, actual hook registration happens
     // once we have a concrete object constructed.
 }
 
-void MemoryTracker::connectHooks() {
+void MemoryTracker::startThread() {
     if (getenv("EP_NO_MEMACCOUNT") != NULL) {
-        EP_LOG_INFO("Memory allocation tracking disabled");
+        EP_LOG_INFO(
+                "Memory allocation tracking disabled, not starting "
+                "statsThreadMainLoop");
         return;
     }
-    stats.ext_stats.resize(hooks_api.get_extra_stats_size());
 
-    if (hooks_api.add_new_hook(&NewHook)) {
-        EP_LOG_DEBUG("Registered add hook");
-        if (hooks_api.add_delete_hook(&DeleteHook)) {
-            EP_LOG_DEBUG("Registered delete hook");
-            tracking = true;
-            updateStats();
-            if (cb_create_named_thread(&statsThreadId,
-                                       statsThreadMainLoop,
-                                       this, 0, "mc:mem stats") != 0) {
-                throw std::runtime_error(
-                        "Error creating thread to update stats");
-            }
-            return;
+    if (cb::ArenaMalloc::canTrackAllocations()) {
+        tracking = true;
+        updateStats();
+        if (cb_create_named_thread(&statsThreadId,
+                                   statsThreadMainLoop,
+                                   this,
+                                   0,
+                                   "mc:mem stats") != 0) {
+            throw std::runtime_error("Error creating thread to update stats");
         }
-        hooks_api.remove_new_hook(&NewHook);
+        return;
     }
-    EP_LOG_WARN("Failed to register allocator hooks");
 }
 
 MemoryTracker::~MemoryTracker() {
-    hooks_api.remove_new_hook(&NewHook);
-    hooks_api.remove_delete_hook(&DeleteHook);
     if (tracking) {
         tracking = false;
         shutdown_cv.notify_all();

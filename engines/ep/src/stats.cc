@@ -74,7 +74,6 @@ EPStats::EPStats()
       numValueEjects(0),
       numFailedEjects(0),
       numNotMyVBuckets(0),
-      estimatedTotalMemory(0),
       forceShutdown(false),
       oom_errors(0),
       tmp_oom_errors(0),
@@ -134,52 +133,6 @@ EPStats::~EPStats() {
 void EPStats::setMaxDataSize(size_t size) {
     if (size > 0) {
         maxDataSize.store(size);
-    }
-}
-
-void EPStats::memAllocated(size_t sz) {
-    if (isShutdown) {
-        return;
-    }
-
-    if (0 == sz) {
-        return;
-    }
-
-    auto& coreMemory = coreLocal.get()->totalMemory;
-
-    // Update the coreMemory and also create a local copy of the old value + sz
-    // This value will be used to check the threshold
-    auto value = coreMemory.fetch_add(sz) + sz;
-
-    maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
-}
-
-void EPStats::memDeallocated(size_t sz) {
-    if (isShutdown) {
-        return;
-    }
-
-    if (0 == sz) {
-        return;
-    }
-
-    auto& coreMemory = coreLocal.get()->totalMemory;
-
-    // Update the coreMemory and also create a local copy of the old value - sz
-    // This value will be used to check the threshold
-    auto value = coreMemory.fetch_sub(sz) - sz;
-
-    maybeUpdateEstimatedTotalMemUsed(coreMemory, value);
-}
-
-void EPStats::maybeUpdateEstimatedTotalMemUsed(
-        cb::RelaxedAtomic<int64_t>& coreMemory, int64_t value) {
-    // If this thread succeeds in swapping, this thread updates total
-    // @todo: remove this function and callers - it is deadcode
-    if (std::abs(value) > 0) {
-        // Swap the core's value to 0 and update total with whatever we got
-        estimatedTotalMemory->fetch_add(coreMemory.exchange(0));
     }
 }
 

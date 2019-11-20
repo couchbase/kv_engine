@@ -34,22 +34,6 @@ void DummyAllocHooks::initialize() {
     }
 }
 
-bool DummyAllocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return false;
-}
-
-bool DummyAllocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return false;
-}
-
-bool DummyAllocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
-    return false;
-}
-
-bool DummyAllocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
-    return false;
-}
-
 int DummyAllocHooks::get_extra_stats_size() {
     return 0;
 }

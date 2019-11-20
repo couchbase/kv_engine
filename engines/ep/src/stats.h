@@ -68,8 +68,7 @@ public:
     }
 
     /**
-     * Set the max data size and return the estimated memory update threshold
-     * which cb::ArenaMalloc requires
+     * Set the max data size
      */
     void setMaxDataSize(size_t size);
 
@@ -133,12 +132,6 @@ public:
 
     /// @returns number of Item objects which exist.
     size_t getNumItem() const;
-
-    // account for allocated mem
-    void memAllocated(size_t sz);
-
-    // account for deallocated mem
-    void memDeallocated(size_t sz);
 
     /**
      * Set the low water mark to the new value.
@@ -267,11 +260,6 @@ public:
     Counter numFailedEjects;
     //! Number of times "Not my bucket" happened
     Counter numNotMyVBuckets;
-
-    //! The total amount of memory used by this bucket (From memory tracking)
-    // This is a signed variable as depending on how/when the thread-local
-    // counters merge their info, this could be negative
-    folly::CachelinePadded<cb::RelaxedAtomic<int64_t>> estimatedTotalMemory;
 
     //! Core-local statistics
     CoreStore<folly::CachelinePadded<CoreLocalStats>> coreLocal;
@@ -538,18 +526,6 @@ public:
     std::ostream *timingLog;
 
 protected:
-    /**
-     * Check abs(value) against memUsedMergeThreshold, if it is greater then
-     * The thread will attempt to reset coreMemory to zero. If the thread
-     * succesfully resets coreMemory to zero than value is accumulated into
-     * estimatedTotalMemory
-     * @param coreMemory reference to the atomic int64 that the thread is
-     *        associated with.
-     * @param value The expected value of coreMemory for cmpxchg purposes and
-     *        also the value which may be added into estimatedTotalMemory.
-     */
-    void maybeUpdateEstimatedTotalMemUsed(
-            cb::RelaxedAtomic<int64_t>& coreMemory, int64_t value);
 
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
@@ -572,9 +548,6 @@ public:
     // This is a signed variable as depending on how/when the core-local
     // counters merge their info, this could be negative.
     using Counter = cb::RelaxedAtomic<int64_t>;
-
-    //! The total amount of memory used by this bucket (From memory tracking)
-    Counter totalMemory;
 
     //! Total size of stored objects.
     Counter currentSize;

@@ -20,10 +20,6 @@
 #endif
 
 X(initialize, void, ())
-X(add_new_hook, bool, (void (* hook)(const void* ptr, size_t size)))
-X(remove_new_hook, bool, (void (* hook)(const void* ptr, size_t size)))
-X(add_delete_hook, bool, (void (* hook)(const void* ptr)))
-X(remove_delete_hook, bool, (void (* hook)(const void* ptr)))
 X(get_extra_stats_size, int, ())
 X(get_allocator_stats, void, (allocator_stats* stats))
 X(get_allocation_size, size_t, (const void* ptr))
