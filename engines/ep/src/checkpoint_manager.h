@@ -61,6 +61,9 @@ struct CheckpointSnapshotRange {
     // HCS that should be flushed. Currently should only be set for Disk
     // Checkpoint runs.
     boost::optional<uint64_t> highCompletedSeqno = {};
+    // HPS that should be flushed when the entire range has been persisted.
+    // This is the seqno of the latest prepare in this checkpoint.
+    boost::optional<uint64_t> highPreparedSeqno = {};
 };
 
 /**

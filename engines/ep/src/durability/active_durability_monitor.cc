@@ -182,7 +182,7 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     s->updateHighPreparedSeqno(*resolvedQueue);
 
     s->lastTrackedSeqno.reset(vbs.persistedPreparedSeqno);
-    s->highPreparedSeqno.reset(vbs.persistedPreparedSeqno);
+    s->highPreparedSeqno.reset(vbs.highPreparedSeqno);
     s->highCompletedSeqno.reset(vbs.persistedCompletedSeqno);
 }
 

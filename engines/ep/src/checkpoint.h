@@ -565,6 +565,22 @@ public:
     }
 
     /**
+     * Tracks the seqno of the latest prepare queued.
+     * @param seqno the seqno of the prepare which has been queued
+     */
+    void setHighPreparedSeqno(uint64_t seqno) {
+        // assignment checks monotonicity
+        highPreparedSeqno = seqno;
+    }
+
+    /**
+     * Returns the seqno of the last prepare queued in the checkpoint.
+     */
+    boost::optional<uint64_t> getHighPreparedSeqno() const {
+        return boost::make_optional(highPreparedSeqno != 0, static_cast<uint64_t>(highPreparedSeqno));
+    }
+
+    /**
      * Returns an iterator pointing to the beginning of the CheckpointQueue,
      * toWrite.
      */
@@ -712,6 +728,12 @@ private:
     // items from the CheckpointManager for memory snapshots makes it
     // non-trivial to send the HCS in memory snapshot markers.
     boost::optional<uint64_t> highCompletedSeqno;
+
+    // Tracks the seqno of the most recently queued prepare. Once this entire
+    // checkpoint has been persisted, the state on disk definitely has a
+    // state which could be warmed up and validly have this seqno as the
+    // high prepared seqno.
+    Monotonic<uint64_t> highPreparedSeqno = 0;
 
     // queueDirty inspects each queued_item looking for isDeleted():true
     // this value tracks the largest rev seqno of those deleted items,

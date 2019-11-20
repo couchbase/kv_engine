@@ -159,6 +159,17 @@ struct vbucket_state {
     uint64_t persistedPreparedSeqno = 0;
 
     /**
+     * Stores the seqno of the most recent prepare (Pending SyncWrite) seen in a
+     * completed snapshot. This reflects the in-memory highPreparedSeqno
+     * behaviour, and is used to initialise the in-memory value on warmup. This
+     * is relevant for a replica, which should not acknowledge a seqno as
+     * Prepared until the entire snapshot is received. Using the
+     * persistedPreparedSeqno would lead to a replica acking a seqno which is
+     * too high. Added for SyncReplication in 6.5.
+     */
+    uint64_t highPreparedSeqno = 0;
+
+    /**
      * Number of on disk prepares (Pending SyncWrites). Required to correct the
      * vBucket level on disk document counts (for Full Eviction). Added for
      * SyncReplication in 6.5.
