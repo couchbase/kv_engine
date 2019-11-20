@@ -157,7 +157,7 @@ public:
     /// Set the number of backfill items remaining to the given value.
     void setBackfillRemaining(size_t value);
 
-    void setBackfillRemaining_UNLOCKED(size_t value, LockHolder& lh);
+    void setBackfillRemaining_UNLOCKED(size_t value);
 
     /// Clears the number of backfill items remaining, setting to an empty
     /// (unknown) value.
@@ -168,7 +168,9 @@ public:
      * the backfill range which will be sent.
      *
      * Connections which have not negotiated for sync writes will not
-     * send prepares or aborts.
+     * send prepares or aborts; if the entire backfill is prepares or
+     * aborts, then a snapshot marker should not be sent because no
+     * items will follow.
      *
      * @param startSeqno start of backfill range
      * @param endSeqno seqno of last item in backfill range
@@ -176,8 +178,10 @@ public:
      * range
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
+     * @return If the stream has queued a snapshot marker. If this is false, the
+     *         stream determined none of the items in the backfill would be sent
      */
-    void markDiskSnapshot(uint64_t startSeqno,
+    bool markDiskSnapshot(uint64_t startSeqno,
                           uint64_t endSeqno,
                           boost::optional<uint64_t> highCompletedSeqno,
                           uint64_t maxVisibleSeqno);
@@ -282,6 +286,20 @@ public:
                                uint64_t preparedSeqno);
 
     static std::string to_string(StreamState type);
+
+    /**
+     * Notifies the stream that a scheduled backfill completed
+     * without providing any items to backfillReceived, and
+     * without marking a disk snapshot.
+     *
+     * If the cursor has been dropped, re-registers it to allow the stream
+     * to transition to memory.
+     *
+     * @param lastReadSeqno last seqno in backfill range
+     */
+    void notifyEmptyBackfill(uint64_t lastSeenSeqno);
+
+    void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
 
 protected:
     /**

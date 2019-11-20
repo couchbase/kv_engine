@@ -349,6 +349,17 @@ void DCPTest::removeCheckpoint(int numItems) {
 }
 int DCPTest::callbackCount = 0;
 
+void DCPTest::runCheckpointProcessor(dcp_message_producers& producers) {
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP
+    // stream
+    producer->getCheckpointSnapshotTask()->run();
+}
+
 /*
  * MB-30189: Test that addStats() on the DcpProducer object doesn't
  * attempt to dereference the cookie passed in (as it's not it's

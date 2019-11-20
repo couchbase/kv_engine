@@ -98,6 +98,8 @@ protected:
 
     void removeCheckpoint(int numItems);
 
+    void runCheckpointProcessor(dcp_message_producers& producers);
+
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
     VBucketPtr vb0;

@@ -38,6 +38,8 @@ public:
                     uint32_t flags,
                     bool startTask = true);
 
+    using DcpProducer::updateStreamsMap;
+
     ENGINE_ERROR_CODE maybeDisconnect() {
         return DcpProducer::maybeDisconnect();
     }
@@ -159,7 +161,9 @@ public:
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
             uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno);
+            uint64_t snap_end_seqno,
+            IncludeValue includeValue = IncludeValue::Yes,
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes);
 
     /**
      * Step the producer and expect the opcode to be returned

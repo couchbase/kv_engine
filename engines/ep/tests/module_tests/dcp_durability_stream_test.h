@@ -61,6 +61,33 @@ protected:
     ENGINE_ERROR_CODE simulateStreamSeqnoAck(const std::string& consumerName,
                                              uint64_t preparedSeqno);
 
+    /**
+     * Test that backfill for a stream which has not negotiated sync write
+     * support sends a snapshot end seqno corresponding to an item which will
+     * be sent - not the seqno of a prepare or abort.
+     */
+    void testBackfillNoSyncWriteSupport(DocumentState docState,
+                                        cb::durability::Level level);
+
+    /**
+     * Test that backfill for a stream which has not negotiated sync write
+     * does not send an empty snapshot if backfill finds only prepares/aborts
+     * and the stream transitions to in-memory correctly.
+     */
+    void testEmptyBackfillNoSyncWriteSupport(DocumentState docState,
+                                             cb::durability::Level level);
+
+    /**
+     * Test that backfill for a stream which has not negotiated sync write
+     * does not send an empty snapshot if cursor dropping triggers backfill,
+     * which finds only prepares/aborts, and the stream transitions back to
+     * in-memory correctly and streams the expected items from memory.
+     */
+    void testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+            DocumentState docState, cb::durability::Level level);
+
+    void removeCheckpoint(VBucket& vb, int numItems);
+
     const std::string active = "active";
     const std::string replica = "replica";
 };

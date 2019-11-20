@@ -150,12 +150,6 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
        remaining count */
     while (rangeItr.curr() != rangeItr.end()) {
         if (static_cast<uint64_t>((*rangeItr).getBySeqno()) >= startSeqno) {
-            /* Set backfill remaining
-               [EPHE TODO]: This will be inaccurate if do not backfill till end
-                            of the iterator
-             */
-            stream->setBackfillRemaining(rangeItr.count());
-
             /* Determine the endSeqno of the current snapshot.
                We want to send till requested endSeqno, but if that cannot
                constitute a snapshot then we need to send till the point
@@ -170,16 +164,31 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                     std::min(endSeqno, static_cast<uint64_t>(rangeItr.back()));
 
             /* Mark disk snapshot */
-            stream->markDiskSnapshot(startSeqno,
-                                     endSeqno,
-                                     evb->getHighCompletedSeqno(),
-                                     rangeItr.getMaxVisibleSeqno());
+            bool markerSent =
+                    stream->markDiskSnapshot(startSeqno,
+                                             endSeqno,
+                                             evb->getHighCompletedSeqno(),
+                                             rangeItr.getMaxVisibleSeqno());
 
-            /* Change the backfill state */
-            transitionState(BackfillState::Scanning);
+            if (markerSent) {
+                /* Set backfill remaining
+                   [EPHE TODO]: This will be inaccurate if do not backfill till
+                   end of the iterator Additionally, this value may be an
+                   overestimate even if backfilled to the iterator end - it
+                   includes prepares/aborts which will not be sent if the stream
+                   is not sync write aware
+                 */
+                stream->setBackfillRemaining(rangeItr.count());
 
-            /* Jump to scan here itself */
-            return scan();
+                /* Change the backfill state */
+                transitionState(BackfillState::Scanning);
+                /* Jump to scan here itself */
+                return scan();
+            } else {
+                // func call complete before exiting, halting the
+                // backfill as it is unneeded.
+                break;
+            }
         }
         ++rangeItr;
     }
