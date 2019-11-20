@@ -26,6 +26,7 @@
 #include "monotonic.h"
 
 #include <folly/SharedMutex.h>
+#include <folly/Synchronized.h>
 #include <platform/strerror.h>
 #include <relaxed_atomic.h>
 
@@ -811,8 +812,9 @@ protected:
     std::vector<cb::RelaxedAtomic<size_t>> cachedDeleteCount;
     std::vector<cb::RelaxedAtomic<uint64_t>> cachedFileSize;
     std::vector<cb::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
+
     /* pending file deletions */
-    AtomicQueue<std::string> pendingFileDeletions;
+    folly::Synchronized<std::queue<std::string>> pendingFileDeletions;
 
     std::atomic<size_t> scanCounter; //atomic counter for generating scan id
     std::map<size_t, Db*> scans; //map holding active scans
