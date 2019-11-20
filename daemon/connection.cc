@@ -495,13 +495,13 @@ void Connection::enqueueServerEvent(std::unique_ptr<ServerEvent> event) {
     server_events.push(std::move(event));
 }
 
-void Connection::read_callback(bufferevent*, void* ctx) {
+void Connection::rw_callback(bufferevent*, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
     auto& thread = instance.getThread();
 
     TRACE_LOCKGUARD_TIMED(thread.mutex,
                           "mutex",
-                          "Connection::read_callback::threadLock",
+                          "Connection::rw_callback::threadLock",
                           SlowMutexThreshold);
 
     // Remove the connection from the list of pending io's (in case the
@@ -525,35 +525,6 @@ void Connection::read_callback(bufferevent*, void* ctx) {
     // Remove the connection from the notification list if it's there
     thread.notification.remove(&instance);
 
-    run_event_loop(instance);
-}
-
-void Connection::write_callback(bufferevent*, void* ctx) {
-    auto& instance = *reinterpret_cast<Connection*>(ctx);
-    auto& thread = instance.getThread();
-    TRACE_LOCKGUARD_TIMED(thread.mutex,
-                          "mutex",
-                          "Connection::write_callback::threadLock",
-                          SlowMutexThreshold);
-    // Remove the connection from the list of pending io's (in case the
-    // object was scheduled to run in the dispatcher before the
-    // callback for the worker thread is executed.
-    {
-        std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
-        auto iter = thread.pending_io.map.find(&instance);
-        if (iter != thread.pending_io.map.end()) {
-            for (const auto& pair : iter->second) {
-                if (pair.first) {
-                    pair.first->setAiostat(pair.second);
-                    pair.first->setEwouldblock(false);
-                }
-            }
-            thread.pending_io.map.erase(iter);
-        }
-    }
-
-    // Remove the connection from the notification list if it's there
-    thread.notification.remove(&instance);
     run_event_loop(instance);
 }
 
@@ -663,13 +634,13 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
 
     // update the callback to call the normal read callback
     bufferevent_setcb(bev,
-                      Connection::read_callback,
-                      Connection::write_callback,
+                      Connection::rw_callback,
+                      Connection::rw_callback,
                       Connection::event_callback,
                       ctx);
 
     // and let's call it to make sure we step through the state machinery
-    Connection::read_callback(bev, ctx);
+    Connection::rw_callback(bev, ctx);
 }
 
 void Connection::setAuthenticated(bool authenticated) {
@@ -862,14 +833,14 @@ Connection::Connection(SOCKET sfd,
                 base, sfd, client_ctx, BUFFEREVENT_SSL_ACCEPTING, 0));
         bufferevent_setcb(bev.get(),
                           Connection::ssl_read_callback,
-                          Connection::write_callback,
+                          Connection::rw_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
     } else {
         bev.reset(bufferevent_socket_new(base, sfd, 0));
         bufferevent_setcb(bev.get(),
-                          Connection::read_callback,
-                          Connection::write_callback,
+                          Connection::rw_callback,
+                          Connection::rw_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
     }

@@ -1107,9 +1107,25 @@ public:
     size_t getSendQueueSize() const;
 
 protected:
-    static void read_callback(bufferevent*, void* ctx);
-    static void write_callback(bufferevent*, void* ctx);
-    static void event_callback(bufferevent*, short event, void* ctx);
+    /**
+     * The callback method called from bufferevent for read/write callbacks
+     *
+     * @param bev the bufferevent structure the event belongs to
+     * @param ctx the context registered with the bufferevent (pointer to
+     *            the connection object)
+     */
+    static void rw_callback(bufferevent* bev, void* ctx);
+
+    /**
+     * The callback method called from bufferevent for "other" callbacks
+     *
+     * @param bev the bufferevent structure the event belongs to
+     * @param event the event type
+     * @param ctx the context registered with the bufferevent (pointer to
+     *            the connection object)
+     */
+    static void event_callback(bufferevent* bev, short event, void* ctx);
+
     /**
      * The initial read callback for SSL connections and perform
      * client certificate verification, authentication and authorization
