@@ -170,6 +170,16 @@ struct vbucket_state {
     uint64_t highPreparedSeqno = 0;
 
     /**
+     * Stores the seqno of the most recent "visible" item persisted to disk
+     * i.e., a seqno representing committed state exposed to end users, in
+     * contrast to internally used data. Visible items include system events,
+     * mutations, commits, and deletions but excludes prepares and aborts.
+     * Backfills should end on this seqno if the connection has not negotiated
+     * sync writes. Added for SyncReplication in 6.5.
+     */
+    uint64_t maxVisibleSeqno = 0;
+
+    /**
      * Number of on disk prepares (Pending SyncWrites). Required to correct the
      * vBucket level on disk document counts (for Full Eviction). Added for
      * SyncReplication in 6.5.

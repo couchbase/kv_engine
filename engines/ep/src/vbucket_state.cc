@@ -79,8 +79,8 @@ bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
     return (transition.needsToBePersisted(vbstate.transition) ||
             persistedCompletedSeqno != vbstate.persistedCompletedSeqno ||
             persistedPreparedSeqno != vbstate.persistedPreparedSeqno ||
-            highPreparedSeqno !=
-            vbstate.highPreparedSeqno);
+            highPreparedSeqno != vbstate.highPreparedSeqno ||
+            maxVisibleSeqno != vbstate.maxVisibleSeqno);
 }
 
 void vbucket_state::reset() {
@@ -97,6 +97,7 @@ void vbucket_state::reset() {
     persistedCompletedSeqno = 0;
     persistedPreparedSeqno = 0;
     highPreparedSeqno = 0;
+    maxVisibleSeqno = 0;
     onDiskPrepares = 0;
     transition = vbucket_transition_state{};
 }
@@ -117,6 +118,7 @@ bool vbucket_state::operator==(const vbucket_state& other) const {
     rv = rv && (persistedPreparedSeqno == other.persistedPreparedSeqno);
     rv = rv && (highPreparedSeqno ==
                 other.highPreparedSeqno);
+    rv = rv && (maxVisibleSeqno == other.maxVisibleSeqno);
     rv = rv && (onDiskPrepares == other.onDiskPrepares);
     rv = rv && (checkpointType == other.checkpointType);
     rv = rv && (transition == other.transition);
@@ -147,8 +149,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"version", vbs.version},
             {"completed_seqno", std::to_string(vbs.persistedCompletedSeqno)},
             {"prepared_seqno", std::to_string(vbs.persistedPreparedSeqno)},
-            {"high_prepared_seqno",
-             std::to_string(vbs.highPreparedSeqno)},
+            {"high_prepared_seqno", std::to_string(vbs.highPreparedSeqno)},
+            {"max_visible_seqno", std::to_string(vbs.maxVisibleSeqno)},
             {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)},
             {"checkpoint_type", to_string(vbs.checkpointType)}};
 
@@ -199,6 +201,15 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
         vbs.highPreparedSeqno = std::stoull((*hps).get<std::string>());
     } else {
         vbs.highPreparedSeqno = 0;
+    }
+
+    // Note: We don't have a maxVisibleSeqno in pre-6.5
+    auto maxVisibleSeqno = j.find("max_visible_seqno");
+    if (maxVisibleSeqno != j.end()) {
+        vbs.maxVisibleSeqno =
+                std::stoull((*maxVisibleSeqno).get<std::string>());
+    } else {
+        vbs.maxVisibleSeqno = 0;
     }
 
     // Note: We don't track on disk prepares pre-6.5

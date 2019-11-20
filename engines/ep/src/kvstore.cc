@@ -194,6 +194,7 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
             vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
             vbState->highPreparedSeqno =
                     newState.highPreparedSeqno;
+            vbState->maxVisibleSeqno = newState.maxVisibleSeqno;
             vbState->onDiskPrepares = newState.onDiskPrepares;
         } else {
             state_change_detected = false;
