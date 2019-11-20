@@ -1244,7 +1244,7 @@ void Connection::setPriority(Connection::Priority priority) {
                         EventPriority::Low);
         return;
     }
-    throw std::invalid_argument("Unkown priority: " +
+    throw std::invalid_argument("Unknown priority: " +
                                 std::to_string(int(priority)));
 }
 

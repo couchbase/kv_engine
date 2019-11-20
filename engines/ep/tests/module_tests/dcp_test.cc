@@ -1243,12 +1243,12 @@ TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
                                                       "test_producer",
                                                       /*flags*/ 0);
 
-    /* Send an unkown control message to the producer and expect an error code
+    /* Send an unknown control message to the producer and expect an error code
        of "ENGINE_EINVAL" */
-    const std::string unkownCtrlMsg("unknown");
-    const std::string unkownCtrlValue("blah");
+    const std::string unknownCtrlMsg("unknown");
+    const std::string unknownCtrlValue("blah");
     EXPECT_EQ(ENGINE_EINVAL,
-              producer->control(0, unkownCtrlMsg, unkownCtrlValue));
+              producer->control(0, unknownCtrlMsg, unknownCtrlValue));
     destroy_mock_cookie(cookie);
 }
 
