@@ -23,6 +23,7 @@
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "item.h"
+#include "vbucket_state.h"
 #ifdef EP_USE_MAGMA
 #include "magma-kvstore/magma-kvstore.h"
 #include "magma-kvstore/magma-kvstore_config.h"
@@ -54,7 +55,7 @@ ScanContext::ScanContext(
         DocumentFilter _docFilter,
         ValueFilter _valFilter,
         uint64_t _documentCount,
-        uint64_t highCompletedSeqno,
+        const vbucket_state& vbucketState,
         const KVStoreConfig& _config,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections)
@@ -69,7 +70,8 @@ ScanContext::ScanContext(
       docFilter(_docFilter),
       valFilter(_valFilter),
       documentCount(_documentCount),
-      persistedCompletedSeqno(highCompletedSeqno),
+      maxVisibleSeqno(vbucketState.maxVisibleSeqno),
+      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno),
       logger(globalBucketLogger.get()),
       config(_config),
       collectionsContext(droppedCollections) {

@@ -203,6 +203,8 @@ enum class VBStatePersist {
     VBSTATE_PERSIST_WITH_COMMIT      //Persist with commit to disk
 };
 
+struct vbucket_state;
+
 class ScanContext {
 public:
     ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
@@ -215,7 +217,7 @@ public:
                 DocumentFilter _docFilter,
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
-                uint64_t highCompletedSeqno,
+                const vbucket_state& vbucketState,
                 const KVStoreConfig& _config,
                 const std::vector<Collections::KVStore::DroppedCollection>&
                         droppedCollections);
@@ -233,6 +235,13 @@ public:
     const ValueFilter valFilter;
     const uint64_t documentCount;
 
+    /**
+     * The highest seqno of a mutation or commit on disk. Used for backfill
+     * for non sync-write aware connections as the snapshot end to ensure the
+     * snapshot end matches the last item sent (aborts and prepares are skipped
+     * for such connections).
+     */
+    const uint64_t maxVisibleSeqno;
     /**
      * The on disk "High Completed Seqno". This number changes in different ways
      * when compared to the one in memory so has been named differently. The

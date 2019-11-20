@@ -1499,7 +1499,7 @@ public:
                      DocumentFilter _docFilter,
                      ValueFilter _valFilter,
                      uint64_t _documentCount,
-                     uint64_t highCompletedSeqno,
+                     const vbucket_state& vbucketState,
                      const KVStoreConfig& _config,
                      const std::vector<Collections::KVStore::DroppedCollection>&
                              droppedCollections,
@@ -1514,7 +1514,7 @@ public:
                       _docFilter,
                       _valFilter,
                       _documentCount,
-                      highCompletedSeqno,
+                      vbucketState,
                       _config,
                       droppedCollections),
           kvHandle(kvHandle) {
@@ -1535,23 +1535,24 @@ ScanContext* MagmaKVStore::initScanContext(
 
     auto kvHandle = getMagmaKVHandle(vbid);
 
-    uint64_t highSeqno;
-    uint64_t purgeSeqno;
-    uint64_t docCount;
-    uint64_t highCompletedSeqno;
+    vbucket_state vbstate;
+
     {
         std::shared_lock<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
-        auto vbstate = cachedVBStates[vbid.get()].get();
-        if (!vbstate) {
+        const auto* vbstatePtr = getVBucketState(vbid);
+
+        if (!vbstatePtr) {
             logger->warn("MagmaKVStore::initScanContext {} vbstate is null",
                          vbid);
             return nullptr;
         }
-        highSeqno = vbstate->highSeqno;
-        purgeSeqno = vbstate->purgeSeqno;
-        docCount = highSeqno - startSeqno + 1;
-        highCompletedSeqno = vbstate->persistedCompletedSeqno;
+        // copy the vbstate for use outside the lock to init the scan context
+        vbstate = *vbstatePtr;
     }
+
+    uint64_t highSeqno = vbstate.highSeqno;
+    uint64_t purgeSeqno = vbstate.purgeSeqno;
+    uint64_t docCount = highSeqno - startSeqno + 1;
 
     auto collectionsManifest = getDroppedCollections(vbid);
 
@@ -1614,7 +1615,7 @@ ScanContext* MagmaKVStore::initScanContext(
                                      options,
                                      valOptions,
                                      docCount,
-                                     highCompletedSeqno,
+                                     vbstate,
                                      configuration,
                                      collectionsManifest,
                                      kvHandle);
