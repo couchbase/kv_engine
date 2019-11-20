@@ -712,6 +712,11 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
     return true;
 }
 
+void Connection::triggerCallback() {
+    const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
+    bufferevent_trigger(bev.get(), EV_READ, opt);
+}
+
 bool Connection::dcpUseWriteBuffer(size_t size) const {
     return isSslEnabled() && size < thread.scratch_buffer.size();
 }

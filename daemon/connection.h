@@ -709,6 +709,13 @@ public:
                       uint8_t datatype,
                       std::unique_ptr<SendBuffer> sendbuffer);
 
+    /**
+     * Trigger a callback from libevent for the connection at some time
+     * in the future (as part of the event dispatch loop) so that the
+     * connection may continue its command execution.
+     */
+    void triggerCallback();
+
     /// Check if DCP should use the write buffer for the message or if it
     /// should use an IOVector to do so
     bool dcpUseWriteBuffer(size_t total) const;
