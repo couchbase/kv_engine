@@ -497,7 +497,32 @@ public:
                                              ScopeID sid,
                                              CollectionID cid);
 
+    /**
+     * Set the effective user executing this command
+     *
+     * @param user the effective user for the command
+     * @return engine_success if the user holds the Impersonate privilege and
+     *                        the user is found
+     *         engine_eaccess if the user lacks the impersonate privilege
+     *         engine_key_enoent if the user holds the privilege and the user
+     *                           isn't found
+     *         engine_not_supported if the user isn't in the local domain
+     */
+    cb::mcbp::Status setEffectiveUser(const cb::rbac::UserIdent& e);
+
+    boost::optional<cb::rbac::UserIdent> getEffectiveUser() const {
+        return euid;
+    }
+
 protected:
+    /// Check if the current command have the requested privilege for
+    /// for the provided scope collection identifier
+    cb::rbac::PrivilegeAccess checkPrivilege(
+            const cb::rbac::PrivilegeContext& ctx,
+            cb::rbac::Privilege privilege,
+            ScopeID sid,
+            CollectionID cid);
+
     /**
      * Is OpenTracing enabled for this cookie or not. By querying the
      * cookie we don't have to read the atomic on/off switch unless
@@ -609,4 +634,15 @@ protected:
 
     /// The privilege context the command should use for evaluating commands
     cb::rbac::PrivilegeContext privilegeContext;
+
+    /// If the request came in with the impersonate frame info set, this
+    /// is the user requested
+    boost::optional<cb::rbac::UserIdent> euid;
+
+    /// Fetch the privileges from the EUID
+    void fetchEuidPrivilegeSet();
+
+    /// If the request came in with the impersonate frame info set, this
+    /// is the privilege context for that user (which we'll also test)
+    boost::optional<cb::rbac::PrivilegeContext> euidPrivilegeContext;
 };

@@ -125,6 +125,16 @@ bool Cookie::execute() {
 
     // Reset ewouldblock state!
     setEwouldblock(false);
+
+    if (euid && !euidPrivilegeContext) {
+        // We're supposed to run as a different user, but we don't
+        // have the privilege set configured.
+        fetchEuidPrivilegeSet();
+        if (isEwouldblock()) {
+            return false;
+        }
+    }
+
     const auto& header = getHeader();
     if (header.isResponse()) {
         execute_response_packet(*this, header.getResponse());
@@ -488,6 +498,8 @@ void Cookie::reset() {
     inflated_input_payload.reset();
     currentCollectionInfo = {};
     privilegeContext = connection.getPrivilegeContext();
+    euid.reset();
+    euidPrivilegeContext.reset();
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
@@ -584,12 +596,27 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(cb::rbac::Privilege privilege,
                                                  ScopeID sid,
                                                  CollectionID cid) {
-    const auto ret = privilegeContext.check(privilege, sid, cid);
+    using cb::rbac::PrivilegeAccess;
+    auto ret = checkPrivilege(privilegeContext, privilege, sid, cid);
+
+    if (ret == PrivilegeAccess::Ok && euidPrivilegeContext) {
+        return checkPrivilege(*euidPrivilegeContext, privilege, sid, cid);
+    }
+
+    return ret;
+}
+
+cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
+        const cb::rbac::PrivilegeContext& ctx,
+        cb::rbac::Privilege privilege,
+        ScopeID sid,
+        CollectionID cid) {
+    const auto ret = ctx.check(privilege, sid, cid);
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
         const auto opcode = getRequest().getClientOpcode();
-        const std::string command(to_string(opcode));
-        const std::string privilege_string = cb::rbac::to_string(privilege);
-        const std::string context = privilegeContext.to_string();
+        const auto command(to_string(opcode));
+        const auto privilege_string = cb::rbac::to_string(privilege);
+        const auto context = ctx.to_string();
 
         if (Settings::instance().isPrivilegeDebug()) {
             audit_privilege_debug(connection,
@@ -628,4 +655,47 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(cb::rbac::Privilege privilege,
     }
 
     return ret;
+}
+
+cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
+    // The user needs to hold the impersonate privilege:
+    if (checkPrivilege(
+                privilegeContext, cb::rbac::Privilege::Impersonate, {}, {}) ==
+        cb::rbac::PrivilegeAccess::Fail) {
+        // @todo I guess I should have added an audit entry for this?
+        setErrorContext(
+                "You need the Impersonate privilege in order to impersonate "
+                "users");
+        return cb::mcbp::Status::Eaccess;
+    }
+
+    if (e.domain == cb::rbac::Domain::External &&
+        Settings::instance().isExternalAuthServiceEnabled()) {
+        // We don't support external users at the moment (needs a new API
+        // from ns_server)
+        return cb::mcbp::Status::NotSupported;
+    }
+
+    euid.reset(e);
+    return cb::mcbp::Status::Success;
+}
+
+void Cookie::fetchEuidPrivilegeSet() {
+    //    if (euid->domain == cb::rbac::Domain::External) {
+    //        euidPrivilegeContext.reset(cb::rbac::PrivilegeContext{euid->domain});
+    //        ewouldblock = true;
+    //    }
+
+    try {
+        euidPrivilegeContext.reset(
+                cb::rbac::createContext(*euid, connection.getBucket().name));
+    } catch (const cb::rbac::NoSuchBucketException&) {
+        // The user exists, but don't have access to the bucket.
+        // Let the command continue to execute, but set create an empty
+        // privilege set (this make sure that we get the correcct audit
+        // event at a later time.
+        euidPrivilegeContext.reset(cb::rbac::PrivilegeContext{euid->domain});
+    } catch (const cb::rbac::Exception&) {
+        setErrorContext("User \"" + euid->name + "\" is not a Couchbase user");
+    }
 }

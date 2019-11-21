@@ -302,6 +302,29 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     cookie.setOpenTracingContext(data);
                 }
                 return true;
+            case cb::mcbp::request::FrameInfoId::Impersonate:
+                if (data.empty()) {
+                    cookie.setErrorContext("Impersonated user must be set");
+                    status = Status::Einval;
+                    // terminate parsing
+                    return false;
+                }
+
+                if (data.front() == '^') {
+                    status = cookie.setEffectiveUser(
+                            {std::string{reinterpret_cast<const char*>(
+                                                 data.data() + 1),
+                                         data.size() - 1},
+                             cb::rbac::Domain::External});
+                } else {
+                    status = cookie.setEffectiveUser(
+                            {std::string{
+                                     reinterpret_cast<const char*>(data.data()),
+                                     data.size()},
+                             cb::rbac::Domain::Local});
+                }
+
+                return status == Status::Success;
             } // switch (id)
             status = Status::UnknownFrameInfo;
             return false;

@@ -22,6 +22,7 @@
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
+#include <memcached/rbac/privilege_database.h>
 #include <memcached/vbucket.h>
 #include <platform/sized_buffer.h>
 
@@ -47,6 +48,7 @@ enum class FrameInfoId {
     DurabilityRequirement = 1,
     DcpStreamId = 2,
     OpenTracingContext = 3,
+    Impersonate = 4,
 };
 }
 

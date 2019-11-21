@@ -91,13 +91,18 @@ void setEnabled(uint32_t id, bool enable) {
  * @param c the connection object
  * @return the json object containing the basic information
  */
-static nlohmann::json create_memcached_audit_object(const Connection& c) {
+static nlohmann::json create_memcached_audit_object(
+        const Connection& c, const boost::optional<cb::rbac::UserIdent>& euid) {
     nlohmann::json root;
 
     root["timestamp"] = ISOTime::generatetimestamp();
     root["peername"] = c.getPeername();
     root["sockname"] = c.getSockname();
     root["real_userid"] = c.getUser().to_json();
+
+    if (euid) {
+        root["effective_userid"] = euid->to_json();
+    }
 
     return root;
 }
@@ -126,7 +131,7 @@ void audit_auth_failure(const Connection& c, const char* reason) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    auto root = create_memcached_audit_object(c, {});
     root["reason"] = reason;
 
     do_audit(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
@@ -138,7 +143,7 @@ void audit_auth_success(const Connection& c) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    auto root = create_memcached_audit_object(c, {});
     do_audit(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
              root,
              "Failed to send AUTH SUCCESS audit event");
@@ -151,7 +156,7 @@ void audit_bucket_selection(const Connection& c) {
     const auto& bucket = c.getBucket();
     // Don't audit that we're jumping into the "no bucket"
     if (bucket.type != BucketType::NoBucket) {
-        auto root = create_memcached_audit_object(c);
+        auto root = create_memcached_audit_object(c, {});
         root["bucket"] = c.getBucket().name;
         do_audit(MEMCACHED_AUDIT_SELECT_BUCKET,
                  root,
@@ -163,7 +168,7 @@ void audit_bucket_flush(const Connection& c, const char* bucket) {
     if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    auto root = create_memcached_audit_object(c, {});
     root["bucket"] = bucket;
 
     do_audit(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
@@ -178,7 +183,7 @@ void audit_dcp_open(const Connection& c) {
     if (c.isInternal()) {
         LOG_INFO("Open DCP stream with admin credentials");
     } else {
-        auto root = create_memcached_audit_object(c);
+        auto root = create_memcached_audit_object(c, {});
         root["bucket"] = c.getBucket().name;
 
         do_audit(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
@@ -192,7 +197,7 @@ void audit_set_privilege_debug_mode(const Connection& c, bool enable) {
     if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    auto root = create_memcached_audit_object(c, {});
     root["enable"] = enable;
     do_audit(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
              root,
@@ -208,7 +213,7 @@ void audit_privilege_debug(const Connection& c,
     if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    auto root = create_memcached_audit_object(c, {});
     root["command"] = command;
     root["bucket"] = bucket;
     root["privilege"] = privilege;
@@ -224,7 +229,8 @@ void audit_command_access_failed(const Cookie& cookie) {
         return;
     }
     const auto& connection = cookie.getConnection();
-    auto root = create_memcached_audit_object(connection);
+    auto root = create_memcached_audit_object(connection,
+                                              cookie.getEffectiveUser());
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
     const auto packet = cookie.getPacket();
@@ -245,7 +251,7 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
     if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
         return;
     }
-    auto root = create_memcached_audit_object(c);
+    auto root = create_memcached_audit_object(c, {});
     std::stringstream ss;
     std::string trunc;
     const cb::const_byte_buffer::size_type max_dump_size = 256;
@@ -306,7 +312,8 @@ void add(const Cookie& cookie, Operation operation) {
     }
 
     const auto& connection = cookie.getConnection();
-    auto root = create_memcached_audit_object(connection);
+    auto root = create_memcached_audit_object(connection,
+                                              cookie.getEffectiveUser());
     root["bucket"] = connection.getBucket().name;
     root["key"] = cookie.getPrintableRequestKey();
 
