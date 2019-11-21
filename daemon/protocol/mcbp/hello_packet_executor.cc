@@ -248,20 +248,20 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case cb::mcbp::Feature::XATTR:
-            if ((Datatype::isSupported(cb::mcbp::Feature::XATTR) ||
-                 connection.isInternal())) {
+            if (Settings::instance().isXattrEnabled() ||
+                connection.isInternal()) {
                 connection.enableDatatype(cb::mcbp::Feature::XATTR);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::JSON:
-            if (Datatype::isSupported(cb::mcbp::Feature::JSON)) {
+            if (Settings::instance().isDatatypeJsonEnabled()) {
                 connection.enableDatatype(cb::mcbp::Feature::JSON);
                 added = true;
             }
             break;
         case cb::mcbp::Feature::SNAPPY:
-            if (Datatype::isSupported(cb::mcbp::Feature::SNAPPY)) {
+            if (Settings::instance().isDatatypeSnappyEnabled()) {
                 connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
                 added = true;
             }

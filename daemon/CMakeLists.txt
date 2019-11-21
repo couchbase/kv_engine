@@ -44,8 +44,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             connections.h
             cookie.cc
             cookie.h
-            datatype.cc
-            datatype.h
+            datatype_filter.cc
+            datatype_filter.h
             debug_helpers.cc
             debug_helpers.h
             doc_pre_expiry.cc

@@ -15,40 +15,10 @@
  *   limitations under the License.
  */
 
-#include "datatype.h"
+#include "datatype_filter.h"
 #include "settings.h"
 
-bool Datatype::isSupported(cb::mcbp::Feature feature) {
-    switch (feature) {
-    case cb::mcbp::Feature::XATTR:
-        return Settings::instance().isXattrEnabled();
-    case cb::mcbp::Feature::JSON:
-        return Settings::instance().isDatatypeJsonEnabled();
-    case cb::mcbp::Feature::SNAPPY:
-        return Settings::instance().isDatatypeSnappyEnabled();
-    case cb::mcbp::Feature::TLS:
-    case cb::mcbp::Feature::TCPNODELAY:
-    case cb::mcbp::Feature::MUTATION_SEQNO:
-    case cb::mcbp::Feature::TCPDELAY:
-    case cb::mcbp::Feature::XERROR:
-    case cb::mcbp::Feature::SELECT_BUCKET:
-    case cb::mcbp::Feature::Collections:
-    case cb::mcbp::Feature::OpenTracing:
-    case cb::mcbp::Feature::Invalid:
-    case cb::mcbp::Feature::Invalid2:
-    case cb::mcbp::Feature::Duplex:
-    case cb::mcbp::Feature::ClustermapChangeNotification:
-    case cb::mcbp::Feature::UnorderedExecution:
-    case cb::mcbp::Feature::Tracing:
-    case cb::mcbp::Feature::AltRequestSupport:
-    case cb::mcbp::Feature::SyncReplication:
-        throw std::invalid_argument("Datatype::isSupported invalid feature:" +
-                                    std::to_string(int(feature)));
-    }
-    return false;
-}
-
-void Datatype::enable(cb::mcbp::Feature feature) {
+void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     switch (feature) {
     case cb::mcbp::Feature::XATTR:
         enabled |= PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -75,26 +45,26 @@ void Datatype::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::Tracing:
     case cb::mcbp::Feature::AltRequestSupport:
     case cb::mcbp::Feature::SyncReplication:
-        throw std::invalid_argument("Datatype::enable invalid feature:" +
+        throw std::invalid_argument("DatatypeFilter::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }
 }
 
-void Datatype::enableAll() {
+void DatatypeFilter::enableAll() {
     enabled |= PROTOCOL_BINARY_DATATYPE_XATTR;
     enabled |= PROTOCOL_BINARY_DATATYPE_JSON;
     enabled |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
 }
 
-void Datatype::disableAll() {
+void DatatypeFilter::disableAll() {
     enabled = 0;
 }
 
-protocol_binary_datatype_t Datatype::getIntersection(
+protocol_binary_datatype_t DatatypeFilter::getIntersection(
         protocol_binary_datatype_t datatype) const {
     return getRaw() & datatype;
 }
 
-bool Datatype::isEnabled(protocol_binary_datatype_t datatype) const {
+bool DatatypeFilter::isEnabled(protocol_binary_datatype_t datatype) const {
     return (getRaw() & datatype) == datatype;
 }

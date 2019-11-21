@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "datatype.h"
+#include "datatype_filter.h"
 #include "sendbuffer.h"
 #include "stats.h"
 #include "task.h"
@@ -449,14 +449,14 @@ public:
      * @throws if feature does not correspond to a datatype
      */
     void enableDatatype(cb::mcbp::Feature feature) {
-        datatype.enable(feature);
+        datatypeFilter.enable(feature);
     }
 
     /**
      * Disable all the datatypes
      */
     void disableAllDatatypes() {
-        datatype.disableAll();
+        datatypeFilter.disableAll();
     }
 
     /**
@@ -468,14 +468,14 @@ public:
      */
     protocol_binary_datatype_t getEnabledDatatypes(
             protocol_binary_datatype_t dtype) const {
-        return datatype.getIntersection(dtype);
+        return datatypeFilter.getIntersection(dtype);
     }
 
     /**
      * @return true if the all of the dtype datatypes are all enabled
      */
     bool isDatatypeEnabled(protocol_binary_datatype_t dtype) const {
-        bool rv = datatype.isEnabled(dtype);
+        bool rv = datatypeFilter.isEnabled(dtype);
 
         // If the bucket has disabled xattr, then we must reflect that in the
         // returned value
@@ -490,14 +490,14 @@ public:
      * @return true if compression datatype is enabled
      */
     bool isSnappyEnabled() const {
-        return datatype.isSnappyEnabled();
+        return datatypeFilter.isSnappyEnabled();
     }
 
     /**
      * @return true if the XATTR datatype is enabled
      */
     bool isXattrEnabled() const {
-        return datatype.isXattrEnabled();
+        return datatypeFilter.isXattrEnabled();
     }
 
     bool isSupportsMutationExtras() const {
@@ -1033,7 +1033,8 @@ protected:
      */
     std::deque<std::unique_ptr<Cookie>> cookies;
 
-    Datatype datatype;
+    /// Filter containing the data types available for the connection
+    DatatypeFilter datatypeFilter;
 
     /**
      * It is possible to disable the SASL authentication for some

@@ -22,13 +22,8 @@
 
 #include <atomic>
 
-class Datatype {
+class DatatypeFilter {
 public:
-    /**
-     * Check if the datatype is supported
-     */
-    static bool isSupported(cb::mcbp::Feature datatype);
-
     /**
      * Translate the mcbp::Feature:: input into the corresponding mcbp datatype
      * bit.

@@ -15,14 +15,14 @@
  *   limitations under the License.
  */
 
-#include <daemon/datatype.h>
+#include <daemon/datatype_filter.h>
 #include <folly/portability/GTest.h>
 
 /*
  * An empty set would only have RAW enabled (which is basically no datatype)
  */
 TEST(DatatypeTest, Empty) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     EXPECT_TRUE(datatype.isEnabled(PROTOCOL_BINARY_RAW_BYTES));
 
     EXPECT_FALSE(datatype.isEnabled(PROTOCOL_BINARY_DATATYPE_JSON));
@@ -34,7 +34,7 @@ TEST(DatatypeTest, Empty) {
 }
 
 TEST(DatatypeTest, All) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enableAll();
     EXPECT_TRUE(datatype.isEnabled(PROTOCOL_BINARY_RAW_BYTES));
 
@@ -47,7 +47,7 @@ TEST(DatatypeTest, All) {
 }
 
 TEST(DatatypeTest, EnableDisable) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enableAll();
     EXPECT_TRUE(datatype.isEnabled(PROTOCOL_BINARY_RAW_BYTES));
 
@@ -70,7 +70,7 @@ TEST(DatatypeTest, EnableDisable) {
 }
 
 TEST(DatatypeTest, EnableFeatures) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     EXPECT_NO_THROW(datatype.enable(cb::mcbp::Feature::XATTR));
     EXPECT_NO_THROW(datatype.enable(cb::mcbp::Feature::JSON));
     EXPECT_NO_THROW(datatype.enable(cb::mcbp::Feature::SNAPPY));
@@ -90,7 +90,7 @@ TEST(DatatypeTest, EnableFeatures) {
 }
 
 TEST(DatatypeTest, Intersect0) {
-    Datatype datatype;
+    DatatypeFilter datatype;
 
     protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
@@ -101,7 +101,7 @@ TEST(DatatypeTest, Intersect0) {
 }
 
 TEST(DatatypeTest, Intersect1) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enable(cb::mcbp::Feature::JSON);
 
     protocol_binary_datatype_t d1 = mcbp::datatype::highest;
@@ -113,7 +113,7 @@ TEST(DatatypeTest, Intersect1) {
 }
 
 TEST(DatatypeTest, Intersect2) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enable(cb::mcbp::Feature::JSON);
     datatype.enable(cb::mcbp::Feature::XATTR);
 
@@ -126,7 +126,7 @@ TEST(DatatypeTest, Intersect2) {
 }
 
 TEST(DatatypeTest, IntersectAll) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enableAll();
 
     protocol_binary_datatype_t d1 = mcbp::datatype::highest;
@@ -138,18 +138,18 @@ TEST(DatatypeTest, IntersectAll) {
 }
 
 TEST(DatatypeTest, Raw0) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     EXPECT_EQ(0, datatype.getRaw());
 }
 
 TEST(DatatypeTest, Raw1) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enable(cb::mcbp::Feature::JSON);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype.getRaw());
 }
 
 TEST(DatatypeTest, RawAll) {
-    Datatype datatype;
+    DatatypeFilter datatype;
     datatype.enableAll();
     protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     EXPECT_EQ(d1, datatype.getRaw());
