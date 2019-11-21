@@ -71,15 +71,6 @@ public:
         throw std::runtime_error(
                 "UnitTestServerCore::shutdown() not implemented");
     }
-
-    size_t get_max_item_iovec_size() override {
-        return 1;
-    }
-
-    void trigger_tick() override {
-        throw std::runtime_error(
-                "UnitTestServerCore::trigger_tick() not implemented");
-    }
 };
 
 int main(int argc, char **argv) {

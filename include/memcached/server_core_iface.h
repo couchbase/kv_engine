@@ -77,18 +77,4 @@ struct ServerCoreIface {
      * Request the server to start a shutdown sequence.
      */
     virtual void shutdown() = 0;
-
-    /**
-     * Get the maximum size of an iovec the core supports receiving
-     * through the item_info structure. The underlying engine may
-     * support using more entries to hold its data internally, but
-     * when making the data available for the core it must fit
-     * within these limits.
-     */
-    virtual size_t get_max_item_iovec_size() = 0;
-
-    /**
-     * Trigger a tick of the clock
-     */
-    virtual void trigger_tick() = 0;
 };

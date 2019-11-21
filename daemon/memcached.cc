@@ -1353,14 +1353,6 @@ struct ServerCoreApi : public ServerCoreIface {
     void shutdown() override {
         shutdown_server();
     }
-
-    size_t get_max_item_iovec_size() override {
-        return 1;
-    }
-
-    void trigger_tick() override {
-        mc_time_clock_tick();
-    }
 };
 
 struct ServerLogApi : public ServerLogIface {
