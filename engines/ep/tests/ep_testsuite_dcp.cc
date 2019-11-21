@@ -5498,8 +5498,8 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
 
 // Test generates a replica VB and splits the generation with a warmup.
 // Importantly the very first batch of DCP items are marked as 'backfill' and
-// the test requires that the flusher_batch_split_trigger setting is less than
-// the size of the first batch.
+// the test requires that the individual flusher_batch_split_trigger setting is
+// less than the size of the first batch.
 static enum test_result test_dcp_replica_stream_backfill_MB_34173(
         EngineIface* h) {
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
@@ -5508,7 +5508,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
 
     // Validate that the flusher will split the items
     checkgt(items,
-            get_int_stat(h, "ep_flusher_batch_split_trigger", "config"),
+            get_int_stat(h, "ep_flusher_total_batch_limit", "config"),
             "flusher_batch_split_trigger must be less than items");
 
     const void* cookie = testHarness->create_cookie(h);
@@ -7922,7 +7922,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;max_checkpoints=2;"
-                 "flusher_batch_split_trigger=10",
+                 "flusher_total_batch_limit=10",
                  prepare_ep_bucket,
                  cleanup),
         TestCase("test dcp replica stream in-memory",

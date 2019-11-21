@@ -218,7 +218,7 @@ public:
 
     virtual void sizeValueChanged(const std::string& key,
                                   size_t value) override {
-        if (key == "flusher_batch_split_trigger") {
+        if (key == "flusher_total_batch_limit") {
             bucket.setFlusherBatchSplitTrigger(value);
         } else if (key == "alog_sleep_time") {
             bucket.setAccessScannerSleeptime(value, false);
@@ -262,9 +262,9 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
 
     vbMap.enablePersistence(*this);
 
-    flusherBatchSplitTrigger = config.getFlusherBatchSplitTrigger();
+    setFlusherBatchSplitTrigger(config.getFlusherTotalBatchLimit());
     config.addValueChangedListener(
-            "flusher_batch_split_trigger",
+            "flusher_total_batch_limit",
             std::make_unique<ValueChangedListener>(*this));
 
     retainErroneousTombstones = config.isRetainErroneousTombstones();
@@ -854,7 +854,11 @@ void EPBucket::flushSuccessEpilogue(
 }
 
 void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
-    flusherBatchSplitTrigger = limit;
+    flusherBatchSplitTrigger = limit / vbMap.getNumShards();
+}
+
+size_t EPBucket::getFlusherBatchSplitTrigger() {
+    return flusherBatchSplitTrigger;
 }
 
 bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {

@@ -439,9 +439,9 @@
             "dynamic": false,
             "type": "bool"
         },
-        "flusher_batch_split_trigger" : {
+        "flusher_total_batch_limit" : {
             "default": "1000000",
-            "descr": "Number of items to flush which triggers splitting the batch into multiple chunks. Individual batches may be larger than this value, as we cannot split checkpoints across multiple commits.",
+            "descr": "Number of items that all flushers can be currently flushing. Each flusher has flusher_total_batch_limit / num_shards individual batch size. Individual batches may be larger than this value, as we cannot split Memory checkpoints across multiple commits.",
             "dynamic": true,
             "type": "size_t"
         },

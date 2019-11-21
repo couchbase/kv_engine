@@ -50,10 +50,12 @@ public:
 
     /**
      * Set the number of flusher items which can be included in a
-     * single flusher commit - more than this number of items will split
-     * into multiple commits.
+     * single flusher commit. For more details see flusherBatchSplitTrigger
+     * description.
      */
     void setFlusherBatchSplitTrigger(size_t limit);
+
+    size_t getFlusherBatchSplitTrigger();
 
     /**
      * Persist whatever flush-batch previously queued into KVStore.
@@ -270,7 +272,9 @@ protected:
 
     /**
      * Max number of backill items in a single flusher batch before we split
-     * into multiple batches.
+     * into multiple batches. Actual batch size may be larger as we will not
+     * split Memory Checkpoints, a hard limit is only imposed for Disk
+     * Checkpoints (i.e. replica backfills).
      * Atomic as can be changed by ValueChangedListener on one thread and read
      * by flusher on other thread.
      */

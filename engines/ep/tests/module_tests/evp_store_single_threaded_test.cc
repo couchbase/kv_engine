@@ -604,6 +604,24 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     cancelAndPurgeTasks();
 }
 
+TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimit) {
+    auto& bucket = getEPBucket();
+    auto shards = engine->getWorkLoadPolicy().getNumShards();
+
+    // Test is only valid with a non-1 number of shards
+    ASSERT_EQ(2, shards);
+
+    auto totalLimit = engine->getConfiguration().getFlusherTotalBatchLimit();
+
+    auto expected = totalLimit / shards;
+    EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
+
+    totalLimit = 40000;
+    bucket.setFlusherBatchSplitTrigger(totalLimit);
+    expected = totalLimit / shards;
+    EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
+}
+
 /*
  * The following test checks to see if we call handleSlowStream when in a
  * backfilling state, but the backfillTask is not running, we

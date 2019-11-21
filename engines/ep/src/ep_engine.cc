@@ -595,8 +595,8 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setExpPagerStime(std::stoull(val));
         } else if (key == "exp_pager_initial_run_time") {
             getConfiguration().setExpPagerInitialRunTime(std::stoll(val));
-        } else if (key == "flusher_batch_split_trigger") {
-            getConfiguration().setFlusherBatchSplitTrigger(std::stoll(val));
+        } else if (key == "flusher_total_batch_limit") {
+            getConfiguration().setFlusherTotalBatchLimit(std::stoll(val));
         } else if (key == "getl_default_timeout") {
             getConfiguration().setGetlDefaultTimeout(std::stoull(val));
         } else if (key == "getl_max_timeout") {
