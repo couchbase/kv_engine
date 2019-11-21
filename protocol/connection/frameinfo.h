@@ -72,3 +72,15 @@ public:
 protected:
     const std::string ctx;
 };
+
+class ImpersonateUserFrameInfo : public FrameInfo {
+public:
+    explicit ImpersonateUserFrameInfo(std::string user)
+        : user(std::move(user)) {
+    }
+    ~ImpersonateUserFrameInfo() override;
+    std::vector<uint8_t> encode() const override;
+
+protected:
+    const std::string user;
+};

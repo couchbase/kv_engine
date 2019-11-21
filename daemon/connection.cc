@@ -245,8 +245,14 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     return cb::engine_errc::no_access;
 }
 
-cb::rbac::PrivilegeAccess Connection::checkPrivilege(
-        cb::rbac::Privilege privilege, Cookie& cookie) {
+cb::rbac::PrivilegeAccess doCheckPrivilege(
+        cb::rbac::Privilege privilege,
+        Cookie& cookie,
+        cb::rbac::PrivilegeContext& privilegeContext,
+        Connection& connection,
+        const std::string& username,
+        cb::rbac::Domain domain,
+        const char* bucketname) {
     cb::rbac::PrivilegeAccess ret;
     unsigned int retries = 0;
     const unsigned int max_retries = 100;
@@ -264,20 +270,18 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         // but let the client deal with whatever happens after
         // a single update.
         try {
-            privilegeContext = cb::rbac::createContext(
-                    getUsername(), getDomain(), all_buckets[bucketIndex].name);
+            privilegeContext =
+                    cb::rbac::createContext(username, domain, bucketname);
         } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
-            privilegeContext =
-                    cb::rbac::createContext(getUsername(), getDomain(), "");
+            privilegeContext = cb::rbac::createContext(username, domain, "");
             LOG_INFO(
                     "{}: RBAC: Connection::checkPrivilege({}) {} No access "
-                    "to "
-                    "bucket [{}]. command: [{}] new privilege set: {}",
-                    getId(),
+                    "to bucket [{}]. command: [{}] new privilege set: {}",
+                    connection.getId(),
                     to_string(privilege),
-                    getDescription(),
-                    all_buckets[bucketIndex].name,
+                    connection.getDescription(),
+                    bucketname,
                     command,
                     privilegeContext.to_string());
         } catch (const cb::rbac::Exception& error) {
@@ -285,11 +289,11 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                     "{}: RBAC: Connection::checkPrivilege({}) {}: An "
                     "exception occurred. command: [{}] bucket: [{}] UUID:"
                     "[{}] message: {}",
-                    getId(),
+                    connection.getId(),
                     to_string(privilege),
-                    getDescription(),
+                    connection.getDescription(),
                     command,
-                    all_buckets[bucketIndex].name,
+                    bucketname,
                     cookie.getEventId(),
                     error.what());
             // Add a textual error as well
@@ -304,12 +308,12 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                 "{}: RBAC: Gave up rebuilding privilege context after {} "
                 "times. Let the client handle the stale authentication "
                 "context",
-                getId(),
+                connection.getId(),
                 retries);
 
     } else if (retries > 1) {
         LOG_INFO("{}: RBAC: Had to rebuild privilege context {} times",
-                 getId(),
+                 connection.getId(),
                  retries);
     }
 
@@ -320,19 +324,16 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         const std::string context = privilegeContext.to_string();
 
         if (Settings::instance().isPrivilegeDebug()) {
-            audit_privilege_debug(*this,
-                                  command,
-                                  all_buckets[bucketIndex].name,
-                                  privilege_string,
-                                  context);
+            audit_privilege_debug(
+                    connection, command, bucketname, privilege_string, context);
 
             LOG_INFO(
                     "{}: RBAC privilege debug:{} command:[{}] bucket:[{}] "
                     "privilege:[{}] context:{}",
-                    getId(),
-                    getDescription(),
+                    connection.getId(),
+                    connection.getDescription(),
                     command,
-                    all_buckets[bucketIndex].name,
+                    bucketname,
                     privilege_string,
                     context);
 
@@ -340,19 +341,58 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         } else {
             LOG_INFO(
                     "{} RBAC {} missing privilege {} for {} in bucket:[{}] "
-                    "with context: "
-                    "{} UUID:[{}]",
-                    getId(),
-                    getDescription(),
+                    "with context: {} UUID:[{}]",
+                    connection.getId(),
+                    connection.getDescription(),
                     privilege_string,
                     command,
-                    all_buckets[bucketIndex].name,
+                    bucketname,
                     context,
                     cookie.getEventId());
             // Add a textual error as well
             cookie.setErrorContext("Authorization failure: can't execute " +
                                    command + " operation without the " +
                                    privilege_string + " privilege");
+        }
+    }
+
+    return ret;
+}
+
+cb::rbac::PrivilegeAccess Connection::checkPrivilege(
+        cb::rbac::Privilege privilege, Cookie& cookie) {
+    auto ret = doCheckPrivilege(privilege,
+                                cookie,
+                                privilegeContext,
+                                *this,
+                                getUsername(),
+                                getDomain(),
+                                getBucket().name);
+
+    auto euid = cookie.getRequest().getEffectiveUser();
+    if (euid && ret == cb::rbac::PrivilegeAccess::Ok) {
+        // The user MUST possess the Impersonate privilege:
+        ret = doCheckPrivilege(cb::rbac::Privilege::Impersonate,
+                               cookie,
+                               privilegeContext,
+                               *this,
+                               getUsername(),
+                               getDomain(),
+                               getBucket().name);
+        if (ret == cb::rbac::PrivilegeAccess::Ok) {
+            try {
+                cb::rbac::PrivilegeContext ctx = cb::rbac::createContext(
+                        euid->username, euid->domain, getBucket().name);
+                ret = doCheckPrivilege(privilege,
+                                       cookie,
+                                       ctx,
+                                       *this,
+                                       euid->username,
+                                       euid->domain,
+                                       getBucket().name);
+            } catch (const std::exception&) {
+                return cb::rbac::PrivilegeAccess::Fail;
+            }
         }
     }
 

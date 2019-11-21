@@ -28,6 +28,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
+#include <protocol/connection/frameinfo.h>
 #include <cctype>
 #include <fstream>
 #include <sstream>
@@ -471,4 +472,56 @@ TEST_P(AuditTest, MB33603_Filtering) {
 
     EXPECT_FALSE(found)
             << "Filtering out memcached generated events don't work";
+}
+
+TEST_P(AuditTest, MB3750_AuditImpersonatedUser) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+
+    // We should be allowed to fetch a document (should return enoent
+    try {
+        conn.get("MB3750_AuditImpersonatedUser", Vbid{0});
+        FAIL() << "Document should not be here";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isNotFound()) << "Document should not be there";
+    }
+
+    // Smith does not have access to the default bucket so trying to fetch
+    // the document should fail with an access violation (and not that the
+    // document isn't found).
+    try {
+        conn.get(
+                "MB3750_AuditImpersonatedUser",
+                Vbid{0},
+                []() -> FrameInfoVector {
+                    FrameInfoVector ret;
+                    ret.emplace_back(std::make_unique<ImpersonateUserFrameInfo>(
+                            "smith"));
+                    return ret;
+                });
+        FAIL() << "Document should not be here";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isAccessDenied())
+                << "smith have no access to to default: " << error.what();
+    }
+
+    // Verify that the audit trail contains the effective user
+    std::string user;
+    std::string domain;
+    iterate([&user, &domain](const nlohmann::json& entry) {
+        if (entry["id"].get<int>() != MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE) {
+            return false;
+        }
+
+        if (entry.find("effective_userid") == entry.end()) {
+            return false;
+        }
+
+        user = entry["effective_userid"]["user"];
+        domain = entry["effective_userid"]["domain"].get<std::string>();
+        return true;
+    });
+
+    EXPECT_EQ("smith", user);
+    EXPECT_EQ(to_string(cb::rbac::Domain::Local), domain);
 }
