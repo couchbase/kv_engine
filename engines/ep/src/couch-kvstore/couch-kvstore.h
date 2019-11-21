@@ -49,10 +49,9 @@ public:
     /**
      * Constructor
      *
-     * @param it Item instance to be persisted
-     * @param cb persistence callback
+     * @param item Item to be persisted
      */
-    CouchRequest(const Item& it, MutationRequestCallback cb);
+    CouchRequest(queued_item item);
 
     ~CouchRequest();
 
@@ -184,7 +183,7 @@ public:
      */
     StorageProperties getStorageProperties(void) override;
 
-    void set(const Item& itm, SetCallback cb) override;
+    void set(queued_item item) override;
 
     /**
      * Retrieve the document with a given key from the underlying storage
@@ -217,7 +216,7 @@ public:
                   const DiskDocKey& endKey,
                   const KVStore::GetRangeCb& cb) override;
 
-    void del(const Item& itm, DeleteCallback) override;
+    void del(queued_item item) override;
 
     /**
      * Delete a given vbucket database instance from underlying storage

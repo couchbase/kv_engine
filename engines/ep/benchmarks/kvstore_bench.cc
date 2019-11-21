@@ -125,20 +125,13 @@ protected:
         // Load some data
         const std::string key = "key";
         std::string value = "value";
-        MockWriteCallback wc;
         Vbid vbid = Vbid(0);
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (int i = 1; i <= numItems; i++) {
-            Item item(makeStoredDocKey(key + std::to_string(i)),
-                      0 /*flags*/,
-                      0 /*exptime*/,
-                      value.c_str(),
-                      value.size(),
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      0 /*cas*/,
-                      i /*bySeqno*/,
-                      vbid);
-            kvstore->set(item, wc);
+            auto docKey = makeStoredDocKey(key + std::to_string(i));
+            auto qi = makeCommittedItem(docKey, value);
+            qi->setBySeqno(i);
+            kvstore->set(qi);
         }
         Collections::VB::Manifest m;
         Collections::VB::Flush f(m);

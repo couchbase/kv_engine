@@ -24,6 +24,7 @@
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore_config.h"
+#include "persistence_callback.h"
 #include "rollback_result.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
@@ -240,65 +241,65 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
     return rval;
 }
 
-CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
-    : IORequest(std::move(cb), DiskDocKey{it}), value(it.getValue()) {
-    dbDoc.id = to_sized_buf(key);
+CouchRequest::CouchRequest(queued_item it)
+    : IORequest(std::move(it)), value(item->getValue()) {
+    dbDoc.id = to_sized_buf(getKey());
 
-    if (it.getNBytes()) {
+    if (item->getNBytes()) {
         dbDoc.data.buf = const_cast<char *>(value->getData());
-        dbDoc.data.size = it.getNBytes();
+        dbDoc.data.size = item->getNBytes();
     } else {
         dbDoc.data.buf = NULL;
         dbDoc.data.size = 0;
     }
-    meta.setCas(it.getCas());
-    meta.setFlags(it.getFlags());
-    meta.setExptime(it.getExptime());
-    meta.setDataType(it.getDataType());
+    meta.setCas(item->getCas());
+    meta.setFlags(item->getFlags());
+    meta.setExptime(item->getExptime());
+    meta.setDataType(item->getDataType());
 
     const auto isDurabilityOp =
-            (it.getOperation() == queue_op::pending_sync_write ||
-             it.getOperation() == queue_op::commit_sync_write ||
-             it.getOperation() == queue_op::abort_sync_write);
+            (item->getOperation() == queue_op::pending_sync_write ||
+             item->getOperation() == queue_op::commit_sync_write ||
+             item->getOperation() == queue_op::abort_sync_write);
 
     if (isDurabilityOp) {
-        meta.setDurabilityOp(it.getOperation());
+        meta.setDurabilityOp(item->getOperation());
     }
 
-    if (it.isPending()) {
+    if (item->isPending()) {
         // Note: durability timeout /isn't/ persisted as part of a pending
         // SyncWrite. This is because if we ever read it back from disk
         // during warmup (i.e. the commit_sync_write was never persisted), we
         // don't know if the SyncWrite was actually already committed; as such
         // to ensure consistency the pending SyncWrite *must* eventually commit
         // (or sit in pending forever).
-        const auto level = it.getDurabilityReqs().getLevel();
-        meta.setPrepareProperties(level, it.isDeleted());
+        const auto level = item->getDurabilityReqs().getLevel();
+        meta.setPrepareProperties(level, item->isDeleted());
     }
 
-    if (it.isCommitSyncWrite() || it.isAbort()) {
-        meta.setCompletedProperties(it.getPrepareSeqno());
+    if (item->isCommitSyncWrite() || item->isAbort()) {
+        meta.setCompletedProperties(item->getPrepareSeqno());
     }
 
-    dbDocInfo.db_seq = it.getBySeqno();
+    dbDocInfo.db_seq = item->getBySeqno();
 
     // Now allocate space to hold the meta and get it ready for storage
     dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(
             isDurabilityOp ? MetaData::Version::V3 : MetaData::Version::V1);
     dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
 
-    dbDocInfo.rev_seq = it.getRevSeqno();
+    dbDocInfo.rev_seq = item->getRevSeqno();
     dbDocInfo.size = dbDoc.data.size;
 
-    if (it.isDeleted() && !it.isPending()) {
+    if (item->isDeleted() && !item->isPending()) {
         // Prepared SyncDeletes are not marked as deleted.
         dbDocInfo.deleted = 1;
-        meta.setDeleteSource(it.deletionSource());
+        meta.setDeleteSource(item->deletionSource());
     } else {
         dbDocInfo.deleted = 0;
     }
     dbDocInfo.id = dbDoc.id;
-    dbDocInfo.content_meta = getContentMeta(it);
+    dbDocInfo.content_meta = getContentMeta(*item);
 }
 
 CouchRequest::~CouchRequest() = default;
@@ -462,7 +463,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
     }
 }
 
-void CouchKVStore::set(const Item& itm, SetCallback cb) {
+void CouchKVStore::set(queued_item item) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::set: Not valid on a read-only "
                         "object.");
@@ -473,7 +474,7 @@ void CouchKVStore::set(const Item& itm, SetCallback cb) {
     }
 
     // each req will be de-allocated after commit
-    pendingReqsQ.emplace_back(itm, std::move(cb));
+    pendingReqsQ.emplace_back(std::move(item));
 }
 
 GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb) {
@@ -688,7 +689,7 @@ void CouchKVStore::getRange(Vbid vb,
     }
 }
 
-void CouchKVStore::del(const Item& itm, DeleteCallback cb) {
+void CouchKVStore::del(queued_item item) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::del: Not valid on a read-only "
                         "object.");
@@ -698,7 +699,7 @@ void CouchKVStore::del(const Item& itm, DeleteCallback cb) {
                         "true to perform a delete operation.");
     }
 
-    pendingReqsQ.emplace_back(itm, std::move(cb));
+    pendingReqsQ.emplace_back(std::move(item));
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
@@ -2368,7 +2369,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
             } else {
                 st.delTimeHisto.add(committed.getDelta());
             }
-            committed.getDelCallback()(*transactionCtx, mutationStatus);
+            transactionCtx->deleteCallback(committed.getItem(), mutationStatus);
         } else {
             auto mutationStatus = getMutationStatus(errCode);
             const auto& key = committed.getKey();
@@ -2390,7 +2391,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
             } else if (mutationStatus == MutationStatus::DocNotFound) {
                 setState = MutationSetResultState::DocNotFound;
             }
-            committed.getSetCallback()(*transactionCtx, setState);
+            transactionCtx->setCallback(committed.getItem(), setState);
         }
     }
 }

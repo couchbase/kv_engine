@@ -171,7 +171,7 @@ public:
     /**
      * Overrides set().
      */
-    void set(const Item& item, KVStore::SetCallback cb) override;
+    void set(queued_item item) override;
 
     /**
      * Overrides get().
@@ -193,7 +193,7 @@ public:
     /**
      * Overrides del().
      */
-    void del(const Item& itm, DeleteCallback cb) override;
+    void del(queued_item item) override;
 
     // This is a blocking call. The function waits until other threads have
     // finished processing on a VBucket DB (e.g., 'commit') before deleting

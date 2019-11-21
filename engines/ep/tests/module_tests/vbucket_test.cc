@@ -685,7 +685,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     auto storedValue = vbucket->ht.findForRead(k).storedValue;
     ASSERT_TRUE(storedValue);
-    PersistenceCallback cb1(qi, storedValue->getCas());
+    PersistenceCallback cb1;
 
     // (1.1) We need the persistence cursor to move through the current
     // checkpoint to ensure that the checkpoint manager correctly updates the
@@ -702,6 +702,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // (1.2) Mimic flusher by running the PCB for the store at (1)
     EPTransactionContext tc1(global_stats, *vbucket);
     cb1(tc1,
+        out.back(),
         KVStore::MutationSetResultState::Insert); // Using the create/update
                                                   // callback
 
@@ -724,7 +725,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     // (3.1) Run the PCB for the delete/expiry (2)
     // Using the delete callback
-    cb1(tc1, KVStore::MutationStatus::Success);
+    cb1(tc1, out.back(), KVStore::MutationStatus::Success);
 
     // In FE mode, getNumItems is tracking disk items, so we should have 0 disk
     // items until the 'flush' of the second store (3)
@@ -733,6 +734,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // (4) run the create/update PCB again, the store (3) should look like a
     // create because of the delete at (2)
     cb1(tc1,
+        out.back(),
         KVStore::MutationSetResultState::Insert); // Using the create/update
                                                   // callback
 

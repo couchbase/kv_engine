@@ -102,7 +102,7 @@ public:
     /**
      * Adds a request to a queue for batch processing at commit()
      */
-    void set(const Item& item, SetCallback cb) override;
+    void set(queued_item itm) override;
 
     GetValue get(const DiskDocKey& key, Vbid vb) override;
 
@@ -118,7 +118,7 @@ public:
                   const DiskDocKey& endKey,
                   const GetRangeCb& cb) override;
 
-    void del(const Item& itm, KVStore::DeleteCallback cb) override;
+    void del(queued_item itm) override;
 
     void delVBucket(Vbid vbucket, uint64_t fileRev) override;
 

@@ -29,47 +29,29 @@
 
 class KVStoreConfig;
 
-/**
- * Callback for the mutation being performed.
- */
-using MutationRequestCallback =
-        boost::variant<KVStore::SetCallback, KVStore::DeleteCallback>;
-
 class IORequest {
 public:
-    /**
-     * @param cb callback to the engine. Also specifies if this is a set
-     *        or delete based on the callback type.
-     * @param key The key of the item to persist
-     */
-    IORequest(MutationRequestCallback, DiskDocKey key);
-
+    IORequest(queued_item item);
     ~IORequest();
 
-    /// @returns true if the document to be persisted is for DELETE
-    bool isDelete() const {
-        return boost::get<KVStore::DeleteCallback>(&callback);
-    }
+    /// @returns true if the document to be persisted is for a delete.
+    bool isDelete() const;
 
     std::chrono::microseconds getDelta() const {
         return std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - start);
     }
 
-    const KVStore::SetCallback& getSetCallback() const {
-        return boost::get<KVStore::SetCallback>(callback);
-    }
-
-    const KVStore::DeleteCallback& getDelCallback() const {
-        return boost::get<KVStore::DeleteCallback>(callback);
-    }
-
     const DiskDocKey& getKey() const {
         return key;
     }
 
+    const queued_item getItem() const {
+        return item;
+    }
+
 protected:
-    MutationRequestCallback callback;
+    const queued_item item;
     DiskDocKey key;
     std::chrono::steady_clock::time_point start;
 };

@@ -190,24 +190,24 @@ public:
      * @param callback Persistence Callback
      * @param del Flag indicating if it is an item deletion or not
      */
-    RocksRequest(const Item& item, MutationRequestCallback callback)
-        : IORequest(std::move(callback), DiskDocKey{item}),
-          docBody(item.getValue()) {
+    RocksRequest(queued_item it)
+        : IORequest(std::move(it)), docBody(item->getValue()) {
         docMeta = rockskv::MetaData(
-                item.isDeleted(),
-                (item.isDeleted() ? static_cast<uint8_t>(item.deletionSource())
-                                  : 0),
+                item->isDeleted(),
+                (item->isDeleted()
+                         ? static_cast<uint8_t>(item->deletionSource())
+                         : 0),
                 0,
-                item.getDataType(),
-                item.getFlags(),
-                item.getNBytes(),
-                item.isDeleted() ? ep_real_time() : item.getExptime(),
-                item.getCas(),
-                item.getRevSeqno(),
-                item.getBySeqno(),
-                item.getOperation(),
-                item.getDurabilityReqs().getLevel(),
-                item.getPrepareSeqno());
+                item->getDataType(),
+                item->getFlags(),
+                item->getNBytes(),
+                item->isDeleted() ? ep_real_time() : item->getExptime(),
+                item->getCas(),
+                item->getRevSeqno(),
+                item->getBySeqno(),
+                item->getOperation(),
+                item->getDurabilityReqs().getLevel(),
+                item->getPrepareSeqno());
     }
 
     const rockskv::MetaData& getDocMeta() const {
@@ -641,7 +641,7 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
                 // did not exist.
                 mutationStatus = MutationStatus::DocNotFound;
             }
-            request.getDelCallback()(*transactionCtx, mutationStatus);
+            transactionCtx->deleteCallback(request.getItem(), mutationStatus);
         } else {
             if (status.code()) {
                 ++st.numSetFailure;
@@ -655,8 +655,8 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
             // However, to achieve this we would need to perform a Get to
             // RocksDB which is costly. For now just assume that the item did
             // not exist.
-            request.getSetCallback()(*transactionCtx,
-                                     MutationSetResultState::Insert);
+            transactionCtx->setCallback(request.getItem(),
+                                        MutationSetResultState::Insert);
         }
     }
 }
@@ -684,13 +684,13 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void RocksDBKVStore::set(const Item& item, SetCallback cb) {
+void RocksDBKVStore::set(queued_item item) {
     if (!in_transaction) {
         throw std::logic_error(
                 "RocksDBKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs->emplace_back(item, std::move(cb));
+    pendingReqs->emplace_back(std::move(item));
 }
 
 GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb) {
@@ -772,8 +772,8 @@ void RocksDBKVStore::reset(Vbid vbucketId) {
     // TODO RDB:  Implement.
 }
 
-void RocksDBKVStore::del(const Item& item, DeleteCallback cb) {
-    if (!item.isDeleted()) {
+void RocksDBKVStore::del(queued_item item) {
+    if (!item->isDeleted()) {
         throw std::invalid_argument(
                 "RocksDBKVStore::del item to delete is not marked as deleted.");
     }
@@ -784,7 +784,7 @@ void RocksDBKVStore::del(const Item& item, DeleteCallback cb) {
     }
     // TODO: Deleted items remain as tombstones, but are not yet expired,
     // they will accumuate forever.
-    pendingReqs->emplace_back(item, std::move(cb));
+    pendingReqs->emplace_back(std::move(item));
 }
 
 void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
