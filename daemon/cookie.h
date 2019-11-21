@@ -448,14 +448,6 @@ public:
     CookieTraceContext extractTraceContext();
 
     /**
-     * Set if the packet is validated or not (if the packet is validated
-     * the JSON dump of the value contains more information).
-     */
-    void setValidated(bool value) {
-        validated = value;
-    }
-
-    /**
      * @return true is setAuthorized has been called
      */
     bool isAuthorized() const {
