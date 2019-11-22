@@ -30,7 +30,6 @@
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
-#include <platform/pipe.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
