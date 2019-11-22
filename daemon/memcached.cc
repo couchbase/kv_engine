@@ -130,7 +130,6 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
 }
 
 std::atomic<bool> memcached_shutdown;
-std::atomic<bool> service_online;
 
 std::unique_ptr<cb::ExecutorPool> executorPool;
 
@@ -2420,9 +2419,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     if (!memcached_shutdown) {
         /* enter the event loop */
         LOG_INFO("Initialization complete. Accepting clients.");
-        service_online = true;
         event_base_loop(main_base, 0);
-        service_online = false;
     }
 
     LOG_INFO("Initiating graceful shutdown.");
