@@ -94,9 +94,6 @@
 #include <platform/thread.h>
 #include <xattr/blob.h>
 
-#include "utilities/engine_loader.h"
-
-
 class EWB_Engine;
 
 // Mapping from wrapped handle to EWB handles.

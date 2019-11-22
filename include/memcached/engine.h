@@ -89,27 +89,6 @@ extern "C" {
 typedef SERVER_HANDLE_V1* (*GET_SERVER_API)();
 }
 
-/**
- * The signature for the "create_instance" function exported from the module.
- *
- * This function should fill out an engine interface structure.
- *
- * @param get_server_api function to get the server API from
- * @param Where to store the interface handle
- * @return See description of ENGINE_ERROR_CODE
- */
-typedef ENGINE_ERROR_CODE (*CREATE_INSTANCE)(GET_SERVER_API get_server_api,
-                                             EngineIface** handle);
-
-/**
- * The signature for the "destroy_engine" function exported from the module.
- *
- * This function is called prior to closing of the module. This function should
- * free any globally allocated resources.
- *
- */
-typedef void (*DESTROY_ENGINE)();
-
 namespace cb {
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;
 

@@ -13,7 +13,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "utilities/engine_loader.h"
 #include "utilities/terminate_handler.h"
 #include "mock_server.h"
 

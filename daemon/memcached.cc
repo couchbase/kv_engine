@@ -55,7 +55,6 @@
 #include "timings.h"
 #include "topkeys.h"
 #include "tracing.h"
-#include "utilities/engine_loader.h"
 #include "utilities/terminate_handler.h"
 
 #include <cbsasl/logging.h>
