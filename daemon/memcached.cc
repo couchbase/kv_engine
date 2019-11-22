@@ -18,7 +18,6 @@
 #include "alloc_hooks.h"
 #include "buckets.h"
 #include "cmdline.h"
-#include "config_parse.h"
 #include "connections.h"
 #include "cookie.h"
 #include "debug_helpers.h"
@@ -51,8 +50,6 @@
 #include "session_cas.h"
 #include "settings.h"
 #include "stats.h"
-#include "subdocument.h"
-#include "timings.h"
 #include "topkeys.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
@@ -61,7 +58,6 @@
 #include <cbsasl/mechanism.h>
 #include <event2/thread.h>
 #include <mcbp/mcbp.h>
-#include <memcached/audit_interface.h>
 #include <memcached/rbac.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
@@ -80,32 +76,26 @@
 #include <utilities/breakpad.h>
 #include <gsl/gsl>
 
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <memory>
 #include <thread>
+#include <csignal>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <vector>
 
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif
-#include <limits.h>
-#include <math.h>
 #ifdef WIN32
 #include <Winbase.h> // For SetDllDirectory
 #else
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
-#include <signal.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <vector>
 
 /**
  * All of the buckets in couchbase is stored in this array.
