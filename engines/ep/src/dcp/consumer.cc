@@ -730,9 +730,17 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno) {
+        boost::optional<uint64_t> high_completed_seqno,
+        boost::optional<uint64_t> max_visible_seqno) {
     lastMessageTime = ep_current_time();
-    UpdateFlowControl ufc(*this, SnapshotMarker::baseMsgBytes);
+    uint32_t bytes = SnapshotMarker::baseMsgBytes;
+    if (high_completed_seqno || max_visible_seqno) {
+        bytes += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+    } else {
+        bytes += sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
+    }
+    UpdateFlowControl ufc(*this, bytes);
 
     if (start_seqno > end_seqno) {
         logger->warn(
@@ -750,6 +758,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
                                                 end_seqno,
                                                 flags,
                                                 high_completed_seqno,
+                                                max_visible_seqno,
                                                 cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }

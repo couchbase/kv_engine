@@ -557,24 +557,49 @@ static Status dcp_stream_end_validator(Cookie& cookie) {
 static Status dcp_snapshot_marker_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
+    using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
+    using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
+
+    // Validate our extras length is correct
+    if (!(header.getExtlen() == sizeof(DcpSnapshotMarkerV1Payload) ||
+          header.getExtlen() == sizeof(DcpSnapshotMarkerV2xPayload))) {
+        return Status::Einval;
+    }
+
+    // If v2.x validate the value length is expected
+    auto expectedValueLen = ExpectedValueLen::Zero;
+    if (header.getExtlen() == sizeof(DcpSnapshotMarkerV2xPayload)) {
+        const auto* payload =
+                reinterpret_cast<const DcpSnapshotMarkerV2xPayload*>(
+                        header.getExtdata().data());
+        size_t expectedLen = sizeof(DcpSnapshotMarkerV2_0Value);
+        expectedValueLen = ExpectedValueLen::Any;
+        if (payload->getVersion() != DcpSnapshotMarkerV2xVersion::Zero) {
+            cookie.setErrorContext(
+                    "Unsupported dcp snapshot version:" +
+                    std::to_string(uint32_t(payload->getVersion())));
+            return Status::Einval;
+        }
+
+        if (header.getValue().size() != expectedLen) {
+            cookie.setErrorContext("valuelen not expected:" +
+                                   std::to_string(expectedLen));
+            return Status::Einval;
+        }
+    }
+
     // Pass the extras len in because we will check it manually as it is
     // variable length
     auto status = McbpValidator::verify_header(cookie,
                                                header.getExtlen(),
                                                ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Zero,
+                                               expectedValueLen,
                                                ExpectedCas::Any,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
-    }
-
-    // Validate our extras length is correct
-    using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
-    using cb::mcbp::request::DcpSnapshotMarkerV2Payload;
-    if (!(header.getExtlen() == sizeof(DcpSnapshotMarkerV1Payload) ||
-          header.getExtlen() == sizeof(DcpSnapshotMarkerV2Payload))) {
-        return Status::Einval;
     }
 
     return verify_common_dcp_restrictions(cookie);

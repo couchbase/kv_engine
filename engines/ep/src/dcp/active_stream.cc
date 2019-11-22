@@ -320,6 +320,7 @@ void ActiveStream::markDiskSnapshot(
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                 hcsToSend,
+                boost::none, /*maxVisibleSeqno*/
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
@@ -1193,7 +1194,14 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
         }
 
         pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_, vb_, snapStart, snapEnd, flags, hcsToSend, sid));
+                opaque_,
+                vb_,
+                snapStart,
+                snapEnd,
+                flags,
+                hcsToSend,
+                boost::none /*maxVisibleSeqno*/,
+                sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
         // Here we can just clear this flag as it is set every time we process

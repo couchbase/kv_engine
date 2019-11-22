@@ -16,6 +16,7 @@
  */
 #include "dcp/response.h"
 
+#include <memcached/protocol_binary.h>
 #include <xattr/utils.h>
 
 /*
@@ -31,7 +32,7 @@ const uint32_t SnapshotMarkerResponse::baseMsgBytes = 24;
 const uint32_t SetVBucketStateResponse::baseMsgBytes = 24;
 const uint32_t StreamEndResponse::baseMsgBytes = 28;
 const uint32_t SetVBucketState::baseMsgBytes = 25;
-const uint32_t SnapshotMarker::baseMsgBytes = 44;
+const uint32_t SnapshotMarker::baseMsgBytes = 24;
 
 const char* DcpResponse::to_string() const {
     switch (event_) {
@@ -188,4 +189,15 @@ AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
 
 uint32_t AbortSyncWrite::getMessageSize() const {
     return abortBaseMsgBytes + key.size();
+}
+
+uint32_t SnapshotMarker::getMessageSize() const {
+    auto rv = baseMsgBytes;
+    if (highCompletedSeqno || maxVisibleSeqno) {
+        rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+              sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+    } else {
+        rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
+    }
+    return rv;
 }

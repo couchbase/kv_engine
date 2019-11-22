@@ -87,7 +87,8 @@ void CollectionsDcpTest::createDcpConsumer() {
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
                                        /*flags*/ 0,
-                                       /*highCompletedSeqno*/ {}));
+                                       /*highCompletedSeqno*/ {},
+                                       /*maxVisibleSeqno*/ {}));
 }
 
 void CollectionsDcpTest::createDcpObjects(

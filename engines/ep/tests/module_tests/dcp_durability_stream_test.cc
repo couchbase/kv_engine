@@ -1086,6 +1086,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                           5 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           4 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1185,6 +1186,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                           7 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           2 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1255,6 +1257,7 @@ void DurabilityPassiveStreamTest::
                           snapEnd,
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           snapStart /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1356,6 +1359,7 @@ void DurabilityPassiveStreamTest::
                           3 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1415,6 +1419,7 @@ void DurabilityPassiveStreamTest::
                           streamStartSeqno /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1481,6 +1486,7 @@ void DurabilityPassiveStreamTest::
             streamStartSeqno + 2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -1504,6 +1510,7 @@ TEST_P(DurabilityPassiveStreamTest,
             1 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1528,6 +1535,7 @@ TEST_P(DurabilityPassiveStreamTest,
                             ~1 /*snapEnd*/,
                             dcp_marker_flag_t::MARKER_FLAG_DISK,
                             {} /*HCS*/,
+                            {} /*maxVisibleSeqno*/,
                             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1551,6 +1559,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
                                   snapEnd,
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
                                   {});
     stream->processMarker(&snapshotMarker);
     const auto& readyQ = stream->public_readyQ();
@@ -1603,6 +1612,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
                                   4 /*snapEnd*/,
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
                                   {});
     stream->processMarker(&snapshotMarker);
     const auto& readyQ = stream->public_readyQ();
@@ -1706,6 +1716,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                                   10 /*snapEnd*/,
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
                                   {});
     stream->processMarker(&snapshotMarker);
     EXPECT_EQ(0, readyQ.size());
@@ -1816,6 +1827,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
             seqno,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1919,6 +1931,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
             prepareSeqno /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1957,6 +1970,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
             commitSeqno /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2038,6 +2052,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
             9 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2056,6 +2071,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
             12 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2159,6 +2175,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
     stream->messageReceived(
@@ -2238,6 +2255,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
             5 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2258,6 +2276,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
             6 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2348,6 +2367,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
             commitSeqno,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2493,6 +2513,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
             4 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2563,6 +2584,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepare) {
             2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2588,6 +2610,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
                           4 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2614,6 +2637,7 @@ TEST_P(DurabilityPassiveStreamTest,
                           4 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2639,6 +2663,7 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
             prepareSeqno + 2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2708,6 +2733,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
                           2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2745,6 +2771,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                           2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2786,6 +2813,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
             4 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamID*/);
     stream->processMarker(&marker);
 
@@ -2854,6 +2882,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
             2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2896,6 +2925,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
             5 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2966,6 +2996,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                           3 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3024,6 +3055,7 @@ TEST_P(DurabilityPassiveStreamTest,
             1 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3054,6 +3086,7 @@ TEST_P(DurabilityPassiveStreamTest,
             5 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3127,6 +3160,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                           2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3172,6 +3206,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
             3 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3204,6 +3239,7 @@ TEST_P(DurabilityPassiveStreamTest,
             2 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3241,6 +3277,7 @@ TEST_P(DurabilityPassiveStreamTest,
             3 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3300,6 +3337,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                           snapEnd,
                           MARKER_FLAG_MEMORY | MARKER_FLAG_CHK /*flags*/,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3363,6 +3401,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                             snapEnd,
                             MARKER_FLAG_CHK | MARKER_FLAG_MEMORY /*flags*/,
                             {} /*HCS*/,
+                            {} /*maxVisibleSeqno*/,
                             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3463,6 +3502,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                             20 /*snapEnd*/,
                             MARKER_FLAG_CHK | MARKER_FLAG_DISK /*flags*/,
                             {} /*HCS*/,
+                            {} /*maxVisibleSeqno*/,
                             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3849,6 +3889,7 @@ void DurabilityPromotionStreamTest::
             seqno /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     auto* passiveStream = DurabilityPassiveStreamTest::stream;
     passiveStream->processMarker(&marker);

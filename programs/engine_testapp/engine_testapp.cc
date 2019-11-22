@@ -199,7 +199,8 @@ struct mock_engine : public EngineIface, public DcpIface {
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint32_t flags,
-            boost::optional<uint64_t> high_completed_seqno) override;
+            boost::optional<uint64_t> high_completed_seqno,
+            boost::optional<uint64_t> max_visible_seqno) override;
 
     ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
                                uint32_t opaque,
@@ -736,14 +737,16 @@ ENGINE_ERROR_CODE mock_engine::snapshot_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno) {
+        boost::optional<uint64_t> high_completed_seqno,
+        boost::optional<uint64_t> max_visible_seqno) {
     return the_engine_dcp->snapshot_marker(cookie,
                                            opaque,
                                            vbucket,
                                            start_seqno,
                                            end_seqno,
                                            flags,
-                                           high_completed_seqno);
+                                           high_completed_seqno,
+                                           max_visible_seqno);
 }
 
 ENGINE_ERROR_CODE mock_engine::mutation(gsl::not_null<const void*> cookie,

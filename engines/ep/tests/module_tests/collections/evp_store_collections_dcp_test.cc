@@ -65,7 +65,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
                                        /*flags*/ 0,
-                                       /*HCS*/ {}));
+                                       /*HCS*/ {},
+                                       /*maxVisibleSeqno*/ {}));
 
     VBucketPtr vb = store->getVBucket(vbid);
 
