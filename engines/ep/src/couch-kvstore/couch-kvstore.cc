@@ -1421,24 +1421,24 @@ void CouchKVStore::pendingTasks() {
                         "read-only object.");
     }
 
-    if (!pendingFileDeletions.empty()) {
-        std::queue<std::string> queue;
-        pendingFileDeletions.getAll(queue);
+    // Swap out the contents of pendingFileDeletions to a temporary - we don't
+    // want to hold the lock while performing IO.
+    std::queue<std::string> filesToDelete;
+    filesToDelete.swap(*pendingFileDeletions.wlock());
 
-        while (!queue.empty()) {
-            std::string filename_str = queue.front();
-            if (remove(filename_str.c_str()) == -1) {
-                logger.warn(
-                        "CouchKVStore::pendingTasks: "
-                        "remove error:{}, file{}",
-                        errno,
-                        filename_str);
-                if (errno != ENOENT) {
-                    pendingFileDeletions.push(filename_str);
-                }
+    while (!filesToDelete.empty()) {
+        std::string filename_str = filesToDelete.front();
+        if (remove(filename_str.c_str()) == -1) {
+            logger.warn(
+                    "CouchKVStore::pendingTasks: "
+                    "remove error:{}, file{}",
+                    errno,
+                    filename_str);
+            if (errno != ENOENT) {
+                pendingFileDeletions->push(filename_str);
             }
-            queue.pop();
         }
+        filesToDelete.pop();
     }
 }
 
@@ -3055,7 +3055,7 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
 
         if (errno != ENOENT) {
             std::string file_str = fname;
-            pendingFileDeletions.push(file_str);
+            pendingFileDeletions->push(file_str);
         }
     }
 }
@@ -3097,7 +3097,7 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
                     filename);
 
             if (errno != ENOENT) {
-                pendingFileDeletions.push(const_cast<std::string &>(filename));
+                pendingFileDeletions->push(filename);
             }
         }
     }
