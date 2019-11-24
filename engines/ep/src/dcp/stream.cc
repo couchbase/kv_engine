@@ -256,7 +256,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       isBackfillTaskRunning(false),
       pendingBackfill(false),
       lastReadSeqno(st_seqno),
-      backfillRemaining(0),
+      backfillRemaining(),
       lastReadSeqnoUnSnapshotted(st_seqno),
       lastSentSeqno(st_seqno),
       curChkSeqno(st_seqno),
@@ -635,6 +635,16 @@ void ActiveStream::setVBucketStateAckRecieved() {
     notifyStreamReady();
 }
 
+void ActiveStream::setBackfillRemaining(size_t value) {
+    std::lock_guard<std::mutex> guard(streamMutex);
+    backfillRemaining = value;
+}
+
+void ActiveStream::clearBackfillRemaining() {
+    std::lock_guard<std::mutex> guard(streamMutex);
+    backfillRemaining.reset();
+}
+
 std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         std::lock_guard<std::mutex>& lh) {
     auto resp = nextQueuedItem();
@@ -662,15 +672,15 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         // Only DcpResponse objects representing items from "disk" have a size
         // so only update backfillRemaining when non-zero
         if (resp->getApproximateSize()) {
-            if (backfillRemaining.load(std::memory_order_relaxed) > 0) {
-                backfillRemaining.fetch_sub(1, std::memory_order_relaxed);
+            Expects(backfillRemaining.is_initialized());
+            if (*backfillRemaining > 0) {
+                (*backfillRemaining)--;
             }
         }
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
         // Given readyQ.empty() is True resp will be NULL
-        backfillRemaining.store(0, std::memory_order_relaxed);
         // The previous backfill has completed.  Check to see if another
         // backfill needs to be scheduled.
         if (pendingBackfill) {
@@ -875,15 +885,24 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
         return;
     }
 
-    size_t total = backfillRemaining.load(std::memory_order_relaxed);
+    size_t total = 0;
+    const char* status = nullptr;
     if (isBackfilling()) {
-        add_casted_stat("status", "backfilling", add_stat, cookie);
+        if (backfillRemaining) {
+            status = "backfilling";
+            total += *backfillRemaining;
+        } else {
+            status = "calculating-item-count";
+        }
     } else {
-        add_casted_stat("status", "in-memory", add_stat, cookie);
+        status = "in-memory";
     }
-    add_casted_stat("backfillRemaining",
-                    backfillRemaining.load(std::memory_order_relaxed),
-                    add_stat, cookie);
+    add_casted_stat("status", status, add_stat, cookie);
+
+    if (backfillRemaining) {
+        add_casted_stat(
+                "backfillRemaining", *backfillRemaining, add_stat, cookie);
+    }
 
     size_t vb_items = vb.getNumItems();
     size_t chk_items = 0;
@@ -1507,6 +1526,9 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         producer->scheduleBackfillManager(
                 *vbucket, shared_from_this(), backfillStart, backfillEnd);
         isBackfillTaskRunning.store(true);
+        /// Number of backfill items is unknown until the Backfill task
+        /// completes the scan phase - reset backfillRemaining counter.
+        backfillRemaining.reset();
     } else {
         if (reschedule) {
             // Infrequent code path, see comment below.

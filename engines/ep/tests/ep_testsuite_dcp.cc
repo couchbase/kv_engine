@@ -687,8 +687,8 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
             std::stringstream stats_takeover;
             stats_takeover << "dcp-vbtakeover " << ctx.vbucket
             << " " << name.c_str();
-            wait_for_stat_to_be_lte(h, h1, "estimate", static_cast<int>(est),
-                                    stats_takeover.str().c_str());
+            wait_for_stat_to_be_lte(
+                    h, h1, "estimate", est, stats_takeover.str().c_str());
         }
 
         if (ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {

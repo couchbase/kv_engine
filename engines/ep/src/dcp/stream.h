@@ -250,9 +250,12 @@ public:
 
     void setVBucketStateAckRecieved();
 
-    void incrBackfillRemaining(size_t by) {
-        backfillRemaining.fetch_add(by, std::memory_order_relaxed);
-    }
+    /// Set the number of backfill items remaining to the given value.
+    void setBackfillRemaining(size_t value);
+
+    /// Clears the number of backfill items remaining, setting to an empty
+    /// (unknown) value.
+    void clearBackfillRemaining();
 
     void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
 
@@ -397,12 +400,13 @@ protected:
        snapshotted and put onto readyQ */
     AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastReadSeqno;
 
-    /* backfillRemaining is a stat recording the amount of
-     * items remaining to be read from disk.  It is an atomic
-     * because otherwise the function incrBackfillRemaining
-     * must acquire the streamMutex lock.
+    /* backfillRemaining is a stat recording the amount of items remaining to
+     * be read from disk.
+     * Before the number of items to be backfilled has been determined (disk
+     * scanned) it is empty.
+     * Guarded by streamMutex.
      */
-    std::atomic<size_t> backfillRemaining;
+    boost::optional<size_t> backfillRemaining;
 
     std::unique_ptr<DcpResponse> backfillPhase(std::lock_guard<std::mutex>& lh);
 

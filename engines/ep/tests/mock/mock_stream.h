@@ -121,7 +121,7 @@ public:
         return lastReadSeqno;
     }
 
-    int getNumBackfillItemsRemaining() const {
+    boost::optional<size_t> getNumBackfillItemsRemaining() const {
         return backfillRemaining;
     }
 
