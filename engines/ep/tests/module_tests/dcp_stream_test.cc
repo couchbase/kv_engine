@@ -2208,6 +2208,111 @@ TEST_P(SingleThreadedPassiveStreamTest,
     EXPECT_FALSE(vb->isReceivingInitialDiskSnapshot());
 }
 
+/**
+ * Note: this test does not cover any issue, it just shows what happens at
+ * Replica if the Active misses to set the MARKER_FLAG_CHK in SnapshotMarker.
+ */
+TEST_P(SingleThreadedPassiveStreamTest,
+       ReplicaCreatesCheckpointsOnlyIfFlagSetInSnapMarker) {
+    auto vb = engine->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+    ASSERT_EQ(CheckpointType::Memory, ckptMgr.getOpenCheckpointType());
+
+    const uint32_t opaque = 0;
+    const auto receiveSnapshot =
+            [this, opaque, &vb, &ckptMgr](
+                    uint64_t snapStart,
+                    uint64_t snapEnd,
+                    uint32_t flags,
+                    size_t expectedNumCheckpoint,
+                    CheckpointType expectedOpenCkptType) -> void {
+        cb::mcbp::DcpStreamId streamId{};
+        SnapshotMarker marker(
+                opaque, vbid, snapStart, snapEnd, flags, {} /*HCS*/, streamId);
+        stream->processMarker(&marker);
+
+        auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
+        item->setBySeqno(snapStart);
+
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  stream->messageReceived(
+                          std::make_unique<MutationConsumerMessage>(
+                                  std::move(item),
+                                  opaque,
+                                  IncludeValue::Yes,
+                                  IncludeXattrs::Yes,
+                                  IncludeDeleteTime::No,
+                                  DocKeyEncodesCollectionId::No,
+                                  nullptr /*ext-metadata*/,
+                                  streamId)));
+
+        EXPECT_EQ(expectedNumCheckpoint, ckptMgr.getNumCheckpoints());
+        EXPECT_EQ(expectedOpenCkptType, ckptMgr.getOpenCheckpointType());
+    };
+
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(1 /*snapStart*/,
+                        1 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                        1 /*expectedNumCheckpoint*/,
+                        CheckpointType::Memory /*expectedOpenCkptType*/);
+    }
+
+    // Merged with the previous snapshot
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(2 /*snapStart*/,
+                        2 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                        1 /*expectedNumCheckpoint*/,
+                        CheckpointType::Memory /*expectedOpenCkptType*/);
+    }
+
+    // Merged with the previous snapshot (which has been turned from Memory to
+    // Disk)
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(3 /*snapStart*/,
+                        3 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_DISK,
+                        1 /*expectedNumCheckpoint*/,
+                        CheckpointType::Disk /*expectedOpenCkptType*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(4 /*snapStart*/,
+                        4 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                        2 /*expectedNumCheckpoint*/,
+                        CheckpointType::Disk /*expectedOpenCkptType*/);
+    }
+
+    // Merged with the previous snapshot (which has been turned from Disk to
+    // Memory)
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(5 /*snapStart*/,
+                        5 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                        2 /*expectedNumCheckpoint*/,
+                        CheckpointType::Memory /*expectedOpenCkptType*/);
+    }
+
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(6 /*snapStart*/,
+                        6 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                        3 /*expectedNumCheckpoint*/,
+                        CheckpointType::Memory /*expectedOpenCkptType*/);
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
         SingleThreadedActiveStreamTest,

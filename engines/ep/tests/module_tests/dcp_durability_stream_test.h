@@ -121,10 +121,16 @@ protected:
      * Test that a mutation or deletion sent instead of a commit is accepted by
      * the replica when backfilling from disk
      *
+     * @param snapStart Of disk snapshot, also seqno of received PRE
+     * @param snapEnd Of disk snapshot, also seqno of received (logical) CMT
      * @param docState Should we send a mutation or a deletion?
+     * @param clearCM Whwther we should start the test from an empty CM
      */
     void testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
-            DocumentState docState);
+            uint64_t snapStart,
+            uint64_t snapEnd,
+            DocumentState docState,
+            bool clearCM = true);
 
     /**
      * Test that a mutation or deletion sent instead of a commit is accepted by
@@ -214,4 +220,11 @@ protected:
      * snapshots when promoted to active.
      */
     void testDiskCheckpointStreamedAsDiskSnapshot();
+
+    /**
+     * Test that at snapshot transition (ie, ActiveStream streaming an alternate
+     * sequence of Disk/Memory checkpoints) the MARKER_FLAG_CHK is always set in
+     * the SnapshotMarker sent to Replica.
+     */
+    void testCheckpointMarkerAlwaysSetAtSnapTransition();
 };

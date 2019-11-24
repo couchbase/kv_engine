@@ -107,4 +107,9 @@ public:
     bool incrCursor(CheckpointCursor& cursor) {
         return CheckpointManager::incrCursor(cursor);
     }
+
+    CheckpointType getOpenCheckpointType() const {
+        LockHolder lh(queueLock);
+        return getOpenCheckpoint_UNLOCKED(lh).getCheckpointType();
+    }
 };

@@ -1179,9 +1179,10 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
                                                       boost::none /*HCS*/,
                                                       sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
-        // We should always send a CHK marker flag on disk -> memory
-        // snapshot transition. Otherwise, clear nextSnapshotIsCheckpoint.
-        nextSnapshotIsCheckpoint = checkpointType == CheckpointType::Disk;
+
+        // Here we can just clear this flag as it is set every time we process
+        // a checkpoint_start item in ActiveStream::processItems.
+        nextSnapshotIsCheckpoint = false;
     }
 
     for (auto& item : items) {
