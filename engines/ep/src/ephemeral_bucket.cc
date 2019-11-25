@@ -192,8 +192,10 @@ VBucketPtr EphemeralBucket::makeVBucket(
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
-        const nlohmann::json& replicationTopology) {
+        const nlohmann::json& replicationTopology,
+        uint64_t maxVisibleSeqno) {
     (void)hlcEpochSeqno; // Ephemeral overrides this to be 0
+    (void)maxVisibleSeqno; // Ephemeral overrides this to be 0
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter
     // 2. allocate_shared has inconsistencies between platforms in calling

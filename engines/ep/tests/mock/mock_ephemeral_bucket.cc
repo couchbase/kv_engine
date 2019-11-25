@@ -36,7 +36,8 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
-        const nlohmann::json& replicationTopology) {
+        const nlohmann::json& replicationTopology,
+        uint64_t maxVisibleSeqno) {
     auto vptr = EphemeralBucket::makeVBucket(id,
                                              state,
                                              shard,
@@ -51,7 +52,8 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
                                              maxCas,
                                              hlcEpochSeqno,
                                              mightContainXattrs,
-                                             replicationTopology);
+                                             replicationTopology,
+                                             maxVisibleSeqno);
 
     vptr->checkpointManager = std::make_unique<MockCheckpointManager>(
             stats,

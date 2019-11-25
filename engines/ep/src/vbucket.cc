@@ -177,7 +177,8 @@ VBucket::VBucket(Vbid i,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
-                 const nlohmann::json& replTopology)
+                 const nlohmann::json& replTopology,
+                 uint64_t maxVisibleSeqno)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,
