@@ -139,6 +139,11 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    // Only a prepare exists, so maxVisible remains 0
+    EXPECT_EQ(
+            0,
+            dynamic_cast<SnapshotMarker&>(*resp).getMaxVisibleSeqno().value_or(
+                    ~0));
 
     // Simulate the Replica ack'ing the SnapshotMarker's bytes
     auto bytesOutstanding = producer->getBytesOutstanding();
@@ -274,8 +279,10 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
 
     // Fetch items via DCP stream.
     auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
+    uint64_t expectedVisibleSeqno = 0;
     switch (res) {
     case Resolution::Commit:
+        expectedVisibleSeqno = 2;
         ASSERT_EQ(1, outstandingItemsResult.items.size())
                 << "Expected 1 item (Commit)";
         EXPECT_EQ(queue_op::commit_sync_write,
@@ -305,6 +312,10 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(expectedVisibleSeqno, marker.getMaxVisibleSeqno().value_or(~0));
+    EXPECT_FALSE(marker.getHighCompletedSeqno().is_initialized());
+    EXPECT_EQ(2, marker.getEndSeqno());
 
     // Simulate the Replica ack'ing the SnapshotMarker's bytes
     auto bytesOutstanding = producer->getBytesOutstanding();
@@ -985,7 +996,15 @@ TEST_P(DurabilityActiveStreamTest,
     bfm.backfill();
     bfm.backfill();
     EXPECT_EQ(3, stream->public_readyQSize());
-    stream->consumeBackfillItems(3);
+
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
+    EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
+    EXPECT_EQ(4, marker.getEndSeqno());
+
+    stream->consumeBackfillItems(2);
 
     EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
 
@@ -1042,6 +1061,8 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     ASSERT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
     ASSERT_TRUE(marker.getHighCompletedSeqno());
     EXPECT_EQ(1, *marker.getHighCompletedSeqno());
+    EXPECT_EQ(2, marker.getMaxVisibleSeqno().value_or(~0));
+    EXPECT_EQ(2, marker.getEndSeqno());
 
     producer->cancelCheckpointCreatorTask();
 }
@@ -4874,6 +4895,78 @@ TEST_P(DurabilityActiveStreamTest,
     using cb::durability::Level;
     testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
             DocumentState::Deleted, Level::PersistToMajority);
+}
+
+// Test that when multiple checkpoints are combined and we generate many markers
+// the markers are correct
+TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
+    auto vb = store->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    ASSERT_TRUE(producer);
+    auto* activeStream = DurabilityActiveStreamTest::stream.get();
+    ASSERT_TRUE(activeStream);
+
+    auto prepare = makePendingItem(
+            makeStoredDocKey("prep1"),
+            "value",
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+
+    ckptMgr.createNewCheckpoint();
+
+    auto item = makeCommittedItem(makeStoredDocKey("mut1"), "value");
+    {
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+
+    prepare = makePendingItem(
+            makeStoredDocKey("prep2"),
+            "value",
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+
+    // We should get items from two checkpoints which will make processItems
+    // generate two markers
+    auto items = stream->public_getOutstandingItems(*vb);
+    stream->public_processItems(items);
+
+    // marker, prepare, marker, mutation, prepare
+    EXPECT_EQ(5, stream->public_readyQSize());
+    auto resp = stream->next();
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(snapMarker.getFlags() & MARKER_FLAG_CHK);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+    EXPECT_EQ(0, snapMarker.getMaxVisibleSeqno().value_or(~0));
+
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(snapMarker.getFlags() & MARKER_FLAG_CHK);
+    EXPECT_EQ(2, snapMarker.getStartSeqno());
+    EXPECT_EQ(3, snapMarker.getEndSeqno());
+    EXPECT_EQ(2, snapMarker.getMaxVisibleSeqno().value_or(~0));
+
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
 }
 
 void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
