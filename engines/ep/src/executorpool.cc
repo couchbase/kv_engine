@@ -37,6 +37,9 @@ std::atomic<ExecutorPool*> ExecutorPool::instance;
 
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
+/// Limit automatic selection of Reader threads to 64 - a value which is
+/// in-line with our test machines.
+static const size_t EP_MAX_READER_THREADS = 64;
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
 
@@ -119,7 +122,12 @@ size_t ExecutorPool::getNumReaders() {
     // cores are more likely to have more IO than little machines.
     size_t count = maxGlobalThreads;
 
-    // 2. Override with user's value if specified
+    // 2. adjust computed value to be within range
+    if (count > EP_MAX_READER_THREADS) {
+        count = EP_MAX_READER_THREADS;
+    }
+
+    // 3. Override with user's value if specified
     if (numWorkers[READER_TASK_IDX]) {
         count = numWorkers[READER_TASK_IDX];
     }

@@ -199,7 +199,7 @@ std::vector<ExpectedThreadCounts> threadCountValues = {{1, 1, 2, 1, 2},
                                                        {32, 32, 32, 4, 8},
                                                        {48, 48, 48, 5, 8},
                                                        {64, 64, 64, 7, 8},
-                                                       {128, 128, 128, 8, 8}};
+                                                       {128, 64, 128, 8, 8}};
 
 INSTANTIATE_TEST_CASE_P(ThreadCountTest,
                         ExecutorPoolTestWithParam,
