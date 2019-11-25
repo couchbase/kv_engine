@@ -237,11 +237,11 @@ protected:
     SerialisedDocKey(const DocKey& key)
         : length(gsl::narrow_cast<uint8_t>(key.size())) {
         if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
-            std::copy(key.data(), key.data() + key.size(), bytes);
+            std::copy(key.data(), key.data() + key.size(), reinterpret_cast<char*>(bytes));
         } else {
             // This key is for the default collection
             bytes[0] = DefaultCollectionLeb128Encoded;
-            std::copy(key.data(), key.data() + key.size(), bytes + 1);
+            std::copy(key.data(), key.data() + key.size(), reinterpret_cast<char*>(bytes) + 1);
             length++;
         }
     }
@@ -258,7 +258,7 @@ protected:
      */
     SerialisedDocKey(cb::const_byte_buffer key)
         : length(gsl::narrow_cast<uint8_t>(key.size())) {
-        std::copy(key.begin(), key.end(), bytes);
+        std::copy(key.begin(), key.end(), reinterpret_cast<char*>(bytes));
     }
 
     /**
