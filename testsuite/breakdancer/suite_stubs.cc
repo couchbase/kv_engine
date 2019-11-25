@@ -122,4 +122,9 @@ bool setup_suite(struct test_harness *th) {
     return true;
 }
 
+MEMCACHED_PUBLIC_API
+bool teardown_suite() {
+    return true;
+}
+
 #define NSEGS 10

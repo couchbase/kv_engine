@@ -1,3 +1,10 @@
-ADD_LIBRARY(basic_engine_testsuite MODULE basic_engine_testsuite.cc)
-SET_TARGET_PROPERTIES(basic_engine_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWORK_LIBS})
+add_executable(memcached-basic-engine-tests
+               basic_engine_testsuite.cc
+               $<TARGET_OBJECTS:engine_testapp>)
+add_sanitizers(memcached-basic-engine-tests)
+target_link_libraries(memcached-basic-engine-tests
+                      engine_testapp)
+
+add_test(NAME memcached-basic-engine-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached-basic-engine-tests -E mc)

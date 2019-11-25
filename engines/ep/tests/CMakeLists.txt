@@ -166,80 +166,82 @@ ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_tes
 ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
 ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
-ADD_LIBRARY(timing_tests MODULE module_tests/timing_tests.cc)
-SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(timing_tests mcbp platform)
+ADD_EXECUTABLE(timing_tests module_tests/timing_tests.cc
+               $<TARGET_OBJECTS:engine_testapp>)
+TARGET_LINK_LIBRARIES(timing_tests engine_testapp mcbp platform)
 
-ADD_LIBRARY(ep_testsuite MODULE
-        ep_testsuite.cc
-        $<TARGET_OBJECTS:ep_testsuite_objs>
-        $<TARGET_OBJECTS:mock_dcp>)
-SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcbp mcd_util
-        ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
-        platform xattr
-        ${LIBEVENT_LIBRARIES})
+ADD_EXECUTABLE(ep_testsuite
+               ep_testsuite.cc
+               $<TARGET_OBJECTS:ep_testsuite_objs>
+               $<TARGET_OBJECTS:mock_dcp>
+               $<TARGET_OBJECTS:engine_testapp>)
+TARGET_LINK_LIBRARIES(ep_testsuite engine_testapp engine_utilities mcbp mcd_util
+                      ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
+                      platform xattr
+                      ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep_testsuite)
 
-ADD_LIBRARY(ep_testsuite_basic MODULE
-        ep_testsuite_basic.cc
-        $<TARGET_OBJECTS:ep_testsuite_objs>
-        $<TARGET_OBJECTS:mock_dcp>
-        )
-SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
+ADD_EXECUTABLE(ep_testsuite_basic
+               ep_testsuite_basic.cc
+               $<TARGET_OBJECTS:ep_testsuite_objs>
+               $<TARGET_OBJECTS:mock_dcp>
+               $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_basic
-        cbcompress
-        dirutils
-        engine_utilities
-        JSON_checker
-        mcbp
-        mcd_util
-        platform
-        ${LIBEVENT_LIBRARIES}
-        ${SNAPPY_LIBRARIES})
+                      engine_testapp
+                      cbcompress
+                      dirutils
+                      engine_utilities
+                      JSON_checker
+                      mcbp
+                      mcd_util
+                      platform
+                      ${LIBEVENT_LIBRARIES}
+                      ${SNAPPY_LIBRARIES})
 add_sanitizers(ep_testsuite_basic)
 
-ADD_LIBRARY(ep_testsuite_dcp MODULE
-        ep_testsuite_dcp.cc
-        $<TARGET_OBJECTS:ep_testsuite_objs>
-        $<TARGET_OBJECTS:mock_dcp>
-        )
-SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
+ADD_EXECUTABLE(ep_testsuite_dcp
+               ep_testsuite_dcp.cc
+               $<TARGET_OBJECTS:ep_testsuite_objs>
+               $<TARGET_OBJECTS:mock_dcp>
+               $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_dcp
-        cbcompress
-        dirutils
-        engine_utilities
-        JSON_checker
-        mcbp
-        mcd_util
-        platform
-        ${LIBEVENT_LIBRARIES}
-        ${SNAPPY_LIBRARIES})
+                      engine_testapp
+                      cbcompress
+                      dirutils
+                      engine_utilities
+                      JSON_checker
+                      mcbp
+                      mcd_util
+                      platform
+                      ${LIBEVENT_LIBRARIES}
+                      ${SNAPPY_LIBRARIES})
 add_sanitizers(ep_testsuite_dcp)
 
-ADD_LIBRARY(ep_testsuite_checkpoint MODULE
-        ep_testsuite_checkpoint.cc
-        $<TARGET_OBJECTS:ep_testsuite_objs>)
-SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
+ADD_EXECUTABLE(ep_testsuite_checkpoint
+               ep_testsuite_checkpoint.cc
+               $<TARGET_OBJECTS:ep_testsuite_objs>
+               $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
-        cbcompress
-        dirutils
-        engine_utilities
-        JSON_checker
-        mcbp
-        mcd_util
-        platform
-        ${LIBEVENT_LIBRARIES}
-        ${SNAPPY_LIBRARIES})
+                      engine_testapp
+                      cbcompress
+                      dirutils
+                      engine_utilities
+                      JSON_checker
+                      mcbp
+                      mcd_util
+                      platform
+                      ${LIBEVENT_LIBRARIES}
+                      ${SNAPPY_LIBRARIES})
 add_sanitizers(ep_testsuite_checkpoint)
 
-ADD_LIBRARY(ep_testsuite_xdcr MODULE
-        ep_testsuite_xdcr.cc
-        $<TARGET_OBJECTS:ep_testsuite_objs>)
-SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities
-        mcbp JSON_checker dirutils platform xattr
-        ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_EXECUTABLE(ep_testsuite_xdcr
+               ep_testsuite_xdcr.cc
+               $<TARGET_OBJECTS:ep_testsuite_objs>
+               $<TARGET_OBJECTS:engine_testapp>)
+TARGET_LINK_LIBRARIES(ep_testsuite_xdcr
+                      engine_testapp mcd_util engine_utilities
+                      mcbp JSON_checker dirutils platform xattr
+                      ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 add_sanitizers(ep_testsuite_xdcr)
 
 # MB-35234: Currently broken due to data race during warmup when enabling
@@ -256,10 +258,7 @@ ENDIF()
 FUNCTION(ADD_TESTSUITE name timeout)
     CMAKE_PARSE_ARGUMENTS("arg" "SKIP_MAGMA" "" "" ${ARGN})
 
-    SET(_cmdline
-            ${Memcached_BINARY_DIR}/engine_testapp
-            -E ep
-            -T $<TARGET_FILE:${name}>)
+    SET(_cmdline $<TARGET_FILE:${name}> -E ep)
 
     # MB-34445: To attempt to identify the cause of the intermittent timeouts in
     # the ephemeral testsuites, use the 'timeout' program to signal ep_testsuite
@@ -348,7 +347,7 @@ ELSE()
 ENDIF()
 
 # ================================ PERF_TESTS ================================ #
-SET(_ep_perfsuite_cmdline $<TARGET_FILE:engine_testapp> -E ep -T $<TARGET_FILE:ep_perfsuite> -v)
+SET(_ep_perfsuite_cmdline $<TARGET_FILE:ep_perfsuite> -E ep -v)
 
 # Micro perf tests: value-only eviction mode. Note that it makes no sense to run
 # these tests in full-eviction mode as we disable persistence - see MB-19504.

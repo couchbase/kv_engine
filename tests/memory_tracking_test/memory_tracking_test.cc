@@ -151,47 +151,6 @@ void MemoryTrackerTest::AccountingTestThread(void* arg) {
     EXPECT_GE(alloc_size, sizeof("random string"));
     cb_free(p);
     EXPECT_EQ(0, alloc_size);
-
-    // Test memory allocations performed from another shared library loaded
-    // at runtime.
-    auto plugin = cb::io::loadLibrary("memcached_memory_tracking_plugin");
-
-    // dlopen()ing a plugin can allocate memory. Reset alloc_size.
-    alloc_size = 0;
-
-    typedef void* (*plugin_malloc_t)(size_t);
-    auto plugin_malloc = plugin->find<plugin_malloc_t>("plugin_malloc");
-    p = static_cast<char*>(plugin_malloc(100));
-    EXPECT_GE(alloc_size, 100);
-
-    typedef void (*plugin_free_t)(void*);
-    auto plugin_free = plugin->find<plugin_free_t>("plugin_free");
-    plugin_free(p);
-    EXPECT_EQ(0, alloc_size);
-
-    typedef char* (*plugin_new_char_t)(size_t);
-    auto plugin_new_char =
-            plugin->find<plugin_new_char_t>("plugin_new_char_array");
-    p = plugin_new_char(200);
-    EXPECT_GE(alloc_size, 200);
-
-    typedef void (*plugin_delete_array_t)(char*);
-    auto plugin_delete_char =
-            plugin->find<plugin_delete_array_t>("plugin_delete_array");
-    plugin_delete_char(p);
-    EXPECT_EQ(0, alloc_size);
-
-    typedef std::string* (*plugin_new_string_t)(const char*);
-    auto plugin_new_string =
-            plugin->find<plugin_new_string_t>("plugin_new_string");
-    auto* string = plugin_new_string("duplicate_string");
-    EXPECT_GE(alloc_size, 16);
-
-    typedef void(*plugin_delete_string_t)(std::string* ptr);
-    auto plugin_delete_string =
-            plugin->find<plugin_delete_string_t>("plugin_delete_string");
-    plugin_delete_string(string);
-    EXPECT_EQ(0, alloc_size);
 }
 
 // Test that the various memory allocation / deletion functions are correctly

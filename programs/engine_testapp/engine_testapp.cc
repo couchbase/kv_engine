@@ -962,17 +962,12 @@ ENGINE_ERROR_CODE mock_engine::abort(gsl::not_null<const void*> cookie,
 
 static void usage() {
     printf("\n");
-    printf("engine_testapp -E <ep|mc> -T <path_to_testlib>\n");
+    printf("engine_testapp -E <ep|mc>\n");
     printf("               [-e <engine_config>] [-h] [-X]\n");
     printf("\n");
     printf("-E <ep|mc>                   The engine to use.\n");
     printf("                               ep = ep-engine\n");
     printf("                               mc = default/memcache\n");
-    printf("\n");
-    printf("-T <path_to_testlib>         Path to the test library file. The test\n");
-    printf("                             library file is a library file (.so or\n");
-    printf("                             .dll) that contains the set of tests\n");
-    printf("                             to be executed.\n");
     printf("\n");
     printf("-a <attempts>                Maximum number of attempts for a test.\n");
     printf("-e <engine_config>           Engine configuration string passed to\n");
@@ -1321,6 +1316,12 @@ static test_result execute_test(engine_test_t test,
     return ret;
 }
 
+extern "C" {
+extern engine_test_t* get_tests();
+extern bool setup_suite(struct test_harness*);
+extern bool teardown_suite();
+}
+
 int main(int argc, char **argv) {
     int c, exitcode = 0, num_cases = 0, loop_count = 0;
     bool verbose = false;
@@ -1330,7 +1331,6 @@ int main(int argc, char **argv) {
     bool terminate_on_error = false;
     std::string engine;
     const char* engine_args = nullptr;
-    const char* test_suite = nullptr;
     std::unique_ptr<std::regex> test_case_regex;
     engine_test_t* testcases = nullptr;
     int test_case_id = -1;
@@ -1378,7 +1378,6 @@ int main(int argc, char **argv) {
                     "h" /* usage */
                     "E:" /* Engine to use */
                     "e:" /* Engine options */
-                    "T:" /* Library with tests to load */
                     "L" /* Loop until failure */
                     "q" /* Be more quiet (only report failures) */
                     "." /* dot mode. */
@@ -1424,9 +1423,6 @@ int main(int argc, char **argv) {
         case 'h':
             usage();
             return 0;
-        case 'T':
-            test_suite = optarg;
-            break;
         case 'L':
             loop = true;
             break;
@@ -1469,29 +1465,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (test_suite == nullptr) {
-        fprintf(stderr, "You must provide a path to the testsuite library.\n");
-        return 1;
-    }
-
-    // load test_suite
-    std::unique_ptr<cb::io::LibraryHandle> dlhandle;
-    try {
-        dlhandle = cb::io::loadLibrary(test_suite);
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to load testsuite " << test_suite << ": "
-                  << e.what() << std::endl;
-        return 1;
-    }
-
-    // get the test cases
-    try {
-        testcases = dlhandle->find<GET_TESTS>("get_tests")();
-    } catch (const std::exception& e) {
-        std::cerr << "Could not find get_tests function in testsuite "
-                  << test_suite << ": " << e.what() << std::endl;
-        return 1;
-    }
+    testcases = get_tests();
 
     /* set up the suite if needed */
     harness.default_engine_cfg = engine_args;
@@ -1511,15 +1485,9 @@ int main(int argc, char **argv) {
         /* Just counting */
     }
 
-    try {
-        auto setup_suite = dlhandle->find<SETUP_SUITE>("setup_suite");
-        if (!setup_suite(&harness)) {
-            std::cerr << "Failed to set up test suite " << test_suite
-                      << std::endl;
-            return 1;
-        }
-    } catch (const std::exception&) {
-        // ignore
+    if (!setup_suite(&harness)) {
+        std::cerr << "Failed to set up test suite" << std::endl;
+        return 1;
     }
 
     do {
@@ -1614,18 +1582,11 @@ int main(int argc, char **argv) {
     } while (loop && exitcode == 0);
 
     // tear down the suite if needed
-    try {
-        auto teardown_suite = dlhandle->find<TEARDOWN_SUITE>("teardown_suite");
-        if (!teardown_suite()) {
-            std::cerr << "Failed to teardown up test suite " << test_suite
-                      << std::endl;
-        }
-    } catch (const std::exception&) {
-        // ignore
+    if (!teardown_suite()) {
+        std::cerr << "Failed to teardown test suite" << std::endl;
     }
 
     printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
-    dlhandle.reset();
 
     return exitcode;
 }

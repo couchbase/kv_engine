@@ -70,6 +70,10 @@ extern "C" {
         vals.clear();
         return true;
     }
+
+    bool teardown_suite() {
+        return true;
+    }
 }
 
 static inline void decayingSleep(useconds_t *sleepTime) {

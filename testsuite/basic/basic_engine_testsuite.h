@@ -9,4 +9,7 @@ extern "C" {
 
     MEMCACHED_PUBLIC_API
     bool setup_suite(struct test_harness *th);
+
+    MEMCACHED_PUBLIC_API
+    bool teardown_suite();
 }

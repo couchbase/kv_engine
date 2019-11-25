@@ -343,12 +343,13 @@ if (NOT EP_BYPASS_TESTS)
     # While ep_perfsuite is arguably a "test" and hence should live under
     # tests/, we *don't* want optimizations disabled for it hence keep in
     # this directory.
-    ADD_LIBRARY(ep_perfsuite MODULE
-            tests/ep_perfsuite.cc
-            $<TARGET_OBJECTS:ep_testsuite_objs>
-            $<TARGET_OBJECTS:mock_dcp>)
-    SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
+    ADD_EXECUTABLE(ep_perfsuite
+                   tests/ep_perfsuite.cc
+                   $<TARGET_OBJECTS:ep_testsuite_objs>
+                   $<TARGET_OBJECTS:mock_dcp>
+                   $<TARGET_OBJECTS:engine_testapp>)
     TARGET_LINK_LIBRARIES(ep_perfsuite
+            engine_testapp
             cbcompress
             dirutils
             engine_utilities
