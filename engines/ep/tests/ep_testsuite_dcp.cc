@@ -8147,7 +8147,8 @@ BaseTestCase testsuite_testcases[] = {
                  "max_size=6291456;"
                  "chk_max_items=8000;"
                  "ephemeral_full_policy=fail_new_data;"
-                 "chk_expel_enabled=false",
+                 "chk_expel_enabled=false;"
+                 "max_num_shards=4",
                  /*
                   * Checkpoint expelling needs to be disabled for this test because
                   * the expects to stream from memory.  So if items have been
@@ -8173,7 +8174,8 @@ BaseTestCase testsuite_testcases[] = {
                  "max_size=6291456;"
                  "chk_max_items=8000;"
                  "ephemeral_full_policy=fail_new_data;"
-                 "chk_expel_enabled=false",
+                 "chk_expel_enabled=false;"
+                 "max_num_shards=4",
                  /*
                   * Checkpoint expelling needs to be disabled for this test because
                   * the expects to stream from memory.  So if items have been

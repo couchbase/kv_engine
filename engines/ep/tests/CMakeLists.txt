@@ -342,9 +342,9 @@ ADD_TESTSUITE(ep_testsuite_checkpoint 120 SKIP_MAGMA)
 # MB-36226: Skipping ep_testsuite_xdcr under Magma as intermittently hangs on
 # Windows
 IF(WIN32)
-    ADD_TESTSUITE(ep_testsuite_xdcr 60 SKIP_MAGMA)
+    ADD_TESTSUITE(ep_testsuite_xdcr 120 SKIP_MAGMA)
 ELSE()
-    ADD_TESTSUITE(ep_testsuite_xdcr 60)
+    ADD_TESTSUITE(ep_testsuite_xdcr 120)
 ENDIF()
 
 # ================================ PERF_TESTS ================================ #
