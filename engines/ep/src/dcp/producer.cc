@@ -759,6 +759,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                     s->getEndSeqno(),
                                     s->getFlags(),
                                     s->getHighCompletedSeqno(),
+                                    boost::none, /*max visible seqno */
                                     resp->getStreamId());
             break;
         }

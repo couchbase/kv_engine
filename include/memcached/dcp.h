@@ -106,6 +106,7 @@ struct dcp_message_producers {
      * @param end_seqno end of the snapshot range
      * @param flags snapshot marker flags (DISK/MEMORY/CHK/ACK).
      * @param highCompletedSeqno the SyncRepl high completed seqno
+     * @param maxVisibleSeqno highest committed seqno (ignores prepare/abort)
      * @param sid The stream-ID the marker applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
@@ -117,6 +118,7 @@ struct dcp_message_producers {
             uint64_t end_seqno,
             uint32_t flags,
             boost::optional<uint64_t> highCompletedSeqno,
+            boost::optional<uint64_t> maxVisibleSeqno,
             cb::mcbp::DcpStreamId sid) = 0;
 
     /**
