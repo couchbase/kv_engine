@@ -164,10 +164,14 @@ static void create_single_path_context(SubdocCmdContext& context,
         value.buf += pathlen;
         value.len -= pathlen;
 
-        ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags,
-                                                         path, value});
+        ops.emplace_back(
+                SubdocCmdContext::OperationSpec{traits,
+                                                flags,
+                                                {path.data(), path.size()},
+                                                {value.data(), value.size()}});
     } else {
-        ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path});
+        ops.emplace_back(SubdocCmdContext::OperationSpec{
+                traits, flags, {path.data(), path.size()}});
     }
 
     if (impliesMkdir_p(doc_flags)) {
@@ -270,8 +274,11 @@ static void create_multi_path_context(SubdocCmdContext& context,
         if (traits.mcbpCommand == cb::mcbp::ClientOpcode::Delete) {
             context.do_delete_doc = true;
         }
-        ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
-                                                         spec_value});
+        ops.emplace_back(SubdocCmdContext::OperationSpec{
+                traits,
+                flags,
+                {path.data(), path.size()},
+                {spec_value.data(), spec_value.size()}});
         offset += headerlen + path.len + spec_value.len;
     }
 
@@ -567,25 +574,25 @@ static cb::mcbp::Status subdoc_operate_one_path(
         auto padded_macro = context.get_padded_macro(spec.value);
         op.set_value(padded_macro.buf, padded_macro.len);
     } else {
-        op.set_value(spec.value.buf, spec.value.len);
+        op.set_value(spec.value.data(), spec.value.size());
     }
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
         cb::xattr::is_vattr(spec.path)) {
-        if (spec.path.buf[1] == 'd') {
+        if (spec.path[1] == 'd') {
             // This is a call to the "$document" (the validator stopped all of
             // the other ones), so replace the document with
             // the document virtual one..
             auto doc = context.get_document_vattr();
             op.set_doc(doc.data(), doc.size());
-        } else if (spec.path.buf[1] == 'X') {
+        } else if (spec.path[1] == 'X') {
             auto doc = context.get_xtoc_vattr();
             op.set_doc(doc.data(), doc.size());
         }
     }
 
     // ... and execute it.
-    const auto subdoc_res = op.op_exec(spec.path.buf, spec.path.len);
+    const auto subdoc_res = op.op_exec(spec.path.data(), spec.path.size());
 
     switch (subdoc_res) {
     case Subdoc::Error::SUCCESS:
@@ -653,7 +660,7 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
         return cb::mcbp::Status::Success;
 
     case cb::mcbp::ClientOpcode::Set:
-        spec.result.push_newdoc({spec.value.buf, spec.value.len});
+        spec.result.push_newdoc({spec.value.data(), spec.value.size()});
         return cb::mcbp::Status::Success;
 
     case cb::mcbp::ClientOpcode::Delete:

@@ -238,16 +238,10 @@ public:
      */
     class OperationSpec {
     public:
-        // Constructor for lookup operations (no value).
         OperationSpec(SubdocCmdTraits traits_,
                       protocol_binary_subdoc_flag flags_,
-                      cb::const_char_buffer path_);
-
-        // Constructor for operations requiring a value.
-        OperationSpec(SubdocCmdTraits traits_,
-                      protocol_binary_subdoc_flag flags_,
-                      cb::const_char_buffer path_,
-                      cb::const_char_buffer value_);
+                      std::string path_,
+                      std::string value_ = {});
 
         // Move constructor.
         OperationSpec(OperationSpec&& other);
@@ -258,12 +252,11 @@ public:
         // The flags set for this individual Operation
         protocol_binary_subdoc_flag flags;
 
-        // Path to operate on. Owned by the original request packet.
-        cb::const_char_buffer path;
+        // Path to operate on.
+        const std::string path;
 
-        // [For mutations only] Value to apply to document. Owned by the
-        // original request packet.
-        cb::const_char_buffer value;
+        // [For mutations only] Value to apply to document.
+        const std::string value;
 
         // Status code of the operation.
         cb::mcbp::Status status;
@@ -280,7 +273,10 @@ public:
      * @return the key
      */
     cb::const_char_buffer get_xattr_key() {
-        return xattr_key;
+        if (xattr_key.empty()) {
+            return {};
+        }
+        return {xattr_key.data(), xattr_key.size()};
     }
 
     /**
@@ -290,7 +286,7 @@ public:
      * @param key the key to be accessed
      */
     void set_xattr_key(const cb::const_char_buffer& key) {
-        xattr_key = key;
+        xattr_key = {key.data(), key.size()};
     }
 
     MutationSemantics mutationSemantics = MutationSemantics::Replace;
@@ -372,7 +368,7 @@ private:
     uint32_t computeValueCRC32C();
 
     // The xattr key being accessed in this command
-    cb::const_char_buffer xattr_key;
+    std::string xattr_key;
 
     using MacroPair = std::pair<cb::const_char_buffer, std::string>;
     std::vector<MacroPair> paddedMacros;

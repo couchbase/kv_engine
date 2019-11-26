@@ -641,10 +641,6 @@ void Connection::executeCommandPipeline() {
             cookie->initialize(getPacket(), isTracingEnabled());
             auto drainSize = cookie->getPacket().size();
 
-            // I need to figure out what to do with subdoc..
-            // looks like it is keeping pointers within the package
-            cookie->preserveRequest();
-
             const auto status = cookie->validate();
             if (status != cb::mcbp::Status::Success) {
                 cookie->sendResponse(status);
@@ -665,12 +661,9 @@ void Connection::executeCommandPipeline() {
                     }
                 } else {
                     active = true;
-#if 0
-                    // @todo Once we solve the subdoc thingie above we may make
-                    // sure we only preserve the request when we start looking
-                    // at the next packet
+                    // We need to block so we need to preserve the request
+                    // as we'll drain the data from the buffer)
                     cookie->preserveRequest();
-#endif
                     cookies.push_back(std::move(cookie));
                     if (!cookies.back()->mayReorder()) {
                         // Don't add commands as we need the last one to

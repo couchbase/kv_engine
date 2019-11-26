@@ -33,18 +33,11 @@
 #include <random>
 #include <sstream>
 
-SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
-                                               protocol_binary_subdoc_flag flags_,
-                                               cb::const_char_buffer path_)
-    : SubdocCmdContext::OperationSpec::OperationSpec(traits_, flags_, path_,
-                                                     {nullptr, 0}) {
-}
-
 SubdocCmdContext::OperationSpec::OperationSpec(
         SubdocCmdTraits traits_,
         protocol_binary_subdoc_flag flags_,
-        cb::const_char_buffer path_,
-        cb::const_char_buffer value_)
+        std::string path_,
+        std::string value_)
     : traits(traits_),
       flags(flags_),
       path(path_),
@@ -59,14 +52,15 @@ SubdocCmdContext::OperationSpec::OperationSpec(
 SubdocCmdContext::OperationSpec::OperationSpec(OperationSpec&& other)
     : traits(other.traits),
       flags(other.flags),
-      path(std::move(other.path)),
-      value(std::move(other.value)) {}
+      path(other.path),
+      value(other.value) {
+}
 
 uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
     uint64_t result = 0;
     for (auto& ops : operations) {
         for (auto& op : ops) {
-            result += op.value.len;
+            result += op.value.size();
         }
     }
     return result;
