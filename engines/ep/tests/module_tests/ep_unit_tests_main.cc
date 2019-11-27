@@ -71,6 +71,10 @@ public:
         throw std::runtime_error(
                 "UnitTestServerCore::shutdown() not implemented");
     }
+
+    ThreadPoolConfig getThreadPoolSizes() override {
+        return {};
+    }
 };
 
 int main(int argc, char **argv) {

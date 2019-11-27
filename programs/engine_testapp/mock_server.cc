@@ -180,6 +180,10 @@ struct MockServerCoreApi : public ServerCoreIface {
         throw std::runtime_error(
                 "MockServerCoreApi::shutdown() not implemented");
     }
+
+    ThreadPoolConfig getThreadPoolSizes() override {
+        return {};
+    }
 };
 
 struct MockServerLogApi : public ServerLogIface {
