@@ -211,8 +211,22 @@ struct test {
     {name, NULL, NULL, NULL, cfg, prepare, cleanup,\
      {test, setup, teardown}}
 
-typedef engine_test_t* (*GET_TESTS)(void);
+/**
+ * Get a pointer to the list of tests to run
+ * @return
+ */
+engine_test_t* get_tests();
 
-typedef bool (*SETUP_SUITE)(struct test_harness *);
+/**
+ * Set up the test suite
+ *
+ * @param th the test harness containing utility functions)
+ * @return true if success, false if we failed to set up the test suite
+ */
+bool setup_suite(struct test_harness* th);
 
-typedef bool (*TEARDOWN_SUITE)(void);
+/**
+ * Clean up from the test suite
+ * @return true if success, false if an error occurrecd cleaning up
+ */
+bool teardown_suite();

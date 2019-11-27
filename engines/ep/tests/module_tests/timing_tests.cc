@@ -56,24 +56,22 @@ bool abort_msg(const char *expr, const char *msg, int line) {
     return false;
 }
 
-extern "C" {
-    static void rmdb(void) {
+static void rmdb(void) {
 #ifdef WIN32
-        _unlink("./test");
+    _unlink("./test");
 #else
-        unlink("./test");
+    unlink("./test");
 #endif
-    }
+}
 
-    static bool teardown(EngineIface*) {
-        atexit(rmdb);
-        vals.clear();
-        return true;
-    }
+static bool teardown(EngineIface*) {
+    atexit(rmdb);
+    vals.clear();
+    return true;
+}
 
-    bool teardown_suite() {
-        return true;
-    }
+bool teardown_suite() {
+    return true;
 }
 
 static inline void decayingSleep(useconds_t *sleepTime) {
@@ -172,7 +170,6 @@ static size_t env_int(const char *k, size_t rv) {
     return rv;
 }
 
-extern "C" {
 static test_result test_persistence(EngineIface* h) {
     size_t total = env_int("TEST_TOTAL_KEYS", 100000);
     size_t size = env_int("TEST_VAL_SIZE", 20);
@@ -213,15 +210,12 @@ static test_result test_persistence(EngineIface* h) {
 
     return SUCCESS;
 }
-}
 
-extern "C" MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
     testHarness = th;
     return true;
 }
 
-extern "C" MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {

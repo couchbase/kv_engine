@@ -116,13 +116,11 @@ void assertNotExists(EngineIface* h) {
     cb_assert(rv.first == cb::engine_errc::no_such_key);
 }
 
-MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
     testHarness = th;
     return true;
 }
 
-MEMCACHED_PUBLIC_API
 bool teardown_suite() {
     return true;
 }

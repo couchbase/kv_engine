@@ -401,9 +401,7 @@ extern BaseTestCase testsuite_testcases[];
 
 // Examines the list of tests provided by the specific testsuite
 // via the testsuite_testcases[] array, populates `testcases` and returns it.
-MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void) {
-
+engine_test_t* get_tests() {
     // Calculate the size of the tests..
     int num = 0;
     while (testsuite_testcases[num].getName() != NULL) {
@@ -445,14 +443,12 @@ engine_test_t* get_tests(void) {
     return testcases;
 }
 
-MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
     testHarness = th;
     return true;
 }
 
 
-MEMCACHED_PUBLIC_API
 bool teardown_suite() {
     for (int i = 0; testcases[i].name != nullptr; i++) {
         cb_free((char*)testcases[i].name);

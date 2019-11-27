@@ -7,19 +7,6 @@
 #include <memcached/engine_testapp.h>
 #include <platform/cbassert.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void);
-
-MEMCACHED_PUBLIC_API
-bool setup_suite(struct test_harness *th);
-
-MEMCACHED_PUBLIC_API
-bool teardown_suite(void);
-
 bool test_setup(EngineIface* h);
 bool teardown(EngineIface* h);
 void delay(int amt);
@@ -37,7 +24,3 @@ void assertNotExists(EngineIface* h);
 extern int expiry;
 extern bool hasError;
 extern struct test_harness* testHarness;
-
-#ifdef __cplusplus
-}
-#endif

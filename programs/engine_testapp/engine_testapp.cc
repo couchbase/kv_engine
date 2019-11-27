@@ -1316,12 +1316,6 @@ static test_result execute_test(engine_test_t test,
     return ret;
 }
 
-extern "C" {
-extern engine_test_t* get_tests();
-extern bool setup_suite(struct test_harness*);
-extern bool teardown_suite();
-}
-
 int main(int argc, char **argv) {
     int c, exitcode = 0, num_cases = 0, loop_count = 0;
     bool verbose = false;

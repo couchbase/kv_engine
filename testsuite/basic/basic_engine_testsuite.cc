@@ -14,17 +14,16 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "basic_engine_testsuite.h"
 #include <memcached/durability_spec.h>
+#include <memcached/engine_testapp.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
-#include <vector>
 #include <sstream>
+#include <vector>
 
 struct test_harness* test_harness;
 
@@ -636,8 +635,7 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
     return SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
-engine_test_t* get_tests(void) {
+engine_test_t* get_tests() {
     static engine_test_t tests[]  = {
         TEST_CASE("allocate test", allocate_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("set test", set_test, NULL, NULL, NULL, NULL, NULL),
@@ -668,13 +666,11 @@ engine_test_t* get_tests(void) {
     return tests;
 }
 
-MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
     test_harness = th;
     return true;
 }
 
-MEMCACHED_PUBLIC_API
 bool teardown_suite() {
     return true;
 }
