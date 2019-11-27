@@ -34,6 +34,7 @@ add_library(mcd_util STATIC
             string_utilities.h
             terminate_handler.cc
             terminate_handler.h
+            thread_pool_config.cc
             types.cc
             util.cc
             vbucket.cc )

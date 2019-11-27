@@ -22,6 +22,7 @@
 #include "memcached/collections.h"
 #include "memcached/config_parser.h"
 #include "memcached/engine_common.h"
+#include "memcached/thread_pool_config.h"
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
 
@@ -199,12 +200,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     }
 
     // Set the number or reader threads
-    virtual void set_num_reader_threads(size_t num) {
+    virtual void set_num_reader_threads(ThreadPoolConfig::ThreadCount num) {
         // ignored
     }
 
     // Set the number or writer threads
-    virtual void set_num_writer_threads(size_t num) {
+    virtual void set_num_writer_threads(ThreadPoolConfig::ThreadCount num) {
         // ignored
     }
 

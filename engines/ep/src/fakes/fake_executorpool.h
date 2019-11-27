@@ -58,7 +58,12 @@ public:
     }
 
     SingleThreadedExecutorPool(size_t nTaskSets)
-        : ExecutorPool(/*threads*/0, nTaskSets, 0, 0, 0, 0) {
+        : ExecutorPool(/*threads*/ 0,
+                       nTaskSets,
+                       ThreadPoolConfig::ThreadCount::Default,
+                       ThreadPoolConfig::ThreadCount::Default,
+                       0,
+                       0) {
     }
 
     bool _startWorkers() override {

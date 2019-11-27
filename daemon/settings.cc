@@ -34,6 +34,7 @@
 
 #include <mcbp/mcbp.h>
 #include <memcached/openssl.h>
+#include <memcached/util.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
@@ -582,12 +583,51 @@ static void handle_opcode_attributes_override(Settings& s,
     s.setOpcodeAttributesOverride(obj.dump());
 }
 
+std::string threadConfig2String(int val) {
+    if (val == 0) {
+        return "default";
+    }
+    if (val == -1) {
+        return "disk_io_optimized";
+    }
+    return std::to_string(val);
+}
+
+static int parseThreadConfigSpec(const std::string& variable,
+                                 const std::string& spec) {
+    if (spec == "default") {
+        return 0;
+    }
+
+    if (spec == "disk_io_optimized") {
+        return -1;
+    }
+
+    uint64_t val;
+    if (!safe_strtoull(spec.c_str(), val)) {
+        throw std::invalid_argument(
+                variable +
+                R"( must be specified as "default", "disk_io_optimized" or a numeric value)");
+    }
+    return val;
+}
+
 static void handle_num_reader_threads(Settings& s,  const nlohmann::json& obj) {
-    s.setNumReaderThreads(obj.get<size_t>());
+    if (obj.is_number_unsigned()) {
+        s.setNumReaderThreads(obj.get<size_t>());
+    } else {
+        const auto val = obj.get<std::string>();
+        s.setNumReaderThreads(parseThreadConfigSpec("num_reader_thread", val));
+    }
 }
 
 static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
-    s.setNumWriterThreads(obj.get<size_t>());
+    if (obj.is_number_unsigned()) {
+        s.setNumWriterThreads(obj.get<size_t>());
+    } else {
+        const auto val = obj.get<std::string>();
+        s.setNumWriterThreads(parseThreadConfigSpec("num_writer_thread", val));
+    }
 }
 
 static void handle_extensions(Settings& s, const nlohmann::json& obj) {
@@ -1216,16 +1256,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.num_reader_threads &&
         other.getNumReaderThreads() != getNumReaderThreads()) {
         LOG_INFO("Change number of reader threads from: {} to {}",
-                 getNumReaderThreads(),
-                 other.getNumReaderThreads());
+                 threadConfig2String(getNumReaderThreads()),
+                 threadConfig2String(other.getNumReaderThreads()));
         setNumReaderThreads(other.getNumReaderThreads());
     }
 
     if (other.has.num_writer_threads &&
         other.getNumWriterThreads() != getNumWriterThreads()) {
         LOG_INFO("Change number of writer threads from: {} to {}",
-                 getNumWriterThreads(),
-                 other.getNumWriterThreads());
+                 threadConfig2String(getNumWriterThreads()),
+                 threadConfig2String(other.getNumWriterThreads()));
         setNumWriterThreads(other.getNumWriterThreads());
     }
 }

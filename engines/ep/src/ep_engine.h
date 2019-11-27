@@ -100,8 +100,8 @@ public:
     ENGINE_ERROR_CODE initialize(const char* config) override;
     void destroy(bool force) override;
 
-    void set_num_reader_threads(size_t num) override;
-    void set_num_writer_threads(size_t num) override;
+    void set_num_reader_threads(ThreadPoolConfig::ThreadCount num) override;
+    void set_num_writer_threads(ThreadPoolConfig::ThreadCount num) override;
 
     cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
                                      const DocKey& key,

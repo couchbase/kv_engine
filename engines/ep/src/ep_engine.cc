@@ -626,13 +626,15 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
         } else if (key == "warmup_min_items_threshold") {
             getConfiguration().setWarmupMinItemsThreshold(std::stoull(val));
         } else if (key == "num_reader_threads") {
-            size_t value = std::stoull(val);
+            ssize_t value = std::stoll(val);
             getConfiguration().setNumReaderThreads(value);
-            ExecutorPool::get()->setNumReaders(value);
+            ExecutorPool::get()->setNumReaders(
+                    ThreadPoolConfig::ThreadCount(value));
         } else if (key == "num_writer_threads") {
-            size_t value = std::stoull(val);
+            ssize_t value = std::stoull(val);
             getConfiguration().setNumWriterThreads(value);
-            ExecutorPool::get()->setNumWriters(value);
+            ExecutorPool::get()->setNumWriters(
+                    ThreadPoolConfig::ThreadCount(value));
         } else if (key == "num_auxio_threads") {
             size_t value = std::stoull(val);
             getConfiguration().setNumAuxioThreads(value);
@@ -2055,16 +2057,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // params are typically defaulted to "0" which means "auto-configure
     // thread counts"
     auto threads = serverApi->core->getThreadPoolSizes();
-    if (threads.num_readers) {
-        // A value was specified; use that
-        configuration.setNumReaderThreads(threads.num_readers);
-    }
+    configuration.setNumReaderThreads(static_cast<int>(threads.num_readers));
+    configuration.setNumWriterThreads(static_cast<int>(threads.num_writers));
 
-    if (threads.num_writers) {
-        // A value was specified; use that
-        configuration.setNumWriterThreads(threads.num_writers);
-    }
     auto* pool = ExecutorPool::get();
+    // Update configuration to reflect the actual number of threads which have
+    // been created.
     configuration.setNumReaderThreads(pool->getNumReaders());
     configuration.setNumWriterThreads(pool->getNumWriters());
     configuration.setNumAuxioThreads(pool->getNumAuxIO());
@@ -6647,12 +6645,14 @@ void EventuallyPersistentEngine::setCompressionMode(
     }
 }
 
-void EventuallyPersistentEngine::set_num_reader_threads(size_t num) {
-    getConfiguration().setNumReaderThreads(num);
+void EventuallyPersistentEngine::set_num_reader_threads(
+        ThreadPoolConfig::ThreadCount num) {
+    getConfiguration().setNumReaderThreads(static_cast<int>(num));
     ExecutorPool::get()->setNumReaders(num);
 }
 
-void EventuallyPersistentEngine::set_num_writer_threads(size_t num) {
-    getConfiguration().setNumWriterThreads(num);
+void EventuallyPersistentEngine::set_num_writer_threads(
+        ThreadPoolConfig::ThreadCount num) {
+    getConfiguration().setNumWriterThreads(static_cast<int>(num));
     ExecutorPool::get()->setNumWriters(num);
 }

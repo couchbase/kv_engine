@@ -3697,12 +3697,12 @@ static enum test_result test_workload_stats(EngineIface* h) {
             get_int_stat(h, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     checkeq(10, num_read_threads, "Incorrect number of readers");
-    checkeq(10, num_write_threads, "Incorrect number of writers");
+    checkeq(4, num_write_threads, "Incorrect number of writers");
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");
     check(num_nonio_threads > 1 && num_nonio_threads <= 8,
           "Incorrect number of nonio threads");
     checkeq(10, max_read_threads, "Incorrect limit of readers");
-    checkeq(10, max_write_threads, "Incorrect limit of writers");
+    checkeq(4, max_write_threads, "Incorrect limit of writers");
     checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");
     check(max_nonio_threads > 1 && max_nonio_threads <=8,
           "Incorrect limit of nonio threads");
@@ -3734,12 +3734,12 @@ static enum test_result test_max_workload_stats(EngineIface* h) {
             get_int_stat(h, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     checkeq(14, num_read_threads, "Incorrect number of readers");
-    checkeq(14, num_write_threads, "Incorrect number of writers");
+    checkeq(4, num_write_threads, "Incorrect number of writers");
 
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");// config
     checkeq(4, num_nonio_threads, "Incorrect number of nonio threads");// config
     checkeq(14, max_read_threads, "Incorrect limit of readers"); // derived
-    checkeq(14, max_write_threads, "Incorrect limit of writers"); // derived
+    checkeq(4, max_write_threads, "Incorrect limit of writers"); // derived
     checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");// config
     checkeq(4, max_nonio_threads, "Incorrect limit of nonio threads");// config
     checkeq(5, num_shards, "Incorrect number of shards");
@@ -3795,7 +3795,7 @@ static enum test_result test_worker_stats(EngineIface* h) {
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
-    checkeq(19,
+    checkeq(15,
             get_int_stat(h, "ep_num_workers"), // cannot spawn less
             "Incorrect number of threads spawned");
     return SUCCESS;

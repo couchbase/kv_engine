@@ -823,11 +823,11 @@ public:
         notify_changed("parent_identifier");
     }
 
-    size_t getNumReaderThreads() const {
+    int getNumReaderThreads() const {
         return num_reader_threads.load(std::memory_order_acquire);
     }
 
-    void setNumReaderThreads(size_t val) {
+    void setNumReaderThreads(int val) {
         num_reader_threads.store(val, std::memory_order_release);
         has.num_reader_threads = true;
         notify_changed("num_reader_threads");
@@ -1024,8 +1024,8 @@ protected:
     /// The identifier to use for the parent monitor
     int parent_identifier = -1;
 
-    std::atomic<size_t> num_reader_threads{0};
-    std::atomic<size_t> num_writer_threads{0};
+    std::atomic<int> num_reader_threads{0};
+    std::atomic<int> num_writer_threads{0};
 
 public:
     /**

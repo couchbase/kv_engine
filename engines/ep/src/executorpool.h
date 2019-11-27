@@ -70,6 +70,7 @@
 #include "taskable.h"
 
 #include <memcached/engine.h>
+#include <memcached/thread_pool_config.h>
 #include <map>
 #include <set>
 
@@ -176,12 +177,12 @@ public:
         return numWorkers[NONIO_TASK_IDX];
     }
 
-    void setNumReaders(uint16_t v) {
-        adjustWorkers(READER_TASK_IDX, v);
+    void setNumReaders(ThreadPoolConfig::ThreadCount v) {
+        adjustWorkers(READER_TASK_IDX, calcNumReaders(v));
     }
 
-    void setNumWriters(uint16_t v) {
-        adjustWorkers(WRITER_TASK_IDX, v);
+    void setNumWriters(ThreadPoolConfig::ThreadCount v) {
+        adjustWorkers(WRITER_TASK_IDX, calcNumWriters(v));
     }
 
     void setNumAuxIO(uint16_t v) {
@@ -210,17 +211,15 @@ protected:
      *                   (Reader, Writer, NonIO, AuxIO). A value of 0 means
      *                   use number of CPU cores.
      * @param nTaskSets Number of task sets.
-     * @param maxReaders Number of Reader threads to create (0 =
-     *                   auto-configure).
-     * @param maxWriters Number of Writer threads to create (0 =
-     *                   auto-configure).
+     * @param maxReaders Number of Reader threads to create.
+     * @param maxWriters Number of Writer threads to create.
      * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
      * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
      */
     ExecutorPool(size_t maxThreads,
                  size_t nTaskSets,
-                 size_t maxReaders,
-                 size_t maxWriters,
+                 ThreadPoolConfig::ThreadCount maxReaders,
+                 ThreadPoolConfig::ThreadCount maxWriters,
                  size_t maxAuxIO,
                  size_t maxNonIO);
 
@@ -247,6 +246,16 @@ protected:
     bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);
     TaskQueue* _getTaskQueue(const Taskable& t, task_type_t qidx);
     void _stopAndJoinThreads();
+
+    /**
+     * Calculate the number of Reader threads to use for the given thread limit.
+     */
+    size_t calcNumReaders(ThreadPoolConfig::ThreadCount threadCount) const;
+
+    /**
+     * Calculate the number of Writer threads to use for the given thread limit.
+     */
+    size_t calcNumWriters(ThreadPoolConfig::ThreadCount threadCount) const;
 
     const size_t numTaskSets;
 
@@ -280,7 +289,8 @@ protected:
 
     std::atomic<uint16_t> numSleepers; // total number of sleeping threads
     std::vector<std::atomic<uint16_t>> curWorkers; // track # of active workers per TaskSet
-    std::vector<std::atomic<uint16_t>> numWorkers; // and limit it to the value set here
+    // and limit it to the value set here
+    std::vector<std::atomic<int>> numWorkers;
     std::vector<std::atomic<size_t>> numReadyTasks; // number of ready tasks per task set
 
     // Set of all known task owners

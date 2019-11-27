@@ -605,7 +605,8 @@ static void settings_init() {
 
     Settings::instance().addChangeListener(
             "num_reader_threads", [](const std::string&, Settings& s) -> void {
-                auto val = s.getNumReaderThreads();
+                auto val =
+                        ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
                 bucketsForEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine()->set_num_reader_threads(val);
@@ -615,7 +616,8 @@ static void settings_init() {
             });
     Settings::instance().addChangeListener(
             "num_writer_threads", [](const std::string&, Settings& s) -> void {
-                auto val = s.getNumWriterThreads();
+                auto val =
+                        ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
                 bucketsForEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine()->set_num_writer_threads(val);
