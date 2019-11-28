@@ -1128,10 +1128,6 @@ public:
         return current_testcase;
     }
 
-    void release_free_memory() override {
-        get_mock_server_api()->alloc_hooks->release_free_memory();
-    }
-
     EngineIface* create_bucket(bool initialize, const char* cfg) override {
         auto me = std::make_unique<mock_engine>();
         EngineIface* handle = new_engine_instance(

@@ -126,11 +126,6 @@ struct test_harness {
     virtual const engine_test_t* get_current_testcase() = 0;
 
     /**
-     * Try to release memory back to the operating system
-     */
-    virtual void release_free_memory() = 0;
-
-    /**
      * Create a new bucket instance
      * @param initialize set to true if the initialize method should be called
      *                   on the newly created instance
