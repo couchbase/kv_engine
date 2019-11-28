@@ -2686,6 +2686,114 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     }
 }
 
+/**
+ * Check that maxVisibleSeqno increases only for committed items (ie, not
+ * Prepare and Abort)
+ */
+TEST_P(DurabilityEphemeralBucketTest, MaxVisibleSeqnoMovesCorrectly) {
+    ASSERT_TRUE(store);
+    const auto active = "active";
+    const auto replica = "replica";
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology",
+                        nlohmann::json::array({{active, replica}})}}));
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    const auto verify = [&vb](int64_t highSeqno,
+                              uint64_t maxVisibleSeqno,
+                              size_t numTrackedInDM) -> void {
+        EXPECT_EQ(highSeqno, vb->getHighSeqno());
+        EXPECT_EQ(maxVisibleSeqno,
+                  dynamic_cast<const EphemeralVBucket&>(*vb)
+                          .getMaxVisibleSeqno());
+        EXPECT_EQ(numTrackedInDM, vb->getDurabilityMonitor().getNumTracked());
+    };
+
+    {
+        SCOPED_TRACE("");
+        verify(0 /*highSeqno*/, 0 /*maxVisibleSeqno*/, 0 /*numTrackedInDM*/);
+    }
+
+    const auto key = makeStoredDocKey("key");
+    const auto value = "value";
+
+    // MVS moves at Mutation (new doc)
+    auto mutation = makeCommittedItem(key, value);
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*mutation, cookie));
+    {
+        SCOPED_TRACE("");
+        verify(1 /*highSeqno*/, 1 /*maxVisibleSeqno*/, 0 /*numTrackedInDM*/);
+    }
+
+    // MVS does not move at Prepare
+    using namespace cb::durability;
+    const auto timeout = Timeout{123};
+    const auto pre = makePendingItem(key, value, {Level::Majority, timeout});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pre, cookie));
+    {
+        SCOPED_TRACE("");
+        verify(2 /*highSeqno*/, 1 /*maxVisibleSeqno*/, 1 /*numTrackedInDM*/);
+    }
+
+    // Trigger Commit, MVS moves
+    vb->notifyActiveDMOfLocalSyncWrite();
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      replica,
+                      2 /*preparedSeqno*/));
+    vb->processResolvedSyncWrites();
+    {
+        SCOPED_TRACE("");
+        verify(3 /*highSeqno*/, 3 /*maxVisibleSeqno*/, 0 /*numTrackedInDM*/);
+    }
+
+    // MVS does not move at Prepare
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pre, cookie));
+    {
+        SCOPED_TRACE("");
+        verify(4 /*highSeqno*/, 3 /*maxVisibleSeqno*/, 1 /*numTrackedInDM*/);
+    }
+
+    // MVS does not move at Abort
+    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                 std::chrono::milliseconds(200));
+    vb->processResolvedSyncWrites();
+    {
+        SCOPED_TRACE("");
+        verify(5 /*highSeqno*/, 3 /*maxVisibleSeqno*/, 0 /*numTrackedInDM*/);
+    }
+
+    // MVS moves at Mutation (update doc)
+    mutation = makeCommittedItem(key, value);
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(*mutation, cookie));
+    {
+        SCOPED_TRACE("");
+        verify(6 /*highSeqno*/, 6 /*maxVisibleSeqno*/, 0 /*numTrackedInDM*/);
+    }
+
+    // MVS moves at deletion
+    uint64_t cas{0};
+    mutation_descr_t info;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                cookie,
+                                {} /*dur-reqs*/,
+                                nullptr /*item-meta*/,
+                                info));
+    {
+        SCOPED_TRACE("");
+        verify(7 /*highSeqno*/, 7 /*maxVisibleSeqno*/, 0 /*numTrackedInDM*/);
+    }
+}
+
 // Highlighted in MB-34997 was a situation where a vb state change meant that
 // the new PDM had no knowledge of outstanding prepares that existed before the
 // state change. This is fixed in VBucket by transferring the outstanding

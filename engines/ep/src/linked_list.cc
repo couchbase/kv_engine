@@ -217,6 +217,23 @@ void BasicLinkedList::updateHighestDedupedSeqno(
     highestDedupedSeqno = v.getBySeqno();
 }
 
+void BasicLinkedList::maybeUpdateMaxVisibleSeqno(
+        std::lock_guard<std::mutex>& seqLock,
+        std::lock_guard<std::mutex>& writeLock,
+        const OrderedStoredValue& newSV) {
+    switch (newSV.getCommitted()) {
+    case CommittedState::CommittedViaMutation:
+    case CommittedState::CommittedViaPrepare:
+    case CommittedState::PrepareCommitted:
+        maxVisibleSeqno = newSV.getBySeqno();
+        return;
+    case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
+    case CommittedState::PrepareAborted:
+        return;
+    }
+}
+
 void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                                     StoredValue::UniquePtr ownedSv,
                                     StoredValue* newSv) {
@@ -387,6 +404,11 @@ uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
 
 seqno_t BasicLinkedList::getHighestPurgedDeletedSeqno() const {
     return highestPurgedDeletedSeqno;
+}
+
+uint64_t BasicLinkedList::getMaxVisibleSeqno() const {
+    std::lock_guard<std::mutex> lg(getListWriteLock());
+    return maxVisibleSeqno;
 }
 
 uint64_t BasicLinkedList::getRangeReadBegin() const {

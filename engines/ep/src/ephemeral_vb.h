@@ -257,6 +257,8 @@ public:
      */
     bool isKeyLogicallyDeleted(const DocKey& key, int64_t bySeqno);
 
+    uint64_t getMaxVisibleSeqno() const;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

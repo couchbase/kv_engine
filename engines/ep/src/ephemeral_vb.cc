@@ -322,6 +322,10 @@ bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
     return false;
 }
 
+uint64_t EphemeralVBucket::getMaxVisibleSeqno() const {
+    return seqList->getMaxVisibleSeqno();
+}
+
 size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
     // Iterate over the sequence list and delete any stale items. But we do
     // not want to delete the last element in the vbucket, hence we pass
@@ -418,6 +422,8 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         auto& osv = *(newSv->toOrderedStoredValue());
         seqList->updateHighSeqno(listWriteLg, osv);
 
+        seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, osv);
+
         /* Temp items are never added to the seqList, hence updating a temp
            item should not update the deduped seqno */
         if (!wasTemp) {
@@ -490,6 +496,8 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
 
         /* Update the high seqno in the sequential storage */
         seqList->updateHighSeqno(listWriteLg, *osv);
+
+        seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, *osv);
     }
     if (itm.isCommitted()) {
         if (!itm.isDeleted()) {
@@ -581,6 +589,8 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
         seqList->updateHighSeqno(listWriteLg, osv);
+
+        seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, osv);
 
         /* Temp items are never added to the seqList, hence updating a temp
            item should not update the deduped seqno */

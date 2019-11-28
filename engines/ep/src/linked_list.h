@@ -168,6 +168,10 @@ public:
     void updateHighestDedupedSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                    const OrderedStoredValue& v) override;
 
+    void maybeUpdateMaxVisibleSeqno(std::lock_guard<std::mutex>& seqLock,
+                                    std::lock_guard<std::mutex>& writeLock,
+                                    const OrderedStoredValue& newSV) override;
+
     void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
@@ -195,6 +199,8 @@ public:
     uint64_t getHighestDedupedSeqno() const override;
 
     seqno_t getHighestPurgedDeletedSeqno() const override;
+
+    uint64_t getMaxVisibleSeqno() const override;
 
     uint64_t getRangeReadBegin() const override;
 
@@ -285,6 +291,14 @@ private:
      * reset.
      */
     Monotonic<seqno_t> highestPurgedDeletedSeqno;
+
+    /**
+     * Seqno of the last visible item. Accounts only committed sync-writes (ie,
+     * not Prepare and Abort) and normal mutations and deletions.
+     * Sent into the SnapshotMarker for backfill-snapshots. This is the seqno
+     * of the last item sent in backfill-snapshots to non-SyncRepl consumers.
+     */
+    Monotonic<uint64_t> maxVisibleSeqno{0};
 
     /**
      * Indicates the number of elements in the list that are stale (old,

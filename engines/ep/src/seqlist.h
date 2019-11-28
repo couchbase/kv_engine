@@ -304,6 +304,29 @@ public:
             const OrderedStoredValue& v) = 0;
 
     /**
+     * Updates the max-visible-seqno to the seqno of the new StoredValue, only
+     * if the new item is committed.
+     *
+     * Note: In general we must hold the seqLock when we update seqnos in
+     * the sequenceList, so this function requires it.
+     * That is because different threads may interleave the execution of
+     * CM::queueDirty() and updateSeqno() otherwise, which could lead to
+     * breaking seqno monotonicity in seqList (and throwing).
+     *
+     * @todo: Change the other seqno-update functions to require the seqLock.
+     *   We are currently using them correctly in our code (ie, we call them
+     *   under seqLock), but the signatures should force that.
+     *
+     * @param seqLock The sequence lock the caller is expected to hold
+     * @param writeLock Write lock of the sequenceList from getListWriteLock()
+     * @param newSV
+     */
+    virtual void maybeUpdateMaxVisibleSeqno(
+            std::lock_guard<std::mutex>& seqLock,
+            std::lock_guard<std::mutex>& writeLock,
+            const OrderedStoredValue& newSV) = 0;
+
+    /**
      * Mark an OrderedStoredValue stale and assumes its ownership. Stores ptr to
      * the newer version in the OSV, or nullptr if there is no newer version
      * (i.e., expired Tombstone)
@@ -401,6 +424,8 @@ public:
      * Returns the highest purged Deleted sequence number in the list.
      */
     virtual seqno_t getHighestPurgedDeletedSeqno() const = 0;
+
+    virtual uint64_t getMaxVisibleSeqno() const = 0;
 
     /**
      * Returns the current range read begin sequence number.
