@@ -46,8 +46,7 @@ static void item_free(struct default_engine *engine, hash_item *it);
 static bool hash_key_create(hash_key* hkey,
                             const void* key,
                             const size_t nkey,
-                            struct default_engine* engine,
-                            const void* cookie);
+                            struct default_engine* engine);
 
 static void hash_key_destroy(hash_key* hkey);
 static void hash_key_copy_to_item(hash_item* dst, const hash_key* src);
@@ -634,7 +633,7 @@ hash_item *item_alloc(struct default_engine *engine,
                       uint8_t datatype) {
     hash_item *it;
     hash_key hkey;
-    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+    if (!hash_key_create(&hkey, key, nkey, engine)) {
         return NULL;
     }
 
@@ -658,7 +657,7 @@ hash_item* item_get(struct default_engine* engine,
                     DocStateFilter document_state) {
     hash_item *it;
     hash_key hkey;
-    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+    if (!hash_key_create(&hkey, key, nkey, engine)) {
         return NULL;
     }
     it = item_get(engine, cookie, hkey, document_state);
@@ -828,7 +827,7 @@ ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
                                   rel_time_t locktime) {
     hash_key hkey;
 
-    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+    if (!hash_key_create(&hkey, key, nkey, engine)) {
         return ENGINE_TMPFAIL;
     }
 
@@ -898,7 +897,7 @@ ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
                               uint64_t cas) {
     hash_key hkey;
 
-    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+    if (!hash_key_create(&hkey, key, nkey, engine)) {
         return ENGINE_TMPFAIL;
     }
 
@@ -976,7 +975,7 @@ ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
                                      rel_time_t exptime) {
     hash_key hkey;
 
-    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+    if (!hash_key_create(&hkey, key, nkey, engine)) {
         return ENGINE_TMPFAIL;
     }
 
@@ -1187,8 +1186,7 @@ bool item_start_scrub(struct default_engine *engine)
 static bool hash_key_create(hash_key* hkey,
                             const void* key,
                             const size_t nkey,
-                            struct default_engine* engine,
-                            const void* cookie) {
+                            struct default_engine* engine) {
     uint16_t hash_key_len = gsl::narrow<uint16_t>(sizeof(bucket_id_t) + nkey);
     if (nkey > sizeof(hkey->key_storage.client_key)) {
         hkey->header.full_key =
