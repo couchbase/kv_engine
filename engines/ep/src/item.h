@@ -496,6 +496,11 @@ public:
         return op == queue_op::system_event;
     }
 
+    /// @return true if the item is considered visible
+    bool isVisible() const {
+        return isSystemEvent() || isCommitted();
+    }
+
     /**
      * Each Item has a frequency counter that is used by the hifi_mfu hash
      * table eviction policy.  The counter is initialised to "initialFreqCount"

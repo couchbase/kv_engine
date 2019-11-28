@@ -69,7 +69,8 @@ void VBucketDurabilityTest::storeSyncWrites(
     ckptMgr->createSnapshot(seqnos.front().seqno,
                             seqnos.back().seqno,
                             {} /*HCS*/,
-                            CheckpointType::Memory);
+                            CheckpointType::Memory,
+                            0);
     EXPECT_EQ(1, ckptMgr->getNumCheckpoints());
 
     const auto preHTCount = ht->getNumItems();
@@ -759,8 +760,11 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
 TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     vbucket->setState(vbucket_state_replica);
     // create memory snapshot initially
-    ckptMgr->createSnapshot(
-            lastSeqno + 1, lastSeqno + 2, {} /*HCS*/, CheckpointType::Memory);
+    ckptMgr->createSnapshot(lastSeqno + 1,
+                            lastSeqno + 2,
+                            {} /*HCS*/,
+                            CheckpointType::Memory,
+                            lastSeqno);
 
     auto key = makeStoredDocKey("key1");
 
@@ -781,8 +785,11 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
                              vbucket->lockCollections(key)));
 
     // flip to a disk snapshot instead
-    ckptMgr->createSnapshot(
-            lastSeqno + 1, lastSeqno + 2, {} /*HCS*/, CheckpointType::Disk);
+    ckptMgr->createSnapshot(lastSeqno + 1,
+                            lastSeqno + 2,
+                            {} /*HCS*/,
+                            CheckpointType::Disk,
+                            lastSeqno);
 
     // now abort should be accepted because the prepare can have validly been
     // deduped.
@@ -810,8 +817,11 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
 TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     vbucket->setState(vbucket_state_replica);
     // create memory snapshot initially
-    ckptMgr->createSnapshot(
-            lastSeqno + 1, lastSeqno + 3, {} /*HCS*/, CheckpointType::Memory);
+    ckptMgr->createSnapshot(lastSeqno + 1,
+                            lastSeqno + 3,
+                            {} /*HCS*/,
+                            CheckpointType::Memory,
+                            lastSeqno);
 
     auto key = makeStoredDocKey("key1");
 
@@ -846,9 +856,14 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
                              abortSeqno /*abortSeqno*/,
                              vbucket->lockCollections(key)));
 
+    EXPECT_EQ(lastSeqno + 1, ckptMgr->getMaxVisibleSeqno());
+
     // flip to a disk snapshot instead
-    ckptMgr->createSnapshot(
-            lastSeqno + 1, lastSeqno + 3, {} /*HCS*/, CheckpointType::Disk);
+    ckptMgr->createSnapshot(lastSeqno + 1,
+                            lastSeqno + 3,
+                            {} /*HCS*/,
+                            CheckpointType::Disk,
+                            lastSeqno);
 
     // now abort should be accepted because the prepare can have validly been
     // deduped.
@@ -1759,7 +1774,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
 
     // Trick the ckptMgr and PDM into thinking this is a Disk
     // snapshot/checkpoint
-    ckptMgr->updateCurrentSnapshot(3, CheckpointType::Disk);
+    ckptMgr->updateCurrentSnapshot(3, 3, CheckpointType::Disk);
 
     // "Persist" them too and notify the PDM.
     pdm.notifySnapshotEndReceived(3);
@@ -1875,7 +1890,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetup(
 
     // Tell the PDM to commit the prepare
     auto key = makeStoredDocKey("key1");
-    ckptMgr->updateCurrentSnapshot(4, CheckpointType::Memory);
+    ckptMgr->updateCurrentSnapshot(4, 4, CheckpointType::Memory);
     vbucket->commit(key,
                     1 /*prepareSeqno*/,
                     3 /*commitSeqno*/,
@@ -1963,7 +1978,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
     testConvertPDMToADMMidSnapSetup(initialState);
 
     // Commit the other outstanding preparea
-    ckptMgr->updateCurrentSnapshot(5, CheckpointType::Memory);
+    ckptMgr->updateCurrentSnapshot(5, 5, CheckpointType::Memory);
     auto key = makeStoredDocKey("key2");
     vbucket->commit(key,
                     2 /*prepareSeqno*/,
@@ -2639,7 +2654,8 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     ckptMgr->createSnapshot(writes.back().seqno + 1,
                             writes.back().seqno + 100,
                             {} /*HCS*/,
-                            CheckpointType::Memory);
+                            CheckpointType::Memory,
+                            0);
     for (auto prepare : writes) {
         auto key = makeStoredDocKey("key" + std::to_string(prepare.seqno));
 

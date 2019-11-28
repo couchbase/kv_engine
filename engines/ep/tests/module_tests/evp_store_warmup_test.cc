@@ -1208,7 +1208,7 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
         CheckpointType type) {
     auto vb = store->getVBucket(vbid);
     vb->checkpointManager->createSnapshot(
-            1 /*snapStart*/, 1 /*snapEnd*/, {} /*HCS*/, type);
+            1 /*snapStart*/, 1 /*snapEnd*/, {} /*HCS*/, type, 0);
 
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "do");
@@ -1248,7 +1248,8 @@ void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
                 2 /*snapEnd*/,
                 boost::make_optional(cpType == CheckpointType::Disk,
                                      static_cast<uint64_t>(1)) /*HCS*/,
-                cpType);
+                cpType,
+                0);
         ASSERT_EQ(cpType == CheckpointType::Disk,
                   vb->isReceivingDiskSnapshot());
 
@@ -1298,7 +1299,8 @@ void DurabilityWarmupTest::testPartiallyPersistedSnapshotDoesNotSetHPS(
                 3 /*snapEnd*/,
                 boost::make_optional(cpType == CheckpointType::Disk,
                                      static_cast<uint64_t>(1)) /*HCS*/,
-                cpType);
+                cpType,
+                0);
         ASSERT_EQ(cpType == CheckpointType::Disk,
                   vb->isReceivingDiskSnapshot());
 
@@ -1626,14 +1628,14 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
 
     // snap 1
     vb->checkpointManager->createSnapshot(
-            1, 1, {} /*HCS*/, CheckpointType::Memory);
+            1, 1, {} /*HCS*/, CheckpointType::Memory, 0);
     ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*item, cookie));
     flush_vbucket_to_disk(vbid);
     vb->notifyPassiveDMOfSnapEndReceived(1);
 
     // snap 2
     vb->checkpointManager->createSnapshot(
-            2, 2, {} /*HCS*/, CheckpointType::Memory);
+            2, 2, {} /*HCS*/, CheckpointType::Memory, 0);
     EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, 1, 2, vb->lockCollections(key)));
     flush_vbucket_to_disk(vbid, 1);
     vb->notifyPassiveDMOfSnapEndReceived(2);
@@ -1666,7 +1668,8 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         vb->checkpointManager->createSnapshot(1 /*snapStart*/,
                                               5 /*snapEnd*/,
                                               {} /*HCS not flushed*/,
-                                              CheckpointType::Disk);
+                                              CheckpointType::Disk,
+                                              0);
         ASSERT_TRUE(vb->isReceivingDiskSnapshot());
 
         // 1) Receive the prepare
@@ -1760,7 +1763,8 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         vb->checkpointManager->createSnapshot(1 /*snapStart*/,
                                               3 /*snapEnd*/,
                                               {} /*HCS not flushed*/,
-                                              CheckpointType::Disk);
+                                              CheckpointType::Disk,
+                                              3);
         ASSERT_TRUE(vb->isReceivingDiskSnapshot());
 
         // 1) Receive the prepare
@@ -1795,6 +1799,8 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
                                      GenerateCas::No,
                                      nullptr));
         EXPECT_EQ(2, vb->getHighSeqno());
+        // Commit is visible
+        EXPECT_EQ(2, vb->checkpointManager->getMaxVisibleSeqno());
 
         // 3) Flush and shutdown to simulate a partial snapshot.
         flushVBucketToDiskIfPersistent(vbid, 2);
@@ -1836,7 +1842,8 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         vb->checkpointManager->createSnapshot(1 /*snapStart*/,
                                               4 /*snapEnd*/,
                                               2 /*HCS*/,
-                                              CheckpointType::Disk);
+                                              CheckpointType::Disk,
+                                              4);
         ASSERT_TRUE(vb->isReceivingDiskSnapshot());
 
         // 1) Receive the prepare
@@ -1871,7 +1878,8 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
                                      GenerateCas::No,
                                      nullptr));
         EXPECT_EQ(4, vb->getHighSeqno());
-
+        // Commit is visible
+        EXPECT_EQ(4, vb->checkpointManager->getMaxVisibleSeqno());
         // Notify snap end to correct the HPS
         vb->notifyPassiveDMOfSnapEndReceived(4);
 

@@ -32,6 +32,7 @@ public:
                           int64_t lastSeqno,
                           uint64_t lastSnapStart,
                           uint64_t lastSnapEnd,
+                          uint64_t maxVisibleSeqno,
                           FlusherCallback cb)
         : CheckpointManager(st,
                             vbucket,
@@ -39,6 +40,7 @@ public:
                             lastSeqno,
                             lastSnapStart,
                             lastSnapEnd,
+                            maxVisibleSeqno,
                             cb) {
     }
 

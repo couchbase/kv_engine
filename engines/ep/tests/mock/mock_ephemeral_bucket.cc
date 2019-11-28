@@ -62,6 +62,7 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
             lastSeqno,
             lastSnapStart,
             lastSnapEnd,
+            maxVisibleSeqno,
             /*flusher callback*/ nullptr);
     return vptr;
 }

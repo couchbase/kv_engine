@@ -141,6 +141,7 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t id,
                        uint64_t snapStart,
                        uint64_t snapEnd,
+                       uint64_t visibleSnapEnd,
                        boost::optional<uint64_t> highCompletedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType)
@@ -148,6 +149,7 @@ Checkpoint::Checkpoint(EPStats& st,
       checkpointId(id),
       snapStartSeqno(snapStart),
       snapEndSeqno(snapEnd),
+      visibleSnapEndSeqno(visibleSnapEnd),
       vbucketId(vbid),
       creationTime(ep_real_time()),
       checkpointState(CHECKPOINT_OPEN),
@@ -538,6 +540,27 @@ void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {
                      vbucketId.get(),
                      getId());
     add_casted_stat(buf, to_string(getCheckpointType()), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":snap_start",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, getSnapshotStartSeqno(), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":snap_end",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, getSnapshotEndSeqno(), add_stat, cookie);
+
+    checked_snprintf(buf,
+                     sizeof(buf),
+                     "vb_%d:id_%" PRIu64 ":visible_snap_end",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf, getVisibleSnapshotEndSeqno(), add_stat, cookie);
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
@@ -545,7 +568,8 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << " id:" << c.checkpointId << " seqno:{" << c.getLowSeqno() << ","
        << c.getHighSeqno() << "}"
        << " snap:{" << c.getSnapshotStartSeqno() << ","
-       << c.getSnapshotEndSeqno() << "}"
+       << c.getSnapshotEndSeqno()
+       << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
        << " type:" << to_string(c.getCheckpointType())

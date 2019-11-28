@@ -85,10 +85,12 @@ public:
         }
         ItemsForCursor(CheckpointType checkpointType,
                        boost::optional<uint64_t> maxDeletedRevSeqno,
-                       boost::optional<uint64_t> highCompletedSeqno)
+                       boost::optional<uint64_t> highCompletedSeqno,
+                       uint64_t visibleSeqno)
             : checkpointType(checkpointType),
               maxDeletedRevSeqno(maxDeletedRevSeqno),
-              highCompletedSeqno(highCompletedSeqno) {
+              highCompletedSeqno(highCompletedSeqno),
+              visibleSeqno(visibleSeqno) {
         }
         std::vector<CheckpointSnapshotRange> ranges;
         bool moreAvailable = {false};
@@ -121,6 +123,14 @@ public:
          * ActiveStream.
          */
         boost::optional<uint64_t> highCompletedSeqno;
+
+        /**
+         * The max visible seqno for first Checkpoint returned, e.g. if multiple
+         * Checkpoints are returned as follows:
+         *   cp1[mutation:1, prepare:2] cp2[mutation:3,mutation:4]
+         * This value would be 1
+         */
+        uint64_t visibleSeqno;
     };
 
     /// Return type of expelUnreferencedCheckpointItems()
@@ -135,6 +145,7 @@ public:
                       int64_t lastSeqno,
                       uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
+                      uint64_t maxVisibleSeqno,
                       FlusherCallback cb);
 
     uint64_t getOpenCheckpointId();
@@ -258,6 +269,11 @@ public:
      * `items`;
      * moreAvailable: true if there are still items available for this
      * checkpoint (i.e. the limit was hit).
+     * maxDeletedRevSeqno for the items returned
+     * highCompletedSeqno for the items returned
+     * maxVisibleSeqno initialised to that of the first checkpoint, this works
+     *                 for the ActiveStream use-case who just needs a single
+     *                 value to seed it's snapshot loop.
      */
     ItemsForCursor getItemsForCursor(CheckpointCursor* cursor,
                                      std::vector<queued_item>& items,
@@ -389,20 +405,30 @@ public:
      */
     bool hasClosedCheckpointWhichCanBeRemoved() const;
 
-    void setBackfillPhase(uint64_t start, uint64_t end);
-
     void createSnapshot(uint64_t snapStartSeqno,
                         uint64_t snapEndSeqno,
                         boost::optional<uint64_t> highCompletedSeqno,
-                        CheckpointType checkpointType);
+                        CheckpointType checkpointType,
+                        uint64_t maxVisibleSnapEnd);
 
-    void resetSnapshotRange();
-
-    void updateCurrentSnapshot(uint64_t snapEnd, CheckpointType checkpointType);
+    void updateCurrentSnapshot(uint64_t snapEnd,
+                               uint64_t maxVisibleSnapEnd,
+                               CheckpointType checkpointType);
 
     snapshot_info_t getSnapshotInfo();
 
     uint64_t getOpenSnapshotStartSeqno() const;
+
+    /**
+     * Return the visible end seqno for the current snapshot. This logically
+     * matches the end which would be returned by getSnapshotInfo, but for the
+     * visible end.
+     *
+     * @return The end seqno for the current snapshot. For replication, if only
+     *          a marker has been received, the value returned is for the prev
+     *          complete snapshot.
+     */
+    uint64_t getVisibleSnapshotEndSeqno() const;
 
     void notifyFlusher();
 
@@ -411,6 +437,8 @@ public:
     int64_t getHighSeqno() const;
 
     int64_t nextBySeqno();
+
+    uint64_t getMaxVisibleSeqno() const;
 
     /// @return the persistence cursor which can be null
     CheckpointCursor* getPersistenceCursor() const {
@@ -495,6 +523,7 @@ protected:
      * @param id for the new checkpoint
      * @param snapStartSeqno for the new checkpoint
      * @param snapEndSeqno for the new checkpoint
+     * @param visibleSnapEnd for the new checkpoint
      * @param highCompletedSeqno optional SyncRep HCS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
@@ -502,6 +531,7 @@ protected:
     void addNewCheckpoint_UNLOCKED(uint64_t id,
                                    uint64_t snapStartSeqno,
                                    uint64_t snapEndSeqno,
+                                   uint64_t visibleSnapEnd,
                                    boost::optional<uint64_t> highCompletedSeqno,
                                    CheckpointType checkpointType);
 
@@ -528,6 +558,7 @@ protected:
     void addOpenCheckpoint(uint64_t id,
                            uint64_t snapStart,
                            uint64_t snapEnd,
+                           uint64_t visibleSnapEnd,
                            boost::optional<uint64_t> highCompletedSeqno,
                            CheckpointType checkpointType);
 
@@ -572,6 +603,14 @@ protected:
     // by this object.
     std::atomic<size_t>      numItems;
     Monotonic<int64_t>       lastBySeqno;
+    /**
+     * The highest seqno of all items that are visible, i.e. normal mutations or
+     * mutations which have been prepared->committed. The main use of this value
+     * is to give clients that don't support sync-replication a view of the
+     * vbucket which they can receive (via dcp), i.e this value would not change
+     * to the seqno of a prepare.
+     */
+    Monotonic<int64_t> maxVisibleSeqno;
     uint64_t                 pCursorPreCheckpointId;
 
     /**
