@@ -225,3 +225,7 @@ engine_test_t* get_tests(void) {
     };
     return tests;
 }
+
+BucketType get_bucket_type() {
+    return BucketType::Couchstore;
+}

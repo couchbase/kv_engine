@@ -666,6 +666,10 @@ engine_test_t* get_tests() {
     return tests;
 }
 
+BucketType get_bucket_type() {
+    return BucketType::Memcached;
+}
+
 bool setup_suite(struct test_harness *th) {
     test_harness = th;
     return true;

@@ -212,6 +212,9 @@ struct test {
  */
 engine_test_t* get_tests();
 
+/// Get the type of bucket the tests are written for
+BucketType get_bucket_type();
+
 /**
  * Set up the test suite
  *

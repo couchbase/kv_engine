@@ -1442,17 +1442,16 @@ int main(int argc, char **argv) {
 
     /* validate args */
     if (engine.empty()) {
-        fprintf(stderr, "-E <ep|mc> is a required parameter.\n");
-        return 1;
-    }
-
-    if (engine == "ep") {
-        harness.bucketType = BucketType::Couchstore;
-    } else if (engine == "mc") {
-        harness.bucketType = BucketType::Memcached;
+        harness.bucketType = get_bucket_type();
     } else {
-        fprintf(stderr, R"(Engine must be "ep" or "mc"\n)");
-        return 1;
+        if (engine == "ep") {
+            harness.bucketType = BucketType::Couchstore;
+        } else if (engine == "mc") {
+            harness.bucketType = BucketType::Memcached;
+        } else {
+            fprintf(stderr, R"(Engine must be "ep" or "mc"\n)");
+            return 1;
+        }
     }
 
     testcases = get_tests();

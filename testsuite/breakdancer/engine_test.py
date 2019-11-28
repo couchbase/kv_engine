@@ -193,6 +193,11 @@ class EngineTestAppDriver(Driver):
     };
     return tests;
 }
+
+BucketType get_bucket_type() {
+    return BucketType::Memcached;
+}
+
 """)
 
     def postSuite(self, seq):

@@ -443,6 +443,10 @@ engine_test_t* get_tests() {
     return testcases;
 }
 
+BucketType get_bucket_type() {
+    return BucketType::Couchstore;
+}
+
 bool setup_suite(struct test_harness *th) {
     testHarness = th;
     return true;
