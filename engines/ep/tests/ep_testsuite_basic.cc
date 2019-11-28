@@ -188,7 +188,6 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             "Incorrect even smaller high wat. percent");
 
     testHarness->reload_engine(&h,
-
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);

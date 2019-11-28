@@ -154,7 +154,8 @@ class EngineTestAppDriver(Driver):
         for f in files:
             f.write('/* DO NOT EDIT.. GENERATED SOURCE */\n\n')
             f.write('#include "testsuite/breakdancer/disable_optimize.h"\n')
-            f.write('#include "testsuite/breakdancer/suite_stubs.h"\n\n')
+            f.write('#include "testsuite/breakdancer/suite_stubs.h"\n')
+            f.write('#include <vector>\n\n')
 
     def testName(self, seq):
         return 'test_' + '_'.join(a.name for a in seq)
@@ -180,8 +181,8 @@ class EngineTestAppDriver(Driver):
         self.output(s + "\n")
 
     def _writeList(self, writer, fname, seq):
-        writer.write("""engine_test_t* %s(void) {
-    static engine_test_t tests[]  = {
+        writer.write("""std::vector<engine_test_t> %s(void) {
+    std::vector<engine_test_t> tests  = {{
 
 """ % fname)
         for seq in sorted(seq):
@@ -189,8 +190,10 @@ class EngineTestAppDriver(Driver):
                     ', '.join(a.name for a in seq),
                     self.testName(seq)))
 
-        writer.write("""        TEST_CASE(NULL, NULL, NULL, NULL, NULL, NULL, NULL)
-    };
+        writer.write("""        TEST_CASE({}, NULL, NULL, NULL, NULL, NULL, NULL)
+    }};
+    // To simplify the for-loop we added an extra entry at the end.. remove that
+    tests.pop_back();
     return tests;
 }
 

@@ -1577,8 +1577,8 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
                           errorMetaPair.second.exptime);
 
     int force = 0;
-    if (strstr(testHarness->get_current_testcase()->cfg,
-               "conflict_resolution_type=lww") != nullptr) {
+    if (testHarness->get_current_testcase()->cfg.find(
+                "conflict_resolution_type=lww") != std::string::npos) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
@@ -1671,8 +1671,8 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
             errorMetaPair.second.exptime);
 
     int force = 0;
-    if (strstr(testHarness->get_current_testcase()->cfg,
-               "conflict_resolution_type=lww") != nullptr) {
+    if (testHarness->get_current_testcase()->cfg.find(
+                "conflict_resolution_type=lww") != std::string::npos) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
@@ -2630,8 +2630,8 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
     int force = 0;
 
-    if (strstr(testHarness->get_current_testcase()->cfg,
-               "conflict_resolution_type=lww") != nullptr) {
+    if (testHarness->get_current_testcase()->cfg.find(
+                "conflict_resolution_type=lww") != std::string::npos) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
@@ -2725,8 +2725,8 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
     int force = 0;
 
-    if (strstr(testHarness->get_current_testcase()->cfg,
-               "conflict_resolution_type=lww") != nullptr) {
+    if (testHarness->get_current_testcase()->cfg.find(
+                "conflict_resolution_type=lww") != std::string::npos) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
@@ -2824,8 +2824,8 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
 
     int force = 0;
 
-    if (strstr(testHarness->get_current_testcase()->cfg,
-               "conflict_resolution_type=lww") != nullptr) {
+    if (testHarness->get_current_testcase()->cfg.find(
+                "conflict_resolution_type=lww") != std::string::npos) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 

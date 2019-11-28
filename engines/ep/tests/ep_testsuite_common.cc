@@ -39,15 +39,6 @@ BaseTestCase::BaseTestCase(const char *_name, const char *_cfg, bool _skip)
     skip(_skip) {
 }
 
-BaseTestCase::BaseTestCase(const BaseTestCase &o)
-  : name(o.name),
-    cfg(o.cfg),
-    skip(o.skip) {
-
-    memset(&test, 0, sizeof(test));
-    test = o.test;
-}
-
 TestCase::TestCase(const char* _name,
                    enum test_result (*_tfun)(EngineIface*),
                    bool (*_test_setup)(EngineIface*),
@@ -108,13 +99,8 @@ engine_test_t* BaseTestCase::getTest() {
         ret->tfun = skipped_test_function;
     }
 
-    ret->name = cb_strdup(nm.c_str());
-    std::string config = ss.str();
-    if (config.length() == 0) {
-        ret->cfg = 0;
-    } else {
-        ret->cfg = cb_strdup(config.c_str());
-    }
+    ret->name = std::move(nm);
+    ret->cfg = ss.str();
 
     return ret;
 }
@@ -178,24 +164,22 @@ bool teardown_v2(engine_test_t* test) {
     return true;
 }
 
-std::string get_dbname(const char* test_cfg) {
-    std::string dbname;
-
-    if (!test_cfg) {
-        dbname.assign(dbname_env);
-        return dbname;
+std::string get_dbname(const std::string& test_cfg) {
+    if (test_cfg.empty()) {
+        return dbname_env;
     }
 
-    const char *nm = strstr(test_cfg, "dbname=");
-    if (nm == NULL) {
-        dbname.assign(dbname_env);
-    } else {
-        dbname.assign(nm + 7);
-        std::string::size_type end = dbname.find(';');
-        if (end != dbname.npos) {
-            dbname = dbname.substr(0, end);
-        }
+    auto idx = test_cfg.find("dbname=");
+    if (idx == std::string::npos) {
+        return dbname_env;
     }
+
+    auto dbname = test_cfg.substr(idx + 7);
+    std::string::size_type end = dbname.find(';');
+    if (end != dbname.npos) {
+        dbname.resize(end);
+    }
+
     return dbname;
 }
 
@@ -387,9 +371,6 @@ void cleanup(engine_test_t *test, enum test_result result) {
     }
 }
 
-// Array of testcases to return back to engine_testapp.
-static engine_test_t *testcases;
-
 // Should only one test be run, and if so which number? If -1 then all tests
 // are run.
 static int oneTestIdx;
@@ -401,7 +382,9 @@ extern BaseTestCase testsuite_testcases[];
 
 // Examines the list of tests provided by the specific testsuite
 // via the testsuite_testcases[] array, populates `testcases` and returns it.
-engine_test_t* get_tests() {
+std::vector<engine_test_t> get_tests() {
+    std::vector<engine_test_t> testcases;
+
     // Calculate the size of the tests..
     int num = 0;
     while (testsuite_testcases[num].getName() != NULL) {
@@ -422,21 +405,16 @@ engine_test_t* get_tests() {
     }
 
     if (oneTestIdx == -1) {
-        testcases = static_cast<engine_test_t*>(cb_calloc(num + 1, sizeof(engine_test_t)));
-
-        int ii = 0;
         for (int jj = 0; jj < num; ++jj) {
-            engine_test_t *r = testsuite_testcases[jj].getTest();
-            if (r != 0) {
-                testcases[ii++] = *r;
+            auto* r = testsuite_testcases[jj].getTest();
+            if (r) {
+                testcases.emplace_back(*r);
             }
         }
     } else {
-        testcases = static_cast<engine_test_t*>(cb_calloc(1 + 1, sizeof(engine_test_t)));
-
-        engine_test_t *r = testsuite_testcases[oneTestIdx].getTest();
-        if (r != 0) {
-            testcases[0] = *r;
+        auto* r = testsuite_testcases[oneTestIdx].getTest();
+        if (r) {
+            testcases.emplace_back(*r);
         }
     }
 
@@ -454,19 +432,15 @@ bool setup_suite(struct test_harness *th) {
 
 
 bool teardown_suite() {
-    for (int i = 0; testcases[i].name != nullptr; i++) {
-        cb_free((char*)testcases[i].name);
-        cb_free((char*)testcases[i].cfg);
-    }
-    cb_free(testcases);
-    testcases = NULL;
     return true;
 }
 
 /*
  * Create n_buckets and return how many were actually created.
  */
-int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &buckets) {
+int create_buckets(const std::string& cfg,
+                   int n_buckets,
+                   std::vector<BucketHolder>& buckets) {
     std::string dbname = get_dbname(cfg);
 
     for (int ii = 0; ii < n_buckets; ii++) {
@@ -491,10 +465,9 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
                 throw e;
             }
         }
-        EngineIface* handle =
-                testHarness->create_bucket(true, config.str().c_str());
+        auto* handle = testHarness->create_bucket(true, config.str());
         if (handle) {
-            buckets.push_back(BucketHolder(handle, dbpath.str()));
+            buckets.emplace_back(BucketHolder(handle, dbpath.str()));
         } else {
             return ii;
         }

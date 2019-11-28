@@ -216,13 +216,14 @@ bool setup_suite(struct test_harness *th) {
     return true;
 }
 
-engine_test_t* get_tests(void) {
-
-    static engine_test_t tests[]  = {
-        TEST_CASE("test persistence", test_persistence, NULL, teardown, NULL,
-         NULL, NULL),
-        TEST_CASE(NULL, NULL, NULL, NULL, NULL, NULL, NULL)
-    };
+std::vector<engine_test_t> get_tests(void) {
+    std::vector<engine_test_t> tests = {{TEST_CASE("test persistence",
+                                                   test_persistence,
+                                                   NULL,
+                                                   teardown,
+                                                   NULL,
+                                                   NULL,
+                                                   NULL)}};
     return tests;
 }
 

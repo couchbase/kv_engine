@@ -1128,7 +1128,8 @@ public:
         return current_testcase;
     }
 
-    EngineIface* create_bucket(bool initialize, const char* cfg) override {
+    EngineIface* create_bucket(bool initialize,
+                               const std::string& cfg) override {
         auto me = std::make_unique<mock_engine>();
         EngineIface* handle = new_engine_instance(
                 bucketType, "engine_testapp", &get_mock_server_api);
@@ -1137,7 +1138,8 @@ public:
             me->the_engine = (EngineIface*)handle;
             me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
             if (initialize) {
-                const auto error = me->the_engine->initialize(cfg);
+                const auto error = me->the_engine->initialize(
+                        cfg.empty() ? nullptr : cfg.c_str());
                 if (error != ENGINE_SUCCESS) {
                     me->the_engine->destroy(false /*force*/);
                     cb::engine_error err{cb::engine_errc(error),
@@ -1155,7 +1157,7 @@ public:
     }
 
     void reload_engine(EngineIface** h,
-                       const char* cfg,
+                       const std::string& cfg,
                        bool init,
                        bool force) override {
         disconnect_all_mock_connections();
@@ -1190,7 +1192,7 @@ static test_result execute_test(engine_test_t test,
      * case of redundant parameters.
      */
     std::string cfg;
-    if (test.cfg != nullptr) {
+    if (!test.cfg.empty()) {
         if (default_cfg != nullptr) {
             cfg.assign(test.cfg);
             cfg = cfg + ";" + default_cfg + ";";
@@ -1215,13 +1217,13 @@ static test_result execute_test(engine_test_t test,
             for (it = map.begin(); it != map.end(); ++it) {
                 cfg = cfg + it->first + "=" + it->second + ";";
             }
-            test.cfg = cfg.c_str();
+            test.cfg = std::move(cfg);
         }
     } else if (default_cfg != nullptr) {
         test.cfg = default_cfg;
     }
     // Necessary configuration to run tests under RocksDB.
-    if (test.cfg != nullptr) {
+    if (!test.cfg.empty()) {
         cfg.assign(test.cfg);
         if (std::string(test.cfg).find("backend=rocksdb") !=
             std::string::npos) {
@@ -1242,7 +1244,7 @@ static test_result execute_test(engine_test_t test,
             if (cfg.find("max_size") == std::string::npos) {
                 cfg.append("max_size=1073741824;");
             }
-            test.cfg = cfg.c_str();
+            test.cfg = std::move(cfg);
         }
     }
 
@@ -1265,10 +1267,14 @@ static test_result execute_test(engine_test_t test,
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
             currentEngineHandle = harness.create_bucket(
-                    true, test.cfg ? test.cfg : default_cfg);
+                    true,
+                    test.cfg.empty() ? (default_cfg ? default_cfg : "")
+                                     : test.cfg);
             if (test.test_setup != nullptr &&
                 !test.test_setup(currentEngineHandle)) {
-                fprintf(stderr, "Failed to run setup for test %s\n", test.name);
+                fprintf(stderr,
+                        "Failed to run setup for test %s\n",
+                        test.name.c_str());
                 return FAIL;
             }
 
@@ -1276,13 +1282,17 @@ static test_result execute_test(engine_test_t test,
 
             if (test.test_teardown != nullptr &&
                 !test.test_teardown(currentEngineHandle)) {
-                fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
+                fprintf(stderr,
+                        "WARNING: Failed to run teardown for test %s\n",
+                        test.name.c_str());
             }
 
         } else {
             if (test.api_v2.test_setup != nullptr &&
                 !test.api_v2.test_setup(&test)) {
-                fprintf(stderr, "Failed to run setup for test %s\n", test.name);
+                fprintf(stderr,
+                        "Failed to run setup for test %s\n",
+                        test.name.c_str());
                 return FAIL;
             }
 
@@ -1291,7 +1301,9 @@ static test_result execute_test(engine_test_t test,
 
             if (test.api_v2.test_teardown != nullptr &&
                 !test.api_v2.test_teardown(&test)) {
-                fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
+                fprintf(stderr,
+                        "WARNING: Failed to run teardown for test %s\n",
+                        test.name.c_str());
             }
         }
 
@@ -1313,7 +1325,7 @@ static test_result execute_test(engine_test_t test,
 }
 
 int main(int argc, char **argv) {
-    int c, exitcode = 0, num_cases = 0, loop_count = 0;
+    int c, exitcode = 0, loop_count = 0;
     bool verbose = false;
     bool quiet = false;
     bool dot = false;
@@ -1322,7 +1334,7 @@ int main(int argc, char **argv) {
     std::string engine;
     const char* engine_args = nullptr;
     std::unique_ptr<std::regex> test_case_regex;
-    engine_test_t* testcases = nullptr;
+    std::vector<engine_test_t> testcases;
     int test_case_id = -1;
 
     /* If a testcase fails, retry up to 'attempts -1' times to allow it
@@ -1470,9 +1482,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    for (num_cases = 0; testcases[num_cases].name; num_cases++) {
-        /* Just counting */
-    }
+    const auto num_cases = testcases.size();
 
     if (!setup_suite(&harness)) {
         std::cerr << "Failed to set up test suite" << std::endl;
@@ -1480,9 +1490,8 @@ int main(int argc, char **argv) {
     }
 
     do {
-        int i;
         bool need_newline = false;
-        for (i = 0; testcases[i].name; i++) {
+        for (int i = 0; i < gsl::narrow_cast<int>(num_cases); i++) {
             // If a specific test was chosen, skip all other tests.
             if (test_case_id != -1 && i != test_case_id) {
                 continue;
@@ -1495,9 +1504,9 @@ int main(int argc, char **argv) {
             }
             if (!quiet) {
                 printf("Running [%04d/%04d]: %s...",
-                       i + num_cases * loop_count,
-                       num_cases * (loop_count + 1),
-                       testcases[i].name);
+                       gsl::narrow_cast<int>(i + num_cases * loop_count),
+                       gsl::narrow_cast<int>(num_cases * (loop_count + 1)),
+                       testcases[i].name.c_str());
                 fflush(stdout);
             } else if(dot) {
                 printf(".");
@@ -1549,9 +1558,10 @@ int main(int argc, char **argv) {
                     if ((ecode == SUCCESS) && (attempt > 0)) {
                         ecode = SUCCESS_AFTER_RETRY;
                     }
-                    error = report_test(testcases[i].name,
+                    error = report_test(testcases[i].name.c_str(),
                                         stop - start,
-                                        ecode, quiet,
+                                        ecode,
+                                        quiet,
                                         !verbose);
                 }
             }
@@ -1575,7 +1585,9 @@ int main(int argc, char **argv) {
         std::cerr << "Failed to teardown test suite" << std::endl;
     }
 
-    printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
+    printf("# Passed %d of %d tests\n",
+           gsl::narrow_cast<int>(num_cases - exitcode),
+           gsl::narrow_cast<int>(num_cases));
 
     return exitcode;
 }

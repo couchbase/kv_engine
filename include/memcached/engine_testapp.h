@@ -132,7 +132,8 @@ struct test_harness {
      * @param cfg The configuration to pass to initialize (if enabled)
      * @return The newly created engine or nullptr if create failed
      */
-    virtual EngineIface* create_bucket(bool initialize, const char* cfg) = 0;
+    virtual EngineIface* create_bucket(bool initialize,
+                                       const std::string& cfg) = 0;
 
     /**
      * Destroy (and invalidate) the specified bucket
@@ -151,7 +152,7 @@ struct test_harness {
      * @param force should the old one be shut down with force or not
      */
     virtual void reload_engine(EngineIface** h,
-                               const char* cfg,
+                               const std::string& cfg,
                                bool init,
                                bool force) = 0;
 
@@ -174,12 +175,12 @@ struct test_api_v2 {
 };
 
 struct test {
-    const char *name;
+    std::string name;
     enum test_result (*tfun)(EngineIface*);
     bool (*test_setup)(EngineIface*);
     bool (*test_teardown)(EngineIface*);
 
-    const char *cfg;
+    std::string cfg;
     /**
      * You might want to prepare the environment for running
      * the test <em>before</em> the engine is loaded.
@@ -198,19 +199,25 @@ struct test {
     struct test_api_v2 api_v2;
 };
 
-#define TEST_CASE(name, test, setup, teardown, cfg, prepare, cleanup) \
-    {name, test, setup, teardown, cfg, prepare, cleanup,\
-     {NULL, NULL, NULL}}
+#define TEST_CASE(name, test, setup, teardown, cfg, prepare, cleanup)    \
+    {                                                                    \
+        name, test, setup, teardown, cfg ? cfg : "", prepare, cleanup, { \
+            NULL, NULL, NULL                                             \
+        }                                                                \
+    }
 
 #define TEST_CASE_V2(name, test, setup, teardown, cfg, prepare, cleanup) \
-    {name, NULL, NULL, NULL, cfg, prepare, cleanup,\
-     {test, setup, teardown}}
+    {                                                                    \
+        name, NULL, NULL, NULL, cfg ? cfg : "", prepare, cleanup, {      \
+            test, setup, teardown                                        \
+        }                                                                \
+    }
 
 /**
  * Get a pointer to the list of tests to run
  * @return
  */
-engine_test_t* get_tests();
+std::vector<engine_test_t> get_tests();
 
 /// Get the type of bucket the tests are written for
 BucketType get_bucket_type();

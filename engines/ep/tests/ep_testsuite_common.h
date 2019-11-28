@@ -116,7 +116,7 @@ class BaseTestCase {
 public:
     BaseTestCase(const char *_name,  const char *_cfg, bool _skip = false);
 
-    BaseTestCase(const BaseTestCase &o);
+    BaseTestCase(const BaseTestCase& o) = default;
 
     engine_test_t *getTest();
 
@@ -283,7 +283,9 @@ struct BucketHolder {
   Create n_buckets and add to the buckets vector.
   Returns the number of buckets actually created.
 */
-int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &buckets);
+int create_buckets(const std::string& cfg,
+                   int n_buckets,
+                   std::vector<BucketHolder>& buckets);
 
 /*
   Destroy all of the buckets in the vector and delete the DB path.
@@ -297,7 +299,7 @@ void check_key_value(EngineIface* h,
                      size_t vlen,
                      Vbid vbucket = Vbid(0));
 
-std::string get_dbname(const char* test_cfg);
+std::string get_dbname(const std::string& test_cfg);
 
 // Returns true if Compression is enabled for the given engine.
 bool isCompressionEnabled(EngineIface* h);
