@@ -70,23 +70,15 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
-// Helper function to convert a cookie (externally represented as
-// void*) to the actual internal type.
-static MockCookie* to_mock_connstruct(const void* cookie) {
-    return const_cast<struct MockCookie*>(
-            reinterpret_cast<const struct MockCookie*>(cookie));
-}
-
 /**
  * Helper function to return a mock_connstruct, either a new one or
  * an existng one.
  **/
 MockCookie* get_or_create_mock_connstruct(const void* cookie) {
-    auto* c = to_mock_connstruct(cookie);
-    if (c == nullptr) {
-        c = to_mock_connstruct(create_mock_cookie());
+    if (cookie == nullptr) {
+        return cookie_to_mock_object(create_mock_cookie());
     }
-    return c;
+    return cookie_to_mock_object(cookie);
 }
 
 /**
@@ -124,7 +116,7 @@ cb::EngineErrorItemPair MockEngine::allocate(gsl::not_null<const void*> cookie,
                                datatype,
                                vbucket);
 
-    auto* c = to_mock_connstruct(cookie.get());
+    auto* c = cookie_to_mock_object(cookie.get());
     return do_blocking_engine_call<cb::unique_item_ptr>(c, engine_fn);
 }
 
@@ -148,7 +140,7 @@ std::pair<cb::unique_item_ptr, item_info> MockEngine::allocate_ex(
                                datatype,
                                vbucket);
 
-    auto* c = to_mock_connstruct(cookie.get());
+    auto* c = cookie_to_mock_object(cookie.get());
     c->nblocks = 0;
 
     std::lock_guard<std::mutex> guard(c->mutex);
@@ -180,7 +172,7 @@ ENGINE_ERROR_CODE MockEngine::remove(
                                vbucket,
                                durability,
                                std::ref(mut_info));
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
@@ -199,7 +191,7 @@ cb::EngineErrorItemPair MockEngine::get(gsl::not_null<const void*> cookie,
                                vbucket,
                                documentStateFilter);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
@@ -210,7 +202,7 @@ cb::EngineErrorItemPair MockEngine::get_if(
         std::function<bool(const item_info&)> filter) {
     auto engine_fn = std::bind(
             &EngineIface::get_if, the_engine, cookie, key, vbucket, filter);
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
@@ -228,7 +220,7 @@ cb::EngineErrorItemPair MockEngine::get_and_touch(
                                expiryTime,
                                durability);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
 
@@ -243,7 +235,7 @@ cb::EngineErrorItemPair MockEngine::get_locked(
                                key,
                                vbucket,
                                lock_timeout);
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
 
     return do_blocking_engine_call<cb::unique_item_ptr>(construct, engine_fn);
 }
@@ -253,7 +245,7 @@ cb::EngineErrorMetadataPair MockEngine::get_meta(
     auto engine_fn =
             std::bind(&EngineIface::get_meta, the_engine, cookie, key, vbucket);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
 
     return do_blocking_engine_call<item_info>(construct, engine_fn);
 }
@@ -265,7 +257,7 @@ ENGINE_ERROR_CODE MockEngine::unlock(gsl::not_null<const void*> cookie,
     auto engine_fn = std::bind(
             &EngineIface::unlock, the_engine, cookie, key, vbucket, cas);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
@@ -276,7 +268,7 @@ ENGINE_ERROR_CODE MockEngine::get_stats(gsl::not_null<const void*> cookie,
     auto engine_fn = std::bind(
             &EngineIface::get_stats, the_engine, cookie, key, value, add_stat);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
@@ -296,7 +288,7 @@ ENGINE_ERROR_CODE MockEngine::store(
                                durability,
                                document_state);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
 
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
@@ -304,7 +296,7 @@ ENGINE_ERROR_CODE MockEngine::store(
 ENGINE_ERROR_CODE MockEngine::flush(gsl::not_null<const void*> cookie) {
     auto engine_fn = std::bind(&EngineIface::flush, the_engine, cookie);
 
-    auto* construct = to_mock_connstruct(cookie.get());
+    auto* construct = cookie_to_mock_object(cookie.get());
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
@@ -366,7 +358,7 @@ ENGINE_ERROR_CODE MockEngine::add_stream(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
                                          uint32_t flags) {
-    auto* c = to_mock_connstruct(cookie.get());
+    auto* c = cookie_to_mock_object(cookie.get());
     auto engine_fn = std::bind(&DcpIface::add_stream,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -458,7 +450,7 @@ ENGINE_ERROR_CODE MockEngine::mutation(gsl::not_null<const void*> cookie,
                                        uint32_t lock_time,
                                        cb::const_byte_buffer meta,
                                        uint8_t nru) {
-    auto* c = to_mock_connstruct(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     auto engine_fn = std::bind(&DcpIface::mutation,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -491,7 +483,7 @@ ENGINE_ERROR_CODE MockEngine::deletion(gsl::not_null<const void*> cookie,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        cb::const_byte_buffer meta) {
-    auto* c = to_mock_connstruct(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     auto engine_fn = std::bind(&DcpIface::deletion,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -519,7 +511,7 @@ ENGINE_ERROR_CODE MockEngine::expiration(gsl::not_null<const void*> cookie,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          uint32_t deleteTime) {
-    auto* c = to_mock_connstruct(cookie);
+    auto* c = cookie_to_mock_object(cookie);
     auto engine_fn = std::bind(&DcpIface::expiration,
                                the_engine_dcp,
                                static_cast<const void*>(c),
