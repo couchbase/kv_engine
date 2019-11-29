@@ -366,7 +366,7 @@ ENGINE_ERROR_CODE MockEngine::add_stream(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
                                          uint32_t flags) {
-    auto* c = get_or_create_mock_connstruct(cookie);
+    auto* c = to_mock_connstruct(cookie.get());
     auto engine_fn = std::bind(&DcpIface::add_stream,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -374,10 +374,7 @@ ENGINE_ERROR_CODE MockEngine::add_stream(gsl::not_null<const void*> cookie,
                                vbucket,
                                flags);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
 ENGINE_ERROR_CODE MockEngine::close_stream(gsl::not_null<const void*> cookie,
@@ -461,7 +458,7 @@ ENGINE_ERROR_CODE MockEngine::mutation(gsl::not_null<const void*> cookie,
                                        uint32_t lock_time,
                                        cb::const_byte_buffer meta,
                                        uint8_t nru) {
-    auto* c = get_or_create_mock_connstruct(cookie);
+    auto* c = to_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::mutation,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -480,10 +477,7 @@ ENGINE_ERROR_CODE MockEngine::mutation(gsl::not_null<const void*> cookie,
                                meta,
                                nru);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
 ENGINE_ERROR_CODE MockEngine::deletion(gsl::not_null<const void*> cookie,
@@ -497,7 +491,7 @@ ENGINE_ERROR_CODE MockEngine::deletion(gsl::not_null<const void*> cookie,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        cb::const_byte_buffer meta) {
-    auto* c = get_or_create_mock_connstruct(cookie);
+    auto* c = to_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::deletion,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -511,11 +505,7 @@ ENGINE_ERROR_CODE MockEngine::deletion(gsl::not_null<const void*> cookie,
                                by_seqno,
                                rev_seqno,
                                meta);
-
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
 ENGINE_ERROR_CODE MockEngine::expiration(gsl::not_null<const void*> cookie,
@@ -529,7 +519,7 @@ ENGINE_ERROR_CODE MockEngine::expiration(gsl::not_null<const void*> cookie,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          uint32_t deleteTime) {
-    auto* c = get_or_create_mock_connstruct(cookie);
+    auto* c = to_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::expiration,
                                the_engine_dcp,
                                static_cast<const void*>(c),
@@ -544,10 +534,7 @@ ENGINE_ERROR_CODE MockEngine::expiration(gsl::not_null<const void*> cookie,
                                rev_seqno,
                                deleteTime);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
 ENGINE_ERROR_CODE MockEngine::set_vbucket_state(
