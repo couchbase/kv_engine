@@ -96,8 +96,16 @@ ENGINE_ERROR_CODE MockEngine::initialize(const char* config_str) {
     return the_engine->initialize(config_str);
 }
 
+MockEngine::~MockEngine() {
+    if (the_engine) {
+        destroy(false);
+    }
+}
+
 void MockEngine::destroy(const bool force) {
     the_engine->destroy(force);
+    the_engine = nullptr;
+    the_engine_dcp = nullptr;
 }
 
 cb::EngineErrorItemPair MockEngine::allocate(gsl::not_null<const void*> cookie,

@@ -19,6 +19,11 @@
 
 #pragma once
 struct MockEngine : public EngineIface, public DcpIface {
+    MockEngine() = default;
+    MockEngine(EngineIface* e, DcpIface* d) : the_engine(e), the_engine_dcp(d) {
+    }
+    virtual ~MockEngine();
+
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool force) override;
 
