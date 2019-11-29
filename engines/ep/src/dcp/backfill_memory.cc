@@ -170,12 +170,10 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                     std::min(endSeqno, static_cast<uint64_t>(rangeItr.back()));
 
             /* Mark disk snapshot */
-            stream->markDiskSnapshot(
-                    startSeqno,
-                    endSeqno,
-                    evb->getHighCompletedSeqno(),
-                    // @todo: Use proper value, not yet propagated by DCP
-                    endSeqno /*maxVisibleSeqno*/);
+            stream->markDiskSnapshot(startSeqno,
+                                     endSeqno,
+                                     evb->getHighCompletedSeqno(),
+                                     rangeItr.getMaxVisibleSeqno());
 
             /* Change the backfill state */
             transitionState(BackfillState::Scanning);

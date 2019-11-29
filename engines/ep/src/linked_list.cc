@@ -495,6 +495,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
       itrRange(0, 0),
       numRemaining(0),
       earlySnapShotEndSeqno(0),
+      maxVisibleSeqno(0),
       isBackfill(isBackfill) {
     if (!readLockHolder) {
         /* no blocking */
@@ -519,6 +520,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     /* The minimum seqno in the iterator that must be read to get a consistent
        read snapshot */
     earlySnapShotEndSeqno = list.highestDedupedSeqno;
+
+    maxVisibleSeqno = list.maxVisibleSeqno;
 
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */

@@ -374,6 +374,10 @@ private:
             return earlySnapShotEndSeqno;
         }
 
+        uint64_t getMaxVisibleSeqno() const override {
+            return maxVisibleSeqno;
+        }
+
     private:
         /* We have a private constructor because we want to create the iterator
            optionally, that is, only when it is possible to get a read lock */
@@ -426,6 +430,8 @@ private:
         /* Indicates the minimum seqno in the iterator that can give a
            consistent read snapshot */
         seqno_t earlySnapShotEndSeqno;
+
+        uint64_t maxVisibleSeqno;
 
         /* Indicates if the range iterator is for DCP backfill
            (for debug) */

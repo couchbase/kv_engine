@@ -413,8 +413,20 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size());
 
-    // First item is a snapshot marker so just skip it
     auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    if (persistent()) {
+        // Will fail when MVS implemented for EP
+        EXPECT_EQ(1, marker.getMaxVisibleSeqno().value_or(~0));
+    } else {
+        EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
+    }
+    EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(1, marker.getEndSeqno());
+
     resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
@@ -495,9 +507,21 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     // Abort
     ASSERT_EQ(2, readyQ.size());
 
-    // First item is a snapshot marker so just skip it
+    // First item is a snapshot marker
     auto resp = stream->public_popFromReadyQ();
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    if (persistent()) {
+        // Will fail when MVS implemented for EP
+        EXPECT_EQ(2, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(1, marker.getHighCompletedSeqno().value_or(~0));
+    } else {
+        EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(2, marker.getEndSeqno());
 
     // We don't receive the prepare, just the abort as it de-dupes the
     // prepare.
@@ -546,8 +570,21 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size());
 
-    // First item is a snapshot marker so just skip it
     auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    if (persistent()) {
+        // Will fail when MVS implemented for EP
+        EXPECT_EQ(2, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(1, marker.getHighCompletedSeqno().value_or(~0));
+    } else {
+        EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(2, marker.getEndSeqno());
+
     resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
@@ -772,6 +809,18 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     auto resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    if (persistent()) {
+        // Will fail when MVS is implemented for EP
+        EXPECT_EQ(5, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
+    } else {
+        EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(1, marker.getStartSeqno());
+    EXPECT_EQ(5, marker.getEndSeqno());
 
     // Followed by a mutation instead of a commit
     resp = stream->public_popFromReadyQ();
@@ -821,6 +870,18 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     auto resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    if (persistent()) {
+        // Will fail when MVS implemented for EP
+        EXPECT_EQ(5, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
+    } else {
+        EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(5, marker.getEndSeqno());
 
     // Followed by a mutation instead of a commit
     resp = stream->public_popFromReadyQ();

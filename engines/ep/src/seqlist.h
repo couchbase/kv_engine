@@ -123,6 +123,8 @@ protected:
          * get a consistent read snapshot
          */
         virtual seqno_t getEarlySnapShotEnd() const = 0;
+
+        virtual uint64_t getMaxVisibleSeqno() const = 0;
     };
 
 public:
@@ -217,6 +219,8 @@ public:
          * get a consistent read snapshot
          */
         seqno_t getEarlySnapShotEnd() const;
+
+        uint64_t getMaxVisibleSeqno() const;
 
     private:
         /* Pointer to the abstract class of range iterator implementation */
