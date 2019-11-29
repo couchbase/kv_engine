@@ -1,0 +1,301 @@
+/*
+ *     Copyright 2019 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+#include <memcached/dcp.h>
+#include <memcached/engine.h>
+
+#pragma once
+struct MockEngine : public EngineIface, public DcpIface {
+    ENGINE_ERROR_CODE initialize(const char* config_str) override;
+    void destroy(bool force) override;
+
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     size_t nbytes,
+                                     int flags,
+                                     rel_time_t exptime,
+                                     uint8_t datatype,
+                                     Vbid vbucket) override;
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            Vbid vbucket) override;
+
+    ENGINE_ERROR_CODE remove(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            const boost::optional<cb::durability::Requirements>& durability,
+            mutation_descr_t& mut_info) override;
+
+    void release(gsl::not_null<item*> item) override;
+
+    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                const DocKey& key,
+                                Vbid vbucket,
+                                DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::function<bool(const item_info&)> filter) override;
+
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         Vbid vbucket) override;
+
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
+                                       const DocKey& key,
+                                       Vbid vbucket,
+                                       uint32_t lock_timeout) override;
+
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             Vbid vbucket,
+                             uint64_t cas) override;
+
+    cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            uint32_t expiryTime,
+            const boost::optional<cb::durability::Requirements>& durability)
+            override;
+
+    ENGINE_ERROR_CODE store(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t& cas,
+            ENGINE_STORE_OPERATION operation,
+            const boost::optional<cb::durability::Requirements>& durability,
+            DocumentState document_state) override;
+
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
+
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                cb::const_char_buffer key,
+                                cb::const_char_buffer value,
+                                const AddStatFn& add_stat) override;
+
+    void reset_stats(gsl::not_null<const void*> cookie) override;
+
+    ENGINE_ERROR_CODE unknown_command(const void* cookie,
+                                      const cb::mcbp::Request& request,
+                                      const AddResponseFn& response) override;
+
+    void item_set_cas(gsl::not_null<item*> item, uint64_t val) override;
+
+    void item_set_datatype(gsl::not_null<item*> item,
+                           protocol_binary_datatype_t datatype) override;
+
+    bool get_item_info(gsl::not_null<const item*> item,
+                       gsl::not_null<item_info*> item_info) override;
+
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
+
+    bool isXattrEnabled() override {
+        return the_engine->isXattrEnabled();
+    }
+
+    BucketCompressionMode getCompressionMode() override {
+        return the_engine->getCompressionMode();
+    }
+
+    size_t getMaxItemSize() override {
+        return the_engine->getMaxItemSize();
+    }
+
+    float getMinCompressionRatio() override {
+        return the_engine->getMinCompressionRatio();
+    }
+
+    cb::engine::FeatureSet getFeatures() override {
+        return the_engine->getFeatures();
+    }
+
+    // DcpIface implementation ////////////////////////////////////////////////
+
+    ENGINE_ERROR_CODE step(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<dcp_message_producers*> producers) override;
+
+    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           uint32_t seqno,
+                           uint32_t flags,
+                           cb::const_char_buffer name,
+                           cb::const_char_buffer value) override;
+
+    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   Vbid vbucket,
+                                   cb::mcbp::DcpStreamId sid) override;
+
+    ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*> cookie,
+            uint32_t flags,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json) override;
+
+    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       dcp_add_failover_log cb) override;
+
+    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE snapshot_marker(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint32_t flags,
+            boost::optional<uint64_t> high_completed_seqno) override;
+
+    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               Vbid vbucket,
+                               uint32_t flags,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t expiration,
+                               uint32_t lock_time,
+                               cb::const_byte_buffer meta,
+                               uint8_t nru) override;
+
+    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               Vbid vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               cb::const_byte_buffer meta) override;
+
+    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 const DocKey& key,
+                                 cb::const_byte_buffer value,
+                                 size_t priv_bytes,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 Vbid vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 uint32_t deleteTime) override;
+
+    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        Vbid vbucket,
+                                        vbucket_state_t state) override;
+
+    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
+                           uint32_t opaque) override;
+
+    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
+                                             uint32_t opaque,
+                                             Vbid vbucket,
+                                             uint32_t buffer_bytes) override;
+
+    ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
+                              uint32_t opaque,
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
+
+    ENGINE_ERROR_CODE response_handler(
+            gsl::not_null<const void*> cookie,
+            const protocol_binary_response_header* response) override;
+
+    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   Vbid vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   mcbp::systemevent::version version,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+    ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
+                              uint32_t opaque,
+                              const DocKey& key,
+                              cb::const_byte_buffer value,
+                              size_t priv_bytes,
+                              uint8_t datatype,
+                              uint64_t cas,
+                              Vbid vbucket,
+                              uint32_t flags,
+                              uint64_t by_seqno,
+                              uint64_t rev_seqno,
+                              uint32_t expiration,
+                              uint32_t lock_time,
+                              uint8_t nru,
+                              DocumentState document_state,
+                              cb::durability::Level level) override;
+    ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint64_t prepared_seqno) override;
+    ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             Vbid vbucket,
+                             const DocKey& key,
+                             uint64_t prepared_seqno,
+                             uint64_t commit_seqno) override;
+    ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            Vbid vbucket,
+                            const DocKey& key,
+                            uint64_t prepared_seqno,
+                            uint64_t abort_seqno) override;
+
+    EngineIface* the_engine{};
+
+    // Pointer to DcpIface for the underlying engine we are proxying; or
+    // nullptr if it doesn't implement DcpIface;
+    DcpIface* the_engine_dcp = nullptr;
+};
