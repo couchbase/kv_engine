@@ -157,13 +157,30 @@ public:
     /// Set the number of backfill items remaining to the given value.
     void setBackfillRemaining(size_t value);
 
+    void setBackfillRemaining_UNLOCKED(size_t value, LockHolder& lh);
+
     /// Clears the number of backfill items remaining, setting to an empty
     /// (unknown) value.
     void clearBackfillRemaining();
 
+    /**
+     * Queues a snapshot marker to be sent - only if there are items in
+     * the backfill range which will be sent.
+     *
+     * Connections which have not negotiated for sync writes will not
+     * send prepares or aborts.
+     *
+     * @param startSeqno start of backfill range
+     * @param endSeqno seqno of last item in backfill range
+     * @param highCompletedSeqno seqno of last commit/abort in the backfill
+     * range
+     * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
+     * event) item
+     */
     void markDiskSnapshot(uint64_t startSeqno,
                           uint64_t endSeqno,
-                          boost::optional<uint64_t> highCompletedSeqno);
+                          boost::optional<uint64_t> highCompletedSeqno,
+                          uint64_t maxVisibleSeqno);
 
     bool backfillReceived(std::unique_ptr<Item> itm,
                           backfill_source_t backfill_source,

@@ -249,7 +249,10 @@ backfill_status_t DCPBackfillDisk::create() {
         stream->setBackfillRemaining(scanCtx->documentCount);
         stream->markDiskSnapshot(startSeqno,
                                  scanCtx->maxSeqno,
-                                 scanCtx->persistedCompletedSeqno);
+                                 scanCtx->persistedCompletedSeqno,
+                                 // @todo: Use correct value for maxVisibleSeq
+                                 // this is not yet propagated by DCP.
+                                 scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);
     }
 

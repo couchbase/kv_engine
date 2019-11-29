@@ -249,7 +249,8 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
 void ActiveStream::markDiskSnapshot(
         uint64_t startSeqno,
         uint64_t endSeqno,
-        boost::optional<uint64_t> highCompletedSeqno) {
+        boost::optional<uint64_t> highCompletedSeqno,
+        uint64_t maxVisibleSeqno) {
     {
         LockHolder lh(streamMutex);
         uint64_t chkCursorSeqno = endSeqno;
@@ -306,12 +307,12 @@ void ActiveStream::markDiskSnapshot(
         auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start seqno {}, end seqno {}, and"
-            " high completed seqno {}",
+            "start {}, end {}, and high completed {}, max visible {}",
             logPrefix,
             startSeqno,
             endSeqno,
-            hcsToSend);
+            hcsToSend,
+            maxVisibleSeqno);
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
@@ -319,7 +320,8 @@ void ActiveStream::markDiskSnapshot(
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                 hcsToSend,
-                boost::none, /*maxVisibleSeqno*/
+                boost::optional<uint64_t>{supportSyncReplication(),
+                                          maxVisibleSeqno},
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 

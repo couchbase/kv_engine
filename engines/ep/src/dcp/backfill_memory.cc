@@ -171,7 +171,11 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
 
             /* Mark disk snapshot */
             stream->markDiskSnapshot(
-                    startSeqno, endSeqno, evb->getHighCompletedSeqno());
+                    startSeqno,
+                    endSeqno,
+                    evb->getHighCompletedSeqno(),
+                    // @todo: Use proper value, not yet propagated by DCP
+                    endSeqno /*maxVisibleSeqno*/);
 
             /* Change the backfill state */
             transitionState(BackfillState::Scanning);
