@@ -252,8 +252,6 @@ ENDIF()
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).
 FUNCTION(ADD_TESTSUITE name timeout)
-    CMAKE_PARSE_ARGUMENTS("arg" "SKIP_MAGMA" "" "" ${ARGN})
-
     SET(_cmdline $<TARGET_FILE:${name}> -E ep)
 
     # MB-34445: To attempt to identify the cause of the intermittent timeouts in
@@ -306,7 +304,7 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
         SET_TESTS_PROPERTIES(${name}.full_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
     ENDIF (EP_USE_ROCKSDB)
 
-    IF (EP_USE_MAGMA AND NOT arg_SKIP_MAGMA)
+    IF (EP_USE_MAGMA)
         ADD_TEST(NAME ${name}.value_eviction.magma
                 COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.magma$<SEMICOLON>backend=magma")
         ADD_TEST(NAME ${name}.full_eviction.magma
@@ -316,31 +314,15 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
     ENDIF ()
 ENDFUNCTION()
 
-# MB-36252: Skipping ep_testsuite under Magma as intermittently times out on
-# Windows
-# MB-36322: Skipping ep_testsuite under TSan + Magma as
-# intermittently timing out.
-IF(WIN32 OR CB_THREADSANITIZER)
-    ADD_TESTSUITE(ep_testsuite 300 SKIP_MAGMA)
-ELSE()
-    ADD_TESTSUITE(ep_testsuite 300)
-ENDIF()
+ADD_TESTSUITE(ep_testsuite 300)
 
 ADD_TESTSUITE(ep_testsuite_basic 600)
 
 ADD_TESTSUITE(ep_testsuite_dcp 1200)
 
-# MB-36228: Skipping ep_testsuite_checkpoint under Magma as intermittently hangs on
-# Windows
-ADD_TESTSUITE(ep_testsuite_checkpoint 120 SKIP_MAGMA)
+ADD_TESTSUITE(ep_testsuite_checkpoint 180)
 
-# MB-36226: Skipping ep_testsuite_xdcr under Magma as intermittently hangs on
-# Windows
-IF(WIN32)
-    ADD_TESTSUITE(ep_testsuite_xdcr 120 SKIP_MAGMA)
-ELSE()
-    ADD_TESTSUITE(ep_testsuite_xdcr 120)
-ENDIF()
+ADD_TESTSUITE(ep_testsuite_xdcr 120)
 
 # ================================ PERF_TESTS ================================ #
 SET(_ep_perfsuite_cmdline $<TARGET_FILE:ep_perfsuite> -E ep -v)

@@ -319,6 +319,14 @@ static test_result execute_test(engine_test_t test,
                 cfg.append("max_size=1073741824;");
             }
             test.cfg = std::move(cfg);
+        } else if (std::string(test.cfg).find("backend=magma") !=
+                   std::string::npos) {
+            if (!cfg.empty() && cfg.back() != ';') {
+                cfg.append(";");
+            }
+            cfg.append("magma_num_flushers=1;");
+            cfg.append("magma_num_compactors=1;");
+            test.cfg = std::move(cfg);
         }
     }
 
