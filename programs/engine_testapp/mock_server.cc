@@ -192,6 +192,9 @@ struct MockServerCoreApi : public ServerCoreIface {
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
     }
+    bool isCollectionsEnabled() const override {
+        return true;
+    }
 };
 
 struct MockServerLogApi : public ServerLogIface {

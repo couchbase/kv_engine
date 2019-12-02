@@ -1664,6 +1664,11 @@ public:
      */
     void setUpAllowedDuplicatePrepareThreshold();
 
+    /**
+     * @return the maximum visible seqno for the vbucket
+     */
+    uint64_t getMaxVisibleSeqno() const;
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

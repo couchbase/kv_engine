@@ -4228,6 +4228,12 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void* cookie,
                          "vb_%d:high_completed_seqno",
                          vb->getId().get());
         add_casted_stat(buffer, vb->getHighCompletedSeqno(), add_stat, cookie);
+        checked_snprintf(buffer,
+                         sizeof(buffer),
+                         "vb_%d:max_visible_seqno",
+                         vb->getId().get());
+        add_casted_stat(buffer, vb->getMaxVisibleSeqno(), add_stat, cookie);
+
     } catch (std::exception& error) {
         EP_LOG_WARN("addSeqnoVbStats: error building stats: {}", error.what());
     }
@@ -6360,8 +6366,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
             reqState = PermittedVBStates(static_cast<vbucket_state_t>(desired));
         }
 
+        // Only attempt to decode this payload if collections are enabled, i.e.
+        // the developer-preview, let's be extra defensive about people
+        // assuming this encoding is here.
         if (extras.size() ==
-            (sizeof(RequestedVBState) + sizeof(CollectionIDType))) {
+                    (sizeof(RequestedVBState) + sizeof(CollectionIDType)) &&
+            serverApi->core->isCollectionsEnabled()) {
             reqCollection = static_cast<CollectionIDType>(
                     ntohl(*reinterpret_cast<const uint32_t*>(
                             extras.substr(sizeof(RequestedVBState),
@@ -6377,9 +6387,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // of.
     // If the client IS talking collections but hasn't specified a collection,
     // we'll give them the actual vBucket high seqno.
-    if (!serverApi->cookie->is_collections_supported(cookie)) {
+    if (!serverApi->cookie->is_collections_supported(cookie) &&
+        serverApi->core->isCollectionsEnabled()) {
         reqCollection = CollectionID::Default;
     }
+
+    bool supportsSyncWrites = getConnHandler(cookie) &&
+                              getConnHandler(cookie)->isSyncWritesEnabled();
 
     std::vector<uint8_t> payload;
     auto vbuckets = kvBucket->getVBuckets().getBuckets();
@@ -6430,12 +6444,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                 }
             } else {
                 if (vb->getState() == vbucket_state_active) {
-                    highSeqno = htonll(vb->getHighSeqno());
+                    highSeqno = supportsSyncWrites ? vb->getHighSeqno()
+                                                   : vb->getMaxVisibleSeqno();
                 } else {
-                    snapshot_info_t info =
-                            vb->checkpointManager->getSnapshotInfo();
-                    highSeqno = htonll(info.range.getEnd());
+                    highSeqno =
+                            supportsSyncWrites
+                                    ? vb->checkpointManager->getSnapshotInfo()
+                                              .range.getEnd()
+                                    : vb->checkpointManager
+                                              ->getVisibleSnapshotEndSeqno();
                 }
+                highSeqno = htonll(highSeqno);
             }
             auto offset = payload.size();
             payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));

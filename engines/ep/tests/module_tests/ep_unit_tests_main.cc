@@ -84,6 +84,10 @@ public:
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
     }
+
+    bool isCollectionsEnabled() const override {
+        return true;
+    }
 };
 
 int main(int argc, char **argv) {
