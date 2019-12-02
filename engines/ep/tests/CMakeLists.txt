@@ -166,10 +166,6 @@ ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_tes
 ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
 ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
-ADD_EXECUTABLE(timing_tests module_tests/timing_tests.cc
-               $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(timing_tests engine_testapp mcbp platform)
-
 ADD_EXECUTABLE(ep_testsuite
                ep_testsuite.cc
                $<TARGET_OBJECTS:ep_testsuite_objs>
