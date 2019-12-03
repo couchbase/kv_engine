@@ -559,6 +559,46 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     producer->cancelCheckpointCreatorTask();
 }
 
+// MB-37103: Check that a backfill where the High Completed Seqno is zero
+// correctly populates the snapshot marker.
+TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
+    VBQueueItemCtx ctx;
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+
+    // Required at for transitioning to backfill at EPBucket
+    flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+    // Ephemeral starts the scan-phase synchronously at backfill-init, while
+    // EP needs another run of the backfill task
+    if (persistent()) {
+        bfm.backfill();
+    }
+
+    const auto& readyQ = stream->public_readyQ();
+    EXPECT_EQ(2, readyQ.size()) << "Expected SnapshotMarker and Mutation";
+
+    // First item should be a snapshot marker, with HCS==0.
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = static_cast<SnapshotMarker&>(*resp);
+    ASSERT_TRUE(marker.getHighCompletedSeqno().is_initialized());
+    EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+}
+
 TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     testSendDcpPrepare();
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1209,6 +1249,40 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // We don't flush any items but we will run the flusher which will advance
     // use out of the checkpoint. Should not throw any pre-condition due to
     // monotonicity.
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
+// MB-37103: Receiving a disk snapshot marker with a HCS of zero should be
+// correctly accepted - HCS==0 is valid, for example when no SyncWrites have
+// occurred on this vBucket.
+TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
+    // Emulate a snapshot marker of a single (non-Sync) mutation.
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          1 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          0 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    auto item = makeCommittedItem(makeStoredDocKey("key"), "unrelated");
+    item->setBySeqno(1);
+
+    // Send the mutation
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      std::move(item),
+                      0 /*opaque*/,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // Test: check we can successfully flush to disk with HCS=0.
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
