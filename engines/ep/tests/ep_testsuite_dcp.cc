@@ -5167,7 +5167,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     // Ensure that we don't accept invalid opaque values
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(ENGINE_KEY_EEXISTS,
             dcp->mutation(cookie,
                           opaque + 1,
                           docKey,

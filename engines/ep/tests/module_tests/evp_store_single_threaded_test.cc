@@ -3980,6 +3980,39 @@ TEST_F(SingleThreadedEPBucketTest,
               consumer->streamEnd(opaque1, vbid, END_STREAM_CLOSED));
 }
 
+TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "conn");
+
+    const int opaque1 = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque1, vbid, {}));
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque1, vbid));
+
+    const int opaque2 = 2;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque2, vbid, {}));
+
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque1, vbid, {}));
+
+    auto key = makeStoredDocKey("key");
+    auto dtype = PROTOCOL_BINARY_RAW_BYTES;
+    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+              consumer->prepare(opaque1,
+                                key,
+                                {},
+                                0,
+                                dtype,
+                                {},
+                                vbid,
+                                {},
+                                6,
+                                {},
+                                {},
+                                {},
+                                {},
+                                {},
+                                cb::durability::Level::Majority));
+}
+
 TEST_P(STParameterizedBucketTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto t1 = ep_real_time();

@@ -1679,10 +1679,13 @@ ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
     }
 
     auto stream = findStream(vbucket);
-    if (!stream || stream->getOpaque() != opaque) {
-        // No such stream with the given vbucket / opaque - return KEY_ENOENT
-        // to indicate that back to peer.
+    if (!stream) {
+        // No such stream with the given vbucket
         return ENGINE_KEY_ENOENT;
+    } else if (stream->getOpaque() != opaque) {
+        // No such stream with the given opaque - return KEY_EEXISTS to indicate
+        // that a stream exists but not for this opaque (similar to InvalidCas).
+        return ENGINE_KEY_EEXISTS;
     }
 
     // Pass the message to the associated stream.
