@@ -1712,7 +1712,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
                              /*startseq*/ 0,
                              /*endseq*/ messages,
                              /*flags*/ 0,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
 
     // 2. Now add the rest as mutations.
     for (int ii = 0; ii <= messages; ii++) {
@@ -1777,7 +1778,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ MARKER_FLAG_DISK,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
@@ -1846,7 +1848,8 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ 0,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
                          {"key1", DocKeyEncodesCollectionId::No},
@@ -2398,7 +2401,8 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
                                        bySeqno,
                                        bySeqno,
                                        MARKER_FLAG_CHK,
-                                       {} /*HCS*/));
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->mutation(opaque,
                                  docKey,
@@ -2431,7 +2435,8 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
                                        bySeqno,
                                        bySeqno,
                                        MARKER_FLAG_CHK,
-                                       {} /*HCS*/));
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->deletion(opaque,
                                  docKey,
@@ -2548,9 +2553,11 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     step(true);
-    size_t expectedBytes = SnapshotMarker::baseMsgBytes +
-                           MutationResponse::mutationBaseMsgBytes +
-                           (sizeof("value") - 1) + (sizeof("KEY3") - 1);
+    size_t expectedBytes =
+            SnapshotMarker::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
+            MutationResponse::mutationBaseMsgBytes + (sizeof("value") - 1) +
+            (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
     EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
@@ -2571,6 +2578,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
+                     sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
@@ -2874,7 +2882,8 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
                                        bySeqno,
                                        bySeqno,
                                        MARKER_FLAG_CHK,
-                                       {} /*HCS*/));
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
 
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
@@ -2949,7 +2958,8 @@ TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
                                        bySeqno,
                                        bySeqno,
                                        MARKER_FLAG_CHK,
-                                       {} /*HCS*/));
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
 
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->deletion(opaque,
@@ -3869,8 +3879,13 @@ TEST_F(SingleThreadedEPBucketTest,
     int opaque = 1;
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
     ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(
-                      opaque, vbid, 1, 10, MARKER_FLAG_CHK, {} /*HCS*/));
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1,
+                                       10,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
 
     // Test: Have the producer send further messages on the stream (before the
@@ -3945,8 +3960,13 @@ TEST_F(SingleThreadedEPBucketTest,
         EXPECT_EQ(expected, consumer->abort(opaque, vbid, key, 6, 7));
 
         EXPECT_EQ(expected,
-                  consumer->snapshotMarker(
-                          opaque, vbid, 11, 11, MARKER_FLAG_CHK, {} /*HCS*/));
+                  consumer->snapshotMarker(opaque,
+                                           vbid,
+                                           11,
+                                           11,
+                                           MARKER_FLAG_CHK,
+                                           {} /*HCS*/,
+                                           {} /*maxVisibleSeqno*/));
     };
     testAllStreamLevelMessages(ENGINE_SUCCESS);
 
@@ -4048,9 +4068,10 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     EXPECT_LE(producers.last_delete_time, t2);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY1", producers.last_key);
-    size_t expectedBytes = SnapshotMarker::baseMsgBytes +
-                           MutationResponse::deletionV2BaseMsgBytes +
-                           (sizeof("KEY1") - 1);
+    size_t expectedBytes =
+            SnapshotMarker::baseMsgBytes +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
+            MutationResponse::deletionV2BaseMsgBytes + (sizeof("KEY1") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
     // Now a new delete, in-memory will also have a delete time
@@ -4066,6 +4087,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY2", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
+                     sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY2") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
@@ -4078,6 +4100,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
 
     step(true);
     expectedBytes += SnapshotMarker::baseMsgBytes +
+                     sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::mutationBaseMsgBytes +
                      (sizeof("value") - 1) + (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
@@ -4098,6 +4121,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
+                     sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());

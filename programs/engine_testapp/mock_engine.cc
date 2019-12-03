@@ -425,14 +425,16 @@ ENGINE_ERROR_CODE MockEngine::snapshot_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno) {
+        boost::optional<uint64_t> high_completed_seqno,
+        boost::optional<uint64_t> max_visible_seqno) {
     return the_engine_dcp->snapshot_marker(cookie,
                                            opaque,
                                            vbucket,
                                            start_seqno,
                                            end_seqno,
                                            flags,
-                                           high_completed_seqno);
+                                           high_completed_seqno,
+                                           max_visible_seqno);
 }
 
 ENGINE_ERROR_CODE MockEngine::mutation(gsl::not_null<const void*> cookie,

@@ -1421,7 +1421,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno) {
+        boost::optional<uint64_t> high_completed_seqno,
+        boost::optional<uint64_t> max_visible_seqno) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1430,7 +1431,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
                                     start_seqno,
                                     end_seqno,
                                     flags,
-                                    high_completed_seqno);
+                                    high_completed_seqno,
+                                    max_visible_seqno);
     }
     return ENGINE_DISCONNECT;
 }

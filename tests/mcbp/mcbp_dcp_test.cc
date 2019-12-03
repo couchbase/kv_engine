@@ -339,8 +339,12 @@ class DcpSnapshotMarkerValidatorTest
     : public ::testing::WithParamInterface<bool>,
       public ValidatorTest {
 public:
-    DcpSnapshotMarkerValidatorTest() : ValidatorTest(GetParam()) {
+    DcpSnapshotMarkerValidatorTest()
+        : ValidatorTest(GetParam()),
+          builder({blob, sizeof(blob)}),
+          header(*reinterpret_cast<cb::mcbp::Request*>(blob)) {
     }
+
     void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.setExtlen(20);
@@ -353,15 +357,27 @@ protected:
                 cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                 static_cast<void*>(&request));
     }
+    std::string validate_error_context(
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
+        return ValidatorTest::validate_error_context(
+                cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                static_cast<void*>(blob),
+                expectedStatus);
+    }
+    cb::mcbp::RequestBuilder builder;
+    cb::mcbp::Request& header;
 };
 
 TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
     // Validate V1 Payload
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 
-    // Validate V2 Payload
-    request.message.header.request.setExtlen(28);
-    request.message.header.request.setBodylen(28);
+    // V2.0
+    request.message.header.request.setExtlen(1);
+    request.message.header.request.setBodylen(37);
+    cb::mcbp::request::DcpSnapshotMarkerV2xPayload extras{
+            cb::mcbp::request::DcpSnapshotMarkerV2xVersion::Zero};
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
@@ -371,8 +387,7 @@ TEST_P(DcpSnapshotMarkerValidatorTest, InvalidMagic) {
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(21);
-    request.message.header.request.setBodylen(21);
+    request.message.header.request.setExtlen(22);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -385,11 +400,26 @@ TEST_P(DcpSnapshotMarkerValidatorTest, InvalidKeylen) {
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidBodylen) {
     request.message.header.request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    cb::mcbp::request::DcpSnapshotMarkerV2xPayload extras{
+            cb::mcbp::request::DcpSnapshotMarkerV2xVersion::Zero};
+    builder.setExtras(extras.getBuffer());
+    request.message.header.request.setExtlen(1);
+    request.message.header.request.setBodylen(40);
+    EXPECT_EQ("valuelen not expected:36", validate_error_context());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidDatatype) {
     request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DcpSnapshotMarkerValidatorTest, InvalidV2Version) {
+    // Valid V2.0 size
+    request.message.header.request.setExtlen(1);
+    request.message.header.request.setBodylen(37);
+    uint8_t brokenVersion = 101;
+    builder.setExtras({&brokenVersion, 1});
+    EXPECT_EQ("Unsupported dcp snapshot version:101", validate_error_context());
 }
 
 /**

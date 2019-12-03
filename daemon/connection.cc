@@ -25,6 +25,7 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
+#include "protocol/mcbp/dcp_snapshot_marker_codec.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "sendbuffer.h"
@@ -1693,22 +1694,24 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::marker(
-        uint32_t opaque,
-        Vbid vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        cb::mcbp::DcpStreamId sid) {
+ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
+                                     Vbid vbucket,
+                                     uint64_t start_seqno,
+                                     uint64_t end_seqno,
+                                     uint32_t flags,
+                                     boost::optional<uint64_t> hcs,
+                                     cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
-    using cb::mcbp::request::DcpSnapshotMarkerV2Payload;
-    auto size = sizeof(Request) + sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
-                (high_completed_seqno ? sizeof(DcpSnapshotMarkerV2Payload)
-                                      : sizeof(DcpSnapshotMarkerV1Payload));
+    using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
 
+    // Allocate the buffer to be big enough for all cases, which will be the
+    // v2.0 packet
+    const auto size = sizeof(Request) + sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
+                      sizeof(DcpSnapshotMarkerV2xPayload) +
+                      sizeof(DcpSnapshotMarkerV2_0Value);
     std::vector<uint8_t> buffer(size);
 
     Framebuilder builder({buffer.data(), buffer.size()});
@@ -1723,22 +1726,8 @@ ENGINE_ERROR_CODE Connection::marker(
         builder.setFramingExtras(framedSid.getBuf());
     }
 
-    if (high_completed_seqno) {
-        DcpSnapshotMarkerV2Payload payload;
-        payload.setStartSeqno(start_seqno);
-        payload.setEndSeqno(end_seqno);
-        payload.setFlags(flags);
-        payload.setHighCompletedSeqno(*high_completed_seqno);
-        builder.setExtras(
-                {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
-    } else {
-        DcpSnapshotMarkerV1Payload payload;
-        payload.setStartSeqno(start_seqno);
-        payload.setEndSeqno(end_seqno);
-        payload.setFlags(flags);
-        builder.setExtras(
-                {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
-    }
+    cb::mcbp::encodeDcpSnapshotMarker(
+            builder, start_seqno, end_seqno, flags, hcs, boost::none);
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

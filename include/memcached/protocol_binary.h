@@ -851,6 +851,9 @@ public:
     void setFlags(uint32_t flags) {
         DcpSnapshotMarkerV1Payload::flags = htonl(flags);
     }
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
 
 protected:
     uint64_t start_seqno = 0;
@@ -860,41 +863,60 @@ protected:
 static_assert(sizeof(DcpSnapshotMarkerV1Payload) == 20,
               "Unexpected struct size");
 
-class DcpSnapshotMarkerV2Payload {
+enum class DcpSnapshotMarkerFlag : uint32_t {
+    Memory = 0x01,
+    Disk = 0x02,
+    Checkpoint = 0x04,
+    Acknowledge = 0x08
+};
+
+enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0 };
+
+// Version 2.x
+class DcpSnapshotMarkerV2xPayload {
 public:
-    uint64_t getStartSeqno() const {
-        return ntohll(start_seqno);
+    DcpSnapshotMarkerV2xPayload(DcpSnapshotMarkerV2xVersion v) : version(v) {
     }
-    void setStartSeqno(uint64_t start_seqno) {
-        DcpSnapshotMarkerV2Payload::start_seqno = htonll(start_seqno);
+    DcpSnapshotMarkerV2xVersion getVersion() const {
+        return version;
     }
-    uint64_t getEndSeqno() const {
-        return ntohll(end_seqno);
+    void setVersion(DcpSnapshotMarkerV2xVersion v) {
+        version = v;
     }
-    void setEndSeqno(uint64_t end_seqno) {
-        DcpSnapshotMarkerV2Payload::end_seqno = htonll(end_seqno);
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
-    uint32_t getFlags() const {
-        return ntohl(flags);
+
+protected:
+    DcpSnapshotMarkerV2xVersion version{DcpSnapshotMarkerV2xVersion::Zero};
+};
+static_assert(sizeof(DcpSnapshotMarkerV2xPayload) == 1,
+              "Unexpected struct size");
+
+class DcpSnapshotMarkerV2_0Value : public DcpSnapshotMarkerV1Payload {
+public:
+    uint64_t getMaxVisibleSeqno() const {
+        return ntohll(maxVisibleSeqno);
     }
-    void setFlags(uint32_t flags) {
-        DcpSnapshotMarkerV2Payload::flags = htonl(flags);
+    void setMaxVisibleSeqno(uint64_t maxVisibleSeqno) {
+        DcpSnapshotMarkerV2_0Value::maxVisibleSeqno = htonll(maxVisibleSeqno);
     }
     uint64_t getHighCompletedSeqno() const {
         return ntohll(highCompletedSeqno);
     }
     void setHighCompletedSeqno(uint64_t highCompletedSeqno) {
-        DcpSnapshotMarkerV2Payload::highCompletedSeqno =
+        DcpSnapshotMarkerV2_0Value::highCompletedSeqno =
                 htonll(highCompletedSeqno);
+    }
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
-    uint64_t start_seqno = 0;
-    uint64_t end_seqno = 0;
-    uint32_t flags = 0;
-    uint64_t highCompletedSeqno = 0;
+    uint64_t maxVisibleSeqno{0};
+    uint64_t highCompletedSeqno{0};
 };
-static_assert(sizeof(DcpSnapshotMarkerV2Payload) == 28,
+static_assert(sizeof(DcpSnapshotMarkerV2_0Value) == 36,
               "Unexpected struct size");
 
 class DcpMutationPayload {

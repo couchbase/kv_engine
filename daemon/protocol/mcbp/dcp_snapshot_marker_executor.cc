@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "dcp_snapshot_marker_codec.h"
 #include "executors.h"
 
 #include "engine_wrapper.h"
@@ -29,35 +30,27 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
     if (ret == ENGINE_SUCCESS) {
         auto& request = cookie.getRequest();
         using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
-        using cb::mcbp::request::DcpSnapshotMarkerV2Payload;
+        using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
         auto extra = request.getExtdata();
 
-        const auto* payload =
-                reinterpret_cast<const DcpSnapshotMarkerV1Payload*>(
-                        extra.data());
-        boost::optional<uint64_t> hcs;
-        if (extra.size() == sizeof(DcpSnapshotMarkerV2Payload)) {
-            const auto* v2Payload =
-                    reinterpret_cast<const DcpSnapshotMarkerV2Payload*>(
-                            extra.data());
-
-            // HCS should never be sent as 0 or a pre-condition will throw in
-            // the replicas flusher
-            if (v2Payload->getHighCompletedSeqno() == 0) {
-                // Not success so just disconnect
-                connection.shutdown();
-                return;
-            }
-            hcs = v2Payload->getHighCompletedSeqno();
+        cb::mcbp::DcpSnapshotMarker snapshot;
+        if (extra.size() == sizeof(DcpSnapshotMarkerV2xPayload)) {
+            // Validators will have checked that version is 0, the only version
+            // this code can receive.
+            snapshot = cb::mcbp::decodeDcpSnapshotMarkerV2xValue(
+                    request.getValue());
+        } else {
+            snapshot = cb::mcbp::decodeDcpSnapshotMarkerV1Extra(extra);
         }
 
         ret = dcpSnapshotMarker(cookie,
                                 request.getOpaque(),
                                 request.getVBucket(),
-                                payload->getStartSeqno(),
-                                payload->getEndSeqno(),
-                                payload->getFlags(),
-                                hcs);
+                                snapshot.getStartSeqno(),
+                                snapshot.getEndSeqno(),
+                                snapshot.getFlags(),
+                                snapshot.getHighCompletedSeqno(),
+                                snapshot.getMaxVisibleSeqno());
     }
 
     ret = connection.remapErrorCode(ret);

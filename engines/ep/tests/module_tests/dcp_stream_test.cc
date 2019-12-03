@@ -1768,6 +1768,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                                   snapEnd,
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
                                   {});
     stream->processMarker(&snapshotMarker);
 
@@ -1983,7 +1984,8 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                              snapStart,
                              snapEnd,
                              dcp_marker_flag_t::MARKER_FLAG_MEMORY,
-                             {} /*HCS*/);
+                             {} /*HCS*/,
+                             {} /*maxVisibleSeqno*/);
 
     // This code is tricking the replication throttle into returning pause so
     // that the mutation's are buffered.
@@ -2183,6 +2185,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                           100 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           {} /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
 
     stream->processMarker(&marker);
@@ -2228,8 +2231,14 @@ TEST_P(SingleThreadedPassiveStreamTest,
                     size_t expectedNumCheckpoint,
                     CheckpointType expectedOpenCkptType) -> void {
         cb::mcbp::DcpStreamId streamId{};
-        SnapshotMarker marker(
-                opaque, vbid, snapStart, snapEnd, flags, {} /*HCS*/, streamId);
+        SnapshotMarker marker(opaque,
+                              vbid,
+                              snapStart,
+                              snapEnd,
+                              flags,
+                              {} /*HCS*/,
+                              {} /*maxVisibleSeqno*/,
+                              streamId);
         stream->processMarker(&marker);
 
         auto item = makeCommittedItem(makeStoredDocKey("key"), "value");

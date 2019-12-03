@@ -615,7 +615,8 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(
         uint64_t startSeqno,
         uint64_t endSeqno,
         uint32_t flags,
-        boost::optional<uint64_t> highCompletedSeqno) {
+        boost::optional<uint64_t> highCompletedSeqno,
+        boost::optional<uint64_t> maxVisibleSeqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->snapshot_marker(&cookie,
@@ -624,7 +625,8 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(
                                     startSeqno,
                                     endSeqno,
                                     flags,
-                                    highCompletedSeqno);
+                                    highCompletedSeqno,
+                                    maxVisibleSeqno);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.snapshot_marker returned ENGINE_DISCONNECT",
                     connection.getId(),

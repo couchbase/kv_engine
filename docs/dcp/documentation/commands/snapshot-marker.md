@@ -1,15 +1,38 @@
 ### Snapshot Marker (opcode 0x56)
 
 Sent by the producer to tell the consumer that a new snapshot is being sent.
-A snapshot is simply a series of commands that is guarenteed to contain a unique set of keys.
-There are two versions of this message. V1 Contains snapshot start and end seqnos and flags in the extras. V2 contains an additional High Completed Seqno used for Synchronous Replication in the extras.
+A snapshot is simply a series of commands that is guaranteed to contain a unique set of keys.
+
+There are more than one version of this message, which differ in the definition of the extras.
+
+* V1 extras contains snapshot-type and the start and end seqnos.
+* V2 extras contains a 1 byte version field defining how the value is to be encoded.
+
+For V2 the following version codes are defined and determines the rest of the message encoding.
+
+version byte values:
+
+* `0x0`: _V2.0_ the value contains `start seqno`, `end seqno`, `snapshot-type`, `max visible seqno` and `high completed seqno`.
+The `high completed seqno` should only be considered valid for use when the flags field has the `disk` flag set.
+
+Snapshot Type is a bit field and stores the following flags:
+
+* 0x01 (memory) - Specifies that the snapshot contains in-memory items only.
+* 0x02 (disk) - Specifies that the snapshot contains on-disk items only.
+* 0x04 (checkpoint) - An internally used flag for intra-cluster replication to help to keep in-memory datastructures look similar.
+* 0x08 (ack) - Specifies that this snapshot marker should return a response once the entire snapshot is received.
+
 
 The request:
 * Must have extras
 * Must not have key
-* Must not have value
+* Can only have a value if V2 format is in use (extra_len = 1)
 
-The client should not send a reply to this command unless the ack flag is set. The following example shows the breakdown of the V1 message:
+The client should not send a reply to this command unless the ack flag is set.
+
+### Encoding Examples
+
+The following example shows the breakdown of the V1 message:
 
       Byte/     0       |       1       |       2       |       3       |
          /              |               |               |               |
@@ -53,7 +76,7 @@ The client should not send a reply to this command unless the ack flag is set. T
       End Seqno     (32-39): 0x0000000000000008
       Snapshot Type (40-43): 0x00000001 (disk)
 
-The client should not send a reply to this command unless the ack flag is set. The following example shows the breakdown of the V2 message:
+The following example shows the breakdown of the V2 message, when the version byte is 0.
 
       Byte/     0       |       1       |       2       |       3       |
          /              |               |               |               |
@@ -71,44 +94,44 @@ The client should not send a reply to this command unless the ack flag is set. T
         +---------------+---------------+---------------+---------------+
       20| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      24| 0x00          | 0x00          | 0x00          | 0x00          |
+      24| 0x01          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
       28| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      32| 0x00          | 0x00          | 0x00          | 0x00          |
+      32| 0x01          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      36| 0x00          | 0x00          | 0x00          | 0x08          |
+      36| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      40| 0x00          | 0x00          | 0x00          | 0x01          |
+      40| 0x08          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      44| 0x00          | 0x00          | 0x00          | 0x00          |
+      44| 0x02          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      48| 0x00          | 0x00          | 0x00          | 0x07          |
+      48| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
+      52| 0x08          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      56| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      60| 0x07          |
+        +---------------+
 
     DCP_SNAPSHOT_MARKER command
     Field                  (offset) (value)
     Magic                  (0)    : 0x80
     Opcode                 (1)    : 0x56
     Key length             (2,3)  : 0x0000
-    Extra length           (4)    : 0x1C
+    Extra length           (4)    : 0x01
     Data type              (5)    : 0x00
     Vbucket                (6,7)  : 0x0000
-    Total body             (8-11) : 0x0000001C
+    Total body             (8-11) : 0x00000025
     Opaque                 (12-15): 0xdeadbeef
     CAS                    (16-23): 0x0000000000000000
-      Start Seqno          (24-31): 0x0000000000000000
-      End Seqno            (32-39): 0x0000000000000008
-      Snapshot Type        (40-43): 0x00000001 (disk)
-      High Completed Seqno (44-51): 0x0000000000000007
-
-Snapshot Type is defined as:
-
-* 0x01 (memory) - Specifies that the snapshot contains in-meory items only.
-* 0x02 (disk) - Specifies that the snapshot contains on-disk items only.
-* 0x04 (checkpoint) - An internally used flag for intra-cluster replication to help to keep in-memory datastructures look similar.
-* 0x08 (ack) - Specifies that this snapshot marker should return a response once the entire snapshot is received.
-
+      Version              (24):    0x00
+      Start Seqno          (25-32): 0x0000000000000001
+      End Seqno            (33-40): 0x0000000000000008
+      Snapshot Type        (41-44): 0x00000002 (disk)
+      Max Visible Seqno    (45-52): 0x0000000000000008
+      High Completed Seqno (53-60): 0x0000000000000007
 
 ### Returns
 

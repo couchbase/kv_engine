@@ -433,7 +433,8 @@ TEST_F(WarmupTest, MB_32577) {
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ 100,
                                       zeroFlags,
-                                      /*HCS*/ {}));
+                                      /*HCS*/ {},
+                                      /*maxVisibleSeqno*/ {}));
 
     // create a DocKey object for the delete request
     const DocKey docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
@@ -483,7 +484,8 @@ TEST_F(WarmupTest, MB_32577) {
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ 100,
                                       zeroFlags,
-                                      /*HCS*/ {}));
+                                      /*HCS*/ {},
+                                      /*maxVisibleSeqno*/ {}));
 
     // Try and delete the doc
     EXPECT_EQ(ENGINE_SUCCESS,

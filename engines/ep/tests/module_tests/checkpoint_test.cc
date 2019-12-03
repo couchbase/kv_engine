@@ -1170,6 +1170,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   snapshotEnd,
                                   flags,
                                   {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
                                   {});
     passiveStream->processMarker(&snapshotMarker);
 
@@ -1203,6 +1204,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    snapshotEnd + 2,
                                    dcp_marker_flag_t::MARKER_FLAG_CHK,
                                    {} /*HCS*/,
+                                   {} /*maxVisibleSeqno*/,
                                    {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker2);
     EXPECT_EQ(ckptList.size(), 2);
@@ -1298,6 +1300,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       diskSnapshotEnd,
                                       flags,
                                       {} /*HCS*/,
+                                      {} /*maxVisibleSeqno*/,
                                       {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
         processMutations(*passiveStream, snapshotStart, diskSnapshotEnd);
@@ -1310,8 +1313,14 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     }
 
     // 1) the consumer receives the snapshot-marker
-    SnapshotMarker snapshotMarker(
-            0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags, {} /*HCS*/, {} /*SID*/);
+    SnapshotMarker snapshotMarker(0 /* opaque */,
+                                  vbid,
+                                  snapshotStart,
+                                  snapshotEnd,
+                                  flags,
+                                  {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
+                                  {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker);
 
     // 2) the consumer receives the mutations until (snapshotEnd -1)

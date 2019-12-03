@@ -1344,7 +1344,8 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                              /*start_seqno*/ 0,
                              /*end_seqno*/ 0,
                              /*flags*/ 0,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for snapshotMarker";
     consumer->setLastMessageTime(1234);
@@ -1744,7 +1745,8 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
                              /*start_seqno*/ 0,
                              /*end_seqno*/ 1,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
 
     EXPECT_TRUE(engine->getKVBucket()
                         ->getVBucket(vbid)
@@ -1805,7 +1807,8 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
                              /*start_seqno*/ 0,
                              /*end_seqno*/ 0,
                              /*flags*/ 0,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
 
     // A new opencheckpoint should no be opened
     EXPECT_EQ(2, manager.getOpenCheckpointId());
@@ -1851,7 +1854,8 @@ TEST_P(ConnectionTest, SnapshotsAndNoData) {
                              /*start_seqno*/ 0,
                              /*end_seqno*/ 0,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
 
     EXPECT_EQ(2, manager.getOpenCheckpointId());
 
@@ -1860,7 +1864,8 @@ TEST_P(ConnectionTest, SnapshotsAndNoData) {
                              /*start_seqno*/ 1,
                              /*end_seqno*/ 2,
                              /*flags*/ 0,
-                             /*HCS*/ {});
+                             /*HCS*/ {},
+                             /*maxVisibleSeqno*/ {});
 
     EXPECT_EQ(2, manager.getOpenCheckpointId());
     // Still cp:2 but the snap-end changes
@@ -2603,7 +2608,8 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        snapStart,
                                        snapEnd,
                                        /* in-memory snapshot */ 0x1,
-                                       {} /*HCS*/));
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeq*/));
 
     /* Send an item for replication */
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
@@ -2740,7 +2746,8 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
                                        snapStart,
                                        snapEnd,
                                        /* in-memory snapshot */ 0x1,
-                                       /*HCS*/ {}));
+                                       /*HCS*/ {},
+                                       /*maxVisibleSeqno*/ {}));
 
     /* Simulate a situation where adding a mutation temporarily fails
        and hence adds the mutation to a replication buffer. For that, we
