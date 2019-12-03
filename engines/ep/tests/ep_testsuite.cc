@@ -8070,7 +8070,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_item_pager,
                  test_setup,
                  teardown,
-                 "max_size=6291456",
+                 "max_size=6291456;max_num_shards=4",
                  // TODO RDB: This test requires full control and accurate
                  // tracking on how memory is allocated by the underlying
                  // store. We do not have that yet for RocksDB. Depending
@@ -8470,11 +8470,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test async vbucket destroy (multitable)", test_async_vbucket_destroy,
                  test_setup, teardown,
-                 "max_vbuckets=16;ht_size=7;ht_locks=3",
+                 "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
                  prepare, cleanup),
         TestCase("test sync vbucket destroy (multitable)", test_sync_vbucket_destroy,
                  test_setup, teardown,
-                 "max_vbuckets=16;ht_size=7;ht_locks=3",
+                 "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
                  prepare, cleanup),
         TestCase("test vbucket destroy stats",
                  test_vbucket_destroy_stats,

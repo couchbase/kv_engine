@@ -91,7 +91,8 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                            {"max_ttl", 0},
                            {"ht_locks", 47},
                            {"compression_mode", "off"},
-                           {"failpartialwarmup", false}};
+                           {"failpartialwarmup", false},
+                           {"max_num_shards", 4}};
 
     json.update(attributes);
 
