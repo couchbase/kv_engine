@@ -302,8 +302,7 @@ void ActiveStream::markDiskSnapshot(
 
         // If the stream supports SyncRep then send the HCS in the
         // SnapshotMarker if it is not 0
-        auto sendHCS = supportSyncReplication() && highCompletedSeqno &&
-                       *highCompletedSeqno != 0;
+        auto sendHCS = supportSyncReplication() && highCompletedSeqno;
         auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "

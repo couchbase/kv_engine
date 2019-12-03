@@ -47,7 +47,8 @@ class EphemeralStreamTest : public StreamTest {};
  *
  * Instantiated for both Persistent and Ephemeral buckets.
  */
-class SingleThreadedActiveStreamTest : public STParameterizedBucketTest {
+class SingleThreadedActiveStreamTest
+    : virtual public STParameterizedBucketTest {
 protected:
     void SetUp() override;
     void TearDown() override;
@@ -71,7 +72,8 @@ protected:
  *
  * Instantiated for both Persistent and Ephemeral buckets.
  */
-class SingleThreadedPassiveStreamTest : public STParameterizedBucketTest {
+class SingleThreadedPassiveStreamTest
+    : virtual public STParameterizedBucketTest {
 protected:
     void SetUp() override;
     void TearDown() override;
