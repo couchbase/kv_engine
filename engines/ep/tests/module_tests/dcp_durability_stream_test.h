@@ -227,4 +227,10 @@ protected:
      * the SnapshotMarker sent to Replica.
      */
     void testCheckpointMarkerAlwaysSetAtSnapTransition();
+
+    /**
+     * Test that Active always sends the HCS at streaming disk-snapshots from
+     * memory.
+     */
+    void testActiveSendsHCSAtDiskSnapshotSentFromMemory();
 };

@@ -3636,18 +3636,64 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    const auto checkOpenCheckpoint = [&ckptMgr](
+                                             CheckpointType expectedCkptType,
+                                             uint64_t expectedSnapStart,
+                                             uint64_t expectedSnapEnd) -> void {
+        ASSERT_EQ(expectedCkptType, ckptMgr.getOpenCheckpointType());
+        auto currSnap = ckptMgr.getSnapshotInfo();
+        ASSERT_EQ(expectedSnapStart, currSnap.range.getStart());
+        ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());
+    };
+
+    // Still in Checkpoint snap{Disk, 2, 4} (created at the step (1) of the
+    // test)
+    {
+        SCOPED_TRACE("");
+        checkOpenCheckpoint(CheckpointType::Disk, 2, 4);
+    }
+
     // 3) Set up the Producer and ActiveStream
     DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
 
-    // 4) Write something to a different key. This should be written into a new
-    // checkpoint as we would still be in a Disk checkpoint.
-    auto vb = engine->getVBucket(vbid);
+    // The vbstate-change must have:
+    // - closed the checkpoint snap{2, 4, Disk}
+    // - created a new checkpoint snap{4, 4, Memory}
+    {
+        SCOPED_TRACE("");
+        checkOpenCheckpoint(CheckpointType::Memory, 4, 4);
+    }
+
+    // 4) Write Mutation(5) + Prepare(6) + Commit(7) to a different key in the
+    // new Memory checkpoint.
     const auto key = makeStoredDocKey("differentKey");
     const std::string value = "value";
-    auto item = makeCommittedItem(key, value);
+    const auto item = makeCommittedItem(key, value);
+    using namespace cb::durability;
+    const auto prepare = makePendingItem(
+            key, value, Requirements(Level::Majority, Timeout::Infinity()));
     {
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+        ASSERT_EQ(5, vb->getHighSeqno());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+        ASSERT_EQ(6, vb->getHighSeqno());
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vb->commit(key,
+                             6 /*prepare-seqno*/,
+                             {} /*commit-seqno*/,
+                             cHandle));
+        ASSERT_EQ(7, vb->getHighSeqno());
+    }
+
+    // Commit(7) queued in a new checkpoint
+    {
+        SCOPED_TRACE("");
+        checkOpenCheckpoint(CheckpointType::Memory, 6, 7);
     }
 
     auto& stream = DurabilityActiveStreamTest::stream;
@@ -3655,7 +3701,12 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // 5) Test the checkpoint and stream output.
 
+    // Simulate running the checkpoint processor task
     // We must have ckpt-start + Prepare + Mutation + ckpt-end
+    // Note: Here we are testing also that CheckpointManager::getItemsForCursor
+    //   returns only items from contiguous checkpoints of the same type.
+    //   Given that in CM we have checkpoints 1_Disk + 2_Memory, then the next
+    //   returns only the entire 1_Disk.
     auto outItems = stream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
@@ -3681,8 +3732,13 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // Snapshot marker must have the disk flag set, not the memory flag
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-              static_cast<SnapshotMarker&>(*resp).getFlags());
+    const auto& markerDisk = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK, markerDisk.getFlags());
+    // HCS must be sent for CheckpointType:Disk.
+    // Note: HCS=2 as PRE:2 added and committed at step (1) of the test
+    const auto hcs = markerDisk.getHighCompletedSeqno();
+    ASSERT_TRUE(hcs);
+    EXPECT_EQ(2, *hcs);
 
     // readyQ must contain a DCP_PREPARE
     ASSERT_EQ(2, stream->public_readyQSize());
@@ -3692,31 +3748,67 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(0, stream->public_readyQSize());
 
-    // Simulate running the checkpoint processor task again
+    // Simulate running the checkpoint processor task again, now we process
+    // the second and the third checkpoints (both type:memory)
     outItems = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(3, outItems.items.size());
+    ASSERT_EQ(7, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     // set_vbucket_state is from changing to active in the middle of this test
     ASSERT_EQ(queue_op::set_vbucket_state,
               outItems.items.at(1)->getOperation());
     ASSERT_EQ(queue_op::mutation, outItems.items.at(2)->getOperation());
+    ASSERT_EQ(queue_op::pending_sync_write,
+              outItems.items.at(3)->getOperation());
+    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(4)->getOperation());
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(5)->getOperation());
+    ASSERT_EQ(queue_op::commit_sync_write,
+              outItems.items.at(6)->getOperation());
 
     // Stream::readyQ still empty
     ASSERT_EQ(0, stream->public_readyQSize());
     // Push items into the Stream::readyQ
     stream->public_processItems(outItems);
-    // readyQ must contain a SnapshotMarker (+ a Prepare)
-    ASSERT_EQ(2, stream->public_readyQSize());
+    // readyQ must contain:
+    //   - SnapshotMarker, Mutation, Prepare
+    //   - SnapshotMarker, Commit
+    ASSERT_EQ(5, stream->public_readyQSize());
     resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
+    ASSERT_EQ(4, stream->public_readyQSize());
 
     // Snapshot marker should now be memory flag
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-              static_cast<SnapshotMarker&>(*resp).getFlags());
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* markerMemory = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, markerMemory->getFlags());
+    // HCS not set for CheckpointType:Memory.
+    ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
 
     resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(5, *resp->getBySeqno());
+    ASSERT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(6, *resp->getBySeqno());
+    ASSERT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    ASSERT_EQ(1, stream->public_readyQSize());
+    markerMemory = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, markerMemory->getFlags());
+    // HCS not set for CheckpointType:Memory.
+    ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
+
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Commit, resp->getEvent());
+    EXPECT_EQ(7, *resp->getBySeqno());
+    EXPECT_EQ(6, dynamic_cast<CommitSyncWrite&>(*resp).getPreparedSeqno());
     ASSERT_EQ(0, stream->public_readyQSize());
 
     producer->cancelCheckpointCreatorTask();
@@ -3876,6 +3968,8 @@ void DurabilityPromotionStreamTest::
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* markerMemory = dynamic_cast<SnapshotMarker*>(resp.get());
     EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, markerMemory->getFlags());
+    // HCS not set for CheckpointType:Memory.
+    ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
     ASSERT_EQ(1, activeStream->public_readyQSize());
     resp = activeStream->public_nextQueuedItem();
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
@@ -3892,7 +3986,8 @@ void DurabilityPromotionStreamTest::
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     ASSERT_EQ(queue_op::pending_sync_write,
               outItems.items.at(1)->getOperation());
-    ASSERT_EQ(2, outItems.items.at(1)->getBySeqno());
+    const auto prepareSeqno = 2;
+    ASSERT_EQ(prepareSeqno, outItems.items.at(1)->getBySeqno());
     ASSERT_EQ(queue_op::mutation, outItems.items.at(2)->getOperation());
     ASSERT_EQ(3, outItems.items.at(2)->getBySeqno());
     ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(3)->getOperation());
@@ -3914,8 +4009,13 @@ void DurabilityPromotionStreamTest::
     resp = activeStream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-              dynamic_cast<SnapshotMarker*>(resp.get())->getFlags());
+    const auto& markerDisk = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK, markerDisk.getFlags());
+    // HCS must be sent for CheckpointType:Disk.
+    // Note: HCS=2 as PRE:2 added and committed at step (2) of the test
+    const auto hcs = markerDisk.getHighCompletedSeqno();
+    ASSERT_TRUE(hcs);
+    EXPECT_EQ(prepareSeqno, *hcs);
     ASSERT_EQ(2, activeStream->public_readyQSize());
     resp = activeStream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
@@ -3955,6 +4055,8 @@ void DurabilityPromotionStreamTest::
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     markerMemory = dynamic_cast<SnapshotMarker*>(resp.get());
     EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, markerMemory->getFlags());
+    // HCS not set for CheckpointType:Memory.
+    ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
 
     resp = activeStream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
@@ -3974,6 +4076,187 @@ TEST_P(DurabilityPromotionStreamTest,
        testCheckpointMarkerAlwaysSetAtSnapTransition_Pending) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
     testCheckpointMarkerAlwaysSetAtSnapTransition();
+}
+
+/**
+ * The test sets up an Active with 2 Disk Checkpoints and checks that the
+ * correct HCS is always included in each SnapshotMarker.
+ */
+void DurabilityPromotionStreamTest::
+        testActiveSendsHCSAtDiskSnapshotSentFromMemory() {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    const auto checkOpenCheckpoint = [&ckptMgr](
+                                             CheckpointType expectedCkptType,
+                                             uint64_t expectedSnapStart,
+                                             uint64_t expectedSnapEnd) -> void {
+        ASSERT_EQ(expectedCkptType, ckptMgr.getOpenCheckpointType());
+        auto currSnap = ckptMgr.getSnapshotInfo();
+        ASSERT_EQ(expectedSnapStart, currSnap.range.getStart());
+        ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());
+    };
+
+    // 1) Replica receives PRE:1 and M:2 (logic CMT:2) in a disk checkpoint
+    {
+        SCOPED_TRACE("");
+        DurabilityPassiveStreamTest::
+                testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+                        1 /*diskSnapStart*/,
+                        2 /*diskSnapEnd*/,
+                        DocumentState::Alive);
+
+        ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+        checkOpenCheckpoint(CheckpointType::Disk, 1, 2);
+
+        // @todo: Necessary as workaround for MB-37063, remove when fixed
+        flushVBucketToDiskIfPersistent(vbid, 2 /*expectedNumFlush*/);
+    }
+
+    // 2) Replica receives PRE:3 and M:4 (logic CMT:4) in a second disk
+    // checkpoint
+    {
+        SCOPED_TRACE("");
+        DurabilityPassiveStreamTest::
+                testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
+                        3 /*diskSnapStart*/,
+                        4 /*diskSnapEnd*/,
+                        DocumentState::Alive,
+                        false /*clearCM*/);
+
+        ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
+        checkOpenCheckpoint(CheckpointType::Disk, 3, 4);
+    }
+
+    // Remove PassiveStream and Consumer
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    consumer.reset();
+
+    // Note: step necessary only because the next set-vbstate expect an empty
+    //   write-queue. Expect to flush PRE:1, M:2, PRE:3 and M:4
+    flushVBucketToDiskIfPersistent(vbid, 2 /*expected num flushed*/);
+
+    // 3) Simulate vbstate-change Replica->Active (we have also a Producer and
+    // ActiveStream from this point onward)
+    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    ASSERT_TRUE(producer);
+    auto* activeStream = DurabilityActiveStreamTest::stream.get();
+    ASSERT_TRUE(activeStream);
+
+    // The vbstate-change must have closed open Disk checkpoint and created a
+    // new Memory one.
+    // Note: checking that jus for ensuring that we have closed the last Disk
+    // Checkpoint, but the new Memory checkpoint is no used in the following)
+    ASSERT_EQ(3, ckptMgr.getNumCheckpoints());
+    {
+        SCOPED_TRACE("");
+        checkOpenCheckpoint(CheckpointType::Memory, 4, 4);
+    }
+
+    // 3) Test the 2 steps of the CheckpointProcessorTask, ie:
+    // - get items from the CheckpointManager (inspect items here)
+    // - push items into the Stream::readyQ (inspect queue here and verify that
+    //   we include the correct HCS in the SnapshotMarker for ecvery Disk Snap)
+    //
+    // Note: CheckpointManager::getItemsForCursor never returns multiple
+    //   Disk Checkpoints. Given that in CM we have Disk{PRE:1, M:2} +
+    //   Disk{PRE:3, M:4}, then a single run of the CheckpointProcessorTask
+    //   will process only one checkpoint.
+
+    // Stream::readyQ still empty
+    ASSERT_EQ(0, activeStream->public_readyQSize());
+
+    // CheckpointProcessorTask runs
+    // Get items from CM, expect Disk{PRE:1, M:2}:
+    //   {CS, PRE:1, M:2, CE}
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(4, outItems.items.size());
+
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
+    auto prepare = outItems.items.at(1);
+    ASSERT_EQ(queue_op::pending_sync_write, prepare->getOperation());
+    ASSERT_EQ(1, prepare->getBySeqno());
+    auto mutation = outItems.items.at(2);
+    ASSERT_EQ(queue_op::mutation, mutation->getOperation());
+    ASSERT_EQ(2, mutation->getBySeqno());
+    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(3)->getOperation());
+
+    ASSERT_EQ(0, activeStream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    activeStream->public_processItems(outItems);
+    // No message processed, BufferLog empty
+    ASSERT_EQ(0, producer->getBytesOutstanding());
+
+    // readyQ must contain SnapshotMarker{Disk, HCS:1} + PRE:1 + M:2
+    ASSERT_EQ(3, activeStream->public_readyQSize());
+
+    auto resp = activeStream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(1, *marker->getHighCompletedSeqno());
+    ASSERT_TRUE(resp);
+    resp = activeStream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(1, *resp->getBySeqno());
+    resp = activeStream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    ASSERT_EQ(2, *resp->getBySeqno());
+
+    // CheckpointProcessorTask runs again
+    // Get items from CM, expect Disk{PRE:3, M:4}:
+    //   {CS, PRE:3, M:4, CE}
+    outItems = activeStream->public_getOutstandingItems(*vb);
+    ASSERT_EQ(4, outItems.items.size());
+
+    ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
+    prepare = outItems.items.at(1);
+    ASSERT_EQ(queue_op::pending_sync_write, prepare->getOperation());
+    ASSERT_EQ(3, prepare->getBySeqno());
+    mutation = outItems.items.at(2);
+    ASSERT_EQ(queue_op::mutation, mutation->getOperation());
+    ASSERT_EQ(4, mutation->getBySeqno());
+    ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(3)->getOperation());
+
+    ASSERT_EQ(0, activeStream->public_readyQSize());
+    // Push items into the Stream::readyQ
+    activeStream->public_processItems(outItems);
+
+    // readyQ must contain SnapshotMarker{Disk, HCS:3} + PRE:3 + M:4
+    ASSERT_EQ(3, activeStream->public_readyQSize());
+
+    resp = activeStream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(3, *marker->getHighCompletedSeqno());
+    ASSERT_TRUE(resp);
+    resp = activeStream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(3, *resp->getBySeqno());
+    resp = activeStream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    ASSERT_EQ(4, *resp->getBySeqno());
+
+    ASSERT_EQ(0, activeStream->public_readyQSize());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
+TEST_P(DurabilityPromotionStreamTest,
+       ActiveSendsHCSAtDiskSnapshotSentFromMemory) {
+    testActiveSendsHCSAtDiskSnapshotSentFromMemory();
+}
+
+TEST_P(DurabilityPromotionStreamTest,
+       ActiveSendsHCSAtDiskSnapshotSentFromMemory_Pending) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
+    testActiveSendsHCSAtDiskSnapshotSentFromMemory();
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

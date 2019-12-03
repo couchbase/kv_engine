@@ -248,6 +248,11 @@ public:
          */
         CheckpointType checkpointType = CheckpointType::Memory;
         std::vector<queued_item> items;
+        /**
+         * The HCS. Set only for CheckpointType::Disk, ie when a Producer
+         * streams a disk-snapshot from memory.
+         */
+        boost::optional<uint64_t> highCompletedSeqno;
     };
 
     /**
@@ -388,8 +393,16 @@ private:
 
     std::unique_ptr<DcpResponse> deadPhase();
 
+    /**
+     * Pushes the items of a snapshot to the readyQ.
+     *
+     * @param checkpointType The type of checkpoint (Disk/Memory)
+     * @param snapshot The items to be streamed
+     * @param highCompletedSeqno (optional) Required for CheckpointType::Disk
+     */
     void snapshot(CheckpointType checkpointType,
-                  std::deque<std::unique_ptr<DcpResponse>>& snapshot);
+                  std::deque<std::unique_ptr<DcpResponse>>& snapshot,
+                  boost::optional<uint64_t> highCompletedSeqno);
 
     void endStream(end_stream_status_t reason);
 

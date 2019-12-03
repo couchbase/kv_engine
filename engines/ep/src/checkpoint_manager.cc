@@ -868,7 +868,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
     ItemsForCursor result((*cursor.currentCheckpoint)->getCheckpointType(),
-                          (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno());
+                          (*cursor.currentCheckpoint)->getMaxDeletedRevSeqno(),
+                          (*cursor.currentCheckpoint)->getHighCompletedSeqno());
 
     size_t itemCount = 0;
     bool enteredNewCp = true;
@@ -914,14 +915,29 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 break;
             }
 
+            // MB-36971: In the following do *not* call CM::incrCursor(), we
+            // may skip a checkpoint_start item at the next run.
+            // Use CM::moveCursorToNextCheckpoint() instead, which moves the
+            // cursor to the empty item in the next checkpoint (if any).
+
+            // MB-36971: We never want to return (1) multiple Disk checkpoints
+            // or (2) checkpoints of different type. So, break if we have just
+            // finished with processing a Disk Checkpoint, regardless of what
+            // comes next.
+            if ((*cursor.currentCheckpoint)->getCheckpointType() ==
+                CheckpointType::Disk) {
+                // Moving the cursor to the next checkpoint potentially allows
+                // the CheckpointRemover to free the checkpoint that we are
+                // leaving.
+                moveCursorToNextCheckpoint(cursor);
+                break;
+            }
+
             // We only want to return items from contiguous checkpoints with the
             // same type. We should not return Memory checkpoint items followed
             // by Disk checkpoint items or vice versa. This is due to
             // ActiveStream needing to send Disk checkpoint items as Disk
             // snapshots to the replica.
-            //
-            // MB-36971: Avoid skipping checkpoint_start items by moving the
-            // cursor to the dummy item in the next checkpoint (if any).
             if (moveCursorToNextCheckpoint(cursor)) {
                 if ((*cursor.currentCheckpoint)->getCheckpointType() !=
                     result.checkpointType) {

@@ -306,7 +306,8 @@ void ActiveStream::markDiskSnapshot(
                        *highCompletedSeqno != 0;
         auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
         log(spdlog::level::level_enum::info,
-            "{} Sending disk snapshot with start seqno {}, end seqno {}, and"
+            "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
+            "start seqno {}, end seqno {}, and"
             " high completed seqno {}",
             logPrefix,
             startSeqno,
@@ -881,13 +882,14 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = std::chrono::steady_clock::now();
-    result.checkpointType =
-            vb.checkpointManager
-                    ->getNextItemsForCursor(cursor.lock().get(), result.items)
-                    .checkpointType;
+    const auto itemsForCursor = vb.checkpointManager->getNextItemsForCursor(
+            cursor.lock().get(), result.items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - _begin_));
+
+    result.checkpointType = itemsForCursor.checkpointType;
+    result.highCompletedSeqno = itemsForCursor.highCompletedSeqno;
 
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointRemover();
@@ -1082,7 +1084,9 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                    previous checkpoint and hence we must create a snapshot and
                    put them onto readyQ */
                 if (!mutations.empty()) {
-                    snapshot(outstandingItemsResult.checkpointType, mutations);
+                    snapshot(outstandingItemsResult.checkpointType,
+                             mutations,
+                             outstandingItemsResult.highCompletedSeqno);
                     /* clear out all the mutations since they are already put
                        onto the readyQ */
                     mutations.clear();
@@ -1093,7 +1097,9 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
         }
 
         if (!mutations.empty()) {
-            snapshot(outstandingItemsResult.checkpointType, mutations);
+            snapshot(outstandingItemsResult.checkpointType,
+                     mutations,
+                     outstandingItemsResult.highCompletedSeqno);
         }
     }
 
@@ -1126,7 +1132,8 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
 }
 
 void ActiveStream::snapshot(CheckpointType checkpointType,
-                            std::deque<std::unique_ptr<DcpResponse>>& items) {
+                            std::deque<std::unique_ptr<DcpResponse>>& items,
+                            boost::optional<uint64_t> highCompletedSeqno) {
     if (items.empty()) {
         return;
     }
@@ -1135,9 +1142,8 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
     lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
-        uint32_t flags = checkpointType == CheckpointType::Disk
-                                 ? MARKER_FLAG_DISK
-                                 : MARKER_FLAG_MEMORY;
+        const auto isCkptTypeDisk = checkpointType == CheckpointType::Disk;
+        uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
 
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
@@ -1170,14 +1176,24 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
             snapStart = std::min(snap_start_seqno_, snapStart);
             firstMarkerSent = true;
         }
-        // @TODO push through correct HCS
-        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
-                                                      vb_,
-                                                      snapStart,
-                                                      snapEnd,
-                                                      flags,
-                                                      boost::none /*HCS*/,
-                                                      sid));
+
+        // If the stream supports SyncRep then send the HCS for CktpType::disk
+        const auto sendHCS = supportSyncReplication() && isCkptTypeDisk;
+        const auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
+        if (sendHCS) {
+            Expects(hcsToSend.is_initialized());
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::snapshot: Sending disk snapshot with start "
+                "seqno {}, end seqno {}, and"
+                " high completed seqno {}",
+                logPrefix,
+                snapStart,
+                snapEnd,
+                hcsToSend);
+        }
+
+        pushToReadyQ(std::make_unique<SnapshotMarker>(
+                opaque_, vb_, snapStart, snapEnd, flags, hcsToSend, sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
         // Here we can just clear this flag as it is set every time we process

@@ -84,15 +84,43 @@ public:
         ItemsForCursor() {
         }
         ItemsForCursor(CheckpointType checkpointType,
-                       boost::optional<uint64_t> maxDeletedRevSeqno)
+                       boost::optional<uint64_t> maxDeletedRevSeqno,
+                       boost::optional<uint64_t> highCompletedSeqno)
             : checkpointType(checkpointType),
-              maxDeletedRevSeqno(maxDeletedRevSeqno) {
+              maxDeletedRevSeqno(maxDeletedRevSeqno),
+              highCompletedSeqno(highCompletedSeqno) {
         }
         std::vector<CheckpointSnapshotRange> ranges;
         bool moreAvailable = {false};
+
+        /**
+         * The natural place for this is CheckpointSnapshotRange, as this is per
+         * snapshot. Originally placed here as CM::getNextItemsForCursor() never
+         * returns multiple snapshots of different types.
+         */
         CheckpointType checkpointType = CheckpointType::Memory;
 
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
+
+        /**
+         * HCS that must be sent to Replica when the Active is streaming a
+         * Disk Checkpoint. The same as checkpoint-type, the natural place for
+         * this is CheckpointSnapshotRange, where we already have it.
+         *
+         * I am not re-using the member in ranges for:
+         * 1) keeping this change smaller, as the code in ActiveStream would
+         *   require changes for dealing with it
+         * 2) highlighing the fact that here we expect a *single* range when we
+         *   use this member
+         *
+         * The correctness of the latter is ensured by the fact that
+         * CM::getNextItemsForCursor() never returns multiple Disk Checkpoints.
+         *
+         * @todo: This member should be removed (and the one in SnapRange used)
+         * as soon as we refactor the DCP stream code in CheckpointManager and
+         * ActiveStream.
+         */
+        boost::optional<uint64_t> highCompletedSeqno;
     };
 
     /// Return type of expelUnreferencedCheckpointItems()
@@ -213,8 +241,11 @@ public:
     /**
      * Add items for the given cursor to the vector, stopping on a checkpoint
      * boundary which is greater or equal to `approxLimit`. The cursor is
-     * advanced to point after the items fetched. Only fetches items for
-     * contiguous Checkpoints of the same type.
+     * advanced to point after the items fetched.
+     *
+     * Can fetch items of contiguous Memory Checkpoints.
+     * Never fetches (1) items of contiguous Disk checkpoints or (2) items of
+     * checkpoints of different types.
      *
      * Note: It is only valid to fetch complete checkpoints; as such we cannot
      * limit to a precise number of items.
@@ -411,6 +442,10 @@ protected:
      * getItemsForCursor but not from anywhere else (as it will return an entire
      * checkpoint and never leave a cursor placed at the checkpoint_end).
      *
+     * Note: This function skips empty items. If the cursor moves into a new
+     * checkpoint, then after this call it will point to the checkpoint_start
+     * item into the new checkpoint.
+     *
      * @return true if advanced, false otherwise
      */
     bool incrCursor(CheckpointCursor& cursor);
@@ -496,6 +531,12 @@ protected:
                            boost::optional<uint64_t> highCompletedSeqno,
                            CheckpointType checkpointType);
 
+    /**
+     * Moves the cursor to the empty item into the next checkpoint (if any).
+     *
+     * @param cursor
+     * @return true if the cursor has moved, false otherwise
+     */
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
 
     /**
