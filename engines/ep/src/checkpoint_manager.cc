@@ -873,16 +873,9 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     size_t itemCount = 0;
     bool enteredNewCp = true;
     while ((result.moreAvailable = incrCursor(cursor))) {
-        // We only want to return items from contiguous checkpoints with the
-        // same type. We should not return Memory checkpoint items followed by
-        // Disk checkpoint items or vice versa. This is due to ActiveStream
-        // needing to send Disk checkpoint items as Disk snapshots to the
-        // replica.
-        if ((*cursor.currentCheckpoint)->getCheckpointType() !=
-            result.checkpointType) {
-            break;
-        }
         if (enteredNewCp) {
+            result.checkpointType =
+                    (*cursor.currentCheckpoint)->getCheckpointType();
             result.ranges.push_back(
                     {{(*cursor.currentCheckpoint)->getSnapshotStartSeqno(),
                       (*cursor.currentCheckpoint)->getSnapshotEndSeqno()},
@@ -919,6 +912,21 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 // freed).
                 moveCursorToNextCheckpoint(cursor);
                 break;
+            }
+
+            // We only want to return items from contiguous checkpoints with the
+            // same type. We should not return Memory checkpoint items followed
+            // by Disk checkpoint items or vice versa. This is due to
+            // ActiveStream needing to send Disk checkpoint items as Disk
+            // snapshots to the replica.
+            //
+            // MB-36971: Avoid skipping checkpoint_start items by moving the
+            // cursor to the dummy item in the next checkpoint (if any).
+            if (moveCursorToNextCheckpoint(cursor)) {
+                if ((*cursor.currentCheckpoint)->getCheckpointType() !=
+                    result.checkpointType) {
+                    break;
+                }
             }
         }
     }
@@ -1063,6 +1071,8 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     cursor.currentPos = (*it)->begin();
     // Add cursor to its new current checkpoint.
     (*it)->incNumOfCursorsInCheckpoint();
+
+    Expects((*cursor.currentPos)->getOperation() == queue_op::empty);
 
     return true;
 }
