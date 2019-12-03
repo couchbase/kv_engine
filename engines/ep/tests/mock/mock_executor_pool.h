@@ -26,8 +26,8 @@ public:
     MockExecutorPool(size_t numTaskSets)
         : ExecutorPool(4 /*maxThreads*/,
                        numTaskSets,
-                       1 /*maxReaders*/,
-                       1 /*maxWriters*/,
+                       ThreadPoolConfig::ThreadCount(1) /*maxReaders*/,
+                       ThreadPoolConfig::ThreadCount(1) /*maxWriters*/,
                        1 /*maxAuxIO*/,
                        1 /*maxNonIO*/) {
     }

@@ -57,8 +57,8 @@ class TestExecutorPool : public ExecutorPool {
 public:
     TestExecutorPool(size_t maxThreads,
                      size_t nTaskSets,
-                     size_t maxReaders,
-                     size_t maxWriters,
+                     ThreadPoolConfig::ThreadCount maxReaders,
+                     ThreadPoolConfig::ThreadCount maxWriters,
                      size_t maxAuxIO,
                      size_t maxNonIO)
         : ExecutorPool(maxThreads,
@@ -124,13 +124,17 @@ public:
 
 class ExecutorPoolDynamicWorkerTest : public ExecutorPoolTest {
 protected:
+    // Simulated number of CPUs. Want a value >16 to be able to test
+    // the difference between Default and DiskIOOptimized thread counts.
+    const size_t MaxThreads{18};
+
     void SetUp() override {
         ExecutorPoolTest::SetUp();
         pool = std::unique_ptr<TestExecutorPool>(new TestExecutorPool(
-                10, // MaxThreads
+                MaxThreads,
                 NUM_TASK_GROUPS,
-                2, // MaxNumReaders
-                2, // MaxNumWriters
+                ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
+                ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
                 2, // MaxNumAuxio
                 2 // MaxNumNonio
                 ));
@@ -155,8 +159,12 @@ protected:
     MockTaskable taskable;
 };
 
-struct ExpectedThreadCounts {
+struct ThreadCountsParams {
+    // Input params:
+    ThreadPoolConfig::ThreadCount in_reader_writer;
     size_t maxThreads;
+
+    // Expected outputs:
     size_t reader;
     size_t writer;
     size_t auxIO;
@@ -164,8 +172,8 @@ struct ExpectedThreadCounts {
 };
 
 ::std::ostream& operator<<(::std::ostream& os,
-                           const ExpectedThreadCounts& expected);
+                           const ThreadCountsParams& expected);
 
 class ExecutorPoolTestWithParam
-        : public ExecutorPoolTest,
-          public ::testing::WithParamInterface<ExpectedThreadCounts> {};
+    : public ExecutorPoolTest,
+      public ::testing::WithParamInterface<ThreadCountsParams> {};

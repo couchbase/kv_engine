@@ -37,9 +37,6 @@ std::atomic<ExecutorPool*> ExecutorPool::instance;
 
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
-/// Limit automatic selection of Reader threads to 64 - a value which is
-/// in-line with our test machines.
-static const size_t EP_MAX_READER_THREADS = 64;
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
 
@@ -76,62 +73,13 @@ size_t ExecutorPool::getNumAuxIO(void) {
 }
 
 size_t ExecutorPool::getNumWriters() {
-    // 1. Configure as many Writer threads as available threads (default:
-    // number of CPU cores).
-    //
-    // Writer threads are typically IO-bound, so a Writer thread should only
-    // consume a fraction of a CPU core. As such, creating one per CPU core
-    // shouldn't cause too much contention with other, CPU-bound
-    // threads in the system.
-    //
-    // Note: For maximum IO throughput we should create as many Writer threads
-    // as concurrent iops the system can support, given we use synchronous
-    // (blocking) IO and hence could utilise more threads than CPU cores.
-    // However, knowing the number of concurrent IOPs the system can support is
-    // hard, so we use #CPUs as a proxy for it - machines with lots of CPU
-    // cores are more likely to have more IO than little machines.
-    size_t count = maxGlobalThreads;
-
-    // 2. adjust computed value to be at least 2.
-    // We always want at least 2 Writer threads so ensure that if a Compaction
-    // task is running on one thread there's at least a second thread which
-    // Flusher tasks can continue to run on.
-    count = std::max(count, size_t{2});
-
-    // 3. Override with user's value if specified
-    if (numWorkers[WRITER_TASK_IDX]) {
-        count = numWorkers[WRITER_TASK_IDX];
-    }
-    return count;
+    return calcNumWriters(
+            ThreadPoolConfig::ThreadCount(numWorkers[WRITER_TASK_IDX].load()));
 }
 
 size_t ExecutorPool::getNumReaders() {
-    // 1. Configure as many Reader threads as available threads (default:
-    // number of CPU cores).
-    //
-    // Reader threads are typically IO-bound, so a Reader thread should only
-    // consume a fraction of a CPU core. As such, creating one per CPU core
-    // shouldn't cause too much contention with other, CPU-bound
-    // threads in the system.
-    //
-    // Note: For maximum IO throughput we should create as many Reader threads
-    // as concurrent iops the system can support, given we use synchronous
-    // (blocking) IO and hence could utilise more threads than CPU cores.
-    // However, knowing the number of concurrent IOPs the system can support is
-    // hard, so we use #CPUs as a proxy for it - machines with lots of CPU
-    // cores are more likely to have more IO than little machines.
-    size_t count = maxGlobalThreads;
-
-    // 2. adjust computed value to be within range
-    if (count > EP_MAX_READER_THREADS) {
-        count = EP_MAX_READER_THREADS;
-    }
-
-    // 3. Override with user's value if specified
-    if (numWorkers[READER_TASK_IDX]) {
-        count = numWorkers[READER_TASK_IDX];
-    }
-    return count;
+    return calcNumReaders(
+            ThreadPoolConfig::ThreadCount(numWorkers[READER_TASK_IDX].load()));
 }
 
 ExecutorPool *ExecutorPool::get(void) {
@@ -146,12 +94,13 @@ ExecutorPool *ExecutorPool::get(void) {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
             NonBucketAllocationGuard guard;
-            tmp = new ExecutorPool(config.getMaxThreads(),
-                                   NUM_TASK_GROUPS,
-                                   config.getNumReaderThreads(),
-                                   config.getNumWriterThreads(),
-                                   config.getNumAuxioThreads(),
-                                   config.getNumNonioThreads());
+            tmp = new ExecutorPool(
+                    config.getMaxThreads(),
+                    NUM_TASK_GROUPS,
+                    ThreadPoolConfig::ThreadCount(config.getNumReaderThreads()),
+                    ThreadPoolConfig::ThreadCount(config.getNumWriterThreads()),
+                    config.getNumAuxioThreads(),
+                    config.getNumNonioThreads());
             instance.store(tmp);
         }
     }
@@ -170,8 +119,8 @@ void ExecutorPool::shutdown(void) {
 
 ExecutorPool::ExecutorPool(size_t maxThreads,
                            size_t nTaskSets,
-                           size_t maxReaders,
-                           size_t maxWriters,
+                           ThreadPoolConfig::ThreadCount maxReaders,
+                           ThreadPoolConfig::ThreadCount maxWriters,
                            size_t maxAuxIO,
                            size_t maxNonIO)
     : numTaskSets(nTaskSets),
@@ -189,8 +138,8 @@ ExecutorPool::ExecutorPool(size_t maxThreads,
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
     }
-    numWorkers[WRITER_TASK_IDX] = maxWriters;
-    numWorkers[READER_TASK_IDX] = maxReaders;
+    numWorkers[WRITER_TASK_IDX] = static_cast<int>(maxWriters);
+    numWorkers[READER_TASK_IDX] = static_cast<int>(maxReaders);
     numWorkers[AUXIO_TASK_IDX] = maxAuxIO;
     numWorkers[NONIO_TASK_IDX] = maxNonIO;
 }
@@ -921,5 +870,73 @@ void ExecutorPool::_stopAndJoinThreads() {
     // Now reap/join those threads.
     for (auto thread : threadQ) {
         thread->stop(true);
+    }
+}
+
+size_t ExecutorPool::calcNumReaders(
+        ThreadPoolConfig::ThreadCount threadCount) const {
+    switch (threadCount) {
+    case ThreadPoolConfig::ThreadCount::Default: {
+        // Default: configure Reader threads based on CPU count; constraining
+        // to between 4 and 16 threads (relatively conservative number).
+        auto readers = maxGlobalThreads;
+        readers = std::min(readers, size_t{16});
+        readers = std::max(readers, size_t{4});
+        return readers;
+    }
+
+    case ThreadPoolConfig::ThreadCount::DiskIOOptimized: {
+        // Configure Reader threads based on CPU count; increased up
+        // to a maximum of 64 threads.
+
+        // Note: For maximum IO throughput we should create as many Reader
+        // threads as concurrent iops the system can support, given we use
+        // synchronous (blocking) IO and hence could utilise more threads than
+        // CPU cores. However, knowing the number of concurrent IOPs the system
+        // can support is hard, so we use #CPUs as a proxy for it - machines
+        // with lots of CPU cores are more likely to have more IO than little
+        // machines.
+        // However given we don't have test environments larger than
+        // 64 cores, limit to 64.
+        auto readers = maxGlobalThreads;
+        readers = std::min(readers, size_t{64});
+        readers = std::max(readers, size_t{4});
+        return readers;
+    }
+
+    default:
+        // User specified an explicit value - use that unmodified.
+        return static_cast<size_t>(threadCount);
+    }
+}
+
+size_t ExecutorPool::calcNumWriters(
+        ThreadPoolConfig::ThreadCount threadCount) const {
+    switch (threadCount) {
+    case ThreadPoolConfig::ThreadCount::Default:
+        // Default: configure Writer threads to 4 (default from v3.0 onwards).
+        return 4;
+
+    case ThreadPoolConfig::ThreadCount::DiskIOOptimized: {
+        // Configure Writer threads based on CPU count; up to a maximum of 64
+        // threads.
+
+        // Note: For maximum IO throughput we should create as many Writer
+        // threads as concurrent iops the system can support, given we use
+        // synchronous (blocking) IO and hence could utilise more threads than
+        // CPU cores. However, knowing the number of concurrent IOPs the system
+        // can support is hard, so we use #CPUs as a proxy for it - machines
+        // with lots of CPU cores are more likely to have more IO than little
+        // machines. However given we don't have test environments larger than
+        // 64 cores, limit to 64.
+        auto writers = maxGlobalThreads;
+        writers = std::min(writers, size_t{64});
+        writers = std::max(writers, size_t{4});
+        return writers;
+    }
+
+    default:
+        // User specified an explicit value - use that unmodified.
+        return static_cast<size_t>(threadCount);
     }
 }

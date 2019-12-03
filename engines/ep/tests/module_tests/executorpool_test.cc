@@ -61,20 +61,20 @@ ExTask makeTask(Taskable& taskable, ThreadGate& tg, size_t i) {
 }
 
 ::std::ostream& operator<<(::std::ostream& os,
-                           const ExpectedThreadCounts& expected) {
-    return os << "CPU" << expected.maxThreads << "_W" << expected.writer << "_R"
-              << expected.reader << "_A" << expected.auxIO << "_N"
-              << expected.nonIO;
+                           const ThreadCountsParams& expected) {
+    return os << expected.in_reader_writer << "_CPU" << expected.maxThreads
+              << "_W" << expected.writer << "_R" << expected.reader << "_A"
+              << expected.auxIO << "_N" << expected.nonIO;
 }
 
 TEST_F(ExecutorPoolTest, register_taskable_test) {
     TestExecutorPool pool(10, // MaxThreads
                           NUM_TASK_GROUPS,
-                          2, // MaxNumReaders
-                          2, // MaxNumWriters
+                          ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
+                          ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
                           2, // MaxNumAuxio
                           2 // MaxNumNonio
-                          );
+    );
 
     MockTaskable taskable;
     MockTaskable taskable2;
@@ -124,8 +124,8 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 
     TestExecutorPool pool(5, // MaxThreads
                           NUM_TASK_GROUPS,
-                          numReaders,
-                          numWriters,
+                          ThreadPoolConfig::ThreadCount(numReaders),
+                          ThreadPoolConfig::ThreadCount(numWriters),
                           numAuxIO,
                           numNonIO);
 
@@ -143,7 +143,7 @@ TEST_F(ExecutorPoolTest, increase_workers) {
     EXPECT_EQ(numWriters, pool.getNumWriters());
     ASSERT_EQ(originalWorkers, pool.getNumWorkersStat());
 
-    pool.setNumWriters(numWriters + 1);
+    pool.setNumWriters(ThreadPoolConfig::ThreadCount(numWriters + 1));
 
     EXPECT_EQ(numWriters + 1, pool.getNumWriters());
     ASSERT_EQ(originalWorkers + 1, pool.getNumWorkersStat());
@@ -155,23 +155,46 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 }
 
 TEST_F(ExecutorPoolDynamicWorkerTest, decrease_workers) {
-    EXPECT_EQ(2, pool->getNumWriters());
-    pool->setNumWriters(1);
+    ASSERT_EQ(2, pool->getNumWriters());
+    pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
     EXPECT_EQ(1, pool->getNumWriters());
 }
 
+TEST_F(ExecutorPoolDynamicWorkerTest, setDefault) {
+    ASSERT_EQ(2, pool->getNumWriters());
+    ASSERT_EQ(2, pool->getNumReaders());
+
+    pool->setNumWriters(ThreadPoolConfig::ThreadCount::Default);
+    EXPECT_EQ(4, pool->getNumWriters())
+            << "num_writers should be 4 with ThreadCount::Default";
+
+    pool->setNumReaders(ThreadPoolConfig::ThreadCount::Default);
+    EXPECT_EQ(16, pool->getNumReaders())
+            << "num_writers should be capped at 16 with ThreadCount::Default";
+}
+
+TEST_F(ExecutorPoolDynamicWorkerTest, setDiskIOOptimized) {
+    ASSERT_EQ(2, pool->getNumWriters());
+
+    pool->setNumWriters(ThreadPoolConfig::ThreadCount::DiskIOOptimized);
+    EXPECT_EQ(MaxThreads, pool->getNumWriters());
+
+    pool->setNumReaders(ThreadPoolConfig::ThreadCount::DiskIOOptimized);
+    EXPECT_EQ(MaxThreads, pool->getNumReaders());
+}
+
 TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
-    ExpectedThreadCounts expected = GetParam();
+    ThreadCountsParams expected = GetParam();
 
     MockTaskable taskable;
 
     TestExecutorPool pool(expected.maxThreads, // MaxThreads
                           NUM_TASK_GROUPS,
-                          0, // MaxNumReaders (0 = use default)
-                          0, // MaxNumWriters
+                          expected.in_reader_writer,
+                          expected.in_reader_writer,
                           0, // MaxNumAuxio
                           0 // MaxNumNonio
-                          );
+    );
 
     pool.registerTaskable(taskable);
 
@@ -188,18 +211,31 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
     pool.shutdown();
 }
 
-std::vector<ExpectedThreadCounts> threadCountValues = {{1, 1, 2, 1, 2},
-                                                       {2, 2, 2, 1, 2},
-                                                       {4, 4, 4, 1, 2},
-                                                       {8, 8, 8, 1, 2},
-                                                       {10, 10, 10, 1, 3},
-                                                       {14, 14, 14, 2, 4},
-                                                       {20, 20, 20, 2, 6},
-                                                       {24, 24, 24, 3, 7},
-                                                       {32, 32, 32, 4, 8},
-                                                       {48, 48, 48, 5, 8},
-                                                       {64, 64, 64, 7, 8},
-                                                       {128, 64, 128, 8, 8}};
+std::vector<ThreadCountsParams> threadCountValues = {
+        {ThreadPoolConfig::ThreadCount::Default, 1, 4, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::Default, 2, 4, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::Default, 4, 4, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::Default, 8, 8, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::Default, 10, 10, 4, 1, 3},
+        {ThreadPoolConfig::ThreadCount::Default, 14, 14, 4, 2, 4},
+        {ThreadPoolConfig::ThreadCount::Default, 20, 16, 4, 2, 6},
+        {ThreadPoolConfig::ThreadCount::Default, 24, 16, 4, 3, 7},
+        {ThreadPoolConfig::ThreadCount::Default, 32, 16, 4, 4, 8},
+        {ThreadPoolConfig::ThreadCount::Default, 48, 16, 4, 5, 8},
+        {ThreadPoolConfig::ThreadCount::Default, 64, 16, 4, 7, 8},
+        {ThreadPoolConfig::ThreadCount::Default, 128, 16, 4, 8, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 1, 4, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 2, 4, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 4, 4, 4, 1, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 8, 8, 8, 1, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 10, 10, 10, 1, 3},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 14, 14, 14, 2, 4},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 20, 20, 20, 2, 6},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 24, 24, 24, 3, 7},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 32, 32, 32, 4, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 48, 48, 48, 5, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 64, 64, 64, 7, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 128, 64, 64, 8, 8}};
 
 INSTANTIATE_TEST_CASE_P(ThreadCountTest,
                         ExecutorPoolTestWithParam,
@@ -213,12 +249,12 @@ TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_TRUE(pool->threadExists("writer_worker_1"));
 
-    pool->setNumWriters(1);
+    pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
 
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_FALSE(pool->threadExists("writer_worker_1"));
 
-    pool->setNumWriters(2);
+    pool->setNumWriters(ThreadPoolConfig::ThreadCount(2));
 
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_TRUE(pool->threadExists("writer_worker_1"));
