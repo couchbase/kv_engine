@@ -2958,22 +2958,27 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
 
     MockDcpMessageProducers producers(engine.get());
 
-    for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
-                    cb::mcbp::ClientOpcode::DcpDeletion,
-                    cb::mcbp::ClientOpcode::DcpExpiration,
-                    cb::mcbp::ClientOpcode::DcpStreamEnd,
-                    cb::mcbp::ClientOpcode::DcpSystemEvent,
-                    cb::mcbp::ClientOpcode::DcpCommit,
-                    cb::mcbp::ClientOpcode::DcpPrepare,
-                    cb::mcbp::ClientOpcode::DcpAbort}) {
+    for (auto status : {cb::mcbp::Status::Success,
+                        cb::mcbp::Status::Etmpfail,
+                        cb::mcbp::Status::Enomem}) {
         protocol_binary_response_header message{};
         message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-        message.response.setOpcode(op);
-        EXPECT_TRUE(producer->handleResponse(&message));
+        message.response.setStatus(status);
+        for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
+                        cb::mcbp::ClientOpcode::DcpDeletion,
+                        cb::mcbp::ClientOpcode::DcpExpiration,
+                        cb::mcbp::ClientOpcode::DcpStreamEnd,
+                        cb::mcbp::ClientOpcode::DcpSystemEvent,
+                        cb::mcbp::ClientOpcode::DcpCommit,
+                        cb::mcbp::ClientOpcode::DcpPrepare,
+                        cb::mcbp::ClientOpcode::DcpAbort}) {
+            message.response.setOpcode(op);
+            EXPECT_TRUE(producer->handleResponse(&message));
+        }
     }
 }
 
-TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseEInValDuribility) {
+TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDuribilityErrorCodes) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto producer = std::make_shared<MockDcpProducer>(
@@ -2982,23 +2987,26 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseEInValDuribility) {
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    message.response.setStatus(cb::mcbp::Status::Einval);
-    // check we return false from DcpProducer::handleResponse when receiving an
-    // EINVAL for Commit, Prepare and abort
-    for (auto op : {cb::mcbp::ClientOpcode::DcpCommit,
-                    cb::mcbp::ClientOpcode::DcpPrepare,
-                    cb::mcbp::ClientOpcode::DcpAbort}) {
-        message.response.setOpcode(op);
-        EXPECT_FALSE(producer->handleResponse(&message));
-    }
-    // for the other ops check that we don't return false
-    for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
-                    cb::mcbp::ClientOpcode::DcpDeletion,
-                    cb::mcbp::ClientOpcode::DcpExpiration,
-                    cb::mcbp::ClientOpcode::DcpStreamEnd,
-                    cb::mcbp::ClientOpcode::DcpSystemEvent}) {
-        message.response.setOpcode(op);
-        EXPECT_TRUE(producer->handleResponse(&message));
+    // check we return false from DcpProducer::handleResponse when receiving
+    // an EINVAL and KeyEnoent for Commit, Prepare and abort
+    for (auto errorCode :
+         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::Einval}) {
+        message.response.setStatus(errorCode);
+        for (auto op : {cb::mcbp::ClientOpcode::DcpCommit,
+                        cb::mcbp::ClientOpcode::DcpPrepare,
+                        cb::mcbp::ClientOpcode::DcpAbort}) {
+            message.response.setOpcode(op);
+            EXPECT_FALSE(producer->handleResponse(&message));
+        }
+        // for the other ops check that we don't return false
+        for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
+                        cb::mcbp::ClientOpcode::DcpDeletion,
+                        cb::mcbp::ClientOpcode::DcpExpiration,
+                        cb::mcbp::ClientOpcode::DcpStreamEnd,
+                        cb::mcbp::ClientOpcode::DcpSystemEvent}) {
+            message.response.setOpcode(op);
+            EXPECT_TRUE(producer->handleResponse(&message));
+        }
     }
 }
 
