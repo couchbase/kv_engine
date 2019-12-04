@@ -52,9 +52,9 @@ void MockTaskable::logRunTime(
         TaskId id, const std::chrono::steady_clock::duration runTime) {
 }
 
-ExTask makeTask(Taskable& taskable, ThreadGate& tg, size_t i) {
+ExTask makeTask(Taskable& taskable, ThreadGate& tg, TaskId taskId) {
     return std::make_shared<LambdaTask>(
-            taskable, TaskId::StatSnap, 0, true, [&]() -> bool {
+            taskable, taskId, 0, true, [&]() -> bool {
                 tg.threadUp();
                 return false;
             });
@@ -135,7 +135,8 @@ TEST_F(ExecutorPoolTest, increase_workers) {
     std::vector<ExTask> tasks;
 
     for (size_t i = 0; i < numWriters + 1; ++i) {
-        ExTask task = makeTask(taskable, tg, i);
+        // Use any Writer thread task (StatSnap) for the TaskId.
+        ExTask task = makeTask(taskable, tg, TaskId::StatSnap);
         pool.schedule(task);
         tasks.push_back(task);
     }
@@ -150,6 +151,78 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 
     tg.waitFor(std::chrono::seconds(10));
     EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for threads to run";
+
+    pool.unregisterTaskable(taskable, false);
+}
+
+// Verifies the priority of the different thread types. On Windows and Linux
+// the Writer threads should be low priority.
+TEST_F(ExecutorPoolTest, ThreadPriorities) {
+    // Create test pool and register a (mock) taskable to start all threads.
+    TestExecutorPool pool(10, // MaxThreads
+                          NUM_TASK_GROUPS,
+                          ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
+                          ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
+                          2, // MaxNumAuxio
+                          2 // MaxNumNonio
+    );
+
+    const size_t totalNumThreads = 8;
+
+    // Given we have to wait for all threads to be running (called
+    // ::run()) before their priority will be set, use a ThreadGate
+    // with a simple Task which calls threadUp() to ensure all threads
+    // have started before checking priorities.
+    MockTaskable taskable;
+    pool.registerTaskable(taskable);
+    std::vector<ExTask> tasks;
+    ThreadGate tg{totalNumThreads};
+
+    // Need 2 tasks of each type, so both threads of each type are
+    // started.
+    // Reader
+    tasks.push_back(makeTask(taskable, tg, TaskId::MultiBGFetcherTask));
+    tasks.push_back(makeTask(taskable, tg, TaskId::MultiBGFetcherTask));
+    // Writer
+    tasks.push_back(makeTask(taskable, tg, TaskId::FlusherTask));
+    tasks.push_back(makeTask(taskable, tg, TaskId::FlusherTask));
+    // AuxIO
+    tasks.push_back(makeTask(taskable, tg, TaskId::AccessScanner));
+    tasks.push_back(makeTask(taskable, tg, TaskId::AccessScanner));
+    // NonIO
+    tasks.push_back(makeTask(taskable, tg, TaskId::ItemPager));
+    tasks.push_back(makeTask(taskable, tg, TaskId::ItemPager));
+
+    for (auto& task : tasks) {
+        pool.schedule(task);
+    }
+    tg.waitFor(std::chrono::seconds(10));
+    EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for threads to start";
+
+    // Windows (via folly portability) uses 20 for default (normal) priority.
+    const int defaultPriority = folly::kIsWindows ? 20 : 0;
+
+    // We only set Writer threads to a non-default level on Linux.
+    const int expectedWriterPriority = folly::kIsLinux ? 19 : defaultPriority;
+
+    auto threads = pool.getThreads();
+    ASSERT_EQ(totalNumThreads, threads.size());
+    for (const auto* thread : threads) {
+        switch (thread->getTaskType()) {
+        case WRITER_TASK_IDX:
+            EXPECT_EQ(expectedWriterPriority, thread->getPriority())
+                    << "for thread: " << thread->getName();
+            break;
+        case READER_TASK_IDX:
+        case AUXIO_TASK_IDX:
+        case NONIO_TASK_IDX:
+            EXPECT_EQ(defaultPriority, thread->getPriority())
+                    << "for thread: " << thread->getName();
+            break;
+        default:
+            FAIL() << "Unexpected task type: " << thread->getTaskType();
+        }
+    }
 
     pool.unregisterTaskable(taskable, false);
 }
