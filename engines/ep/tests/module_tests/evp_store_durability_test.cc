@@ -1760,7 +1760,7 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     }
 }
 
-TEST_P(DurabilityEPBucketTest, SetDurabilityImpossible) {
+TEST_P(DurabilityBucketTest, SetDurabilityImpossible) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -1776,7 +1776,7 @@ TEST_P(DurabilityEPBucketTest, SetDurabilityImpossible) {
     EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE, store->set(*item, cookie));
 }
 
-TEST_P(DurabilityEPBucketTest, AddDurabilityImpossible) {
+TEST_P(DurabilityBucketTest, AddDurabilityImpossible) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -1792,7 +1792,7 @@ TEST_P(DurabilityEPBucketTest, AddDurabilityImpossible) {
     EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE, store->add(*item, cookie));
 }
 
-TEST_P(DurabilityEPBucketTest, ReplaceDurabilityImpossible) {
+TEST_P(DurabilityBucketTest, ReplaceDurabilityImpossible) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -1808,7 +1808,7 @@ TEST_P(DurabilityEPBucketTest, ReplaceDurabilityImpossible) {
     EXPECT_NE(ENGINE_DURABILITY_IMPOSSIBLE, store->replace(*item, cookie));
 }
 
-TEST_P(DurabilityEPBucketTest, DeleteDurabilityImpossible) {
+TEST_P(DurabilityBucketTest, DeleteDurabilityImpossible) {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
