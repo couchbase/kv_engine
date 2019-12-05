@@ -2208,8 +2208,8 @@ void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
                           pending1->getBySeqno());
 
     // We don't send ENGINE_SYNC_WRITE_PENDING to clients
-    auto mockCookie = cookie_to_mock_object(cookie);
-    auto mockCookie2 = cookie_to_mock_object(cookie2);
+    auto mockCookie = cookie_to_mock_cookie(cookie);
+    auto mockCookie2 = cookie_to_mock_cookie(cookie2);
 
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
     EXPECT_EQ(ENGINE_SUCCESS, mockCookie2->status);
@@ -2268,7 +2268,7 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
         // We don't send ENGINE_SYNC_WRITE_PENDING to clients
-        auto mockCookie = cookie_to_mock_object(cookie);
+        auto mockCookie = cookie_to_mock_cookie(cookie);
         EXPECT_EQ(ENGINE_SUCCESS, mockCookie->status);
 
         // Set state to dead - this will schedule the task

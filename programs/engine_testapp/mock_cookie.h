@@ -75,4 +75,4 @@ int get_number_of_mock_cookie_references(const void* cookie);
 
 size_t get_number_of_mock_cookie_io_notifications(const void* cookie);
 
-MockCookie* cookie_to_mock_object(const void* cookie);
+MockCookie* cookie_to_mock_cookie(const void* cookie);

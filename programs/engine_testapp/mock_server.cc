@@ -234,36 +234,36 @@ struct MockServerCallbackApi : public ServerCallbackIface {
 struct MockServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
         c->engine_data = engine_data;
     }
 
     void* get_engine_specific(gsl::not_null<const void*> cookie) override {
-        const auto* c = cookie_to_mock_object(cookie.get());
+        const auto* c = cookie_to_mock_cookie(cookie.get());
         return c->engine_data;
     }
 
     bool is_datatype_supported(gsl::not_null<const void*> cookie,
                                protocol_binary_datatype_t datatype) override {
-        const auto* c = cookie_to_mock_object(cookie.get());
+        const auto* c = cookie_to_mock_cookie(cookie.get());
         std::bitset<8> in(datatype);
         return (c->enabled_datatypes & in) == in;
     }
 
     bool is_mutation_extras_supported(
             gsl::not_null<const void*> cookie) override {
-        const auto* c = cookie_to_mock_object(cookie.get());
+        const auto* c = cookie_to_mock_cookie(cookie.get());
         return c->handle_mutation_extras;
     }
 
     bool is_collections_supported(gsl::not_null<const void*> cookie) override {
-        const auto* c = cookie_to_mock_object(cookie.get());
+        const auto* c = cookie_to_mock_cookie(cookie.get());
         return c->handle_collections_support;
     }
 
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             gsl::not_null<const void*> cookie) override {
-        (void)cookie_to_mock_object(cookie.get()); // validate cookie
+        (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
         return cb::mcbp::ClientOpcode::Invalid;
     }
 
@@ -290,14 +290,14 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
         c->references++;
         return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
 
         const int new_rc = --c->references;
         if (new_rc == 0) {
@@ -307,11 +307,11 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
     void set_priority(gsl::not_null<const void*> cookie,
                       CONN_PRIORITY) override {
-        (void)cookie_to_mock_object(cookie.get()); // validate cookie
+        (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
     }
 
     CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
-        (void)cookie_to_mock_object(cookie.get()); // validate cookie
+        (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
         return CONN_PRIORITY_MED;
     }
 
@@ -321,7 +321,7 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
         return c->sfd;
     }
 
@@ -350,12 +350,12 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     std::string get_authenticated_user(
             gsl::not_null<const void*> cookie) override {
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
         return c->authenticatedUser;
     }
 
     in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
         return c->parent_port;
     }
 
@@ -369,7 +369,7 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
-        auto* c = cookie_to_mock_object(cookie.get());
+        auto* c = cookie_to_mock_cookie(cookie.get());
         std::lock_guard<std::mutex> guard(c->mutex);
         c->status = status;
         c->num_io_notifications++;

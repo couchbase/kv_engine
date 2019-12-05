@@ -42,7 +42,7 @@ void destroy_mock_cookie(const void* cookie) {
         return;
     }
     std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     disconnect_mock_connection(c);
     if (c->references == 0) {
         delete c;
@@ -50,38 +50,38 @@ void destroy_mock_cookie(const void* cookie) {
 }
 
 void mock_set_ewouldblock_handling(const void* cookie, bool enable) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     c->handle_ewouldblock = enable;
 }
 
 void mock_set_mutation_extras_handling(const void* cookie, bool enable) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     c->handle_mutation_extras = enable;
 }
 
 void mock_set_datatype_support(const void* cookie,
                                protocol_binary_datatype_t datatypes) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     c->enabled_datatypes = std::bitset<8>(datatypes);
 }
 
 void mock_set_collections_support(const void* cookie, bool enable) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     c->handle_collections_support = enable;
 }
 
 void lock_mock_cookie(const void* cookie) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     c->mutex.lock();
 }
 
 void unlock_mock_cookie(const void* cookie) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     c->mutex.unlock();
 }
 
 void waitfor_mock_cookie(const void* cookie) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
 
     std::unique_lock<std::mutex> lock(c->mutex, std::adopt_lock);
     if (!lock.owns_lock()) {
@@ -105,16 +105,16 @@ int get_number_of_mock_cookie_references(const void* cookie) {
         return -1;
     }
     std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     return c->references;
 }
 
 size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {
-    auto* c = cookie_to_mock_object(cookie);
+    auto* c = cookie_to_mock_cookie(cookie);
     return c->num_io_notifications;
 }
 
-MockCookie* cookie_to_mock_object(const void* cookie) {
+MockCookie* cookie_to_mock_cookie(const void* cookie) {
     auto* ret = reinterpret_cast<const MockCookie*>(cookie);
     ret->validate();
     return const_cast<MockCookie*>(ret);
