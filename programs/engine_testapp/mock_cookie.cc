@@ -33,7 +33,6 @@ const void* create_mock_cookie() {
 
 static void disconnect_mock_connection(struct MockCookie* c) {
     // mock_server_cookie_mutex already held in calling function
-    c->connected = false;
     c->references--;
     mock_perform_callbacks(ON_DISCONNECT, nullptr, c);
 }

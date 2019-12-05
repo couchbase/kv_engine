@@ -29,7 +29,6 @@
 struct MockCookie : cb::tracing::Traceable {
     const uint64_t magic{MAGIC};
     void* engine_data{};
-    bool connected{};
     int sfd{};
     ENGINE_ERROR_CODE status{ENGINE_SUCCESS};
     int nblocks{0}; /* number of ewouldblocks */
