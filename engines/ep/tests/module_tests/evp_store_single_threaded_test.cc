@@ -41,6 +41,7 @@
 #include "fakes/fake_executorpool.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"

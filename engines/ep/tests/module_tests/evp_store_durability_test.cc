@@ -37,6 +37,7 @@
 #include <engines/ep/tests/mock/mock_ep_bucket.h>
 #include <engines/ep/tests/mock/mock_ephemeral_bucket.h>
 #include <engines/ep/tests/mock/mock_paging_visitor.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
 class DurabilityEPBucketTest : public STParameterizedBucketTest {

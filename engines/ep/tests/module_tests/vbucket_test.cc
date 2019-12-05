@@ -25,6 +25,7 @@
 #include "failover-table.h"
 #include "item.h"
 #include "persistence_callback.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket_bgfetch_item.h"

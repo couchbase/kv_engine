@@ -29,7 +29,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "kvstore.h"
-#include "programs/engine_testapp/mock_server.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "warmup.h"

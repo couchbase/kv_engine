@@ -21,7 +21,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
-#include <programs/engine_testapp/mock_server.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <tests/mock/mock_checkpoint_manager.h>
 #include <tests/mock/mock_dcp_consumer.h>
 #include <tests/mock/mock_dcp_producer.h>

@@ -1,6 +1,7 @@
 INCLUDE_DIRECTORIES(BEFORE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
 
 add_library(mock_server STATIC
+            mock_cookie.h
             mock_engine.cc
             mock_engine.h
             mock_server.cc

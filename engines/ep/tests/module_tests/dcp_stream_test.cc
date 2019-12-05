@@ -41,7 +41,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 
 #include "engines/ep/tests/mock/mock_dcp_conn_map.h"
-#include <programs/engine_testapp/mock_server.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <xattr/utils.h>
 #include <thread>
 

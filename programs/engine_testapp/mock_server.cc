@@ -15,10 +15,11 @@
  *   limitations under the License.
  */
 
+#include "mock_server.h"
 #include "daemon/alloc_hooks.h"
 #include "daemon/doc_pre_expiry.h"
 #include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
-#include "mock_server.h"
+#include "mock_cookie.h"
 #include <logger/logger.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
@@ -146,9 +147,9 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
-static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
-                                   const void *data,
-                                   const void *c) {
+void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
+                            const void* data,
+                            const void* c) {
     for (auto& h : mock_event_handlers[type]) {
         h.cb(c, type, data, h.cb_data);
     }

@@ -29,7 +29,7 @@
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include <engines/ep/tests/mock/mock_dcp_producer.h>
 #include <engines/ep/tests/mock/mock_stream.h>
-#include <programs/engine_testapp/mock_server.h>
+#include <programs/engine_testapp/mock_cookie.h>
 
 /**
  * Tests if `arg` (an item*, aka void*) is equal to expected, excluding the

@@ -23,7 +23,7 @@
 #include <memcached/tracer.h>
 #include <platform/scope_timer.h>
 
-#include "programs/engine_testapp/mock_server.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "trace_helpers.h"
 
 #define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)

@@ -53,6 +53,7 @@
 #include <memcached/server_cookie_iface.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
 #include <thread>

@@ -15,6 +15,7 @@
  */
 
 #include "mock_engine.h"
+#include "mock_cookie.h"
 #include "mock_server.h"
 
 #include <memcached/durability_spec.h>

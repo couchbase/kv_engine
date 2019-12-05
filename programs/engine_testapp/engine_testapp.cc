@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
+#include "mock_cookie.h"
 #include "mock_engine.h"
 #include "mock_server.h"
 #include "utilities/terminate_handler.h"
