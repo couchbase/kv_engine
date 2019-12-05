@@ -281,6 +281,35 @@ TEST_P(StatsTest, TestAppend) {
     EXPECT_EQ(11, stats["cmd_set"].get<size_t>());
 }
 
+/// Verify that we don't keep invalid pointers around when the packet is
+/// relocated as part of EWB
+TEST_P(StatsTest, MB37147_TestEWBReturnFromStat) {
+    if (!mcd_env->getTestBucket().supportsPersistence()) {
+        std::cout
+                << "Note: skipping test '"
+                << ::testing::UnitTest::GetInstance()
+                           ->current_test_info()
+                           ->name()
+                << "' as the underlying engine don't support vbucket stats.\n";
+        return;
+    }
+    MemcachedConnection& conn = getConnection();
+    conn.authenticate("@admin", "password", "PLAIN");
+    conn.selectBucket("default");
+
+    auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
+                                         cb::engine_errc::success,
+                                         ewb::Passthrough});
+    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                    /*unused*/ {},
+                                    /*unused*/ {},
+                                    sequence);
+
+    auto stats = conn.stats("vbucket");
+
+    EXPECT_FALSE(stats.empty());
+}
+
 TEST_P(StatsTest, TestAuditNoAccess) {
     MemcachedConnection& conn = getConnection();
 

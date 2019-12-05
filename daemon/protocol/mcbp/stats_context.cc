@@ -625,6 +625,10 @@ static std::pair<command_stat_handler, bool> getStatHandler(
     }
 }
 
+StatsCommandContext::StatsCommandContext(Cookie& cookie)
+    : SteppableCommandContext(cookie), state(State::ParseCommandKey) {
+}
+
 /************************* STATE MACHINE EXECUTION *************************/
 
 ENGINE_ERROR_CODE StatsCommandContext::step() {
@@ -655,6 +659,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE StatsCommandContext::parseCommandKey() {
+    const auto key = cookie.getRequest().getKey();
     if (key.empty()) {
         command = "";
     } else {
@@ -704,6 +709,7 @@ ENGINE_ERROR_CODE StatsCommandContext::doStats() {
     auto handler_pair = getStatHandler(command);
 
     if (!handler_pair.second) {
+        const auto key = cookie.getRequest().getKey();
         command_exit_code = handler_pair.first.handler(
                 {reinterpret_cast<const char*>(key.data()), key.size()},
                 cookie);

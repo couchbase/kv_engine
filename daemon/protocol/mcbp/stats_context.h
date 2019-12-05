@@ -47,11 +47,7 @@ public:
         Done
     };
 
-    explicit StatsCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie),
-          key(cookie.getRequest().getKey()),
-          state(State::ParseCommandKey) {
-    }
+    explicit StatsCommandContext(Cookie& cookie);
 
     void setTask(std::shared_ptr<Task> t) {
         task = t;
@@ -81,7 +77,6 @@ private:
     /**
      * The key as specified in the input buffer (it may contain a sub command)
      */
-    const cb::const_byte_buffer key;
     std::string command;
     std::string argument;
     State state;
