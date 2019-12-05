@@ -378,6 +378,7 @@ if (NOT EP_BYPASS_TESTS)
                    $<TARGET_OBJECTS:ep_mocks>
                    $<TARGET_OBJECTS:memory_tracking>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
+                   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                    ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc

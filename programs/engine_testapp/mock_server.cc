@@ -52,8 +52,9 @@ std::atomic<time_t> process_started;     /* when the mock server was started */
 /* Offset from 'real' time used to test time handling */
 std::atomic<rel_time_t> time_travel_offset;
 
-/* ref_mutex to guard references, and object deletion in case references becomes zero */
-static std::mutex ref_mutex;
+/// mock_server_cookie_mutex to guard references, and object deletion in
+/// case references becomes zero
+std::mutex mock_server_cookie_mutex;
 spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 
 /**
@@ -63,21 +64,7 @@ uint64_t session_cas;
 uint8_t session_ctr;
 static std::mutex session_mutex;
 
-void MockCookie::validate() const {
-    if (magic != MAGIC) {
-        throw std::runtime_error("MockCookie::validate(): Invalid magic");
-    }
-}
-
 /* Forward declarations */
-
-void disconnect_mock_connection(struct MockCookie* c);
-
-MockCookie* cookie_to_mock_object(const void* cookie) {
-    auto* ret = reinterpret_cast<const MockCookie*>(cookie);
-    ret->validate();
-    return const_cast<MockCookie*>(ret);
-}
 
 static PreLinkFunction pre_link_function;
 
@@ -302,14 +289,14 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
-        std::lock_guard<std::mutex> guard(ref_mutex);
+        std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_object(cookie.get());
         c->references++;
         return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
-        std::lock_guard<std::mutex> guard(ref_mutex);
+        std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_object(cookie.get());
 
         const int new_rc = --c->references;
@@ -434,96 +421,9 @@ void init_mock_server() {
     session_ctr = 0;
 }
 
-const void* create_mock_cookie() {
-    return new MockCookie();
-}
-
-void destroy_mock_cookie(const void *cookie) {
-    if (cookie == nullptr) {
-        return;
-    }
-    std::lock_guard<std::mutex> guard(ref_mutex);
-    auto* c = cookie_to_mock_object(cookie);
-    disconnect_mock_connection(c);
-    if (c->references == 0) {
-        delete c;
-    }
-}
-
-void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
-    auto* c = cookie_to_mock_object(cookie);
-    c->handle_ewouldblock = enable;
-}
-
-void mock_set_mutation_extras_handling(const void *cookie, bool enable) {
-    auto* c = cookie_to_mock_object(cookie);
-    c->handle_mutation_extras = enable;
-}
-
-void mock_set_datatype_support(const void* cookie,
-                               protocol_binary_datatype_t datatypes) {
-    auto* c = cookie_to_mock_object(cookie);
-    c->enabled_datatypes = std::bitset<8>(datatypes);
-}
-
-void mock_set_collections_support(const void *cookie, bool enable) {
-    auto* c = cookie_to_mock_object(cookie);
-    c->handle_collections_support = enable;
-}
-
-void lock_mock_cookie(const void *cookie) {
-    auto* c = cookie_to_mock_object(cookie);
-    c->mutex.lock();
-}
-
-void unlock_mock_cookie(const void *cookie) {
-    auto* c = cookie_to_mock_object(cookie);
-    c->mutex.unlock();
-}
-
-void waitfor_mock_cookie(const void *cookie) {
-    auto* c = cookie_to_mock_object(cookie);
-
-    std::unique_lock<std::mutex> lock(c->mutex, std::adopt_lock);
-    if (!lock.owns_lock()) {
-        throw std::logic_error("waitfor_mock_cookie: cookie should be locked!");
-    }
-
-    c->cond.wait(lock, [&c] {
-        return c->num_processed_notifications != c->num_io_notifications;
-    });
-    c->num_processed_notifications = c->num_io_notifications;
-
-    lock.release();
-}
-
-void disconnect_mock_connection(struct MockCookie* c) {
-    // ref_mutex already held in calling function
-    c->connected = false;
-    c->references--;
-    mock_perform_callbacks(ON_DISCONNECT, nullptr, c);
-}
-
-void disconnect_all_mock_connections() {
-    // Currently does nothing; we don't track mock_connstructs
-}
-
 void destroy_mock_event_callbacks() {
     for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
         mock_event_handlers[type].clear();
     }
 }
 
-int get_number_of_mock_cookie_references(const void *cookie) {
-    if (cookie == nullptr) {
-        return -1;
-    }
-    std::lock_guard<std::mutex> guard(ref_mutex);
-    auto* c = cookie_to_mock_object(cookie);
-    return c->references;
-}
-
-size_t get_number_of_mock_cookie_io_notifications(const void* cookie) {
-    auto* c = cookie_to_mock_object(cookie);
-    return c->num_io_notifications;
-}
