@@ -57,38 +57,6 @@ void ExecutorThread::start() {
         throw std::runtime_error(ss.str().c_str());
     }
 
-    // Decrease the priority of Writer threads to lessen their impact on
-    // other threads (esp front-end workers which should be prioritized ahead
-    // of non-critical path Writer tasks (both Flusher and Compaction).
-    // TODO: Investigate if it is worth increasing the priority of Flusher tasks
-    // which _are_ on the critical path for front-end operations - i.e.
-    // SyncWrites at level=persistMajority / persistActive.
-    // This could be done by having two different priority thread pools (say
-    // Low and High IO threads and putting critical path Reader (BGFetch) and
-    // Writer (SyncWrite flushes) on the High IO thread pool; keeping
-    // non-persist SyncWrites / normal mutations & compaction on the Low IO
-    // pool.
-#if defined(__linux__) || defined(_WIN32)
-    // Only doing this for Linux & Windows at present:
-    // - On macOS setpriority(PRIO_PROCESS) affects the entire process (unlike
-    //   Linux where it's only the current thread), hence calling setpriority()
-    //   would be pointless.
-    if (taskType == WRITER_TASK_IDX) {
-        // Note Linux uses the range -19..20; whereas the Folly implementation
-        // of setpriority uses 0..39.
-        const int lowestPriority = folly::kIsLinux ? 19 : 39;
-        if (setpriority(PRIO_PROCESS,
-                        /*Current thread*/ 0,
-                        lowestPriority)) {
-            EP_LOG_WARN("Failed to set thread {} to background priority - {}",
-                        getName(),
-                        strerror(errno));
-        } else {
-            EP_LOG_INFO("Set thread {} to background priority", getName());
-        }
-    }
-#endif
-
     EP_LOG_DEBUG("{}: Started", name);
 }
 
@@ -109,11 +77,47 @@ void ExecutorThread::stop(bool wait) {
 
 void ExecutorThread::run() {
     EP_LOG_DEBUG("Thread {} running..", getName());
+
     // The run loop should not account to any bucket, only once inside a task
     // will accounting be back on. GlobalTask::execute will switch to the bucket
     // and ExecutorPool::cancel will guard the task delete clause with the
     // BucketAllocationGuard to account task deletion to the bucket.
     NonBucketAllocationGuard guard;
+
+    // Decrease the priority of Writer threads to lessen their impact on
+    // other threads (esp front-end workers which should be prioritized ahead
+    // of non-critical path Writer tasks (both Flusher and Compaction).
+    // TODO: Investigate if it is worth increasing the priority of Flusher tasks
+    // which _are_ on the critical path for front-end operations - i.e.
+    // SyncWrites at level=persistMajority / persistActive.
+    // This could be done by having two different priority thread pools (say
+    // Low and High IO threads and putting critical path Reader (BGFetch) and
+    // Writer (SyncWrite flushes) on the High IO thread pool; keeping
+    // non-persist SyncWrites / normal mutations & compaction on the Low IO
+    // pool.
+#if defined(__linux__)
+    // Only doing this for Linux at present:
+    // - On Windows folly's getpriority() compatability function changes the
+    //   priority of the entire process.
+    // - On macOS setpriority(PRIO_PROCESS) affects the entire process (unlike
+    //   Linux where it's only the current thread), hence calling setpriority()
+    //   would be pointless.
+    if (taskType == WRITER_TASK_IDX) {
+        // Note Linux uses the range -20..19 (highest..lowest).
+        const int lowestPriority = 19;
+        if (setpriority(PRIO_PROCESS,
+                        /*Current thread*/ 0,
+                        lowestPriority)) {
+            EP_LOG_WARN("Failed to set thread {} to background priority - {}",
+                        getName(),
+                        strerror(errno));
+        } else {
+            EP_LOG_INFO("Set thread {} to background priority", getName());
+        }
+    }
+#endif
+
+    priority = getpriority(PRIO_PROCESS, 0);
 
     for (uint8_t tick = 1;; tick++) {
 
@@ -287,4 +291,12 @@ void ExecutorThread::cancelCurrentTask(ExecutorPool& manager) {
     auto uid = currentTask->uid;
     resetCurrentTask();
     manager.cancel(uid, true);
+}
+
+task_type_t ExecutorThread::getTaskType() const {
+    return taskType;
+}
+
+int ExecutorThread::getPriority() const {
+    return priority;
 }

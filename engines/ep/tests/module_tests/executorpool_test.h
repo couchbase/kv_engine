@@ -87,6 +87,15 @@ public:
         return output;
     }
 
+    // Returns a vector of the registered ExecutorThreads, non-owning.
+    // WARNING: Not safe to reduce thread pool size while the result of
+    // this method is still in use.
+    ThreadQ getThreads() {
+        LockHolder lh(tMutex);
+        ThreadQ result = threadQ;
+        return result;
+    }
+
     bool threadExists(std::string name) {
         auto names = getThreadNames();
         return std::find(names.begin(), names.end(), name) != names.end();

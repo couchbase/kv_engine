@@ -140,6 +140,12 @@ public:
         now.setTimePoint(std::chrono::steady_clock::now());
     }
 
+    /// @return the threads' type.
+    task_type_t getTaskType() const;
+
+    /// Return the threads' OS priority.
+    int getPriority() const;
+
 protected:
     void cancelCurrentTask(ExecutorPool& manager);
 
@@ -155,4 +161,8 @@ protected:
 
     std::mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
+
+    // OS priority of the thread. Only available once the thread
+    // has been started.
+    int priority = 0;
 };
