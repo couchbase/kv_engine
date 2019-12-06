@@ -23,7 +23,6 @@
 #include "bucket_logger_test.h"
 #include "fakes/fake_executorpool.h"
 #include "item.h"
-#include "memory_tracker.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"

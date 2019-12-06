@@ -29,7 +29,6 @@
 #include "item.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
-#include "memory_tracker.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
@@ -42,23 +41,12 @@
 using namespace std::string_literals;
 
 /**
- * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB and
- * enables the MemoryTracker.
+ * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB
  *
  * NOTE: All the tests using this (including subclasses) require memory
  * tracking to be enabled.
  */
 class STBucketQuotaTest : public STParameterizedBucketTest {
-public:
-    static void SetUpTestCase() {
-        // Setup the MemoryTracker.
-        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-    }
-
-    static void TearDownTestCase() {
-        MemoryTracker::destroyInstance();
-    }
-
 protected:
     void SetUp() override {
         config_string += "ht_size=47";

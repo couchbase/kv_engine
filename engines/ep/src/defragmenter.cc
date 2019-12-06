@@ -61,10 +61,14 @@ bool DefragmenterTask::run(void) {
                 ss << " resuming from " << epstore_position << ", ";
                 ss << prAdapter->getHashtablePosition() << ".";
             }
+            auto fragStats = cb::ArenaMalloc::getFragmentationStats(
+                    engine->getArenaMallocClient());
             ss << " Using chunk_duration=" << getChunkDuration().count()
                << " ms."
                << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-               << ", mapped_bytes=" << getMappedBytes();
+               << ", allocated=" << fragStats.first
+               << ", resident:" << fragStats.second << " utilisation:"
+               << double(fragStats.second) / double(fragStats.first);
             EP_LOG_DEBUG("{}", ss.str());
         }
 
@@ -118,12 +122,16 @@ bool DefragmenterTask::run(void) {
             std::chrono::microseconds duration =
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             end - start);
+            auto fragStats = cb::ArenaMalloc::getFragmentationStats(
+                    engine->getArenaMallocClient());
             ss << " Took " << duration.count() << " us."
                << " moved " << visitor.getDefragCount() << "/"
                << visitor.getVisitedCount() << " visited documents."
                << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-               << ", mapped_bytes=" << getMappedBytes() << ". Sleeping for "
-               << getSleepTime() << " seconds.";
+               << ", allocated=" << fragStats.first
+               << ", resident:" << fragStats.second << " utilisation:"
+               << double(fragStats.second) / double(fragStats.first)
+               << ". Sleeping for " << getSleepTime() << " seconds.";
             EP_LOG_DEBUG("{}", ss.str());
         }
 
@@ -197,17 +205,6 @@ size_t DefragmenterTask::getMaxValueSize(ServerAllocatorIface* alloc_hooks) {
 std::chrono::milliseconds DefragmenterTask::getChunkDuration() const {
     return std::chrono::milliseconds(
             engine->getConfiguration().getDefragmenterChunkDuration());
-}
-
-size_t DefragmenterTask::getMappedBytes() {
-    ServerAllocatorIface* alloc_hooks = engine->getServerApi()->alloc_hooks;
-
-    allocator_stats stats = {0};
-    stats.ext_stats.resize(alloc_hooks->get_extra_stats_size());
-    alloc_hooks->get_allocator_stats(&stats);
-
-    size_t mapped_bytes = stats.fragmentation_size + stats.allocated_size;
-    return mapped_bytes;
 }
 
 DefragmentVisitor& DefragmenterTask::getDefragVisitor() {

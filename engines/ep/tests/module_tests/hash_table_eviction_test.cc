@@ -24,7 +24,6 @@
 #include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
-#include "memory_tracker.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -95,16 +94,6 @@ class STParameterizedEvictionTest
                              /*noOfAccesses*/ uint32_t>> {};
 
 class STHashTableEvictionTest : public STParameterizedEvictionTest {
-public:
-    static void SetUpTestCase() {
-        // Setup the MemoryTracker.
-        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-    }
-
-    static void TearDownTestCase() {
-        MemoryTracker::destroyInstance();
-    }
-
 protected:
     void SetUp() override {
         // Set specific ht_size given we need to control expected memory usage.

@@ -43,7 +43,6 @@
 #include "ep_time.h"
 #include "evp_engine_test.h"
 #include "kv_bucket.h"
-#include "memory_tracker.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
 #include "vbucket.h"
@@ -191,8 +190,6 @@ void DCPTest::TearDown() {
     producer.reset();
 
     EventuallyPersistentEngineTest::TearDown();
-
-    MemoryTracker::destroyInstance();
 }
 
 void DCPTest::create_dcp_producer(

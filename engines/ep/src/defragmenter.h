@@ -127,9 +127,6 @@ private:
     // being paused.
     std::chrono::milliseconds getChunkDuration() const;
 
-    /// Return the current number of mapped bytes from the allocator.
-    size_t getMappedBytes();
-
     /// Returns the underlying DefragmentVisitor instance.
     DefragmentVisitor& getDefragVisitor();
 

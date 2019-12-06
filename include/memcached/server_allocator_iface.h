@@ -86,28 +86,10 @@ struct ServerAllocatorIface {
     bool (*remove_delete_hook)(void (*)(const void* ptr));
 
     /**
-     * Returns the number of extra stats for the current allocator.
-     */
-    int (*get_extra_stats_size)(void);
-
-    /**
-     * Obtains relevant statistics from the allocator. Every allocator
-     * is required to return total allocated bytes, total heap bytes,
-     * total free bytes, and toal fragmented bytes. An allocator will
-     * also provide a varying number of allocator specific stats
-     */
-    void (*get_allocator_stats)(allocator_stats*);
-
-    /**
      * Returns the total bytes allocated by the allocator. This value
      * may be computed differently based on the allocator in use.
      */
     size_t (*get_allocation_size)(const void*);
-
-    /**
-     * Fills a buffer with special detailed allocator stats.
-     */
-    void (*get_detailed_stats)(char*, int);
 
     /**
      * Attempts to release free memory back to the OS.

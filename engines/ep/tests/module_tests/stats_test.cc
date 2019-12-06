@@ -27,7 +27,6 @@
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "kv_bucket.h"
-#include "memory_tracker.h"
 #include "tasks.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"

@@ -34,19 +34,8 @@ void DummyAllocHooks::initialize() {
     }
 }
 
-int DummyAllocHooks::get_extra_stats_size() {
-    return 0;
-}
-
-void DummyAllocHooks::get_allocator_stats(allocator_stats* stats) {
-}
-
 size_t DummyAllocHooks::get_allocation_size(const void* ptr) {
     return 0;
-}
-
-void DummyAllocHooks::get_detailed_stats(char* buffer, int size) {
-    // empty
 }
 
 void DummyAllocHooks::release_free_memory() {

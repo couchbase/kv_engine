@@ -63,64 +63,8 @@ static int jemalloc_get_stats_prop(const char* property, size_t* value) {
     return je_mallctl(property, value, &size, NULL, 0);
 }
 
-struct write_state {
-    char* buffer;
-    int remaining;
-    bool cropped;
-};
-static const char cropped_error[] = "=== Exceeded buffer size - output cropped ===\n";
-
-/* Write callback used by jemalloc's malloc_stats_print() below */
-static void write_cb(void* opaque, const char* msg) {
-    int len;
-    struct write_state* st = (struct write_state*) opaque;
-    if (st->cropped) {
-        /* already cropped output - nothing to do. */
-        return;
-    }
-    len = snprintf(st->buffer, st->remaining, "%s", msg);
-    if (len < 0) {
-        /*
-         * snprintf _FAILED_. Terminate the buffer where it used to be
-         * and ignore the rest
-         */
-        st->buffer[0] = '\0';
-        return;
-    }
-    if (len > st->remaining) {
-        /* insufficient space - have to crop output. Note we reserved enough
-           space (see below) to be able to write an error if this occurs. */
-        sprintf(st->buffer, cropped_error);
-        st->cropped = true;
-        return;
-    }
-    st->buffer += len;
-    st->remaining -= len;
-}
-
 void JemallocHooks::initialize() {
     // No initialization required.
-}
-
-int JemallocHooks::get_extra_stats_size() {
-    return 0;
-}
-
-void JemallocHooks::get_allocator_stats(allocator_stats* stats) {
-    size_t epoch = 1;
-    size_t sz = sizeof(epoch);
-    /* jemalloc can cache its statistics - force a refresh */
-    je_mallctl("epoch", &epoch, &sz, &epoch, sz);
-
-    jemalloc_get_stats_prop("stats.allocated", &(stats->allocated_size));
-    jemalloc_get_stats_prop("stats.mapped", &(stats->heap_size));
-    jemalloc_get_stats_prop("stats.retained", &stats->retained_size);
-    jemalloc_get_stats_prop("stats.resident", &stats->resident_size);
-    jemalloc_get_stats_prop("stats.metadata", &stats->metadata_size);
-
-    size_t active_bytes;
-    jemalloc_get_stats_prop("stats.active", &active_bytes);
-    stats->fragmentation_size = active_bytes - stats->allocated_size;
 }
 
 size_t JemallocHooks::get_allocation_size(const void* ptr) {
@@ -131,15 +75,6 @@ size_t JemallocHooks::get_allocation_size(const void* ptr) {
      * const pointer
      */
     return je_malloc_usable_size((void*) ptr);
-}
-
-void JemallocHooks::get_detailed_stats(char* buffer, int size) {
-    struct write_state st;
-    st.buffer = buffer;
-    st.cropped = false;
-    /* reserve enough space to write out an error if the output is cropped. */
-    st.remaining = size - sizeof(cropped_error);
-    je_malloc_stats_print(write_cb, &st, "a"/* omit per-arena stats*/);
 }
 
 void JemallocHooks::release_free_memory() {

@@ -20,10 +20,7 @@
 #endif
 
 X(initialize, void, ())
-X(get_extra_stats_size, int, ())
-X(get_allocator_stats, void, (allocator_stats* stats))
 X(get_allocation_size, size_t, (const void* ptr))
-X(get_detailed_stats, void, (char* buffer, int size))
 X(release_free_memory, void, ())
 X(enable_thread_cache, bool, (bool enable))
 X(get_allocator_property, bool, (const char* name, size_t* value))

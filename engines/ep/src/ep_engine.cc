@@ -40,7 +40,6 @@
 #include "flusher.h"
 #include "hash_table_stat_visitor.h"
 #include "htresizer.h"
-#include "memory_tracker.h"
 #include "replicationthrottle.h"
 #include "server_document_iface_border_guard.h"
 #include "stats-info.h"
@@ -1755,9 +1754,6 @@ ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
 */
 void destroy_ep_engine() {
     ExecutorPool::shutdown();
-    // A single MemoryTracker exists for *all* buckets
-    // and must be destroyed before unloading the shared object.
-    MemoryTracker::destroyInstance();
     ObjectRegistry::reset();
     globalBucketLogger.reset();
 }
@@ -3175,14 +3171,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(
             "ep_storedval_num", stats.getNumStoredVal(), add_stat, cookie);
     add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
 
-    std::map<std::string, size_t> alloc_stats;
-    MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
-        getAllocatorStats(alloc_stats);
-
+    std::unordered_map<std::string, size_t> alloc_stats;
+    bool missing = cb::ArenaMalloc::getStats(arena, alloc_stats);
     for (const auto& it : alloc_stats) {
-        add_casted_stat(it.first.c_str(), it.second, add_stat, cookie);
+        add_prefixed_stat(
+                "ep_arena", it.first.c_str(), it.second, add_stat, cookie);
     }
-
+    if (missing) {
+        add_casted_stat("ep_arena_missing_some_keys", true, add_stat, cookie);
+    }
+    missing = cb::ArenaMalloc::getGlobalStats(alloc_stats);
+    for (const auto& it : alloc_stats) {
+        add_prefixed_stat("ep_arena_global",
+                          it.first.c_str(),
+                          it.second,
+                          add_stat,
+                          cookie);
+    }
+    if (missing) {
+        add_casted_stat(
+                "ep_arena_global_missing_some_keys", true, add_stat, cookie);
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -4591,9 +4600,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return ENGINE_SUCCESS;
     }
     if (key == "allocator"_ccb) {
+        // @todo: MB-37467: make this an mcstat, it's reporting global data
+        // @todo: this buffer is not big enough now we are creating arenas
         char buffer[64 * 1024];
-        MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
-                getDetailedStats(buffer, sizeof(buffer));
+        cb::ArenaMalloc::getDetailedStats({buffer, sizeof(buffer)});
         add_casted_stat("detailed", buffer, add_stat, cookie);
         return ENGINE_SUCCESS;
     }

@@ -378,10 +378,7 @@ SERVER_HANDLE_V1* get_mock_server_api() {
     static int init;
     if (!init) {
         init = 1;
-        hooks_api.get_extra_stats_size = AllocHooks::get_extra_stats_size;
-        hooks_api.get_allocator_stats = AllocHooks::get_allocator_stats;
         hooks_api.get_allocation_size = AllocHooks::get_allocation_size;
-        hooks_api.get_detailed_stats = AllocHooks::get_detailed_stats;
         hooks_api.release_free_memory = AllocHooks::release_free_memory;
         hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
         hooks_api.get_allocator_property = AllocHooks::get_allocator_property;

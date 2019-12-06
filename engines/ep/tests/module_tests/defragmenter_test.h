@@ -19,7 +19,6 @@
 
 #include "vbucket_test.h"
 
-#include "memory_tracker.h"
 #include "objectregistry.h"
 
 #include <platform/cb_arena_malloc.h>
@@ -34,16 +33,6 @@ class DefragmenterTest
 public:
     DefragmenterTest();
     ~DefragmenterTest();
-
-    static void SetUpTestCase() {
-
-        // Setup the MemoryTracker.
-        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-    }
-
-    static void TearDownTestCase() {
-        MemoryTracker::destroyInstance();
-    }
 
 protected:
     void SetUp() override {

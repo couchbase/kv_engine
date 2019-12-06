@@ -40,14 +40,6 @@ extern "C" {
         return false;
     }
 
-    static int mock_get_extra_stats_size() {
-        return 0;
-    }
-
-    static void mock_get_allocator_stats(allocator_stats*) {
-        // Empty
-    }
-
     static size_t mock_get_allocation_size(const void*) {
         return 0;
     }
@@ -59,8 +51,6 @@ ServerAllocatorIface* getHooksApi(void) {
     hooksApi.remove_new_hook = mock_remove_new_hook;
     hooksApi.add_delete_hook = mock_add_delete_hook;
     hooksApi.remove_delete_hook = mock_remove_delete_hook;
-    hooksApi.get_extra_stats_size = mock_get_extra_stats_size;
-    hooksApi.get_allocator_stats = mock_get_allocator_stats;
     hooksApi.get_allocation_size = mock_get_allocation_size;
     return &hooksApi;
 }

@@ -29,18 +29,11 @@
 #include <chrono>
 #include <thread>
 
-/* Return how many bytes the memory allocator has mapped in RAM - essentially
- * application-allocated bytes plus memory in allocators own data structures
- * & freelists. This is an approximation of the the application's RSS.
+/*
+ * Return the resident bytes for the client
  */
-static size_t get_mapped_bytes(void) {
-    size_t mapped_bytes;
-    allocator_stats stats = {0};
-    stats.ext_stats.resize(AllocHooks::get_extra_stats_size());
-
-    AllocHooks::get_allocator_stats(&stats);
-    mapped_bytes = stats.fragmentation_size + stats.allocated_size;
-    return mapped_bytes;
+static size_t get_mapped_bytes(const cb::ArenaMallocClient& client) {
+    return cb::ArenaMalloc::getFragmentationStats(client).second;
 }
 
 /* Waits for mapped memory value to drop below the specified value, or for
@@ -48,12 +41,13 @@ static size_t get_mapped_bytes(void) {
  * @returns True if the mapped memory value dropped, or false if the maximum
  * sleep time was reached.
  */
-static bool wait_for_mapped_below(size_t mapped_threshold,
+static bool wait_for_mapped_below(const cb::ArenaMallocClient& client,
+                                  size_t mapped_threshold,
                                   useconds_t max_sleep_time) {
     useconds_t sleepTime = 128;
     useconds_t totalSleepTime = 0;
 
-    while (get_mapped_bytes() > mapped_threshold) {
+    while (get_mapped_bytes(client) > mapped_threshold) {
         std::this_thread::sleep_for(std::chrono::microseconds(sleepTime));
         totalSleepTime += sleepTime;
         if (totalSleepTime > max_sleep_time) {
@@ -187,7 +181,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 
     // 0. Get baseline memory usage (before creating any objects).
     size_t mem_used_0 = global_stats.getPreciseTotalMemoryUsed();
-    size_t mapped_0 = get_mapped_bytes();
+    size_t mapped_0 = get_mapped_bytes(global_stats.arena);
 
     // 1. Create a number of documents.
     // When testing value de-fragment - Size doesn't matter too much, main thing
@@ -204,7 +198,9 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     vbucket->checkpointManager->clear(vbucket->getState());
     // Record memory usage after creation.
     size_t mem_used_1 = global_stats.getPreciseTotalMemoryUsed();
-    size_t mapped_1 = get_mapped_bytes();
+
+    AllocHooks::release_free_memory();
+    size_t mapped_1 = get_mapped_bytes(global_stats.arena);
 
     // Sanity check - mem_used should be at least size * count bytes larger than
     // initial.
@@ -245,14 +241,14 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
                << global_stats.getPreciseTotalMemoryUsed();
     }
 
-    size_t mapped_2 = get_mapped_bytes();
+    size_t mapped_2 = get_mapped_bytes(global_stats.arena);
 
-    // Sanity check (2) - mapped memory should still be high - at least 80% of
+    // Sanity check (2) - mapped memory should still be high - at least 70% of
     // the value after creation, before delete.
     const size_t current_mapped = mapped_2 - mapped_0;
     const size_t previous_mapped = mapped_1 - mapped_0;
 
-    EXPECT_GE(current_mapped, 0.80 * double(previous_mapped))
+    EXPECT_GE(current_mapped, size_t(0.80 * double(previous_mapped)))
             << "current_mapped memory (which is " << current_mapped
             << ") is lower than 80% of previous mapped (which is "
             << previous_mapped << "). ";
@@ -282,11 +278,13 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     const size_t expected_mapped = ((mapped_2 - mapped_0) * 0.5) + mapped_0;
 
     auto& visitor = dynamic_cast<DefragmentVisitor&>(prAdapter.getHTVisitor());
-    EXPECT_TRUE(wait_for_mapped_below(expected_mapped, 1 * 1000 * 1000))
-        << "Mapped memory (" << get_mapped_bytes() << ") didn't fall below "
-        << "estimate (" <<  expected_mapped << ") after the defragmentater "
-        << "visited " << visitor.getVisitedCount() << " items "
-        << "and moved " << visitor.getDefragCount() << " items!";
+    EXPECT_TRUE(wait_for_mapped_below(
+            global_stats.arena, expected_mapped, 1 * 1000 * 1000))
+            << "Mapped memory (" << get_mapped_bytes(global_stats.arena)
+            << ") didn't fall below "
+            << "estimate (" << expected_mapped << ") after the defragmentater "
+            << "visited " << visitor.getVisitedCount() << " items "
+            << "and moved " << visitor.getDefragCount() << " items!";
 
     if (isModeStoredValue()) {
         EXPECT_EQ(num_remaining, visitor.getStoredValueDefragCount());
