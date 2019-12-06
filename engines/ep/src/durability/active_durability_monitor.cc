@@ -707,8 +707,7 @@ void ActiveDurabilityMonitor::State::updateNodeAck(const std::string& node,
         // We didn't find the node in either of our chains, but we still need to
         // track the ack for this node in case we are about to get a topology
         // change in which this node will exist.
-        queuedSeqnoAcks[node] = seqno;
-        queuedSeqnoAcks[node].setLabel("queuedSeqnoAck: " + node);
+        queueSeqnoAck(node, seqno);
     }
 }
 
@@ -922,7 +921,16 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
                                                      int64_t seqno,
                                                      ResolvedQueue& toCommit) {
     if (!firstChain) {
-        throwException<std::logic_error>(__func__, "FirstChain not set");
+        // MB-37188: Tests have demonstrated that during an upgrade to 6.5.0,
+        // once all nodes are upgraded and the DCP streams are recreated to flip
+        // to support sync replication, a seqno ack may be received prior to the
+        // topology being set. This occurs because the HPS will be moved at the
+        // end of a disk snapshot even in the absence of prepares (there cannot
+        // be any existing prepares from before the upgrade as 6.5.0 introduces
+        // durability).
+        // Queue the ack for processing once a topology is received.
+        queueSeqnoAck(node, seqno);
+        return;
     }
 
     // We should never ack for the active
@@ -1284,6 +1292,12 @@ void ActiveDurabilityMonitor::State::performQueuedAckForChain(
             queuedSeqnoAcks.erase(existingAck);
         }
     }
+}
+
+void ActiveDurabilityMonitor::State::queueSeqnoAck(const std::string& node,
+                                                   int64_t seqno) {
+    queuedSeqnoAcks[node] = seqno;
+    queuedSeqnoAcks[node].setLabel("queuedSeqnoAck: " + node);
 }
 
 void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(

@@ -627,6 +627,15 @@ protected:
                                   ResolvedQueue& toCommit);
 
     /**
+     * Queue a seqno ack to be processed after the topology has been updated.
+     *
+     * Tracks acks received either before any topology has been received,
+     * or from nodes not currently in the topology (i.e., a new replica node
+     * acking prior to setTopology)
+     */
+    void queueSeqnoAck(const std::string& node, int64_t seqno);
+
+    /**
      * A topology change may trigger a commit due to number of replicas
      * changing. Generally we commit by moving the HPS or receiving a seqno ack
      * but we cannot call the typical updateHPS function at topology change.

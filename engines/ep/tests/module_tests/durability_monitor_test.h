@@ -432,3 +432,9 @@ protected:
  */
 class PassiveDurabilityMonitorPersistentTest
     : public PassiveDurabilityMonitorTest {};
+
+class NoTopologyActiveDurabilityMonitorTest
+    : public ActiveDurabilityMonitorTest {
+public:
+    void SetUp() override;
+};
