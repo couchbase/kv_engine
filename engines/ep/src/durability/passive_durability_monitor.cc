@@ -327,7 +327,15 @@ void PassiveDurabilityMonitor::completeSyncWrite(
 
     if (!enforceOrderedCompletion) {
         // Advance the iterator to the right item, it might not be the first
-        while (next != s->trackedWrites.end() && next->getKey() != key) {
+        //
+        // MB-37063: We may find a previous Prepare that has been already
+        //   completed but not removed from tracking. That is a legal condition,
+        //   refer to the MB for details. Just skip the completed Prepare and
+        //   place 'next' to the correct in-flight Prepare (if any).
+        //   Some sanity-checks follow to ensure that we are doing the right
+        //   thing here.
+        while (next != s->trackedWrites.end() &&
+               (next->getKey() != key || next->isCompleted())) {
             next = s->getIteratorNext(next);
         }
     }
