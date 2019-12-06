@@ -522,7 +522,7 @@ public:
      * @return true if the connection is running over SSL, false otherwise
      */
     bool isSslEnabled() const {
-        return server_ctx != nullptr;
+        return ssl;
     }
 
     /**
@@ -1044,15 +1044,9 @@ protected:
     bool saslAuthEnabled = true;
 
     /**
-     * The SSL context object used to create the ssl instance for this
-     * connection (contains the certificates and attributes etc)
+     * Is this connection over SSL or not
      */
-    SSL_CTX* server_ctx = nullptr;
-
-    /**
-     * The actual SSL handle used by libevent for the SSL communication
-     */
-    SSL* client_ctx = nullptr;
+    const bool ssl;
 
     struct SendQueueInfo {
         std::chrono::steady_clock::time_point last{};

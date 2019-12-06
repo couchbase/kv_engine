@@ -210,7 +210,7 @@ nlohmann::json Connection::toJSON() const {
         ret["state"] = "immediate close";
     }
 
-    ret["ssl"] = client_ctx != nullptr;
+    ret["ssl"] = ssl;
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
 
@@ -802,8 +802,6 @@ bool Connection::executeCommandsCallback() {
                 thread.pending_io.map.erase(this);
             }
 
-            bev.reset();
-
             // delete the object
             return false;
         }
@@ -1067,7 +1065,8 @@ Connection::Connection(FrontEndThread& thr)
       peername("unknown"),
       sockname("unknown"),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
-              EventPriority::Default)) {
+              EventPriority::Default)),
+      ssl(false) {
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
@@ -1085,13 +1084,14 @@ Connection::Connection(SOCKET sfd,
       peername(cb::net::getpeername(socketDescriptor)),
       sockname(cb::net::getsockname(socketDescriptor)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
-              EventPriority::Default)) {
+              EventPriority::Default)),
+      ssl(ifc.isSslPort()) {
     setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
 
-    if (ifc.isSslPort()) {
+    if (ssl) {
         // Trond Norbye - 20171003
         //
         // @todo figure out if the SSL_CTX needs to have the same lifetime
@@ -1101,7 +1101,7 @@ Connection::Connection(SOCKET sfd,
         //       If we do that we don't have to reload the SSL certificates
         //       and parse the PEM format every time we accept a client!
         //       (which we shouldn't be doing!!!!)
-        server_ctx = SSL_CTX_new(SSLv23_server_method());
+        auto* server_ctx = SSL_CTX_new(SSLv23_server_method());
         SSL_CTX_set_dh_auto(server_ctx, 1);
         SSL_CTX_set_options(server_ctx,
                             Settings::instance().getSslProtocolMask());
@@ -1142,16 +1142,22 @@ Connection::Connection(SOCKET sfd,
             break;
         }
 
-        client_ctx = SSL_new(server_ctx);
         bev.reset(bufferevent_openssl_socket_new(
-                base, sfd, client_ctx, BUFFEREVENT_SSL_ACCEPTING, 0));
+                base,
+                sfd,
+                SSL_new(server_ctx),
+                BUFFEREVENT_SSL_ACCEPTING,
+                BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS));
         bufferevent_setcb(bev.get(),
                           Connection::ssl_read_callback,
                           Connection::rw_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
+
+        SSL_CTX_free(server_ctx);
     } else {
-        bev.reset(bufferevent_socket_new(base, sfd, 0));
+        bev.reset(bufferevent_socket_new(
+                base, sfd, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS));
         bufferevent_setcb(bev.get(),
                           Connection::rw_callback,
                           Connection::rw_callback,
@@ -1170,24 +1176,17 @@ Connection::~Connection() {
         externalAuthManager->logoff(username);
     }
 
-    if (client_ctx) {
-        SSL_free(client_ctx);
-    }
-
-    if (server_ctx) {
-        SSL_CTX_free(server_ctx);
-    }
-
-    if (socketDescriptor != INVALID_SOCKET) {
-        LOG_DEBUG("{} - Closing socket descriptor", getId());
-        safe_close(socketDescriptor);
+    if (bev) {
+        bev.reset();
+        stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
+        if (is_listen_disabled()) {
+            notify_dispatcher();
+        }
     }
 }
 
 void Connection::EventDeleter::operator()(bufferevent* ev) {
-    if (ev != nullptr) {
-        bufferevent_free(ev);
-    }
+    bufferevent_free(ev);
 }
 
 void Connection::setAgentName(cb::const_char_buffer name) {
