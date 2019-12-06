@@ -787,7 +787,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     // flip to a disk snapshot instead
     ckptMgr->createSnapshot(lastSeqno + 1,
                             lastSeqno + 2,
-                            {} /*HCS*/,
+                            prepareSeqno /*HCS*/,
                             CheckpointType::Disk,
                             lastSeqno);
 
@@ -861,7 +861,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     // flip to a disk snapshot instead
     ckptMgr->createSnapshot(lastSeqno + 1,
                             lastSeqno + 3,
-                            {} /*HCS*/,
+                            prepareSeqno /*HCS*/,
                             CheckpointType::Disk,
                             lastSeqno);
 

@@ -1208,7 +1208,7 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
         CheckpointType type) {
     auto vb = store->getVBucket(vbid);
     vb->checkpointManager->createSnapshot(
-            1 /*snapStart*/, 1 /*snapEnd*/, {} /*HCS*/, type, 0);
+            1 /*snapStart*/, 1 /*snapEnd*/, 0 /*HCS*/, type, 0);
 
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "do");
@@ -1661,13 +1661,14 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         auto vb = engine->getKVBucket()->getVBucket(vbid);
 
         // We're going to pretend to be a replica because it's easier than
-        // setting up a consumer. We want to be receiving a disk snapshot from
-        // seqno 1 to 3 where seqno 1 is a prepare, seqno 2 the commit for the
-        // prepare, and seqno 3 is an unrelated mutation. HCS is not flushed
-        // as the snapshot is incomplete.
+        // setting up a consumer. We want to be receiving a partial disk
+        // snapshot from seqno 1 to 5 where seqno 1 is a prepare, seqno 2
+        // unrelated, and seqno 4 is an abort for a different prepare.
+        // HCS is not flushed as the snapshot is incomplete, even though we
+        // flush the abort.
         vb->checkpointManager->createSnapshot(1 /*snapStart*/,
                                               5 /*snapEnd*/,
-                                              {} /*HCS not flushed*/,
+                                              3 /*HCS*/,
                                               CheckpointType::Disk,
                                               0);
         ASSERT_TRUE(vb->isReceivingDiskSnapshot());
@@ -1684,7 +1685,7 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         prepare->setBySeqno(1);
         EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
 
-        // 2) Receive the prepare
+        // 2) Receive the abort
         auto abortKey = makeStoredDocKey("abort");
         vb->abort(abortKey, 3, 4, vb->lockCollections(abortKey));
         EXPECT_EQ(4, vb->getHighSeqno());
@@ -1756,13 +1757,13 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         auto vb = engine->getKVBucket()->getVBucket(vbid);
 
         // We're going to pretend to be a replica because it's easier than
-        // setting up a consumer. We want to be receiving a disk snapshot from
-        // seqno 1 to 3 where seqno 1 is a prepare, seqno 2 the commit for the
-        // prepare, and seqno 3 is an unrelated mutation. HCS is not flushed
-        // as the snapshot is incomplete.
+        // setting up a consumer. We want to be receiving a partial disk
+        // snapshot from seqno 1 to 3 where seqno 1 is a prepare, seqno 2 the
+        // commit for the prepare, and seqno 3 is an unrelated mutation. HCS is
+        // not flushed as the snapshot is incomplete.
         vb->checkpointManager->createSnapshot(1 /*snapStart*/,
                                               3 /*snapEnd*/,
-                                              {} /*HCS not flushed*/,
+                                              1 /*HCS*/,
                                               CheckpointType::Disk,
                                               3);
         ASSERT_TRUE(vb->isReceivingDiskSnapshot());

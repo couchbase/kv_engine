@@ -1784,7 +1784,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ MARKER_FLAG_DISK,
-                             /*HCS*/ {},
+                             /*HCS*/ 0,
                              /*maxVisibleSeqno*/ {});
 
     // 2. Now add a deletion.

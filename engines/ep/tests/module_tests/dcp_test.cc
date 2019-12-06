@@ -1671,7 +1671,7 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
                              /*start_seqno*/ 0,
                              /*end_seqno*/ 1,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2,
-                             /*HCS*/ {},
+                             /*HCS*/ 0,
                              /*maxVisibleSeqno*/ {});
 
     EXPECT_TRUE(engine->getKVBucket()
@@ -1780,7 +1780,7 @@ TEST_P(ConnectionTest, SnapshotsAndNoData) {
                              /*start_seqno*/ 0,
                              /*end_seqno*/ 0,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2,
-                             /*HCS*/ {},
+                             /*HCS*/ 0,
                              /*maxVisibleSeqno*/ {});
 
     EXPECT_EQ(2, manager.getOpenCheckpointId());

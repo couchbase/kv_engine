@@ -52,7 +52,8 @@ std::shared_ptr<PassiveStream> MockDcpConsumer::makePassiveStream(
                                                snap_start_seqno,
                                                snap_end_seqno,
                                                vb_high_seqno,
-                                               vb_manifest_uid);
+                                               vb_manifest_uid,
+                                               supportsSyncReplication);
 }
 
 boost::optional<uint32_t> MockDcpConsumer::getStreamOpaque(uint32_t opaque) {

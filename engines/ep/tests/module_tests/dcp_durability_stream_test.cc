@@ -1068,8 +1068,8 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
 }
 
 void DurabilityPassiveStreamTest::SetUp() {
+    enableSyncReplication = true;
     SingleThreadedPassiveStreamTest::SetUp();
-    consumer->enableSyncReplication();
     ASSERT_TRUE(consumer->isSyncReplicationEnabled());
 }
 
@@ -1202,7 +1202,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // is not persisted by the replica until the entire snapshot is flushed
     // to disk.
 
-    // Send a disk snapshot marker with a HCS of 3
+    // Send a disk snapshot marker with a HCS of 4
     SnapshotMarker marker(0 /*opaque*/,
                           vbid,
                           1 /*snapStart*/,
@@ -1515,7 +1515,7 @@ void DurabilityPassiveStreamTest::
                           1 /*snapStart*/,
                           3 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          0 /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -2760,20 +2760,20 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepare) {
  */
 TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
     uint32_t opaque = 0;
+    auto prepareSeqno = 3;
+    auto abortSeqno = 4;
 
     SnapshotMarker marker(opaque,
                           vbid,
                           3 /*snapStart*/,
                           4 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          prepareSeqno,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
     auto key = makeStoredDocKey("key1");
-    auto prepareSeqno = 3;
-    auto abortSeqno = 4;
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
@@ -2787,20 +2787,20 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
 TEST_P(DurabilityPassiveStreamTest,
        ReceiveAbortWithoutPrepareFromDiskInvalidPrepareSeqno) {
     uint32_t opaque = 0;
+    auto prepareSeqno = 2;
+    auto abortSeqno = 4;
 
     SnapshotMarker marker(opaque,
                           vbid,
                           3 /*snapStart*/,
                           4 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          prepareSeqno,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
     auto key = makeStoredDocKey("key1");
-    auto prepareSeqno = 2;
-    auto abortSeqno = 4;
     EXPECT_EQ(ENGINE_EINVAL,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
@@ -2883,13 +2883,14 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
     // Need to use actual opaque of the stream as we hit the consumer level
     // function.
     uint32_t opaque = 1;
+    const uint64_t prepareSeqno = 1;
 
     SnapshotMarker marker(opaque,
                           vbid,
                           1 /*snapStart*/,
                           2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          prepareSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -2898,7 +2899,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
     using namespace cb::durability;
     auto prepare = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    prepare->setBySeqno(1);
+    prepare->setBySeqno(prepareSeqno);
     prepare->setCas(999);
 
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -2920,6 +2921,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
 
 TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     uint32_t opaque = 0;
+    const uint64_t prepareSeqno = 1;
 
     // 1) Send disk snapshot marker
     SnapshotMarker marker(opaque,
@@ -2927,7 +2929,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                           1 /*snapStart*/,
                           2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          prepareSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -2937,7 +2939,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     using namespace cb::durability;
     auto pending = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    pending->setBySeqno(1);
+    pending->setBySeqno(prepareSeqno);
     pending->setCas(1);
 
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -3075,13 +3077,14 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
 
     // 3a) Receive 4:PRE
     ASSERT_TRUE(stream->isActive());
+    const uint64_t preSeqno = 4;
     marker = SnapshotMarker(
             opaque,
             vbid,
             1 /*snapStart*/,
             5 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-            {} /*HCS*/,
+            preSeqno /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
@@ -3094,7 +3097,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                               value.size(),
                               PROTOCOL_BINARY_RAW_BYTES,
                               cas /*cas*/,
-                              4 /*seqno*/,
+                              preSeqno,
                               vbid));
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -3145,6 +3148,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     // seq:1 prepare(key)
     // seq:3 delete(key)
     // In this case seq:2 was the commit and is now represented by del seq:3
+    const uint64_t preSeqno = 1;
 
     // 1) Send disk snapshot marker
     SnapshotMarker marker(opaque,
@@ -3152,7 +3156,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                           1 /*snapStart*/,
                           3 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          preSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -3162,7 +3166,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     using namespace cb::durability;
     auto pending = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    pending->setBySeqno(1);
+    pending->setBySeqno(preSeqno);
     pending->setCas(1);
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
@@ -3236,13 +3240,14 @@ TEST_P(DurabilityPassiveStreamTest,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // 3) Send disk snapshot marker
+    const uint64_t keyBPrepareSeqno = 3;
     marker = SnapshotMarker(
             opaque,
             vbid,
             2 /*snapStart*/,
             5 /*snapEnd*/,
             dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-            {} /*HCS*/,
+            keyBPrepareSeqno /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
@@ -3251,7 +3256,7 @@ TEST_P(DurabilityPassiveStreamTest,
     auto key = makeStoredDocKey("keyB");
     pending = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    pending->setBySeqno(3);
+    pending->setBySeqno(keyBPrepareSeqno);
     pending->setCas(3);
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
@@ -3309,14 +3314,14 @@ TEST_P(DurabilityPassiveStreamTest,
  */
 TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     uint32_t opaque = 0;
-
+    const uint64_t preSeqno = 1;
     // 1) Receive disk snapshot marker
     SnapshotMarker marker(opaque,
                           vbid,
                           1 /*snapStart*/,
                           2 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          preSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -3326,7 +3331,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     using namespace cb::durability;
     auto pending = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    pending->setBySeqno(1);
+    pending->setBySeqno(preSeqno);
     pending->setCas(1);
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
@@ -3658,7 +3663,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                             13 /*snapStart*/,
                             20 /*snapEnd*/,
                             MARKER_FLAG_CHK | MARKER_FLAG_DISK /*flags*/,
-                            {} /*HCS*/,
+                            15 /*HCS*/,
                             {} /*maxVisibleSeqno*/,
                             {} /*streamId*/);
     stream->processMarker(&marker);
@@ -4457,6 +4462,37 @@ TEST_P(DurabilityPromotionStreamTest,
     testActiveSendsHCSAtDiskSnapshotSentFromMemory();
 }
 
+/**
+ * Test fixture for durability-related PassiveStream tests where the Producer
+ * is a downlevel version and doesn't support SyncWrites.
+ */
+class DurabilityPassiveStreamDownlevelProducerTest
+    : public SingleThreadedPassiveStreamTest {
+    // Impl identical to SingleThreadedPassiveStreamTest, just in own class
+    // for clarity.
+};
+
+// MB-37161: When receiving a disk snapshot from a pre-MadHatter Producer, it
+// will not sent a HCS (given it knows nothing of SyncWrites). This should _not_
+// be treated as a non-present HCS by the mad-hatter consumer, effectively it's
+// a HCS of zero (no SyncWrites have yet been completed).
+TEST_P(DurabilityPassiveStreamDownlevelProducerTest,
+       ReceiveBackfilledSnapshotPreSyncReplication) {
+    uint32_t opaque = 1;
+
+    SnapshotMarker marker(
+            opaque,
+            vbid,
+            1 /*snapStart*/,
+            1 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_DISK,
+            {} /*HCS missing as pre-MH producer will not send it*/,
+            {} /*maxVisibleSeqno*/,
+            {} /*streamId*/);
+    // Prior to the fix this would fail an Expects()
+    stream->processMarker(&marker);
+}
+
 void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
         DocumentState docState, cb::durability::Level level) {
     if (!(persistent() || level == cb::durability::Level::Majority)) {
@@ -5001,6 +5037,11 @@ INSTANTIATE_TEST_CASE_P(AllBucketTypes,
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         DurabilityPassiveStreamTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        DurabilityPassiveStreamDownlevelProducerTest,
                         STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
 

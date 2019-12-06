@@ -87,6 +87,10 @@ protected:
     void mb_33773(mb_33773Mode mode);
 
 protected:
+    // Should the DcpConsumer have SyncReplication enabled when created in
+    // SetUp()?
+    bool enableSyncReplication = false;
+
     std::shared_ptr<MockDcpConsumer> consumer;
     // Owned by the engine
     MockPassiveStream* stream;

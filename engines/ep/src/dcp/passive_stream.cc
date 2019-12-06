@@ -46,7 +46,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              uint64_t snap_start_seqno,
                              uint64_t snap_end_seqno,
                              uint64_t vb_high_seqno,
-                             const Collections::ManifestUid vb_manifest_uid)
+                             const Collections::ManifestUid vb_manifest_uid,
+                             SyncReplication supportsSyncReplication)
     : Stream(name,
              flags,
              opaque,
@@ -58,6 +59,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
              snap_end_seqno),
       engine(e),
       consumerPtr(c),
+      supportsSyncReplication(supportsSyncReplication != SyncReplication::No),
       last_seqno(vb_high_seqno),
       cur_snapshot_start(0),
       cur_snapshot_end(0),
@@ -935,6 +937,18 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                       : CheckpointType::Memory;
 
         auto& ckptMgr = *vb->checkpointManager;
+
+        boost::optional<uint64_t> hcs = marker->getHighCompletedSeqno();
+        if ((marker->getFlags() & MARKER_FLAG_DISK) &&
+            !supportsSyncReplication) {
+            // If this stream doesn't support SyncReplication (i.e. the producer
+            // is a pre-MadHatter version) then we should consider the HCS to be
+            // present but zero for disk snapshot (not possible for any
+            // SyncWrites to have completed yet). If SyncReplication is
+            // supported then use the value from the marker.
+            hcs = 0;
+        }
+
         // We could be connected to a non sync-repl, so if the max-visible is
         // not transmitted (optional is false), set visible to snap-end
         auto visibleSeq =
@@ -943,7 +957,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             vb->setReceivingInitialDiskSnapshot(true);
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
-                                   marker->getHighCompletedSeqno(),
+                                   hcs,
                                    checkpointType,
                                    visibleSeq);
         } else {
@@ -951,7 +965,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
-                                       marker->getHighCompletedSeqno(),
+                                       hcs,
                                        checkpointType,
                                        visibleSeq);
             } else {
