@@ -70,6 +70,7 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
             lastSeqno,
             range.getStart(),
             range.getEnd(),
+            lastSeqno, // setting maxVisibleSeqno to equal lastSeqno
             /*flusher callback*/ nullptr);
 
     ASSERT_TRUE(vbucket);
@@ -342,6 +343,8 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(1001, qi->getBySeqno());
     EXPECT_EQ(20, qi->getRevSeqno());
     EXPECT_EQ(1, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(1001, this->manager->getHighSeqno());
+    EXPECT_EQ(1001, this->manager->getMaxVisibleSeqno());
 
     // Adding the same key again shouldn't increase the size.
     queued_item qi2(new Item(makeStoredDocKey("key1"),
@@ -359,6 +362,8 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(1002, qi2->getBySeqno());
     EXPECT_EQ(21, qi2->getRevSeqno());
     EXPECT_EQ(1, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(1002, this->manager->getHighSeqno());
+    EXPECT_EQ(1002, this->manager->getMaxVisibleSeqno());
 
     // Adding a different key should increase size.
     queued_item qi3(new Item(makeStoredDocKey("key2"),
@@ -376,6 +381,8 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(1003, qi3->getBySeqno());
     EXPECT_EQ(0, qi3->getRevSeqno());
     EXPECT_EQ(2, this->manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(1003, this->manager->getHighSeqno());
+    EXPECT_EQ(1003, this->manager->getMaxVisibleSeqno());
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -384,6 +391,8 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(0, result.ranges.front().getStart());
     EXPECT_EQ(1003, result.ranges.front().getEnd());
     EXPECT_EQ(3, items.size());
+    EXPECT_EQ(1003, result.visibleSeqno);
+    EXPECT_FALSE(result.highCompletedSeqno);
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation),
@@ -408,6 +417,8 @@ TEST_P(CheckpointTest, Delete) {
     EXPECT_EQ(1, this->manager->getNumCheckpoints());  // Single open checkpoint.
     EXPECT_EQ(1, this->manager->getNumOpenChkItems()); // 1x op_del
     EXPECT_EQ(1001, qi->getBySeqno());
+    EXPECT_EQ(1001, this->manager->getHighSeqno());
+    EXPECT_EQ(1001, this->manager->getMaxVisibleSeqno());
     EXPECT_EQ(10, qi->getRevSeqno());
 
     // Check that the items fetched matches what was enqueued.
@@ -417,6 +428,8 @@ TEST_P(CheckpointTest, Delete) {
     EXPECT_EQ(0, result.ranges.front().getStart());
     EXPECT_EQ(1001, result.ranges.back().getEnd());
     ASSERT_EQ(2, items.size());
+    EXPECT_EQ(1001, result.visibleSeqno);
+    EXPECT_FALSE(result.highCompletedSeqno);
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation)));
@@ -460,7 +473,8 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
     EXPECT_EQ(1002, result.ranges.front().getEnd());
     EXPECT_EQ(1002, result.ranges.back().getStart());
     EXPECT_EQ(1004, result.ranges.back().getEnd());
-
+    EXPECT_EQ(1002, result.visibleSeqno);
+    EXPECT_FALSE(result.highCompletedSeqno);
     EXPECT_EQ(7, items.size());
     EXPECT_THAT(items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
@@ -478,12 +492,13 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
 // The test also demonstrates a partial snapshot
 TEST_P(CheckpointTest, getItems_MultipleSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
-    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory);
+    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
     EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
     EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
 
     // 2nd Snapshot covers 1004-1006 and all items are received
-    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Memory);
+    // here we pretend that 1005 is hidden
+    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Memory, 1005);
 
     for (auto i : {1004, 1005, 1006}) {
         EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
@@ -516,17 +531,19 @@ TEST_P(CheckpointTest, getItems_MultipleSnapshots) {
     EXPECT_EQ(1005, items.at(6)->getBySeqno());
     EXPECT_EQ(queue_op::mutation, items.at(7)->getOperation());
     EXPECT_EQ(1006, items.at(7)->getBySeqno());
+    EXPECT_EQ(1003, cursorResult.visibleSeqno);
+    EXPECT_FALSE(cursorResult.highCompletedSeqno);
 }
 
 // However different types of snapshot don't get combined
 TEST_P(CheckpointTest, getItems_MemoryDiskSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
-    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory);
+    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
     EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
     EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
 
     // 2nd Snapshot covers 1004-1006 and all items are received
-    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Disk);
+    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Disk, 1006);
 
     for (auto i : {1004, 1005, 1006}) {
         EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
@@ -550,6 +567,8 @@ TEST_P(CheckpointTest, getItems_MemoryDiskSnapshots) {
     EXPECT_EQ(queue_op::mutation, items.at(2)->getOperation());
     EXPECT_EQ(1003, items.at(2)->getBySeqno());
     EXPECT_EQ(queue_op::checkpoint_end, items.at(3)->getOperation());
+    EXPECT_EQ(1003, cursorResult.visibleSeqno);
+    EXPECT_FALSE(cursorResult.highCompletedSeqno);
 }
 
 // Test the automatic creation of checkpoints based on the number of items.
@@ -608,6 +627,8 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     EXPECT_EQ(1010, result.ranges.at(0).getEnd());
     EXPECT_EQ(1010, result.ranges.at(1).getStart());
     EXPECT_EQ(1021, result.ranges.at(1).getEnd());
+    EXPECT_EQ(1010, result.visibleSeqno);
+    EXPECT_FALSE(result.highCompletedSeqno);
     EXPECT_EQ(24, items.size());
 
     // Should still have the same number of checkpoints and open items.
@@ -760,6 +781,8 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(0).getEnd());
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getStart());
     EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getEnd());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.visibleSeqno);
+    EXPECT_FALSE(result.highCompletedSeqno);
 
     /* Get items for DCP replication cursor */
     items.clear();
@@ -771,6 +794,8 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(0).getEnd());
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getStart());
     EXPECT_EQ(1000 + 2 * MIN_CHECKPOINT_ITEMS, result.ranges.at(1).getEnd());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.visibleSeqno);
+    EXPECT_FALSE(result.highCompletedSeqno);
 }
 
 // Test getNextItemsForCursor() when it is limited to fewer items than exist
@@ -1429,6 +1454,7 @@ TEST_P(CheckpointTest, takeAndResetCursors) {
             0,
             0 /*lastSnapStart*/,
             0 /*lastSnapEnd*/,
+            0 /*maxVisible*/,
             nullptr /*persistence callback*/);
 
     manager2->takeAndResetCursors(*this->manager);
@@ -2219,7 +2245,7 @@ TEST_P(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
 
     // first snapshot received
-    cm.createSnapshot(1, 10, {/* hcs */}, CheckpointType::Memory);
+    cm.createSnapshot(1, 10, {/* hcs */}, CheckpointType::Memory, 10);
     EXPECT_EQ(1, checkpointList.size());
     // Ensure the number of cursors is still correct
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());

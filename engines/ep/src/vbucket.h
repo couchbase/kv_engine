@@ -206,7 +206,8 @@ public:
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
-            const nlohmann::json& replTopology = {});
+            const nlohmann::json& replTopology = {},
+            uint64_t maxVisibleSeqno = 0);
 
     virtual ~VBucket();
 
@@ -1662,6 +1663,11 @@ public:
      * (HighCompletedSeqno and HighPreparedSeqno].
      */
     void setUpAllowedDuplicatePrepareThreshold();
+
+    /**
+     * @return the maximum visible seqno for the vbucket
+     */
+    uint64_t getMaxVisibleSeqno() const;
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

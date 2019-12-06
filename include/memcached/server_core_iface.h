@@ -81,4 +81,6 @@ struct ServerCoreIface {
 
     /// Get the configured size for the reader and writer pool
     virtual ThreadPoolConfig getThreadPoolSizes() = 0;
+
+    virtual bool isCollectionsEnabled() const = 0;
 };

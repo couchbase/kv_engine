@@ -264,7 +264,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _))
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
         EXPECT_CALL(producers,
@@ -314,7 +314,7 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _))
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
         EXPECT_CALL(producers,
@@ -366,7 +366,7 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _))
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
         EXPECT_CALL(producers,
@@ -417,7 +417,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 2, _, _, _))
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 2, _, _, _, _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
         EXPECT_CALL(producers,
@@ -485,7 +485,7 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _))
+        EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
         EXPECT_CALL(producers,
@@ -499,7 +499,7 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
                              _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
-        EXPECT_CALL(producers, marker(_, Vbid(0), 2, 2, _, _, _))
+        EXPECT_CALL(producers, marker(_, Vbid(0), 2, 2, _, _, _, _))
                 .WillOnce(Return(ENGINE_SUCCESS));
 
         EXPECT_CALL(producers,

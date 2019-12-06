@@ -157,13 +157,34 @@ public:
     /// Set the number of backfill items remaining to the given value.
     void setBackfillRemaining(size_t value);
 
+    void setBackfillRemaining_UNLOCKED(size_t value);
+
     /// Clears the number of backfill items remaining, setting to an empty
     /// (unknown) value.
     void clearBackfillRemaining();
 
-    void markDiskSnapshot(uint64_t startSeqno,
+    /**
+     * Queues a snapshot marker to be sent - only if there are items in
+     * the backfill range which will be sent.
+     *
+     * Connections which have not negotiated for sync writes will not
+     * send prepares or aborts; if the entire backfill is prepares or
+     * aborts, then a snapshot marker should not be sent because no
+     * items will follow.
+     *
+     * @param startSeqno start of backfill range
+     * @param endSeqno seqno of last item in backfill range
+     * @param highCompletedSeqno seqno of last commit/abort in the backfill
+     * range
+     * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
+     * event) item
+     * @return If the stream has queued a snapshot marker. If this is false, the
+     *         stream determined none of the items in the backfill would be sent
+     */
+    bool markDiskSnapshot(uint64_t startSeqno,
                           uint64_t endSeqno,
-                          boost::optional<uint64_t> highCompletedSeqno);
+                          boost::optional<uint64_t> highCompletedSeqno,
+                          uint64_t maxVisibleSeqno);
 
     bool backfillReceived(std::unique_ptr<Item> itm,
                           backfill_source_t backfill_source,
@@ -253,6 +274,11 @@ public:
          * streams a disk-snapshot from memory.
          */
         boost::optional<uint64_t> highCompletedSeqno;
+
+        /**
+         * The visibleSeqno used to 'seed' the processItems loop
+         */
+        uint64_t visibleSeqno{0};
     };
 
     /**
@@ -265,6 +291,20 @@ public:
                                uint64_t preparedSeqno);
 
     static std::string to_string(StreamState type);
+
+    /**
+     * Notifies the stream that a scheduled backfill completed
+     * without providing any items to backfillReceived, and
+     * without marking a disk snapshot.
+     *
+     * If the cursor has been dropped, re-registers it to allow the stream
+     * to transition to memory.
+     *
+     * @param lastReadSeqno last seqno in backfill range
+     */
+    void notifyEmptyBackfill(uint64_t lastSeenSeqno);
+
+    void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
 
 protected:
     /**
@@ -399,10 +439,12 @@ private:
      * @param checkpointType The type of checkpoint (Disk/Memory)
      * @param snapshot The items to be streamed
      * @param highCompletedSeqno (optional) Required for CheckpointType::Disk
+     * @param maxVisibleSeqno the maximum visible seq (not prepare/abort)
      */
     void snapshot(CheckpointType checkpointType,
                   std::deque<std::unique_ptr<DcpResponse>>& snapshot,
-                  boost::optional<uint64_t> highCompletedSeqno);
+                  boost::optional<uint64_t> highCompletedSeqno,
+                  uint64_t maxVisibleSeqno);
 
     void endStream(end_stream_status_t reason);
 

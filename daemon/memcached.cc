@@ -1382,6 +1382,10 @@ struct ServerCoreApi : public ServerCoreIface {
         return ThreadPoolConfig(instance.getNumReaderThreads(),
                                 instance.getNumWriterThreads());
     }
+
+    bool isCollectionsEnabled() const override {
+        return Settings::instance().isCollectionsEnabled();
+    }
 };
 
 struct ServerLogApi : public ServerLogIface {

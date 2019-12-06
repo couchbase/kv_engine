@@ -16,6 +16,7 @@
  */
 
 #include "dcp_durability_stream_test.h"
+#include <engines/ep/tests/mock/mock_dcp.h>
 
 #include "../../src/dcp/backfill-manager.h"
 #include "checkpoint.h"
@@ -138,6 +139,11 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    // Only a prepare exists, so maxVisible remains 0
+    EXPECT_EQ(
+            0,
+            dynamic_cast<SnapshotMarker&>(*resp).getMaxVisibleSeqno().value_or(
+                    ~0));
 
     // Simulate the Replica ack'ing the SnapshotMarker's bytes
     auto bytesOutstanding = producer->getBytesOutstanding();
@@ -273,8 +279,10 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
 
     // Fetch items via DCP stream.
     auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
+    uint64_t expectedVisibleSeqno = 0;
     switch (res) {
     case Resolution::Commit:
+        expectedVisibleSeqno = 2;
         ASSERT_EQ(1, outstandingItemsResult.items.size())
                 << "Expected 1 item (Commit)";
         EXPECT_EQ(queue_op::commit_sync_write,
@@ -304,6 +312,10 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(expectedVisibleSeqno, marker.getMaxVisibleSeqno().value_or(~0));
+    EXPECT_FALSE(marker.getHighCompletedSeqno().is_initialized());
+    EXPECT_EQ(2, marker.getEndSeqno());
 
     // Simulate the Replica ack'ing the SnapshotMarker's bytes
     auto bytesOutstanding = producer->getBytesOutstanding();
@@ -413,8 +425,16 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size());
 
-    // First item is a snapshot marker so just skip it
     auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
+
+    EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(1, marker.getEndSeqno());
+
     resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
@@ -495,9 +515,22 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     // Abort
     ASSERT_EQ(2, readyQ.size());
 
-    // First item is a snapshot marker so just skip it
+    // First item is a snapshot marker
     auto resp = stream->public_popFromReadyQ();
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
+    if (persistent()) {
+        EXPECT_EQ(1, *marker.getHighCompletedSeqno());
+    } else {
+        // TODO MB-37151: drive this test with processDurabilityTimeout and
+        //  processResolvedSyncWrites so the ADM moves the HCS
+        //  this will then match the persistent case
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(2, marker.getEndSeqno());
 
     // We don't receive the prepare, just the abort as it de-dupes the
     // prepare.
@@ -546,8 +579,22 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size());
 
-    // First item is a snapshot marker so just skip it
     auto resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
+    if (persistent()) {
+        EXPECT_EQ(1, *marker.getHighCompletedSeqno());
+    } else {
+        // TODO MB-37151: drive this test with processDurabilityTimeout and
+        //  processResolvedSyncWrites so the ADM moves the HCS
+        //  this will then match the persistent case
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(2, marker.getEndSeqno());
+
     resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
@@ -772,6 +819,19 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     auto resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
+    if (persistent()) {
+        EXPECT_EQ(3, *marker.getHighCompletedSeqno());
+    } else {
+        // TODO MB-37151: drive this test with processDurabilityTimeout and
+        //  processResolvedSyncWrites so the ADM moves the HCS
+        //  this will then match the persistent case
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(1, marker.getStartSeqno());
+    EXPECT_EQ(5, marker.getEndSeqno());
 
     // Followed by a mutation instead of a commit
     resp = stream->public_popFromReadyQ();
@@ -821,6 +881,19 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     auto resp = stream->public_popFromReadyQ();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
+    if (persistent()) {
+        EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
+    } else {
+        // TODO MB-37151: drive this test with processDurabilityTimeout and
+        //  processResolvedSyncWrites so the ADM moves the HCS
+        //  this will then match the persistent case
+        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+    }
+    EXPECT_EQ(0, marker.getStartSeqno());
+    EXPECT_EQ(5, marker.getEndSeqno());
 
     // Followed by a mutation instead of a commit
     resp = stream->public_popFromReadyQ();
@@ -923,7 +996,15 @@ TEST_P(DurabilityActiveStreamTest,
     bfm.backfill();
     bfm.backfill();
     EXPECT_EQ(3, stream->public_readyQSize());
-    stream->consumeBackfillItems(3);
+
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    auto marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
+    EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
+    EXPECT_EQ(4, marker.getEndSeqno());
+
+    stream->consumeBackfillItems(2);
 
     EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
 
@@ -980,6 +1061,8 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     ASSERT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
     ASSERT_TRUE(marker.getHighCompletedSeqno());
     EXPECT_EQ(1, *marker.getHighCompletedSeqno());
+    EXPECT_EQ(2, marker.getMaxVisibleSeqno().value_or(~0));
+    EXPECT_EQ(2, marker.getEndSeqno());
 
     producer->cancelCheckpointCreatorTask();
 }
@@ -4372,6 +4455,543 @@ TEST_P(DurabilityPromotionStreamTest,
        ActiveSendsHCSAtDiskSnapshotSentFromMemory_Pending) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
     testActiveSendsHCSAtDiskSnapshotSentFromMemory();
+}
+
+void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
+        DocumentState docState, cb::durability::Level level) {
+    if (!(persistent() || level == cb::durability::Level::Majority)) {
+        return;
+    }
+    // drop the sync-write aware producer and stream created in setup
+    producer = producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test_producer->test_consumer",
+                                              0,
+                                              false /*startTask*/);
+    stream.reset();
+    // Store
+    //   Mutation
+    //   Prepare
+    //   Abort
+    auto vb = engine->getVBucket(vbid);
+    auto mutation = makeCommittedItem(makeStoredDocKey("mutation"), "value");
+
+    {
+        auto cHandle = vb->lockCollections(mutation->getKey());
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vb->set(*mutation, cookie, *engine, {}, cHandle));
+    }
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    const auto prepare =
+            makePendingItem(makeStoredDocKey("prepare"), "value", {level, {}});
+
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->abort(prepare->getKey(),
+                        prepare->getBySeqno(),
+                        {},
+                        vb->lockCollections(prepare->getKey())));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 3);
+
+    // Create NON sync repl DCP stream
+    stream = producer->mockActiveStreamRequest(
+            /* flags */ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 0,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0);
+
+    ASSERT_FALSE(stream->public_supportSyncReplication());
+
+    stream->transitionStateToBackfilling();
+
+    auto& manager = producer->getBFM();
+
+    EXPECT_EQ(backfill_success, manager.backfill()); // init
+    if (persistent()) {
+        // Ephemeral create calls directly into scan,
+        // which calls directly into complete, short-circuiting the
+        // normal one step per run logic
+        EXPECT_EQ(backfill_success, manager.backfill()); // scan
+        EXPECT_EQ(backfill_success, manager.backfill()); // completing
+    }
+    EXPECT_EQ(backfill_success, manager.backfill()); // done
+    EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
+
+    ASSERT_EQ(2, stream->public_readyQSize());
+
+    auto item = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*item);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+
+    item = stream->public_nextQueuedItem();
+
+    EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillPrepareNoSyncWriteSupport_Alive_Majority) {
+    using cb::durability::Level;
+    testBackfillNoSyncWriteSupport(DocumentState::Alive, Level::Majority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillPrepareNoSyncWriteSupport_Alive_MajorityAndPersist) {
+    using cb::durability::Level;
+    testBackfillNoSyncWriteSupport(DocumentState::Alive,
+                                   Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillPrepareNoSyncWriteSupport_Alive_Persist) {
+    using cb::durability::Level;
+    testBackfillNoSyncWriteSupport(DocumentState::Alive,
+                                   Level::PersistToMajority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillPrepareNoSyncWriteSupport_Delete_Majority) {
+    using cb::durability::Level;
+    testBackfillNoSyncWriteSupport(DocumentState::Deleted, Level::Majority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillPrepareNoSyncWriteSupport_Delete_MajorityAndPersist) {
+    using cb::durability::Level;
+    testBackfillNoSyncWriteSupport(DocumentState::Deleted,
+                                   Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillPrepareNoSyncWriteSupport_Delete_Persist) {
+    using cb::durability::Level;
+    testBackfillNoSyncWriteSupport(DocumentState::Deleted,
+                                   Level::PersistToMajority);
+}
+
+void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
+        DocumentState docState, cb::durability::Level level) {
+    if (!(persistent() || level == cb::durability::Level::Majority)) {
+        return;
+    }
+    // drop the sync-write aware producer and stream created in setup
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 0,
+                                                 true /*startTask*/);
+    stream.reset();
+    // Store
+    //   Prepare
+    //   Abort
+    auto key = makeStoredDocKey("key");
+
+    const auto prepare = makePendingItem(key, "value", {level, {}});
+
+    auto vb = engine->getVBucket(vbid);
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->abort(key,
+                        prepare->getBySeqno(),
+                        {},
+                        vb->lockCollections(prepare->getKey())));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 2);
+
+    // Create NON sync repl DCP stream
+    auto stream = producer->mockActiveStreamRequest(
+            /* flags */ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 0,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0);
+
+    // nothing in checkpoint manager or ready queue
+    EXPECT_EQ(0, stream->getItemsRemaining());
+
+    stream->transitionStateToBackfilling();
+    EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
+
+    auto& manager = producer->getBFM();
+
+    EXPECT_EQ(backfill_success, manager.backfill()); // init
+    if (persistent()) {
+        // Ephemeral create calls directly into scan,
+        // which calls directly into complete, short-circuiting the
+        // normal one step per run logic
+        // scan phase skipped because there are no items to backfill
+        EXPECT_EQ(backfill_success, manager.backfill()); // completing
+    }
+    EXPECT_EQ(backfill_success, manager.backfill()); // done
+    EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
+
+    // nothing in checkpoint manager or ready queue
+    EXPECT_EQ(0, stream->getItemsRemaining());
+
+    ASSERT_EQ(0, stream->public_readyQSize());
+
+    auto resp = stream->next();
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
+
+    // nothing in checkpoint manager or ready queue
+    EXPECT_EQ(0, stream->getItemsRemaining());
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotNoSyncWriteSupport_Alive_Majority) {
+    using cb::durability::Level;
+    testEmptyBackfillNoSyncWriteSupport(DocumentState::Alive, Level::Majority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotNoSyncWriteSupport_Alive_MajorityAndPersist) {
+    using cb::durability::Level;
+    testEmptyBackfillNoSyncWriteSupport(DocumentState::Alive,
+                                        Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotNoSyncWriteSupport_Alive_Persist) {
+    using cb::durability::Level;
+    testEmptyBackfillNoSyncWriteSupport(DocumentState::Alive,
+                                        Level::PersistToMajority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotNoSyncWriteSupport_Delete_Majority) {
+    using cb::durability::Level;
+    testEmptyBackfillNoSyncWriteSupport(DocumentState::Deleted,
+                                        Level::Majority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotNoSyncWriteSupport_Delete_MajorityAndPersist) {
+    using cb::durability::Level;
+    testEmptyBackfillNoSyncWriteSupport(DocumentState::Deleted,
+                                        Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotNoSyncWriteSupport_Delete_Persist) {
+    using cb::durability::Level;
+    testEmptyBackfillNoSyncWriteSupport(DocumentState::Deleted,
+                                        Level::PersistToMajority);
+}
+
+void DurabilityActiveStreamTest::
+        testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+                DocumentState docState, cb::durability::Level level) {
+    if (!(persistent() || level == cb::durability::Level::Majority)) {
+        return;
+    }
+    // drop the sync-write aware producer and stream created in setup
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 0,
+                                                 true /*startTask*/);
+    producer->createCheckpointProcessorTask();
+    stream.reset();
+    auto key = makeStoredDocKey("key");
+    auto vb = engine->getVBucket(vbid);
+    // Store Mutation
+    auto mutation = store_item(vbid, key, "value");
+    // drop the checkpoint to cause initial backfill
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 1);
+
+    // Create NON sync repl DCP stream
+    auto stream = producer->mockActiveStreamRequest(
+            /* flags */ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 0,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0);
+
+    EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
+
+    auto& manager = producer->getBFM();
+
+    // backfill the mutation
+    EXPECT_EQ(backfill_success, manager.backfill()); // init
+    if (persistent()) {
+        // Ephemeral create calls directly into scan,
+        // which calls directly into complete, short-circuiting the
+        // normal one step per run logic
+        EXPECT_EQ(backfill_success, manager.backfill()); // scan
+        EXPECT_EQ(backfill_success, manager.backfill()); // completing
+    }
+    EXPECT_EQ(backfill_success, manager.backfill()); // done
+    EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
+
+    // snapshot marker + mutation
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
+
+    auto resp = stream->next();
+    EXPECT_TRUE(resp);
+
+    // snap marker
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+
+    EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
+
+    // receive the mutation. Last item from backfill, stream transitions to
+    // in memory.
+    resp = stream->next();
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
+
+    // drop the cursor
+    stream->handleSlowStream();
+
+    // Store
+    //   Prepare
+    //   Abort
+    const auto prepare = makePendingItem(key, "value", {level, {}});
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->abort(key,
+                        prepare->getBySeqno(),
+                        {},
+                        vb->lockCollections(prepare->getKey())));
+    // remove checkpoint to ensure stream backfills from disk
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 2);
+
+    // stream transitions back to backfilling because the cursor was dropped
+    resp = stream->next();
+    EXPECT_FALSE(resp);
+
+    EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
+
+    EXPECT_EQ(backfill_success, manager.backfill()); // init
+    if (persistent()) {
+        // Ephemeral create calls directly into scan,
+        // which calls directly into complete, short-circuiting the
+        // normal one step per run logic
+        // scan phase skipped because there are no items to backfill
+        EXPECT_EQ(backfill_success, manager.backfill()); // completing
+    }
+    EXPECT_EQ(backfill_success, manager.backfill()); // done
+    EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
+
+    ASSERT_EQ(0, stream->public_readyQSize());
+
+    // No items should have been added to the ready queue, they are all
+    // aborts/prepares and the stream did not negotiate for sync writes
+    resp = stream->next();
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
+
+    // Now test that in-memory streaming starts at the correct point -
+    // after the prepare and abort.
+    // mutation to stream from memory
+    auto mutation2 = store_item(vbid, key, "value");
+
+    MockDcpMessageProducers producers(engine.get());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // snapshot marker + mutation
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next();
+    EXPECT_TRUE(resp);
+
+    // snap marker
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(4, snapMarker.getStartSeqno());
+    EXPECT_EQ(4, snapMarker.getEndSeqno());
+
+    // mutation
+    resp = stream->next();
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    resp = stream->next();
+    EXPECT_FALSE(resp);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotAfterCursorDroppingNoSyncWriteSupport_Alive_Majority) {
+    using cb::durability::Level;
+    testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(DocumentState::Alive,
+                                                           Level::Majority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotAfterCursorDroppingNoSyncWriteSupport_Alive_MajorityAndPersist) {
+    using cb::durability::Level;
+    testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+            DocumentState::Alive, Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotAfterCursorDroppingNoSyncWriteSupport_Alive_Persist) {
+    using cb::durability::Level;
+    testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+            DocumentState::Alive, Level::PersistToMajority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotAfterCursorDroppingNoSyncWriteSupport_Delete_Majority) {
+    using cb::durability::Level;
+    testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+            DocumentState::Deleted, Level::Majority);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotAfterCursorDroppingNoSyncWriteSupport_Delete_MajorityAndPersist) {
+    using cb::durability::Level;
+    testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+            DocumentState::Deleted, Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityActiveStreamTest,
+       BackfillEmptySnapshotAfterCursorDroppingNoSyncWriteSupport_Delete_Persist) {
+    using cb::durability::Level;
+    testEmptyBackfillAfterCursorDroppingNoSyncWriteSupport(
+            DocumentState::Deleted, Level::PersistToMajority);
+}
+
+// Test that when multiple checkpoints are combined and we generate many markers
+// the markers are correct
+TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
+    auto vb = store->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    ASSERT_TRUE(producer);
+    auto* activeStream = DurabilityActiveStreamTest::stream.get();
+    ASSERT_TRUE(activeStream);
+
+    auto prepare = makePendingItem(
+            makeStoredDocKey("prep1"),
+            "value",
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+
+    ckptMgr.createNewCheckpoint();
+
+    auto item = makeCommittedItem(makeStoredDocKey("mut1"), "value");
+    {
+        auto cHandle = vb->lockCollections(item->getKey());
+        EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+    }
+
+    prepare = makePendingItem(
+            makeStoredDocKey("prep2"),
+            "value",
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         1 /*timeout*/));
+    {
+        auto cHandle = vb->lockCollections(prepare->getKey());
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+    }
+
+    // We should get items from two checkpoints which will make processItems
+    // generate two markers
+    auto items = stream->public_getOutstandingItems(*vb);
+    stream->public_processItems(items);
+
+    // marker, prepare, marker, mutation, prepare
+    EXPECT_EQ(5, stream->public_readyQSize());
+    auto resp = stream->next();
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(snapMarker.getFlags() & MARKER_FLAG_CHK);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+    EXPECT_EQ(0, snapMarker.getMaxVisibleSeqno().value_or(~0));
+
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(snapMarker.getFlags() & MARKER_FLAG_CHK);
+    EXPECT_EQ(2, snapMarker.getStartSeqno());
+    EXPECT_EQ(3, snapMarker.getEndSeqno());
+    EXPECT_EQ(2, snapMarker.getMaxVisibleSeqno().value_or(~0));
+
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+}
+
+void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
+    /* Create new checkpoint so that we can remove the current checkpoint
+       and force a backfill in the DCP stream */
+    auto& ckpt_mgr = *vb.checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    // flush to move the persistence cursor
+    flushVBucketToDiskIfPersistent(vb.getId(), 0);
+
+    bool new_ckpt_created = false;
+    int itemsRemoved = 0;
+
+    while (true) {
+        auto removed =
+                ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+        itemsRemoved += removed;
+
+        if (itemsRemoved >= numItems || !removed) {
+            break;
+        }
+    }
+
+    EXPECT_EQ(numItems, itemsRemoved);
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

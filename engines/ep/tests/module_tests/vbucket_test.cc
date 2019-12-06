@@ -114,6 +114,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             lastSeqno,
             range.getStart(),
             range.getEnd(),
+            lastSeqno, // setting maxVisibleSeqno to equal lastSeqno
             /*flusher callback*/ nullptr);
 
     cookie = create_mock_cookie();

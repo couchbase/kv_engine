@@ -51,3 +51,7 @@ uint64_t SequenceList::RangeIterator::count() const {
 seqno_t SequenceList::RangeIterator::getEarlySnapShotEnd() const {
     return rangeIterImpl->getEarlySnapShotEnd();
 }
+
+uint64_t SequenceList::RangeIterator::getMaxVisibleSeqno() const {
+    return rangeIterImpl->getMaxVisibleSeqno();
+}

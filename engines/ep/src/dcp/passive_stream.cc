@@ -935,25 +935,31 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                       : CheckpointType::Memory;
 
         auto& ckptMgr = *vb->checkpointManager;
+        // We could be connected to a non sync-repl, so if the max-visible is
+        // not transmitted (optional is false), set visible to snap-end
+        auto visibleSeq =
+                marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             vb->setReceivingInitialDiskSnapshot(true);
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
                                    marker->getHighCompletedSeqno(),
-                                   checkpointType);
+                                   checkpointType,
+                                   visibleSeq);
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
                                        marker->getHighCompletedSeqno(),
-                                       checkpointType);
+                                       checkpointType,
+                                       visibleSeq);
             } else {
                 // If we are reconnecting then we need to update the snap end
                 // and potentially the checkpoint type as We do not send the
                 // CHK snapshot marker flag for disk snapshots.
-                ckptMgr.updateCurrentSnapshot(cur_snapshot_end.load(),
-                                              checkpointType);
+                ckptMgr.updateCurrentSnapshot(
+                        cur_snapshot_end.load(), visibleSeq, checkpointType);
             }
         }
 

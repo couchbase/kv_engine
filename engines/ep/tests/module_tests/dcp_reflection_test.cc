@@ -662,16 +662,29 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     int takeover = flags & DCP_ADD_STREAM_FLAG_TAKEOVER ? MARKER_FLAG_ACK : 0;
     route0_1.transferSnapshotMarker(
             4, 6, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(replicaVB);
+    // If only the snapshot marker has been received, but no mutations we're in
+    // the previous snap
+    EXPECT_EQ(3,
+              replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+    EXPECT_EQ(3, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     flushNodeIfPersistent(Node1);
 
     //  Following code/checks are for MB-35003
     uint64_t expectedFailoverSeqno = 3;
-    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-    ASSERT_TRUE(replicaVB);
 
     if (completeFinalSnapshot) {
+        // The prepare @ seq:4 was sent, now expect to see the snapend of 6
+        EXPECT_EQ(
+                6,
+                replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+        EXPECT_EQ(6,
+                  replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+
         expectedFailoverSeqno = 6;
         route0_1.transferMutation(makeStoredDocKey("c"), 5);
         flushNodeIfPersistent(Node1);
@@ -686,9 +699,10 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
         // Note with MB-35003, each time the flusher reaches the end seqno, it
         // sets the start=end, this ensures subsequent flush runs have the start
         // on a start of a partial snapshot or the end of complete snapshot
-        EXPECT_EQ(6, range.getStart());
-        EXPECT_EQ(6, range.getEnd());
     }
+    EXPECT_EQ(6,
+              replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+    EXPECT_EQ(6, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
 
     // Tear down streams and promote replica to active.
     // Failover table should be at last complete checkpoint.
@@ -929,6 +943,30 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     route1_3.transferMutation(k5, 5);
 }
 
+TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k1));
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k2));
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("c"));
+
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(replicaVB);
+    EXPECT_EQ(3,
+              replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+    EXPECT_EQ(2, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+
+    route0_1.transferMutation(k1, 1);
+    EXPECT_EQ(3,
+              replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+    EXPECT_EQ(2, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+}
+
 class DCPLoopbackSnapshots : public DCPLoopbackStreamTest,
                              public ::testing::WithParamInterface<int> {
 public:
@@ -952,14 +990,52 @@ void DCPLoopbackSnapshots::testSnapshots(int flushRatio) {
         }
     };
 
-    auto snapshot = [&route0_1, flushReplicaIf](int operationNumber) {
-        route0_1.transferMessage(DcpResponse::Event::SnapshotMarker);
-        flushReplicaIf(operationNumber);
+    auto activeVB = engines[Node0]->getKVBucket()->getVBucket(vbid);
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    // check the visible seqno and seqno match throughout the test. No sync
+    // writes so that should all be equal.
+    auto expects = [&activeVB, &replicaVB](uint64_t seqno,
+                                           uint64_t activeSnapEnd,
+                                           uint64_t replicaSnapEnd) {
+        // The activeVB has had the mutations applied, so expect it to be at
+        // the snapEnd for all 4 of the following calls
+        EXPECT_EQ(activeSnapEnd, activeVB->getHighSeqno());
+        EXPECT_EQ(activeSnapEnd, activeVB->getMaxVisibleSeqno());
+        EXPECT_EQ(
+                activeSnapEnd,
+                activeVB->checkpointManager->getSnapshotInfo().range.getEnd());
+        EXPECT_EQ(activeSnapEnd,
+                  activeVB->checkpointManager->getVisibleSnapshotEndSeqno());
+
+        EXPECT_EQ(seqno, replicaVB->getHighSeqno());
+        EXPECT_EQ(seqno, replicaVB->getMaxVisibleSeqno());
+        EXPECT_EQ(
+                replicaSnapEnd,
+                replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+        EXPECT_EQ(replicaSnapEnd,
+                  replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
     };
 
-    auto mutation = [&route0_1, flushReplicaIf](int operationNumber) {
-        route0_1.transferMessage(DcpResponse::Event::Mutation);
+    auto snapshot = [&route0_1, &expects, flushReplicaIf](
+                            int operationNumber,
+                            uint64_t expectedSeq,
+                            uint64_t activeSnapEnd,
+                            uint64_t replicaSnapEnd) {
+        route0_1.transferMessage(DcpResponse::Event::SnapshotMarker);
+        expects(expectedSeq, activeSnapEnd, replicaSnapEnd);
         flushReplicaIf(operationNumber);
+        expects(expectedSeq, activeSnapEnd, replicaSnapEnd);
+    };
+
+    auto mutation = [&route0_1, &expects, flushReplicaIf](
+                            int operationNumber,
+                            uint64_t expectedSeq,
+                            uint64_t activeSnapEnd,
+                            uint64_t replicaSnapEnd) {
+        route0_1.transferMessage(DcpResponse::Event::Mutation);
+        expects(expectedSeq, activeSnapEnd, replicaSnapEnd);
+        flushReplicaIf(operationNumber);
+        expects(expectedSeq, activeSnapEnd, replicaSnapEnd);
     };
 
     auto& activeVb = *engine->getVBucket(vbid);
@@ -968,26 +1044,32 @@ void DCPLoopbackSnapshots::testSnapshots(int flushRatio) {
     store_item(vbid, makeStoredDocKey("z"), "value");
     store_item(vbid, makeStoredDocKey("c"), "value");
 
+    // The following snapshot/mutation calls are passed the expected seqnos and
+    // demonstrate an 'inconsistency' with the snapshot-end for replica vbuckets
+    // Here when the replica has no mutations, but has received a the first
+    // marker it will report marker.end. However the next marker and before a
+    // mutation the reported snapshot end is the previous snap.end
+
     int op = 1;
-    snapshot(op++); // op1: snap 0,2
-    mutation(op++); // op2: item 1
-    mutation(op++); // op3: item 2
+    snapshot(op++, 0, 2, 2); // op1: snap 0,2
+    mutation(op++, 1, 2, 2); // op2: item 1
+    mutation(op++, 2, 2, 2); // op3: item 2
 
     activeVb.checkpointManager->createNewCheckpoint();
     store_item(vbid, makeStoredDocKey("y"), "value");
     store_item(vbid, makeStoredDocKey("b"), "value");
 
-    snapshot(op++); // op4: snap 3,4
-    mutation(op++); // op5: item 3
-    mutation(op++); // op6: item 4
+    snapshot(op++, 2, 4, 2); // op4: snap 3,4
+    mutation(op++, 3, 4, 4); // op5: item 3
+    mutation(op++, 4, 4, 4); // op6: item 4
 
     activeVb.checkpointManager->createNewCheckpoint();
     store_item(vbid, makeStoredDocKey("x"), "value");
     store_item(vbid, makeStoredDocKey("a"), "value");
 
-    snapshot(op++); // op7: snap 5,6
-    mutation(op++); // op8: item 5
-    mutation(op++); // op9: item 6
+    snapshot(op++, 4, 6, 4); // op7: snap 5,6
+    mutation(op++, 5, 6, 6); // op8: item 5
+    mutation(op++, 6, 6, 6); // op9: item 6
 
     auto* replicaKVB = engines[Node1]->getKVBucket();
     replicaKVB->setVBucketState(vbid, vbucket_state_active);

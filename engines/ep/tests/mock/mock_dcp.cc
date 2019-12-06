@@ -132,6 +132,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(
         uint64_t snap_end_seqno,
         uint32_t flags,
         boost::optional<uint64_t> highCompletedSeqno,
+        boost::optional<uint64_t> maxVisibleSeqno,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;

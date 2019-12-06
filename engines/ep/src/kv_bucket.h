@@ -613,22 +613,22 @@ public:
 
     ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas) override;
 
-    VBucketPtr makeVBucket(
-            Vbid id,
-            vbucket_state_t state,
-            KVShard* shard,
-            std::unique_ptr<FailoverTable> table,
-            NewSeqnoCallback newSeqnoCb,
-            std::unique_ptr<Collections::VB::Manifest> manifest,
-            vbucket_state_t initState = vbucket_state_dead,
-            int64_t lastSeqno = 0,
-            uint64_t lastSnapStart = 0,
-            uint64_t lastSnapEnd = 0,
-            uint64_t purgeSeqno = 0,
-            uint64_t maxCas = 0,
-            int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
-            bool mightContainXattrs = false,
-            const nlohmann::json& replicationTopology = {}) override = 0;
+    VBucketPtr makeVBucket(Vbid id,
+                           vbucket_state_t state,
+                           KVShard* shard,
+                           std::unique_ptr<FailoverTable> table,
+                           NewSeqnoCallback newSeqnoCb,
+                           std::unique_ptr<Collections::VB::Manifest> manifest,
+                           vbucket_state_t initState = vbucket_state_dead,
+                           int64_t lastSeqno = 0,
+                           uint64_t lastSnapStart = 0,
+                           uint64_t lastSnapEnd = 0,
+                           uint64_t purgeSeqno = 0,
+                           uint64_t maxCas = 0,
+                           int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
+                           bool mightContainXattrs = false,
+                           const nlohmann::json& replicationTopology = {},
+                           uint64_t maxVisibleSeqno = 0) override = 0;
 
     /**
      * Method to handle set_collections commands

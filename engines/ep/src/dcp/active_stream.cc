@@ -246,10 +246,11 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
     }
 }
 
-void ActiveStream::markDiskSnapshot(
+bool ActiveStream::markDiskSnapshot(
         uint64_t startSeqno,
         uint64_t endSeqno,
-        boost::optional<uint64_t> highCompletedSeqno) {
+        boost::optional<uint64_t> highCompletedSeqno,
+        uint64_t maxVisibleSeqno) {
     {
         LockHolder lh(streamMutex);
         uint64_t chkCursorSeqno = endSeqno;
@@ -260,7 +261,32 @@ void ActiveStream::markDiskSnapshot(
                 "markDiskSnapshot: Unexpected state_:{}",
                 logPrefix,
                 to_string(state_.load()));
-            return;
+            // TODO MB-37145: logically, this should return false as
+            //  no snapshot marker will be sent, and backfilled items
+            //  will be rejected in backfillReceived.
+            //  Returning true to maintain existing behaviour pending
+            //  further testing
+            return true;
+        }
+
+        if (!supportSyncWrites()) {
+            // the connection does not support sync writes, so the
+            // snapshot end must be set to the seqno of a visible item.
+            // Items after the MVS will not be sent.
+            endSeqno = maxVisibleSeqno;
+            if (endSeqno < startSeqno) {
+                // no visible items in backfill, should not send
+                // a snapshot marker at all (no data will be sent)
+                log(spdlog::level::level_enum::info,
+                    "(} "
+                    "ActiveStream::markDiskSnapshot not sending snapshot "
+                    "because"
+                    "it contains no visible items",
+                    logPrefix);
+                // reregister cursor at original end seqno
+                notifyEmptyBackfill_UNLOCKED(chkCursorSeqno);
+                return false;
+            }
         }
 
         /* We need to send the requested 'snap_start_seqno_' as the snapshot
@@ -278,7 +304,9 @@ void ActiveStream::markDiskSnapshot(
                 "ActiveStream::markDiskSnapshot, vbucket "
                 "does not exist",
                 logPrefix);
-            return;
+            // TODO MB-37145: logically, this should return false
+            //  returning true to maintain existing behaviour
+            return true;
         }
         // An atomic read of vbucket state without acquiring the
         // reader lock for state should suffice here.
@@ -306,12 +334,12 @@ void ActiveStream::markDiskSnapshot(
         auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start seqno {}, end seqno {}, and"
-            " high completed seqno {}",
+            "start {}, end {}, and high completed {}, max visible {}",
             logPrefix,
             startSeqno,
             endSeqno,
-            hcsToSend);
+            hcsToSend,
+            maxVisibleSeqno);
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
@@ -319,7 +347,8 @@ void ActiveStream::markDiskSnapshot(
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                 hcsToSend,
-                boost::none, /*maxVisibleSeqno*/
+                boost::optional<uint64_t>{supportSyncReplication(),
+                                          maxVisibleSeqno},
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
@@ -330,6 +359,7 @@ void ActiveStream::markDiskSnapshot(
         }
     }
     notifyStreamReady();
+    return true;
 }
 
 bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
@@ -480,6 +510,10 @@ void ActiveStream::setVBucketStateAckRecieved() {
 
 void ActiveStream::setBackfillRemaining(size_t value) {
     std::lock_guard<std::mutex> guard(streamMutex);
+    setBackfillRemaining_UNLOCKED(value);
+}
+
+void ActiveStream::setBackfillRemaining_UNLOCKED(size_t value) {
     backfillRemaining = value;
 }
 
@@ -541,6 +575,21 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
             } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
                 endStream(END_STREAM_OK);
             } else {
+                if (backfillRemaining && *backfillRemaining != 0) {
+                    /* No more items will be received from the backfill at this
+                     * point but backfill remaining count may be an overestimate
+                     * if the stream is not sync write aware.
+                     * This is an expected situation.
+                     */
+                    log(spdlog::level::level_enum::debug,
+                        "{} ActiveStream::completeBackfill: "
+                        "Backfill complete with items remaining:{}",
+                        logPrefix,
+                        *backfillRemaining);
+
+                    // reset value to zero just in case.
+                    setBackfillRemaining_UNLOCKED(0);
+                }
                 transitionState(StreamState::InMemory);
             }
 
@@ -890,7 +939,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
 
     result.checkpointType = itemsForCursor.checkpointType;
     result.highCompletedSeqno = itemsForCursor.highCompletedSeqno;
-
+    result.visibleSeqno = itemsForCursor.visibleSeqno;
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointRemover();
     }
@@ -1068,6 +1117,9 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
         // SnapshotMarker), we can use nextSnapshotIsCheckpoint to snapshot
         // it correctly.
         std::deque<std::unique_ptr<DcpResponse>> mutations;
+
+        // Initialise to the first visibleSeqno of the batch of items
+        uint64_t visibleSeqno = outstandingItemsResult.visibleSeqno;
         for (auto& qi : outstandingItemsResult.items) {
             if (shouldProcessItem(*qi)) {
                 curChkSeqno = qi->getBySeqno();
@@ -1075,6 +1127,9 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                 // Check if the item is allowed on the stream, note the filter
                 // updates itself for collection deletion events
                 if (filter.checkAndUpdate(*qi)) {
+                    if (qi->isVisible()) {
+                        visibleSeqno = qi->getBySeqno();
+                    }
                     mutations.push_back(makeResponseFromItem(
                             qi, SendCommitSyncWriteAs::Commit));
                 }
@@ -1086,7 +1141,8 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                 if (!mutations.empty()) {
                     snapshot(outstandingItemsResult.checkpointType,
                              mutations,
-                             outstandingItemsResult.highCompletedSeqno);
+                             outstandingItemsResult.highCompletedSeqno,
+                             visibleSeqno);
                     /* clear out all the mutations since they are already put
                        onto the readyQ */
                     mutations.clear();
@@ -1099,7 +1155,8 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
         if (!mutations.empty()) {
             snapshot(outstandingItemsResult.checkpointType,
                      mutations,
-                     outstandingItemsResult.highCompletedSeqno);
+                     outstandingItemsResult.highCompletedSeqno,
+                     visibleSeqno);
         }
     }
 
@@ -1133,7 +1190,8 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
 
 void ActiveStream::snapshot(CheckpointType checkpointType,
                             std::deque<std::unique_ptr<DcpResponse>>& items,
-                            boost::optional<uint64_t> highCompletedSeqno) {
+                            boost::optional<uint64_t> highCompletedSeqno,
+                            uint64_t maxVisibleSeqno) {
     if (items.empty()) {
         return;
     }
@@ -1199,7 +1257,8 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
                 snapEnd,
                 flags,
                 hcsToSend,
-                boost::none /*maxVisibleSeqno*/,
+                boost::optional<uint64_t>{supportSyncReplication(),
+                                          maxVisibleSeqno},
                 sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
@@ -1499,28 +1558,10 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
              * therefore did not re-register a cursor in markDiskSnapshot) we
              * must re-register the cursor here.
              */
-            try {
-                CursorRegResult result =
-                        vbucket->checkpointManager->registerCursorBySeqno(
-                                name_, lastReadSeqno.load());
-                log(spdlog::level::level_enum::info,
-                    "{} ActiveStream::scheduleBackfill_UNLOCKED "
-                    "Rescheduling. Register cursor with name \"{}\", "
-                    "backfill:{}, seqno:{}",
-                    logPrefix,
-                    name_,
-                    result.tryBackfill,
-                    result.seqno);
-                curChkSeqno = result.seqno;
-                cursor = result.cursor;
-            } catch (std::exception& error) {
-                log(spdlog::level::level_enum::warn,
-                    "{} Failed to register "
-                    "cursor: {}",
-                    logPrefix,
-                    error.what());
-                endStream(END_STREAM_STATE);
-            }
+            // TODO MB-37150: check if closed checkpoint removal might race with
+            //  re-registering cursor, what happens if registering this
+            //  cursor returns result.tryBackfill == true ?
+            notifyEmptyBackfill_UNLOCKED(lastReadSeqno.load());
         }
         if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
@@ -1540,6 +1581,40 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
              * yet in producer conn list of streams.
              */
             notifyStreamReady();
+        }
+    }
+}
+
+void ActiveStream::notifyEmptyBackfill(uint64_t lastSeenSeqno) {
+    LockHolder lh(streamMutex);
+    notifyEmptyBackfill_UNLOCKED(lastSeenSeqno);
+}
+
+void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
+    setBackfillRemaining_UNLOCKED(0);
+    auto vbucket = engine->getVBucket(vb_);
+    if (!cursor.lock()) {
+        try {
+            CursorRegResult result =
+                    vbucket->checkpointManager->registerCursorBySeqno(
+                            name_, lastReadSeqno);
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::notifyEmptyBackfill "
+                "Re-registering dropped cursor with name \"{}\", "
+                "backfill:{}, seqno:{}",
+                logPrefix,
+                name_,
+                result.tryBackfill,
+                result.seqno);
+            curChkSeqno = result.seqno;
+            cursor = result.cursor;
+        } catch (std::exception& error) {
+            log(spdlog::level::level_enum::warn,
+                "{} Failed to register "
+                "cursor: {}",
+                logPrefix,
+                error.what());
+            endStream(END_STREAM_STATE);
         }
     }
 }

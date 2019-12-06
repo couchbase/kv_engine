@@ -177,7 +177,8 @@ VBucket::VBucket(Vbid i,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
-                 const nlohmann::json& replTopology)
+                 const nlohmann::json& replTopology,
+                 uint64_t maxVisibleSeqno)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,
@@ -185,6 +186,7 @@ VBucket::VBucket(Vbid i,
                                                             lastSeqno,
                                                             lastSnapStart,
                                                             lastSnapEnd,
+                                                            maxVisibleSeqno,
                                                             flusherCb)),
       failovers(std::move(table)),
       opsCreate(0),
@@ -3089,6 +3091,10 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
                 getSyncWriteAbortedCount(),
                 add_stat,
                 c);
+        addStat("max_visible_seqno",
+                checkpointManager->getMaxVisibleSeqno(),
+                add_stat,
+                c);
 
         hlc.addStats(statPrefix, add_stat, c);
     }
@@ -3967,4 +3973,8 @@ void VBucket::addSyncWriteForRollback(const Item& item) {
 
 bool VBucket::isReceivingDiskSnapshot() const {
     return checkpointManager->isOpenCheckpointDisk();
+}
+
+uint64_t VBucket::getMaxVisibleSeqno() const {
+    return checkpointManager->getMaxVisibleSeqno();
 }

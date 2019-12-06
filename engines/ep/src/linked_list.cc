@@ -217,6 +217,23 @@ void BasicLinkedList::updateHighestDedupedSeqno(
     highestDedupedSeqno = v.getBySeqno();
 }
 
+void BasicLinkedList::maybeUpdateMaxVisibleSeqno(
+        std::lock_guard<std::mutex>& seqLock,
+        std::lock_guard<std::mutex>& writeLock,
+        const OrderedStoredValue& newSV) {
+    switch (newSV.getCommitted()) {
+    case CommittedState::CommittedViaMutation:
+    case CommittedState::CommittedViaPrepare:
+    case CommittedState::PrepareCommitted:
+        maxVisibleSeqno = newSV.getBySeqno();
+        return;
+    case CommittedState::Pending:
+    case CommittedState::PreparedMaybeVisible:
+    case CommittedState::PrepareAborted:
+        return;
+    }
+}
+
 void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                                     StoredValue::UniquePtr ownedSv,
                                     StoredValue* newSv) {
@@ -389,6 +406,11 @@ seqno_t BasicLinkedList::getHighestPurgedDeletedSeqno() const {
     return highestPurgedDeletedSeqno;
 }
 
+uint64_t BasicLinkedList::getMaxVisibleSeqno() const {
+    std::lock_guard<std::mutex> lg(getListWriteLock());
+    return maxVisibleSeqno;
+}
+
 uint64_t BasicLinkedList::getRangeReadBegin() const {
     std::lock_guard<SpinLock> lh(rangeLock);
     return readRange.getBegin();
@@ -473,6 +495,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
       itrRange(0, 0),
       numRemaining(0),
       earlySnapShotEndSeqno(0),
+      maxVisibleSeqno(0),
       isBackfill(isBackfill) {
     if (!readLockHolder) {
         /* no blocking */
@@ -497,6 +520,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     /* The minimum seqno in the iterator that must be read to get a consistent
        read snapshot */
     earlySnapShotEndSeqno = list.highestDedupedSeqno;
+
+    maxVisibleSeqno = list.maxVisibleSeqno;
 
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */

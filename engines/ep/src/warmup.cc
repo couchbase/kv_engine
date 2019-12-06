@@ -1051,7 +1051,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.maxCas,
                                    vbs.hlcCasEpochSeqno,
                                    vbs.mightContainXattrs,
-                                   vbs.transition.replicationTopology);
+                                   vbs.transition.replicationTopology,
+                                   vbs.maxVisibleSeqno);
 
             if (vbs.transition.state == vbucket_state_active &&
                 !cleanShutdown) {

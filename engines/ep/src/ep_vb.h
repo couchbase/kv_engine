@@ -51,7 +51,8 @@ public:
               uint64_t maxCas = 0,
               int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
               bool mightContainXattrs = false,
-              const nlohmann::json& replicationTopology = {});
+              const nlohmann::json& replicationTopology = {},
+              uint64_t maxVisibleSeqno = 0);
 
     ~EPVBucket();
 

@@ -246,11 +246,20 @@ backfill_status_t DCPBackfillDisk::create() {
         stream->setDead(status);
         transitionState(backfill_state_done);
     } else {
-        stream->setBackfillRemaining(scanCtx->documentCount);
-        stream->markDiskSnapshot(startSeqno,
-                                 scanCtx->maxSeqno,
-                                 scanCtx->persistedCompletedSeqno);
-        transitionState(backfill_state_scanning);
+        bool markerSent =
+                stream->markDiskSnapshot(startSeqno,
+                                         scanCtx->maxSeqno,
+                                         scanCtx->persistedCompletedSeqno,
+                                         scanCtx->maxVisibleSeqno);
+
+        if (markerSent) {
+            // This value may be an overestimate - it includes prepares/aborts
+            // which will not be sent if the stream is not sync write aware
+            stream->setBackfillRemaining(scanCtx->documentCount);
+            transitionState(backfill_state_scanning);
+        } else {
+            transitionState(backfill_state_completing);
+        }
     }
 
     return backfill_success;
@@ -330,7 +339,7 @@ void DCPBackfillDisk::transitionState(backfill_state_t newState) {
         }
         break;
     case backfill_state_completing:
-        if (state == backfill_state_scanning) {
+        if (state == backfill_state_init || state == backfill_state_scanning) {
             validTransition = true;
         }
         break;

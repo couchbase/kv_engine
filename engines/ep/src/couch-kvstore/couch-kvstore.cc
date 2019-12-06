@@ -1509,20 +1509,19 @@ ScanContext* CouchKVStore::initScanContext(
         scans[scanId] = db.releaseDb();
     }
 
-    ScanContext* sctx =
-            new ScanContext(cb,
-                            cl,
-                            vbid,
-                            scanId,
-                            startSeqno,
-                            info.last_sequence,
-                            info.purge_seq,
-                            options,
-                            valOptions,
-                            count,
-                            readVbStateResult.state.persistedCompletedSeqno,
-                            configuration,
-                            collectionsManifest);
+    ScanContext* sctx = new ScanContext(cb,
+                                        cl,
+                                        vbid,
+                                        scanId,
+                                        startSeqno,
+                                        info.last_sequence,
+                                        info.purge_seq,
+                                        options,
+                                        valOptions,
+                                        count,
+                                        readVbStateResult.state,
+                                        configuration,
+                                        collectionsManifest);
     sctx->logger = &logger;
     return sctx;
 }
