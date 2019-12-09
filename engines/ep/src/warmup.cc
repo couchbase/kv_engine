@@ -747,8 +747,10 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 return;
             }
 
-            const auto res =
-                    epVb->insertFromWarmup(*i, shouldEject(), val.isPartial());
+            const auto res = epVb->insertFromWarmup(*i,
+                                                    shouldEject(),
+                                                    val.isPartial(),
+                                                    true /*check mem_used*/);
             switch (res) {
             case MutationStatus::NoMem:
                 if (retry == 2) {

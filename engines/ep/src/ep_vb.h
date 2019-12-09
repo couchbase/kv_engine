@@ -168,12 +168,15 @@ public:
      * @param eject true if we should eject the value immediately
      * @param keyMetaDataOnly is this just the key and meta-data or a complete
      *                        item
+     * @param checkMemUsed true if the insert should check if there's memory
+     *        for the item.
      *
      * @return the result of the operation
      */
     MutationStatus insertFromWarmup(Item& itm,
                                     bool eject,
-                                    bool keyMetaDataOnly);
+                                    bool keyMetaDataOnly,
+                                    bool checkMemUsed);
 
     /**
      * Restores the state of outstanding Prepared SyncWrites during warmup.
