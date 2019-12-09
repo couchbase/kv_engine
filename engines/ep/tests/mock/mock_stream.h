@@ -264,8 +264,8 @@ public:
         transitionState(StreamState::Dead);
     }
 
-    void transitionStateToAwaitingFirstSnapshotMarker() {
-        transitionState(StreamState::AwaitingFirstSnapshotMarker);
+    void transitionStateToReading() {
+        transitionState(StreamState::Reading);
     }
 
     ENGINE_ERROR_CODE messageReceived(
