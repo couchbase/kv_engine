@@ -503,16 +503,18 @@ static std::string configure_numa_policy() {
 #endif  // HAVE_LIBNUMA
 
 static void settings_init() {
+    auto& settings = Settings::instance();
+
     // Set up the listener functions
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "max_connections", [](const std::string&, Settings& s) -> void {
                 recalculate_max_connections();
             });
-    Settings::instance().addChangeListener("interfaces",
+    settings.addChangeListener("interfaces",
                                            interfaces_changed_listener);
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "scramsha_fallback_salt", scramsha_fallback_salt_changed_listener);
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "active_external_users_push_interval",
             [](const std::string&, Settings& s) -> void {
                 if (externalAuthManager) {
@@ -521,7 +523,7 @@ static void settings_init() {
                 }
             });
 
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "opentracing_config", [](const std::string&, Settings& s) -> void {
                 auto config = s.getOpenTracingConfig();
                 if (config) {
@@ -530,32 +532,32 @@ static void settings_init() {
             });
 
     NetworkInterface default_interface;
-    Settings::instance().addInterface(default_interface);
-    Settings::instance().setVerbose(0);
-    Settings::instance().setConnectionIdleTime(0); // Connection idle time disabled
-    Settings::instance().setNumWorkerThreads(get_number_of_worker_threads());
-    Settings::instance().setDatatypeJsonEnabled(true);
-    Settings::instance().setDatatypeSnappyEnabled(true);
-    Settings::instance().setRequestsPerEventNotification(50, EventPriority::High);
-    Settings::instance().setRequestsPerEventNotification(5, EventPriority::Medium);
-    Settings::instance().setRequestsPerEventNotification(1, EventPriority::Low);
-    Settings::instance().setRequestsPerEventNotification(20, EventPriority::Default);
+    settings.addInterface(default_interface);
+    settings.setVerbose(0);
+    settings.setConnectionIdleTime(0); // Connection idle time disabled
+    settings.setNumWorkerThreads(get_number_of_worker_threads());
+    settings.setDatatypeJsonEnabled(true);
+    settings.setDatatypeSnappyEnabled(true);
+    settings.setRequestsPerEventNotification(50, EventPriority::High);
+    settings.setRequestsPerEventNotification(5, EventPriority::Medium);
+    settings.setRequestsPerEventNotification(1, EventPriority::Low);
+    settings.setRequestsPerEventNotification(20, EventPriority::Default);
 
     /*
      * The max object size is 20MB. Let's allow packets up to 30MB to
      * be handled "properly" by returing E2BIG, but packets bigger
      * than that will cause the server to disconnect the client
      */
-    Settings::instance().setMaxPacketSize(30 * 1024 * 1024);
+    settings.setMaxPacketSize(30 * 1024 * 1024);
 
-    Settings::instance().setDedupeNmvbMaps(false);
+    settings.setDedupeNmvbMaps(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
-    Settings::instance().setTopkeysSize(20);
+    settings.setTopkeysSize(20);
     if (tmp) {
         int count;
         if (safe_strtol(tmp, count)) {
-            Settings::instance().setTopkeysSize(count);
+            settings.setTopkeysSize(count);
         }
     }
 
@@ -571,20 +573,20 @@ static void settings_init() {
         //    in memcached.json and override these settings.
         const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
         if (env == nullptr) {
-            Settings::instance().setSslCipherList("HIGH");
+            settings.setSslCipherList("HIGH");
         } else {
-            Settings::instance().setSslCipherList(env);
+            settings.setSslCipherList(env);
         }
     }
 
-    Settings::instance().setSslMinimumProtocol("tlsv1");
+    settings.setSslMinimumProtocol("tlsv1");
     if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
-        Settings::instance().setPrivilegeDebug(true);
+        settings.setPrivilegeDebug(true);
     }
 
-    Settings::instance().setTopkeysEnabled(true);
+    settings.setTopkeysEnabled(true);
 
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "num_reader_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
                         ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
@@ -595,7 +597,7 @@ static void settings_init() {
                         },
                         nullptr);
             });
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "num_writer_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
                         ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
@@ -618,10 +620,11 @@ static void settings_init() {
  */
 static void update_settings_from_config()
 {
+    auto& settings = Settings::instance();
     std::string root(DESTINATION_ROOT);
 
-    if (!Settings::instance().getRoot().empty()) {
-        root = Settings::instance().getRoot();
+    if (!settings.getRoot().empty()) {
+        root = settings.getRoot();
 #ifdef WIN32
         std::string libdir = root + "/lib";
         cb::io::sanitizePath(libdir);
@@ -629,12 +632,12 @@ static void update_settings_from_config()
 #endif
     }
 
-    if (Settings::instance().getErrorMapsDir().empty()) {
+    if (settings.getErrorMapsDir().empty()) {
         // Set the error map dir.
         std::string error_maps_dir(root + "/etc/couchbase/kv/error_maps");
         cb::io::sanitizePath(error_maps_dir);
         if (cb::io::isDirectory(error_maps_dir)) {
-            Settings::instance().setErrorMapsDir(error_maps_dir);
+            settings.setErrorMapsDir(error_maps_dir);
         }
     }
 
@@ -644,7 +647,7 @@ static void update_settings_from_config()
         FATAL_ERROR(EXIT_FAILURE, e.what());
     }
 
-    Settings::instance().addChangeListener(
+    settings.addChangeListener(
             "opcode_attributes_override",
             opcode_attributes_override_changed_listener);
 }
