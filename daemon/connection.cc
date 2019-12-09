@@ -1092,60 +1092,10 @@ Connection::Connection(SOCKET sfd,
     setConnectionId(peername.c_str());
 
     if (ssl) {
-        // Trond Norbye - 20171003
-        //
-        // @todo figure out if the SSL_CTX needs to have the same lifetime
-        //       as the created ssl object. It could be that we could keep
-        //       the SSL_CTX as part of the runtime and then reuse it
-        //       across all of the SSL connections when we initialize them.
-        //       If we do that we don't have to reload the SSL certificates
-        //       and parse the PEM format every time we accept a client!
-        //       (which we shouldn't be doing!!!!)
-        auto* server_ctx = SSL_CTX_new(SSLv23_server_method());
-        SSL_CTX_set_dh_auto(server_ctx, 1);
-        SSL_CTX_set_options(server_ctx,
-                            Settings::instance().getSslProtocolMask());
-        SSL_CTX_set_mode(server_ctx,
-                         SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-                         SSL_MODE_ENABLE_PARTIAL_WRITE);
-
-        if (!SSL_CTX_use_certificate_chain_file(server_ctx,
-                                                ifc.sslCert.c_str()) ||
-            !SSL_CTX_use_PrivateKey_file(
-                    server_ctx, ifc.sslKey.c_str(), SSL_FILETYPE_PEM)) {
-            throw std::runtime_error("Failed to enable ssl!");
-        }
-        set_ssl_ctx_ciphers(server_ctx,
-                            Settings::instance().getSslCipherList(),
-                            Settings::instance().getSslCipherSuites());
-        int ssl_flags = 0;
-        switch (Settings::instance().getClientCertMode()) {
-        case cb::x509::Mode::Mandatory:
-            ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
-            // FALLTHROUGH
-        case cb::x509::Mode::Enabled: {
-            ssl_flags |= SSL_VERIFY_PEER;
-            auto* certNames = SSL_load_client_CA_file(ifc.sslCert.c_str());
-            if (certNames == nullptr) {
-                LOG_WARNING(nullptr,
-                            "Failed to read SSL cert {}",
-                            ifc.sslCert.c_str());
-                throw std::runtime_error("Failed to read ssl cert!");
-            }
-            SSL_CTX_set_client_CA_list(server_ctx, certNames);
-            SSL_CTX_load_verify_locations(
-                    server_ctx, ifc.sslCert.c_str(), nullptr);
-            SSL_CTX_set_verify(server_ctx, ssl_flags, nullptr);
-            break;
-        }
-        case cb::x509::Mode::Disabled:
-            break;
-        }
-
         bev.reset(bufferevent_openssl_socket_new(
                 base,
                 sfd,
-                SSL_new(server_ctx),
+                createSslStructure(ifc).release(),
                 BUFFEREVENT_SSL_ACCEPTING,
                 BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS));
         bufferevent_setcb(bev.get(),
@@ -1153,8 +1103,6 @@ Connection::Connection(SOCKET sfd,
                           Connection::rw_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
-
-        SSL_CTX_free(server_ctx);
     } else {
         bev.reset(bufferevent_socket_new(
                 base, sfd, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS));

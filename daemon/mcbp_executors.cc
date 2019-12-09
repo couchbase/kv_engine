@@ -53,6 +53,7 @@
 #include "sasl_tasks.h"
 #include "session_cas.h"
 #include "settings.h"
+#include "ssl_utils.h"
 #include "subdocument.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
@@ -194,6 +195,7 @@ static void isasl_refresh_executor(Cookie& cookie) {
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
     // MB-22464 - We don't cache the SSL certificates in memory
+    invalidateSslCache();
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 

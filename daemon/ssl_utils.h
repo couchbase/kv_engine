@@ -35,3 +35,22 @@ long decode_ssl_protocol(const std::string& protocol);
 void set_ssl_ctx_ciphers(SSL_CTX* ctx,
                          const std::string& list,
                          const std::string& suites);
+
+struct ssl_st;
+struct ssl_st_deleter {
+    void operator()(ssl_st* st);
+};
+class ListeningPort;
+using uniqueSslPtr = std::unique_ptr<ssl_st, ssl_st_deleter>;
+/**
+ * Create an SSL structure to use for the provided port
+ *
+ * @param port The port description (containing the certificates etc)
+ * @return the SSL structure to use
+ * @throws std::runtime error  if we fail to read the certificates etc
+ *         std::bad_alloc for memory allocation failures
+ */
+uniqueSslPtr createSslStructure(const ListeningPort& port);
+
+/// Invalidate the cache we've got of SSL_CTX objects in use
+void invalidateSslCache();

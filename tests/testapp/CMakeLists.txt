@@ -93,6 +93,7 @@ target_link_libraries(memcached_testapp
     dirutils
     gtest
     gtest_main
+    ${FOLLY_LIBRARIES}
     ${SNAPPY_LIBRARIES}
     ${LIBEVENT_LIBRARIES}
     ${COUCHBASE_NETWORK_LIBS})

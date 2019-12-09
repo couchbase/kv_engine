@@ -49,6 +49,7 @@
 #include "server_socket.h"
 #include "session_cas.h"
 #include "settings.h"
+#include "ssl_utils.h"
 #include "stats.h"
 #include "topkeys.h"
 #include "tracing.h"
@@ -608,6 +609,28 @@ static void settings_init() {
                         },
                         nullptr);
             });
+
+    // We need to invalidate the SSL cache whenever some of the settings change
+    settings.addChangeListener("client_cert_auth",
+                               [](const std::string&, Settings&) -> void {
+                                   invalidateSslCache();
+                               });
+    settings.addChangeListener("ssl_cipher_order",
+                               [](const std::string&, Settings&) -> void {
+                                   invalidateSslCache();
+                               });
+    settings.addChangeListener("ssl_cipher_list",
+                               [](const std::string&, Settings&) -> void {
+                                   invalidateSslCache();
+                               });
+    settings.addChangeListener("ssl_cipher_suites",
+                               [](const std::string&, Settings&) -> void {
+                                   invalidateSslCache();
+                               });
+    settings.addChangeListener("ssl_minimum_protocol",
+                               [](const std::string&, Settings&) -> void {
+                                   invalidateSslCache();
+                               });
 }
 
 /**
@@ -826,6 +849,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
     // Start by draining the notification pipe fist
     drain_notification_channel(fd);
     if (check_listen_conn) {
+        invalidateSslCache();
         check_listen_conn = false;
 
         bool changes = false;
@@ -2479,6 +2503,9 @@ extern "C" int memcached_main(int argc, char **argv) {
     externalAuthManager->shutdown();
     externalAuthManager->waitForState(Couchbase::ThreadState::Zombie);
     externalAuthManager.reset();
+
+    LOG_INFO("Release cached SSL contexts");
+    invalidateSslCache();
 
     LOG_INFO("Shutting down SASL server");
     cb::sasl::server::shutdown();

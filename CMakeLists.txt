@@ -65,6 +65,7 @@ add_definitions(-DDESTINATION_ROOT="${CMAKE_INSTALL_PREFIX}")
 add_definitions(-DSOURCE_ROOT="${Memcached_SOURCE_DIR}")
 add_definitions(-DOBJECT_ROOT="${Memcached_BINARY_DIR}")
 add_definitions(-D_FILE_OFFSET_BITS=64)
+add_definitions(-DGOOGLE_GLOG_DLL_DECL=)
 
 CHECK_SYMBOL_EXISTS(memalign malloc.h HAVE_MEMALIGN)
 if (HAVE_MEMALIGN)
