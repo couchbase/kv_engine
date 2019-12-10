@@ -30,6 +30,8 @@ branches = (('couchbase/watson_ep',
             ('couchbase/vulcan',
              'couchbase/alice'),
             ('couchbase/alice',
+             'couchbase/mad-hatter'),
+            ('couchbase/mad-hatter',
              'couchbase/master'))
 
 total_unmerged = 0
