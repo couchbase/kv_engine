@@ -811,7 +811,7 @@ public:
         notify_changed("num_reader_threads");
     }
 
-    size_t getNumWriterThreads() const {
+    int getNumWriterThreads() const {
         return num_writer_threads.load(std::memory_order_acquire);
     }
 
