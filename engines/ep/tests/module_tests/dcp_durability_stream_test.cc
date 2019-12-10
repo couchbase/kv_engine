@@ -1171,14 +1171,9 @@ void DurabilityPassiveStreamPersistentTest::testDiskSnapshotHCSPersisted() {
     consumer->closeAllStreams();
     consumer.reset();
     resetEngineAndWarmup();
-    // Recreate the consumer so that our normal test TearDown will work
-    consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-    consumer->enableSyncReplication();
-    consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/);
-    stream = static_cast<MockPassiveStream*>(
-            (consumer->getVbucketStream(vbid)).get());
 
+    // Recreate the consumer so that our normal test TearDown will work
+    setupConsumerAndPassiveStream();
     {
         auto vb = store->getVBucket(vbid);
         EXPECT_EQ(2, vb->getHighCompletedSeqno());

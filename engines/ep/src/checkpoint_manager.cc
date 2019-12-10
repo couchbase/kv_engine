@@ -180,12 +180,14 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
     EP_LOG_DEBUG(
             "CheckpointManager::addNewCheckpoint_UNLOCKED: Create "
             "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
-            "visibleSnapEnd:{}]",
+            "visibleSnapEnd:{}, hcs:{}, type:{}]",
             vbucketId,
             id,
             snapStartSeqno,
             snapEndSeqno,
-            visibleSnapEnd);
+            visibleSnapEnd,
+            highCompletedSeqno,
+            to_string(checkpointType));
     addOpenCheckpoint(id,
                       snapStartSeqno,
                       snapEndSeqno,
