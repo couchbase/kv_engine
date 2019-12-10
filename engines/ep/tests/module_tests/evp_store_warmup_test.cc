@@ -897,7 +897,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         vbucket_state_t vbState,
         const std::vector<std::string>& keys,
         DocumentState docState) {
-    if (fullEviction() && isRocksDB()) {
+    if (isRocksDB()) {
         return; // Skipping for MB-36546
     }
 
