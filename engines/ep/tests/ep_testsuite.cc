@@ -6417,6 +6417,17 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
         return SKIPPED_UNDER_ROCKSDB;
     }
 
+    int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        std::stringstream ss;
+        ss << "key" << j;
+        checkeq(ENGINE_SUCCESS,
+                store(h, NULL, OPERATION_SET, ss.str().c_str(), "data"),
+                "Failed to store a value");
+    }
+
+    wait_for_flusher_to_settle(h);
+
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
 
     force_vbstate_to_v5(dbname, 0);
@@ -6433,6 +6444,12 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
     uint64_t vb_uuid0 = get_ull_stat(h, "vb_0:uuid", "vbucket-details");
     uint64_t vb_uuid1 = get_ull_stat(h, "vb_1:uuid", "vbucket-details");
     checkne(vb_uuid0, vb_uuid1, "UUID is not unique");
+
+    // Upgrade in this case means the high-seqno is the visible-seqno
+    checkeq(get_ull_stat(h, "vb_0:high_seqno", "vbucket-details"),
+            get_ull_stat(h, "vb_0:max_visible_seqno", "vbucket-details"),
+            "expected max-visible-seqno to be set to high_seqno");
+
     return SUCCESS;
 }
 

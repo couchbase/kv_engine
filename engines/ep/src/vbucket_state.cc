@@ -209,7 +209,9 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
         vbs.maxVisibleSeqno =
                 std::stoull((*maxVisibleSeqno).get<std::string>());
     } else {
-        vbs.maxVisibleSeqno = 0;
+        // If no maxVisible is present, then this is a pre-6.5, the max visible
+        // is the high-seqno
+        vbs.maxVisibleSeqno = vbs.highSeqno;
     }
 
     // Note: We don't track on disk prepares pre-6.5
