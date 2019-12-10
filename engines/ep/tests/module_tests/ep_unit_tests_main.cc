@@ -67,11 +67,6 @@ public:
         return ::parse_config(str, items, error);
     }
 
-    void shutdown() override {
-        throw std::runtime_error(
-                "UnitTestServerCore::shutdown() not implemented");
-    }
-
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
     }

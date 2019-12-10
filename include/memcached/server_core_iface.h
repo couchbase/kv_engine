@@ -74,11 +74,6 @@ struct ServerCoreIface {
                              struct config_item items[],
                              FILE* error) = 0;
 
-    /**
-     * Request the server to start a shutdown sequence.
-     */
-    virtual void shutdown() = 0;
-
     /// Get the configured size for the reader and writer pool
     virtual ThreadPoolConfig getThreadPoolSizes() = 0;
 

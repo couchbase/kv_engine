@@ -164,11 +164,6 @@ struct MockServerCoreApi : public ServerCoreIface {
                      FILE* error) override {
         return mock_parse_config(str, items, error);
     }
-    void shutdown() override {
-        throw std::runtime_error(
-                "MockServerCoreApi::shutdown() not implemented");
-    }
-
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
     }

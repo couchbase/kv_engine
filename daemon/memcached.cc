@@ -1400,10 +1400,6 @@ struct ServerCoreApi : public ServerCoreIface {
         return ::parse_config(str, items, error);
     }
 
-    void shutdown() override {
-        shutdown_server();
-    }
-
     ThreadPoolConfig getThreadPoolSizes() override {
         auto& instance = Settings::instance();
         return ThreadPoolConfig(instance.getNumReaderThreads(),
