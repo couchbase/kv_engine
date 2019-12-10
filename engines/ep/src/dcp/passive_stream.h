@@ -57,7 +57,8 @@ public:
                   uint64_t snap_start_seqno,
                   uint64_t snap_end_seqno,
                   uint64_t vb_high_seqno,
-                  const Collections::ManifestUid vb_manifest_uid);
+                  const Collections::ManifestUid vb_manifest_uid,
+                  SyncReplication supportsSyncReplication);
 
     virtual ~PassiveStream();
 
@@ -246,6 +247,14 @@ protected:
 
     EventuallyPersistentEngine* const engine;
     const std::weak_ptr<DcpConsumer> consumerPtr;
+
+    /**
+     * Has this stream successfully negotiated Synchronous Replication?
+     * This is local copy of Consumer::supportsSyncReplication, to avoid
+     * having to lock the consumerPtr weak_ptr to read it.
+     * const as cannot be re-negotiated once PassiveStream is created.
+     */
+    const bool supportsSyncReplication{false};
 
     std::atomic<uint64_t> last_seqno;
 

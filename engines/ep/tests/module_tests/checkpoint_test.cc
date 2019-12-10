@@ -543,7 +543,7 @@ TEST_P(CheckpointTest, getItems_MemoryDiskSnapshots) {
     EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
 
     // 2nd Snapshot covers 1004-1006 and all items are received
-    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Disk, 1006);
+    this->manager->createSnapshot(1004, 1006, 0, CheckpointType::Disk, 1006);
 
     for (auto i : {1004, 1005, 1006}) {
         EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
@@ -1194,7 +1194,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   snapshotStart,
                                   snapshotEnd,
                                   flags,
-                                  {} /*HCS*/,
+                                  0 /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {});
     passiveStream->processMarker(&snapshotMarker);
@@ -1324,7 +1324,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       snapshotStart,
                                       diskSnapshotEnd,
                                       flags,
-                                      {} /*HCS*/,
+                                      0 /*HCS*/,
                                       {} /*maxVisibleSeqno*/,
                                       {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
@@ -1343,7 +1343,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                   snapshotStart,
                                   snapshotEnd,
                                   flags,
-                                  {} /*HCS*/,
+                                  0 /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker);

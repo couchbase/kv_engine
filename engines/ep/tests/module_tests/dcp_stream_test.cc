@@ -1553,6 +1553,9 @@ void SingleThreadedPassiveStreamTest::SetUp() {
 
     consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    if (enableSyncReplication) {
+        consumer->enableSyncReplication();
+    }
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
 
@@ -2184,7 +2187,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                           1 /*snapStart*/,
                           100 /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                          {} /*HCS*/,
+                          0 /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
 
@@ -2236,7 +2239,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                               snapStart,
                               snapEnd,
                               flags,
-                              {} /*HCS*/,
+                              0 /*HCS*/,
                               {} /*maxVisibleSeqno*/,
                               streamId);
         stream->processMarker(&marker);

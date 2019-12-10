@@ -1206,6 +1206,9 @@ void CheckpointManager::createSnapshot(
         boost::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
         uint64_t visibleSnapEnd) {
+    if (checkpointType == CheckpointType::Disk) {
+        Expects(highCompletedSeqno.is_initialized());
+    }
     LockHolder lh(queueLock);
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto openCkptId = openCkpt.getId();
