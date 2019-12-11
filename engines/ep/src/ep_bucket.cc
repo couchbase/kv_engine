@@ -407,14 +407,15 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             boost::optional<uint64_t> hps =
                     boost::make_optional(false, uint64_t());
 
-            // maxVisibleSeqno is optional because we have to update it on disk
-            // only if a committed (via prepare or mutation) item or system
-            // event is found in the flush-batch. This value must be tracked to
-            // provide a correct snapshot range for non-sync write aware
-            // consumers during backfill (the snapshot should not end on a
-            // prepare or an abort, as these items will not be sent)
-            boost::optional<uint64_t> maxVisibleSeqno =
-                    boost::make_optional(false, uint64_t());
+            // We always maintain the maxVisibleSeqno at the current value
+            // and only change it to a higher-seqno when a flush of a visible
+            // item is seen. This value must be tracked to provide a correct
+            // snapshot range for non-sync write aware consumers during backfill
+            // (the snapshot should not end on a prepare or an abort, as these
+            // items will not be sent). This value is also used at warmup so
+            // that vbuckets can resume with the same visible seqno as before
+            // the restart.
+            Monotonic<uint64_t> maxVisibleSeqno{vbstate.maxVisibleSeqno};
 
             if (toFlush.maxDeletedRevSeqno) {
                 vbstate.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
@@ -450,10 +451,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     hcs = std::max(hcs.value_or(0), item->getPrepareSeqno());
                 }
 
-                if (item->isCommitted() || item->isSystemEvent()) {
-                    maxVisibleSeqno =
-                            std::max(maxVisibleSeqno.value_or(0),
-                                     static_cast<uint64_t>(item->getBySeqno()));
+                if (item->isVisible() &&
+                    static_cast<uint64_t>(item->getBySeqno()) >
+                            maxVisibleSeqno) {
+                    maxVisibleSeqno = static_cast<uint64_t>(item->getBySeqno());
                 }
 
                 if (op == queue_op::pending_sync_write) {
@@ -625,10 +626,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     vbstate.persistedPreparedSeqno = *hps;
                 }
 
-                if (maxVisibleSeqno) {
-                    Expects(maxVisibleSeqno > vbstate.maxVisibleSeqno);
-                    vbstate.maxVisibleSeqno = *maxVisibleSeqno;
-                }
+                vbstate.maxVisibleSeqno = maxVisibleSeqno;
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
                                                   options) != true) {
