@@ -278,7 +278,7 @@ bool ActiveStream::markDiskSnapshot(
                 // no visible items in backfill, should not send
                 // a snapshot marker at all (no data will be sent)
                 log(spdlog::level::level_enum::info,
-                    "(} "
+                    "{} "
                     "ActiveStream::markDiskSnapshot not sending snapshot "
                     "because"
                     "it contains no visible items",
@@ -300,7 +300,7 @@ bool ActiveStream::markDiskSnapshot(
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
             log(spdlog::level::level_enum::warn,
-                "(} "
+                "{} "
                 "ActiveStream::markDiskSnapshot, vbucket "
                 "does not exist",
                 logPrefix);
