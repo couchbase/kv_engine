@@ -53,12 +53,14 @@ public:
      *                      which is put on the stream to the other end,
      *                      so the callback is free to inspect, modify or drop
      *                      the entire packet.
+     * @param setup should we set up replication?
      * @return a bucket object representing the bucket
      */
     virtual std::shared_ptr<Bucket> createBucket(
             const std::string& name,
             const nlohmann::json& attributes,
-            DcpPacketFilter packet_filter = {}) = 0;
+            DcpPacketFilter packet_filter = {},
+            bool setup = true) = 0;
 
     /**
      * Delete the named bucket

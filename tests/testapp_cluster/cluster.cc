@@ -38,10 +38,10 @@ public:
 
     ~ClusterImpl() override;
 
-    std::shared_ptr<Bucket> createBucket(
-            const std::string& name,
-            const nlohmann::json& attributes,
-            DcpPacketFilter packet_filter) override;
+    std::shared_ptr<Bucket> createBucket(const std::string& name,
+                                         const nlohmann::json& attributes,
+                                         DcpPacketFilter packet_filter,
+                                         bool setUpReplication) override;
 
     void deleteBucket(const std::string& name) override;
 
@@ -75,7 +75,8 @@ protected:
 std::shared_ptr<Bucket> ClusterImpl::createBucket(
         const std::string& name,
         const nlohmann::json& attributes,
-        DcpPacketFilter packet_filter) {
+        DcpPacketFilter packet_filter,
+        bool setUpReplication) {
     size_t vbuckets = 1024;
     size_t replicas = std::min<size_t>(nodes.size() - 1, 3);
 
@@ -187,7 +188,9 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             }
         }
 
-        bucket->setupReplication();
+        if (setUpReplication) {
+            bucket->setupReplication();
+        }
         buckets.push_back(bucket);
         return bucket;
     } catch (const ConnectionError& e) {

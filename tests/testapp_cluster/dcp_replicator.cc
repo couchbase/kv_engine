@@ -46,7 +46,17 @@ public:
 
     ~DcpReplicatorImpl() override;
 
+    /**
+     * Set up replication connections between all nodes
+     */
     void createPipes(const Cluster& cluster, Bucket& bucket);
+
+    /**
+     * Set up one replication connection using the given configuration
+     */
+    void createPipeForNodes(const Cluster& cluster,
+                            Bucket& bucket,
+                            ReplicationConfig specific);
 
     void start();
 
@@ -55,7 +65,19 @@ protected:
 
     void run();
 
-    void create(const Cluster& cluster, Bucket& bucket, size_t me);
+    /**
+     * Set up all replication connections for the node with the given ID
+     */
+    void createPipesForNode(const Cluster& cluster, Bucket& bucket, size_t me);
+
+    /**
+     * Set up a replication connection between the given nodes with the given
+     * features
+     */
+    void createDcpPipe(const Cluster& cluster,
+                       Bucket& bucket,
+                       std::vector<cb::mcbp::Feature> features,
+                       ReplicationConfig specific);
 
     struct BaseDeleter {
         void operator()(event_base* base) {
@@ -83,7 +105,7 @@ DcpReplicatorImpl::~DcpReplicatorImpl() {
 
 void DcpReplicatorImpl::createPipes(const Cluster& cluster, Bucket& bucket) {
     for (size_t id = 0; id < cluster.size(); ++id) {
-        create(cluster, bucket, id);
+        createPipesForNode(cluster, bucket, id);
     }
 }
 
@@ -135,9 +157,9 @@ std::array<SOCKET, 2> createNotificationPipe() {
     return ret;
 }
 
-void DcpReplicatorImpl::create(const Cluster& cluster,
-                               Bucket& bucket,
-                               size_t me) {
+void DcpReplicatorImpl::createPipesForNode(const Cluster& cluster,
+                                           Bucket& bucket,
+                                           size_t me) {
     const auto& map = bucket.getVbucketMap();
 
     // Locate all of the vbuckets I'm supposed to be contain a replica for
@@ -164,58 +186,108 @@ void DcpReplicatorImpl::create(const Cluster& cluster,
             // I don't have any connections towards this node
             continue;
         }
-
-        auto connection = cluster.getConnection(node);
-        connection->authenticate("@admin", "password", "PLAIN");
-        connection->selectBucket(bucket.getName());
-        std::string name("n_" + std::to_string(node) + "->n_" +
-                         std::to_string(me));
-        connection->setFeatures(name, features);
-
-        // Create and send a DCP open
-        auto rsp = connection->execute(BinprotDcpOpenCommand{
-                name, 0, cb::mcbp::request::DcpOpenPayload::Producer});
-        if (!rsp.isSuccess()) {
-            throw std::runtime_error(
-                    "DcpReplicatorImpl::start: Failed to set up "
-                    "producer: " +
-                    name);
-        }
-
-        // I need to create a connection to myself
-        auto mine = cluster.getConnection(me);
-        mine->authenticate("@admin", "password", "PLAIN");
-        mine->selectBucket(bucket.getName());
-        mine->setFeatures(name, features);
-        BinprotDcpOpenCommand consumerOpenCommand{name};
-        consumerOpenCommand.setConsumerName("n_" + std::to_string(me));
-        rsp = mine->execute(consumerOpenCommand);
-        if (!rsp.isSuccess()) {
-            throw std::runtime_error(
-                    "DcpReplicatorImpl::start: Failed to set up "
-                    "consumer: " +
-                    name);
-        }
-
-        pipelines.emplace_back(
-                std::make_unique<DcpPipe>(base.get(),
-                                          packet_filter,
-                                          "n_" + std::to_string(node),
-                                          "n_" + std::to_string(me),
-                                          connection->releaseSocket(),
-                                          mine->releaseSocket(),
-                                          createNotificationPipe(),
-                                          [this]() { this->num_ready++; }));
+        createDcpPipe(cluster, bucket, features, ReplicationConfig(node, me));
         pipelines.back()->addStreams(vbids[node]);
     }
+}
+
+void DcpReplicatorImpl::createPipeForNodes(const Cluster& cluster,
+                                           Bucket& bucket,
+                                           ReplicationConfig specific) {
+    const auto& map = bucket.getVbucketMap();
+
+    // Locate all of the vbuckets I'm supposed to be contain a replica for
+    std::vector<std::vector<size_t>> vbids(cluster.size());
+
+    for (size_t vb = 0; vb < map.size(); ++vb) {
+        for (size_t node = 1; node < map[vb].size(); ++node) {
+            if (map[vb][node] == int(specific.consumer)) {
+                vbids[specific.consumer].push_back(vb);
+            }
+        }
+    }
+
+    std::vector<cb::mcbp::Feature> features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::SELECT_BUCKET,
+             cb::mcbp::Feature::SNAPPY,
+             cb::mcbp::Feature::JSON}};
+
+    if (vbids[specific.consumer].empty()) {
+        // I don't have any connections towards this node
+        return;
+    }
+    createDcpPipe(cluster, bucket, features, specific);
+    pipelines.back()->addStreams(vbids[specific.consumer]);
+}
+
+void DcpReplicatorImpl::createDcpPipe(const Cluster& cluster,
+                                      Bucket& bucket,
+                                      std::vector<cb::mcbp::Feature> features,
+                                      ReplicationConfig specific) {
+    auto connection = cluster.getConnection(specific.producer);
+    connection->authenticate("@admin", "password", "PLAIN");
+    connection->selectBucket(bucket.getName());
+    std::string name("n_" + std::to_string(specific.producer) + "->n_" +
+                     std::to_string(specific.consumer));
+    connection->setFeatures(name, features);
+
+    // Create and send a DCP open
+    auto rsp = connection->execute(BinprotDcpOpenCommand{
+            name, 0, cb::mcbp::request::DcpOpenPayload::Producer});
+    if (!rsp.isSuccess()) {
+        throw std::runtime_error(
+                "DcpReplicatorImpl::start: Failed to set up "
+                "producer: " +
+                name);
+    }
+
+    // DCP is set up from the Consumer
+    auto mine = cluster.getConnection(specific.consumer);
+    mine->authenticate("@admin", "password", "PLAIN");
+    mine->selectBucket(bucket.getName());
+    mine->setFeatures(name, features);
+    BinprotDcpOpenCommand consumerOpenCommand{name};
+
+    if (specific.syncRepl) {
+        consumerOpenCommand.setConsumerName("n_" +
+                                            std::to_string(specific.consumer));
+    }
+    rsp = mine->execute(consumerOpenCommand);
+    if (!rsp.isSuccess()) {
+        throw std::runtime_error(
+                "DcpReplicatorImpl::start: Failed to set up "
+                "consumer: " +
+                name);
+    }
+
+    pipelines.emplace_back(
+            std::make_unique<DcpPipe>(base.get(),
+                                      packet_filter,
+                                      "n_" + std::to_string(specific.producer),
+                                      "n_" + std::to_string(specific.consumer),
+                                      connection->releaseSocket(),
+                                      mine->releaseSocket(),
+                                      createNotificationPipe(),
+                                      [this]() { this->num_ready++; }));
+    mine->close();
 }
 
 std::unique_ptr<DcpReplicator> DcpReplicator::create(
         const Cluster& cluster,
         Bucket& bucket,
-        DcpPacketFilter& packet_filter) {
+        DcpPacketFilter& packet_filter,
+        const std::vector<ReplicationConfig>& configs) {
     auto ret = std::make_unique<DcpReplicatorImpl>(packet_filter);
-    ret->createPipes(cluster, bucket);
+    if (configs.empty()) {
+        ret->createPipes(cluster, bucket);
+    } else {
+        for (const auto& config : configs) {
+            ret->createPipeForNodes(cluster, bucket, config);
+        }
+    }
     ret->start();
     return ret;
 }

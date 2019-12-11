@@ -31,6 +31,8 @@ namespace test {
 class Cluster;
 class DcpReplicator;
 
+struct ReplicationConfig;
+
 /**
  * The Bucket represents a bucket defined in the cluster. It owns the
  * full vbucket map of the cluster, and a thread which runs all DCP
@@ -111,6 +113,15 @@ public:
      * Create all of the replication streams
      */
     void setupReplication();
+
+    /**
+     * Create specific replication streams as given by specifics
+     *
+     * @param specifics Vector of connections to set up only the desired
+     *                  connections between the given nodes and with the given
+     *                  features.
+     */
+    void setupReplication(const std::vector<ReplicationConfig>& specifics);
 
     void shutdownReplication();
 
