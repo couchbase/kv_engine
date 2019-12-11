@@ -3665,6 +3665,36 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
     EXPECT_EQ("value", gv.item->getValue()->to_s());
 }
 
+TEST_P(DurabilityEPBucketTest, CompactionOfPrepareDoesNotAddToBloomFilter) {
+    using namespace cb::durability;
+
+    // 1) Persist a prepare but don't complete it
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(
+            key, "value", {Level::PersistToMajority, Timeout(30)});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    ASSERT_EQ(0, vb->getNumOfKeysInFilter());
+
+    // Run compaction now, don't expect it to purge anything, just want to
+    // process the items and swap the BloomFilters
+    runCompaction(0, 0);
+
+    // Should not have added the prepare to the filter
+    EXPECT_EQ(0, vb->getNumOfKeysInFilter());
+
+    // A get should complete and return KEY_ENOENT without BGFetch
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,
