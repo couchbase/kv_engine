@@ -1045,7 +1045,8 @@ public:
     void rollbackToZeroWithSyncWrite(bool deleted);
     void rollbackCommit(bool deleted);
     void rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
-                                        bool syncDeleteSecond);
+                                        bool syncDeleteSecond,
+                                        bool lowMemoryRollback = false);
     void rollbackCommitOnTopOfAbortedSyncWrite(bool syncDeleteFirst,
                                                bool syncDeleteSecond);
     void rollbackAbort(bool deleted);
@@ -1780,7 +1781,8 @@ TEST_P(RollbackDcpTest, RollbackSyncDeleteCommit) {
  *  - 1 prepare
  */
 void RollbackDcpTest::rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
-                                                     bool syncDeleteSecond) {
+                                                     bool syncDeleteSecond,
+                                                     bool lowMemoryRollback) {
     writeBaseItems();
     auto highCompletedAndPreparedSeqno = vb->getHighSeqno() + 1;
     auto key = makeStoredDocKey("anykey_0_0");
@@ -1794,6 +1796,11 @@ void RollbackDcpTest::rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
     // Save the pre-rollback HashTable state for later comparison
     auto htState = getHtState();
     doCommit(key);
+
+    if (lowMemoryRollback) {
+        // Force low-memory condition by adjusting the quota.
+        store->getEPEngine().getEpStats().setMaxDataSize(1);
+    }
 
     store->setVBucketState(vbid, vbStateAtRollback);
     EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
@@ -1817,6 +1824,10 @@ TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfSyncWrite) {
 
 TEST_P(RollbackDcpTest, RollbackCommitOnTopOfSyncDelete) {
     rollbackCommitOnTopOfSyncWrite(true, false);
+}
+
+TEST_P(RollbackDcpTest, RollbackCommitOnTopOfSyncDelete_LowMemory) {
+    rollbackCommitOnTopOfSyncWrite(true, false, true);
 }
 
 TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfSyncDelete) {

@@ -4282,8 +4282,15 @@ TEST_P(DurabilityPromotionStreamTest,
 }
 
 /**
- * The test sets up an Active with 2 Disk Checkpoints and checks that the
- * correct HCS is always included in each SnapshotMarker.
+ * Test introduced in MB-36971. The test sets up a Replica with 2 Disk
+ * Checkpoints, turns it into Active and checks that the correct HCS is always
+ * included in each SnapshotMarker when the Active streams.
+ *
+ * The test covers also MB-37063. At setup we simulate the Replica receiving
+ * two Disk Checkpoints in a row. Both checkpoints contain PRE + CMT for the
+ * same key. The flusher has never run when Replica processes the second CMT
+ * in the second snapshot. Before the fix for MB-37063 that would trigger an
+ * exception from PassiveDurabilityMonitor::completeSyncWrite().
  */
 void DurabilityPromotionStreamTest::
         testActiveSendsHCSAtDiskSnapshotSentFromMemory() {
@@ -4312,9 +4319,6 @@ void DurabilityPromotionStreamTest::
 
         ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
         checkOpenCheckpoint(CheckpointType::Disk, 1, 2);
-
-        // @todo: Necessary as workaround for MB-37063, remove when fixed
-        flushVBucketToDiskIfPersistent(vbid, 2 /*expectedNumFlush*/);
     }
 
     // 2) Replica receives PRE:3 and M:4 (logic CMT:4) in a second disk
@@ -4338,7 +4342,7 @@ void DurabilityPromotionStreamTest::
 
     // Note: step necessary only because the next set-vbstate expect an empty
     //   write-queue. Expect to flush PRE:1, M:2, PRE:3 and M:4
-    flushVBucketToDiskIfPersistent(vbid, 2 /*expected num flushed*/);
+    flushVBucketToDiskIfPersistent(vbid, 4 /*expected num flushed*/);
 
     // 3) Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)

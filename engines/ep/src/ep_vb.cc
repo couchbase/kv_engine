@@ -734,9 +734,11 @@ void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
 }
 
 MutationStatus EPVBucket::insertFromWarmup(Item& itm,
-                                         bool eject,
-                                         bool keyMetaDataOnly) {
-    if (!hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
+                                           bool eject,
+                                           bool keyMetaDataOnly,
+                                           bool checkMemUsed) {
+    if (checkMemUsed &&
+        !hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
         return MutationStatus::NoMem;
     }
 
@@ -752,9 +754,17 @@ void EPVBucket::loadOutstandingPrepares(
     // the Prepare is re-committed.
     for (auto& prepare : outstandingPrepares) {
         prepare->setPreparedMaybeVisible();
+
+        // This function is being used for warmup and rollback. In both cases
+        // we are not checking the mem_used and allowing the inserts. Note: that
+        // by default the threshold which is being checked is 93% of quota.
+        // In either case of warmup or rollback, we cannot tolerate having less
+        // than 100% of the prepares loaded for correct functionality, even in
+        // full-eviction mode.
         auto res = insertFromWarmup(*prepare,
                                     /*shouldEject*/ false,
-                                    /*metadataOnly*/ false);
+                                    /*metadataOnly*/ false,
+                                    /*checkMemUsed*/ false);
         Expects(res == MutationStatus::NotFound);
     }
 
