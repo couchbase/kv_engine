@@ -1553,7 +1553,7 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
         try {
             CursorRegResult result =
                     vbucket->checkpointManager->registerCursorBySeqno(
-                            name_, lastReadSeqno);
+                            name_, lastSeenSeqno);
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::notifyEmptyBackfill "
                 "Re-registering dropped cursor with name \"{}\", "
