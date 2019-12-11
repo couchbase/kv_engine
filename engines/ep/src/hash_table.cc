@@ -104,6 +104,7 @@ HashTable::StoredValueProxy::~StoredValueProxy() {
 
 void HashTable::StoredValueProxy::setCommitted(CommittedState state) {
     value->setCommitted(state);
+    value->markDirty();
     value->setCompletedOrDeletedTime(ep_current_time());
 }
 

@@ -3564,6 +3564,107 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareCommitExpire) {
     EXPECT_EQ(3, getMVS());
 }
 
+TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommit) {
+    using namespace cb::durability;
+
+    // 1) Persist a prepare and complete it (without persisting the commit)
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(
+            key, "value", {Level::PersistToMajority, Timeout(30)});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // ACK, locally and remotely
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      1 /*preparedSeqno*/));
+    vb->notifyActiveDMOfLocalSyncWrite();
+    vb->processResolvedSyncWrites();
+
+    ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    // 2) Evict the commit (manually as it's easier than running the pager)
+    // Can't evict the item yet as it has been marked dirty. Before the fix the
+    // item would be evicted successfully and a subsequent get would perform a
+    // BGFetch and return KEY_ENOENT.
+    const char* msg;
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, store->evictKey(key, vbid, &msg));
+
+    // 3) Get returns the value without BGFetch (and not KEY_ENOENT)
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+}
+
+TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
+    using namespace cb::durability;
+
+    // 1) Persist a prepare and commit to test that we don't perform a stale
+    // read
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(
+            key, "staleValue", {Level::PersistToMajority, Timeout(30)});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // ACK, locally and remotely
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      1 /*preparedSeqno*/));
+    vb->notifyActiveDMOfLocalSyncWrite();
+    vb->processResolvedSyncWrites();
+
+    ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Persist a prepare and complete it (without persisting the commit)
+    prepare = makePendingItem(
+            key, "value", {Level::PersistToMajority, Timeout(30)});
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // ACK, locally and remotely
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      3 /*preparedSeqno*/));
+    vb->notifyActiveDMOfLocalSyncWrite();
+    vb->processResolvedSyncWrites();
+
+    ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    // 3) Evict the commit (manually as it's easier than running the pager)
+    // Can't evict the item yet as it has been marked dirty. Before the fix the
+    // item would be evicted successfully and a subsequent get would perform a
+    // BGFetch and return KEY_ENOENT.
+    const char* msg;
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, store->evictKey(key, vbid, &msg));
+
+    // 4) Get returns the new value without BGFetch (and does not return a stale
+    // value).
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ("value", gv.item->getValue()->to_s());
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,
