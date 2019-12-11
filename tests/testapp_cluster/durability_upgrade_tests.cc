@@ -1,0 +1,131 @@
+/*
+ *     Copyright 2019 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+#include "bucket.h"
+#include "cluster.h"
+#include "clustertest.h"
+#include "dcp_replicator.h"
+#include "node.h"
+
+#include <nlohmann/json.hpp>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
+
+namespace cb {
+namespace test {
+
+class DurabilityUpgradeTest : public ClusterTest {
+public:
+    static void SetUpTestCase() {
+        // Can't just use the ClusterTest::SetUp as we need to prevent it from
+        // creating replication streams so that we can create them as we like to
+        // mock upgrade scenarios.
+        cluster = Cluster::create(3);
+        if (!cluster) {
+            std::cerr << "Failed to create the cluster" << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+
+        try {
+            bucket = cluster->createBucket("default",
+                                           {{"replicas", 2},
+                                            {"max_vbuckets", 1},
+                                            {"max_num_shards", 1}},
+                                           {},
+                                           false /*No replication*/);
+        } catch (const std::runtime_error& error) {
+            std::cerr << error.what();
+            std::exit(EXIT_FAILURE);
+        }
+    }
+
+    static void TearDownTestCase() {
+        bucket.reset();
+        ClusterTest::TearDownTestCase();
+    }
+
+protected:
+    static std::shared_ptr<Bucket> bucket;
+};
+
+/**
+ * Test that when we receive a Disk snapshot from a non-MH node that we do not
+ * throw any assertions when we attempt to replicate it to another node due to
+ * having an uninitialized HCS value in a Disk Checkpoint.
+ */
+TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
+    // 1) Do a few sets, we need to cycle through enough checkpoints to force
+    // some to be removed from memory so that we backfill from disk when we set
+    // up DCP.
+    {
+        auto conn = bucket->getConnection(Vbid(0));
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(bucket->getName());
+
+        for (int i = 0; i < 10; i++) {
+            auto info = conn->store("foo", Vbid(0), "value");
+            EXPECT_NE(0, info.cas);
+            EXPECT_NE(0, info.vbucketuuid);
+
+            // Wait for persistence of our item
+            ObserveInfo observeInfo;
+            do {
+                observeInfo = conn->observeSeqno(Vbid(0), info.vbucketuuid);
+            } while (observeInfo.lastPersistedSeqno != info.seqno);
+
+            // Force a new checkpoint
+            BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::CreateCheckpoint);
+            cmd.setVBucket(Vbid(0));
+            BinprotResponse rsp;
+            rsp = conn->execute(cmd);
+            EXPECT_TRUE(rsp.isSuccess());
+        }
+        conn->close();
+    }
+
+    // 2) Set up replication from node 0 to node 1 without sync repl enabled
+    // (i.e. no consumer name which in turn will mean that we don't send the
+    // HCS when we send a disk snapshot marker). This is to mock the behaviour
+    // of a legacy producer that would send a V1 snapshot marker.
+    bucket->setupReplication({{0, 1, false}});
+
+    // 3) Get replica on node 1 to ensure that we have replicated our document.
+    auto conn = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
+    conn->authenticate("@admin", "password", "PLAIN");
+    conn->selectBucket(bucket->getName());
+    getReplica(*conn.get(), Vbid(0), "foo");
+
+    // 4) Now hook up DCP from node 1 to node 2. We would never stream from a
+    // replica to a replica in reality, but it's easier than changing test code
+    // to correctly deal with set vBucket states. This mocks the behaviour we
+    // have when we fully upgrade this cluster and stream our original items to
+    // a new MadHatter consumer (i.e. sync repl enabled). This should send a HCS
+    // value that is non-zero to the replica.
+    bucket->setupReplication({{1, 2, true}});
+
+    // 5) Verify the replication stream works by doing another get replica.
+    conn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
+    conn->authenticate("@admin", "password", "PLAIN");
+    conn->selectBucket(bucket->getName());
+    getReplica(*conn.get(), Vbid(0), "foo");
+
+    conn->close();
+}
+
+} // namespace test
+} // namespace cb
+
+std::shared_ptr<cb::test::Bucket> cb::test::DurabilityUpgradeTest::bucket;

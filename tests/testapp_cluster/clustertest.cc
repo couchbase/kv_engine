@@ -19,6 +19,8 @@
 #include "cluster.h"
 
 #include <nlohmann/json.hpp>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 
 std::unique_ptr<cb::test::Cluster> cb::test::ClusterTest::cluster;
 
@@ -55,4 +57,18 @@ void cb::test::ClusterTest::SetUp() {
 
 void cb::test::ClusterTest::TearDown() {
     Test::TearDown();
+}
+
+void cb::test::ClusterTest::getReplica(MemcachedConnection& conn,
+                                       Vbid vbid,
+                                       const std::string& key) {
+    BinprotResponse rsp;
+    do {
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetReplica);
+        cmd.setVBucket(Vbid(0));
+        cmd.setKey(key);
+
+        rsp = conn.execute(cmd);
+    } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
+    EXPECT_TRUE(rsp.isSuccess());
 }

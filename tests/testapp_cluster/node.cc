@@ -294,6 +294,7 @@ std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() {
     ret->setAutoRetryTmpfail(true);
     ret->setFeature(cb::mcbp::Feature::XERROR, true);
     ret->setFeature(cb::mcbp::Feature::JSON, true);
+    ret->setFeature(cb::mcbp::Feature::MUTATION_SEQNO, true);
     return ret;
 }
 
