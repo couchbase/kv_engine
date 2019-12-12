@@ -19,7 +19,6 @@
 #include "buckets.h"
 #include "connection.h"
 #include "front_end_thread.h"
-#include "runtime.h"
 #include "settings.h"
 #include "stats.h"
 
@@ -27,10 +26,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <algorithm>
-#include <chrono>
 #include <list>
-#include <memory>
-#include <thread>
 
 /*
  * Free list management for connections.
@@ -75,54 +71,6 @@ void iterate_thread_connections(FrontEndThread* thread,
             callback(*c);
         }
     }
-}
-
-void destroy_connections() {
-    std::lock_guard<std::mutex> lock(connections.mutex);
-    /* traverse the list of connections. */
-    for (auto* c : connections.conns) {
-        conn_destructor(c);
-    }
-    connections.conns.clear();
-}
-
-void close_all_connections() {
-    /* traverse the list of connections. */
-    {
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        for (auto* c : connections.conns) {
-            if (!c->isSocketClosed()) {
-                safe_close(c->getSocketDescriptor());
-                c->setSocketDescriptor(INVALID_SOCKET);
-            }
-
-            if (c->getRefcount() > 1) {
-                perform_callbacks(ON_DISCONNECT, NULL, c);
-            }
-        }
-    }
-
-    /*
-     * do a second loop, this time wait for all of them to
-     * be closed.
-     */
-    bool done;
-    do {
-        done = true;
-        {
-            std::lock_guard<std::mutex> lock(connections.mutex);
-            for (auto* c : connections.conns) {
-                if (c->getRefcount() > 1) {
-                    done = false;
-                    break;
-                }
-            }
-        }
-
-        if (!done) {
-            std::this_thread::sleep_for(std::chrono::microseconds(500));
-        }
-    } while (!done);
 }
 
 Connection* conn_new(SOCKET sfd,

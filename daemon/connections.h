@@ -27,12 +27,6 @@ struct FrontEndThread;
 class ListeningPort;
 class Bucket;
 
-/* Destroy all connections and reset connection management */
-void destroy_connections();
-
-/* Run through all the connections and close them */
-void close_all_connections();
-
 /**
  * Cerate a new client connection
  *

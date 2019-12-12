@@ -2050,9 +2050,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_INFO("Releasing server sockets");
     listen_conn.clear();
 
-    LOG_INFO("Releasing client resources");
-    close_all_connections();
-
     LOG_INFO("Releasing bucket resources");
     cleanup_buckets();
 
@@ -2078,9 +2075,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Shutting down SASL server");
     cb::sasl::server::shutdown();
-
-    LOG_INFO("Releasing connection objects");
-    destroy_connections();
 
     LOG_INFO("Deinitialising tracing");
     deinitializeTracing();
