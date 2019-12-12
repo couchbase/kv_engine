@@ -392,18 +392,6 @@ public:
     }
 
     /**
-     * Disable read event for this connection (we won't get notified if
-     * more data arrives on the socket).
-     */
-    void disableReadEvent();
-
-    /**
-     * Enable read event for this connection (cause the read callback to
-     * be triggered once there is data on the socket).
-     */
-    void enableReadEvent();
-
-    /**
      * Copy the provided data to the end of the output stream
      *
      * @param data the data to send
@@ -827,6 +815,18 @@ protected:
      * Add the provided packet to the send pipe for the connection
      */
     ENGINE_ERROR_CODE add_packet_to_send_pipe(cb::const_byte_buffer packet);
+
+    /**
+     * Disable read event for this connection (we won't get notified if
+     * more data arrives on the socket).
+     */
+    void disableReadEvent();
+
+    /**
+     * Enable read event for this connection (cause the read callback to
+     * be triggered once there is data on the socket).
+     */
+    void enableReadEvent();
 
     /**
      * The actual socket descriptor used by this connection
