@@ -1078,21 +1078,22 @@ Connection::Connection(SOCKET sfd,
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
 
+    const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
+                         BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
     if (ssl) {
         bev.reset(bufferevent_openssl_socket_new(
                 base,
                 sfd,
                 createSslStructure(ifc).release(),
                 BUFFEREVENT_SSL_ACCEPTING,
-                BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS));
+                options));
         bufferevent_setcb(bev.get(),
                           Connection::ssl_read_callback,
                           Connection::rw_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
     } else {
-        bev.reset(bufferevent_socket_new(
-                base, sfd, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS));
+        bev.reset(bufferevent_socket_new(base, sfd, options));
         bufferevent_setcb(bev.get(),
                           Connection::rw_callback,
                           Connection::rw_callback,
