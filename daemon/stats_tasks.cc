@@ -40,7 +40,7 @@ Task::Status StatsTaskConnectionStats::execute() {
     getMutex().unlock();
     try {
         iterate_all_connections([this](Connection& c) -> void {
-            if (fd == -1 || c.getSocketDescriptor() == fd) {
+            if (fd == -1 || c.getId() == fd) {
                 stats.emplace_back(std::make_pair<std::string, std::string>(
                         {}, c.toJSON().dump()));
             }

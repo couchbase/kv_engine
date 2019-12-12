@@ -95,24 +95,6 @@ public:
         return uint32_t(socketDescriptor);
     }
 
-    /**
-     *  Get the socket descriptor used by this connection.
-     */
-    SOCKET getSocketDescriptor() const {
-        return socketDescriptor;
-    }
-
-    /**
-     * Set the socket descriptor used by this connection
-     */
-    void setSocketDescriptor(SOCKET sfd) {
-        Connection::socketDescriptor = sfd;
-    }
-
-    bool isSocketClosed() const {
-        return socketDescriptor == INVALID_SOCKET;
-    }
-
     const std::string& getPeername() const {
         return peername;
     }
@@ -817,7 +799,7 @@ protected:
     /**
      * The actual socket descriptor used by this connection
      */
-    SOCKET socketDescriptor;
+    const SOCKET socketDescriptor;
 
     const bool connectedToSystemPort;
 
