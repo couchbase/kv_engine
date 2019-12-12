@@ -1018,43 +1018,30 @@ void Connection::copyToOutputStream(cb::const_char_buffer data) {
     totalSend += data.size();
 }
 
-void Connection::chainDataToOutputStream(cb::const_char_buffer data,
-                                         evbuffer_ref_cleanup_cb cleanupfn,
-                                         void* cleanupfn_arg) {
-    if (data.empty()) {
-        throw std::invalid_argument(
-                "Connection::chainDataToOutputStream can't be called with an "
-                "empty data");
-    }
-
-    if (evbuffer_add_reference(bufferevent_get_output(bev.get()),
-                               data.data(),
-                               data.size(),
-                               cleanupfn,
-                               cleanupfn_arg) == -1) {
-        throw std::bad_alloc();
-    }
-    totalSend += data.size();
-}
-
 static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
     delete reinterpret_cast<SendBuffer*>(extra);
 }
 
 void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
-    if (!buffer) {
+    if (!buffer || buffer->getPayload().empty()) {
         throw std::logic_error(
                 "McbpConnection::chainDataToOutputStream: buffer must be set");
     }
 
-    if (!buffer->getPayload().empty()) {
-        chainDataToOutputStream(
-                buffer->getPayload(), sendbuffer_cleanup_cb, buffer.get());
-        // Buffer successfully added to libevent and the callback
-        // (sendbuffer_cleanup_cb) will free the memory.
-        // Move the ownership of the buffer!
-        (void)buffer.release();
+    auto data = buffer->getPayload();
+    if (evbuffer_add_reference(bufferevent_get_output(bev.get()),
+                               data.data(),
+                               data.size(),
+                               sendbuffer_cleanup_cb,
+                               buffer.get()) == -1) {
+        throw std::bad_alloc();
     }
+
+    // Buffer successfully added to libevent and the callback
+    // (sendbuffer_cleanup_cb) will free the memory.
+    // Move the ownership of the buffer!
+    (void)buffer.release();
+    totalSend += data.size();
 }
 
 Connection::Connection(FrontEndThread& thr)

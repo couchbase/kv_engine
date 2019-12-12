@@ -410,20 +410,6 @@ public:
     /**
      * Add a reference to the data to the output stream.
      *
-     * @param data The data to send
-     * @param cleanupfn The callback function to call when we're done with the
-     *                  data.
-     * @param cleanupfn_arg The argument to provide to the cleanup function
-     * @throws std::bad_alloc if we failed to insert the data into the output
-     *                        stream.
-     */
-    void chainDataToOutputStream(cb::const_char_buffer data,
-                                 evbuffer_ref_cleanup_cb cleanupfn,
-                                 void* cleanupfn_arg);
-
-    /**
-     * Add a reference to the data to the output stream.
-     *
      * @param buffer the send buffer to send
      * @throws std::bad_alloc if we failed to insert the data into the output
      *                        stream.
