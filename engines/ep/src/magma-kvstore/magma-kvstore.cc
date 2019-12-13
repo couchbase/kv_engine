@@ -629,7 +629,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
 MagmaKVStore::~MagmaKVStore() {
     if (!in_transaction) {
-        magma->Sync();
+        magma->Sync(true);
     }
     logger->debug("MagmaKVStore Destructor");
 }
@@ -2014,7 +2014,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
 
     auto kvHandle = getMagmaKVHandle(vbid);
 
-    auto status = magma->Sync();
+    auto status = magma->Sync(true);
     if (!status) {
         logger->warn("MagmaKVStore::compactDB Sync failed. {}",
                      ctx->compactConfig.db_file_id);
