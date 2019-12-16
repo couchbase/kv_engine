@@ -659,8 +659,9 @@ private:
     uint64_t                       snapStartSeqno;
     uint64_t                       snapEndSeqno;
 
-    /// The maximum visible snapshot end (hides prepare/abort)
-    Monotonic<uint64_t> visibleSnapEndSeqno = 0;
+    /// The maximum visible snapshot end (hides prepare/abort), this could be
+    /// a WeaklyMonotonic, but many unit tests will violate that.
+    uint64_t visibleSnapEndSeqno = 0;
     /// The seqno of the highest expelled item.
     Monotonic<int64_t> highestExpelledSeqno = 0;
     Vbid vbucketId;

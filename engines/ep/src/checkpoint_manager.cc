@@ -1062,6 +1062,7 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
 
     numItems = 0;
     lastBySeqno.reset(seqno);
+    maxVisibleSeqno.reset(seqno);
     pCursorPreCheckpointId = 0;
     addOpenCheckpoint(vbState == vbucket_state_active ? 1 : 0 /* id */,
                       lastBySeqno,
