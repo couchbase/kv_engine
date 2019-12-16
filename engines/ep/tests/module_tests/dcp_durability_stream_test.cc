@@ -2386,6 +2386,137 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     EXPECT_EQ(2, dm.getNumTracked());
 }
 
+void DurabilityPassiveStreamPersistentTest::
+        testCompletedPrepareSkippedAtOutOfOrderCompletion(
+                CheckpointType firstCkptType) {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto& ckptMgr = *vb->checkpointManager;
+    ckptMgr.clear(*vb, 0 /*seqno*/);
+
+    const auto receiveSnapshot = [this, &vb, &ckptMgr](
+                                         CheckpointType type,
+                                         uint64_t snapStart,
+                                         uint64_t snapEnd) -> void {
+        uint32_t flags = 0;
+        using namespace cb::durability;
+        Requirements reqs;
+
+        const auto timeout = Timeout::Infinity();
+        if (type == CheckpointType::Memory) {
+            flags = dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK;
+            reqs = Requirements(Level::PersistToMajority, timeout);
+        } else {
+            flags = dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK;
+            reqs = Requirements(Level::Majority, timeout);
+        }
+
+        uint32_t opaque = 1;
+        SnapshotMarker marker(opaque,
+                              vbid,
+                              snapStart,
+                              snapEnd,
+                              flags,
+                              snapStart /*HCS*/,
+                              {} /*maxVisibleSeqno*/,
+                              {} /*streamId*/);
+        stream->processMarker(&marker);
+
+        const auto key = makeStoredDocKey("key");
+        const auto value = "value";
+        auto item = makePendingItem(key, value, reqs);
+        item->setBySeqno(snapStart);
+
+        // Replica receives PRE
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  stream->messageReceived(
+                          std::make_unique<MutationConsumerMessage>(
+                                  item,
+                                  opaque,
+                                  IncludeValue::Yes,
+                                  IncludeXattrs::Yes,
+                                  IncludeDeleteTime::No,
+                                  DocKeyEncodesCollectionId::No,
+                                  nullptr /*ext-metadata*/,
+                                  cb::mcbp::DcpStreamId{})));
+
+        // Replica receives logical CMT
+        std::unique_ptr<DcpResponse> cmtMsg;
+        if (type == CheckpointType::Memory) {
+            cmtMsg = std::make_unique<CommitSyncWrite>(
+                    opaque,
+                    vbid,
+                    snapStart /*prepareSeqno*/,
+                    snapEnd /*commitSeqno*/,
+                    key);
+        } else {
+            item = makeCommittedItem(key, value);
+            item->setBySeqno(snapEnd);
+            cmtMsg = std::make_unique<MutationConsumerMessage>(
+                    std::move(item),
+                    opaque,
+                    IncludeValue::Yes,
+                    IncludeXattrs::Yes,
+                    IncludeDeleteTime::No,
+                    DocKeyEncodesCollectionId::No,
+                    nullptr /*ext-metadata*/,
+                    cb::mcbp::DcpStreamId{});
+        }
+        EXPECT_EQ(ENGINE_SUCCESS, stream->messageReceived(std::move(cmtMsg)));
+
+        // Check HT
+        {
+            const auto res = vb->ht.findForUpdate(key);
+            ASSERT_TRUE(res.committed);
+            EXPECT_EQ(snapEnd, res.committed->getBySeqno());
+            EXPECT_TRUE(res.committed->getValue());
+            EXPECT_FALSE(res.pending);
+        }
+        // Check CM
+        const auto& ckptList =
+                CheckpointManagerTestIntrospector::public_getCheckpointList(
+                        ckptMgr);
+        const auto* ckpt = ckptList.back().get();
+        EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+        ASSERT_EQ(1, ckpt->getNumMetaItems());
+        ASSERT_EQ(2, ckpt->getNumItems());
+        auto it = ckpt->begin();
+        EXPECT_EQ(queue_op::empty, (*it)->getOperation());
+        it++;
+        EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+        it++;
+        EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+        EXPECT_EQ(snapStart, (*it)->getBySeqno());
+        it++;
+        if (type == CheckpointType::Memory) {
+            EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
+        } else {
+            EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+        }
+        EXPECT_EQ(snapEnd, (*it)->getBySeqno());
+    };
+
+    // Receive a first snapshot with PRE:1(key) + CMT:2 such that PRE:1 is not
+    // removed from tracking at completion
+    receiveSnapshot(firstCkptType, 1, 2);
+
+    // Receives a second Disk snapshot so with PRE:3(key) + CMT:4.
+    // The PDM throws at this step before the fix in MB-37063.
+    receiveSnapshot(CheckpointType::Disk, 3, 4);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       CompletedPrepareSkippedAtOutOfOrderCompletion_Memory) {
+    testCompletedPrepareSkippedAtOutOfOrderCompletion(
+            CheckpointType::Memory /*firstCkptType*/);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       CompletedPrepareSkippedAtOutOfOrderCompletion_Disk) {
+    testCompletedPrepareSkippedAtOutOfOrderCompletion(
+            CheckpointType::Disk /*firstCkptType*/);
+}
+
 TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
     testReceiveDcpPrepare();
 

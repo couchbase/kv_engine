@@ -227,6 +227,21 @@ protected:
     void testDiskSnapshotHCSPersisted();
 
     /**
+     * Tests that Replica skips completed Prepares when receiving a Disk
+     * Checkpoint. Covers all the scenarios where a completed Prepare for <key>
+     * may still be present in the PDM tracked list when Replica receives and
+     * completes a new Prepare for the same key, ie:
+     *
+     * 1) Replica has received a first PersistTo Prepare in a Memory Checkpoint
+     * 2) Replica has received a first (whatever level) Prepare in a Disk
+     *   Checkpoint
+     *
+     * @param firstCkptType
+     */
+    void testCompletedPrepareSkippedAtOutOfOrderCompletion(
+            CheckpointType firstCkptType);
+
+    /**
      * Read the highCompletedSeqno from disk.
      */
     uint64_t getPersistedHCS();
