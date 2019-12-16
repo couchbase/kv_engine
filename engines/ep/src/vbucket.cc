@@ -3944,13 +3944,9 @@ void VBucket::removeAcksFromADM(
     removeAcksFromADM(node);
 }
 
-void VBucket::setDuplicateSyncWriteWindow(uint64_t highSeqno) {
-    setUpAllowedDuplicatePrepareThreshold();
-}
-
-void VBucket::setUpAllowedDuplicatePrepareThreshold() {
+void VBucket::setDuplicatePrepareWindow() {
     const auto& pdm = getPassiveDM();
-    // We should only see duplicates for prepares currently in trackedWrites
+    // We should only see duplicates for prepares currently in trackedWrites;
     // prepares which are not in trackedWrites are either
     //  - Completed: A new prepare would be valid anyway, as the item is
     //  completed

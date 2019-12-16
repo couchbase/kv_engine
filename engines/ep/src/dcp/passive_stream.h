@@ -40,7 +40,6 @@ public:
     /// The states this PassiveStream object can be in.
     enum class StreamState {
         Pending,
-        AwaitingFirstSnapshotMarker,
         Reading,
         Dead
     };

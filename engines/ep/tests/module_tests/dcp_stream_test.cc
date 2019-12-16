@@ -1562,7 +1562,7 @@ void SingleThreadedPassiveStreamTest::SetUp() {
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream->isActive());
-    stream->transitionStateToAwaitingFirstSnapshotMarker();
+    stream->transitionStateToReading();
 
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(1, readyQ.size());
