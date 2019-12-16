@@ -69,10 +69,10 @@ std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 void update_topkeys(const Cookie& cookie) {
     const auto opcode = cookie.getHeader().getOpcode();
     if (topkey_commands[opcode]) {
-        const auto index = cookie.getConnection().getBucketIndex();
+        auto& bucket = cookie.getConnection().getBucket();
         const auto key = cookie.getRequestKey();
-        if (all_buckets[index].topkeys != nullptr) {
-            all_buckets[index].topkeys->updateKey(
+        if (bucket.topkeys) {
+            bucket.topkeys->updateKey(
                     key.data(), key.size(), mc_time_get_current_time());
         }
     }
