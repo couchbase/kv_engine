@@ -914,7 +914,7 @@ static void dcp_stream_to_replica(EngineIface* h,
                                  snap_start_seqno,
                                  snap_end_seqno,
                                  flags,
-                                 {} /*HCS*/,
+                                 0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
     const std::string data("data");
@@ -1050,7 +1050,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
                                  snap_start_seqno,
                                  snap_end_seqno,
                                  flags,
-                                 {} /*HCS*/,
+                                 0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
     const std::string data("data");
@@ -1173,7 +1173,7 @@ extern "C" {
                                       ctx->items,
                                       ctx->items + i,
                                       2,
-                                      {} /*HCS*/,
+                                      0 /*HCS*/,
                                       {} /*maxVisibleSeqno*/);
 
             const std::string key = ss.str();
@@ -3807,7 +3807,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                                  0,
                                  10,
                                  2,
-                                 {} /*HCS*/,
+                                 0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
 
@@ -3939,7 +3939,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                          1,
                          5,
                          10,
-                         {} /*HCS*/,
+                         0 /*HCS*/,
                          {} /*maxVisibleSeqno*/);
     for (int i = 1; i <= 5; i++) {
         const std::string key{"key" + std::to_string(i)};
@@ -3971,7 +3971,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                          6,
                          10,
                          10,
-                         {} /*HCS*/,
+                         0 /*HCS*/,
                          {} /*maxVisibleSeqno*/);
     for (int i = 6; i <= 10; i++) {
         const std::string key{"key" + std::to_string(i)};
@@ -6960,7 +6960,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                          /*start*/ 0,
                          /*end*/ 3,
                          /*flags*/ 2,
-                         /*HCS*/ {},
+                         /*HCS*/ 0,
                          /*maxVisibleSeqno*/ {});
 
     // Create two items via a DCP mutation.
@@ -7598,7 +7598,7 @@ static enum test_result test_mb19982(EngineIface* h) {
                                      num_items,
                                      num_items + i,
                                      2,
-                                     {} /*HCS*/,
+                                     0 /*HCS*/,
                                      {} /*maxVisibleSeqno*/),
                 ENGINE_SUCCESS,
                 "Failed to send snapshot marker");
@@ -7710,7 +7710,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                  0, // start-seq
                                  2, // end-seq
                                  MARKER_FLAG_DISK,
-                                 {} /*HCS*/,
+                                 0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "snapshot_marker returned an error");
     const DocKey docKey1{"syncw", DocKeyEncodesCollectionId::No};

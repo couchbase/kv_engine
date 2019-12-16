@@ -78,6 +78,13 @@ protected:
     void SetUp() override;
     void TearDown() override;
 
+    /**
+     * Helper method to construct the consumer and stream objects.
+     * Postcondition: Both objects are created. stream has accepted the DCP
+     * Stream and is in state AwaitingFirstSnapshotMarker.
+     */
+    void setupConsumerAndPassiveStream();
+
     enum class mb_33773Mode {
         closeStreamOnTask,
         closeStreamBeforeTask,

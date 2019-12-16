@@ -240,8 +240,7 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
                                            snap_start_seqno,
                                            snap_end_seqno,
                                            vb_high_seqno,
-                                           vb_manifest_uid,
-                                           supportsSyncReplication);
+                                           vb_manifest_uid);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
