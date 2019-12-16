@@ -36,13 +36,10 @@ struct connections {
     std::list<Connection*> conns;
 } connections;
 
-static void conn_destructor(Connection* c);
 static Connection* allocate_connection(SOCKET sfd,
                                        event_base* base,
                                        const ListeningPort& interface,
                                        FrontEndThread& thread);
-
-static void release_connection(Connection* c);
 
 /** External functions *******************************************************/
 
@@ -102,19 +99,26 @@ Connection* conn_new(SOCKET sfd,
     return c;
 }
 
-void conn_destroy(Connection* c) {
-    release_connection(c);
-}
-
-/** Internal functions *******************************************************/
-
 /**
- * Destructor for all connection objects. Release all allocated resources.
+ * Release a connection; removing it from the connection list management
+ * and freeing the Connection object.
  */
-static void conn_destructor(Connection* c) {
+void conn_destroy(Connection* c) {
+    {
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        auto iter = std::find(
+                connections.conns.begin(), connections.conns.end(), c);
+        // I should assert
+        cb_assert(iter != connections.conns.end());
+        connections.conns.erase(iter);
+    }
+
+    // Finally free it
     delete c;
     stats.conn_structs--;
 }
+
+/** Internal functions *******************************************************/
 
 /** Allocate a connection, creating memory and adding it to the conections
  *  list. Returns a pointer to the newly-allocated connection if successful,
@@ -142,20 +146,4 @@ static Connection* allocate_connection(SOCKET sfd,
 
     delete ret;
     return NULL;
-}
-
-/** Release a connection; removing it from the connection list management
- *  and freeing the Connection object.
- */
-static void release_connection(Connection* c) {
-    {
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        auto iter = std::find(connections.conns.begin(), connections.conns.end(), c);
-        // I should assert
-        cb_assert(iter != connections.conns.end());
-        connections.conns.erase(iter);
-    }
-
-    // Finally free it
-    conn_destructor(c);
 }
