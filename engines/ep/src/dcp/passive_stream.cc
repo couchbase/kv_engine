@@ -46,8 +46,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              uint64_t snap_start_seqno,
                              uint64_t snap_end_seqno,
                              uint64_t vb_high_seqno,
-                             const Collections::ManifestUid vb_manifest_uid,
-                             SyncReplication supportsSyncReplication)
+                             const Collections::ManifestUid vb_manifest_uid)
     : Stream(name,
              flags,
              opaque,
@@ -59,7 +58,6 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
              snap_end_seqno),
       engine(e),
       consumerPtr(c),
-      supportsSyncReplication(supportsSyncReplication != SyncReplication::No),
       last_seqno(vb_high_seqno),
       cur_snapshot_start(0),
       cur_snapshot_end(0),
@@ -193,11 +191,15 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
         return;
     }
 
-    // For SyncReplication streams lookup the highPreparedeSqno to check if
+    // SyncReplication: About to commence accepting data on this stream. Check
+    // if the associated consumer supports SyncReplication, so we can later
+    // correctly process Snapshot Markers.
+    supportsSyncReplication = consumer->isSyncReplicationEnabled();
+
+    // For SyncReplication streams lookup the highPreparedSeqno to check if
     // we need to re-ACK (after accepting the stream).
-    const int64_t highPreparedSeqno = consumer->isSyncReplicationEnabled()
-                                              ? vb->getHighPreparedSeqno()
-                                              : 0;
+    const int64_t highPreparedSeqno =
+            supportsSyncReplication ? vb->getHighPreparedSeqno() : 0;
 
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isPending()) {

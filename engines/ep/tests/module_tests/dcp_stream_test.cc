@@ -1551,30 +1551,53 @@ void SingleThreadedPassiveStreamTest::SetUp() {
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-    if (enableSyncReplication) {
-        consumer->enableSyncReplication();
-    }
-    ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
-
-    stream = static_cast<MockPassiveStream*>(
-            (consumer->getVbucketStream(vbid)).get());
-    ASSERT_TRUE(stream->isActive());
-    stream->transitionStateToReading();
-
-    const auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(1, readyQ.size());
-    ASSERT_EQ(DcpResponse::Event::StreamReq, readyQ.front()->getEvent());
-    ASSERT_TRUE(stream->public_popFromReadyQ());
-    ASSERT_FALSE(stream->public_popFromReadyQ());
+    setupConsumerAndPassiveStream();
 }
 
 void SingleThreadedPassiveStreamTest::TearDown() {
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
     STParameterizedBucketTest::TearDown();
+}
+
+void SingleThreadedPassiveStreamTest::setupConsumerAndPassiveStream() {
+    // In the normal DCP protocol flow, ns_server issues an AddStream request
+    // to the DcpConsumer before DCP Control messages are necessarily
+    // negotiated.
+    // As such, create the PassiveStream *before* enabling SyncReplication
+    // (normally done using DCP_CONTROL negotiation with the Producer) to
+    // accurately reflect how these classes are used in the real flow.
+    consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    if (enableSyncReplication) {
+        consumer->enableSyncReplication();
+    }
+
+    // Consume the StreamRequest message on the PassiveStreams' readyQ,
+    // and simulate the producer responding to it.
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    auto msg = stream->public_popFromReadyQ();
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::StreamReq, msg->getEvent());
+    stream->acceptStream(cb::mcbp::Status::Success, 0);
+    ASSERT_TRUE(stream->isActive());
+
+    // PassiveStream should have sent an AddStream response back to ns_server,
+    // plus an optional SeqnoAcknowledgement (if SyncReplication enabled and
+    // necessary to Ack back to producer).
+    msg = stream->public_popFromReadyQ();
+    ASSERT_EQ(DcpResponse::Event::AddStream, msg->getEvent());
+    msg = stream->public_popFromReadyQ();
+    if (msg) {
+        ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement, msg->getEvent());
+    }
 }
 
 TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {

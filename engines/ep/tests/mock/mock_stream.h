@@ -242,8 +242,7 @@ public:
                       uint64_t snap_start_seqno,
                       uint64_t snap_end_seqno,
                       uint64_t vb_high_seqno,
-                      const Collections::ManifestUid vb_manifest_uid,
-                      SyncReplication supportsSyncReplication)
+                      const Collections::ManifestUid vb_manifest_uid)
         : PassiveStream(&e,
                         consumer,
                         name,
@@ -256,16 +255,11 @@ public:
                         snap_start_seqno,
                         snap_end_seqno,
                         vb_high_seqno,
-                        vb_manifest_uid,
-                        supportsSyncReplication) {
+                        vb_manifest_uid) {
     }
 
     void transitionStateToDead() {
         transitionState(StreamState::Dead);
-    }
-
-    void transitionStateToReading() {
-        transitionState(StreamState::Reading);
     }
 
     ENGINE_ERROR_CODE messageReceived(
