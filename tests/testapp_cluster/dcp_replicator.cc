@@ -123,7 +123,11 @@ void DcpReplicatorImpl::thread_main(DcpReplicatorImpl& instance) {
         instance.run();
     } catch (const std::exception& e) {
         if (!instance.shutdown) {
-            throw e;
+            // If we just rethrew the exception then we would lose the message
+            // and just throw a std::exception. Create a runtime_error to at
+            // least preserve the message (although we will lose the exception
+            // type).
+            throw std::runtime_error{e.what()};
         }
     }
 }
