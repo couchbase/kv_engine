@@ -335,9 +335,8 @@ struct ServerCookieApi : public ServerCookieIface {
         return CONN_PRIORITY_MED;
     }
 
-    bucket_id_t get_bucket_id(gsl::not_null<const void*> void_cookie) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-        return bucket_id_t(cookie->getConnection().getBucketIndex());
+    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
+        return bucket_id_t(getCookie(cookie).getConnection().getBucketIndex());
     }
 
     uint64_t get_connection_id(
@@ -378,27 +377,22 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     std::string get_authenticated_user(
-            gsl::not_null<const void*> void_cookie) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-        return cookie->getConnection().getUsername();
+            gsl::not_null<const void*> cookie) override {
+        return getCookie(cookie).getConnection().getUsername();
     }
 
-    in_port_t get_connected_port(
-            gsl::not_null<const void*> void_cookie) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-        return cookie->getConnection().getParentPort();
+    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+        return getCookie(cookie).getConnection().getParentPort();
     }
 
-    void set_error_context(gsl::not_null<void*> void_cookie,
+    void set_error_context(gsl::not_null<void*> cookie,
                            cb::const_char_buffer message) override {
-        auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
-        cookie->setErrorContext(to_string(message));
+        getCookie(cookie).setErrorContext(to_string(message));
     }
 
-    void set_error_json_extras(gsl::not_null<void*> void_cookie,
+    void set_error_json_extras(gsl::not_null<void*> cookie,
                                const nlohmann::json& json) override {
-        auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
-        cookie->setErrorJsonExtras(json);
+        getCookie(cookie).setErrorJsonExtras(json);
     }
 
     cb::const_char_buffer get_inflated_payload(
