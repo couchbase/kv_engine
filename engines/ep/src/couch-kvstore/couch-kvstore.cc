@@ -979,6 +979,12 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     ctx->stats.preparesPurged++;
                     return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
+
+                // Just keep the item if not complete. We should not attempt to
+                // expire a prepare and we do not want to update the bloom
+                // filter for a prepare either as that could cause us to run
+                // unnecessary BGFetches.
+                return COUCHSTORE_COMPACT_KEEP_ITEM;
             }
 
             time_t currtime = ep_real_time();
