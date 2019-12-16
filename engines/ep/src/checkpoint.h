@@ -100,48 +100,10 @@ struct index_entry {
     int64_t mutation_id;
 };
 
-enum class CheckpointIndexKeyNamespace : uint8_t {
-    Committed = 0,
-    Prepared,
-};
-
-/**
- * We want to allow prepares and commits to exist in the same checkpoint as this
- * simplifies replica code. This is because disk based snapshots can contain
- * both a prepare and a committed item against the same key. For consistency,
- * in memory snapshots should be able to do the same.
- * To do this, CheckpointManager uses a key with the namespace for determining
- * uniqueness in a Checkpoint. Currently an abort exists in the same namespace
- * as a prepare so we will mimic that here and not allow prepares and aborts
- * in the same checkpoint.
- */
-using CheckpointIndexKey = std::pair<StoredDocKey, CheckpointIndexKeyNamespace>;
-namespace std {
-template <>
-struct hash<CheckpointIndexKey> {
-public:
-    std::size_t operator()(const CheckpointIndexKey& k) const {
-        return std::hash<StoredDocKey>{}(k.first);
-    }
-};
-} // namespace std
-
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
 using checkpoint_index = std::unordered_map<
-        CheckpointIndexKey,
-        index_entry,
-        std::hash<CheckpointIndexKey>,
-        std::equal_to<CheckpointIndexKey>,
-        MemoryTrackingAllocator<
-                std::pair<const CheckpointIndexKey, index_entry>>>;
-
-/**
- * The meta_checkpoint_index does not hold items that care about durability so
- * we do not need to store the Prepare/Committed namespace.
- */
-using meta_checkpoint_index = std::unordered_map<
         StoredDocKey,
         index_entry,
         std::hash<StoredDocKey>,
@@ -626,11 +588,11 @@ public:
      * references to them.
      */
     size_t getMemoryOverhead() const {
-        // The keyIndex and metaKeyIndex share the same allocator and therefore
-        // getting the bytes allocated for the keyIndex map will also include
-        // the metaKeyIndex map.
+        // All 3 indexes (preparedKey, committedKey and metaKey) share the
+        // same allocator and therefore getting the bytes allocated for the
+        // one will include the others.
         return sizeof(Checkpoint) +
-               *(keyIndex.get_allocator().getBytesAllocated()) +
+               *(committedKeyIndex.get_allocator().getBytesAllocated()) +
                *(toWrite.get_allocator().getBytesAllocated());
     }
 
@@ -718,9 +680,23 @@ private:
     // Allocator used for tracking memory used by keyIndex and metaKeyIndex
     checkpoint_index::allocator_type keyIndexTrackingAllocator;
     CheckpointQueue toWrite;
-    checkpoint_index               keyIndex;
+
+    /**
+     * We want to allow prepares and commits to exist in the same checkpoint as
+     * this simplifies replica code. This is because disk based snapshots can
+     * contain both a prepare and a committed item against the same key. For
+     * consistency, in memory snapshots should be able to do the same.
+     * To do this, maintain two key indexes - one for prepared items and
+     * one for committed items, allowing at most one of each type in a
+     * single checkpoint.
+     * Currently an abort exists in the same namespace as a prepare so we will
+     * mimic that here and not allow prepares and aborts in the same checkpoint.
+     */
+    checkpoint_index committedKeyIndex;
+    checkpoint_index preparedKeyIndex;
+
     /* Index for meta keys like "dummy_key" */
-    meta_checkpoint_index metaKeyIndex;
+    checkpoint_index metaKeyIndex;
 
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
     // This includes each item's key size and sizeof(index_entry).
