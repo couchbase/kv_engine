@@ -1652,17 +1652,10 @@ public:
                            const folly::SharedMutex::ReadHolder& vbstateLock);
 
     /**
-     * Set the window for which a duplicate abort/prepare may be valid.
-     *
-     * @param highSeqno high seqno of this window (for abort)
+     * Set the window for which a duplicate prepare may be valid. This is any
+     * currently outstanding prepare.
      */
-    void setDuplicateSyncWriteWindow(uint64_t highSeqno);
-
-    /**
-     * Set the allowed duplicate prepared seqnos to the range
-     * (HighCompletedSeqno and HighPreparedSeqno].
-     */
-    void setUpAllowedDuplicatePrepareThreshold();
+    void setDuplicatePrepareWindow();
 
     /**
      * @return the maximum visible seqno for the vbucket

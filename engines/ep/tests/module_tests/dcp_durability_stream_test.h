@@ -111,7 +111,9 @@ protected:
             const StoredDocKey& key,
             uint64_t cas,
             uint64_t seqno,
-            cb::durability::Level level = cb::durability::Level::Majority);
+            cb::durability::Level level = cb::durability::Level::Majority,
+            uint64_t snapshotMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            boost::optional<uint64_t> hcs = 0);
 
     /*
      * Simulates a Replica receiving a DCP_PREPARE and checks that it is

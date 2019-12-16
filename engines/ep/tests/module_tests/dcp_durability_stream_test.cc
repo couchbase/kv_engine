@@ -1972,20 +1972,21 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
         const StoredDocKey& key,
         uint64_t cas,
         uint64_t seqno,
-        cb::durability::Level level) {
+        cb::durability::Level level,
+        uint64_t snapshotMarkerFlags,
+        boost::optional<uint64_t> hcs) {
     using namespace cb::durability;
 
     // The consumer receives snapshot-marker [seqno, seqno]
     uint32_t opaque = 0;
-    SnapshotMarker marker(
-            opaque,
-            vbid,
-            seqno,
-            seqno,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*HCS*/,
-            {} /*maxVisibleSeqno*/,
-            {} /*streamId*/);
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          seqno,
+                          seqno,
+                          snapshotMarkerFlags,
+                          hcs /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {} /*streamId*/);
     stream->processMarker(&marker);
 
     queued_item qi = makePendingItem(
@@ -2081,15 +2082,14 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
     // the MARKER_FLAG_CHK set before the Consumer receives the Commit. That
     // will force the Consumer closing the open checkpoint (which Contains the
     // Prepare) and creating a new open one for queueing the Commit.
-    SnapshotMarker marker(
-            opaque,
-            vbid,
-            prepareSeqno /*snapStart*/,
-            prepareSeqno /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*HCS*/,
-            {} /*maxVisibleSeqno*/,
-            {} /*streamId*/);
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          prepareSeqno /*snapStart*/,
+                          prepareSeqno /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          1 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {} /*streamId*/);
     stream->processMarker(&marker);
 
     const std::string value("value");
@@ -2218,7 +2218,13 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     //                               ^^^^ ^^^^ ^^^^
     seqno = 7;
     for (const auto& key : keys) {
-        queued_items.push_back(makeAndReceiveDcpPrepare(key, cas, seqno++));
+        queued_items.push_back(
+                makeAndReceiveDcpPrepare(key,
+                                         cas,
+                                         seqno++,
+                                         cb::durability::Level::Majority,
+                                         MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                         0 /*HCS*/));
     }
 
     marker = SnapshotMarker(
@@ -2288,7 +2294,15 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromPDM) {
     testReceiveDuplicateDcpPrepare(3);
 
     auto vb = engine->getVBucket(vbid);
-    const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
+    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
+    if (persistent()) {
+        EXPECT_EQ(1, pdm.getNumTracked());
+
+        // As we have a disk checkpoint we need to receive snap end and persist
+        // the snap
+        pdm.notifySnapshotEndReceived(4);
+        flushVBucketToDiskIfPersistent(vbid, 3);
+    }
 
     ASSERT_EQ(0, pdm.getNumTracked());
 }
@@ -2367,8 +2381,12 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // third prepare
     // receiving this prepare failed an `Expects` prior to the fix for MB-35933
     // as it attempted to replace the first, completed prepare in error.
-    EXPECT_NO_THROW(
-            makeAndReceiveDcpPrepare(key, cas, 5, Level::PersistToMajority));
+    EXPECT_NO_THROW(makeAndReceiveDcpPrepare(key,
+                                             cas,
+                                             5,
+                                             Level::PersistToMajority,
+                                             MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                             0 /*HCS*/));
 
     EXPECT_EQ(2, dm.getNumTracked());
 }
@@ -2431,8 +2449,8 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
             vbid,
             5 /*snapStart*/,
             6 /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-            {} /*HCS*/,
+            dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {} /*streamId*/);
     stream->processMarker(&marker);
@@ -3814,6 +3832,41 @@ TEST_P(DurabilityPassiveStreamTest,
             cb::durability::Level::PersistToMajority,
             Resolution::Commit,
             true /*flusher persists the snapshot containing the prepare*/);
+}
+
+TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
+    auto key = makeStoredDocKey("key");
+    auto cas = 1;
+    auto prepareSeqno = 1;
+    makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+
+    const uint32_t opaque = 0;
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          3 /*snapStart*/,
+                          3,
+                          MARKER_FLAG_DISK | MARKER_FLAG_CHK /*flags*/,
+                          1 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    using namespace cb::durability;
+    queued_item qi = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    qi->setBySeqno(3);
+    qi->setCas(3);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      qi,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
 }
 
 void DurabilityPromotionStreamTest::SetUp() {

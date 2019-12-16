@@ -213,7 +213,7 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
                 pushToReadyQ(std::make_unique<SeqnoAcknowledgement>(
                         opaque_, vb_, highPreparedSeqno));
             }
-            transitionState(StreamState::AwaitingFirstSnapshotMarker);
+            transitionState(StreamState::Reading);
         } else {
             transitionState(StreamState::Dead);
         }
@@ -725,11 +725,10 @@ void PassiveStream::seqnoAck(int64_t seqno) {
     if (!isActive() || isPending()) {
         log(spdlog::level::level_enum::warn,
             "{} Could not ack seqno {} because stream was in StreamState:{} "
-            "Expected it to be in state {} or {}",
+            "Expected it to be in state {}",
             vb_,
             seqno,
             to_string(state_.load()),
-            to_string(StreamState::AwaitingFirstSnapshotMarker),
             to_string(StreamState::Reading));
         return;
     }
@@ -752,8 +751,6 @@ std::string PassiveStream::to_string(StreamState st) {
         return "pending";
     case StreamState::Reading:
         return "reading";
-    case StreamState::AwaitingFirstSnapshotMarker:
-        return "awaiting-first-snapshot-marker";
     case StreamState::Dead:
         return "dead";
     }
@@ -922,15 +919,6 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                     ? Snapshot::Disk
                                     : Snapshot::Memory);
 
-    if (state_ == StreamState::AwaitingFirstSnapshotMarker) {
-        // A replica could receive multiple DCP Abort/Commit/Prepare due to
-        // de-duplication for a small window at stream reconnection. Set the
-        // window in the vBucket object so that we can selectively allow these
-        // only for the given window.
-        vb->setDuplicateSyncWriteWindow(cur_snapshot_start);
-        transitionState(StreamState::Reading);
-    }
-
     if (vb) {
         auto checkpointType = marker->getFlags() & MARKER_FLAG_DISK
                                       ? CheckpointType::Disk
@@ -947,6 +935,20 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             // SyncWrites to have completed yet). If SyncReplication is
             // supported then use the value from the marker.
             hcs = 0;
+        }
+
+        if (marker->getFlags() & MARKER_FLAG_DISK) {
+            // A replica could receive a duplicate DCP prepare during a disk
+            // snapshot if it had previously received an uncompleted prepare.
+            // We can receive a disk snapshot when we either:
+            //     a) First connect
+            //     b) Get cursor dropped by the active
+            //
+            // We selectively allow these prepares to overwrite the old one by
+            // setting a duplicate prepare window in the vBucket. This will
+            // allow any currently outstanding prepares to be overwritten, but
+            // not any new ones.
+            vb->setDuplicatePrepareWindow();
         }
 
         // We could be connected to a non sync-repl, so if the max-visible is
@@ -1147,17 +1149,10 @@ bool PassiveStream::transitionState(StreamState newState) {
     bool validTransition = false;
     switch (state_.load()) {
     case StreamState::Pending:
-        if (newState == StreamState::AwaitingFirstSnapshotMarker ||
-            newState == StreamState::Dead) {
-            validTransition = true;
-        }
-        break;
-    case StreamState::AwaitingFirstSnapshotMarker:
         if (newState == StreamState::Reading || newState == StreamState::Dead) {
             validTransition = true;
         }
         break;
-
     case StreamState::Reading:
         if (newState == StreamState::Dead) {
             validTransition = true;
