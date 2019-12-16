@@ -136,6 +136,5 @@ int main(int, char **) {
     display("Default Histo", stats.diskInsertHisto.getMemFootPrint());
     display("Commit Histo", stats.diskCommitHisto.getMemFootPrint());
     display("Hash table depth histo", dv.depthHisto.getMemFootPrint());
-    display("CheckpointIndexKey", sizeof(CheckpointIndexKey));
     return 0;
 }

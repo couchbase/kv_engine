@@ -156,7 +156,8 @@ Checkpoint::Checkpoint(EPStats& st,
       numItems(0),
       numMetaItems(0),
       toWrite(trackingAllocator),
-      keyIndex(keyIndexTrackingAllocator),
+      committedKeyIndex(keyIndexTrackingAllocator),
+      preparedKeyIndex(keyIndexTrackingAllocator),
       metaKeyIndex(keyIndexTrackingAllocator),
       keyIndexMemUsage(0),
       queuedItemsMemUsage(0),
@@ -196,10 +197,10 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         rv = QueueDirtyStatus::SuccessNewItem;
         addItemToCheckpoint(qi);
     } else {
-        checkpoint_index::iterator it = keyIndex.find(
-                {qi->getKey(),
-                 qi->isCommitted() ? CheckpointIndexKeyNamespace::Committed
-                                   : CheckpointIndexKeyNamespace::Prepared});
+        // Check in the appropriate key index if an item already exists.
+        auto& keyIndex =
+                qi->isCommitted() ? committedKeyIndex : preparedKeyIndex;
+        auto it = keyIndex.find(qi->getKey());
 
         // Before de-duplication could discard a delete, store the largest
         // "rev-seqno" encountered
@@ -315,13 +316,9 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             }
         } else {
             // Insert the new entry into the keyIndex
-            auto result = keyIndex.emplace(
-                    CheckpointIndexKey(
-                            qi->getKey(),
-                            qi->isCommitted()
-                                    ? CheckpointIndexKeyNamespace::Committed
-                                    : CheckpointIndexKeyNamespace::Prepared),
-                    entry);
+            auto& keyIndex =
+                    qi->isCommitted() ? committedKeyIndex : preparedKeyIndex;
+            auto result = keyIndex.emplace(qi->getKey(), entry);
             if (!result.second) {
                 // Did not manage to insert - so update the value directly
                 result.first->second = entry;
@@ -330,9 +327,6 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
         if (rv == QueueDirtyStatus::SuccessNewItem) {
             auto indexKeyUsage = qi->getKey().size() + sizeof(index_entry);
-            if (!qi->isCheckPointMetaItem()) {
-                indexKeyUsage += sizeof(CheckpointIndexKeyNamespace);
-            }
             /**
              * Calculate as best we can the memory overhead of adding the new
              * item to the queue (toWrite).  This is approximated to the
@@ -422,11 +416,10 @@ CheckpointQueue Checkpoint::expelItems(
             const auto& toExpel = *expelItr;
 
             if (!toExpel->isCheckPointMetaItem()) {
-                auto itr = keyIndex.find(
-                        {toExpel->getKey(),
-                         toExpel->isCommitted()
-                         ? CheckpointIndexKeyNamespace::Committed
-                         : CheckpointIndexKeyNamespace::Prepared});
+                auto& keyIndex = toExpel->isCommitted() ? committedKeyIndex
+                                                        : preparedKeyIndex;
+
+                auto itr = keyIndex.find(toExpel->getKey());
                 Expects(itr != keyIndex.end());
                 Expects(itr->second.position == expelItr);
                 itr->second.invalidate(end());
@@ -487,11 +480,9 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
         return cursor_item_idx->second.mutation_id;
     }
 
-    auto cursor_item_idx =
-            keyIndex.find({(*cursor.currentPos)->getKey(),
-                           (*cursor.currentPos)->isCommitted()
-                                   ? CheckpointIndexKeyNamespace::Committed
-                                   : CheckpointIndexKeyNamespace::Prepared});
+    auto& keyIndex = (*cursor.currentPos)->isCommitted() ? committedKeyIndex
+                                                         : preparedKeyIndex;
+    auto cursor_item_idx = keyIndex.find((*cursor.currentPos)->getKey());
     if (cursor_item_idx == keyIndex.end()) {
         throw std::logic_error(
                 "Checkpoint::queueDirty: Unable "

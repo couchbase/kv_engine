@@ -134,6 +134,13 @@ class ErrorEtmpfail(MemcachedError): ERRCODE = 0x86
 class ErrorXattrEinval(MemcachedError): ERRCODE = 0x87
 class ErrorUnknownCollection(MemcachedError): ERRCODE = 0x88
 class ErrorNoCollectionManifest(MemcachedError): ERRCODE = 0x89
+
+class ErrorDurabilityInvalidLevel(MemcachedError): ERRCODE = 0xa0
+class ErrorDurabilityImpossible(MemcachedError): ERRCODE = 0xa1
+class ErrorSyncWriteInProgress(MemcachedError): ERRCODE = 0xa2
+class ErrorSyncWriteAmbiguous(MemcachedError): ERRCODE = 0xa3
+class ErrorSyncWriteReCommitInProgress(MemcachedError): ERRCODE = 0xa4
+
 class ErrorSubdocPathEnoent(MemcachedError): ERRCODE = 0xc0
 class ErrorSubdocPathMismatch(MemcachedError): ERRCODE = 0xc1
 class ErrorSubdocPathEinval(MemcachedError): ERRCODE = 0xc2

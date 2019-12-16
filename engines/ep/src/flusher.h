@@ -68,7 +68,6 @@ private:
     enum class State {
         Initializing,
         Running,
-        Pausing,
         Paused,
         Stopping,
         Stopped
