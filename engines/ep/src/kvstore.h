@@ -136,22 +136,6 @@ struct compaction_ctx {
     uint64_t highCompletedSeqno = 0;
 };
 
-struct kvstats_ctx {
-    kvstats_ctx(Collections::VB::Flush& collectionsFlush)
-        : collectionsFlush(collectionsFlush) {
-    }
-    /// A map of key to bool. If true, the key exists in the VB datafile
-    std::unordered_map<DiskDocKey, bool> keyStats;
-    /// Collection flusher data for managing manifest changes and item counts
-    Collections::VB::Flush& collectionsFlush;
-
-    /**
-     * Delta of onDiskPrepares that we should add to the value tracked in
-     * the persisted VB state before commit
-     */
-    size_t onDiskPrepareDelta = 0;
-};
-
 class NoLookupCallback : public StatusCallback<CacheLookup> {
 public:
     NoLookupCallback() {}

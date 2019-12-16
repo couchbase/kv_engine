@@ -36,6 +36,7 @@
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <gsl/gsl>
+
 #include <shared_mutex>
 
 extern "C" {
@@ -311,6 +312,23 @@ static constexpr const char* scopesName = "_local/scope/open";
 static constexpr const char* droppedCollectionsName =
         "_local/collections/dropped";
 } // namespace Collections
+
+struct kvstats_ctx {
+    kvstats_ctx(Collections::VB::Flush& collectionsFlush)
+        : collectionsFlush(collectionsFlush) {
+    }
+    // @TODO consider folly::F14Set for reduced memory when set is large
+    /// If key exists in set, they key exists in the VB datafile
+    std::unordered_set<DiskDocKey> keyStats;
+    /// Collection flusher data for managing manifest changes and item counts
+    Collections::VB::Flush& collectionsFlush;
+
+    /**
+     * Delta of onDiskPrepares that we should add to the value tracked in
+     * the persisted VB state before commit
+     */
+    size_t onDiskPrepareDelta = 0;
+};
 
 CouchKVStore::CouchKVStore(KVStoreConfig& config)
     : CouchKVStore(config, *couchstore_get_default_file_ops()) {
@@ -2110,10 +2128,7 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     if (oldInfo) {
         // Replacing a document
         if (!oldInfo->deleted) {
-            auto itr = cbCtx->keyStats.find(newKey);
-            if (itr != cbCtx->keyStats.end()) {
-                itr->second = true; // mark this key as replaced
-            }
+            cbCtx->keyStats.insert(newKey);
         }
     }
 
@@ -2213,8 +2228,6 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         if (docs.size() > 0) {
             for (size_t idx = 0; idx < docs.size(); idx++) {
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
-                auto key = makeDiskDocKey(docinfos[idx]->id);
-                kvctx.keyStats[key] = false;
 
                 // Accumulate the size of the useful data in this docinfo.
                 docsLogicalBytes += calcLogicalDataSize(*docinfos[idx]);
@@ -2349,7 +2362,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
             auto mutationStatus = getMutationStatus(errCode);
             if (mutationStatus != MutationStatus::Failed) {
                 const auto& key = committed.getKey();
-                if (kvctx.keyStats[key]) {
+                if (kvctx.keyStats.find(key) != kvctx.keyStats.end()) {
                     mutationStatus =
                             MutationStatus::Success; // Deletion is for an
                                                      // existing item on
@@ -2370,7 +2383,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
         } else {
             auto mutationStatus = getMutationStatus(errCode);
             const auto& key = committed.getKey();
-            bool insertion = !kvctx.keyStats[key];
+            bool insertion = kvctx.keyStats.find(key) == kvctx.keyStats.end();
             if (errCode) {
                 ++st.numSetFailure;
             } else {
