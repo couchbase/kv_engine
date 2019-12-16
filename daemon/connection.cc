@@ -1057,6 +1057,7 @@ Connection::Connection(FrontEndThread& thr)
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
+    stats.conn_structs++;
 }
 
 Connection::Connection(SOCKET sfd,
@@ -1102,6 +1103,7 @@ Connection::Connection(SOCKET sfd,
     }
 
     bufferevent_enable(bev.get(), EV_READ);
+    stats.conn_structs++;
 }
 
 Connection::~Connection() {
@@ -1119,6 +1121,8 @@ Connection::~Connection() {
             notify_dispatcher();
         }
     }
+
+    --stats.conn_structs;
 }
 
 void Connection::EventDeleter::operator()(bufferevent* ev) {

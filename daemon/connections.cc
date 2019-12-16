@@ -36,11 +36,6 @@ struct connections {
     std::list<Connection*> conns;
 } connections;
 
-static Connection* allocate_connection(SOCKET sfd,
-                                       event_base* base,
-                                       const ListeningPort& interface,
-                                       FrontEndThread& thread);
-
 /** External functions *******************************************************/
 
 int signal_idle_clients(FrontEndThread& me, bool dumpConnection) {
@@ -74,26 +69,35 @@ Connection* conn_new(SOCKET sfd,
                      const ListeningPort& interface,
                      struct event_base* base,
                      FrontEndThread& thread) {
-    auto* c = allocate_connection(sfd, base, interface, thread);
-    if (c == nullptr) {
+    std::unique_ptr<Connection> ret;
+    Connection* c = nullptr;
+
+    try {
+        ret = std::make_unique<Connection>(sfd, base, interface, thread);
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        connections.conns.push_back(ret.get());
+        c = ret.release();
+        stats.total_conns++;
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING("Failed to allocate memory for connection");
+    } catch (const std::exception& error) {
+        LOG_WARNING("Failed to create connection: {}", error.what());
+    } catch (...) {
+        LOG_WARNING("Failed to create connection");
+    }
+
+    // We failed to create the connection (or failed to insert it into
+    // the list of all connections
+    if (!c) {
         return nullptr;
     }
 
-    stats.total_conns++;
-
-    c->incrementRefcount();
-
     associate_initial_bucket(*c);
-
     const auto& bucket = c->getBucket();
     if (bucket.type != BucketType::NoBucket) {
         LOG_INFO("{}: Accepted new client connected to bucket:[{}]",
                  c->getId(),
                  bucket.name);
-    }
-
-    if (Settings::instance().getVerbose() > 1) {
-        LOG_DEBUG("<{} new client connection", sfd);
     }
 
     return c;
@@ -115,35 +119,4 @@ void conn_destroy(Connection* c) {
 
     // Finally free it
     delete c;
-    stats.conn_structs--;
-}
-
-/** Internal functions *******************************************************/
-
-/** Allocate a connection, creating memory and adding it to the conections
- *  list. Returns a pointer to the newly-allocated connection if successful,
- *  else NULL.
- */
-static Connection* allocate_connection(SOCKET sfd,
-                                       event_base* base,
-                                       const ListeningPort& interface,
-                                       FrontEndThread& thread) {
-    Connection* ret = nullptr;
-
-    try {
-        ret = new Connection(sfd, base, interface, thread);
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        connections.conns.push_back(ret);
-        stats.conn_structs++;
-        return ret;
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING("Failed to allocate memory for connection");
-    } catch (const std::exception& error) {
-        LOG_WARNING("Failed to create connection: {}", error.what());
-    } catch (...) {
-        LOG_WARNING("Failed to create connection");
-    }
-
-    delete ret;
-    return NULL;
 }

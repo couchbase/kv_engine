@@ -840,8 +840,9 @@ protected:
     /** Is tcp nodelay enabled or not? */
     bool nodelay{false};
 
-    /** number of references to the object */
-    uint8_t refcount{0};
+    /// number of references to the object (set to 1 during creation as the
+    /// creator has a reference)
+    uint8_t refcount{1};
 
     /** Pointer to the thread object serving this connection */
     FrontEndThread& thread;
