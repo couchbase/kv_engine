@@ -19,24 +19,17 @@
 #include "buckets.h"
 #include "connection.h"
 #include "front_end_thread.h"
-#include "settings.h"
-#include "stats.h"
 
+#include <folly/Synchronized.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <algorithm>
-#include <list>
+#include <deque>
 
-/*
- * Free list management for connections.
- */
-struct connections {
-    std::mutex mutex;
-    std::list<Connection*> conns;
-} connections;
-
-/** External functions *******************************************************/
+/// List of all of the connections created in the system (so that we can
+/// iterate over them)
+folly::Synchronized<std::deque<Connection*>> connections;
 
 int signal_idle_clients(FrontEndThread& me, bool dumpConnection) {
     int connected = 0;
@@ -57,8 +50,8 @@ void iterate_thread_connections(FrontEndThread* thread,
                                 std::function<void(Connection&)> callback) {
     // Deny modifications to the connection map while we're iterating
     // over it
-    std::lock_guard<std::mutex> lock(connections.mutex);
-    for (auto* c : connections.conns) {
+    auto locked = connections.rlock();
+    for (auto* c : *locked) {
         if (&c->getThread() == thread) {
             callback(*c);
         }
@@ -74,8 +67,7 @@ Connection* conn_new(SOCKET sfd,
 
     try {
         ret = std::make_unique<Connection>(sfd, base, interface, thread);
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        connections.conns.push_back(ret.get());
+        connections.wlock()->push_back(ret.get());
         c = ret.release();
         stats.total_conns++;
     } catch (const std::bad_alloc&) {
@@ -108,15 +100,12 @@ Connection* conn_new(SOCKET sfd,
  * and freeing the Connection object.
  */
 void conn_destroy(Connection* c) {
-    {
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        auto iter = std::find(
-                connections.conns.begin(), connections.conns.end(), c);
-        // I should assert
-        cb_assert(iter != connections.conns.end());
-        connections.conns.erase(iter);
-    }
-
+    connections.withWLock([c](auto& conns) {
+        auto iter = std::find(conns.begin(), conns.end(), c);
+        // The connection should be one I know about
+        cb_assert(iter != conns.end());
+        conns.erase(iter);
+    });
     // Finally free it
     delete c;
 }
