@@ -403,7 +403,9 @@ static void FlushArguments(benchmark::internal::Benchmark* b) {
     // Add both couchstore (0) and rocksdb (1) variants for a range of sizes.
     for (size_t items = 1; items <= 1000000; items *= 100) {
         b->ArgPair(0, items);
+#ifdef EP_USE_ROCKSDB
         b->ArgPair(1, items);
+#endif
     }
 }
 

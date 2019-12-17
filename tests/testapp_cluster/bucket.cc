@@ -48,7 +48,12 @@ Bucket::Bucket(const Cluster& cluster,
 Bucket::~Bucket() = default;
 
 void Bucket::setupReplication() {
-    replicators = DcpReplicator::create(cluster, *this, packet_filter);
+    setupReplication({});
+}
+
+void Bucket::setupReplication(const std::vector<ReplicationConfig>& specifics) {
+    replicators =
+            DcpReplicator::create(cluster, *this, packet_filter, specifics);
 }
 
 void Bucket::shutdownReplication() {

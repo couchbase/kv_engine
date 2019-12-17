@@ -28,6 +28,26 @@ class Cluster;
 class Bucket;
 
 /**
+ * A configuration object for setting up the desired DCP connection with the
+ * DcpReplicator.
+ */
+struct ReplicationConfig {
+    ReplicationConfig(size_t producer, size_t consumer, bool syncRepl = true)
+        : producer(producer), consumer(consumer), syncRepl(syncRepl) {
+    }
+
+    // Index in the Cluster::nodes vector of the producer
+    size_t producer;
+
+    // Index in the Cluster::nodes vector of the consumer
+    size_t consumer;
+
+    // Should the connection support SyncReplication? Setting this to false can
+    // be used to mimic legacy connections.
+    bool syncRepl;
+};
+
+/**
  * The DCP replicator class is a holder class for full DCP replication
  * for a single Bucket. The replication runs in its own thread.
  */
@@ -47,12 +67,16 @@ public:
      *                      which is put on the stream to the other end,
      *                      so the callback is free to inspect, modify or drop
      *                      the entire packet.
+     * @param configs A vector of SpecificReplicationSetup to set up only the
+     *                  desired connections between the given nodes with the
+     *                  given features.
      * @return A new DCP replication object (which manages its own thread)
      */
     static std::unique_ptr<DcpReplicator> create(
             const Cluster& cluster,
             Bucket& bucket,
-            DcpPacketFilter& packet_filter);
+            DcpPacketFilter& packet_filter,
+            const std::vector<ReplicationConfig>& configs = {});
 };
 
 } // namespace test
