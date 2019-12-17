@@ -534,16 +534,6 @@ public:
             cb::mcbp::request::DcpDeletionV1Payload extras(0, 0);
             builder.setExtras(extras.getBuffer());
         }
-
-        // Make the value a compressed xattr section (the validator tries
-        // to inflate the document to keep the inflated version around)
-        cb::xattr::Blob blob;
-        blob.set("_foo"_ccb, R"({"bar":5})"_ccb);
-        cb::compression::Buffer deflated;
-        cb::compression::deflate(
-                cb::compression::Algorithm::Snappy, blob.finalize(), deflated);
-        cb::const_byte_buffer value = deflated;
-        builder.setValue(value);
     }
 
     bool isCollectionsEnabled() const {
@@ -578,6 +568,23 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
              uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy)}};
     for (auto valid : datatypes) {
         header.setDatatype(Datatype(valid));
+
+        cb::const_char_buffer value = "My value"_ccb;
+        cb::xattr::Blob blob;
+        cb::compression::Buffer deflated;
+
+        if (mcbp::datatype::is_xattr(valid)) {
+            blob.set("_foo"_ccb, R"({"bar":5})"_ccb);
+            value = blob.finalize();
+        }
+
+        if (mcbp::datatype::is_snappy(valid)) {
+            cb::compression::deflate(
+                    cb::compression::Algorithm::Snappy, value, deflated);
+            value = deflated;
+        }
+
+        builder.setValue(value);
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate())
                 << "Testing valid datatype: "
                 << mcbp::datatype::to_string(protocol_binary_datatype_t(valid));
@@ -592,6 +599,17 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
 
     for (auto invalid : datatypes) {
         header.setDatatype(Datatype(invalid));
+
+        cb::const_char_buffer value = R"({"foo":"bar"})"_ccb;
+        cb::compression::Buffer deflated;
+
+        if (mcbp::datatype::is_snappy(invalid)) {
+            cb::compression::deflate(
+                    cb::compression::Algorithm::Snappy, value, deflated);
+            value = deflated;
+        }
+        builder.setValue(value);
+
         EXPECT_EQ(cb::mcbp::Status::Einval, validate())
                 << "Testing invalid datatype: "
                 << mcbp::datatype::to_string(

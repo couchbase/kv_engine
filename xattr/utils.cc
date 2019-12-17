@@ -49,21 +49,24 @@ bool validate(const cb::const_char_buffer& blob) {
         return false;
     }
 
-    // Check that the offset of the body is within the blob (note that it
-    // may be the same size as the blob if the actual data payload is empty
-    auto size = get_body_offset(blob);
-    if (size > blob.len) {
-        return false;
-    }
-
-    // @todo fix the hash thing so I can use the keybuf directly
-    std::unordered_set<std::string> keys;
+    std::size_t size;
 
     // You probably want to look in docs/Document.md for a detailed
     // description of the actual memory layout and why I'm adding
     // these "magic" values.
     size_t offset = 4;
+
     try {
+        // Check that the offset of the body is within the blob (note that it
+        // may be the same size as the blob if the actual data payload is empty
+        size = get_body_offset(blob);
+        if (size > blob.len) {
+            return false;
+        }
+
+        // @todo fix the hash thing so I can use the keybuf directly
+        std::unordered_set<std::string> keys;
+
         // Iterate over all of the KV pairs
         while (offset < size) {
             // The next pair _must_ at least have:

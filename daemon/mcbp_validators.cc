@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc
+ *     Copyright 2019 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,13 +26,20 @@
 #include <mcbp/protocol/header.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
-#include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
-#include <platform/compress.h>
 #include <platform/string_hex.h>
 
 using cb::mcbp::Status;
+
+static bool is_valid_xattr_blob(Cookie& cookie,
+                                const cb::mcbp::Request& request) {
+    if (!mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
+        // no xattr segment
+        return true;
+    }
+    return cb::xattr::validate(cookie.getInflatedInputPayload());
+}
 
 bool is_document_key_valid(Cookie& cookie) {
     const auto& req = cookie.getRequest();
@@ -219,6 +226,11 @@ Status McbpValidator::verify_header(Cookie& cookie,
     if (!cookie.inflateInputPayload(header)) {
         // Error reason already set
         return Status::Einval;
+    }
+
+    if (!is_valid_xattr_blob(cookie, request)) {
+        cookie.setErrorContext("The provided xattr segment is not valid");
+        return Status::XattrEinval;
     }
 
     // Validate the frame id's
@@ -659,15 +671,6 @@ static Status dcp_system_event_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
-static bool is_valid_xattr_blob(Cookie& cookie,
-                                const cb::mcbp::Request& request) {
-    if (!mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
-        // no xattr segment
-        return true;
-    }
-    return cb::xattr::validate(cookie.getInflatedInputPayload());
-}
-
 static Status dcp_mutation_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpMutationPayload;
 
@@ -686,13 +689,7 @@ static Status dcp_mutation_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    auto& header = cookie.getHeader();
-    if (!is_valid_xattr_blob(cookie, header.getRequest())) {
-        cookie.setErrorContext("Xattr blob not valid");
-        return Status::XattrEinval;
-    }
-
-    auto extras = header.getExtdata();
+    auto extras = cookie.getHeader().getExtdata();
     const auto* payload =
             reinterpret_cast<const DcpMutationPayload*>(extras.data());
     if (payload->getBySeqno() == 0) {

@@ -2828,7 +2828,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
 
     // Request body must be valid Xattr blob if datatype is Xattr
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
-    EXPECT_EQ("Xattr blob not valid",
+    EXPECT_EQ("The provided xattr segment is not valid",
               validate_error_context(cb::mcbp::ClientOpcode::DcpMutation,
                                      cb::mcbp::Status::XattrEinval));
 }
@@ -3121,7 +3121,7 @@ TEST_P(CommandSpecificErrorContextTest, MutateWithMeta) {
 
     // If datatype is Xattr, command value must be valid xattr blob
     connection.enableDatatype(cb::mcbp::Feature::XATTR);
-    EXPECT_EQ("Xattr blob invalid",
+    EXPECT_EQ("The provided xattr segment is not valid",
               validate_error_context(cb::mcbp::ClientOpcode::AddWithMeta,
                                      cb::mcbp::Status::XattrEinval));
 
