@@ -151,6 +151,7 @@ using meta_checkpoint_index = std::unordered_map<
 class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
+class CheckpointCursorIntrospector;
 class Cursor;
 class EPStats;
 class PreLinkDocumentContext;
@@ -179,6 +180,8 @@ class CheckpointCursor {
     friend class CheckpointManager;
     friend class Checkpoint;
     friend class MockCheckpointManager;
+    friend class CheckpointCursorIntrospector;
+
 public:
     CheckpointCursor(const std::string& n,
                      CheckpointList::iterator checkpoint,

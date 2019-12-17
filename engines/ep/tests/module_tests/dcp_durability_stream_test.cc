@@ -408,7 +408,10 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
     // Required at for transitioning to backfill at EPBucket
     flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
 
-    stream->transitionStateToBackfilling();
+    stream.reset();
+    removeCheckpoint(*vb, 1);
+
+    recreateStream(*vb);
     ASSERT_TRUE(stream->isBackfilling());
 
     // Run the backfill we scheduled when we transitioned to the backfilling
@@ -570,7 +573,10 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    stream->transitionStateToBackfilling();
+    stream.reset();
+    removeCheckpoint(*vb, 2);
+
+    recreateStream(*vb);
     ASSERT_TRUE(stream->isBackfilling());
 
     auto& bfm = producer->getBFM();
@@ -621,7 +627,11 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
     // Required at for transitioning to backfill at EPBucket
     flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
 
-    stream->transitionStateToBackfilling();
+    // remove the stream and the checkpoint to force a backfill
+    stream.reset();
+    removeCheckpoint(*vb, 1);
+    recreateStream(*vb);
+
     ASSERT_TRUE(stream->isBackfilling());
 
     // Run the backfill we scheduled when we transitioned to the backfilling
@@ -701,6 +711,10 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
 
     // Disconnect the ActiveStream. Should remove the queued seqno ack
     stream->setDead(END_STREAM_DISCONNECTED);
+
+    // remove the stream and the checkpoint to force a backfill
+    stream.reset();
+    removeCheckpoint(*vb, 1);
 
     stream = std::make_shared<MockActiveStream>(engine.get(),
                                                 producer,
@@ -972,6 +986,11 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(3, vb->getHighPreparedSeqno());
     EXPECT_EQ(3, vb->getHighCompletedSeqno());
 
+    // remove the stream and the checkpoint to force a backfill
+    stream.reset();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    removeCheckpoint(*vb, 4);
+
     stream = std::make_shared<MockActiveStream>(engine.get(),
                                                 producer,
                                                 0 /*flags*/,
@@ -988,7 +1007,6 @@ TEST_P(DurabilityActiveStreamTest,
 
     // Process items to ensure that lastSentSeqno is GE the seqno that we will
     // ack
-    flushVBucketToDiskIfPersistent(vbid, 2);
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
 
@@ -1034,6 +1052,9 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     vb->processResolvedSyncWrites();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
+    stream.reset();
+    removeCheckpoint(*vb, 2);
+    recreateStream(*vb);
 
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
