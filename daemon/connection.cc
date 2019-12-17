@@ -1117,9 +1117,6 @@ Connection::~Connection() {
     if (bev) {
         bev.reset();
         stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
-        if (is_listen_disabled()) {
-            notify_dispatcher();
-        }
     }
 
     --stats.conn_structs;

@@ -39,7 +39,7 @@ ServerSocket::ServerSocket(SOCKET fd,
                            event_base* b,
                            std::shared_ptr<ListeningPort> interf)
     : sfd(fd),
-      interface(interf),
+      interface(std::move(interf)),
       sockname(cb::net::getsockname(fd)),
       ev(event_new(b,
                    sfd,
@@ -50,7 +50,26 @@ ServerSocket::ServerSocket(SOCKET fd,
         throw std::bad_alloc();
     }
 
-    enable();
+    std::string tagstr;
+    if (!interface->tag.empty()) {
+        tagstr = " \"" + interface->tag + "\"";
+    }
+    LOG_INFO("{} Listen on IPv{}{}: {}",
+             sfd,
+             interface->family == AF_INET ? "4" : "6",
+             tagstr,
+             sockname);
+    if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
+        LOG_WARNING("{}: Failed to listen on {}: {}",
+                    sfd,
+                    sockname,
+                    cb_strerror(cb::net::get_socket_error()));
+    }
+
+    if (event_add(ev.get(), nullptr) == -1) {
+        LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
+        ev.reset();
+    }
 }
 
 ServerSocket::~ServerSocket() {
@@ -62,60 +81,14 @@ ServerSocket::~ServerSocket() {
              interface->family == AF_INET ? "4" : "6",
              tagstr,
              sockname);
-    disable();
-    safe_close(sfd);
-}
 
-void ServerSocket::enable() {
-    if (!registered_in_libevent) {
-        std::string tagstr;
-        if (!interface->tag.empty()) {
-            tagstr = " \"" + interface->tag + "\"";
-        }
-        LOG_INFO("{} Listen on IPv{}{}: {}",
-                 sfd,
-                 interface->family == AF_INET ? "4" : "6",
-                 tagstr,
-                 sockname);
-        if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
-            LOG_WARNING("{}: Failed to listen on {}: {}",
-                        sfd,
-                        sockname,
-                        cb_strerror(cb::net::get_socket_error()));
-        }
-
-        if (event_add(ev.get(), nullptr) == -1) {
-            LOG_WARNING("Failed to add connection to libevent: {}",
-                        cb_strerror());
-        } else {
-            registered_in_libevent = true;
-        }
-    }
-}
-
-void ServerSocket::disable() {
-    if (registered_in_libevent) {
-        if (sfd != INVALID_SOCKET) {
-            /*
-             * Try to reduce the backlog length so that clients
-             * may get ECONNREFUSED instead of blocking. Note that the
-             * backlog parameter is a hint, so the actual value being
-             * used may be higher than what we try to set it.
-             */
-            if (cb::net::listen(sfd, 1) == SOCKET_ERROR) {
-                LOG_WARNING("{}: Failed to set backlog to 1 on {}: {}",
-                            sfd,
-                            sockname,
-                            cb_strerror(cb::net::get_socket_error()));
-            }
-        }
+    if (ev) {
         if (event_del(ev.get()) == -1) {
             LOG_WARNING("Failed to remove connection to libevent: {}",
                         cb_strerror());
-        } else {
-            registered_in_libevent = false;
         }
     }
+    safe_close(sfd);
 }
 
 void ServerSocket::acceptNewClient() {
@@ -126,20 +99,7 @@ void ServerSocket::acceptNewClient() {
 
     if (client == INVALID_SOCKET) {
         auto error = cb::net::get_socket_error();
-        if (cb::net::is_emfile(error)) {
-#if defined(WIN32)
-            LOG_WARNING("Too many open files.");
-#else
-            struct rlimit limit = {0};
-            getrlimit(RLIMIT_NOFILE, &limit);
-            LOG_WARNING("Too many open files. Current limit: {}",
-                        limit.rlim_cur);
-#endif
-            disable_listen();
-        } else if (!cb::net::is_blocking(error)) {
-            LOG_WARNING("Failed to accept new client: {}", cb_strerror(error));
-        }
-
+        LOG_WARNING("Failed to accept new client: {}", cb_strerror(error));
         return;
     }
 

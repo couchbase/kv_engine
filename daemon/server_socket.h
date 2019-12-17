@@ -52,10 +52,6 @@ public:
         return sfd;
     }
 
-    void enable();
-
-    void disable();
-
     void acceptNewClient();
 
     const ListeningPort& getInterfaceDescription() const {
@@ -86,9 +82,6 @@ protected:
     struct EventDeleter {
         void operator()(struct event* e);
     };
-
-    /// Are we currently registered in libevent or not
-    bool registered_in_libevent = {false};
 
     /// The libevent object we're using
     std::unique_ptr<struct event, EventDeleter> ev;

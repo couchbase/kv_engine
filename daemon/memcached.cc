@@ -631,36 +631,6 @@ static void update_settings_from_config()
             opcode_attributes_override_changed_listener);
 }
 
-struct {
-    std::mutex mutex;
-    bool disabled = false;
-    ssize_t count = 0;
-    uint64_t num_disable = 0;
-} listen_state;
-
-bool is_listen_disabled() {
-    std::lock_guard<std::mutex> guard(listen_state.mutex);
-    return listen_state.disabled;
-}
-
-uint64_t get_listen_disabled_num() {
-    std::lock_guard<std::mutex> guard(listen_state.mutex);
-    return listen_state.num_disable;
-}
-
-void disable_listen() {
-    {
-        std::lock_guard<std::mutex> guard(listen_state.mutex);
-        listen_state.disabled = true;
-        listen_state.count = 10;
-        ++listen_state.num_disable;
-    }
-
-    for (auto& connection : listen_conn) {
-        connection->disable();
-    }
-}
-
 void safe_close(SOCKET sfd) {
     if (sfd != INVALID_SOCKET) {
         int rval;
@@ -675,9 +645,6 @@ void safe_close(SOCKET sfd) {
             LOG_WARNING("Failed to close socket {} ({})!!", (int)sfd, error);
         } else {
             stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
-            if (is_listen_disabled()) {
-                notify_dispatcher();
-            }
         }
     }
 }
@@ -913,12 +880,6 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
 
         if (changes) {
             create_portnumber_file(false);
-        }
-    }
-
-    if (is_listen_disabled()) {
-        for (auto& connection : listen_conn) {
-            connection->enable();
         }
     }
 }

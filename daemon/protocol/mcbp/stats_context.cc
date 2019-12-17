@@ -165,10 +165,6 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
         add_stat(cookie, add_stat_callback, "bytes_read", thread_stats.bytes_read);
         add_stat(cookie, add_stat_callback, "bytes_written",
                  thread_stats.bytes_written);
-        add_stat(cookie, add_stat_callback, "accepting_conns",
-                 is_listen_disabled() ? 0 : 1);
-        add_stat(cookie, add_stat_callback, "listen_disabled_num",
-                 get_listen_disabled_num());
         add_stat(cookie, add_stat_callback, "rejected_conns", stats.rejected_conns);
         add_stat(cookie,
                  add_stat_callback,
