@@ -131,7 +131,6 @@ public:
         clear_UNLOCKED();
     }
 
-protected:
 
     // The StreamState is protected as it needs to be accessed by sub-classes
     enum class StreamState {
@@ -148,6 +147,7 @@ protected:
 
     StreamState getState() const { return state_; }
 
+protected:
     void clear_UNLOCKED();
 
     /* To be called after getting streamMutex lock */

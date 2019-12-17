@@ -29,6 +29,7 @@
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
+#include "checkpoint_utils.h"
 #include "connmap.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/dcp-types.h"
@@ -4163,6 +4164,108 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     state.statusFound = false;
     stream->addTakeoverStats(checkStatusFn, &state, *vb);
     EXPECT_TRUE(state.statusFound);
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       CursorReregisteredBeforeBackfillAfterCursorDrop) {
+    // MB-37150: test that, after cursor dropping, cursors are registered before
+    // checking whether to backfill. This ensures that checkpoints cannot be
+    // removed/expelled from _after_ determining the backfill range, but before
+    // registering the cursor.
+    auto& vb = *engine->getVBucket(vbid);
+    auto& cm = *vb.checkpointManager;
+
+    producer->createCheckpointProcessorTask();
+
+    stream = producer->mockActiveStreamRequest(0,
+                                               /*opaque*/ 0,
+                                               vb,
+                                               /*st_seqno*/ 0,
+                                               /*en_seqno*/ ~0,
+                                               /*vb_uuid*/ 0xabcd,
+                                               /*snap_start_seqno*/ 0,
+                                               /*snap_end_seqno*/ ~0);
+
+    auto key1 = makeStoredDocKey("key1");
+    auto key2 = makeStoredDocKey("key2");
+    // Store Mutation
+    auto mutation = store_item(vbid, key1, "value");
+    cm.createNewCheckpoint();
+    auto mutation2 = store_item(vbid, key2, "value");
+
+    // no items to backfill when created, stream will have transitioned to in
+    // memory
+    EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
+
+    stream->handleSlowStream();
+
+    producer->setBeforeScheduleBackfillCB([this, &cm](uint64_t backfillEnd) {
+        const auto cursorName = this->stream->getCursorName();
+        // check cursor exists before backfill is registered
+        auto ckptID = cm.getCheckpointIdForCursor(cursorName);
+        EXPECT_TRUE(ckptID);
+
+        // check that the cursor was registered immediately after the
+        // end of the backfill prior to MB-37150 this could fail as the
+        // cursor would be _later_ than backfillEnd+1 as the checkpoint
+        // has been removed.
+        auto pos = CheckpointCursorIntrospector::getCurrentPos(cm, cursorName);
+        EXPECT_EQ(backfillEnd + 1, (*std::next(pos))->getBySeqno());
+    });
+
+    auto resp = stream->next();
+    EXPECT_FALSE(resp);
+
+    // backfill not needed
+    EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
+
+    EXPECT_EQ(0, stream->public_readyQ().size());
+
+    auto producers = get_dcp_producers(
+            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+    runCheckpointProcessor(*producer, *producers);
+
+    EXPECT_EQ(4, stream->public_readyQ().size());
+
+    // NB: This first snapshot will actually be _skipped_ as the checkpoint was
+    // removed but the active stream did not backfill to "catch up"
+    // snap marker
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+
+    // receive mutation 1
+    resp = stream->next();
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    {
+        auto& set = dynamic_cast<MutationResponse&>(*resp);
+        EXPECT_EQ(key1, set.getItem()->getKey());
+        EXPECT_EQ(1, set.getItem()->getBySeqno());
+    }
+
+    // snap marker
+    resp = stream->next();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(2, snapMarker.getStartSeqno());
+    EXPECT_EQ(2, snapMarker.getEndSeqno());
+
+    // receive mutation 2
+    resp = stream->next();
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    {
+        auto& set = dynamic_cast<MutationResponse&>(*resp);
+        EXPECT_EQ(key2, set.getItem()->getKey());
+        EXPECT_EQ(2, set.getItem()->getBySeqno());
+    }
+
+    EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

@@ -929,11 +929,15 @@ void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
     backfillMgr->bytesSent(bytes);
 }
 
-void DcpProducer::scheduleBackfillManager(VBucket& vb,
+bool DcpProducer::scheduleBackfillManager(VBucket& vb,
                                           std::shared_ptr<ActiveStream> s,
                                           uint64_t start,
                                           uint64_t end) {
-    backfillMgr->schedule(vb, s, start, end);
+    if (start <= end) {
+        backfillMgr->schedule(vb, s, start, end);
+        return true;
+    }
+    return false;
 }
 
 void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {

@@ -94,6 +94,7 @@ typedef std::list<std::pair<std::string, MustSendCheckpointEnd>>
 class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
+class CheckpointCursorIntrospector;
 class PreLinkDocumentContext;
 class VBucket;
 
@@ -130,6 +131,8 @@ using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
 class CheckpointCursor {
     friend class CheckpointManager;
     friend class Checkpoint;
+    friend class CheckpointCursorIntrospector;
+
 public:
 
     CheckpointCursor() { }
@@ -1062,6 +1065,7 @@ private:
     FlusherCallback          flusherCB;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
+    friend class CheckpointCursorIntrospector;
 };
 
 // Outputs a textual description of the CheckpointManager.

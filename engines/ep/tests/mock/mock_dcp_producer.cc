@@ -27,7 +27,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         uint64_t end_seqno,
         uint64_t vbucket_uuid,
         uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno) {
+        uint64_t snap_end_seqno,
+        IncludeValue includeValue,
+        IncludeXattrs includeXattrs) {
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(&engine_),
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -38,7 +40,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             end_seqno,
             vbucket_uuid,
             snap_start_seqno,
-            snap_end_seqno);
+            snap_end_seqno,
+            includeValue,
+            includeXattrs);
     stream->setActive();
     if (!streams.insert(std::make_pair(vb.getId(), stream))) {
         throw std::logic_error(

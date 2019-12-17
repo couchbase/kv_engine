@@ -1444,39 +1444,34 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     }
 
     uint64_t backfillStart = lastReadSeqno.load() + 1;
-    uint64_t backfillEnd = 0;
-    bool tryBackfill = false;
+    uint64_t backfillEnd;
+    bool tryBackfill;
 
-    if ((flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) || reschedule) {
-        uint64_t vbHighSeqno = static_cast<uint64_t>(vbucket->getHighSeqno());
-        if (lastReadSeqno.load() > vbHighSeqno) {
-            throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
-                                   "lastReadSeqno (which is " +
-                                   std::to_string(lastReadSeqno.load()) +
-                                   " ) is greater than vbHighSeqno (which is " +
-                                   std::to_string(vbHighSeqno) + " ). " +
-                                   "for stream " + producer->logHeader() +
-                                   "; vb " + std::to_string(vb_));
-        }
-        if (reschedule) {
-            /* We need to do this for reschedule because in case of
-               DCP_ADD_STREAM_FLAG_DISKONLY (the else part), end_seqno_ is
-               set to last persisted seqno befor calling
-               scheduleBackfill_UNLOCKED() */
-            backfillEnd = engine->getKVBucket()->getLastPersistedSeqno(vb_);
-        } else {
-            backfillEnd = end_seqno_;
-        }
+    if (flags_ & static_cast<uint64_t>(DCP_ADD_STREAM_FLAG_DISKONLY)) {
+        // if disk only, always backfill to the requested end seqno
+        backfillEnd = end_seqno_;
         tryBackfill = true;
     } else {
+        /* not disk only - stream may require backfill but will transition to
+         * in-memory afterward; register the cursor now.
+         * There are two expected cases:
+         *  1: registerResult.second=true, which means
+         *     - Cursor at start of first checkpoint
+         *     - CheckpointManager can't provide all the items needed
+         *       so a backfill may be required before moving to
+         *       in-memory streaming.
+         *  2: registerResult.second=false
+         *     - The CheckpointManager contains the required items
+         *     - No backfill needed
+         */
+
+        CursorRegResult registerResult;
         try {
-            std::tie(curChkSeqno, tryBackfill) =
-                    vbucket->checkpointManager->registerCursorBySeqno(
-                            cursorName,
-                            lastReadSeqno.load(),
-                            MustSendCheckpointEnd::NO);
-            cursorRegistered = true;
-        } catch(std::exception& error) {
+            registerResult = vbucket->checkpointManager->registerCursorBySeqno(
+                    cursorName,
+                    lastReadSeqno.load(),
+                    MustSendCheckpointEnd::NO);
+        } catch (std::exception& error) {
             log(EXTENSION_LOG_WARNING,
                 "(vb %" PRIu16
                 ") Failed to register "
@@ -1484,9 +1479,26 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                 vb_,
                 error.what());
             endStream(END_STREAM_STATE);
+            return;
         }
 
+        curChkSeqno = registerResult.first;
+        tryBackfill = registerResult.second;
+        cursorRegistered = true;
+
+        log(EXTENSION_LOG_INFO,
+            "(vb %" PRIu16
+            ") ActiveStream::scheduleBackfill_UNLOCKED register cursor "
+            "with "
+            "name \"{}\" backfill:{}, seqno:{}",
+            vb_,
+            name_.c_str(),
+            tryBackfill,
+            curChkSeqno.load());
+
         if (lastReadSeqno.load() > curChkSeqno) {
+            // something went wrong registering the cursor - it is too early
+            // and could read items this stream has already sent.
             throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
                                    "lastReadSeqno (which is " +
                                    std::to_string(lastReadSeqno.load()) +
@@ -1496,23 +1508,18 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                                    "; vb " + std::to_string(vb_));
         }
 
-        /* We need to find the minimum seqno that needs to be backfilled in
-         * order to make sure that we don't miss anything when transitioning
-         * to a memory snapshot. The backfill task will always make sure that
-         * the backfill end seqno is contained in the backfill.
-         */
-        if (backfillStart < curChkSeqno) {
-            if (curChkSeqno > end_seqno_) {
-                /* Backfill only is enough */
-                backfillEnd = end_seqno_;
-            } else {
-                /* Backfill + in-memory streaming */
-                backfillEnd = curChkSeqno - 1;
-            }
-        }
+        // _if_ a backfill is required, it should end either at the
+        // requested stream end seqno OR the seqno immediately
+        // before what the checkpoint manager can provide
+        // - whichever is lower.
+        backfillEnd = std::min(end_seqno_, curChkSeqno - 1);
     }
 
-    if (backfillStart <= backfillEnd && tryBackfill) {
+    if (tryBackfill &&
+        producer->scheduleBackfillManager(
+                *vbucket, shared_from_this(), backfillStart, backfillEnd)) {
+        // backfill will be needed to catch up to the items in the
+        // CheckpointManager
         log(EXTENSION_LOG_NOTICE,
             "(vb %" PRIu16
             ") Scheduling backfill "
@@ -1523,79 +1530,17 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             backfillStart,
             backfillEnd,
             reschedule ? "True" : "False");
-        producer->scheduleBackfillManager(
-                *vbucket, shared_from_this(), backfillStart, backfillEnd);
+
         isBackfillTaskRunning.store(true);
         /// Number of backfill items is unknown until the Backfill task
         /// completes the scan phase - reset backfillRemaining counter.
         backfillRemaining.reset();
     } else {
-        if (reschedule) {
-            // Infrequent code path, see comment below.
-            log(EXTENSION_LOG_NOTICE,
-                "(vb %" PRIu16
-                ") Did not schedule "
-                "backfill with reschedule : True, "
-                "tryBackfill : True; "
-                "backfillStart : %" PRIu64
-                ", "
-                "backfillEnd : %" PRIu64
-                ", "
-                "flags_ : %" PRIu32
-                ", "
-                "start_seqno_ : %" PRIu64
-                ", "
-                "end_seqno_ : %" PRIu64
-                ", "
-                "lastReadSeqno : %" PRIu64
-                ", "
-                "lastSentSeqno : %" PRIu64
-                ", "
-                "curChkSeqno : %" PRIu64
-                ", "
-                "itemsReady : %s",
-                vb_,
-                backfillStart,
-                backfillEnd,
-                flags_,
-                start_seqno_,
-                end_seqno_,
-                lastReadSeqno.load(),
-                lastSentSeqno.load(),
-                curChkSeqno.load(),
-                itemsReady ? "True" : "False");
-
-            /* Cursor was dropped, but we will not do backfill.
-             * This may happen in a corner case where, the memory usage is high
-             * due to other vbuckets and persistence cursor moves ahead of
-             * replication cursor to new checkpoint open but does not persist
-             * items yet.
-             *
-             * Because we dropped the cursor but did not do a backfill (and
-             * therefore did not re-register a cursor in markDiskSnapshot) we
-             * must re-register the cursor here.
-             */
-            try {
-                CursorRegResult result =
-                        vbucket->checkpointManager->registerCursorBySeqno(
-                                cursorName,
-                                lastReadSeqno.load(),
-                                MustSendCheckpointEnd::NO);
-                cursorRegistered = true;
-                curChkSeqno = result.first;
-            } catch (std::exception& error) {
-                log(EXTENSION_LOG_WARNING,
-                    "(vb %" PRIu16
-                    ") Failed to register "
-                    "cursor: %s",
-                    vb_,
-                    error.what());
-                endStream(END_STREAM_STATE);
-            }
-        }
-        if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        // backfill not needed
+        if (flags_ & static_cast<uint64_t>(DCP_ADD_STREAM_FLAG_DISKONLY)) {
             endStream(END_STREAM_OK);
-        } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+        } else if (flags_ &
+                   static_cast<uint64_t>(DCP_ADD_STREAM_FLAG_TAKEOVER)) {
             transitionState(StreamState::TakeoverSend);
         } else {
             transitionState(StreamState::InMemory);

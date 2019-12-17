@@ -87,6 +87,8 @@ public:
      */
     void flushVBucketToDiskIfPersistent(uint16_t vbid, int expected = 1);
 
+    void removeCheckpoint(VBucket& vb, int numItems);
+
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */

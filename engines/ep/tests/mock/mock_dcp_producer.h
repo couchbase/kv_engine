@@ -161,5 +161,22 @@ public:
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
             uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno);
+            uint64_t snap_end_seqno,
+            IncludeValue includeValue = IncludeValue::Yes,
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes);
+
+    bool scheduleBackfillManager(VBucket& vb,
+                                 std::shared_ptr<ActiveStream> s,
+                                 uint64_t start,
+                                 uint64_t end) override {
+        beforeScheduleBackfillCB(end);
+        return DcpProducer::scheduleBackfillManager(
+                vb, std::move(s), start, end);
+    }
+
+    void setBeforeScheduleBackfillCB(std::function<void(uint64_t)> backfillCB) {
+        beforeScheduleBackfillCB = std::move(backfillCB);
+    }
+
+    std::function<void(uint64_t)> beforeScheduleBackfillCB = [](uint64_t) {};
 };
