@@ -51,6 +51,19 @@ static std::string to_string(Store store) {
                                 std::to_string(int(store)));
 }
 
+enum class FlushMode { Insert = 0, Replace = 1 };
+
+static std::string to_string(FlushMode mode) {
+    switch (mode) {
+    case FlushMode::Insert:
+        return "insert";
+    case FlushMode::Replace:
+        return "replace";
+    }
+    throw std::invalid_argument("to_string(FlushMode): invalid enumeration " +
+                                std::to_string(int(mode)));
+}
+
 class VBucketBench : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
@@ -206,6 +219,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
 (benchmark::State& state) {
     const auto itemCount = state.range(1);
     int itemsFlushedTotal = 0;
+    FlushMode mode = FlushMode(state.range(2));
 
     // Memory size before flushing.
     size_t baseBytes = 0;
@@ -213,18 +227,54 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
     // Maximum memory during flushing.
     size_t peakBytes = 0;
 
-    // Pre-size the VBucket's hashtable so a sensible size.
+    // Pre-size the VBucket's hashtable to a sensible size or things are going
+    // to get slow for large numbers of items.
     engine->getKVBucket()->getVBucket(vbid)->ht.resize(itemCount);
 
-    while (state.KeepRunning()) {
-        // Add the given number of items to checkpoint manager.
-        state.PauseTiming();
-        std::string value(1, 'x');
+    std::string value(1, 'x');
+    if (mode == FlushMode::Replace) {
         for (int i = 0; i < itemCount; ++i) {
             auto item = make_item(
                     vbid, std::string("key") + std::to_string(i), value);
             ASSERT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(item, cookie));
         }
+
+        // Make sure we have something in the vBucket the first time round
+        size_t itemsFlushed = flushAllItems(vbid);
+        ASSERT_EQ(itemCount, itemsFlushed);
+    }
+
+    while (state.KeepRunning()) {
+        // Add the given number of items to checkpoint manager.
+        state.PauseTiming();
+        if (mode == FlushMode::Insert) {
+            // Delete the vBucket so that we can measure the Insert path
+            auto result = engine->getKVBucket()->deleteVBucket(vbid, cookie);
+            if (result != ENGINE_SUCCESS) {
+                // Deferred deletion is running, wait until complete
+                EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+                executorPool->runNextTask(
+                        AUXIO_TASK_IDX,
+                        "Removing (dead) vb:0 from memory and disk");
+            }
+            engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+
+            {
+                auto vb = engine->getVBucket(vbid);
+                EXPECT_EQ(0, vb->getNumItems());
+            }
+
+            // Pre-size the VBucket's hashtable to a sensible size or things are
+            // going to get slow for large numbers of items.
+            engine->getKVBucket()->getVBucket(vbid)->ht.resize(itemCount);
+        }
+
+        for (int i = 0; i < itemCount; ++i) {
+            auto item = make_item(
+                    vbid, std::string("key") + std::to_string(i), value);
+            ASSERT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(item, cookie));
+        }
+
         baseBytes = memoryTracker->getCurrentAlloc();
         state.ResumeTiming();
 
@@ -236,7 +286,9 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
         itemsFlushedTotal += itemsFlushed;
     }
     state.SetItemsProcessed(itemsFlushedTotal);
-    state.SetLabel(std::string("store:" + to_string(store)).c_str());
+    state.SetLabel(std::string("store:" + to_string(store) +
+                               " mode:" + to_string(mode))
+                           .c_str());
     // Peak memory usage while flushing, minus baseline.
     state.counters["PeakFlushBytes"] = peakBytes - baseBytes;
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
@@ -401,10 +453,14 @@ BENCHMARK_REGISTER_F(MemTrackingVBucketBench, QueueDirty)
 
 static void FlushArguments(benchmark::internal::Benchmark* b) {
     // Add both couchstore (0) and rocksdb (1) variants for a range of sizes.
-    for (size_t items = 1; items <= 1000000; items *= 100) {
-        b->ArgPair(0, items);
+    for (auto items = 1; items <= 1000000; items *= 100) {
+        // Insert mode
+        b->Args({0, items, 0});
+        // Replace mode
+        b->Args({0, items, 1});
 #ifdef EP_USE_ROCKSDB
-        b->ArgPair(1, items);
+        b->Args({1, items, 0});
+        b->Args({1, items, 1});
 #endif
     }
 }
