@@ -17,6 +17,9 @@
 #pragma once
 
 #include <folly/portability/GTest.h>
+#include <include/memcached/vbucket.h>
+
+class MemcachedConnection;
 
 namespace cb {
 namespace test {
@@ -47,6 +50,10 @@ protected:
 
     // per test tear-down function.
     void TearDown() override;
+
+    void getReplica(MemcachedConnection& conn,
+                    Vbid vbid,
+                    const std::string& key);
 
     static std::unique_ptr<Cluster> cluster;
 };

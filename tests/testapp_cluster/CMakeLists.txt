@@ -15,7 +15,11 @@ target_link_libraries(cluster_framework PUBLIC
                       gtest
                       ${FOLLY_LIBRARIES})
 
-add_executable(cluster_test durability_tests.cc main.cc out_of_order_tests.cc)
+add_executable(cluster_test
+               durability_tests.cc
+               durability_upgrade_tests.cc
+               main.cc
+               out_of_order_tests.cc)
 target_link_libraries(cluster_test cluster_framework)
 add_dependencies(cluster_test memcached ep default_engine)
 add_sanitizers(cluster_test)
