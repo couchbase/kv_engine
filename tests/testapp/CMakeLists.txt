@@ -140,7 +140,7 @@ gtest_discover_tests(memcached_testapp
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     TEST_PREFIX memcached_testapp.default.
     ONE_CTEST_PER_SUITE
-    DISCOVERY_TIMEOUT 30
+    DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300)
 
 gtest_discover_tests(memcached_testapp
@@ -148,5 +148,5 @@ gtest_discover_tests(memcached_testapp
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     TEST_PREFIX memcached_testapp.ep.
     ONE_CTEST_PER_SUITE
-    DISCOVERY_TIMEOUT 30
+    DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300)
