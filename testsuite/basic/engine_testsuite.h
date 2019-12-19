@@ -39,13 +39,11 @@ protected:
      * Create a new bucket
      *
      * @param bucketType the type of the bucket to create
-     * @param name the name of the bucket (for logging)
      * @param cfg a configuration for the bucket
      * @return a handle to the newly created bucket
      * @throws cb::engine_error for bucket initialization failures
      *         std::bad_alloc for memory allocation failures
      */
     static std::unique_ptr<EngineIface> createBucket(BucketType bucketType,
-                                                     const std::string& name,
                                                      const std::string& cfg);
 };

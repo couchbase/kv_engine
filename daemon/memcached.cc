@@ -1345,22 +1345,21 @@ void CreateBucketThread::create() {
 
     auto &bucket = all_buckets[ii];
 
-    /* People aren't allowed to use the engine in this state,
-     * so we can do stuff without locking..
-     */
-    auto* engine = new_engine_instance(type, name, get_server_api);
-    if (engine == nullptr) {
+    // People aren't allowed to use the engine in this state,
+    // so we can do stuff without locking..
+    try {
+        bucket.setEngine(new_engine_instance(type, get_server_api));
+    } catch (const cb::engine_error& exception) {
         bucket.reset();
-        LOG_WARNING(
-                "{} - Failed to create bucket [{}]: failed to "
-                "create a new engine instance",
-                connection.getId(),
-                name);
-        result = ENGINE_FAILED;
+        LOG_WARNING("{} - Failed to create bucket [{}]: {}",
+                    connection.getId(),
+                    name,
+                    exception.what());
+        result = ENGINE_ERROR_CODE(exception.code().value());
         return;
     }
 
-    bucket.setEngine(engine);
+    auto* engine = bucket.getEngine();
     {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = Bucket::State::Initializing;
@@ -1609,9 +1608,14 @@ void initialize_buckets() {
     // To make the life easier for us in the code, index 0
     // in the array is "no bucket"
     auto &nobucket = all_buckets.at(0);
-    nobucket.setEngine(new_engine_instance(
-            BucketType::NoBucket, "<internal>", get_server_api));
-    cb_assert(nobucket.getEngine());
+    try {
+        nobucket.setEngine(
+                new_engine_instance(BucketType::NoBucket, get_server_api));
+    } catch (const std::exception& exception) {
+        FATAL_ERROR(EXIT_FAILURE,
+                    "Failed to create the internal bucket \"No bucket\": {}",
+                    exception.what());
+    }
     nobucket.max_document_size = nobucket.getEngine()->getMaxItemSize();
     nobucket.supportedFeatures = nobucket.getEngine()->getFeatures();
     nobucket.type = BucketType::NoBucket;

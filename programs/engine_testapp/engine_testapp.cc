@@ -206,8 +206,8 @@ public:
     EngineIface* create_bucket(bool initialize,
                                const std::string& cfg) override {
         auto me = std::make_unique<MockEngine>();
-        EngineIface* handle = new_engine_instance(
-                bucketType, "engine_testapp", &get_mock_server_api);
+        EngineIface* handle =
+                new_engine_instance(bucketType, &get_mock_server_api);
 
         if (handle) {
             me->the_engine = (EngineIface*)handle;

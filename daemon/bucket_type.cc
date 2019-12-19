@@ -32,5 +32,9 @@ std::string to_string(BucketType type) {
     case BucketType::Unknown:
         return "Unknown";
     }
-    throw std::logic_error("Invalid bucket type: " + std::to_string(int(type)));
+
+    // We don't want to throw a new exception when we try to format
+    // an error message with an invalid bucket type
+    return "[to_string(BucketType) - Illegal type: " +
+           std::to_string(int(type)) + "]";
 }

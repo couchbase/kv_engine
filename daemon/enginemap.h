@@ -23,13 +23,13 @@
  * Create a new instance of the given bucket type
  *
  * @param type the type of engine to create an instance of
- * @param name the name of the bucket to create
  * @param get_server_api A function to get the server API (passed to the
  *                       underlying engine)
  * @return the allocated handle if successful
+ * @throws std::bad_alloc for memory allocation failures,
+ *         cb::engine_error for engine related errors
  */
 EngineIface* new_engine_instance(BucketType type,
-                                 const std::string& name,
                                  GET_SERVER_API get_server_api);
 
 /**

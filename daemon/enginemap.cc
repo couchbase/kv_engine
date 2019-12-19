@@ -26,7 +26,6 @@
 #include <string>
 
 EngineIface* new_engine_instance(BucketType type,
-                                 const std::string& name,
                                  GET_SERVER_API get_server_api) {
     EngineIface* ret = nullptr;
     ENGINE_ERROR_CODE status = ENGINE_KEY_ENOENT;
@@ -48,14 +47,20 @@ EngineIface* new_engine_instance(BucketType type,
         break;
     }
 
-    if (status != ENGINE_SUCCESS) {
-        throw std::runtime_error(
-                "new_engine_instance(): Failed to create name:" + name +
-                " of type:" + to_string(type) +
-                " error:" + cb::to_string(cb::to_engine_errc(status)));
+    if (status == ENGINE_SUCCESS) {
+        if (ret == nullptr) {
+            throw cb::engine_error(
+                    cb::engine_errc::failed,
+                    "new_engine_instance: create function returned success, "
+                    "but no engine handle returned");
+        }
+        return ret;
     }
 
-    return ret;
+    throw cb::engine_error(
+            cb::engine_errc(status),
+            "new_engine_instance(): Failed to create bucket of type: " +
+                    to_string(type));
 }
 
 void create_crash_instance() {
@@ -69,7 +74,7 @@ void create_crash_instance() {
 }
 
 BucketType module_to_bucket_type(const std::string& module) {
-    std::string nm = cb::io::basename(module.c_str());
+    std::string nm = cb::io::basename(module);
     if (nm == "nobucket.so") {
         return BucketType::NoBucket;
     } else if (nm == "default_engine.so") {
@@ -82,7 +87,7 @@ BucketType module_to_bucket_type(const std::string& module) {
     return BucketType::Unknown;
 }
 
-void shutdown_all_engines(void) {
+void shutdown_all_engines() {
     // switch statement deliberately falls through all cases as all engine types
     // need shutting down. The use of a case statement ensures new bucket types
     // are also considered for shutdown (requires the non-const type input)

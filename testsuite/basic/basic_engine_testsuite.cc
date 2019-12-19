@@ -32,7 +32,7 @@ class BasicEngineTestsuite : public EngineTestsuite {
 protected:
     void SetUp() override {
         EngineTestsuite::SetUp();
-        engine = createBucket(BucketType::Memcached, "bucket", {});
+        engine = createBucket(BucketType::Memcached, {});
         cookie = std::make_unique<MockCookie>();
     }
 
@@ -402,7 +402,7 @@ static void eviction_stats_handler(cb::const_char_buffer key,
 }
 
 TEST_F(BasicEngineTestsuite, LRU) {
-    engine = createBucket(BucketType::Memcached, "LRU", "cache_size=48");
+    engine = createBucket(BucketType::Memcached, "cache_size=48");
     DocKey hot_key("hot_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     int ii;
@@ -515,8 +515,7 @@ TEST_F(BasicEngineTestsuite, test_n_bucket_destroy) {
     const int n_keys = 256;
     std::vector<std::unique_ptr<EngineIface>> buckets;
     for (int ii = 0; ii < n_buckets; ii++) {
-        buckets.emplace_back(
-                createBucket(BucketType::Memcached, std::to_string(ii), {}));
+        buckets.emplace_back(createBucket(BucketType::Memcached, {}));
     }
 
     for (auto& bucket : buckets) {
@@ -555,8 +554,7 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
     const int buckets = 5;
 
     for (int b = 0; b < buckets; b++) {
-        auto bucket =
-                createBucket(BucketType::Memcached, std::to_string(b), {});
+        auto bucket = createBucket(BucketType::Memcached, {});
 
         for (int ii = 0; ii < n_keys; ii++) {
             std::string ss = "KEY" + std::to_string(ii);

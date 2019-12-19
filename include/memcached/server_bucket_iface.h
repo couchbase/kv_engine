@@ -35,12 +35,10 @@ struct ServerBucketIface {
      * Create a new bucket
      *
      * @param module the name of the shared object containing the bucket
-     * @param name the name of the bucket (only used for logging)
      * @param get_server_api the method to provide to the instance
      * @return the newly created engine, or {} if not found
      */
     virtual std::unique_ptr<EngineIface> createBucket(
             const std::string& module,
-            const std::string& name,
             SERVER_HANDLE_V1* (*get_server_api)()) const = 0;
 };

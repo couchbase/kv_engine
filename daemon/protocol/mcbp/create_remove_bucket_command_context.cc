@@ -74,11 +74,12 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::create() {
     // Check if (optional) config was included after the value.
     auto marker = value.find('\0');
     if (marker != std::string::npos) {
-        config.assign(&value[marker + 1]);
+        config = value.substr(marker + 1);
+        value.resize(marker);
     }
 
     std::string errors;
-    auto type = module_to_bucket_type(value.c_str());
+    auto type = module_to_bucket_type(value);
     task = std::make_shared<McbpCreateBucketTask>(name, config, type, cookie);
     std::lock_guard<std::mutex> guard(task->getMutex());
     reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();

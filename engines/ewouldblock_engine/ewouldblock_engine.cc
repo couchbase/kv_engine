@@ -294,10 +294,8 @@ public:
             real_engine_config = config.substr(seperator + 1);
         }
 
-        real_engine =
-                real_api->bucket->createBucket(real_engine_name,
-                                               "ewouldblock wrapped engine",
-                                               get_wrapped_gsa);
+        real_engine = real_api->bucket->createBucket(real_engine_name,
+                                                     get_wrapped_gsa);
 
         if (!real_engine) {
             LOG_CRITICAL(
