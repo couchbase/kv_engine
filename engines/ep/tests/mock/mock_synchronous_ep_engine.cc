@@ -104,10 +104,6 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
 
     engine->setMaxDataSize(engine->getConfiguration().getMaxSize());
 
-    // Ensure that EPEngine is told about necessary server callbacks
-    // (client disconnect, bucket delete).
-    engine->public_initializeEngineCallbacks();
-
     return engine;
 }
 

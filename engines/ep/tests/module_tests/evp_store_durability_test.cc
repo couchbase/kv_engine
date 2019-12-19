@@ -230,7 +230,7 @@ protected:
     // Call a number of operations where we expect a sync_write in progress
     // error
     void checkForSyncWriteInProgess(Item& pendingItem) {
-        auto* anotherClient = create_mock_cookie();
+        auto* anotherClient = create_mock_cookie(engine.get());
         ASSERT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
                   store->set(pendingItem, anotherClient, {}));
         ASSERT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
@@ -1986,7 +1986,7 @@ TEST_P(DurabilityBucketTest, AddIfAlreadyExistsSyncWriteInProgress) {
 
     // Test: Attempt to add a second prepared SyncWrite (different cookie i.e.
     // client).
-    MockCookie secondClient;
+    MockCookie secondClient(engine.get());
     auto pending2 = makePendingItem(key, "value2");
     EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
               store->add(*pending2, &secondClient));
@@ -2011,7 +2011,7 @@ TEST_P(DurabilityBucketTest, DeleteIfDeleteInProgressSyncWriteInProgress) {
 
     // Test: Attempt to perform a second SyncDelete (different cookie i.e.
     // client).
-    MockCookie secondClient;
+    MockCookie secondClient(engine.get());
     cas = 0;
     EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS,
               store->deleteItem(
@@ -2032,7 +2032,7 @@ TEST_P(DurabilityBucketTest, DeleteIfSyncWriteInProgressSyncWriteInProgress) {
 
     // Test: Attempt to perform a second SyncDelete (different cookie i.e.
     // client).
-    MockCookie secondClient;
+    MockCookie secondClient(engine.get());
     uint64_t cas = 0;
     mutation_descr_t mutInfo;
     cb::durability::Requirements reqs{cb::durability::Level::Majority, {}};
@@ -2199,7 +2199,7 @@ void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
 
     auto key2 = makeStoredDocKey("don't-ack-me");
     auto pending2 = makePendingItem(key2, "value");
-    auto cookie2 = create_mock_cookie();
+    auto cookie2 = create_mock_cookie(engine.get());
     EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending2, cookie2));
 
     auto vb = store->getVBucket(vbid);
@@ -2253,6 +2253,11 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
     for (int i = 0; i < 100; i++) {
         KVBucketTest::SetUp();
 
+        // We need a mock cookie which won't signal the engine when it
+        // disconnects as we try to use it after the engine is deleted (
+        // the full core will delete the cookie before the engine is killed)
+        destroy_mock_cookie(cookie);
+        cookie = create_mock_cookie();
         EXPECT_EQ(ENGINE_SUCCESS,
                   store->setVBucketState(
                           vbid,
@@ -2285,7 +2290,6 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
             store->deleteVBucket(vbid, nullptr);
         }
 
-        destroy_mock_event_callbacks();
         engine->getDcpConnMap().manageConnections();
 
         // Should deadlock here in ~SynchronousEPEngine

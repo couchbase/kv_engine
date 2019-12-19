@@ -118,7 +118,7 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
             lastSeqno, // setting maxVisibleSeqno to equal lastSeqno
             /*flusher callback*/ nullptr);
 
-    cookie = create_mock_cookie();
+    cookie = create_mock_cookie(nullptr);
 }
 
 VBucketTestBase::~VBucketTestBase() {

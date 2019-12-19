@@ -175,7 +175,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingDeleteWithoutSyncReplica) {
 TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
     // Put the Producer in the ConnMap so that we attempt to notify it
     auto& connMap = engine->getDcpConnMap();
-    auto producerCookie = create_mock_cookie();
+    auto producerCookie = create_mock_cookie(engine);
     ASSERT_EQ(ENGINE_SUCCESS,
               engine->dcpOpen(producerCookie,
                               0 /*opaque*/,
@@ -212,7 +212,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
 TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     // Put the Producer in the ConnMap so that we attempt to notify it
     auto& connMap = engine->getDcpConnMap();
-    auto producerCookie = create_mock_cookie();
+    auto producerCookie = create_mock_cookie(engine);
     ASSERT_EQ(ENGINE_SUCCESS,
               engine->dcpOpen(producerCookie,
                               0 /*opaque*/,

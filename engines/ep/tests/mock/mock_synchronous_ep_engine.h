@@ -59,10 +59,6 @@ public:
         return doDcpVbTakeoverStats(cookie, add_stat, key, vbid);
     }
 
-    void public_initializeEngineCallbacks() {
-        return initializeEngineCallbacks();
-    }
-
     /*
      * Initialize the connmap object, which creates tasks
      * so must be done after executorpool is created

@@ -85,7 +85,6 @@
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/server_bucket_iface.h>
-#include <memcached/server_callback_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_log_iface.h>
 #include <platform/cb_malloc.h>
@@ -145,56 +144,6 @@ private:
     const std::string file;
 };
 
-static SERVER_HANDLE_V1 wrapped_api;
-static SERVER_HANDLE_V1 *real_api;
-
-struct EwbServerCallbackApi : public ServerCallbackIface {
-    void register_callback(EngineIface* engine,
-                           ENGINE_EVENT_TYPE type,
-                           EVENT_CALLBACK cb,
-                           const void* cb_data) override {
-        const auto& p = engine_map.find(engine);
-        if (p == engine_map.end()) {
-            std::cerr << "Can't find EWB corresponding to " << std::hex
-                      << engine << std::endl;
-            for (const auto& pair : engine_map) {
-                std::cerr << "EH: " << std::hex << pair.first
-                          << " = EWB: " << std::hex << pair.second << std::endl;
-            }
-            abort();
-        }
-        auto wrapped_eh = reinterpret_cast<EngineIface*>(p->second);
-        real_api->callback->register_callback(wrapped_eh, type, cb, cb_data);
-    }
-    void perform_callbacks(ENGINE_EVENT_TYPE type,
-                           const void* data,
-                           const void* cookie) override {
-        wrapped->perform_callbacks(type, data, cookie);
-    }
-
-    ServerCallbackIface* wrapped = nullptr;
-};
-
-static void init_wrapped_api(GET_SERVER_API fn) {
-    static bool init = false;
-    if (init) {
-        return;
-    }
-
-    init = true;
-    real_api = fn();
-    wrapped_api = *real_api;
-
-    // Overrides
-    static EwbServerCallbackApi callback;
-    callback.wrapped = real_api->callback;
-    wrapped_api.callback = &callback;
-}
-
-static SERVER_HANDLE_V1 *get_wrapped_gsa() {
-    return &wrapped_api;
-}
-
 /** ewouldblock_engine class */
 class EWB_Engine : public EngineIface, public DcpIface {
 private:
@@ -218,15 +167,22 @@ private:
     const char* to_string(Cmd cmd);
 
 public:
-    EWB_Engine(GET_SERVER_API gsa_);
+    explicit EWB_Engine(GET_SERVER_API gsa_);
 
     ~EWB_Engine() override;
 
     void initiate_shutdown() override;
 
-    // Convert from a handle back to the read object.
-    static EWB_Engine* to_engine(EngineIface* handle) {
-        return reinterpret_cast<EWB_Engine*> (handle);
+    void disconnect(gsl::not_null<const void*> cookie) override {
+        uint64_t id = real_api->cookie->get_connection_id(cookie);
+        {
+            std::lock_guard<std::mutex> guard(cookie_map_mutex);
+            connection_map.erase(id);
+        }
+
+        if (real_engine) {
+            real_engine->disconnect(cookie);
+        }
     }
 
     /* Returns true if the next command should have a fake error code injected.
@@ -294,8 +250,7 @@ public:
             real_engine_config = config.substr(seperator + 1);
         }
 
-        real_engine = real_api->bucket->createBucket(real_engine_name,
-                                                     get_wrapped_gsa);
+        real_engine = real_api->bucket->createBucket(real_engine_name, gsa);
 
         if (!real_engine) {
             LOG_CRITICAL(
@@ -308,16 +263,7 @@ public:
         real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
 
         engine_map[real_engine.get()] = this;
-        ENGINE_ERROR_CODE res =
-                real_engine->initialize(real_engine_config.c_str());
-
-        // Register a callback on DISCONNECT events, so we can delete
-        // any stale elements from connection_map when a connection
-        // DC's.
-        real_api->callback->register_callback(
-                this, ON_DISCONNECT, handle_disconnect, this);
-
-        return res;
+        return real_engine->initialize(real_engine_config.c_str());
     }
 
     void destroy(bool force) override {
@@ -924,23 +870,8 @@ public:
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
-    static void handle_disconnect(const void* cookie,
-                                  ENGINE_EVENT_TYPE type,
-                                  const void* event_data,
-                                  const void* cb_data) {
-        cb_assert(event_data == NULL);
-        EWB_Engine* ewb =
-                reinterpret_cast<EWB_Engine*>(const_cast<void*>(cb_data));
-        LOG_DEBUG("EWB_Engine::handle_disconnect");
-
-        uint64_t id = real_api->cookie->get_connection_id(cookie);
-        {
-            std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
-            ewb->connection_map.erase(id);
-        }
-    }
-
     GET_SERVER_API gsa;
+    SERVER_HANDLE_V1* real_api;
 
     // Actual engine we are proxying requests to.
     std::unique_ptr<EngineIface> real_engine;
@@ -949,7 +880,7 @@ public:
     // nullptr if it doesn't implement DcpIface;
     DcpIface* real_engine_dcp = nullptr;
 
-    std::atomic_int clustermap_revno;
+    std::atomic_int clustermap_revno{1};
 
     /**
      * The method responsible for pushing all of the notify_io_complete
@@ -1027,7 +958,7 @@ private:
     };
     std::queue<PendingIO> pending_io_ops;
 
-    std::atomic<bool> stop_notification_thread;
+    std::atomic<bool> stop_notification_thread{false};
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -1384,14 +1315,9 @@ private:
 };
 
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
-  : gsa(gsa_),
-    notify_io_thread(new NotificationThread(*this))
-{
-    init_wrapped_api(gsa);
-
-    clustermap_revno = 1;
-
-    stop_notification_thread.store(false);
+    : gsa(gsa_),
+      real_api(gsa()),
+      notify_io_thread(new NotificationThread(*this)) {
     notify_io_thread->start();
 }
 

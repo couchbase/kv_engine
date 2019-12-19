@@ -256,7 +256,7 @@ public:
     KVBucket* store;
 
     // The (mock) server cookie.
-    const void* cookie;
+    const void* cookie = nullptr;
 };
 
 /**

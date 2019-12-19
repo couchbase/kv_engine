@@ -26,7 +26,8 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
 CollectionsDcpTest::CollectionsDcpTest()
-    : cookieC(create_mock_cookie()), cookieP(create_mock_cookie()) {
+    : cookieC(create_mock_cookie(engine.get())),
+      cookieP(create_mock_cookie(engine.get())) {
     mock_set_collections_support(cookieP, true);
     mock_set_collections_support(cookieC, true);
     replicaVB = Vbid(1);
@@ -232,8 +233,8 @@ void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {
     teardown();
     SingleThreadedKVBucketTest::resetEngineAndWarmup(new_config);
     producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
-    cookieC = create_mock_cookie();
-    cookieP = create_mock_cookie();
+    cookieC = create_mock_cookie(engine.get());
+    cookieP = create_mock_cookie(engine.get());
 }
 
 void CollectionsDcpTest::ensureDcpWillBackfill() {

@@ -97,7 +97,7 @@ void KVBucketTest::initialise(std::string config) {
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime());
 
-    cookie = create_mock_cookie();
+    cookie = create_mock_cookie(engine.get());
 }
 
 void KVBucketTest::TearDown() {
@@ -111,7 +111,6 @@ void KVBucketTest::TearDown() {
 
 void KVBucketTest::destroy() {
     destroy_mock_cookie(cookie);
-    destroy_mock_event_callbacks();
     engine->getDcpConnMap().manageConnections();
     engine.reset();
 }

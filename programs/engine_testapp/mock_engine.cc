@@ -75,9 +75,10 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
  * Helper function to return a mock_connstruct, either a new one or
  * an existng one.
  **/
-MockCookie* get_or_create_mock_connstruct(const void* cookie) {
+MockCookie* get_or_create_mock_connstruct(const void* cookie,
+                                          EngineIface* engine) {
     if (cookie == nullptr) {
-        return cookie_to_mock_cookie(create_mock_cookie());
+        return cookie_to_mock_cookie(create_mock_cookie(engine));
     }
     return cookie_to_mock_cookie(cookie);
 }
@@ -316,7 +317,7 @@ void MockEngine::reset_stats(gsl::not_null<const void*> cookie) {
 ENGINE_ERROR_CODE MockEngine::unknown_command(const void* cookie,
                                               const cb::mcbp::Request& request,
                                               const AddResponseFn& response) {
-    auto* c = get_or_create_mock_connstruct(cookie);
+    auto* c = get_or_create_mock_connstruct(cookie, this);
     auto engine_fn = std::bind(&EngineIface::unknown_command,
                                the_engine,
                                static_cast<const void*>(c),
@@ -648,4 +649,8 @@ ENGINE_ERROR_CODE MockEngine::abort(gsl::not_null<const void*> cookie,
                                     uint64_t abort_seqno) {
     return the_engine_dcp->abort(
             cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
+}
+
+void MockEngine::disconnect(gsl::not_null<const void*> cookie) {
+    the_engine->disconnect(cookie);
 }

@@ -375,7 +375,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h) {
     const char* key = "get_meta_key";
     std::vector<char> data = createXattrValue({"test_expiry_value"});
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
@@ -429,7 +429,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
     const char* key = "get_meta_key";
     std::vector<char> data = createXattrValue({"test_expiry_value"});
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
@@ -554,7 +554,7 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
 
     // delete an item with meta data
     checkeq(ENGINE_SUCCESS,
@@ -1063,7 +1063,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
     // We are explicitly going to test the !datatype paths, so turn it off.
     testHarness->set_datatype_support(cookie, false);
 
@@ -1559,7 +1559,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
     std::string value_data = R"({"json":"yes"})";
     std::vector<char> data = createXattrValue(value_data);
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
 
     // store a value (so we can get its metadata)
     checkeq(ENGINE_SUCCESS,
@@ -1640,7 +1640,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
 static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     const char* key1 = "delete_with_meta_xattr_key1";
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
 
     // Create XATTR doc with a JSON body
     // In practice a del_with_meta should come along with only XATTR, but
@@ -1829,7 +1829,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
 
     // Tell the harness not to handle EWOULDBLOCK for us - we want it to
     // be outstanding while we check the below stats.
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -3084,7 +3084,7 @@ static enum test_result test_MB29119(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    const void* cookie = testHarness->create_cookie();
+    const void* cookie = testHarness->create_cookie(h);
 
     // delete an item with meta data
     checkeq(ENGINE_SUCCESS,

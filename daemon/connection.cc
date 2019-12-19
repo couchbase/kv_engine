@@ -1294,7 +1294,7 @@ void Connection::close() {
 void Connection::propagateDisconnect() const {
     for (auto& cookie : cookies) {
         if (cookie) {
-            perform_callbacks(ON_DISCONNECT, nullptr, cookie.get());
+            getBucket().getEngine()->disconnect(cookie.get());
         }
     }
 }

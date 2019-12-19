@@ -45,8 +45,6 @@
 
 #define REALTIME_MAXDELTA 60*60*24*3
 
-std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_handlers;
-
 std::atomic<time_t> process_started;     /* when the mock server was started */
 
 /* Offset from 'real' time used to test time handling */
@@ -134,14 +132,6 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
-void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
-                            const void* data,
-                            const void* c) {
-    for (auto& h : mock_event_handlers[type]) {
-        h.cb(c, type, data, h.cb_data);
-    }
-}
-
 void mock_init_alloc_hooks() {
     AllocHooks::initialize();
 }
@@ -208,21 +198,6 @@ struct MockServerDocumentApi : public ServerDocumentIface {
             gsl::not_null<const void*> cookie,
             cb::audit::document::Operation operation) override {
         // empty
-    }
-};
-
-struct MockServerCallbackApi : public ServerCallbackIface {
-    void register_callback(EngineIface* engine,
-                           ENGINE_EVENT_TYPE type,
-                           EVENT_CALLBACK cb,
-                           const void* cb_data) override {
-        mock_event_handlers[type].emplace_back(mock_callbacks{cb, cb_data});
-    }
-
-    void perform_callbacks(ENGINE_EVENT_TYPE type,
-                           const void* data,
-                           const void* cookie) override {
-        mock_perform_callbacks(type, data, cookie);
     }
 };
 
@@ -396,7 +371,6 @@ struct MockServerCookieApi : public ServerCookieIface {
 SERVER_HANDLE_V1* get_mock_server_api() {
     static MockServerCoreApi core_api;
     static MockServerCookieApi server_cookie_api;
-    static MockServerCallbackApi callback_api;
     static MockServerLogApi log_api;
     static ServerAllocatorIface hooks_api;
     static SERVER_HANDLE_V1 rv;
@@ -418,7 +392,6 @@ SERVER_HANDLE_V1* get_mock_server_api() {
         hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
         rv.core = &core_api;
-        rv.callback = &callback_api;
         rv.log = &log_api;
         rv.cookie = &server_cookie_api;
         rv.alloc_hooks = &hooks_api;
@@ -436,10 +409,3 @@ void init_mock_server() {
     session_cas = 0x0102030405060708;
     session_ctr = 0;
 }
-
-void destroy_mock_event_callbacks() {
-    for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
-        mock_event_handlers[type].clear();
-    }
-}
-

@@ -17,7 +17,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <memcached/server_callback_iface.h>
 #include <memcached/tracer.h>
 
 #include <platform/compression/buffer.h>
@@ -28,6 +27,22 @@
 #include <string>
 
 struct MockCookie : cb::tracing::Traceable {
+    /**
+     * Create a new cookie which isn't bound to an engine. This cookie won't
+     * notify the engine when it disconnects.
+     */
+    MockCookie() : MockCookie(nullptr){};
+
+    /**
+     * Create a new cookie which is bound to the provided engine.
+     *
+     * @param e the engine to notify (or nullptr if no engine is to be
+     *          notified
+     */
+    explicit MockCookie(EngineIface* e);
+
+    ~MockCookie() override;
+
     const uint64_t magic{MAGIC};
     void* engine_data{};
     int sfd{};
@@ -47,13 +62,22 @@ struct MockCookie : cb::tracing::Traceable {
 
     void validate() const;
 
+    /// decrement the ref count and signal the bucket that we're disconnecting
+    void disconnect() {
+        references--;
+        if (engine) {
+            engine->disconnect(static_cast<const void*>(this));
+        }
+    }
+
     cb::compression::Buffer inflated_payload;
 
 protected:
     static const uint64_t MAGIC = 0xbeefcafecafebeefULL;
+    EngineIface* engine;
 };
 
-const void* create_mock_cookie();
+const void* create_mock_cookie(EngineIface* engine = nullptr);
 
 void destroy_mock_cookie(const void* cookie);
 

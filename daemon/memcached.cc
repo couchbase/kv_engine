@@ -155,8 +155,6 @@ std::atomic_bool check_listen_conn;
 
 static struct event_base *main_base;
 
-static engine_event_handler_array_t engine_event_handlers;
-
 /*
  * MB-12470 requests an easy way to see when (some of) the statistics
  * counters were reset. This functions grabs the current time and tries
@@ -248,58 +246,6 @@ static void populate_log_level() {
     // are inverted
     LOG_INFO("Changing logging level to {}", Settings::instance().getVerbose());
     cb::logger::setLogLevels(val);
-}
-
-/* Perform all callbacks of a given type for the given connection. */
-void perform_callbacks(ENGINE_EVENT_TYPE type,
-                       const void *data,
-                       const void *void_cookie)
-{
-    switch (type) {
-        /*
-         * The following events operates on a connection which is passed in
-         * as the cookie.
-         */
-    case ON_DISCONNECT: {
-        const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-        if (cookie == nullptr) {
-            throw std::invalid_argument("perform_callbacks: cookie is nullptr");
-        }
-        const auto bucket_idx = cookie->getConnection().getBucketIndex();
-        if (bucket_idx == -1) {
-            throw std::logic_error(
-                    "perform_callbacks: connection (which is " +
-                    std::to_string(cookie->getConnection().getId()) +
-                    ") cannot be "
-                    "disconnected as it is not associated with a bucket");
-        }
-
-        for (auto& handler :
-             all_buckets[bucket_idx].engine_event_handlers[type]) {
-            handler.cb(void_cookie, ON_DISCONNECT, data, handler.cb_data);
-        }
-        return;
-    }
-    }
-
-    throw std::invalid_argument(
-            "perform_callbacks: type "
-            "(which is " +
-            std::to_string(type) + "is not a valid ENGINE_EVENT_TYPE");
-}
-
-static void free_callbacks() {
-    // free per-bucket callbacks.
-    for (auto& bucket : all_buckets) {
-        for (auto& type_vec : bucket.engine_event_handlers) {
-            type_vec.clear();
-        }
-    }
-
-    // free global callbacks
-    for (auto& type_vec : engine_event_handlers) {
-        type_vec.clear();
-    }
 }
 
 static void stats_init() {
@@ -2049,9 +1995,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Removing breakpad");
     cb::breakpad::destroy();
-
-    LOG_INFO("Releasing callbacks");
-    free_callbacks();
 
     LOG_INFO("Shutting down OpenSSL");
     shutdown_openssl();

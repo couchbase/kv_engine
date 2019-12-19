@@ -23,7 +23,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/limits.h>
-#include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
 #include <utilities/hdrhistogram.h>
@@ -37,15 +36,6 @@ class TopKeys;
 class Connection;
 
 #define MAX_BUCKET_NAME_LENGTH 100
-
-struct engine_event_handler {
-    EVENT_CALLBACK cb;
-    const void *cb_data;
-};
-
-// Set of engine event handlers, one per event type.
-typedef std::array<std::vector<struct engine_event_handler>,
-                   MAX_ENGINE_EVENT_TYPE + 1> engine_event_handler_array_t;
 
 class Bucket {
 public:
@@ -117,15 +107,6 @@ public:
      * Topkeys
      */
     std::unique_ptr<TopKeys> topkeys;
-
-    /**
-     * An array of registered event handler vectors, one for each type.
-     */
-    engine_event_handler_array_t engine_event_handlers;
-
-    /**
-     * @todo add properties!
-     */
 
     /**
      * Statistics vector, one per front-end thread.

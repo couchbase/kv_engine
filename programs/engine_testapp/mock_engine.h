@@ -26,7 +26,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool force) override;
-
+    void disconnect(gsl::not_null<const void*> cookie) override;
     cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
                                      const DocKey& key,
                                      size_t nbytes,

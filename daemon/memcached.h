@@ -3,10 +3,10 @@
 
 #include <event.h>
 #include <memcached/engine_error.h>
-#include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 #include <platform/socket.h>
 #include <subdoc/operations.h>
+#include <gsl/gsl>
 
 #include <mutex>
 #include <queue>
@@ -76,10 +76,6 @@ int add_conn_to_pending_io_list(Connection* c,
                                 Cookie* cookie,
                                 ENGINE_ERROR_CODE status);
 void listen_event_handler(evutil_socket_t, short, void *);
-
-void perform_callbacks(ENGINE_EVENT_TYPE type,
-                       const void *data,
-                       const void *c);
 
 const char* get_server_version(void);
 

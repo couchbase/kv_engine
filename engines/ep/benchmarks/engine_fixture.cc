@@ -38,7 +38,7 @@ void EngineFixture::SetUp(const benchmark::State& state) {
         engine = SynchronousEPEngine::build(config);
 
         initialize_time_functions(get_mock_server_api()->core);
-        cookie = create_mock_cookie();
+        cookie = create_mock_cookie(engine.get());
     } else {
         // 'engine' setup by thread:0; wait until it has completed.
         while (!engine.get()) {
@@ -52,7 +52,6 @@ void EngineFixture::TearDown(const benchmark::State& state) {
     if (state.thread_index == 0) {
         executorPool->cancelAndClearAll();
         destroy_mock_cookie(cookie);
-        destroy_mock_event_callbacks();
         engine->getDcpConnMap().manageConnections();
         engine.reset();
         ExecutorPool::shutdown();

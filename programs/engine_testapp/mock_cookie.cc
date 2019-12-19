@@ -21,20 +21,23 @@
 /// mess around with it!!
 extern std::mutex mock_server_cookie_mutex;
 
+MockCookie::MockCookie(EngineIface* e) : engine(e) {
+}
+
+MockCookie::~MockCookie() {
+    if (engine) {
+        engine->disconnect(static_cast<const void*>(this));
+    }
+}
+
 void MockCookie::validate() const {
     if (magic != MAGIC) {
         throw std::runtime_error("MockCookie::validate(): Invalid magic");
     }
 }
 
-const void* create_mock_cookie() {
-    return new MockCookie();
-}
-
-static void disconnect_mock_connection(struct MockCookie* c) {
-    // mock_server_cookie_mutex already held in calling function
-    c->references--;
-    mock_perform_callbacks(ON_DISCONNECT, nullptr, c);
+const void* create_mock_cookie(EngineIface* engine) {
+    return new MockCookie(engine);
 }
 
 void destroy_mock_cookie(const void* cookie) {
@@ -43,7 +46,7 @@ void destroy_mock_cookie(const void* cookie) {
     }
     std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
     auto* c = cookie_to_mock_cookie(cookie);
-    disconnect_mock_connection(c);
+    c->disconnect();
     if (c->references == 0) {
         delete c;
     }

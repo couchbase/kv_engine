@@ -171,6 +171,9 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual void destroy(bool force) = 0;
 
+    /// Callback that a cookie will be disconnected
+    virtual void disconnect(gsl::not_null<const void*> cookie){};
+
     /**
      * Initiate the bucket shutdown logic (disconnect clients etc)
      */

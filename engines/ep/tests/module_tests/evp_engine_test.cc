@@ -77,15 +77,14 @@ void EventuallyPersistentEngineTest::SetUp() {
     // Once warmup is complete, set VB to active.
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
 
-    cookie = create_mock_cookie();
+    cookie = create_mock_cookie(engine);
 }
 
 void EventuallyPersistentEngineTest::TearDown() {
+    destroy_mock_cookie(cookie);
     // Need to force the destroy (i.e. pass true) because
     // NonIO threads may have been disabled (see DCPTest subclass).
     engine_v1->destroy(true);
-    destroy_mock_event_callbacks();
-    destroy_mock_cookie(cookie);
     ExecutorPool::shutdown();
     // Cleanup any files we created.
     cb::io::rmrf(test_dbname);

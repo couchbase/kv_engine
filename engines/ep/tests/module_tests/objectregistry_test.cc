@@ -40,7 +40,6 @@ protected:
     }
 
     void TearDown() override {
-        destroy_mock_event_callbacks();
         engine.reset();
         ExecutorPool::shutdown();
     }

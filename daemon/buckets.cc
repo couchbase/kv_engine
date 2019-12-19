@@ -41,9 +41,6 @@ void Bucket::reset() {
         s.reset();
     }
 
-    for (auto& h : engine_event_handlers) {
-        h.clear();
-    }
     type = BucketType::Unknown;
 }
 

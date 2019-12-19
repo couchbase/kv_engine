@@ -416,7 +416,7 @@ ENGINE_ERROR_CODE del(EngineIface* h,
                       mutation_descr_t* mut_info) {
     bool create_cookie = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
 
@@ -601,7 +601,7 @@ cb::EngineErrorItemPair gat(EngineIface* h,
                             const char* key,
                             Vbid vb,
                             uint32_t exp) {
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     auto ret = h->get_and_touch(
             cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
     testHarness->destroy_cookie(cookie);
@@ -637,7 +637,7 @@ cb::EngineErrorItemPair getl(EngineIface* h,
                              uint32_t lock_timeout) {
     bool create_cookie = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
     auto ret = h->get_locked(cookie,
@@ -666,7 +666,7 @@ bool get_meta(EngineIface* h,
     DocKey docKey(key, DocKeyEncodesCollectionId::No);
     bool cookie_create = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         cookie_create = true;
     }
 
@@ -1158,7 +1158,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
                               DocumentState docState) {
     bool create_cookie = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
 
@@ -1206,7 +1206,7 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
 
     bool create_cookie = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
 
@@ -1223,7 +1223,7 @@ ENGINE_ERROR_CODE touch(EngineIface* h,
                         const char* key,
                         Vbid vb,
                         uint32_t exp) {
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     auto result = h->get_and_touch(
             cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
     testHarness->destroy_cookie(cookie);
@@ -1246,7 +1246,7 @@ ENGINE_ERROR_CODE unl(EngineIface* h,
                       uint64_t cas) {
     bool create_cookie = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
     auto ret = h->unlock(
@@ -1336,7 +1336,7 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
         vals.clear();
     }
 
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
             h->get_stats(cookie, {}, {}, add_stats),
             "Failed to get stats.");
@@ -1451,7 +1451,7 @@ std::string get_stat(EngineIface* h,
     get_stat_context.requested_stat_name = statname;
     get_stat_context.actual_stat_value.clear();
 
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     ENGINE_ERROR_CODE err =
             h->get_stats(cookie,
                          {statkey, statkey == NULL ? 0 : strlen(statkey)},
@@ -1569,7 +1569,7 @@ static void get_histo_stat(EngineIface* h,
        Hence append _ */
     get_stat_context.requested_stat_name.append("_");
 
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     auto err = h->get_stats(cookie,
                             {statkey, statkey == NULL ? 0 : strlen(statkey)},
                             {},
@@ -1586,7 +1586,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
         std::lock_guard<std::mutex> lh(vals_mutex);
         vals.clear();
     }
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     auto err = h->get_stats(cookie,
                             {statset, statset == NULL ? 0 : strlen(statset)},
                             {},
@@ -1839,7 +1839,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
                                  Vbid vb) {
     bool cookie_created = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         cookie_created = true;
     }
     auto ret = h->allocate(cookie,
@@ -1863,7 +1863,7 @@ cb::EngineErrorItemPair get(EngineIface* h,
                             DocStateFilter documentStateFilter) {
     bool create_cookie = false;
     if (cookie == nullptr) {
-        cookie = testHarness->create_cookie();
+        cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
 
@@ -1893,7 +1893,7 @@ bool repeat_till_true(std::function<bool()> functor,
 }
 
 void reset_stats(gsl::not_null<EngineIface*> h) {
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     h->reset_stats(cookie);
     testHarness->destroy_cookie(cookie);
 }
@@ -1902,7 +1902,7 @@ ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
                             cb::const_char_buffer value,
                             const AddStatFn& callback) {
-    const auto* cookie = testHarness->create_cookie();
+    const auto* cookie = testHarness->create_cookie(h);
     auto ret = h->get_stats(cookie, key, value, callback);
     testHarness->destroy_cookie(cookie);
     return ret;

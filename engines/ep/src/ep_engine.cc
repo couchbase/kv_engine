@@ -1712,23 +1712,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::abort(
     return ENGINE_DISCONNECT;
 }
 
-static void EvpHandleDisconnect(const void* cookie,
-                                ENGINE_EVENT_TYPE type,
-                                const void* event_data,
-                                const void* cb_data) {
-    if (type != ON_DISCONNECT) {
-        throw std::invalid_argument("EvpHandleDisconnect: type "
-                                        "(which is" + std::to_string(type) +
-                                    ") is not ON_DISCONNECT");
-    }
-    if (event_data != nullptr) {
-        throw std::invalid_argument("EvpHandleDisconnect: event_data "
-                                        "is not NULL");
-    }
-    void* c = const_cast<void*>(cb_data);
-    acquireEngine(static_cast<EngineIface*>(c))->handleDisconnect(cookie);
-}
-
 /**
  * The only public interface to the eventually persistent engine.
  * Allocate a new instance and initialize it
@@ -1952,15 +1935,6 @@ void EventuallyPersistentEngine::decrementSessionCtr(void) {
     serverApi->cookie->decrement_session_ctr();
 }
 
-void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
-                                                        EVENT_CALLBACK cb,
-                                                        const void *cb_data) {
-    NonBucketAllocationGuard guard;
-    auto* sapi = getServerApi()->callback;
-    sapi->register_callback(
-            reinterpret_cast<EngineIface*>(this), type, cb, cb_data);
-}
-
 void EventuallyPersistentEngine::setErrorContext(
         const void* cookie, cb::const_char_buffer message) {
     NonBucketAllocationGuard guard;
@@ -2152,8 +2126,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     setMaxDataSize(configuration.getMaxSize());
-
-    initializeEngineCallbacks();
 
     // Complete the initialization of the ep-store
     if (!kvBucket->initialize()) {
@@ -2590,11 +2562,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
     auto rv = storeIfInner(cookie, itm, cas, operation, {});
     cas = rv.cas;
     return ENGINE_ERROR_CODE(rv.status);
-}
-
-void EventuallyPersistentEngine::initializeEngineCallbacks() {
-    // Register the ON_DISCONNECT callback
-    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
@@ -6732,4 +6699,8 @@ void EventuallyPersistentEngine::set_num_writer_threads(
         ThreadPoolConfig::ThreadCount num) {
     getConfiguration().setNumWriterThreads(static_cast<int>(num));
     ExecutorPool::get()->setNumWriters(num);
+}
+
+void EventuallyPersistentEngine::disconnect(gsl::not_null<const void*> cookie) {
+    acquireEngine(this)->handleDisconnect(cookie);
 }

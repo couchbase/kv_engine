@@ -2190,7 +2190,6 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     // engine alive to ensure it is deleted after all tasks (CheckedExecutor is
     // holding the backfill task)
     ExecutorPool::get()->unregisterTaskable(engine->getTaskable(), false);
-    destroy_mock_event_callbacks();
     concurrent_task_thread.join();
 }
 
@@ -2535,7 +2534,7 @@ TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
 TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    auto cookie = create_mock_cookie();
+    auto cookie = create_mock_cookie(engine.get());
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     MockDcpMessageProducers producers(engine.get());
 
@@ -2666,7 +2665,7 @@ class MB_29287 : public SingleThreadedEPBucketTest {
 public:
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
-        cookie = create_mock_cookie();
+        cookie = create_mock_cookie(engine.get());
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
         // 1. Mock producer
@@ -4069,7 +4068,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     vb->checkpointManager->clear(*vb, 2);
 
-    auto cookie = create_mock_cookie();
+    auto cookie = create_mock_cookie(engine.get());
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     MockDcpMessageProducers producers(engine.get());
 

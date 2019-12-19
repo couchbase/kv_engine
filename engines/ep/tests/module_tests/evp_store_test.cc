@@ -479,7 +479,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     c->status = ENGINE_E2BIG;
     unlock_mock_cookie(cookie);
 
-    const void* deleteCookie = create_mock_cookie();
+    const void* deleteCookie = create_mock_cookie(engine.get());
 
     // lock the cookie, waitfor will release and enter the internal cond-var
     lock_mock_cookie(deleteCookie);
@@ -880,7 +880,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
     size_t count = 0;
     const std::string value(512, 'x'); // 512B value to use for documents.
     ENGINE_ERROR_CODE result;
-    auto dummyCookie = std::make_unique<MockCookie>();
+    auto dummyCookie = std::make_unique<MockCookie>(engine.get());
     for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
         auto item = make_item(vbid,
                               makeStoredDocKey("key_" + std::to_string(count)),

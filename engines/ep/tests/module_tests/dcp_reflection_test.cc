@@ -196,7 +196,7 @@ protected:
                     cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
         auto producer = std::make_shared<MockDcpProducer>(
                 *engines[producerNode],
-                create_mock_cookie(),
+                create_mock_cookie(engine.get()),
                 "Node" + std::to_string(producerNode) + " to Node" +
                         std::to_string(consumerNode),
                 flags,
@@ -224,7 +224,7 @@ protected:
                 << "createDcpConsumer: No engine for Node" << consumerNode;
         auto mockConsumer = std::make_shared<MockDcpConsumer>(
                 *engines[consumerNode],
-                create_mock_cookie(),
+                create_mock_cookie(engine.get()),
                 "Node" + std::to_string(consumerNode) + " from Node" +
                         std::to_string(producerNode));
 

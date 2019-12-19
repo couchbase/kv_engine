@@ -61,7 +61,7 @@ struct test_harness {
     /**
      * Create a new cookie instance
      */
-    virtual const void* create_cookie() = 0;
+    virtual const void* create_cookie(EngineIface* engine) = 0;
 
     /**
      * Destroy a cookie (and invalidate the allocated memory)

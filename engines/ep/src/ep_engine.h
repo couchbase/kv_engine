@@ -27,7 +27,6 @@
 #include "vbucket_fwd.h"
 
 #include <memcached/engine.h>
-#include <memcached/server_callback_iface.h>
 
 #include <chrono>
 #include <string>
@@ -93,6 +92,7 @@ class EventuallyPersistentEngine : public EngineIface, public DcpIface {
 public:
     ENGINE_ERROR_CODE initialize(const char* config) override;
     void destroy(bool force) override;
+    void disconnect(gsl::not_null<const void*> cookie) override;
 
     void set_num_reader_threads(ThreadPoolConfig::ThreadCount num) override;
     void set_num_writer_threads(ThreadPoolConfig::ThreadCount num) override;
@@ -553,9 +553,6 @@ public:
 
     void setErrorJsonExtras(const void* cookie, const nlohmann::json& json);
 
-    void registerEngineCallback(ENGINE_EVENT_TYPE type,
-                                EVENT_CALLBACK cb, const void *cb_data);
-
     template <typename T>
     void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status);
 
@@ -959,10 +956,6 @@ protected:
      * and returns a VBucketPtr (if valid).
      */
     StatusAndVBPtr getValidVBucketFromString(cb::const_char_buffer vbNum);
-
-    // Initialize all required callbacks of this engine with the underlying
-    // server.
-    void initializeEngineCallbacks();
 
     /**
      * Private helper method for decoding the options on set/del_with_meta.

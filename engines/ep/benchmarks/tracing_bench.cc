@@ -39,6 +39,7 @@ void SessionTracingRecordMutationSpan(benchmark::State& state) {
 
         cookie_to_mock_cookie(cookie)->getTracer().clear();
     }
+    destroy_mock_cookie(cookie);
 }
 
 // Benchmark the performance when using a ScopeTimer instead of the TRACE_SCOPE
@@ -60,6 +61,7 @@ void SessionTracingScopeTimer(benchmark::State& state) {
 
         cookie_to_mock_cookie(cookie)->getTracer().clear();
     }
+    destroy_mock_cookie(cookie);
 }
 
 // Benchmark the performance of encoding a duration into a 2-byte compressed
@@ -85,6 +87,7 @@ void SessionTracingEncode(benchmark::State& state) {
         benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
         benchmark::DoNotOptimize(traceable.getTracer().getEncodedMicros());
     }
+    destroy_mock_cookie(cookie);
 }
 
 BENCHMARK(SessionTracingRecordMutationSpan);

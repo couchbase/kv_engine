@@ -151,49 +151,6 @@ struct ServerDocumentApi : public ServerDocumentIface {
     }
 };
 
-struct ServerCallbackApi : public ServerCallbackIface {
-    void register_callback(EngineIface* engine,
-                           ENGINE_EVENT_TYPE type,
-                           EVENT_CALLBACK cb,
-                           const void* cb_data) override {
-        size_t idx;
-        switch (type) {
-            /*
-             * The following events operates on a connection which is passed in
-             * as the cookie.
-             */
-        case ON_DISCONNECT:
-            if (!engine) {
-                throw std::invalid_argument(
-                        "register_callback: 'engine' must be non-NULL");
-            }
-            for (idx = 0; idx < all_buckets.size(); ++idx) {
-                if ((void*)engine == (void*)all_buckets[idx].getEngine()) {
-                    break;
-                }
-            }
-            if (idx == all_buckets.size()) {
-                throw std::invalid_argument(
-                        "register_callback: eh (which is " +
-                        std::to_string(reinterpret_cast<uintptr_t>(engine)) +
-                        ") is not a engine associated with a bucket");
-            }
-            all_buckets[idx].engine_event_handlers[type].push_back(
-                    {cb, cb_data});
-            return;
-        }
-        throw std::invalid_argument("register_callback: type (which is " +
-                                    std::to_string(type) +
-                                    ") is not a valid ENGINE_EVENT_TYPE");
-    }
-
-    void perform_callbacks(ENGINE_EVENT_TYPE type,
-                           const void* data,
-                           const void* cookie) override {
-        ::perform_callbacks(type, data, cookie);
-    }
-};
-
 struct ServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> void_cookie,
                                void* engine_data) override {
@@ -421,7 +378,6 @@ public:
         hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
         core = &core_api;
-        callback = &callback_api;
         log = &server_log_api;
         cookie = &server_cookie_api;
         alloc_hooks = &hooks_api;
@@ -433,7 +389,6 @@ protected:
     ServerCoreApi core_api;
     ServerCookieApi server_cookie_api;
     ServerLogApi server_log_api;
-    ServerCallbackApi callback_api;
     ServerAllocatorIface hooks_api{};
     ServerDocumentApi document_api;
     ServerBucketApi bucket_api;

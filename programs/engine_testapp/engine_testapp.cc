@@ -141,8 +141,8 @@ static int report_test(const char* name,
 
 class MockTestHarness : public test_harness {
 public:
-    const void* create_cookie() override {
-        return create_mock_cookie();
+    const void* create_cookie(EngineIface* engine) override {
+        return create_mock_cookie(engine);
     }
 
     void destroy_cookie(const void* cookie) override {
@@ -237,7 +237,6 @@ public:
                        bool force) override {
         disconnect_all_mock_connections();
         destroy_bucket(*h, force);
-        destroy_mock_event_callbacks();
         currentEngineHandle = *h = create_bucket(init, cfg);
     }
 
@@ -387,7 +386,6 @@ static test_result execute_test(engine_test_t test,
             currentEngineHandle = nullptr;
         }
 
-        destroy_mock_event_callbacks();
         shutdown_all_engines();
         PHOSPHOR_INSTANCE.stop();
 

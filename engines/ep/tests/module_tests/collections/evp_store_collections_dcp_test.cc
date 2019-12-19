@@ -1125,7 +1125,8 @@ TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest) {
 
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
 public:
-    CollectionsFilteredDcpErrorTest() : cookieP(create_mock_cookie()) {
+    CollectionsFilteredDcpErrorTest()
+        : cookieP(create_mock_cookie(engine.get())) {
     }
     void SetUp() override {
         config_string +=

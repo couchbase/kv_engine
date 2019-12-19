@@ -48,7 +48,6 @@ protected:
         flusher->stop();
         task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
 
-        destroy_mock_event_callbacks();
         engine.reset();
         ExecutorPool::shutdown();
     }
