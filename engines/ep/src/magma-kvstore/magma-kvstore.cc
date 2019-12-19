@@ -327,6 +327,12 @@ static const uint64_t getSeqNum(const Slice& metaSlice) {
     return docMeta->bySeqno;
 }
 
+static const size_t getValueSize(const Slice& metaSlice) {
+    const auto* docMeta =
+            reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
+    return docMeta->valueSize;
+}
+
 static const uint32_t getExpiryTime(const Slice& metaSlice) {
     magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
             const_cast<char*>(metaSlice.Data()));
@@ -553,6 +559,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaTombstoneFragThreshold();
     configuration.magmaCfg.GetSeqNum = getSeqNum;
     configuration.magmaCfg.GetExpiryTime = getExpiryTime;
+    configuration.magmaCfg.GetValueSize = getValueSize;
     configuration.magmaCfg.IsTombstone = isDeleted;
     configuration.magmaCfg.EnableDirectIO =
             configuration.getMagmaEnableDirectIo();
