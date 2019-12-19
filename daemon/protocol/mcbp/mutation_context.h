@@ -111,14 +111,13 @@ protected:
 private:
     const ENGINE_STORE_OPERATION operation;
 
-    /// If the incoming value was compressed; then this will hold the
-    /// decompressed form of it once the validateInput() state has been
-    // executed.
-    cb::compression::Buffer decompressed_value;
-
     const Vbid vbucket;
     const uint64_t input_cas;
     const cb::mcbp::request::MutationPayload extras;
+
+    /// Set to true if the bucket policy enforce the document to be
+    /// stored inflated.
+    bool mustStoreInflated = false;
 
     // The datatype for the document to be created.
     // For each field in here, we either trust the client, or re-calculate it

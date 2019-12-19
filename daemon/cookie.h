@@ -22,6 +22,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
+#include <platform/compression/buffer.h>
 #include <platform/sized_buffer.h>
 #include <chrono>
 
@@ -458,6 +459,21 @@ public:
         return reorder;
     }
 
+    /**
+     * Get the inflated payload (inflated as part of package validation),
+     * and if the payload wasn't inflated the packets value is returned.
+     */
+    cb::const_char_buffer getInflatedInputPayload() const;
+
+    /**
+     * Inflate the value (if deflated)
+     *
+     * @param header The packet header
+     * @return true if success, false if an error occurs (the error context
+     *         contains the reason why)
+     */
+    bool inflateInputPayload(const cb::mcbp::Header& header);
+
 protected:
     /**
      * Is OpenTracing enabled for this cookie or not. By querying the
@@ -561,4 +577,6 @@ protected:
 
     /// see isAuthorized/setAuthorized
     bool authorized = false;
+
+    cb::compression::Buffer inflated_input_payload;
 };

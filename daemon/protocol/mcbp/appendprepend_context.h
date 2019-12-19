@@ -38,11 +38,6 @@ public:
      * implement it.
      */
     enum class State : uint8_t {
-        // Validate the input data
-            ValidateInput,
-        // If the client sends compressed data we need to inflate the
-        // input data before we can do anything
-            InflateInputData,
         // Look up the item to operate on
             GetItem,
         // Allocate the destination object
@@ -65,10 +60,6 @@ public:
 protected:
     ENGINE_ERROR_CODE step() override;
 
-    ENGINE_ERROR_CODE validateInput();
-
-    ENGINE_ERROR_CODE inflateInputData();
-
     ENGINE_ERROR_CODE getItem();
 
     ENGINE_ERROR_CODE allocateNewItem();
@@ -88,14 +79,5 @@ private:
     cb::unique_item_ptr newitem;
 
     cb::compression::Buffer buffer;
-    cb::compression::Buffer inputbuffer;
     State state;
-
-    // The extras section is used as a buffer to hold extra meta information
-    // about the mutation while it is being sent back to the client iff the
-    // client requested them (as the context object have the same lifetime
-    // as the command). They're stored in network byte order in this
-    // member variable.
-    mutation_descr_t extras = {};
-    protocol_binary_datatype_t datatype;
 };

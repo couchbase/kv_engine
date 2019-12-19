@@ -362,6 +362,27 @@ struct MockServerCookieApi : public ServerCookieIface {
                                const nlohmann::json& json) override {
     }
 
+    cb::const_char_buffer get_inflated_payload(
+            gsl::not_null<const void*> cookie,
+            const cb::mcbp::Request& request) override {
+        if (!mcbp::datatype::is_snappy(uint8_t(request.getDatatype()))) {
+            return {};
+        }
+
+        auto* c = cookie_to_mock_cookie(cookie.get());
+        std::lock_guard<std::mutex> guard(c->mutex);
+        auto v = request.getValue();
+        if (cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy,
+                    {reinterpret_cast<const char*>(v.data()), v.size()},
+                    c->inflated_payload)) {
+            return c->inflated_payload;
+        }
+        throw std::runtime_error(
+                "MockServerCookieApi::get_inflated_payload: Failed to inflate "
+                "data");
+    }
+
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
         auto* c = cookie_to_mock_cookie(cookie.get());

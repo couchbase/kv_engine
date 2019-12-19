@@ -118,35 +118,28 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
     // If snappy datatype is enabled and if the datatype is SNAPPY,
     // validate to data to ensure that it is compressed using SNAPPY
     auto raw_value = cookie.getRequest().getValue();
-    try {
-        if (mcbp::datatype::is_snappy(datatype)) {
-            cb::const_char_buffer buffer{
-                    reinterpret_cast<const char*>(raw_value.data()),
-                    raw_value.size()};
+    if (mcbp::datatype::is_snappy(datatype)) {
+        auto inflated = cookie.getInflatedInputPayload();
 
-            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                          buffer,
-                                          decompressed_value)) {
-                return ENGINE_EINVAL;
-            }
-
-            // Check if the size of the decompressed value is greater than
-            // the maximum item size supported by the underlying engine
-            const auto& bucket = connection.getBucket();
-            if (decompressed_value.size() > bucket.max_document_size) {
-                return ENGINE_E2BIG;
-            }
-
-            const auto mode = bucket_get_compression_mode(cookie);
-            if (mode == BucketCompressionMode::Off ||
-                shouldStoreUncompressed(
-                        cookie, raw_value.size(), decompressed_value.size())) {
-                datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            }
-            raw_value = decompressed_value;
+        // Check if the size of the decompressed value is greater than
+        // the maximum item size supported by the underlying engine
+        const auto& bucket = connection.getBucket();
+        if (inflated.size() > bucket.max_document_size) {
+            return ENGINE_E2BIG;
         }
-    } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+
+        const auto mode = bucket_get_compression_mode(cookie);
+        if (mode == BucketCompressionMode::Off ||
+            shouldStoreUncompressed(
+                    cookie, raw_value.size(), inflated.size())) {
+            datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+            mustStoreInflated = true;
+        }
+
+        // We should use the inflated version of the data when we want
+        // to check if it is JSON or not
+        raw_value = {reinterpret_cast<const uint8_t*>(inflated.data()),
+                     inflated.size()};
     }
 
     // Determine if document is JSON or not. We do not trust what the client
@@ -211,6 +204,13 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
 
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     auto dtype = datatype;
+
+    // We want to use the deflated version to avoid spending cycles compressing
+    // the data, but we have to use the inflated version if:
+    //   a) the existing document have xattrs (because we need to preserve
+    //      those.
+    //   b) The bucket policy told us to use the inflated version.
+    auto inflated = cookie.getInflatedInputPayload();
     auto value = cookie.getRequest().getValue();
     if (existingXattrs.size() > 0) {
         // We need to prepend the existing XATTRs - include XATTR bit
@@ -220,18 +220,20 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         // input value was (as we combine the data uncompressed).
         dtype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
         if (mcbp::datatype::is_snappy(datatype)) {
-            value = decompressed_value;
+            value = {reinterpret_cast<const uint8_t*>(inflated.data()),
+                     inflated.size()};
         }
     }
-    // We tried to inflate the value, but we need to store it inflated due
-    // to the bucket policy
-    if (decompressed_value.size() > 0 && !mcbp::datatype::is_snappy(datatype)) {
-        value = decompressed_value;
+
+    if (mustStoreInflated) {
+        // The bucket policy enforce that we must store the document inflated
+        value = {reinterpret_cast<const uint8_t*>(inflated.data()),
+                 inflated.size()};
     }
 
     size_t total_size = value.size() + existingXattrs.size();
     if (existingXattrs.size() > 0 && mcbp::datatype::is_snappy(datatype)) {
-        total_size = decompressed_value.size() + existingXattrs.size();
+        total_size = inflated.size() + existingXattrs.size();
     }
 
     item_info newitem_info;

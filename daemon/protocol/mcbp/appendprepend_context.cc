@@ -32,20 +32,13 @@ AppendPrependCommandContext::AppendPrependCommandContext(
                    : Mode::Prepend),
       vbucket(req.getVBucket()),
       cas(req.getCas()),
-      state(State::ValidateInput),
-      datatype(uint8_t(req.getDatatype())) {
+      state(State::GetItem) {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     auto ret = ENGINE_SUCCESS;
     do {
         switch (state) {
-        case State::ValidateInput:
-            ret = validateInput();
-            break;
-        case State::InflateInputData:
-            ret = inflateInputData();
-            break;
         case State::GetItem:
             ret = getItem();
             break;
@@ -75,36 +68,6 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     }
 
     return ret;
-}
-
-ENGINE_ERROR_CODE AppendPrependCommandContext::validateInput() {
-    if (!connection.isDatatypeEnabled(datatype)) {
-        return ENGINE_EINVAL;
-    }
-
-    if (mcbp::datatype::is_snappy(datatype)) {
-        state = State::InflateInputData;
-    } else {
-        state = State::GetItem;
-    }
-    return ENGINE_SUCCESS;
-}
-
-ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
-    try {
-        auto value = cookie.getRequest().getValue();
-        cb::const_char_buffer buffer{
-                reinterpret_cast<const char*>(value.data()), value.size()};
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy, buffer, inputbuffer)) {
-            return ENGINE_EINVAL;
-        }
-        state = State::GetItem;
-    } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
-    }
-
-    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
@@ -153,7 +116,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
     cb::char_buffer old{static_cast<char*>(oldItemInfo.value[0].iov_base),
                         oldItemInfo.nbytes};
 
-    if (buffer.size() != 0) {
+    if (!buffer.empty()) {
         old = {buffer.data(), buffer.size()};
     }
 
@@ -180,13 +143,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
     // If the client sent a compressed value we should use the one
     // we inflated
-    cb::const_byte_buffer value;
-    if (inputbuffer.size() == 0) {
-        value = cookie.getRequest().getValue();
-    } else {
-        value = inputbuffer;
-    }
-
+    const auto value = cookie.getInflatedInputPayload();
     auto pair = bucket_allocate_ex(cookie,
                                    cookie.getRequestKey(),
                                    old.size() + value.size(),
@@ -244,6 +201,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                         connection, newitem.get(), &newItemInfo)) {
                 return ENGINE_FAILED;
             }
+            mutation_descr_t extras = {};
             extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
             extras.seqno = htonll(newItemInfo.seqno);
             cookie.sendResponse(

@@ -400,6 +400,12 @@ struct ServerCookieApi : public ServerCookieIface {
         auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
         cookie->setErrorJsonExtras(json);
     }
+
+    cb::const_char_buffer get_inflated_payload(
+            gsl::not_null<const void*> cookie,
+            const cb::mcbp::Request&) override {
+        return getCookie(cookie).getInflatedInputPayload();
+    }
 };
 
 class ServerApi : public SERVER_HANDLE_V1 {

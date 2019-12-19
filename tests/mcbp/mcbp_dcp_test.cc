@@ -17,11 +17,11 @@
 
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
-#include <daemon/settings.h>
 #include <event2/event.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
+#include <xattr/blob.h>
 #include <memory>
 
 namespace mcbp {
@@ -534,6 +534,16 @@ public:
             cb::mcbp::request::DcpDeletionV1Payload extras(0, 0);
             builder.setExtras(extras.getBuffer());
         }
+
+        // Make the value a compressed xattr section (the validator tries
+        // to inflate the document to keep the inflated version around)
+        cb::xattr::Blob blob;
+        blob.set("_foo"_ccb, R"({"bar":5})"_ccb);
+        cb::compression::Buffer deflated;
+        cb::compression::deflate(
+                cb::compression::Algorithm::Snappy, blob.finalize(), deflated);
+        cb::const_byte_buffer value = deflated;
+        builder.setValue(value);
     }
 
     bool isCollectionsEnabled() const {

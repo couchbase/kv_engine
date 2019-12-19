@@ -35,6 +35,7 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
+#include <platform/compress.h>
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
@@ -483,6 +484,7 @@ void Cookie::reset() {
     openTracingContext.clear();
     authorized = false;
     reorder = connection.allowUnorderedExecution();
+    inflated_input_payload.reset();
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
@@ -542,4 +544,36 @@ void Cookie::collectTimings() {
     if (isOpenTracingEnabled()) {
         OpenTracing::pushTraceLog(extractTraceContext());
     }
+}
+
+cb::const_char_buffer Cookie::getInflatedInputPayload() const {
+    if (!inflated_input_payload.empty()) {
+        return inflated_input_payload;
+    }
+
+    const auto value = getHeader().getValue();
+    return {reinterpret_cast<const char*>(value.data()), value.size()};
+}
+
+bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
+    inflated_input_payload.reset();
+    if (!mcbp::datatype::is_snappy(header.getDatatype())) {
+        return true;
+    }
+
+    try {
+        auto val = header.getValue();
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy,
+                    {reinterpret_cast<const char*>(val.data()), val.size()},
+                    inflated_input_payload)) {
+            setErrorContext("Failed to inflate payload");
+            return false;
+        }
+    } catch (const std::bad_alloc&) {
+        setErrorContext("Failed to allocate memory");
+        return false;
+    }
+
+    return true;
 }

@@ -216,6 +216,11 @@ Status McbpValidator::verify_header(Cookie& cookie,
         return Status::Einval;
     }
 
+    if (!cookie.inflateInputPayload(header)) {
+        // Error reason already set
+        return Status::Einval;
+    }
+
     // Validate the frame id's
     auto status = Status::Success;
     auto opcode = request.getClientOpcode();
@@ -654,21 +659,13 @@ static Status dcp_system_event_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
-static bool is_valid_xattr_blob(const cb::mcbp::Request& request) {
-    auto value = request.getValue();
-    cb::compression::Buffer buffer;
-    cb::const_char_buffer xattr{reinterpret_cast<const char*>(value.data()),
-                                value.size()};
-    if (mcbp::datatype::is_snappy(uint8_t(request.getDatatype()))) {
-        // Inflate the xattr data and validate that.
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy, xattr, buffer)) {
-            return false;
-        }
-        xattr = buffer;
+static bool is_valid_xattr_blob(Cookie& cookie,
+                                const cb::mcbp::Request& request) {
+    if (!mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
+        // no xattr segment
+        return true;
     }
-
-    return cb::xattr::validate(xattr);
+    return cb::xattr::validate(cookie.getInflatedInputPayload());
 }
 
 static Status dcp_mutation_validator(Cookie& cookie) {
@@ -690,15 +687,12 @@ static Status dcp_mutation_validator(Cookie& cookie) {
     }
 
     auto& header = cookie.getHeader();
-    const auto datatype = header.getDatatype();
-
-    if (mcbp::datatype::is_xattr(datatype) &&
-        !is_valid_xattr_blob(header.getRequest())) {
+    if (!is_valid_xattr_blob(cookie, header.getRequest())) {
         cookie.setErrorContext("Xattr blob not valid");
         return Status::XattrEinval;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
+    auto extras = header.getExtdata();
     const auto* payload =
             reinterpret_cast<const DcpMutationPayload*>(extras.data());
     if (payload->getBySeqno() == 0) {
@@ -871,15 +865,12 @@ static Status dcp_prepare_validator(Cookie& cookie) {
     }
 
     auto& header = cookie.getHeader();
-    const auto datatype = header.getDatatype();
-
-    if (mcbp::datatype::is_xattr(datatype) &&
-        !is_valid_xattr_blob(header.getRequest())) {
+    if (!is_valid_xattr_blob(cookie, header.getRequest())) {
         cookie.setErrorContext("Xattr blob not valid");
         return Status::XattrEinval;
     }
 
-    auto extras = cookie.getHeader().getExtdata();
+    auto extras = header.getExtdata();
     const auto* payload =
             reinterpret_cast<const DcpPreparePayload*>(extras.data());
 
@@ -1648,8 +1639,7 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (mcbp::datatype::is_xattr(header.getDatatype()) &&
-        !is_valid_xattr_blob(header.getRequest())) {
+    if (!is_valid_xattr_blob(cookie, header.getRequest())) {
         cookie.setErrorContext("Xattr blob invalid");
         return Status::XattrEinval;
     }

@@ -27,6 +27,12 @@
 #include <gsl/gsl>
 #include <string>
 
+namespace cb {
+namespace mcbp {
+class Request;
+} // namespace mcbp
+} // namespace cb
+
 /**
  * Commands to operate on a specific cookie.
  */
@@ -262,4 +268,15 @@ struct ServerCookieIface {
      */
     virtual void set_error_json_extras(gsl::not_null<void*> cookie,
                                        const nlohmann::json& json) = 0;
+
+    /**
+     * Get the inflated payload associated with this command
+     * @param cookie The cookie representing this command
+     * param request The request (only used by the mock test framework
+     *               to inflate on the fly)
+     * @return the inflated payload
+     */
+    virtual cb::const_char_buffer get_inflated_payload(
+            gsl::not_null<const void*> cookie,
+            const cb::mcbp::Request& request) = 0;
 };

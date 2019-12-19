@@ -20,6 +20,7 @@
 #include <memcached/server_callback_iface.h>
 #include <memcached/tracer.h>
 
+#include <platform/compression/buffer.h>
 #include <atomic>
 #include <bitset>
 #include <condition_variable>
@@ -45,6 +46,8 @@ struct MockCookie : cb::tracing::Traceable {
     in_port_t parent_port{666};
 
     void validate() const;
+
+    cb::compression::Buffer inflated_payload;
 
 protected:
     static const uint64_t MAGIC = 0xbeefcafecafebeefULL;
