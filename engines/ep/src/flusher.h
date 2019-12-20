@@ -64,6 +64,12 @@ public:
     // the task.
     std::function<void()> stepPreSnoozeHook;
 
+    size_t getHPQueueSize() const;
+
+    size_t getLPQueueSize() const;
+
+    size_t getHighPriorityCount() const;
+
 private:
     enum class State {
         Initializing,

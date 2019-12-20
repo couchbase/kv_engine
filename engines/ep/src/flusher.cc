@@ -303,3 +303,15 @@ bool Flusher::flushVB() {
     // Return more (as we may have low priority vBuckets to flush)
     return true;
 }
+
+size_t Flusher::getHPQueueSize() const {
+    return hpVbs.size();
+}
+
+size_t Flusher::getLPQueueSize() const {
+    return lpVbs.size();
+}
+
+size_t Flusher::getHighPriorityCount() const {
+    return shard->highPriorityCount.load();
+}

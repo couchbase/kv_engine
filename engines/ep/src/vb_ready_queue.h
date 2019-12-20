@@ -58,7 +58,7 @@ public:
     /**
      * Size of the queue.
      */
-    size_t size();
+    size_t size() const;
 
     /**
      * @return true if empty
