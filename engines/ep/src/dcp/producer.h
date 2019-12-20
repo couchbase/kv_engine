@@ -177,10 +177,10 @@ public:
     void notifyBackfillManager();
     bool recordBackfillManagerBytesRead(size_t bytes, bool force);
     void recordBackfillManagerBytesSent(size_t bytes);
-    void scheduleBackfillManager(VBucket& vb,
-                                 std::shared_ptr<ActiveStream> s,
-                                 uint64_t start,
-                                 uint64_t end);
+    virtual bool scheduleBackfillManager(VBucket& vb,
+                                         std::shared_ptr<ActiveStream> s,
+                                         uint64_t start,
+                                         uint64_t end);
 
     bool isExtMetaDataEnabled () {
         return enableExtMetaData;

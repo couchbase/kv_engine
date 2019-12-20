@@ -390,26 +390,21 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
                                                       cookie,
                                                       "test_producer",
                                                       /*flags*/ 0);
-
-    // Create a Mock Active Stream
-    auto mock_stream = std::make_shared<MockActiveStream>(
-            static_cast<EventuallyPersistentEngine*>(engine.get()),
-            producer,
-            /*flags*/ 0,
-            /*opaque*/ 0,
-            *vb,
-            /*st_seqno*/ 1,
-            /*en_seqno*/ ~0,
-            /*vb_uuid*/ 0xabcd,
-            /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes);
-
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
 
-    mock_stream->transitionStateToBackfilling();
+    // Create a Mock Active Stream
+    auto mock_stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+                                                         /*opaque*/ 0,
+                                                         *vb,
+                                                         /*st_seqno*/ 1,
+                                                         /*en_seqno*/ ~0,
+                                                         /*vb_uuid*/ 0xabcd,
+                                                         /*snap_start_seqno*/ 0,
+                                                         /*snap_end_seqno*/ ~0,
+                                                         IncludeValue::Yes,
+                                                         IncludeXattrs::Yes);
+
     ASSERT_TRUE(mock_stream->isInMemory())
     << "stream state should have transitioned to InMemory";
 
@@ -424,6 +419,9 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     expectedCursors = persistent() ? 1 : 0;
     EXPECT_EQ(expectedCursors, ckpt_mgr.getNumOfCursors())
     << "stream cursor should have been dropped";
+
+    // Remove checkpoint, forcing the stream to Backfill.
+    removeCheckpoint(*vb, 2);
 
     // This will schedule the backfill
     mock_stream->transitionStateToBackfilling();
@@ -645,10 +643,15 @@ TEST_F(SingleThreadedEPBucketTest,
         EXPECT_TRUE(stream->isInMemory())
                 << vbid << " should be state:in-memory at start";
 
-        // Create an item and flush to disk (so ActiveStream::nextCheckpointItem
-        // will have data available when call next() - and will add vb to
-        // ActiveStreamCheckpointProcessorTask's queue.
+        // Create an item, create a new checkpoint and then flush to disk.
+        // This ensures that:
+        // a) ActiveStream::nextCheckpointItem will have data available when
+        //    call next() - and will add vb to
+        //    ActiveStreamCheckpointProcessorTask's queue.
+        // b) After cursor is dropped we can remove the previously closed and
+        //    flushed checkpoint to force ActiveStream into backfilling state.
         EXPECT_TRUE(queueNewItem(*vb, "key1"));
+        vb->checkpointManager->createNewCheckpoint();
         EXPECT_EQ(std::make_pair(false, size_t(1)),
                   getEPBucket().flushVBucket(vbid));
 
@@ -679,6 +682,9 @@ TEST_F(SingleThreadedEPBucketTest,
     EXPECT_EQ(1, ckptMgr.getNumOfCursors()) << "Should only have persistence "
                                                "cursor registered after "
                                                "cursor dropping.";
+
+    // Remove the closed checkpoint to force stream to backfill.
+    removeCheckpoint(*vb, 1);
 
     // 2. Request next item from stream. Will transition to backfilling as part
     // of this.
@@ -1150,6 +1156,14 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
 
     //schedule a backfill
     mock_stream->next();
+
+    // MB-37150: cursors are now registered before deciding if a backfill is
+    // needed. to retain the original intent of this test, manually drop the
+    // cursor _again_, to return the stream to the desired state: about to
+    // backfill, without a cursor. The test can then check that the cursor is
+    // registered again at the correct seqno, defending the original change as
+    // intended.
+    ckpt_mgr.removeCursor(mock_stream->getCursor().lock().get());
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     EXPECT_EQ(2, lpAuxioQ.getFutureQueueSize());
@@ -3056,6 +3070,12 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     for (const auto& key : initialKeys) {
         delete_item(vbid, makeStoredDocKey(key));
     }
+
+    // create a new checkpoint to allow the current one to be removed
+    // after flushing
+    auto& ckpt_mgr = *vb->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
     flush_vbucket_to_disk(vbid, initialKeys.size());
 
     // 4) Compact drop tombstones less than time=maxint and below seqno 3
@@ -3064,6 +3084,11 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
 
     // 5) Begin cursor dropping
     mock_stream->handleSlowStream();
+
+    // remove the previous checkpoint to force a backfill
+    bool new_ckpt_created = false;
+    auto removed = ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created);
+    EXPECT_EQ(2, removed);
 
     // Kick the stream into backfill
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
