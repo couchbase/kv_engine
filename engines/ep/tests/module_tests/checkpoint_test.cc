@@ -1925,6 +1925,12 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 // item we do not evict this item.  Instead we walk backwards find the
 // first non-meta item and evict from there.
 TEST_P(CheckpointTest, expelCursorPointingToLastItem) {
+    if (!persistent()) {
+        // Need at least one cursor (i.e. persistence cursor) to be able
+        // to expel.
+        return;
+    }
+
     const int itemCount{2};
 
     for (auto ii = 0; ii < itemCount; ++ii) {
@@ -1950,17 +1956,15 @@ TEST_P(CheckpointTest, expelCursorPointingToLastItem) {
      * 1002 - 2nd item  <<<<<<< persistenceCursor
      */
 
-    // Don't expel anything because the cursor points to item that has the
-    // highest seqno for the checkpoint so we move the expel point back
-    // one, but now it has a previous entry with the same seqno so again
-    // move back one.  The expel point now points to a metadata item so
-    // move back again.  We have now reached the dummy item and so we
-    // don't expel anything.
+    // Only expel seqno 1001 and earlier - the cursor points to item that
+    // has the highest seqno for the checkpoint so we move the expel point back
+    // one. That item isn't a metadata item nor is it's successor item
+    // (1002) the same seqno as itself (1001) so can expel from there.
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(0, expelResult.expelCount);
-    EXPECT_EQ(0, expelResult.estimateOfFreeMemory);
-    EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, expelResult.expelCount);
+    EXPECT_GT(expelResult.estimateOfFreeMemory, 0);
+    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
 // Test that when the first cursor we come across is pointing to the checkpoint
@@ -2024,7 +2028,7 @@ TEST_P(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
 
     /*
      * Checkpoint now looks as follows:
-     * 1000 - dummy item
+     * 1001 - dummy item
      * 1001 - checkpoint start  <<<<<<< dcpCursor1
      * 1001 - 1st item  <<<<<<< dcpCursor2
      * 1002 - 2nd item  <<<<<<< persistenceCursor

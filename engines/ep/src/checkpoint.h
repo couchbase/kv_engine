@@ -185,8 +185,6 @@ private:
      */
     size_t getRemainingItemsCount() const;
 
-    std::pair<int64_t, uint64_t> getCkptIdAndSeqno() const;
-
     std::string                      name;
     CheckpointList::iterator currentCheckpoint;
 
@@ -201,6 +199,7 @@ private:
      */
     bool isValid = true;
 
+    friend bool operator<(const CheckpointCursor& a, const CheckpointCursor& b);
     friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };
 
