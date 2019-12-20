@@ -257,7 +257,7 @@ void Flusher::completeFlush() {
 }
 
 bool Flusher::flushVB() {
-    if (hpVbs.empty()) {
+    if (lpVbs.empty() && hpVbs.empty()) {
         doHighPriority = false;
     }
 
