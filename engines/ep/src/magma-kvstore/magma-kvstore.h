@@ -25,10 +25,12 @@
 #include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
 
+#include <folly/Synchronized.h>
 #include <platform/dirutils.h>
 #include <platform/non_negative_counter.h>
 
 #include <map>
+#include <queue>
 #include <shared_mutex>
 #include <string>
 #include <vector>
@@ -212,9 +214,7 @@ public:
                             uint64_t rollbackSeqno,
                             std::shared_ptr<RollbackCB> cb) override;
 
-    void pendingTasks() override {
-        // Magma does not use pendingTasks
-    }
+    void pendingTasks() override;
 
     ENGINE_ERROR_CODE getAllKeys(
             Vbid vbid,
@@ -590,6 +590,9 @@ private:
                             const magma::Slice& keySlice,
                             const magma::Slice& metaSlice,
                             const magma::Slice& valueSlice);
+
+    folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
+            pendingVbucketDeletions;
 
     friend class MagmaCompactionCB;
 };

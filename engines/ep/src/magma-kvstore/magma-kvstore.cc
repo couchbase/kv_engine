@@ -1038,18 +1038,22 @@ void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
-    // Get exclusive access to the handle
-    auto lock = getExclusiveKVHandle(vbid);
+    std::unique_lock<std::shared_timed_mutex> lock(
+            magmaKVHandles[vbid.get()].second);
+    if (!magmaKVHandles[vbid.get()].first.unique()) {
+        logger->warn(
+                "MagmaKVStore::delVBucket {} Can't get exclusive"
+                " access so adding to pending list.",
+                vbid);
+        pendingVbucketDeletions.wlock()->push({vbid, vb_version});
+        return;
+    }
     auto status = magma->DeleteKVStore(
             vbid.get(), static_cast<Magma::KVStoreRevision>(vb_version));
-    if (!status) {
-        logger->warn(
-                "MagmaKVStore::delVBucket DeleteKVStore {} revision:{} failed. "
-                "status:{}",
-                vbid,
-                vb_version,
-                status.String());
-    }
+    logger->info("MagmaKVStore::delVBucket DeleteKVStore {} {}. status:{}",
+                 vbid,
+                 vb_version,
+                 status.String());
 }
 
 void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
@@ -2511,4 +2515,16 @@ void MagmaKVStore::addStats(const AddStatFn& add_stat,
     magma->GetStats(stats);
     auto statName = prefix + ":magma";
     add_casted_stat(statName.c_str(), stats.JSON().dump(), add_stat, c);
+}
+
+void MagmaKVStore::pendingTasks() {
+    std::queue<std::tuple<Vbid, uint64_t>> vbucketsToDelete;
+    vbucketsToDelete.swap(*pendingVbucketDeletions.wlock());
+    while (!vbucketsToDelete.empty()) {
+        Vbid vbid;
+        uint64_t vb_version;
+        std::tie(vbid, vb_version) = vbucketsToDelete.front();
+        vbucketsToDelete.pop();
+        delVBucket(vbid, vb_version);
+    }
 }
