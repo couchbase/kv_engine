@@ -1769,7 +1769,7 @@ TEST_P(ShutdownValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(ShutdownValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 0;
+    request.message.header.request.setCas(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2372,7 +2372,7 @@ public:
         ValidatorTest::SetUp();
         request.message.header.request.setKeylen(10);
         request.message.header.request.setBodylen(10);
-        request.message.header.request.cas = 0xdeadbeef;
+        request.message.header.request.setCas(0xdeadbeef);
     }
 
 protected:
@@ -2409,7 +2409,7 @@ TEST_P(UnlockValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(UnlockValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 0;
+    request.message.header.request.setCas(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2484,7 +2484,7 @@ public:
         ValidatorTest::SetUp();
         request.message.header.request.setKeylen(10);
         request.message.header.request.setBodylen(10);
-        request.message.header.request.cas = 0;
+        request.message.header.request.setCas(0);
     }
 
 protected:
@@ -2521,7 +2521,7 @@ TEST_P(EvictKeyValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 0xff;
+    request.message.header.request.setCas(0xff);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -2545,7 +2545,7 @@ public:
         ValidatorTest::SetUp();
         request.message.header.request.setKeylen(10);
         request.message.header.request.setBodylen(10);
-        request.message.header.request.cas = 0;
+        request.message.header.request.setCas(0);
     }
 
 protected:
@@ -2576,7 +2576,7 @@ TEST_P(RevokeUserPermissionsValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(RevokeUserPermissionsValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 0xff;
+    request.message.header.request.setCas(0xff);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
