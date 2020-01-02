@@ -237,7 +237,7 @@ public:
     MagmaRequest(const Item& item,
                  MutationRequestCallback callback,
                  std::shared_ptr<BucketLogger> logger)
-        : IORequest(item.getVBucketId(), std::move(callback), DiskDocKey{item}),
+        : IORequest(std::move(callback), DiskDocKey{item}),
           docMeta(magmakv::MetaData(item)),
           docBody(item.getValue()) {
         if (logger->should_log(spdlog::level::TRACE)) {
@@ -660,7 +660,7 @@ bool MagmaKVStore::commit(Collections::VB::Flush& collectionsFlush) {
     kvstats_ctx kvctx(collectionsFlush);
     bool success = true;
 
-    auto kvHandle = getMagmaKVHandle(pendingReqs->front().getVbID());
+    auto kvHandle = getMagmaKVHandle(transactionCtx->vbid);
 
     // Flush all documents to disk
     auto errCode = saveDocs(collectionsFlush, kvctx, kvHandle);

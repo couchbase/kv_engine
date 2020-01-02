@@ -583,7 +583,7 @@ private:
         std::shared_ptr<MagmaCompactionCtx> magmaCompactionCtx;
         compaction_ctx* ctx{nullptr};
         MagmaKVHandle kvHandle;
-        Vbid vbid;
+        Vbid vbid{};
     };
 
     bool compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,

@@ -43,6 +43,7 @@ protected:
     std::string data_dir;
     Collections::VB::Manifest manifest;
     Collections::VB::Flush flush;
+    Vbid vbid = Vbid(0);
 };
 
 // Test fixture for tests which run on all KVStore implementations (Couchstore

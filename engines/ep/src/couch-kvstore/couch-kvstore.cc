@@ -241,8 +241,7 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
 }
 
 CouchRequest::CouchRequest(const Item& it, MutationRequestCallback cb)
-    : IORequest(it.getVBucketId(), std::move(cb), DiskDocKey{it}),
-      value(it.getValue()) {
+    : IORequest(std::move(cb), DiskDocKey{it}), value(it.getValue()) {
     dbDoc.id = to_sized_buf(key);
 
     if (it.getNBytes()) {
@@ -2055,8 +2054,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
         return success;
     }
 
-    // Use the vbucket of the first item
-    auto vbucket2flush = pendingReqsQ[0].getVBucketId();
+    auto vbucket2flush = transactionCtx->vbid;
 
     TRACE_EVENT2("CouchKVStore",
                  "commit2couchstore",
@@ -2072,14 +2070,6 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
         auto& req = pendingReqsQ[i];
         docs[i] = req.getDbDoc();
         docinfos[i] = req.getDbDocInfo();
-        if (vbucket2flush != req.getVBucketId()) {
-            throw std::logic_error(
-                    "CouchKVStore::commit2couchstore: "
-                    "mismatch between vbucket2flush (which is " +
-                    vbucket2flush.to_string() + ") and pendingReqsQ[" +
-                    std::to_string(i) + "] (which is " +
-                    req.getVBucketId().to_string() + ")");
-        }
     }
 
     // The docinfo callback needs to know if the CollectionID feature is on
@@ -2220,6 +2210,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 
         // Only do a couchstore_save_documents if there are docs
         if (docs.size() > 0) {
+            // @TODO remove this
             std::vector<sized_buf> ids(docs.size());
             for (size_t idx = 0; idx < docs.size(); idx++) {
                 ids[idx] = docinfos[idx]->id;

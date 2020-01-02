@@ -57,7 +57,7 @@ bool VBReadyQueue::pushUnique(Vbid vbucket) {
     return wasEmpty;
 }
 
-size_t VBReadyQueue::size() {
+size_t VBReadyQueue::size() const {
     LockHolder lh(lock);
     return readyQueue.size();
 }

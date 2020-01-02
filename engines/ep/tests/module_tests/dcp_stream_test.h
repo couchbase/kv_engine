@@ -63,6 +63,8 @@ protected:
                                      Item& item,
                                      const VBQueueItemCtx& ctx = {});
 
+    void recreateStream(VBucket& vb);
+
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
 };

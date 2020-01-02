@@ -25,6 +25,7 @@
 #include "access_scanner.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
+#include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/dcpconnmap.h"
@@ -194,6 +195,31 @@ void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
         flush_vbucket_to_disk(vbid, expected);
     }
+}
+
+void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
+    /* Create new checkpoint so that we can remove the current checkpoint
+       and force a backfill in the DCP stream */
+    auto& ckpt_mgr = *vb.checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    // flush to move the persistence cursor
+    flushVBucketToDiskIfPersistent(vb.getId(), 0);
+
+    bool new_ckpt_created = false;
+    int itemsRemoved = 0;
+
+    while (true) {
+        auto removed =
+                ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+        itemsRemoved += removed;
+
+        if (itemsRemoved >= numItems || !removed) {
+            break;
+        }
+    }
+
+    EXPECT_EQ(numItems, itemsRemoved);
 }
 
 void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
