@@ -15,8 +15,24 @@
  *   limitations under the License.
  */
 #include "testapp_shutdown.h"
-#include <string.h>
-#include <cerrno>
+
+void ShutdownTest::SetUp() {
+    TestappTest::SetUpTestCase();
+    if (server_pid == pid_t(-1)) {
+        std::cerr << "memcached not running. Terminate test execution"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(BinprotSetControlTokenCommand{ntohll(token), 0ull});
+    if (!rsp.isSuccess()) {
+        std::cerr << "Failed to set control token: " << rsp.getStatus()
+                  << rsp.getResponse().toJSON(false) << std::endl
+                  << "Exit program";
+        exit(EXIT_FAILURE);
+    }
+}
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
     auto& conn = getAdminConnection();

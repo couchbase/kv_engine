@@ -36,26 +36,7 @@ public:
         // start (and stop) the server for us...
     }
 
-    void SetUp() override {
-        TestappTest::SetUpTestCase();
-        ASSERT_NE(pid_t(-1), server_pid)
-                << "Terminate test execution" << std::endl
-                << (exit(1), "");
-
-        auto& conn = getAdminConnection();
-
-        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::SetCtrlToken);
-        cmd.setExtrasValue(token);
-        conn.sendCommand(cmd);
-
-        BinprotResponse rsp;
-        conn.recvResponse(rsp);
-
-        ASSERT_TRUE(rsp.isSuccess())
-                << "Failed to set control token: " << rsp.getStatus()
-                << std::endl
-                << (exit(1), "");
-    }
+    void SetUp() override;
 
     void TearDown() override {
         TestappTest::TearDownTestCase();
