@@ -24,7 +24,7 @@ class EPStats;
 
 struct EPTransactionContext : public TransactionContext {
     EPTransactionContext(EPStats& stats, VBucket& vbucket)
-        : stats(stats), vbucket(vbucket) {
+        : TransactionContext(vbucket.getId()), stats(stats), vbucket(vbucket) {
     }
 
     EPStats& stats;

@@ -187,4 +187,19 @@ public:
     void enableStreamEndOnClientStreamClose() {
         sendStreamEndOnClientStreamClose = true;
     }
+
+    bool scheduleBackfillManager(VBucket& vb,
+                                 std::shared_ptr<ActiveStream> s,
+                                 uint64_t start,
+                                 uint64_t end) override {
+        beforeScheduleBackfillCB(end);
+        return DcpProducer::scheduleBackfillManager(
+                vb, std::move(s), start, end);
+    }
+
+    void setBeforeScheduleBackfillCB(std::function<void(uint64_t)> backfillCB) {
+        beforeScheduleBackfillCB = backfillCB;
+    }
+
+    std::function<void(uint64_t)> beforeScheduleBackfillCB = [](uint64_t) {};
 };

@@ -120,12 +120,42 @@ size_t CheckpointCursor::getRemainingItemsCount() const {
     return remaining;
 }
 
-std::pair<int64_t, uint64_t> CheckpointCursor::getCkptIdAndSeqno() const {
-    return {(*currentCheckpoint)->getId(), (*currentPos)->getBySeqno()};
-}
-
 CheckpointType CheckpointCursor::getCheckpointType() const {
     return (*currentCheckpoint)->getCheckpointType();
+}
+
+bool operator<(const CheckpointCursor& a, const CheckpointCursor& b) {
+    // Compare currentCheckpoint, bySeqno, and finally distance from start of
+    // currentCheckpoint.
+    // Given the underlying iterator (CheckpointCursor::currentPos) is a
+    // std::list iterator, it is O(N) to compare iterators directly.
+    // Therefore bySeqno (integer) initially, only falling back to iterator
+    // comparison if two CheckpointCursors have the same bySeqno.
+    const auto a_id = (*a.currentCheckpoint)->getId();
+    const auto b_id = (*b.currentCheckpoint)->getId();
+    if (a_id < b_id) {
+        return true;
+    }
+    if (a_id > b_id) {
+        return false;
+    }
+
+    // Same checkpoint; check bySeqno
+    const auto a_bySeqno = (*a.currentPos)->getBySeqno();
+    const auto b_bySeqno = (*b.currentPos)->getBySeqno();
+    if (a_bySeqno < b_bySeqno) {
+        return true;
+    }
+    if (a_bySeqno > b_bySeqno) {
+        return false;
+    }
+
+    // Same checkpoint and seqno, measure distance from start of checkpoint.
+    const auto a_distance =
+            std::distance((*a.currentCheckpoint)->begin(), a.currentPos);
+    const auto b_distance =
+            std::distance((*b.currentCheckpoint)->begin(), b.currentPos);
+    return a_distance < b_distance;
 }
 
 std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
@@ -133,7 +163,8 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
        << " name:" << c.name
        << " currentCkpt:{id:" << (*c.currentCheckpoint)->getId()
        << " state:" << to_string((*c.currentCheckpoint)->getState())
-       << "} currentPos:" << (*c.currentPos)->getBySeqno();
+       << "} currentSeq:" << (*c.currentPos)->getBySeqno() << " distance:"
+       << std::distance((*c.currentCheckpoint)->begin(), c.currentPos);
     return os;
 }
 

@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "checkpoint.h"
 #include "checkpoint_manager.h"
 
 /**
@@ -27,5 +28,16 @@ public:
     static const CheckpointList& public_getCheckpointList(
             const CheckpointManager& checkpointManager) {
         return checkpointManager.checkpointList;
+    }
+};
+
+/**
+ * Stateless class used to gain privileged access into CheckpointCursor for
+ * testing purposes. This is a friend class of CheckpointCursor.
+ */
+class CheckpointCursorIntrospector {
+public:
+    static const auto& getCurrentPos(const CheckpointCursor& cursor) {
+        return cursor.currentPos;
     }
 };

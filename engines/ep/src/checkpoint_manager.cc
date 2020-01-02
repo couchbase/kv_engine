@@ -539,14 +539,13 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
             return {};
         }
 
-        // Sort first by checkpointID then by seqno to find the first cursor.
-        const auto compareByCkptAndSeqno = [](const auto& a, const auto& b) {
-            return a.second->getCkptIdAndSeqno() <
-                   b.second->getCkptIdAndSeqno();
-        };
-
-        auto earliestCursor = std::min_element(
-                cursors.begin(), cursors.end(), compareByCkptAndSeqno);
+        auto earliestCursor =
+                std::min_element(cursors.begin(),
+                                 cursors.end(),
+                                 [](const auto& a, const auto& b) {
+                                     // Compare by CheckpointCursor.
+                                     return *a.second < *b.second;
+                                 });
 
         std::shared_ptr<CheckpointCursor> lowestCheckpointCursor =
                 earliestCursor->second;
@@ -583,14 +582,16 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
          * Walk backwards over the checkpoint if not yet reached the dummy item,
          * and pointing to an item that either:
          * 1. has a seqno equal to the checkpoint's high seqno, or
-         * 2. has a previous entry with the same seqno, or
+         * 2. has a subsequent entry with the same seqno (i.e. we don't want
+         *    to expel some items but not others with the same seqno), or
          * 3. is pointing to a metadata item.
          */
         while ((iterator != oldestCheckpoint->begin()) &&
                (((*iterator)->getBySeqno() ==
                  int64_t(oldestCheckpoint->getHighSeqno())) ||
-                ((*std::prev(iterator))->getBySeqno() ==
-                 (*iterator)->getBySeqno()) ||
+                (std::next(iterator) != oldestCheckpoint->end() &&
+                 (*iterator)->getBySeqno() ==
+                         (*std::next(iterator))->getBySeqno()) ||
                 ((*iterator)->isCheckPointMetaItem()))) {
             --iterator;
         }

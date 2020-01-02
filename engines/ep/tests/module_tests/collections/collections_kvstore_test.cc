@@ -177,7 +177,7 @@ public:
                        int expectedCollections,
                        int expectedScopes,
                        std::vector<CollectionID> expectedDropped = {}) {
-        kvstore->begin(std::make_unique<TransactionContext>());
+        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
         applyEvents(cm);
         kvstore->commit(flush);
         auto md = kvstore->getCollectionsManifest(Vbid(0));

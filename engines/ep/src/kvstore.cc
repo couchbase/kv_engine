@@ -578,11 +578,10 @@ std::string to_string(KVStore::MutationSetResultState status) {
     folly::assume_unreachable();
 }
 
-IORequest::IORequest(Vbid vbId, MutationRequestCallback cb, DiskDocKey itmKey)
+IORequest::IORequest(MutationRequestCallback cb, DiskDocKey itmKey)
     : callback(cb),
       key(std::move(itmKey)),
-      start(std::chrono::steady_clock::now()),
-      vbucketId(vbId) {
+      start(std::chrono::steady_clock::now()) {
 }
 
 IORequest::~IORequest() = default;
