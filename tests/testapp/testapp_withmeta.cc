@@ -129,7 +129,7 @@ TEST_P(WithMetaTest, basicSetXattr) {
                                               /*options*/ 0,
                                               {});
         EXPECT_EQ(XattrSupport::Yes, ::testing::get<1>(GetParam()));
-        EXPECT_EQ(testCas, ntohll(resp.cas));
+        EXPECT_EQ(testCas, resp.cas);
     } catch (std::exception&) {
         EXPECT_EQ(XattrSupport::No, ::testing::get<1>(GetParam()));
     }

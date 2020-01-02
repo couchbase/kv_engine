@@ -73,7 +73,7 @@ void BinprotCommand::fillHeader(cb::mcbp::Request& header,
     // @todo fix this to use the setter. There is still some dependency
     // in other tests which use expects this to be in the same byte order
     // as the server sent it..
-    header.cas = cas;
+    header.setCas(cas);
 }
 
 void BinprotCommand::writeHeader(std::vector<uint8_t>& buf,
@@ -395,7 +395,7 @@ size_t BinprotResponse::getHeaderLen() {
 }
 
 uint64_t BinprotResponse::getCas() const {
-    return getResponse().cas;
+    return getResponse().getCas();
 }
 
 protocol_binary_datatype_t BinprotResponse::getDatatype() const {
@@ -1547,7 +1547,7 @@ BinprotSetControlTokenCommand::BinprotSetControlTokenCommand(uint64_t token_,
                                                              uint64_t oldtoken)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetCtrlToken),
       token(token_) {
-    setCas(htonll(oldtoken));
+    setCas(oldtoken);
 }
 
 void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
@@ -1569,7 +1569,7 @@ BinprotSetClusterConfigCommand::BinprotSetClusterConfigCommand(
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig, bucket),
       config(std::move(config)),
       revision(revision) {
-    setCas(htonll(token_));
+    setCas(token_);
 }
 
 BinprotObserveSeqnoCommand::BinprotObserveSeqnoCommand(Vbid vbid, uint64_t uuid)

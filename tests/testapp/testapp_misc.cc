@@ -46,7 +46,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     // Note: We expect 1 entry in the failover log, which is the entry created
     // at VBucket creation (8 bytes for UUID + 8 bytes for SEQNO)
     EXPECT_EQ(0x10, header.getBodylen());
-    EXPECT_EQ(header.cas, 0);
+    EXPECT_EQ(0, header.getCas());
     EXPECT_EQ(response.getData().len, 0x10);
 
     // Test non-existing VBucket
@@ -59,7 +59,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     EXPECT_EQ(cb::mcbp::Datatype::Raw, header.getDatatype());
     EXPECT_EQ(header.getStatus(), cb::mcbp::Status::NotMyVbucket);
     EXPECT_EQ(0, header.getBodylen());
-    EXPECT_EQ(header.cas, 0);
+    EXPECT_EQ(0, header.getCas());
 }
 
 /**

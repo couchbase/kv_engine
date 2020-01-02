@@ -90,7 +90,7 @@ uint64_t recv_subdoc_response(cb::mcbp::ClientOpcode expected_cmd,
             EXPECT_EQ(0u, vallen);
         }
     }
-    return header->response.cas;
+    return header->response.getCas();
 }
 
 // Overload for multi-lookup responses
@@ -151,7 +151,7 @@ uint64_t recv_subdoc_response(
         offset += result_header_len + result_len;
     }
 
-    return header.response.cas;
+    return header.response.getCas();
 }
 
 // Allow GTest to print out std::vectors as part of EXPECT/ ASSERT error
@@ -266,7 +266,7 @@ uint64_t recv_subdoc_response(
         }
     }
 
-    return header.response.cas;
+    return header.response.getCas();
 }
 
 ::testing::AssertionResult SubdocTestappTest::subdoc_verify_cmd(

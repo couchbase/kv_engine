@@ -108,8 +108,7 @@ void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
         throw ConnectionError("TestappClientTest::setClusterSessionToken",
                               response);
     }
-    ASSERT_EQ(nval, ntohll(response.getCas()));
-
+    ASSERT_EQ(nval, response.getCas());
     token = nval;
 }
 

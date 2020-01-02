@@ -244,10 +244,6 @@ protected:
     Vbid vbucket;
     uint32_t bodylen;
     uint32_t opaque;
-
-public:
-    // We still have some unit tests which (from the looks of it) seems
-    // to access this in network byte order and move it around
     uint64_t cas;
 };
 

@@ -25,7 +25,7 @@ void ShutdownTest::SetUp() {
     }
 
     auto& conn = getAdminConnection();
-    auto rsp = conn.execute(BinprotSetControlTokenCommand{ntohll(token), 0ull});
+    auto rsp = conn.execute(BinprotSetControlTokenCommand{token, 0ull});
     if (!rsp.isSuccess()) {
         std::cerr << "Failed to set control token: " << rsp.getStatus()
                   << rsp.getResponse().toJSON(false) << std::endl

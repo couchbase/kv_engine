@@ -184,8 +184,6 @@ protected:
     uint16_t status;
     uint32_t bodylen;
     uint32_t opaque;
-
-public:
     uint64_t cas;
 };
 

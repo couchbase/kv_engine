@@ -196,8 +196,7 @@ static void test_delete_cas_impl(const char *key, bool bad) {
             *response, ClientOpcode::Set, Status::Success);
 
     BinprotGenericCommand del(ClientOpcode::Deleteq, key);
-    // @todo fixme.. the send expects cas to already be in NBO
-    del.setCas(htonll(response->getCas()) + (bad ? 1 : 0));
+    del.setCas(response->getCas() + (bad ? 1 : 0));
     del.encode(blob);
     safe_send(blob);
 
@@ -532,7 +531,7 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
 
     cb_assert(buffer.response.message.header.response.getStatus() ==
               Status::Success);
-    cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+    cb_assert(new_token == buffer.response.message.header.response.getCas());
     old_token = new_token;
 
     /* Validate that you can't set it to 0 */
@@ -555,7 +554,7 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
 
     cb_assert(buffer.response.message.header.response.getStatus() ==
               Status::KeyEexists);
-    cb_assert(new_token == ntohll(buffer.response.message.header.response.cas));
+    cb_assert(new_token == buffer.response.message.header.response.getCas());
     cb_assert(new_token == get_session_ctrl_token());
 
     /* Validate that you may set it by overriding the cas with 0 */
@@ -565,7 +564,7 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
     cb_assert(buffer.response.message.header.response.getStatus() ==
               Status::Success);
-    cb_assert(0xdeadbeef == ntohll(buffer.response.message.header.response.cas));
+    cb_assert(0xdeadbeef == buffer.response.message.header.response.getCas());
     cb_assert(0xdeadbeef == get_session_ctrl_token());
 }
 

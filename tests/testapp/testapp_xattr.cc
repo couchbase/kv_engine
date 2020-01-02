@@ -342,15 +342,12 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    /// Fetch the field and verify that it expanded the cas!
-    std::string cas_string;
+    /// Fetch the field and verify that it expanded the cas! (the expanded
+    /// value is in _NETWORK BYTE ORDER_
     resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    auto first_cas = resp.getCas();
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    ss << "\"0x" << std::setw(16) << resp.getCas() << "\"";
-    cas_string = ss.str();
+    const auto first_cas = resp.getCas();
+    const auto cas_string = "\"" + cb::to_hex(htonll(resp.getCas())) + "\"";
     EXPECT_EQ(cas_string, resp.getValue());
 
     // Let's update the body version..

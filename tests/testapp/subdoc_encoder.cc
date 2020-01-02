@@ -143,5 +143,5 @@ void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
     /* TODO: vbucket */
     header.request.setBodylen(gsl::narrow<uint32_t>(bodylen));
     header.request.setOpaque(0xdeadbeef);
-    header.request.cas = cas;
+    header.request.setCas(cas);
 }

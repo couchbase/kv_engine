@@ -148,7 +148,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                 TESTAPP_EXPECT_EQ(result, 0u, response.getExtlen());
                 TESTAPP_EXPECT_EQ(result, 0u, response.getBodylen());
             }
-            TESTAPP_EXPECT_NE(result, response.cas, 0u);
+            TESTAPP_EXPECT_NE(result, response.getCas(), 0u);
             break;
         case cb::mcbp::ClientOpcode::Flush:
         case cb::mcbp::ClientOpcode::Noop:
@@ -191,13 +191,13 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                 TESTAPP_EXPECT_EQ(result, 0u, response.getExtlen());
                 TESTAPP_EXPECT_EQ(result, 8u, response.getBodylen());
             }
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
 
         case cb::mcbp::ClientOpcode::Stat:
             TESTAPP_EXPECT_EQ(result, 0, response.getExtlen());
             /* key and value exists in all packets except in the terminating */
-            TESTAPP_EXPECT_EQ(result, 0u, response.cas);
+            TESTAPP_EXPECT_EQ(result, 0u, response.getCas());
             break;
 
         case cb::mcbp::ClientOpcode::Version:
@@ -207,7 +207,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                               PROTOCOL_BINARY_RAW_BYTES,
                               uint8_t(response.getDatatype()));
             TESTAPP_EXPECT_NE(result, 0u, response.getBodylen());
-            TESTAPP_EXPECT_EQ(result, 0u, response.cas);
+            TESTAPP_EXPECT_EQ(result, 0u, response.getCas());
             break;
 
         case cb::mcbp::ClientOpcode::Get:
@@ -216,7 +216,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
             TESTAPP_EXPECT_EQ(result, 4, response.getExtlen());
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
 
         case cb::mcbp::ClientOpcode::Getk:
@@ -225,7 +225,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
             TESTAPP_EXPECT_EQ(result, 4, response.getExtlen());
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
         case cb::mcbp::ClientOpcode::SubdocGet:
             TESTAPP_EXPECT_EQ(result, 0, response.getKeylen());
@@ -233,7 +233,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
             TESTAPP_EXPECT_NE(result, 0u, response.getBodylen());
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
         case cb::mcbp::ClientOpcode::SubdocExists:
             TESTAPP_EXPECT_EQ(result, 0, response.getKeylen());
@@ -242,7 +242,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                               PROTOCOL_BINARY_RAW_BYTES,
                               uint8_t(response.getDatatype()));
             TESTAPP_EXPECT_EQ(result, 0u, response.getBodylen());
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
         case cb::mcbp::ClientOpcode::SubdocDictAdd:
         case cb::mcbp::ClientOpcode::SubdocDictUpsert:
@@ -265,7 +265,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                 TESTAPP_EXPECT_EQ(result, 0u, response.getExtlen());
                 TESTAPP_EXPECT_EQ(result, 0u, response.getBodylen());
             }
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
         case cb::mcbp::ClientOpcode::SubdocCounter:
             TESTAPP_EXPECT_EQ(result, 0, response.getKeylen());
@@ -279,7 +279,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                 TESTAPP_EXPECT_EQ(result, 0u, response.getExtlen());
                 TESTAPP_EXPECT_NE(result, 0u, response.getBodylen());
             }
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
 
         case cb::mcbp::ClientOpcode::SubdocMultiLookup:
@@ -291,7 +291,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                               PROTOCOL_BINARY_RAW_BYTES,
                               uint8_t(response.getDatatype()));
             TESTAPP_EXPECT_NE(result, 0u, response.getBodylen());
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
 
         case cb::mcbp::ClientOpcode::SubdocMultiMutation:
@@ -311,7 +311,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
                 TESTAPP_EXPECT_EQ(result, 0u, response.getExtlen());
                 TESTAPP_EXPECT_GE(result, response.getBodylen(), 0u);
             }
-            TESTAPP_EXPECT_NE(result, 0u, response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, response.getCas());
             break;
         default:
             /* Undefined command code */
@@ -321,9 +321,9 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
         // Subdoc: Even though the some paths may have failed; actual document
         // was successfully accessed so CAS may be valid.
     } else if (status == cb::mcbp::Status::SubdocSuccessDeleted) {
-        TESTAPP_EXPECT_NE(result, 0u, response.cas);
+        TESTAPP_EXPECT_NE(result, 0u, response.getCas());
     } else {
-        TESTAPP_EXPECT_EQ(result, 0u, response.cas);
+        TESTAPP_EXPECT_EQ(result, 0u, response.getCas());
         TESTAPP_EXPECT_EQ(result, 0, response.getExtlen());
         if (cmd != cb::mcbp::ClientOpcode::Getk) {
             TESTAPP_EXPECT_EQ(result, 0, response.getKeylen());
