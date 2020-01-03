@@ -223,7 +223,7 @@ protected:
      * sequence of status codes (EWBEngineMode::Sequence2).
      */
     static void ewouldblock_engine_configure(
-            std::vector<cb::engine_errc> sequence);
+            const std::vector<cb::engine_errc>& sequence);
 
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();

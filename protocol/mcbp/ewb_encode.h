@@ -30,7 +30,7 @@ namespace ewb {
  * Helper function for EWBEngineMode::Sequence, encodes a vector of
  * status codes to inject into network order to be used as the key.
  */
-std::string encodeSequence(std::vector<cb::engine_errc> sequence);
+std::string encodeSequence(const std::vector<cb::engine_errc>& sequence);
 
 /**
  * Value to use for EWBEngineMode::Sequence when the original engine API error

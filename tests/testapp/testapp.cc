@@ -1286,7 +1286,7 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
 }
 
 void TestappTest::ewouldblock_engine_configure(
-        std::vector<cb::engine_errc> sequence) {
+        const std::vector<cb::engine_errc>& sequence) {
     ewouldblock_engine_configure(ENGINE_SUCCESS,
                                  EWBEngineMode::Sequence,
                                  0,

@@ -24,7 +24,7 @@
 #include <platform/socket.h>
 #include <array>
 
-std::string ewb::encodeSequence(std::vector<cb::engine_errc> sequence) {
+std::string ewb::encodeSequence(const std::vector<cb::engine_errc>& sequence) {
     // Encode vector to network-endian.
     std::string encoded;
     union Swap {
