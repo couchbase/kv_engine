@@ -486,12 +486,12 @@ TEST_P(McdTestappTest, TapConnect) {
     std::vector<uint8_t> blob(1024);
     RequestBuilder builder({blob.data(), blob.size()});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(ClientOpcode::TapConnect);
+    builder.setOpcode(ClientOpcode::TapConnect_Unsupported);
     builder.setOpaque(0xdeadbeef);
     safe_send(builder.getFrame()->getFrame());
     safe_recv_packet(blob);
     mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::TapConnect,
+                                  ClientOpcode::TapConnect_Unsupported,
                                   Status::NotSupported);
 }
 

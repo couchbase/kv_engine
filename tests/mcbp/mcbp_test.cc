@@ -1826,108 +1826,6 @@ TEST_P(ObserveSeqnoValidatorTest, InvalidBody) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-// Test set drift counter state
-class SetDriftCounterStateValidatorTest
-    : public ::testing::WithParamInterface<bool>,
-      public ValidatorTest {
-public:
-    SetDriftCounterStateValidatorTest() : ValidatorTest(GetParam()) {
-    }
-    void SetUp() override {
-        ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(9);
-        request.message.header.request.setBodylen(9);
-    }
-
-protected:
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::SetDriftCounterState,
-                static_cast<void*>(&request));
-    }
-};
-
-TEST_P(SetDriftCounterStateValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SetDriftCounterStateValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetDriftCounterStateValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(2);
-    request.message.header.request.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetDriftCounterStateValidatorTest, InvalidKey) {
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(19);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetDriftCounterStateValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(SetDriftCounterStateValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(4);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-// Test get adjusted time
-class GetAdjustedTimeValidatorTest : public ::testing::WithParamInterface<bool>,
-                                     public ValidatorTest {
-public:
-    GetAdjustedTimeValidatorTest() : ValidatorTest(GetParam()) {
-    }
-
-protected:
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetAdjustedTime,
-                                       static_cast<void*>(&request));
-    }
-};
-
-TEST_P(GetAdjustedTimeValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(GetAdjustedTimeValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(GetAdjustedTimeValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(2);
-    request.message.header.request.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(GetAdjustedTimeValidatorTest, InvalidKey) {
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(GetAdjustedTimeValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(GetAdjustedTimeValidatorTest, InvalidCas) {
-    request.message.header.request.setCas(1);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(GetAdjustedTimeValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(4);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 enum class RefreshOpcodes : uint8_t {
     Isasl = uint8_t(cb::mcbp::ClientOpcode::IsaslRefresh),
     Ssl = uint8_t(cb::mcbp::ClientOpcode::SslCertsRefresh),
@@ -3454,14 +3352,6 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ObserveSeqnoValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SetDriftCounterStateValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        GetAdjustedTimeValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,

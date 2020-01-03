@@ -1431,26 +1431,6 @@ static Status observe_seqno_validator(Cookie& cookie) {
     return Status::Success;
 }
 
-static Status get_adjusted_time_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        PROTOCOL_BINARY_RAW_BYTES);
-}
-
-static Status set_drift_counter_state_validator(Cookie& cookie) {
-    constexpr uint8_t expected_extlen = sizeof(uint8_t) + sizeof(int64_t);
-
-    return McbpValidator::verify_header(cookie,
-                                        expected_extlen,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::Any,
-                                        PROTOCOL_BINARY_RAW_BYTES);
-}
-
 /**
  * The create bucket contains message have the following format:
  *    key: bucket name
@@ -2216,9 +2196,10 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
     setup(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
-    setup(cb::mcbp::ClientOpcode::GetAdjustedTime, get_adjusted_time_validator);
-    setup(cb::mcbp::ClientOpcode::SetDriftCounterState,
-          set_drift_counter_state_validator);
+    setup(cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::SetDriftCounterState_Unsupported,
+          not_supported_validator);
 
     setup(cb::mcbp::ClientOpcode::SubdocGet, subdoc_get_validator);
     setup(cb::mcbp::ClientOpcode::SubdocExists, subdoc_exists_validator);
@@ -2324,33 +2305,51 @@ McbpValidator::McbpValidator() {
     // these either as the executor would have returned not supported
     // They're added sto make it easier to see which opcodes we currently
     // don't have a proper validator for
-    setup(cb::mcbp::ClientOpcode::Rget, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rset, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rsetq, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rappend, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rappendq, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rprepend, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rprependq, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdelete, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdeleteq, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rincr, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rincrq, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdecr, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdecrq, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapConnect, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapConnect, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapMutation, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapDelete, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapFlush, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapOpaque, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapVbucketSet, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapCheckpointStart, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapCheckpointEnd, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::DeregisterTapClient, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::ResetReplicationChain,
+    setup(cb::mcbp::ClientOpcode::Rget_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rset_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rsetq_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rappend_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rappendq_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::SnapshotVbStates, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::VbucketBatchCount, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::ChangeVbFilter, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rprepend_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rprependq_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdelete_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdeleteq_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rincr_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rincrq_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdecr_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdecrq_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapConnect_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapConnect_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapMutation_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapDelete_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapFlush_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapOpaque_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapVbucketSet_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapCheckpointStart_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapCheckpointEnd_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::DeregisterTapClient_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::ResetReplicationChain_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::SnapshotVbStates_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::VbucketBatchCount_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::ChangeVbFilter_Unsupported,
+          not_supported_validator);
 }

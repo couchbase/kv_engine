@@ -83,19 +83,19 @@ enum class ClientOpcode : uint8_t {
      * this header for use in other projects.  Range operations are
      * not expected to be implemented in the memcached server itself.
      */
-    Rget = 0x30,
-    Rset = 0x31,
-    Rsetq = 0x32,
-    Rappend = 0x33,
-    Rappendq = 0x34,
-    Rprepend = 0x35,
-    Rprependq = 0x36,
-    Rdelete = 0x37,
-    Rdeleteq = 0x38,
-    Rincr = 0x39,
-    Rincrq = 0x3a,
-    Rdecr = 0x3b,
-    Rdecrq = 0x3c,
+    Rget_Unsupported = 0x30,
+    Rset_Unsupported = 0x31,
+    Rsetq_Unsupported = 0x32,
+    Rappend_Unsupported = 0x33,
+    Rappendq_Unsupported = 0x34,
+    Rprepend_Unsupported = 0x35,
+    Rprependq_Unsupported = 0x36,
+    Rdelete_Unsupported = 0x37,
+    Rdeleteq_Unsupported = 0x38,
+    Rincr_Unsupported = 0x39,
+    Rincrq_Unsupported = 0x3a,
+    Rdecr_Unsupported = 0x3b,
+    Rdecrq_Unsupported = 0x3c,
     /* End Range operations */
 
     /* VBucket commands */
@@ -105,14 +105,14 @@ enum class ClientOpcode : uint8_t {
     /* End VBucket commands */
 
     /* TAP commands */
-    TapConnect = 0x40,
-    TapMutation = 0x41,
-    TapDelete = 0x42,
-    TapFlush = 0x43,
-    TapOpaque = 0x44,
-    TapVbucketSet = 0x45,
-    TapCheckpointStart = 0x46,
-    TapCheckpointEnd = 0x47,
+    TapConnect_Unsupported = 0x40,
+    TapMutation_Unsupported = 0x41,
+    TapDelete_Unsupported = 0x42,
+    TapFlush_Unsupported = 0x43,
+    TapOpaque_Unsupported = 0x44,
+    TapVbucketSet_Unsupported = 0x45,
+    TapCheckpointStart_Unsupported = 0x46,
+    TapCheckpointEnd_Unsupported = 0x47,
     /* End TAP */
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
@@ -172,13 +172,13 @@ enum class ClientOpcode : uint8_t {
      * A->B->C, if A receives this command, it will reset all the
      * replica vbuckets on B and C, which are replicated from A.
      */
-    ResetReplicationChain = 0x9f,
+    ResetReplicationChain_Unsupported = 0x9f,
 
     /**
      * Close the TAP connection for the registered TAP client and
      * remove the checkpoint cursors from its registered vbuckets.
      */
-    DeregisterTapClient = 0x9e,
+    DeregisterTapClient_Unsupported = 0x9e,
 
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.
@@ -189,8 +189,8 @@ enum class ClientOpcode : uint8_t {
     SetqWithMeta = 0xa3,
     AddWithMeta = 0xa4,
     AddqWithMeta = 0xa5,
-    SnapshotVbStates = 0xa6,
-    VbucketBatchCount = 0xa7,
+    SnapshotVbStates_Unsupported = 0xa6,
+    VbucketBatchCount_Unsupported = 0xa7,
     DelWithMeta = 0xa8,
     DelqWithMeta = 0xa9,
 
@@ -198,7 +198,7 @@ enum class ClientOpcode : uint8_t {
      * Command to create a new checkpoint on a given vbucket by force
      */
     CreateCheckpoint = 0xaa,
-    NotifyVbucketUpdate = 0xac,
+    NotifyVbucketUpdate_Unsupported = 0xac,
     /**
      * Command to enable data traffic after completion of warm
      */
@@ -210,7 +210,7 @@ enum class ClientOpcode : uint8_t {
     /**
      * Command to change the vbucket filter for a given producer.
      */
-    ChangeVbFilter = 0xb0,
+    ChangeVbFilter_Unsupported = 0xb0,
     /**
      * Command to wait for the checkpoint persistence
      */
@@ -263,8 +263,8 @@ enum class ClientOpcode : uint8_t {
     /**
      * Commands for GO-XDCR
      */
-    SetDriftCounterState = 0xc1,
-    GetAdjustedTime = 0xc2,
+    SetDriftCounterState_Unsupported = 0xc1,
+    GetAdjustedTime_Unsupported = 0xc2,
 
     /**
      * Commands for the Sub-document API.

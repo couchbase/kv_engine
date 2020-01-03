@@ -583,10 +583,6 @@ static void auth_provider_executor(Cookie& cookie) {
     }
 }
 
-static void no_support_executor(Cookie& cookie) {
-    cookie.sendResponse(cb::mcbp::Status::NotSupported);
-}
-
 static void process_bin_dcp_response(Cookie& cookie) {
     auto& c = cookie.getConnection();
 
@@ -824,22 +820,8 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::SubdocGetCount,
                   subdoc_get_count_executor);
 
-    setup_handler(cb::mcbp::ClientOpcode::TapConnect, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapMutation, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapDelete, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapFlush, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapOpaque, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapVbucketSet, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapCheckpointStart,
-                  no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::TapCheckpointEnd,
-                  no_support_executor);
-
     setup_handler(cb::mcbp::ClientOpcode::AdjustTimeofday,
                   adjust_timeofday_executor);
-    setup_handler(cb::mcbp::ClientOpcode::GetAdjustedTime, no_support_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetDriftCounterState,
-                  no_support_executor);
 }
 
 void execute_client_request_packet(Cookie& cookie,

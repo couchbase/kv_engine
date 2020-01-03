@@ -70,30 +70,30 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::Rget:
-    case ClientOpcode::Rset:
-    case ClientOpcode::Rsetq:
-    case ClientOpcode::Rappend:
-    case ClientOpcode::Rappendq:
-    case ClientOpcode::Rprepend:
-    case ClientOpcode::Rprependq:
-    case ClientOpcode::Rdelete:
-    case ClientOpcode::Rdeleteq:
-    case ClientOpcode::Rincr:
-    case ClientOpcode::Rincrq:
-    case ClientOpcode::Rdecr:
-    case ClientOpcode::Rdecrq:
+    case ClientOpcode::Rget_Unsupported:
+    case ClientOpcode::Rset_Unsupported:
+    case ClientOpcode::Rsetq_Unsupported:
+    case ClientOpcode::Rappend_Unsupported:
+    case ClientOpcode::Rappendq_Unsupported:
+    case ClientOpcode::Rprepend_Unsupported:
+    case ClientOpcode::Rprependq_Unsupported:
+    case ClientOpcode::Rdelete_Unsupported:
+    case ClientOpcode::Rdeleteq_Unsupported:
+    case ClientOpcode::Rincr_Unsupported:
+    case ClientOpcode::Rincrq_Unsupported:
+    case ClientOpcode::Rdecr_Unsupported:
+    case ClientOpcode::Rdecrq_Unsupported:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect:
-    case ClientOpcode::TapMutation:
-    case ClientOpcode::TapDelete:
-    case ClientOpcode::TapFlush:
-    case ClientOpcode::TapOpaque:
-    case ClientOpcode::TapVbucketSet:
-    case ClientOpcode::TapCheckpointStart:
-    case ClientOpcode::TapCheckpointEnd:
+    case ClientOpcode::TapConnect_Unsupported:
+    case ClientOpcode::TapMutation_Unsupported:
+    case ClientOpcode::TapDelete_Unsupported:
+    case ClientOpcode::TapFlush_Unsupported:
+    case ClientOpcode::TapOpaque_Unsupported:
+    case ClientOpcode::TapVbucketSet_Unsupported:
+    case ClientOpcode::TapCheckpointStart_Unsupported:
+    case ClientOpcode::TapCheckpointEnd_Unsupported:
     case ClientOpcode::GetAllVbSeqnos:
     case ClientOpcode::DcpOpen:
     case ClientOpcode::DcpAddStream:
@@ -129,23 +129,23 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
     case ClientOpcode::LastClosedCheckpoint:
-    case ClientOpcode::ResetReplicationChain:
-    case ClientOpcode::DeregisterTapClient:
+    case ClientOpcode::ResetReplicationChain_Unsupported:
+    case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
     case ClientOpcode::GetqMeta:
     case ClientOpcode::SetWithMeta:
     case ClientOpcode::SetqWithMeta:
     case ClientOpcode::AddWithMeta:
     case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates:
-    case ClientOpcode::VbucketBatchCount:
+    case ClientOpcode::SnapshotVbStates_Unsupported:
+    case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
     case ClientOpcode::CreateCheckpoint:
-    case ClientOpcode::NotifyVbucketUpdate:
+    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
-    case ClientOpcode::ChangeVbFilter:
+    case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
@@ -158,8 +158,8 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:
     case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState:
-    case ClientOpcode::GetAdjustedTime:
+    case ClientOpcode::SetDriftCounterState_Unsupported:
+    case ClientOpcode::GetAdjustedTime_Unsupported:
     case ClientOpcode::SubdocGet:
     case ClientOpcode::SubdocExists:
     case ClientOpcode::SubdocDictAdd:
@@ -262,30 +262,30 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::Rget:
-    case ClientOpcode::Rset:
-    case ClientOpcode::Rsetq:
-    case ClientOpcode::Rappend:
-    case ClientOpcode::Rappendq:
-    case ClientOpcode::Rprepend:
-    case ClientOpcode::Rprependq:
-    case ClientOpcode::Rdelete:
-    case ClientOpcode::Rdeleteq:
-    case ClientOpcode::Rincr:
-    case ClientOpcode::Rincrq:
-    case ClientOpcode::Rdecr:
-    case ClientOpcode::Rdecrq:
+    case ClientOpcode::Rget_Unsupported:
+    case ClientOpcode::Rset_Unsupported:
+    case ClientOpcode::Rsetq_Unsupported:
+    case ClientOpcode::Rappend_Unsupported:
+    case ClientOpcode::Rappendq_Unsupported:
+    case ClientOpcode::Rprepend_Unsupported:
+    case ClientOpcode::Rprependq_Unsupported:
+    case ClientOpcode::Rdelete_Unsupported:
+    case ClientOpcode::Rdeleteq_Unsupported:
+    case ClientOpcode::Rincr_Unsupported:
+    case ClientOpcode::Rincrq_Unsupported:
+    case ClientOpcode::Rdecr_Unsupported:
+    case ClientOpcode::Rdecrq_Unsupported:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect:
-    case ClientOpcode::TapMutation:
-    case ClientOpcode::TapDelete:
-    case ClientOpcode::TapFlush:
-    case ClientOpcode::TapOpaque:
-    case ClientOpcode::TapVbucketSet:
-    case ClientOpcode::TapCheckpointStart:
-    case ClientOpcode::TapCheckpointEnd:
+    case ClientOpcode::TapConnect_Unsupported:
+    case ClientOpcode::TapMutation_Unsupported:
+    case ClientOpcode::TapDelete_Unsupported:
+    case ClientOpcode::TapFlush_Unsupported:
+    case ClientOpcode::TapOpaque_Unsupported:
+    case ClientOpcode::TapVbucketSet_Unsupported:
+    case ClientOpcode::TapCheckpointStart_Unsupported:
+    case ClientOpcode::TapCheckpointEnd_Unsupported:
     case ClientOpcode::GetAllVbSeqnos:
     case ClientOpcode::DcpOpen:
     case ClientOpcode::DcpAddStream:
@@ -321,23 +321,23 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetFailoverLog:
     case ClientOpcode::LastClosedCheckpoint:
-    case ClientOpcode::ResetReplicationChain:
-    case ClientOpcode::DeregisterTapClient:
+    case ClientOpcode::ResetReplicationChain_Unsupported:
+    case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
     case ClientOpcode::GetqMeta:
     case ClientOpcode::SetWithMeta:
     case ClientOpcode::SetqWithMeta:
     case ClientOpcode::AddWithMeta:
     case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates:
-    case ClientOpcode::VbucketBatchCount:
+    case ClientOpcode::SnapshotVbStates_Unsupported:
+    case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
     case ClientOpcode::CreateCheckpoint:
-    case ClientOpcode::NotifyVbucketUpdate:
+    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
-    case ClientOpcode::ChangeVbFilter:
+    case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
@@ -350,8 +350,8 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:
     case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState:
-    case ClientOpcode::GetAdjustedTime:
+    case ClientOpcode::SetDriftCounterState_Unsupported:
+    case ClientOpcode::GetAdjustedTime_Unsupported:
     case ClientOpcode::SubdocGet:
     case ClientOpcode::SubdocExists:
     case ClientOpcode::SubdocMultiLookup:
@@ -430,30 +430,30 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::Rget:
-    case ClientOpcode::Rset:
-    case ClientOpcode::Rsetq:
-    case ClientOpcode::Rappend:
-    case ClientOpcode::Rappendq:
-    case ClientOpcode::Rprepend:
-    case ClientOpcode::Rprependq:
-    case ClientOpcode::Rdelete:
-    case ClientOpcode::Rdeleteq:
-    case ClientOpcode::Rincr:
-    case ClientOpcode::Rincrq:
-    case ClientOpcode::Rdecr:
-    case ClientOpcode::Rdecrq:
+    case ClientOpcode::Rget_Unsupported:
+    case ClientOpcode::Rset_Unsupported:
+    case ClientOpcode::Rsetq_Unsupported:
+    case ClientOpcode::Rappend_Unsupported:
+    case ClientOpcode::Rappendq_Unsupported:
+    case ClientOpcode::Rprepend_Unsupported:
+    case ClientOpcode::Rprependq_Unsupported:
+    case ClientOpcode::Rdelete_Unsupported:
+    case ClientOpcode::Rdeleteq_Unsupported:
+    case ClientOpcode::Rincr_Unsupported:
+    case ClientOpcode::Rincrq_Unsupported:
+    case ClientOpcode::Rdecr_Unsupported:
+    case ClientOpcode::Rdecrq_Unsupported:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect:
-    case ClientOpcode::TapMutation:
-    case ClientOpcode::TapDelete:
-    case ClientOpcode::TapFlush:
-    case ClientOpcode::TapOpaque:
-    case ClientOpcode::TapVbucketSet:
-    case ClientOpcode::TapCheckpointStart:
-    case ClientOpcode::TapCheckpointEnd:
+    case ClientOpcode::TapConnect_Unsupported:
+    case ClientOpcode::TapMutation_Unsupported:
+    case ClientOpcode::TapDelete_Unsupported:
+    case ClientOpcode::TapFlush_Unsupported:
+    case ClientOpcode::TapOpaque_Unsupported:
+    case ClientOpcode::TapVbucketSet_Unsupported:
+    case ClientOpcode::TapCheckpointStart_Unsupported:
+    case ClientOpcode::TapCheckpointEnd_Unsupported:
     case ClientOpcode::GetAllVbSeqnos:
     case ClientOpcode::DcpOpen:
     case ClientOpcode::DcpAddStream:
@@ -485,23 +485,23 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::Observe:
     case ClientOpcode::GetFailoverLog:
     case ClientOpcode::LastClosedCheckpoint:
-    case ClientOpcode::ResetReplicationChain:
-    case ClientOpcode::DeregisterTapClient:
+    case ClientOpcode::ResetReplicationChain_Unsupported:
+    case ClientOpcode::DeregisterTapClient_Unsupported:
     case ClientOpcode::GetMeta:
     case ClientOpcode::GetqMeta:
     case ClientOpcode::SetWithMeta:
     case ClientOpcode::SetqWithMeta:
     case ClientOpcode::AddWithMeta:
     case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates:
-    case ClientOpcode::VbucketBatchCount:
+    case ClientOpcode::SnapshotVbStates_Unsupported:
+    case ClientOpcode::VbucketBatchCount_Unsupported:
     case ClientOpcode::DelWithMeta:
     case ClientOpcode::DelqWithMeta:
     case ClientOpcode::CreateCheckpoint:
-    case ClientOpcode::NotifyVbucketUpdate:
+    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
-    case ClientOpcode::ChangeVbFilter:
+    case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
@@ -514,8 +514,8 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:
     case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState:
-    case ClientOpcode::GetAdjustedTime:
+    case ClientOpcode::SetDriftCounterState_Unsupported:
+    case ClientOpcode::GetAdjustedTime_Unsupported:
     case ClientOpcode::SubdocGet:
     case ClientOpcode::SubdocExists:
     case ClientOpcode::SubdocDictAdd:
@@ -645,31 +645,31 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "AUDIT_CONFIG_RELOAD";
     case ClientOpcode::Shutdown:
         return "SHUTDOWN";
-    case ClientOpcode::Rget:
+    case ClientOpcode::Rget_Unsupported:
         return "RGET";
-    case ClientOpcode::Rset:
+    case ClientOpcode::Rset_Unsupported:
         return "RSET";
-    case ClientOpcode::Rsetq:
+    case ClientOpcode::Rsetq_Unsupported:
         return "RSETQ";
-    case ClientOpcode::Rappend:
+    case ClientOpcode::Rappend_Unsupported:
         return "RAPPEND";
-    case ClientOpcode::Rappendq:
+    case ClientOpcode::Rappendq_Unsupported:
         return "RAPPENDQ";
-    case ClientOpcode::Rprepend:
+    case ClientOpcode::Rprepend_Unsupported:
         return "RPREPEND";
-    case ClientOpcode::Rprependq:
+    case ClientOpcode::Rprependq_Unsupported:
         return "RPREPENDQ";
-    case ClientOpcode::Rdelete:
+    case ClientOpcode::Rdelete_Unsupported:
         return "RDELETE";
-    case ClientOpcode::Rdeleteq:
+    case ClientOpcode::Rdeleteq_Unsupported:
         return "RDELETEQ";
-    case ClientOpcode::Rincr:
+    case ClientOpcode::Rincr_Unsupported:
         return "RINCR";
-    case ClientOpcode::Rincrq:
+    case ClientOpcode::Rincrq_Unsupported:
         return "RINCRQ";
-    case ClientOpcode::Rdecr:
+    case ClientOpcode::Rdecr_Unsupported:
         return "RDECR";
-    case ClientOpcode::Rdecrq:
+    case ClientOpcode::Rdecrq_Unsupported:
         return "RDECRQ";
     case ClientOpcode::SetVbucket:
         return "SET_VBUCKET";
@@ -677,21 +677,21 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "GET_VBUCKET";
     case ClientOpcode::DelVbucket:
         return "DEL_VBUCKET";
-    case ClientOpcode::TapConnect:
+    case ClientOpcode::TapConnect_Unsupported:
         return "TAP_CONNECT";
-    case ClientOpcode::TapMutation:
+    case ClientOpcode::TapMutation_Unsupported:
         return "TAP_MUTATION";
-    case ClientOpcode::TapDelete:
+    case ClientOpcode::TapDelete_Unsupported:
         return "TAP_DELETE";
-    case ClientOpcode::TapFlush:
+    case ClientOpcode::TapFlush_Unsupported:
         return "TAP_FLUSH";
-    case ClientOpcode::TapOpaque:
+    case ClientOpcode::TapOpaque_Unsupported:
         return "TAP_OPAQUE";
-    case ClientOpcode::TapVbucketSet:
+    case ClientOpcode::TapVbucketSet_Unsupported:
         return "TAP_VBUCKET_SET";
-    case ClientOpcode::TapCheckpointStart:
+    case ClientOpcode::TapCheckpointStart_Unsupported:
         return "TAP_CHECKPOINT_START";
-    case ClientOpcode::TapCheckpointEnd:
+    case ClientOpcode::TapCheckpointEnd_Unsupported:
         return "TAP_CHECKPOINT_END";
     case ClientOpcode::GetAllVbSeqnos:
         return "GET_ALL_VB_SEQNOS";
@@ -763,9 +763,9 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "GET_FAILOVER_LOG";
     case ClientOpcode::LastClosedCheckpoint:
         return "LAST_CLOSED_CHECKPOINT";
-    case ClientOpcode::ResetReplicationChain:
+    case ClientOpcode::ResetReplicationChain_Unsupported:
         return "RESET_REPLICATION_CHAIN";
-    case ClientOpcode::DeregisterTapClient:
+    case ClientOpcode::DeregisterTapClient_Unsupported:
         return "DEREGISTER_TAP_CLIENT";
     case ClientOpcode::GetMeta:
         return "GET_META";
@@ -779,9 +779,9 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "ADD_WITH_META";
     case ClientOpcode::AddqWithMeta:
         return "ADDQ_WITH_META";
-    case ClientOpcode::SnapshotVbStates:
+    case ClientOpcode::SnapshotVbStates_Unsupported:
         return "SNAPSHOT_VB_STATES";
-    case ClientOpcode::VbucketBatchCount:
+    case ClientOpcode::VbucketBatchCount_Unsupported:
         return "VBUCKET_BATCH_COUNT";
     case ClientOpcode::DelWithMeta:
         return "DEL_WITH_META";
@@ -789,13 +789,13 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DELQ_WITH_META";
     case ClientOpcode::CreateCheckpoint:
         return "CREATE_CHECKPOINT";
-    case ClientOpcode::NotifyVbucketUpdate:
+    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         return "NOTIFY_VBUCKET_UPDATE";
     case ClientOpcode::EnableTraffic:
         return "ENABLE_TRAFFIC";
     case ClientOpcode::DisableTraffic:
         return "DISABLE_TRAFFIC";
-    case ClientOpcode::ChangeVbFilter:
+    case ClientOpcode::ChangeVbFilter_Unsupported:
         return "CHANGE_VB_FILTER";
     case ClientOpcode::CheckpointPersistence:
         return "CHECKPOINT_PERSISTENCE";
@@ -821,9 +821,9 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "COLLECTIONS_GET_ID";
     case ClientOpcode::CollectionsGetScopeID:
         return "COLLECTIONS_GET_SCOPE_ID";
-    case ClientOpcode::SetDriftCounterState:
+    case ClientOpcode::SetDriftCounterState_Unsupported:
         return "SET_DRIFT_COUNTER_STATE";
-    case ClientOpcode::GetAdjustedTime:
+    case ClientOpcode::GetAdjustedTime_Unsupported:
         return "GET_ADJUSTED_TIME";
     case ClientOpcode::SubdocGet:
         return "SUBDOC_GET";

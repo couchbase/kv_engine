@@ -144,18 +144,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::BucketManagement>);
     /* End VBucket commands */
 
-    /* TAP commands */
-    /* We want to return cb::mcbp::Status::NotSupported */
-    setup(cb::mcbp::ClientOpcode::TapConnect, empty);
-    setup(cb::mcbp::ClientOpcode::TapMutation, empty);
-    setup(cb::mcbp::ClientOpcode::TapDelete, empty);
-    setup(cb::mcbp::ClientOpcode::TapFlush, empty);
-    setup(cb::mcbp::ClientOpcode::TapOpaque, empty);
-    setup(cb::mcbp::ClientOpcode::TapVbucketSet, empty);
-    setup(cb::mcbp::ClientOpcode::TapCheckpointStart, empty);
-    setup(cb::mcbp::ClientOpcode::TapCheckpointEnd, empty);
-    /* End TAP */
-
     /* Vbucket command to get the VBUCKET sequence numbers for all
      * vbuckets on the node */
     setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, require<Privilege::MetaRead>);
@@ -284,13 +272,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      * Command to get all keys
      */
     setup(cb::mcbp::ClientOpcode::GetKeys, require<Privilege::Read>);
-    /**
-     * Commands for GO-XDCR
-     */
-    setup(cb::mcbp::ClientOpcode::SetDriftCounterState,
-          require<Privilege::NodeManagement>);
-    setup(cb::mcbp::ClientOpcode::GetAdjustedTime,
-          require<Privilege::NodeManagement>);
 
     /**
      * Commands for the Sub-document API.

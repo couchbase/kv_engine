@@ -131,24 +131,24 @@ bool Request::isQuiet() const {
         case ClientOpcode::AuditPut:
         case ClientOpcode::AuditConfigReload:
         case ClientOpcode::Shutdown:
-        case ClientOpcode::Rget:
-        case ClientOpcode::Rset:
-        case ClientOpcode::Rappend:
-        case ClientOpcode::Rprepend:
-        case ClientOpcode::Rdelete:
-        case ClientOpcode::Rincr:
-        case ClientOpcode::Rdecr:
+        case ClientOpcode::Rget_Unsupported:
+        case ClientOpcode::Rset_Unsupported:
+        case ClientOpcode::Rappend_Unsupported:
+        case ClientOpcode::Rprepend_Unsupported:
+        case ClientOpcode::Rdelete_Unsupported:
+        case ClientOpcode::Rincr_Unsupported:
+        case ClientOpcode::Rdecr_Unsupported:
         case ClientOpcode::SetVbucket:
         case ClientOpcode::GetVbucket:
         case ClientOpcode::DelVbucket:
-        case ClientOpcode::TapConnect:
-        case ClientOpcode::TapMutation:
-        case ClientOpcode::TapDelete:
-        case ClientOpcode::TapFlush:
-        case ClientOpcode::TapOpaque:
-        case ClientOpcode::TapVbucketSet:
-        case ClientOpcode::TapCheckpointStart:
-        case ClientOpcode::TapCheckpointEnd:
+        case ClientOpcode::TapConnect_Unsupported:
+        case ClientOpcode::TapMutation_Unsupported:
+        case ClientOpcode::TapDelete_Unsupported:
+        case ClientOpcode::TapFlush_Unsupported:
+        case ClientOpcode::TapOpaque_Unsupported:
+        case ClientOpcode::TapVbucketSet_Unsupported:
+        case ClientOpcode::TapCheckpointStart_Unsupported:
+        case ClientOpcode::TapCheckpointEnd_Unsupported:
         case ClientOpcode::GetAllVbSeqnos:
         case ClientOpcode::DcpOpen:
         case ClientOpcode::DcpAddStream:
@@ -184,19 +184,19 @@ bool Request::isQuiet() const {
         case ClientOpcode::UnlockKey:
         case ClientOpcode::GetFailoverLog:
         case ClientOpcode::LastClosedCheckpoint:
-        case ClientOpcode::ResetReplicationChain:
-        case ClientOpcode::DeregisterTapClient:
+        case ClientOpcode::ResetReplicationChain_Unsupported:
+        case ClientOpcode::DeregisterTapClient_Unsupported:
         case ClientOpcode::GetMeta:
         case ClientOpcode::SetWithMeta:
         case ClientOpcode::AddWithMeta:
-        case ClientOpcode::SnapshotVbStates:
-        case ClientOpcode::VbucketBatchCount:
+        case ClientOpcode::SnapshotVbStates_Unsupported:
+        case ClientOpcode::VbucketBatchCount_Unsupported:
         case ClientOpcode::DelWithMeta:
         case ClientOpcode::CreateCheckpoint:
-        case ClientOpcode::NotifyVbucketUpdate:
+        case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         case ClientOpcode::EnableTraffic:
         case ClientOpcode::DisableTraffic:
-        case ClientOpcode::ChangeVbFilter:
+        case ClientOpcode::ChangeVbFilter_Unsupported:
         case ClientOpcode::CheckpointPersistence:
         case ClientOpcode::ReturnMeta:
         case ClientOpcode::CompactDb:
@@ -209,8 +209,8 @@ bool Request::isQuiet() const {
         case ClientOpcode::CollectionsGetManifest:
         case ClientOpcode::CollectionsGetID:
         case ClientOpcode::CollectionsGetScopeID:
-        case ClientOpcode::SetDriftCounterState:
-        case ClientOpcode::GetAdjustedTime:
+        case ClientOpcode::SetDriftCounterState_Unsupported:
+        case ClientOpcode::GetAdjustedTime_Unsupported:
         case ClientOpcode::SubdocGet:
         case ClientOpcode::SubdocExists:
         case ClientOpcode::SubdocDictAdd:
@@ -254,12 +254,12 @@ bool Request::isQuiet() const {
         case ClientOpcode::Appendq:
         case ClientOpcode::Prependq:
         case ClientOpcode::Gatq:
-        case ClientOpcode::Rsetq:
-        case ClientOpcode::Rappendq:
-        case ClientOpcode::Rprependq:
-        case ClientOpcode::Rdeleteq:
-        case ClientOpcode::Rincrq:
-        case ClientOpcode::Rdecrq:
+        case ClientOpcode::Rsetq_Unsupported:
+        case ClientOpcode::Rappendq_Unsupported:
+        case ClientOpcode::Rprependq_Unsupported:
+        case ClientOpcode::Rdeleteq_Unsupported:
+        case ClientOpcode::Rincrq_Unsupported:
+        case ClientOpcode::Rdecrq_Unsupported:
         case ClientOpcode::GetqMeta:
         case ClientOpcode::SetqWithMeta:
         case ClientOpcode::AddqWithMeta:
