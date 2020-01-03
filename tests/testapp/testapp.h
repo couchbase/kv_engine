@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <thread>
 #include <tuple>
 
 enum class TransportProtocols {
@@ -236,7 +237,9 @@ protected:
 
     static ConnectionMap connectionMap;
     static uint64_t token;
-    static cb_thread_t memcached_server_thread;
+    static std::thread memcached_server_thread;
+    /// The number of times we've started a memcached server
+    static std::size_t num_server_starts;
 
     /**
      * Prepare a connection object to be used from a client by reconnecting

@@ -626,21 +626,27 @@ void TestappTest::parse_portnumber_file() {
 
 extern "C" int memcached_main(int argc, char** argv);
 
-extern "C" void memcached_server_thread_main(void* arg) {
+void memcached_server_thread_main(const std::string& config) {
     char* argv[4];
     int argc = 0;
     argv[argc++] = const_cast<char*>("./memcached");
     argv[argc++] = const_cast<char*>("-C");
-    argv[argc++] = reinterpret_cast<char*>(arg);
+    argv[argc++] = const_cast<char*>(config.c_str());
 
     // Reset getopt()'s optind so memcached_main starts from the first
     // argument.
     optind = 1;
-
     memcached_main(argc, argv);
 }
 
 void TestappTest::spawn_embedded_server() {
+    if (num_server_starts > 0) {
+        std::cerr << "ERROR: Embedded server may only be started once as we "
+                     "don't properly reset all global variables"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     char* filename = mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_port_filename_env,
              sizeof(mcd_port_filename_env),
@@ -651,11 +657,8 @@ void TestappTest::spawn_embedded_server() {
     portnumber_file.assign(filename);
     putenv(mcd_port_filename_env);
 
-    ASSERT_EQ(0,
-              cb_create_thread(&memcached_server_thread,
-                               memcached_server_thread_main,
-                               const_cast<char*>(config_file.c_str()),
-                               0));
+    memcached_server_thread =
+            std::thread(memcached_server_thread_main, config_file);
 }
 
 void TestappTest::start_external_server() {
@@ -912,6 +915,7 @@ void TestappTest::start_memcached_server() {
     } else {
         start_external_server();
     }
+    ++num_server_starts;
     parse_portnumber_file();
 }
 
@@ -1034,7 +1038,7 @@ void TestappTest::stop_memcached_server() {
 
     if (embedded_memcached_server) {
         shutdown_server();
-        cb_join_thread(memcached_server_thread);
+        memcached_server_thread.join();
     }
 
     if (server_pid != pid_t(-1)) {
@@ -1437,7 +1441,8 @@ std::string TestappTest::portnumber_file;
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;
-cb_thread_t TestappTest::memcached_server_thread;
+std::thread TestappTest::memcached_server_thread;
+std::size_t TestappTest::num_server_starts = 0;
 
 int main(int argc, char** argv) {
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
