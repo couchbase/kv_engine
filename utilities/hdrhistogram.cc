@@ -169,9 +169,8 @@ HdrHistogram::Iterator HdrHistogram::makeIterator(
     case Iterator::IterMode::Log:
         return makeLogIterator(1, 2);
     case Iterator::IterMode::Linear: {
-        uint64_t bucketWidth = static_cast<int64_t>(getMaxTrackableValue() -
-                                                    getMinTrackableValue()) /
-                               20;
+        int64_t bucketWidth =
+                (getMaxTrackableValue() - getMinTrackableValue()) / 20;
         if (bucketWidth < 0) {
             bucketWidth = 1;
         }
