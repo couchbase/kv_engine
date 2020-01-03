@@ -2132,7 +2132,7 @@ INSTANTIATE_TEST_CASE_P(
 class WorkerConcurrencyTest : public TestappTest {
 public:
     static void SetUpTestCase() {
-        memcached_cfg = generate_config(0);
+        memcached_cfg = generate_config();
         // Change the number of worker threads to one so we guarantee that
         // multiple connections are handled by a single worker.
         memcached_cfg["threads"] = 1;

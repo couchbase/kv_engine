@@ -1,9 +1,22 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2020 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 
 #include "testapp.h"
 
 #include "ssl_impl.h"
-
 #include <JSON_checker.h>
 #include <cbsasl/client.h>
 #include <folly/portability/GTest.h>
@@ -17,19 +30,15 @@
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <gsl/gsl>
-
 #include <getopt.h>
 #include <platform/compress.h>
 #include <fstream>
-
 #include <include/memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <protocol/mcbp/ewb_encode.h>
-#include <utilities/json_utilities.h>
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <thread>
 
 McdEnvironment* mcd_env = nullptr;
 
@@ -154,7 +163,7 @@ TestBucketImpl& TestappTest::GetTestBucket() {
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
     token = 0xdeadbeef;
-    memcached_cfg = generate_config(0);
+    memcached_cfg = generate_config();
     start_memcached_server();
 
     if (HasFailure()) {
@@ -427,7 +436,7 @@ static std::string get_errmaps_dir() {
     return dir;
 }
 
-nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
+nlohmann::json TestappTest::generate_config() {
     const std::string cwd = cb::io::getcwd();
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
@@ -473,7 +482,7 @@ nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
 
     ret["interfaces"][1] = {{"tag", "ssl"},
                             {"system", true},
-                            {"port", ssl_port},
+                            {"port", 0},
                             {"ipv4", "required"},
                             {"ipv6", "required"},
                             {"host", "*"},

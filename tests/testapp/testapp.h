@@ -162,7 +162,8 @@ protected:
      */
     Document storeAndPersistItem(Vbid vbid, std::string key);
 
-    static nlohmann::json generate_config(uint16_t ssl_port);
+    /// Generate a new configuration
+    static nlohmann::json generate_config();
 
     static void start_memcached_server();
 
