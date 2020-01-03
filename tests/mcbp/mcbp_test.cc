@@ -1935,15 +1935,6 @@ enum class RefreshOpcodes : uint8_t {
 };
 
 std::string to_string(const RefreshOpcodes& opcode) {
-#ifdef JETBRAINS_CLION_IDE
-    // CLion don't properly parse the output when the
-    // output gets written as the string instead of the
-    // number. This makes it harder to debug the tests
-    // so let's just disable it while we're waiting
-    // for them to supply a fix.
-    // See https://youtrack.jetbrains.com/issue/CPP-6039
-    return std::to_string(static_cast<int>(opcode));
-#else
     switch (opcode) {
     case RefreshOpcodes::Isasl:
         return "ISASL";
@@ -1953,7 +1944,6 @@ std::string to_string(const RefreshOpcodes& opcode) {
         return "RBAC";
     }
     throw std::invalid_argument("to_string(const RefreshOpcodes&): unknown opcode");
-#endif
 }
 
 std::ostream& operator<<(std::ostream& os, const RefreshOpcodes& o) {
