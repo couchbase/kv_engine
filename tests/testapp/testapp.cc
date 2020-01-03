@@ -45,7 +45,6 @@ in_port_t port = -1;
 in_port_t ssl_port = -1;
 SOCKET sock = INVALID_SOCKET;
 SOCKET sock_ssl;
-static std::atomic<bool> allow_closed_read;
 static time_t server_start_time = 0;
 
 // used in embedded mode to shutdown memcached
@@ -71,10 +70,6 @@ static char mcd_parent_monitor_env[80];
 static char mcd_port_filename_env[80];
 
 static SOCKET connect_to_server_ssl(in_port_t ssl_port);
-
-void set_allow_closed_read(bool enabled) {
-    allow_closed_read = enabled;
-}
 
 bool sock_is_ssl() {
     return current_phase == phase_ssl;
@@ -815,11 +810,6 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
     }
 }
 
-void set_datatype_feature(bool enable) {
-    set_feature(cb::mcbp::Feature::JSON, enable);
-    set_feature(cb::mcbp::Feature::SNAPPY, enable);
-}
-
 std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key) {
     std::vector<uint8_t> blob;
     BinprotGetCommand cmd;
@@ -1140,9 +1130,6 @@ bool safe_recv(void* buf, size_t len) {
         if (nr == -1) {
             EXPECT_EQ(EINTR, errno) << "Failed to read: " << phase_get_errno();
         } else {
-            if (nr == 0 && allow_closed_read) {
-                return false;
-            }
             EXPECT_NE(0u, nr);
             offset += nr;
         }

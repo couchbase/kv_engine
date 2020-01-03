@@ -373,9 +373,6 @@ protected:
 SOCKET connect_to_server_plain(in_port_t port);
 void reconnect_to_server();
 
-/* Set the datatype feature on the connection to the specified value */
-void set_datatype_feature(bool enable);
-
 // Attempts to fetch the document with the given key.
 // Returns a pair of {status, value}; where status is the response code from
 // the server and value is the documents value (if status == SUCCESS).
@@ -464,9 +461,6 @@ bool safe_recv(void* buf, size_t len);
 bool safe_recv_packet(void* buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
 bool safe_recv_packet(std::vector<char>& buf);
-
-/* Whether receiving an EOF during a read is considered an error */
-void set_allow_closed_read(bool enabled);
 
 /* The opposite of safe_recv. Simply tries to read from the socket (will use
  * SSL if the socket is SSL configured.
