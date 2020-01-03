@@ -20,14 +20,18 @@
  * where we don't have a supported memory alloctor for memory tracking
  */
 
-#include <logger/logger.h>
 #include "alloc_hooks_dummy.h"
 
+#include <logger/logger.h>
+#include <cstdlib>
+
 void DummyAllocHooks::initialize() {
-    LOG_INFO(
-            "This version of Couchbase is built without allocator hooks "
-            "for "
-            "accurate memory tracking");
+    // Don't clutter the unit test output with this log message
+    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+        LOG_INFO(
+                "This version of Couchbase is built without allocator hooks "
+                "for accurate memory tracking");
+    }
 }
 
 bool DummyAllocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
