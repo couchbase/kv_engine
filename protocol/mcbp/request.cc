@@ -159,6 +159,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::DcpSnapshotMarker:
         case ClientOpcode::DcpMutation:
         case ClientOpcode::DcpDeletion:
+        case ClientOpcode::DcpFlush_Unsupported:
         case ClientOpcode::DcpExpiration:
         case ClientOpcode::DcpSetVbucketState:
         case ClientOpcode::DcpNoop:

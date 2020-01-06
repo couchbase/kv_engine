@@ -130,7 +130,7 @@ enum class ClientOpcode : uint8_t {
     DcpMutation = 0x57,
     DcpDeletion = 0x58,
     DcpExpiration = 0x59,
-    // 0x5a - was DcpFlush
+    DcpFlush_Unsupported = 0x5a,
     DcpSetVbucketState = 0x5b,
     DcpNoop = 0x5c,
     DcpBufferAcknowledgement = 0x5d,

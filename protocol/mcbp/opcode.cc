@@ -105,6 +105,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::DcpMutation:
     case ClientOpcode::DcpDeletion:
     case ClientOpcode::DcpExpiration:
+    case ClientOpcode::DcpFlush_Unsupported:
     case ClientOpcode::DcpSetVbucketState:
     case ClientOpcode::DcpNoop:
     case ClientOpcode::DcpBufferAcknowledgement:
@@ -296,6 +297,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSnapshotMarker:
     case ClientOpcode::DcpMutation:
     case ClientOpcode::DcpDeletion:
+    case ClientOpcode::DcpFlush_Unsupported:
     case ClientOpcode::DcpExpiration:
     case ClientOpcode::DcpSetVbucketState:
     case ClientOpcode::DcpNoop:
@@ -464,6 +466,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSnapshotMarker:
     case ClientOpcode::DcpMutation:
     case ClientOpcode::DcpDeletion:
+    case ClientOpcode::DcpFlush_Unsupported:
     case ClientOpcode::DcpExpiration:
     case ClientOpcode::DcpSetVbucketState:
     case ClientOpcode::DcpNoop:
@@ -713,6 +716,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DCP_MUTATION";
     case ClientOpcode::DcpDeletion:
         return "DCP_DELETION";
+    case ClientOpcode::DcpFlush_Unsupported:
+        return "DCP_FLUSH";
     case ClientOpcode::DcpExpiration:
         return "DCP_EXPIRATION";
     case ClientOpcode::DcpSetVbucketState:

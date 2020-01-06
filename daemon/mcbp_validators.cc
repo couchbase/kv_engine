@@ -2342,6 +2342,8 @@ McbpValidator::McbpValidator() {
           not_supported_validator);
     setup(cb::mcbp::ClientOpcode::DeregisterTapClient_Unsupported,
           not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::DcpFlush_Unsupported,
+          not_supported_validator);
     setup(cb::mcbp::ClientOpcode::ResetReplicationChain_Unsupported,
           not_supported_validator);
     setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate_Unsupported,

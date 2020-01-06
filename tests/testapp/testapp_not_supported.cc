@@ -22,7 +22,8 @@ class NotSupportedTest : public TestappTest {};
 
 TEST_F(NotSupportedTest, VerifyNotSupported) {
     std::vector<ClientOpcode> opcodes = {
-            {ClientOpcode::Rget_Unsupported,
+            {ClientOpcode::DcpFlush_Unsupported,
+             ClientOpcode::Rget_Unsupported,
              ClientOpcode::Rset_Unsupported,
              ClientOpcode::Rsetq_Unsupported,
              ClientOpcode::Rappend_Unsupported,
