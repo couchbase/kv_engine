@@ -74,7 +74,8 @@ bool DefragmenterTask::run(void) {
 
         // Disable thread-caching (as we are about to defragment, and hence don't
         // want any of the new Blobs in tcache).
-        bool old_tcache = alloc_hooks->enable_thread_cache(false);
+        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
+                                        false /* no tcache*/);
 
         // Prepare the underlying visitor.
         auto& visitor = getDefragVisitor();
@@ -96,7 +97,8 @@ bool DefragmenterTask::run(void) {
         const auto end = std::chrono::steady_clock::now();
 
         // Defrag complete. Restore thread caching.
-        alloc_hooks->enable_thread_cache(old_tcache);
+        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
+                                        true /* tcache*/);
 
         updateStats(visitor);
 

@@ -42,10 +42,6 @@ void DummyAllocHooks::release_free_memory() {
     // empty
 }
 
-bool DummyAllocHooks::enable_thread_cache(bool enable) {
-    return true;
-}
-
 bool DummyAllocHooks::get_allocator_property(const char* name, size_t* value) {
     return false;
 }

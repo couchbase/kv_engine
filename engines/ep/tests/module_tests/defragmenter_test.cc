@@ -358,14 +358,15 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
     // defragmenter drop out of scope afterwards to avoid interfering
     // with the memory measurements.
     {
-        AllocHooks::enable_thread_cache(false);
+        cb::ArenaMalloc::switchToClient(global_stats.arena, false);
 
         PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
                 DefragmenterTask::getMaxValueSize(
                         get_mock_server_api()->alloc_hooks)));
         prAdapter.visit(*vbucket);
 
-        AllocHooks::enable_thread_cache(true);
+        cb::ArenaMalloc::switchToClient(global_stats.arena, true);
+
         AllocHooks::release_free_memory();
 
         auto& visitor =

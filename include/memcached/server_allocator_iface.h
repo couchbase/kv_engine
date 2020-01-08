@@ -97,13 +97,6 @@ struct ServerAllocatorIface {
     void (*release_free_memory)(void);
 
     /**
-     * Enables / disables per-thread caching by the allocator
-     * __for the calling thread__. Returns if the thread cache was enabled
-     * before the call.
-     */
-    bool (*enable_thread_cache)(bool enable);
-
-    /**
      * Gets a property by name from the allocator.
      * @param name property name
      * @param value destination for numeric value from the allocator

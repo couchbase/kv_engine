@@ -367,7 +367,6 @@ public:
     ServerApi() : server_handle_v1_t() {
         hooks_api.get_allocation_size = AllocHooks::get_allocation_size;
         hooks_api.release_free_memory = AllocHooks::release_free_memory;
-        hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
         hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
         core = &core_api;

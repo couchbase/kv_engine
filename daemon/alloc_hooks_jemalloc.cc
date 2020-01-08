@@ -121,19 +121,6 @@ void JemallocHooks::release_free_memory() {
     }
 }
 
-bool JemallocHooks::enable_thread_cache(bool enable) {
-    bool old;
-    size_t size = sizeof(old);
-    int err = je_mallctl("thread.tcache.enabled", &old, &size, &enable,
-                         sizeof(enable));
-    if (err != 0) {
-        LOG_WARNING("jemalloc_enable_thread_cache({}) error {}",
-                    (enable ? "true" : "false"),
-                    err);
-    }
-    return old;
-}
-
 bool JemallocHooks::get_allocator_property(const char* name, size_t* value) {
     return jemalloc_get_stats_prop(name, value);
 }
