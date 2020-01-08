@@ -22,15 +22,6 @@
 
 class EPStats;
 
-struct EPTransactionContext : public TransactionContext {
-    EPTransactionContext(EPStats& stats, VBucket& vbucket)
-        : TransactionContext(vbucket.getId()), stats(stats), vbucket(vbucket) {
-    }
-
-    EPStats& stats;
-    VBucket& vbucket;
-};
-
 /**
  * Callback invoked after persisting an item from memory to disk.
  *
@@ -40,24 +31,46 @@ struct EPTransactionContext : public TransactionContext {
  */
 class PersistenceCallback {
 public:
-    PersistenceCallback(const queued_item& qi,
-                        uint64_t c);
+    PersistenceCallback();
 
     ~PersistenceCallback();
 
     // This callback is invoked for set only.
     void operator()(TransactionContext&,
+                    queued_item item,
                     KVStore::MutationSetResultState mutationResult);
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void operator()(TransactionContext&, KVStore::MutationStatus deleteStatus);
+    void operator()(TransactionContext&,
+                    queued_item item,
+                    KVStore::MutationStatus deleteStatus);
 
 private:
-    void redirty(EPStats& stats, VBucket& vbucket);
+    void redirty(EPStats& stats, VBucket& vbucket, queued_item item);
+};
 
-    const queued_item queuedItem;
-    uint64_t cas;
+struct EPTransactionContext : public TransactionContext {
+    EPTransactionContext(EPStats& stats,
+                         VBucket& vbucket)
+        : TransactionContext(vbucket.getId()), stats(stats), vbucket(vbucket) {
+    }
+
+    void setCallback(const queued_item& item,
+                     KVStore::MutationSetResultState mutationStatus) override {
+        cb(*this, item, mutationStatus);
+    }
+
+    void deleteCallback(const queued_item& item,
+                        KVStore::MutationStatus mutationStatus) override {
+        cb(*this, item, mutationStatus);
+    }
+
+    EPStats& stats;
+    VBucket& vbucket;
+
+protected:
+    PersistenceCallback cb;
 };

@@ -3783,12 +3783,10 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     ASSERT_TRUE(itm->isDeleted());
     itm->setExpTime(0);
 
-    struct DummyCallback {
-        void operator()(TransactionContext&, KVStore::MutationStatus) {
-        }
-    } dc;
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
-    kvstore->del(*(itm.get()), dc);
+    // Release the item (from the unique ptr) as the queued_item we create will
+    // destroy it later
+    kvstore->del(itm.release());
     VB::Commit f(epstore.getVBucket(vbid)->getManifest());
     kvstore->commit(f);
 

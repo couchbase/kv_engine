@@ -90,9 +90,9 @@ public:
 
         for (auto& ev : events) {
             if (ev->isDeleted()) {
-                kvstore->delSystemEvent(*ev, dc);
+                kvstore->delSystemEvent(ev);
             } else {
-                kvstore->setSystemEvent(*ev, wc);
+                kvstore->setSystemEvent(ev);
             }
         }
     }

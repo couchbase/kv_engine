@@ -500,37 +500,37 @@ void KVStore::resetCachedVBState(Vbid vbid) {
     }
 }
 
-void KVStore::setSystemEvent(const Item& item, SetCallback cb) {
-    switch (SystemEvent(item.getFlags())) {
+void KVStore::setSystemEvent(const queued_item item) {
+    switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection: {
         auto createEvent = Collections::VB::Manifest::getCreateEventData(
-                {item.getData(), item.getNBytes()});
+                {item->getData(), item->getNBytes()});
         collectionsMeta.collections.push_back(
-                {item.getBySeqno(), createEvent.metaData});
+                {item->getBySeqno(), createEvent.metaData});
         collectionsMeta.setUid(createEvent.manifestUid);
         break;
     }
     case SystemEvent::Scope: {
         auto scopeEvent = Collections::VB::Manifest::getCreateScopeEventData(
-                {item.getData(), item.getNBytes()});
+                {item->getData(), item->getNBytes()});
         collectionsMeta.scopes.push_back(
-                Collections::getScopeIDFromKey(item.getKey()));
+                Collections::getScopeIDFromKey(item->getKey()));
         collectionsMeta.setUid(scopeEvent.manifestUid);
         break;
     }
     default:
         throw std::invalid_argument("KVStore::setSystemEvent: unknown event:" +
-                                    std::to_string(item.getFlags()));
+                                    std::to_string(item->getFlags()));
     }
     collectionsMeta.needsCommit = true;
-    set(item, std::move(cb));
+    set(item);
 }
 
-void KVStore::delSystemEvent(const Item& item, DeleteCallback cb) {
-    switch (SystemEvent(item.getFlags())) {
+void KVStore::delSystemEvent(const queued_item item) {
+    switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection: {
         auto dropEvent = Collections::VB::Manifest::getDropEventData(
-                {item.getData(), item.getNBytes()});
+                {item->getData(), item->getNBytes()});
         // The startSeqno is unknown, so here we set to zero. The Underlying
         // kvstore can discover the real startSeqno when processing the open
         // collection list against the dropped collection list. A kvstore which
@@ -539,25 +539,25 @@ void KVStore::delSystemEvent(const Item& item, DeleteCallback cb) {
         // Note: couch-kvstore will set the dropped start-seqno.
         collectionsMeta.droppedCollections.push_back(
                 {0,
-                 item.getBySeqno(),
-                 Collections::getCollectionIDFromKey(item.getKey())});
+                 item->getBySeqno(),
+                 Collections::getCollectionIDFromKey(item->getKey())});
         collectionsMeta.setUid(dropEvent.manifestUid);
         break;
     }
     case SystemEvent::Scope: {
         auto dropEvent = Collections::VB::Manifest::getDropScopeEventData(
-                {item.getData(), item.getNBytes()});
+                {item->getData(), item->getNBytes()});
         collectionsMeta.droppedScopes.push_back(
-                Collections::getScopeIDFromKey(item.getKey()));
+                Collections::getScopeIDFromKey(item->getKey()));
         collectionsMeta.setUid(dropEvent.manifestUid);
         break;
     }
     default:
         throw std::invalid_argument("KVStore::delSystemEvent: unknown event:" +
-                                    std::to_string(item.getFlags()));
+                                    std::to_string(item->getFlags()));
     }
     collectionsMeta.needsCommit = true;
-    del(item, cb);
+    del(item);
 }
 
 std::string to_string(KVStore::MutationStatus status) {
@@ -586,10 +586,14 @@ std::string to_string(KVStore::MutationSetResultState status) {
     folly::assume_unreachable();
 }
 
-IORequest::IORequest(MutationRequestCallback cb, DiskDocKey itmKey)
-    : callback(cb),
-      key(std::move(itmKey)),
+IORequest::IORequest(queued_item itm)
+    : item(std::move(itm)),
+      key(DiskDocKey(*item)),
       start(std::chrono::steady_clock::now()) {
 }
 
 IORequest::~IORequest() = default;
+
+bool IORequest::isDelete() const {
+    return item->isDeleted() && !item->isPending();
+}
