@@ -235,12 +235,10 @@ public:
      * @param callback Persistence Callback
      * @param logger Used for logging
      */
-    MagmaRequest(const Item& item,
-                 MutationRequestCallback callback,
-                 std::shared_ptr<BucketLogger> logger)
-        : IORequest(std::move(callback), DiskDocKey{item}),
-          docMeta(magmakv::MetaData(item)),
-          docBody(item.getValue()) {
+    MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
+        : IORequest(std::move(it)),
+          docMeta(magmakv::MetaData(*item)),
+          docBody(item->getValue()) {
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE("MagmaRequest:{}", to_string());
         }
@@ -732,7 +730,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                     errCode,
                     to_string(rv));
 
-            req.getDelCallback()(*transactionCtx, rv);
+            transactionCtx->deleteCallback(req.getItem(), rv);
         } else {
             auto mutationSetStatus = MutationSetResultState::Update;
             if (req.oldItemIsDelete()) {
@@ -750,8 +748,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
             if (rv == MutationStatus::DocNotFound) {
                 mutationSetStatus = MutationSetResultState::Insert;
             }
-            req.getSetCallback()(*transactionCtx, mutationSetStatus);
-
+            transactionCtx->setCallback(req.getItem(), mutationSetStatus);
             logger->TRACE(
                     "MagmaKVStore::commitCallback(Set) {} errCode:{} rv:{} "
                     "insertion:{}",
@@ -800,13 +797,13 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void MagmaKVStore::set(const Item& item, SetCallback cb) {
+void MagmaKVStore::set(queued_item item) {
     if (!in_transaction) {
         throw std::logic_error(
                 "MagmaKVStore::set: in_transaction must be true to perform a "
                 "set operation.");
     }
-    pendingReqs->emplace_back(item, std::move(cb), logger);
+    pendingReqs->emplace_back(std::move(item), logger);
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb) {
@@ -1027,13 +1024,13 @@ void MagmaKVStore::reset(Vbid vbid) {
     snapshotVBucket(vbid, *vbstate);
 }
 
-void MagmaKVStore::del(const Item& item, KVStore::DeleteCallback cb) {
+void MagmaKVStore::del(queued_item item) {
     if (!in_transaction) {
         throw std::logic_error(
                 "MagmaKVStore::del: in_transaction must be true to perform a "
                 "delete operation.");
     }
-    pendingReqs->emplace_back(item, std::move(cb), logger);
+    pendingReqs->emplace_back(std::move(item), logger);
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
@@ -1248,7 +1245,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData,
     uint64_t ndeletes = 0;
     int64_t lastSeqno = 0;
 
-    auto vbid = pendingReqs->front().getVbID();
+    auto vbid = transactionCtx->vbid;
 
     // Start a magma CommitBatch.
     // This is an atomic batch of items... all or nothing.

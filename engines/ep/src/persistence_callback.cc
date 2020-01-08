@@ -21,8 +21,7 @@
 #include "item.h"
 #include "stats.h"
 
-PersistenceCallback::PersistenceCallback(const queued_item& qi, uint64_t c)
-    : queuedItem(qi), cas(c) {
+PersistenceCallback::PersistenceCallback() {
 }
 
 PersistenceCallback::~PersistenceCallback() = default;
@@ -30,6 +29,7 @@ PersistenceCallback::~PersistenceCallback() = default;
 // This callback is invoked for set only.
 void PersistenceCallback::operator()(
         TransactionContext& txCtx,
+        queued_item queuedItem,
         KVStore::MutationSetResultState mutationResult) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
@@ -42,7 +42,7 @@ void PersistenceCallback::operator()(
         if (v) {
             isInHashTable = true;
             hashTableSeqno = v->getBySeqno();
-            if (v->getCas() == cas) {
+            if (v->getCas() == queuedItem->getCas()) {
                 // mark this item clean only if current and stored cas
                 // value match
                 v->markClean();
@@ -109,7 +109,7 @@ void PersistenceCallback::operator()(
                 "PersistenceCallback::callback: Fatal error in persisting "
                 "SET on {}",
                 queuedItem->getVBucketId());
-        redirty(epCtx.stats, vbucket);
+        redirty(epCtx.stats, vbucket, queuedItem);
         return;
     }
     folly::assume_unreachable();
@@ -120,6 +120,7 @@ void PersistenceCallback::operator()(
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
 void PersistenceCallback::operator()(TransactionContext& txCtx,
+                                     queued_item queuedItem,
                                      KVStore::MutationStatus deleteStatus) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
@@ -138,13 +139,15 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
                 "PersistenceCallback::callback: Fatal error in persisting "
                 "DELETE on {}",
                 queuedItem->getVBucketId());
-        redirty(epCtx.stats, vbucket);
+        redirty(epCtx.stats, vbucket, queuedItem);
         return;
     }
     folly::assume_unreachable();
 }
 
-void PersistenceCallback::redirty(EPStats& stats, VBucket& vbucket) {
+void PersistenceCallback::redirty(EPStats& stats,
+                                  VBucket& vbucket,
+                                  queued_item queuedItem) {
     if (vbucket.isDeletionDeferred()) {
         // updating the member stats for the vbucket is not really necessary
         // as the vbucket is about to be deleted

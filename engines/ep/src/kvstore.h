@@ -62,6 +62,7 @@ struct PersistedStats;
 } // namespace Collections
 
 struct vb_bgfetch_item_ctx_t;
+struct TransactionContext;
 union protocol_binary_request_compact_db;
 
 using vb_bgfetch_queue_t =
@@ -151,19 +152,6 @@ struct kvstats_ctx {
      * the persisted VB state before commit
      */
     size_t onDiskPrepareDelta = 0;
-};
-
-/**
- * State associated with a KVStore transaction (begin() / commit() pair).
- * Users would typically subclass this, and provide an instance to begin().
- * The KVStore will then provide a pointer to it during every persistenca
- * callback.
- */
-struct TransactionContext {
-    TransactionContext(Vbid vbid) : vbid(vbid) {
-    }
-    virtual ~TransactionContext(){};
-    Vbid vbid;
 };
 
 class NoLookupCallback : public StatusCallback<CacheLookup> {
@@ -516,14 +504,6 @@ public:
      */
     enum class MutationSetResultState { DocNotFound, Failed, Insert, Update };
 
-    /// Callback invoked when a set operation is committed to disk.
-    using SetCallback =
-            std::function<void(TransactionContext&, MutationSetResultState)>;
-
-    /// Callback invoked when a delete operation is committed to disk.
-    using DeleteCallback =
-            std::function<void(TransactionContext&, MutationStatus)>;
-
     KVStore(KVStoreConfig& config, bool read_only = false);
 
     virtual ~KVStore();
@@ -614,7 +594,7 @@ public:
      * @param cb Callback object which will be invoked when the set() has been
      *        persisted to disk.
      */
-    virtual void set(const Item& item, SetCallback cb) = 0;
+    virtual void set(queued_item item) = 0;
 
     /**
      * Get an item from the kv store.
@@ -678,10 +658,8 @@ public:
      * Delete an item from the kv store.
      *
      * @param item The item to delete
-     * @param cb A callback object which will be invoked when the del() has
-     *        been persisted to disk.
      */
-    virtual void del(const Item& itm, DeleteCallback cb) = 0;
+    virtual void del(queued_item item) = 0;
 
     /**
      * Delete a given vbucket database instance from underlying storage
@@ -906,18 +884,16 @@ public:
      * Collection system events will be used to maintain extra meta-data before
      * writing to disk.
      * @param item The Item representing the event
-     * @param cb a callback object which is called once persisted
      */
-    void setSystemEvent(const Item& item, SetCallback cb);
+    void setSystemEvent(const queued_item);
 
     /**
      * delete a system event in the KVStore.
      * Collection system events will be used to maintain extra meta-data before
      * writing to disk.
      * @param item The Item representing the event
-     * @param cb a callback object which is called once persisted
      */
-    void delSystemEvent(const Item& item, DeleteCallback cb);
+    void delSystemEvent(const queued_item);
 
     /**
      * Return data that EPBucket requires for the creation of a
@@ -1048,4 +1024,36 @@ protected:
     /// The database handle to use when lookup up items in the new, rolled back
     /// database.
     void *dbHandle;
+};
+
+/**
+ * State associated with a KVStore transaction (begin() / commit() pair).
+ * Users would typically subclass this, and provide an instance to begin().
+ * The KVStore will then provide a pointer to it during every persistence
+ * callback.
+ */
+struct TransactionContext {
+    TransactionContext(Vbid vbid) : vbid(vbid) {
+    }
+    virtual ~TransactionContext(){};
+
+    /**
+     * Callback for sets. Invoked after persisting an item. Does nothing by
+     * default as a subclass should provide functionality but we want to allow
+     * simple tests to run without doing so.
+     */
+    virtual void setCallback(const queued_item& item,
+                             KVStore::MutationSetResultState mutationStatus) {
+    }
+
+    /**
+     * Callback for deletes. Invoked after persisting an item. Does nothing by
+     * default as a subclass should provide functionality but we want to allow
+     * simple tests to run without doing so.
+     */
+    virtual void deleteCallback(const queued_item& item,
+                                KVStore::MutationStatus mutationStatus) {
+    }
+
+    const Vbid vbid;
 };

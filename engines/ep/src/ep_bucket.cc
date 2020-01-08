@@ -922,20 +922,17 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
                 bySeqno == -1 ? "disk_insert" : "disk_update",
                 stats.timingLog);
         if (qi->isSystemEvent()) {
-            rwUnderlying->setSystemEvent(*qi,
-                                         PersistenceCallback(qi, qi->getCas()));
-
+            rwUnderlying->setSystemEvent(qi);
         } else {
-            rwUnderlying->set(*qi, PersistenceCallback(qi, qi->getCas()));
+            rwUnderlying->set(qi);
         }
     } else {
         HdrMicroSecBlockTimer timer(
                 &stats.diskDelHisto, "disk_delete", stats.timingLog);
         if (qi->isSystemEvent()) {
-            rwUnderlying->delSystemEvent(*qi,
-                                         PersistenceCallback(qi, qi->getCas()));
+            rwUnderlying->delSystemEvent(qi);
         } else {
-            rwUnderlying->del(*qi, PersistenceCallback(qi, qi->getCas()));
+            rwUnderlying->del(qi);
         }
     }
 }
