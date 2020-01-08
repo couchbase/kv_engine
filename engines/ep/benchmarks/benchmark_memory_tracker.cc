@@ -20,6 +20,8 @@
 #include <utility.h>
 
 #include <engines/ep/src/bucket_logger.h>
+#include <platform/cb_arena_malloc.h>
+
 #include <algorithm>
 
 std::atomic<BenchmarkMemoryTracker*> BenchmarkMemoryTracker::instance;
@@ -68,7 +70,6 @@ size_t BenchmarkMemoryTracker::getCurrentAlloc() {
 BenchmarkMemoryTracker::BenchmarkMemoryTracker(
         const ServerAllocatorIface& hooks_api)
     : hooks_api(hooks_api) {
-    ObjectRegistry::initialize(hooks_api.get_allocation_size);
 }
 void BenchmarkMemoryTracker::connectHooks() {
     if (hooks_api.add_new_hook(&NewHook)) {
@@ -83,9 +84,8 @@ void BenchmarkMemoryTracker::connectHooks() {
 }
 void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
     if (ptr != NULL) {
-        const auto* tracker = BenchmarkMemoryTracker::instance.load();
         void* p = const_cast<void*>(ptr);
-        size_t alloc = tracker->hooks_api.get_allocation_size(p);
+        size_t alloc = cb::ArenaMalloc::malloc_usable_size(p);
         currentAlloc += alloc;
         maxTotalAllocation.store(
                 std::max(currentAlloc.load(), maxTotalAllocation.load()));
@@ -93,9 +93,8 @@ void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
 }
 void BenchmarkMemoryTracker::DeleteHook(const void* ptr) {
     if (ptr != NULL) {
-        const auto* tracker = BenchmarkMemoryTracker::instance.load();
         void* p = const_cast<void*>(ptr);
-        size_t alloc = tracker->hooks_api.get_allocation_size(p);
+        size_t alloc = cb::ArenaMalloc::malloc_usable_size(p);
         currentAlloc -= alloc;
     }
 }

@@ -67,16 +67,6 @@ void JemallocHooks::initialize() {
     // No initialization required.
 }
 
-size_t JemallocHooks::get_allocation_size(const void* ptr) {
-    /* je_malloc_usable_size on my linux masks this down to
-     * malloc_usable_size causing it to omit a compiler warning.
-     * Let's just nuke away the const here, as you may always
-     * pass a non-const pointer to a function who accepts a
-     * const pointer
-     */
-    return je_malloc_usable_size((void*) ptr);
-}
-
 void JemallocHooks::release_free_memory() {
     /* Note: jemalloc doesn't necessarily free this memory
      * immediately, but it will schedule to be freed as soon as is

@@ -24,22 +24,8 @@ class Blob;
 class Item;
 class StoredValue;
 
-extern "C" {
-    typedef size_t (*get_allocation_size)(const void *ptr);
-}
-
-class StoredValue;
-
 class ObjectRegistry {
 public:
-    static void initialize(get_allocation_size func);
-
-    /**
-     * Resets the ObjectRegistry back to initial state (before initialize()
-     * was called).
-     */
-    static void reset();
-
     static void onCreateBlob(const Blob *blob);
     static void onDeleteBlob(const Blob *blob);
 

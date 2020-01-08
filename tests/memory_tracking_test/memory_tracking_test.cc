@@ -167,7 +167,7 @@ TEST_F(MemoryTrackerTest, DISABLED_mallocUsableSize) {
     // Allocate some data
     auto* ptr = new char[1];
 
-    size_t allocHooksResult = AllocHooks::get_allocation_size(ptr);
+    size_t allocHooksResult = cb::ArenaMalloc::malloc_usable_size(ptr);
     size_t directCallResult = malloc_usable_size(ptr);
 
     EXPECT_EQ(allocHooksResult, directCallResult);

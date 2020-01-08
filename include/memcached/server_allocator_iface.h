@@ -86,12 +86,6 @@ struct ServerAllocatorIface {
     bool (*remove_delete_hook)(void (*)(const void* ptr));
 
     /**
-     * Returns the total bytes allocated by the allocator. This value
-     * may be computed differently based on the allocator in use.
-     */
-    size_t (*get_allocation_size)(const void*);
-
-    /**
      * Attempts to release free memory back to the OS.
      */
     void (*release_free_memory)(void);

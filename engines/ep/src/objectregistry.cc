@@ -26,16 +26,6 @@
 #if 1
 static ThreadLocal<EventuallyPersistentEngine*> *th;
 
-extern "C" {
-    static size_t defaultGetAllocSize(const void *) {
-        return 0;
-    }
-}
-
-static get_allocation_size getAllocSize = defaultGetAllocSize;
-
-
-
 /**
  * Object registry link hook for getting the registry thread local
  * installed.
@@ -66,26 +56,14 @@ static bool verifyEngine(EventuallyPersistentEngine *engine)
    return true;
 }
 
-void ObjectRegistry::initialize(get_allocation_size func) {
-    getAllocSize = func;
-}
-
-void ObjectRegistry::reset() {
-    getAllocSize = defaultGetAllocSize;
-}
-
 void ObjectRegistry::onCreateBlob(const Blob *blob)
 {
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(blob);
-       if (size == 0) {
-           size = blob->getSize();
-       } else {
-           coreLocalStats->blobOverhead.fetch_add(size - blob->getSize());
-       }
+       size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
+       coreLocalStats->blobOverhead.fetch_add(size - blob->getSize());
        coreLocalStats->currentSize.fetch_add(size);
        coreLocalStats->totalValueSize.fetch_add(size);
        coreLocalStats->numBlob++;
@@ -98,12 +76,8 @@ void ObjectRegistry::onDeleteBlob(const Blob *blob)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(blob);
-       if (size == 0) {
-           size = blob->getSize();
-       } else {
-           coreLocalStats->blobOverhead.fetch_sub(size - blob->getSize());
-       }
+       size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
+       coreLocalStats->blobOverhead.fetch_sub(size - blob->getSize());
        coreLocalStats->currentSize.fetch_sub(size);
        coreLocalStats->totalValueSize.fetch_sub(size);
        coreLocalStats->numBlob--;
@@ -116,10 +90,7 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(sv);
-       if (size == 0) {
-           size = sv->getObjectSize();
-       }
+       size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
        coreLocalStats->numStoredVal++;
        coreLocalStats->totalStoredValSize.fetch_add(size);
    }
@@ -131,10 +102,7 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
    if (verifyEngine(engine)) {
        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = getAllocSize(sv);
-       if (size == 0) {
-           size = sv->getObjectSize();
-       }
+       size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
        coreLocalStats->totalStoredValSize.fetch_sub(size);
        coreLocalStats->numStoredVal--;
    }

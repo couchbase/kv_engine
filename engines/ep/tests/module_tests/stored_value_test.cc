@@ -124,7 +124,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
 
     auto blob = sv->getValue();
     ASSERT_EQ(191, blob->getSize());
-    int before = AllocHooks::get_allocation_size(blob.get().get());
+    int before = cb::ArenaMalloc::malloc_usable_size(blob.get().get());
 
     /* While the initial bug in MB-25143 would only increase the size of
      * the blob once, by two bytes, we iterate here to ensure that there
@@ -136,7 +136,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
         sv->reallocate();
 
         blob = sv->getValue();
-        int after = AllocHooks::get_allocation_size(blob.get().get());
+        int after = cb::ArenaMalloc::malloc_usable_size(blob.get().get());
 
         EXPECT_EQ(before, after);
     }

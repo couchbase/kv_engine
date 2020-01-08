@@ -39,10 +39,6 @@ extern "C" {
     static bool mock_remove_delete_hook(void (*)(const void* ptr)) {
         return false;
     }
-
-    static size_t mock_get_allocation_size(const void*) {
-        return 0;
-    }
 }
 
 ServerAllocatorIface* getHooksApi(void) {
@@ -51,6 +47,5 @@ ServerAllocatorIface* getHooksApi(void) {
     hooksApi.remove_new_hook = mock_remove_new_hook;
     hooksApi.add_delete_hook = mock_add_delete_hook;
     hooksApi.remove_delete_hook = mock_remove_delete_hook;
-    hooksApi.get_allocation_size = mock_get_allocation_size;
     return &hooksApi;
 }

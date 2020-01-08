@@ -34,10 +34,6 @@ void DummyAllocHooks::initialize() {
     }
 }
 
-size_t DummyAllocHooks::get_allocation_size(const void* ptr) {
-    return 0;
-}
-
 void DummyAllocHooks::release_free_memory() {
     // empty
 }

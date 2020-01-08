@@ -1754,7 +1754,6 @@ ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
 */
 void destroy_ep_engine() {
     ExecutorPool::shutdown();
-    ObjectRegistry::reset();
     globalBucketLogger.reset();
 }
 
