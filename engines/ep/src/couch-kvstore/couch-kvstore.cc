@@ -2189,12 +2189,9 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 
         // Only do a couchstore_save_documents if there are docs
         if (docs.size() > 0) {
-            // @TODO remove this
-            std::vector<sized_buf> ids(docs.size());
             for (size_t idx = 0; idx < docs.size(); idx++) {
-                ids[idx] = docinfos[idx]->id;
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
-                auto key = makeDiskDocKey(ids[idx]);
+                auto key = makeDiskDocKey(docinfos[idx]->id);
                 kvctx.keyStats[key] = false;
 
                 // Accumulate the size of the useful data in this docinfo.
