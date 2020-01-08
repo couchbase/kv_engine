@@ -2768,8 +2768,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     tdc.openConnection(flags);
 
     checkeq(ENGINE_SUCCESS,
-            tdc.sendControlMessage("supports_hifi_MFU",
-                                   true ? "true" : "false"),
+            tdc.sendControlMessage("supports_hifi_MFU", "true"),
             "Failed to configure MFU");
 
     DcpStreamCtx ctx;
@@ -2777,6 +2776,11 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 10;
     ctx.exp_markers = 1;
+
+    // Only stream from disk to ensure that we only ever get a single snapshot.
+    // If we got unlucky we could see 2 snapshots due to creation of a second
+    // checkpoint if we were streaming from the checkpoint manager.
+    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
 
     tdc.addStreamCtx(ctx);
     tdc.run(false);
