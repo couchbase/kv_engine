@@ -17,7 +17,6 @@
 
 #include "engine_testsuite.h"
 
-#include <daemon/alloc_hooks.h>
 #include <daemon/enginemap.h>
 #include <folly/portability/GTest.h>
 #include <logger/logger.h>

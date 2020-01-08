@@ -16,7 +16,6 @@
  */
 
 #include "mock_server.h"
-#include "daemon/alloc_hooks.h"
 #include "daemon/doc_pre_expiry.h"
 #include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
 #include "mock_cookie.h"
@@ -133,7 +132,6 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
 }
 
 void mock_init_alloc_hooks() {
-    AllocHooks::initialize();
 }
 
 struct MockServerCoreApi : public ServerCoreIface {

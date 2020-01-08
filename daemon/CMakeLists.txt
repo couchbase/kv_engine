@@ -17,7 +17,6 @@ IF (HAVE_LIBNUMA)
 ENDIF ()
 
 ADD_LIBRARY(memcached_daemon STATIC
-            $<TARGET_OBJECTS:memory_tracking>
             bucket_threads.h
             bucket_type.cc
             bucket_type.h

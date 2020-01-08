@@ -14,7 +14,6 @@
  *   limitations under the License.
  */
 #include "engine_testsuite.h"
-#include <daemon/alloc_hooks.h>
 #include <daemon/enginemap.h>
 #include <logger/logger.h>
 #include <platform/dirutils.h>
@@ -25,8 +24,6 @@
 void EngineTestsuite::SetUpTestCase() {
     cb::logger::createConsoleLogger();
     cb_initialize_sockets();
-
-    AllocHooks::initialize();
 
     auto limit = cb::io::maximizeFileDescriptors(1024);
     if (limit < 1024) {

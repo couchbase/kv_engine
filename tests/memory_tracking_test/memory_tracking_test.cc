@@ -14,7 +14,6 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "daemon/alloc_hooks.h"
 
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>
@@ -178,8 +177,5 @@ TEST_F(MemoryTrackerTest, DISABLED_mallocUsableSize) {
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
-
-    AllocHooks::initialize();
-
     return RUN_ALL_TESTS();
 }

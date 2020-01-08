@@ -15,7 +15,6 @@
  */
 
 #include "memcached.h"
-#include "alloc_hooks.h"
 #include "buckets.h"
 #include "cmdline.h"
 #include "connections.h"
@@ -1751,8 +1750,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
-
-    AllocHooks::initialize();
 
     /* init settings */
     settings_init();

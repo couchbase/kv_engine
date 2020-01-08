@@ -17,7 +17,6 @@
 
 #include "ioctl.h"
 
-#include "alloc_hooks.h"
 #include "connection.h"
 #include "connections.h"
 #include "cookie.h"

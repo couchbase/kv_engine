@@ -374,7 +374,6 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/tracing_bench.cc
                    $<TARGET_OBJECTS:ep_objs>
                    $<TARGET_OBJECTS:ep_mocks>
-                   $<TARGET_OBJECTS:memory_tracking>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc

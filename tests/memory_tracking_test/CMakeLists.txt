@@ -1,6 +1,5 @@
 if (NOT MEMORY_ALLOCATOR STREQUAL "system")
     add_executable(memcached_memory_tracking_test
-                   $<TARGET_OBJECTS:memory_tracking>
                    memory_tracking_test.cc)
     target_link_libraries(memcached_memory_tracking_test
                           memcached_logger

@@ -158,25 +158,6 @@ IF (BREAKPAD_FOUND)
     ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 ENDIF (BREAKPAD_FOUND)
 
-
-IF (MEMORY_ALLOCATOR STREQUAL jemalloc)
-    LIST(APPEND MEMORY_TRACKING_SRCS
-         ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_${MEMORY_ALLOCATOR}.cc)
-ELSE ()
-    LIST(APPEND MEMORY_TRACKING_SRCS
-         ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc)
-ENDIF ()
-
-LIST(APPEND MEMORY_TRACKING_SRCS ${Memcached_SOURCE_DIR}/daemon/alloc_hooks.h)
-
-IF (APPLE)
-    LIST(APPEND MEMORY_TRACKING_SRCS
-         ${Memcached_SOURCE_DIR}/daemon/darwin_zone.cc
-         ${Memcached_SOURCE_DIR}/daemon/darwin_zone.h)
-ENDIF (APPLE)
-
-ADD_LIBRARY(memory_tracking OBJECT ${MEMORY_TRACKING_SRCS})
-
 IF (WIN32)
     INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
 ENDIF (WIN32)

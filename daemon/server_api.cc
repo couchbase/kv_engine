@@ -14,7 +14,6 @@
  *   limitations under the License.
  */
 
-#include "alloc_hooks.h"
 #include "connection.h"
 #include "cookie.h"
 #include "doc_pre_expiry.h"
@@ -30,6 +29,7 @@
 #include <daemon/protocol/mcbp/engine_errc_2_mcbp.h>
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
+#include <memcached/server_allocator_iface.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>

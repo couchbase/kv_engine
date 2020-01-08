@@ -5,7 +5,6 @@
 #include "mock_server.h"
 #include "utilities/terminate_handler.h"
 
-#include <daemon/alloc_hooks.h>
 #include <daemon/enginemap.h>
 #include <getopt.h>
 #include <logger/logger.h>
@@ -426,8 +425,6 @@ int main(int argc, char **argv) {
 
     cb::logger::createConsoleLogger();
     cb_initialize_sockets();
-
-    AllocHooks::initialize();
 
     auto limit = cb::io::maximizeFileDescriptors(1024);
     if (limit < 1024) {
