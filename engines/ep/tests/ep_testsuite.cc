@@ -5210,15 +5210,11 @@ static enum test_result test_item_pager(EngineIface* h) {
     }
     wait_for_flusher_to_settle(h);
 
-    // The pager should of ran
-    wait_for_stat_to_be_gte(h, "ep_num_value_ejects", 1);
-
     checklt(10, docs_stored,
           "Failed to store enough documents before hitting TempOOM\n");
 
-    // If the item pager hasn't run already, set mem_high_wat
-    // to a value less than mem_used which would force the
-    // item pager to run at least once.
+    // If the item pager hasn't run already, set mem_high_wat to a value less
+    // than mem_used which should force the item pager to run at least once.
     if (get_int_stat(h, "ep_num_non_resident") == 0) {
         int mem_used = get_int_stat(h, "mem_used");
         int new_low_wat = mem_used * 0.75;
@@ -5259,6 +5255,10 @@ static enum test_result test_item_pager(EngineIface* h) {
     if (num_non_resident == 0) {
         wait_for_stat_change(h, "ep_num_non_resident", 0);
     }
+
+    // The pager should have ejected something
+    wait_for_stat_to_be_gte(h, "ep_num_value_ejects", 1);
+
     // Check we can successfully fetch all of the documents (even ones not
     // resident).
     for (int j = 0; j < docs_stored; ++j) {
