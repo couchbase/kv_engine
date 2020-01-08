@@ -37,13 +37,3 @@ void DummyAllocHooks::initialize() {
 void DummyAllocHooks::release_free_memory() {
     // empty
 }
-
-bool DummyAllocHooks::get_allocator_property(const char* name, size_t* value) {
-    return false;
-}
-
-int DummyAllocHooks::set_allocator_property(const char* name,
-                                            void* newp,
-                                            size_t newlen) {
-    return 1;
-}

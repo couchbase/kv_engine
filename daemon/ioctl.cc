@@ -26,6 +26,7 @@
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <nlohmann/json.hpp>
+#include <platform/cb_arena_malloc.h>
 
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
@@ -72,7 +73,7 @@ static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
         return ENGINE_EINVAL;
     }
 
-    int res = AllocHooks::set_allocator_property(
+    int res = cb::ArenaMalloc::setProperty(
             "prof.active", &enable, sizeof(enable));
     auto& c = cookie.getConnection();
     LOG_INFO("{}: {} IOCTL_SET: setJemallocProfActive:{} called, result:{}",
@@ -87,7 +88,7 @@ static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
 static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
                                              const StrToStrMap&,
                                              const std::string&) {
-    int res = AllocHooks::set_allocator_property("prof.dump", nullptr, 0);
+    int res = cb::ArenaMalloc::setProperty("prof.dump", nullptr, 0);
     auto& c = cookie.getConnection();
     LOG_INFO("{}: {} IOCTL_SET: setJemallocProfDump called, result:{}",
              c.getId(),

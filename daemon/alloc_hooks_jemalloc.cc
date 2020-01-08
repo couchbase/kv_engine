@@ -58,11 +58,6 @@ const char* je_malloc_conf =
            turn it on/off at runtime. */
         "prof:true,prof_active:false";
 
-static int jemalloc_get_stats_prop(const char* property, size_t* value) {
-    size_t size = sizeof(*value);
-    return je_mallctl(property, value, &size, NULL, 0);
-}
-
 void JemallocHooks::initialize() {
     // No initialization required.
 }
@@ -111,12 +106,3 @@ void JemallocHooks::release_free_memory() {
     }
 }
 
-bool JemallocHooks::get_allocator_property(const char* name, size_t* value) {
-    return jemalloc_get_stats_prop(name, value);
-}
-
-int JemallocHooks::set_allocator_property(const char* name,
-                                          void* newp,
-                                          size_t newlen) {
-    return je_mallctl(name, nullptr, 0, newp, newlen);
-}

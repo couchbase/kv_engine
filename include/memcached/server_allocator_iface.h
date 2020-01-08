@@ -90,13 +90,6 @@ struct ServerAllocatorIface {
      */
     void (*release_free_memory)(void);
 
-    /**
-     * Gets a property by name from the allocator.
-     * @param name property name
-     * @param value destination for numeric value from the allocator
-     * @return whether the call was successful
-     */
-    bool (*get_allocator_property)(const char* name, size_t* value);
 };
 
 #ifdef __cplusplus

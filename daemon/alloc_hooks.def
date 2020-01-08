@@ -21,5 +21,3 @@
 
 X(initialize, void, ())
 X(release_free_memory, void, ())
-X(get_allocator_property, bool, (const char* name, size_t* value))
-X(set_allocator_property, int, (const char* name, void* newp, size_t newlen))

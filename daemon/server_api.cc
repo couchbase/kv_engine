@@ -366,7 +366,6 @@ class ServerApi : public SERVER_HANDLE_V1 {
 public:
     ServerApi() : server_handle_v1_t() {
         hooks_api.release_free_memory = AllocHooks::release_free_memory;
-        hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
         core = &core_api;
         log = &server_log_api;

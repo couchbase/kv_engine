@@ -190,7 +190,7 @@ void DefragmenterTask::updateStats(DefragmentVisitor& visitor) {
 
 size_t DefragmenterTask::getMaxValueSize(ServerAllocatorIface* alloc_hooks) {
     size_t nbins{0};
-    alloc_hooks->get_allocator_property("arenas.nbins", &nbins);
+    cb::ArenaMalloc::getProperty("arenas.nbins", nbins);
 
     char buff[20];
     snprintf(buff,
@@ -199,7 +199,7 @@ size_t DefragmenterTask::getMaxValueSize(ServerAllocatorIface* alloc_hooks) {
              static_cast<uint64_t>(nbins) - 1);
 
     size_t largest_bin_size;
-    alloc_hooks->get_allocator_property(buff, &largest_bin_size);
+    cb::ArenaMalloc::getProperty(buff, largest_bin_size);
 
     return largest_bin_size;
 }
