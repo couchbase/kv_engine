@@ -365,8 +365,6 @@ struct ServerCookieApi : public ServerCookieIface {
 class ServerApi : public SERVER_HANDLE_V1 {
 public:
     ServerApi() : server_handle_v1_t() {
-        hooks_api.release_free_memory = AllocHooks::release_free_memory;
-
         core = &core_api;
         log = &server_log_api;
         cookie = &server_cookie_api;

@@ -378,8 +378,6 @@ SERVER_HANDLE_V1* get_mock_server_api() {
     static int init;
     if (!init) {
         init = 1;
-        hooks_api.release_free_memory = AllocHooks::release_free_memory;
-
         rv.core = &core_api;
         rv.log = &log_api;
         rv.cookie = &server_cookie_api;

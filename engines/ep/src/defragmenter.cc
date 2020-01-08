@@ -105,7 +105,7 @@ bool DefragmenterTask::run(void) {
         // Release any free memory we now have in the allocator back to the OS.
         // TODO: Benchmark this - is it necessary? How much of a slowdown does it
         // add? How much memory does it return?
-        alloc_hooks->release_free_memory();
+        cb::ArenaMalloc::releaseMemory(engine->getArenaMallocClient());
 
         // Check if the visitor completed a full pass.
         bool completed = (epstore_position ==

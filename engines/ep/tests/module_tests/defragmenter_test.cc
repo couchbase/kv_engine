@@ -18,7 +18,6 @@
 #include "defragmenter_test.h"
 
 #include "checkpoint_manager.h"
-#include "daemon/alloc_hooks.h"
 #include "defragmenter.h"
 #include "defragmenter_visitor.h"
 #include "item.h"
@@ -199,7 +198,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // Record memory usage after creation.
     size_t mem_used_1 = global_stats.getPreciseTotalMemoryUsed();
 
-    AllocHooks::release_free_memory();
+    cb::ArenaMalloc::releaseMemory(global_stats.arena);
     size_t mapped_1 = get_mapped_bytes(global_stats.arena);
 
     // Sanity check - mem_used should be at least size * count bytes larger than
@@ -216,7 +215,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 
     // Release free memory back to OS to minimize our footprint after
     // removing the documents above.
-    AllocHooks::release_free_memory();
+    cb::ArenaMalloc::releaseMemory(global_stats.arena);
 
     // Sanity check - mem_used should have reduced down by approximately how
     // many documents were removed.
@@ -269,7 +268,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     PauseResumeVBAdapter prAdapter(std::move(defragVisitor));
     prAdapter.visit(*vbucket);
 
-    AllocHooks::release_free_memory();
+    cb::ArenaMalloc::releaseMemory(global_stats.arena);
 
     // Check that mapped memory has decreased after defragmentation - should be
     // less than 50% of the amount before defrag (this is pretty conservative,
@@ -347,7 +346,7 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
 
     // Release free memory back to OS to minimize our footprint after
     // removing the documents above.
-    AllocHooks::release_free_memory();
+    cb::ArenaMalloc::releaseMemory(global_stats.arena);
 
     size_t mem_used_before_defrag = global_stats.getPreciseTotalMemoryUsed();
 
@@ -367,7 +366,7 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
 
         cb::ArenaMalloc::switchToClient(global_stats.arena, true);
 
-        AllocHooks::release_free_memory();
+        cb::ArenaMalloc::releaseMemory(global_stats.arena);
 
         auto& visitor =
                 dynamic_cast<DefragmentVisitor&>(prAdapter.getHTVisitor());

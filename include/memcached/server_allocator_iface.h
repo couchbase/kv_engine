@@ -84,12 +84,6 @@ struct ServerAllocatorIface {
      * registered or if a hooks API doesn't exist for the allocator.
      */
     bool (*remove_delete_hook)(void (*)(const void* ptr));
-
-    /**
-     * Attempts to release free memory back to the OS.
-     */
-    void (*release_free_memory)(void);
-
 };
 
 #ifdef __cplusplus

@@ -20,4 +20,3 @@
 #endif
 
 X(initialize, void, ())
-X(release_free_memory, void, ())

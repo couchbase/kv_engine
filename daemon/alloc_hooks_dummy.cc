@@ -34,6 +34,3 @@ void DummyAllocHooks::initialize() {
     }
 }
 
-void DummyAllocHooks::release_free_memory() {
-    // empty
-}

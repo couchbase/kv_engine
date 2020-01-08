@@ -55,7 +55,7 @@ using SetCallbackFunc =
 static ENGINE_ERROR_CODE setReleaseFreeMemory(Cookie& cookie,
                                               const StrToStrMap&,
                                               const std::string& value) {
-    AllocHooks::release_free_memory();
+    cb::ArenaMalloc::releaseMemory();
     auto& c = cookie.getConnection();
     LOG_INFO("{}: IOCTL_SET: release_free_memory called", c.getId());
     return ENGINE_SUCCESS;
