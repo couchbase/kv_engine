@@ -66,18 +66,6 @@ int memcached_verbose = 0;
 // thread in the same process or not
 static bool embedded_memcached_server;
 
-/* static storage for the different environment variables set by
- * putenv().
- *
- * (These must be static as putenv() essentially 'takes ownership' of
- * the provided array, so it is unsafe to use an automatic variable.
- * However, if we use the result of cb_malloc() (i.e. the heap) then
- * memory leak checkers (e.g. Valgrind) will report the memory as
- * leaked as it's impossible to free it).
- */
-static char mcd_parent_monitor_env[80];
-static char mcd_port_filename_env[80];
-
 static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
 bool sock_is_ssl() {
@@ -463,7 +451,12 @@ nlohmann::json TestappTest::generate_config() {
             {"opcode_attributes_override",
              {{"version", 1}, {"EWB_CTL", {{"slow", 50}}}}},
             {"logger", {{"unit_test", true}}},
+            {"portnumber_file", portnumber_file},
     };
+
+    if (!embedded_memcached_server) {
+        ret["parent_identifier"] = (int)getpid();
+    }
 
     if (memcached_verbose == 0) {
         ret["logger"]["console"] = false;
@@ -641,38 +634,13 @@ void TestappTest::spawn_embedded_server() {
         exit(EXIT_FAILURE);
     }
 
-    char* filename = mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
-    snprintf(mcd_port_filename_env,
-             sizeof(mcd_port_filename_env),
-             "MEMCACHED_PORT_FILENAME=memcached_ports.%u.%lu",
-             (int)getpid(),
-             (unsigned long)time(NULL));
-    remove(filename);
-    portnumber_file.assign(filename);
-    putenv(mcd_port_filename_env);
-
     memcached_server_thread =
             std::thread(memcached_server_thread_main, config_file);
 }
 
 void TestappTest::start_external_server() {
-    char* filename = mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
-    snprintf(mcd_parent_monitor_env,
-             sizeof(mcd_parent_monitor_env),
-             "MEMCACHED_PARENT_MONITOR=%u",
-             (int)getpid());
-    putenv(mcd_parent_monitor_env);
-
-    snprintf(mcd_port_filename_env,
-             sizeof(mcd_port_filename_env),
-             "MEMCACHED_PORT_FILENAME=memcached_ports.%u.%lu",
-             (int)getpid(),
-             (unsigned long)time(NULL));
-    remove(filename);
-    portnumber_file.assign(filename);
     static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
     putenv(topkeys_env);
-
 #ifdef WIN32
     STARTUPINFO sinfo;
     PROCESS_INFORMATION pinfo;
@@ -682,8 +650,6 @@ void TestappTest::start_external_server() {
 
     char commandline[1024];
     sprintf(commandline, "memcached.exe -C %s", config_file.c_str());
-
-    putenv(mcd_port_filename_env);
 
     if (!CreateProcess("memcached.exe",
                        commandline,
@@ -708,7 +674,6 @@ void TestappTest::start_external_server() {
         /* Child */
         const char* argv[20];
         int arg = 0;
-        putenv(mcd_port_filename_env);
 
         if (getenv("RUN_UNDER_VALGRIND") != nullptr) {
             argv[arg++] = "valgrind";
@@ -1423,7 +1388,9 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
 }
 
 nlohmann::json TestappTest::memcached_cfg;
-std::string TestappTest::portnumber_file;
+const std::string TestappTest::portnumber_file =
+        "memcached_ports." + std::to_string(getpid()) + "." +
+        std::to_string(time(NULL));
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;

@@ -94,17 +94,6 @@ The number of CPU's to use for frontend threads.
 
 The NUMA memory to use.
 
-## `MEMCACHED_PARENT_MONITOR`
-
-If set it should contain the process identifier of a process to monitor
-the existence of. If that process dies, `memcached` should die.
-
-## `MEMCACHED_PORT_FILENAME`
-
-If set, memcached writes the port number to all of the ports it binds
-to during startup. This allows for memcached to start without a single
-known port.
-
 ## `MEMCACHED_TOP_KEYS`
 
 Should be set to the number of "top keys" memcached should collect

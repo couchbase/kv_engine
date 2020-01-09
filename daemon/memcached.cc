@@ -1810,20 +1810,6 @@ extern "C" int memcached_main(int argc, char **argv) {
         start_stdin_listener(shutdown_server);
     }
 
-    if (Settings::instance().getPortnumberFile().empty()) {
-        const auto* env = getenv("MEMCACHED_PORT_FILENAME");
-        if (env != nullptr) {
-            Settings::instance().setPortnumberFile(env);
-        }
-    }
-
-    if (Settings::instance().getParentIdentifier() == -1) {
-        const auto* env = getenv("MEMCACHED_PARENT_MONITOR");
-        if (env != nullptr) {
-            Settings::instance().setParentIdentifier(std::stoi(env));
-        }
-    }
-
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected (now the logger is available).
     LOG_INFO("NUMA: {}", numa_status);

@@ -15,9 +15,6 @@ static void usage() {
     std::cerr << "memcached " << get_server_version() << R"(
     -C file       Read configuration from file
     -h            print this help and exit
-
-Environment variables:
-    MEMCACHED_PORT_FILENAME   File to write port information to
 )";
 }
 

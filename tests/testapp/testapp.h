@@ -233,7 +233,7 @@ protected:
 
     // JSON configuration (as JSON object) memcached was configured with.
     static nlohmann::json memcached_cfg;
-    static std::string portnumber_file;
+    static const std::string portnumber_file;
     static std::string config_file;
 
     static ConnectionMap connectionMap;
