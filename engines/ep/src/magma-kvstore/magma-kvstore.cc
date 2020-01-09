@@ -1337,15 +1337,10 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData,
             }
         }
 
-        kvctx.keyStats[diskDocKey] = false;
-
         if (req.oldItemExists()) {
             if (!req.oldItemIsDelete()) {
                 // If we are replacing the item...
-                auto itr = kvctx.keyStats.find(diskDocKey);
-                if (itr != kvctx.keyStats.end()) {
-                    itr->second = true;
-                }
+                kvctx.keyStats.insert(diskDocKey);
             }
         }
 

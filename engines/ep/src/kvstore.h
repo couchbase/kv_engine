@@ -142,8 +142,9 @@ struct compaction_ctx {
 struct kvstats_ctx {
     kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
     }
-    /// A map of key to bool. If true, the key exists in the VB datafile
-    std::unordered_map<DiskDocKey, bool> keyStats;
+    // @TODO consider folly::F14Set for reduced memory when set is large
+    /// If key exists in set, they key exists in the VB datafile
+    std::unordered_set<DiskDocKey> keyStats;
     /// flusher data for managing manifest changes, item counts, vbstate
     VB::Commit& commitData;
 
@@ -588,7 +589,7 @@ public:
     virtual StorageProperties getStorageProperties() = 0;
 
     /**
-     * Set an item into the kv store.
+     * Set an item into the kv store. cc
      *
      * @param item The item to store
      * @param cb Callback object which will be invoked when the set() has been
