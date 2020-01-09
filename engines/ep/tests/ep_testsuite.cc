@@ -5216,6 +5216,11 @@ static enum test_result test_item_pager(EngineIface* h) {
     // If the item pager hasn't run already, set mem_high_wat to a value less
     // than mem_used which should force the item pager to run at least once.
     if (get_int_stat(h, "ep_num_non_resident") == 0) {
+
+        // First, wait for 1 checkpoint so that the removal of a checkpoint
+        // doesn't drop us below the HWM.
+        wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
+
         int mem_used = get_int_stat(h, "mem_used");
         int new_low_wat = mem_used * 0.75;
         set_param(h,
@@ -5233,25 +5238,7 @@ static enum test_result test_item_pager(EngineIface* h) {
 
     wait_for_memory_usage_below(h, get_int_stat(h, "ep_mem_high_wat"));
 
-#ifdef _MSC_VER
-    // It seems like the scheduling of the tasks is different on windows
-    // (at least on my virtual machines). Once we have all of the tests
-    // passing for WIN32 we're going to start benchmarking it so we'll
-    // figure out a better fix for this at a later time..
-    // For now just spend some time waiting for it to bump the values
-    int max = 0;
-    while (get_int_stat(h, "ep_num_non_resident") == 0) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        if (++max == 30) {
-            std::cerr << "Giving up waiting for item_pager to eject data.. "
-                      << std::endl;
-            return FAIL;
-        }
-    }
-#endif
-
     int num_non_resident = get_int_stat(h, "ep_num_non_resident");
-
     if (num_non_resident == 0) {
         wait_for_stat_change(h, "ep_num_non_resident", 0);
     }
@@ -8122,7 +8109,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_item_pager,
                  test_setup,
                  teardown,
-                 "max_size=6291456;max_num_shards=4",
+                 "max_size=6291456;max_num_shards=4;chk_expel_enabled=false;",
                  // TODO RDB: This test requires full control and accurate
                  // tracking on how memory is allocated by the underlying
                  // store. We do not have that yet for RocksDB. Depending
