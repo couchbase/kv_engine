@@ -26,11 +26,6 @@ random number generator which controls when to fail.
 
 This setting is only used if the `BadMalloc` allocator hook is enabled.
 
-## `CBAUTH_SOCKPATH`
-
-The `CBAUTH_SOCKPATH` is used to tell `cbsasl` the location of `saslauthd`
-to allow external authentication.
-
 ## `CBSASL_PWFILE`
 
 `CBSASL_PWFILE` is used to tell `cbsasl` the location of the password

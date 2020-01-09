@@ -29,20 +29,7 @@ of the password and compare with what we've got stored internally.
 The server should be initialized by calling `cbsasl_server_init` and shut
 down by calling `cbsasl_server_term`.
 
-## Authentication backends
-
-### External authentication
-
-External authentication is provided through the use of `saslauthd`.
-In order to enable authentication through `saslauthd` the environment
-variable `CBAUTH_SOCKPATH` must be set to the location of the unix
-domain socket used to communicate with `saslauthd`.
-
-`PLAIN` authentication is the only supported authentication mechanism
-for external users (a user is considered as an external user if there
-is no entry for the user in the internal user database (see below))
-
-### Internal User database
+## Internal User database
 
 The user database is stored in JSON format with the following syntax:
 
