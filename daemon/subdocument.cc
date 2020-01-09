@@ -808,8 +808,8 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(
         // to determine which XATTRs we tell the user about
 
         bool xattrRead = false;
-        auto access = context.connection.checkPrivilege(
-                cb::rbac::Privilege::XattrRead, context.cookie);
+        auto access =
+                context.cookie.checkPrivilege(cb::rbac::Privilege::XattrRead);
         switch (access) {
         case cb::rbac::PrivilegeAccess::Ok:
             xattrRead = true;
@@ -822,8 +822,8 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(
         }
 
         bool xattrSysRead = false;
-        access = context.connection.checkPrivilege(
-                cb::rbac::Privilege::SystemXattrRead, context.cookie);
+        access = context.cookie.checkPrivilege(
+                cb::rbac::Privilege::SystemXattrRead);
         switch (access) {
         case cb::rbac::PrivilegeAccess::Ok:
             xattrSysRead = true;
@@ -881,7 +881,7 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
         }
     }
 
-    auto access = context.connection.checkPrivilege(privilege, context.cookie);
+    auto access = context.cookie.checkPrivilege(privilege);
     switch (access) {
     case cb::rbac::PrivilegeAccess::Ok:
         return ENGINE_SUCCESS;

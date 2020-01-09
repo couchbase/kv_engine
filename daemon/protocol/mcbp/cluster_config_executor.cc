@@ -34,7 +34,7 @@ static bool check_access_to_global_config(Cookie& cookie) {
     auto& conn = cookie.getConnection();
     const auto xerror = conn.isXerrorSupport();
 
-    switch (conn.checkPrivilege(Privilege::SystemSettings, cookie)) {
+    switch (cookie.checkPrivilege(Privilege::SystemSettings)) {
     case PrivilegeAccess::Ok:
         return true;
 

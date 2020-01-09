@@ -577,3 +577,8 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
 
     return true;
 }
+
+cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
+        cb::rbac::Privilege privilege) {
+    return connection.checkPrivilege(privilege, *this);
+}

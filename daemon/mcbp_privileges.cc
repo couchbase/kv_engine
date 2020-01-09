@@ -56,15 +56,15 @@ PrivilegeAccess McbpPrivilegeChains::invoke(cb::mcbp::ClientOpcode command,
 
 template <Privilege T>
 static PrivilegeAccess require(Cookie& cookie) {
-    return cookie.getConnection().checkPrivilege(T, cookie);
+    return cookie.checkPrivilege(T);
 }
 
 static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
-    auto ret = cookie.getConnection().checkPrivilege(Privilege::Insert, cookie);
+    auto ret = cookie.checkPrivilege(Privilege::Insert);
     if (ret == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     } else {
-        return cookie.getConnection().checkPrivilege(Privilege::Upsert, cookie);
+        return cookie.checkPrivilege(Privilege::Upsert);
     }
 }
 

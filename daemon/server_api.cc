@@ -305,11 +305,9 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> void_cookie,
+            gsl::not_null<const void*> cookie,
             cb::rbac::Privilege privilege) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-        return cookie->getConnection().checkPrivilege(
-                privilege, const_cast<Cookie&>(*cookie));
+        return getCookie(cookie).checkPrivilege(privilege);
     }
 
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> void_cookie,

@@ -20,6 +20,7 @@
 #include <mcbp/protocol/status.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
+#include <memcached/rbac/privileges.h>
 #include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
 #include <platform/compression/buffer.h>
@@ -473,6 +474,9 @@ public:
      *         contains the reason why)
      */
     bool inflateInputPayload(const cb::mcbp::Header& header);
+
+    /// Check if the current command have the requested privilege
+    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege);
 
 protected:
     /**

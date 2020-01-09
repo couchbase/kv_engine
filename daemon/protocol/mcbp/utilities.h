@@ -25,8 +25,7 @@
 namespace mcbp {
 static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,
                                                cb::rbac::Privilege privilege) {
-    auto& connection = cookie.getConnection();
-    switch (connection.checkPrivilege(privilege, cookie)) {
+    switch (cookie.checkPrivilege(privilege)) {
     case cb::rbac::PrivilegeAccess::Ok:
         return ENGINE_SUCCESS;
     case cb::rbac::PrivilegeAccess::Fail:
