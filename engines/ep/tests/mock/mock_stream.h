@@ -160,6 +160,14 @@ public:
     std::function<void()> preGetOutstandingItemsCallback = [] { return; };
 
     bool isDead() { return ActiveStream::getState() == StreamState::Dead; };
+
+    void setCompleteBackfillHook(std::function<void()> hook) {
+        completeBackfillHook = hook;
+    }
+
+    void setNextHook(std::function<void()> hook) {
+        nextHook = hook;
+    }
 };
 
 /**
