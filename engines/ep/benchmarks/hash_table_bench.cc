@@ -52,13 +52,12 @@ public:
     /**
      * Create numItems Items, giving each key the given prefix.
      * @param prefix String to prefix each key with.
-     * @param pendingSyncWritesPcnt If non-zero, create additional
-     *        pendingSyncWrites for the given percentage of items. For example
-     *        a value of 20 will create an extra 20% of Items which are
-     *        Prepared SyncWrites.
+     * @param pendingSyncWritesPcnt If non-zero, create SyncWrites for the given
+     *   percentage. For example a value of 20 will create the 20% of numItems
+     *   of Prepared SyncWrites.
      */
-    std::vector<Item> createItems(std::string prefix,
-                                  int pendingSyncWritesPcnt = 0) {
+    std::vector<Item> createUniqueItems(std::string prefix,
+                                        int pendingSyncWritesPcnt = 0) {
         std::vector<Item> items;
         items.reserve(numItems);
         // Just use a minimal item (Blob) size - we are focusing on
@@ -71,7 +70,11 @@ public:
             // minimise the cost of constructing keys for Items.
             fmt::memory_buffer keyBuf;
             format_to(keyBuf, "{}{}", prefix, i);
-            DocKey key(keyBuf.data(), DocKeyEncodesCollectionId::No);
+            // Note: fmt::memory_buffer is not null-terminated, cannot use the
+            // cstring-ctor
+            DocKey key(reinterpret_cast<const uint8_t*>(keyBuf.data()),
+                       keyBuf.size(),
+                       DocKeyEncodesCollectionId::No);
             items.emplace_back(key, 0, 0, data.data(), data.size());
 
             if (pendingSyncWritesPcnt > 0) {
@@ -84,17 +87,6 @@ public:
         return items;
     }
 
-    void addItemToHashTable(const Item& item) {
-        if (item.isPending()) {
-            // Calling ht.set will overwrite the committed SV so we have to
-            // manually add our prepare
-            auto lock = ht.getLockedBucket(item.getKey());
-            ASSERT_TRUE(ht.unlocked_addNewStoredValue(lock, item));
-        } else {
-            ASSERT_EQ(MutationStatus::WasClean, ht.set(item))
-                    << "Expected WasClean for item:" << item;
-        }
-    }
     /**
      * Helper method for executing a function with all threads paused.
      *
@@ -141,10 +133,10 @@ public:
 BENCHMARK_DEFINE_F(HashTableBench, FindForRead)(benchmark::State& state) {
     // Populate the HashTable with numItems.
     if (state.thread_index == 0) {
-        sharedItems = createItems(
+        sharedItems = createUniqueItems(
                 "Thread" + std::to_string(state.thread_index) + "::", 50);
         for (auto& item : sharedItems) {
-            addItemToHashTable(item);
+            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
         }
     }
 
@@ -164,10 +156,10 @@ BENCHMARK_DEFINE_F(HashTableBench, FindForRead)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(HashTableBench, FindForWrite)(benchmark::State& state) {
     // Populate the HashTable with numItems.
     if (state.thread_index == 0) {
-        sharedItems = createItems(
+        sharedItems = createUniqueItems(
                 "Thread" + std::to_string(state.thread_index) + "::", 50);
         for (auto& item : sharedItems) {
-            addItemToHashTable(item);
+            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
         }
     }
 
@@ -184,12 +176,12 @@ BENCHMARK_DEFINE_F(HashTableBench, FindForWrite)(benchmark::State& state) {
 BENCHMARK_DEFINE_F(HashTableBench, Insert)(benchmark::State& state) {
     // To ensure we insert and not replace items, create a per-thread items
     // vector so each thread inserts a different set of items.
-    auto items =
-            createItems("Thread" + std::to_string(state.thread_index) + "::");
+    auto items = createUniqueItems("Thread" +
+                                   std::to_string(state.thread_index) + "::");
 
     while (state.KeepRunning()) {
         const auto index = state.iterations() % numItems;
-        addItemToHashTable(items[index]);
+        ASSERT_EQ(MutationStatus::WasClean, ht.set(items[index]));
 
         // Once a thread gets to the end of it's items; pause timing and let
         // the *last* thread clear them all - this is to avoid measuring any
@@ -211,10 +203,10 @@ BENCHMARK_DEFINE_F(HashTableBench, Insert)(benchmark::State& state) {
 // Benchmark replacing an existing item in the HashTable.
 BENCHMARK_DEFINE_F(HashTableBench, Replace)(benchmark::State& state) {
     // Populate the HashTable with numItems.
-    auto items =
-            createItems("Thread" + std::to_string(state.thread_index) + "::");
+    auto items = createUniqueItems("Thread" +
+                                   std::to_string(state.thread_index) + "::");
     for (auto& item : items) {
-        addItemToHashTable(item);
+        ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
     }
 
     // Benchmark - update them.
@@ -227,8 +219,8 @@ BENCHMARK_DEFINE_F(HashTableBench, Replace)(benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
-    auto items =
-            createItems("Thread" + std::to_string(state.thread_index) + "::");
+    auto items = createUniqueItems("Thread" +
+                                   std::to_string(state.thread_index) + "::");
 
     while (state.KeepRunning()) {
         const auto index = state.iterations() % numItems;
@@ -245,7 +237,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
             waitForAllThreadsThenExecuteOnce(state, [this, &items]() {
                 // re-populate HashTable.
                 for (auto& item : items) {
-                    addItemToHashTable(item);
+                    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
                 }
             });
             state.ResumeTiming();
