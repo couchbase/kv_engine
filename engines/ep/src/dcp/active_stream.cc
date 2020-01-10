@@ -261,12 +261,7 @@ bool ActiveStream::markDiskSnapshot(
                 "markDiskSnapshot: Unexpected state_:{}",
                 logPrefix,
                 to_string(state_.load()));
-            // TODO MB-37145: logically, this should return false as
-            //  no snapshot marker will be sent, and backfilled items
-            //  will be rejected in backfillReceived.
-            //  Returning true to maintain existing behaviour pending
-            //  further testing
-            return true;
+            return false;
         }
 
         if (!supportSyncWrites()) {
@@ -304,9 +299,7 @@ bool ActiveStream::markDiskSnapshot(
                 "ActiveStream::markDiskSnapshot, vbucket "
                 "does not exist",
                 logPrefix);
-            // TODO MB-37145: logically, this should return false
-            //  returning true to maintain existing behaviour
-            return true;
+            return false;
         }
         // An atomic read of vbucket state without acquiring the
         // reader lock for state should suffice here.
