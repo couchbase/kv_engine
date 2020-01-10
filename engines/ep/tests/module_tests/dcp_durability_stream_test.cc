@@ -527,9 +527,8 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     if (persistent()) {
         EXPECT_EQ(1, *marker.getHighCompletedSeqno());
     } else {
-        // TODO MB-37151: drive this test with processDurabilityTimeout and
-        //  processResolvedSyncWrites so the ADM moves the HCS
-        //  this will then match the persistent case
+        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
+        // The value will not change when abort/commit are called directly.
         EXPECT_EQ(0, *marker.getHighCompletedSeqno());
     }
     EXPECT_EQ(0, marker.getStartSeqno());
@@ -593,9 +592,8 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     if (persistent()) {
         EXPECT_EQ(1, *marker.getHighCompletedSeqno());
     } else {
-        // TODO MB-37151: drive this test with processDurabilityTimeout and
-        //  processResolvedSyncWrites so the ADM moves the HCS
-        //  this will then match the persistent case
+        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
+        // The value will not change when abort/commit are called directly.
         EXPECT_EQ(0, *marker.getHighCompletedSeqno());
     }
     EXPECT_EQ(0, marker.getStartSeqno());
@@ -839,9 +837,8 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     if (persistent()) {
         EXPECT_EQ(3, *marker.getHighCompletedSeqno());
     } else {
-        // TODO MB-37151: drive this test with processDurabilityTimeout and
-        //  processResolvedSyncWrites so the ADM moves the HCS
-        //  this will then match the persistent case
+        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
+        // The value will not change when abort/commit are called directly.
         EXPECT_EQ(0, *marker.getHighCompletedSeqno());
     }
     EXPECT_EQ(1, marker.getStartSeqno());
@@ -901,9 +898,8 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     if (persistent()) {
         EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
     } else {
-        // TODO MB-37151: drive this test with processDurabilityTimeout and
-        //  processResolvedSyncWrites so the ADM moves the HCS
-        //  this will then match the persistent case
+        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
+        // The value will not change when abort/commit are called directly.
         EXPECT_EQ(0, *marker.getHighCompletedSeqno());
     }
     EXPECT_EQ(0, marker.getStartSeqno());
