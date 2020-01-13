@@ -5,6 +5,7 @@ SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(mock_dcp)
 
 ADD_LIBRARY(ep_testsuite_objs OBJECT
+        ep_request_utils.cc
         ep_testsuite_common.cc
         ep_test_apis.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/ext_meta_parser.cc
@@ -17,6 +18,7 @@ add_sanitizers(ep_testsuite_objs)
 # (We end up compiling most of the src/ files of ep-engine for these unit tests,
 # so simpler / quicker just to link them into a single executable).
 ADD_EXECUTABLE(ep-engine_ep_unit_tests
+        ep_request_utils.cc
         module_tests/atomic_unordered_map_test.cc
         module_tests/basic_ll_test.cc
         module_tests/bloomfilter_test.cc

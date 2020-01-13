@@ -26,6 +26,7 @@
 #include <map>
 #include <string>
 
+#include "ep_request_utils.h"
 #include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"
@@ -183,25 +184,6 @@ private:
 };
 
 void decayingSleep(useconds_t *sleepTime);
-
-/**
- * The unique_request_ptr returns a pointer to a Request, but the underlying
- * allocation is an array of bytes so we need a special deleter to make
- * sure that we release the correct amount of bytes
- */
-struct RequestDeleter {
-    void operator()(cb::mcbp::Request* request);
-};
-using unique_request_ptr = std::unique_ptr<cb::mcbp::Request, RequestDeleter>;
-
-unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
-                                Vbid vbid = Vbid(0),
-                                uint64_t cas = 0,
-                                cb::const_char_buffer ext = {},
-                                cb::const_char_buffer key = {},
-                                cb::const_char_buffer val = {},
-                                uint8_t datatype = 0x00,
-                                cb::const_char_buffer meta = {});
 
 // Basic Operations
 ENGINE_ERROR_CODE del(EngineIface* h,
