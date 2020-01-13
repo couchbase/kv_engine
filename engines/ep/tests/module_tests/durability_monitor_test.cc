@@ -3414,6 +3414,45 @@ TEST_P(ActiveDurabilityMonitorAbortTest, MB_35661) {
                          2 /*expectedHCS*/);
 }
 
+void NoTopologyActiveDurabilityMonitorTest::SetUp() {
+    STParameterizedBucketTest::SetUp();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    vb = store->getVBuckets().getBucket(vbid).get();
+    ASSERT_TRUE(vb);
+
+    monitor = &VBucketTestIntrospector::public_getActiveDM(*vb);
+    ASSERT_TRUE(monitor);
+
+    // The ActiveDM must not track anything before the Replication Chain is set.
+    auto& adm = getActiveDM();
+    ASSERT_EQ(0, adm.getFirstChainSize());
+    ASSERT_EQ(0, adm.getFirstChainMajority());
+}
+
+TEST_P(NoTopologyActiveDurabilityMonitorTest, SeqnoAckReceivedBeforeTopology) {
+    {
+        folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
+        // Prior to MB-37188 this would fail an Expects as the first chain
+        // has not yet been set.
+        // This should now queue the ack until the topology is set
+        vb->seqnoAcknowledged(vbStateLh, replica1, 1 /*prepare seqno */);
+    }
+
+    auto& adm = getActiveDM();
+    ASSERT_EQ(0, adm.getFirstChainSize());
+    ASSERT_EQ(0, adm.getFirstChainMajority());
+
+    // node not in chain, can't check lastAckSeqno
+
+    adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
+
+    ASSERT_EQ(2, adm.getFirstChainSize());
+    ASSERT_EQ(2, adm.getFirstChainMajority());
+
+    // expect that the ack was performed now the topology is set
+    EXPECT_EQ(1, adm.getNodeAckSeqno(replica1));
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         ActiveDurabilityMonitorTest,
                         STParameterizedBucketTest::allConfigValues(),
@@ -3430,6 +3469,11 @@ INSTANTIATE_TEST_CASE_P(
         ActiveDurabilityMonitorPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        NoTopologyActiveDurabilityMonitorTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         PassiveDurabilityMonitorTest,
