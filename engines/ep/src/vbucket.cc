@@ -396,6 +396,7 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     // First add any items from the rejectQueue.
     while (result.items.size() < approxLimit && !rejectQueue.empty()) {
         result.items.push_back(rejectQueue.front());
+        result.itemsToRetry++;
         rejectQueue.pop();
     }
 

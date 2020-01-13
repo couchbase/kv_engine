@@ -537,6 +537,11 @@ public:
         bool moreAvailable = false;
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
         CheckpointType checkpointType = CheckpointType::Memory;
+        /**
+         * Number of items that were in the reject queue and need to be flushed.
+         * Used to correct flusher_todo.
+         */
+        cb::NonNegativeCounter<size_t> itemsToRetry = 0;
     };
 
     /**

@@ -528,7 +528,19 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                     minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
                     proposedVBState.maxCas =
                             std::max(proposedVBState.maxCas, item->getCas());
-                    ++stats.flusher_todo;
+
+                    // Track number of items we have yet to flush. If we are
+                    // flushing items from the reject queue then we should not
+                    // increment flusher_todo as it will have already been
+                    // incremented by the initial flush. We need to track the
+                    // number of items from the reject queue though our flush
+                    // batch may contain items from both the reject queue and
+                    // the CheckpointManager
+                    if (toFlush.itemsToRetry != 0) {
+                        toFlush.itemsToRetry--;
+                    } else {
+                        ++stats.flusher_todo;
+                    }
 
                     if (!range.is_initialized()) {
                         range = snapshot_range_t{
@@ -726,7 +738,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                         : static_cast<double>(trans_time) /
                                   static_cast<double>(items_flushed));
         stats.cumulativeFlushTime.fetch_add(trans_time);
-        stats.flusher_todo.store(0);
+
+        // Decrement flusher_todo for all successful flushes
+        stats.flusher_todo.store(vb->rejectQueue.size());
         stats.totalPersistVBState++;
 
         commitData->collections.checkAndTriggerPurge(vb->getId(), *this);
