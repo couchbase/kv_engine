@@ -114,8 +114,7 @@ class MemTrackingVBucketBench : public VBucketBench {
 protected:
     void SetUp(const benchmark::State& state) override {
         if (state.thread_index == 0) {
-            memoryTracker = BenchmarkMemoryTracker::getInstance(
-                    *get_mock_server_api()->alloc_hooks);
+            memoryTracker = BenchmarkMemoryTracker::getInstance();
             memoryTracker->reset();
         }
         VBucketBench::SetUp(state);
@@ -128,7 +127,7 @@ protected:
         VBucketBench::TearDown(state);
     }
 
-    BenchmarkMemoryTracker* memoryTracker;
+    BenchmarkMemoryTracker* memoryTracker = nullptr;
 };
 
 /*

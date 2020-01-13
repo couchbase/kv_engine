@@ -33,8 +33,7 @@
 class AccessLogBenchEngine : public EngineFixture {
 protected:
     void SetUp(const benchmark::State& state) override {
-        memoryTracker = BenchmarkMemoryTracker::getInstance(
-                *get_mock_server_api()->alloc_hooks);
+        memoryTracker = BenchmarkMemoryTracker::getInstance();
         memoryTracker->reset();
 
         // If the access scanner is running then it will always scan
@@ -53,7 +52,7 @@ protected:
 
     const size_t alog_max_stored_items = 2048;
 
-    BenchmarkMemoryTracker* memoryTracker;
+    BenchmarkMemoryTracker* memoryTracker = nullptr;
 };
 
 /*

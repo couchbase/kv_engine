@@ -22,6 +22,7 @@
 #include <engines/ep/src/bucket_logger.h>
 #include <platform/cb_arena_malloc.h>
 
+#include <platform/cb_malloc.h>
 #include <algorithm>
 
 std::atomic<BenchmarkMemoryTracker*> BenchmarkMemoryTracker::instance;
@@ -30,20 +31,18 @@ std::atomic<size_t> BenchmarkMemoryTracker::maxTotalAllocation;
 std::atomic<size_t> BenchmarkMemoryTracker::currentAlloc;
 
 BenchmarkMemoryTracker::~BenchmarkMemoryTracker() {
-    hooks_api.remove_new_hook(&NewHook);
-    hooks_api.remove_delete_hook(&DeleteHook);
+    cb_remove_new_hook(&NewHook);
+    cb_remove_delete_hook(&DeleteHook);
 }
 
-BenchmarkMemoryTracker* BenchmarkMemoryTracker::getInstance(
-        const ServerAllocatorIface& hooks_api_) {
+BenchmarkMemoryTracker* BenchmarkMemoryTracker::getInstance() {
     BenchmarkMemoryTracker* tmp = instance.load();
     if (tmp == nullptr) {
         std::lock_guard<std::mutex> lock(instanceMutex);
         tmp = instance.load();
         if (tmp == nullptr) {
-            tmp = new BenchmarkMemoryTracker(hooks_api_);
+            tmp = new BenchmarkMemoryTracker();
             instance.store(tmp);
-
             instance.load()->connectHooks();
         }
     }
@@ -59,31 +58,19 @@ void BenchmarkMemoryTracker::destroyInstance() {
     }
 }
 
-size_t BenchmarkMemoryTracker::getMaxAlloc() {
-    return maxTotalAllocation;
-}
-
-size_t BenchmarkMemoryTracker::getCurrentAlloc() {
-    return currentAlloc;
-}
-
-BenchmarkMemoryTracker::BenchmarkMemoryTracker(
-        const ServerAllocatorIface& hooks_api)
-    : hooks_api(hooks_api) {
-}
 void BenchmarkMemoryTracker::connectHooks() {
-    if (hooks_api.add_new_hook(&NewHook)) {
+    if (cb_add_new_hook(&NewHook)) {
         EP_LOG_DEBUG("Registered add hook");
-        if (hooks_api.add_delete_hook(&DeleteHook)) {
+        if (cb_add_delete_hook(&DeleteHook)) {
             EP_LOG_DEBUG("Registered delete hook");
             return;
         }
-        hooks_api.remove_new_hook(&NewHook);
+        cb_remove_new_hook(&NewHook);
     }
     EP_LOG_WARN("Failed to register allocator hooks");
 }
 void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         void* p = const_cast<void*>(ptr);
         size_t alloc = cb::ArenaMalloc::malloc_usable_size(p);
         currentAlloc += alloc;
@@ -92,7 +79,7 @@ void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
     }
 }
 void BenchmarkMemoryTracker::DeleteHook(const void* ptr) {
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         void* p = const_cast<void*>(ptr);
         size_t alloc = cb::ArenaMalloc::malloc_usable_size(p);
         currentAlloc -= alloc;

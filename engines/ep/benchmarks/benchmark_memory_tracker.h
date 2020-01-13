@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <memcached/server_allocator_iface.h>
 #include <atomic>
 #include <mutex>
 
@@ -34,25 +33,28 @@ class BenchmarkMemoryTracker {
 public:
     ~BenchmarkMemoryTracker();
 
-    static BenchmarkMemoryTracker* getInstance(
-            const ServerAllocatorIface& hooks_api_);
+    static BenchmarkMemoryTracker* getInstance();
 
     static void destroyInstance();
 
-    void reset();
+    static void reset();
 
-    size_t getMaxAlloc();
-    size_t getCurrentAlloc();
+    static size_t getMaxAlloc() {
+        return maxTotalAllocation;
+    }
 
-private:
-    BenchmarkMemoryTracker(const ServerAllocatorIface& hooks_api);
-    void connectHooks();
+    static size_t getCurrentAlloc() {
+        return currentAlloc;
+    }
+
+protected:
+    BenchmarkMemoryTracker() = default;
+    static void connectHooks();
     static void NewHook(const void* ptr, size_t);
     static void DeleteHook(const void* ptr);
 
     static std::atomic<BenchmarkMemoryTracker*> instance;
     static std::mutex instanceMutex;
-    ServerAllocatorIface hooks_api;
     static std::atomic<size_t> maxTotalAllocation;
     static std::atomic<size_t> currentAlloc;
 };
