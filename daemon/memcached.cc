@@ -1724,12 +1724,6 @@ extern "C" int memcached_main(int argc, char **argv) {
     max_file_handles = cb::io::maximizeFileDescriptors(
             std::numeric_limits<uint32_t>::max());
 
-#ifdef WIN32
-    evthread_use_windows_threads();
-#else
-    evthread_use_pthreads();
-#endif
-
     std::unique_ptr<ParentMonitor> parent_monitor;
 
     try {
