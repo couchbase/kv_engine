@@ -272,14 +272,6 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     drain_notification_channel(fd);
 
     if (memcached_shutdown) {
-        // Someone requested memcached to shut down. The listen thread should
-        // be stopped immediately.
-        if (is_listen_thread()) {
-            LOG_INFO("Stopping listen thread (thread.cc)");
-            event_base_loopbreak(me.base);
-            return;
-        }
-
         if (signal_idle_clients(me, false) == 0) {
             LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
@@ -393,13 +385,6 @@ void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
     }
 
     notify_thread(thread);
-}
-
-/*
- * Returns true if this is the thread that listens for new TCP connections.
- */
-int is_listen_thread() {
-    return dispatcher_thread.thread_id == cb_thread_self();
 }
 
 void notify_dispatcher() {

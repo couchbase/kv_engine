@@ -64,9 +64,6 @@ void threads_cleanup();
 class ListeningPort;
 void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort>& interface);
 
-/* Lock wrappers for cache functions that are called from main loop. */
-int is_listen_thread(void);
-
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 void notify_io_complete(gsl::not_null<const void*> cookie,
