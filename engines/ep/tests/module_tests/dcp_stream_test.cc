@@ -42,7 +42,9 @@
 #include "checkpoint_utils.h"
 
 #include "engines/ep/tests/mock/mock_dcp_conn_map.h"
+#include <engines/ep/tests/mock/mock_dcp_backfill_mgr.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>
 #include <thread>
 
@@ -1782,6 +1784,66 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
     };
 
     stream->transitionStateToTakeoverDead();
+}
+
+TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    auto item = make_item(vbid, key, value);
+
+    {
+        auto cHandle = vb->lockCollections(item.getKey());
+        EXPECT_EQ(ENGINE_SUCCESS, vb->set(item, cookie, *engine, {}, cHandle));
+    }
+    EXPECT_EQ(3, ckptMgr.createNewCheckpoint());
+
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid);
+    }
+    producer->closeStream(stream->getOpaque(), vbid, stream->getStreamId());
+    stream.reset();
+    removeCheckpoint(*vb, 1);
+
+    auto& bfm = dynamic_cast<MockDcpBackfillManager&>(producer->getBFM());
+    // Normal flow if stream in correct state
+    {
+        // confirm no backfills scheduled
+        EXPECT_EQ(0, bfm.getNumBackfills());
+
+        // creating the stream will schedule backfill
+        recreateStream(*vb);
+
+        EXPECT_EQ(backfill_success, bfm.backfill()); // init
+        EXPECT_EQ(backfill_success, bfm.backfill()); // scan
+        EXPECT_EQ(backfill_success, bfm.backfill()); // completing
+        EXPECT_EQ(backfill_success, bfm.backfill()); // done
+        EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
+        EXPECT_EQ(0, bfm.getNumBackfills());
+
+        producer->closeStream(stream->getOpaque(), vbid, stream->getStreamId());
+        stream.reset();
+    }
+
+    // Test stream *not* in expected backfill state when creating the backfill
+    {
+        // confirm no backfills scheduled
+        EXPECT_EQ(0, bfm.getNumBackfills());
+
+        // creating the stream will schedule backfill
+        recreateStream(*vb);
+
+        stream->transitionStateToInMemory();
+
+        EXPECT_EQ(backfill_success, bfm.backfill()); // init
+        // scan is skipped
+        EXPECT_EQ(backfill_success, bfm.backfill()); // completing
+        EXPECT_EQ(backfill_success, bfm.backfill()); // done
+        EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
+        EXPECT_EQ(0, bfm.getNumBackfills());
+    }
 }
 
 /*

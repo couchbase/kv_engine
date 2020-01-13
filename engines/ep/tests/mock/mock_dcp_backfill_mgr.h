@@ -40,4 +40,6 @@ public:
     BackfillScanBuffer& public_getBackfillScanBuffer() {
         return scanBuffer;
     }
+
+    using BackfillManager::getNumBackfills;
 };

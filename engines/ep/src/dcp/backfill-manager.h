@@ -103,6 +103,16 @@ public:
     void wakeUpTask();
 
 protected:
+    /**
+     * Get the current number of tracked backfills.
+     *
+     * Only used within tests.
+     */
+    size_t getNumBackfills() const {
+        return activeBackfills.size() + snoozingBackfills.size() +
+               pendingBackfills.size();
+    }
+
     //! The buffer is the total bytes used by all backfills for this connection
     struct {
         size_t bytesRead;
