@@ -4,48 +4,7 @@
 /**
  * Use this file as an abstraction to the underlying hooks api
  */
-
-#include <stdint.h>
-#include <stdlib.h>
-#include <vector>
-
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct allocator_ext_stat {
-    char key[48];
-    size_t value;
-} allocator_ext_stat;
-
-typedef struct allocator_stats {
-    /* Bytes of memory allocated by the application. Doesn't include allocator
-       overhead or fragmentation. */
-    size_t allocated_size;
-
-    /* Bytes of memory reserved by the allocator */
-    size_t heap_size;
-
-    /* mem occupied by allocator metadata */
-    size_t metadata_size;
-
-    /* Memory overhead of the allocator*/
-    size_t fragmentation_size;
-
-    /* memory that has not been given back to the OS */
-    size_t retained_size;
-
-    /* max bytes in resident pages mapped by the allocator*/
-    size_t resident_size;
-
-    /* Vector of additional allocator-specific statistics */
-    std::vector<allocator_ext_stat> ext_stats;
-
-} allocator_stats;
+#include <cstddef>
 
 /**
  * Engine allocator hooks for memory tracking.
@@ -85,7 +44,3 @@ struct ServerAllocatorIface {
      */
     bool (*remove_delete_hook)(void (*)(const void* ptr));
 };
-
-#ifdef __cplusplus
-}
-#endif
