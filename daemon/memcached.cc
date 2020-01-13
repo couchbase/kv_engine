@@ -146,6 +146,7 @@ std::vector<std::unique_ptr<ServerSocket>> listen_conn;
 std::atomic_bool check_listen_conn;
 
 static struct event_base *main_base;
+static FrontEndThread dispatcher_thread;
 
 /*
  * MB-12470 requests an easy way to see when (some of) the statistics
@@ -361,7 +362,7 @@ static void opcode_attributes_override_changed_listener(const std::string&,
 
 static void interfaces_changed_listener(const std::string&, Settings &s) {
     check_listen_conn = true;
-    notify_dispatcher();
+    notify_thread(dispatcher_thread);
 }
 
 #ifdef HAVE_LIBNUMA
@@ -818,6 +819,24 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
             create_portnumber_file(false);
         }
     }
+}
+
+static void setup_dispatcher() {
+    dispatcher_thread.base = main_base;
+    dispatcher_thread.thread_id = cb_thread_self();
+    dispatcher_thread.createNotificationPipe();
+
+    /* Listen for notifications from other threads */
+    if ((event_assign(&dispatcher_thread.notify_event,
+                      dispatcher_thread.base,
+                      dispatcher_thread.notify[0],
+                      EV_READ | EV_PERSIST,
+                      dispatch_event_handler,
+                      nullptr) == -1) ||
+        (event_add(&dispatcher_thread.notify_event, nullptr) == -1)) {
+        FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
+    }
+    dispatcher_thread.running = true;
 }
 
 /*
@@ -1876,10 +1895,11 @@ extern "C" int memcached_main(int argc, char **argv) {
      */
     create_listen_sockets();
 
-    /* start up worker threads if MT mode */
-    thread_init(Settings::instance().getNumWorkerThreads(),
-                main_base,
-                dispatch_event_handler);
+    // Setup the dispatcher object used to accept new client connections
+    setup_dispatcher();
+
+    // start up worker threads
+    thread_init(Settings::instance().getNumWorkerThreads());
 
     executorPool = std::make_unique<cb::ExecutorPool>(
             Settings::instance().getNumWorkerThreads());

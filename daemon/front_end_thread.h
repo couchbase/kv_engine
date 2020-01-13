@@ -40,6 +40,9 @@ struct thread_stats;
 using SharedListeningPort = std::shared_ptr<ListeningPort>;
 
 struct FrontEndThread {
+    /// Create the notification pipe in use
+    void createNotificationPipe();
+
     /**
      * Pending IO requests for this thread. Maps each pending Connection to
      * the IO status to be notified.
@@ -151,5 +154,7 @@ struct FrontEndThread {
 };
 
 void notify_thread(FrontEndThread& thread);
-void notify_dispatcher();
 void drain_notification_channel(evutil_socket_t fd);
+void thread_init(size_t nthreads);
+void threads_shutdown();
+void threads_cleanup();
