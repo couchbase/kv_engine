@@ -254,8 +254,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 
     // 3. Enable defragmenter and trigger defragmentation
     auto defragVisitor = std::make_unique<DefragmentVisitor>(
-            DefragmenterTask::getMaxValueSize(
-                    get_mock_server_api()->alloc_hooks));
+            DefragmenterTask::getMaxValueSize());
 
     if (isModeStoredValue()) {
         // Force visiting of every item by setting a large deadline
@@ -360,8 +359,7 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
         cb::ArenaMalloc::switchToClient(global_stats.arena, false);
 
         PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
-                DefragmenterTask::getMaxValueSize(
-                        get_mock_server_api()->alloc_hooks)));
+                DefragmenterTask::getMaxValueSize()));
         prAdapter.visit(*vbucket);
 
         cb::ArenaMalloc::switchToClient(global_stats.arena, true);
@@ -385,9 +383,7 @@ TEST_P(DefragmenterTest, MaxDefragValueSize) {
 TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
 #endif
 
-    EXPECT_EQ(14336,
-              DefragmenterTask::getMaxValueSize(
-                      get_mock_server_api()->alloc_hooks));
+    EXPECT_EQ(14336, DefragmenterTask::getMaxValueSize());
 }
 
 INSTANTIATE_TEST_CASE_P(

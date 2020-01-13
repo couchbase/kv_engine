@@ -22,7 +22,6 @@
 #include <logger/logger.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <memcached/server_allocator_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
@@ -370,7 +369,6 @@ SERVER_HANDLE_V1* get_mock_server_api() {
     static MockServerCoreApi core_api;
     static MockServerCookieApi server_cookie_api;
     static MockServerLogApi log_api;
-    static ServerAllocatorIface hooks_api;
     static SERVER_HANDLE_V1 rv;
     static MockServerDocumentApi document_api;
     static int init;
@@ -379,7 +377,6 @@ SERVER_HANDLE_V1* get_mock_server_api() {
         rv.core = &core_api;
         rv.log = &log_api;
         rv.cookie = &server_cookie_api;
-        rv.alloc_hooks = &hooks_api;
         rv.document = &document_api;
     }
 

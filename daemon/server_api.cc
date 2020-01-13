@@ -29,7 +29,6 @@
 #include <daemon/protocol/mcbp/engine_errc_2_mcbp.h>
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
-#include <memcached/server_allocator_iface.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
@@ -368,7 +367,6 @@ public:
         core = &core_api;
         log = &server_log_api;
         cookie = &server_cookie_api;
-        alloc_hooks = &hooks_api;
         document = &document_api;
         bucket = &bucket_api;
     }
@@ -377,7 +375,6 @@ protected:
     ServerCoreApi core_api;
     ServerCookieApi server_cookie_api;
     ServerLogApi server_log_api;
-    ServerAllocatorIface hooks_api{};
     ServerDocumentApi document_api;
     ServerBucketApi bucket_api;
 };

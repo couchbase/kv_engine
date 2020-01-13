@@ -108,7 +108,7 @@ public:
     std::chrono::microseconds maxExpectedDuration();
 
     /// Maximum allocation size the defragmenter should consider
-    static size_t getMaxValueSize(ServerAllocatorIface* alloc_hooks);
+    static size_t getMaxValueSize();
 
 private:
 

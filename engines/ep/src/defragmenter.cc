@@ -23,7 +23,6 @@
 #include "executorpool.h"
 #include "kv_bucket.h"
 #include "stored-value.h"
-#include <memcached/server_allocator_iface.h>
 #include <phosphor/phosphor.h>
 #include <cinttypes>
 
@@ -37,13 +36,12 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
 bool DefragmenterTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
-        ServerAllocatorIface* alloc_hooks = engine->getServerApi()->alloc_hooks;
         // Get our pause/resume visitor. If we didn't finish the previous pass,
         // then resume from where we last were, otherwise create a new visitor
         // starting from the beginning.
         if (!prAdapter) {
-            auto visitor = std::make_unique<DefragmentVisitor>(
-                    getMaxValueSize(alloc_hooks));
+            auto visitor =
+                    std::make_unique<DefragmentVisitor>(getMaxValueSize());
 
             prAdapter =
                     std::make_unique<PauseResumeVBAdapter>(std::move(visitor));
@@ -188,7 +186,7 @@ void DefragmenterTask::updateStats(DefragmentVisitor& visitor) {
     stats.defragNumVisited.fetch_add(visitor.getVisitedCount());
 }
 
-size_t DefragmenterTask::getMaxValueSize(ServerAllocatorIface* alloc_hooks) {
+size_t DefragmenterTask::getMaxValueSize() {
     size_t nbins{0};
     cb::ArenaMalloc::getProperty("arenas.nbins", nbins);
 
