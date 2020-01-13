@@ -17,15 +17,12 @@
 #include "memcached.h"
 #include "buckets.h"
 #include "cmdline.h"
-#include "connections.h"
 #include "cookie.h"
-#include "debug_helpers.h"
 #include "enginemap.h"
 #include "executor.h"
 #include "executorpool.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
-#include "ioctl.h"
 #include "libevent_locking.h"
 #include "listening_port.h"
 #include "log_macros.h"
@@ -36,7 +33,6 @@
 #include "mcbp_topkeys.h"
 #include "mcbp_validators.h"
 #include "mcbpdestroybuckettask.h"
-#include "memcached/audit_interface.h"
 #include "memcached_openssl.h"
 #include "network_interface.h"
 #include "opentracing.h"
@@ -54,13 +50,11 @@
 
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
-#include <event2/thread.h>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
-#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
 #include <platform/socket.h>
@@ -84,10 +78,9 @@
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif
+
 #ifdef WIN32
 #include <Winbase.h> // For SetDllDirectory
-#else
-#include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
 /**
@@ -257,8 +250,6 @@ static void stats_init() {
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
-    cb_assert(c->getThread().index <
-              (Settings::instance().getNumWorkerThreads() + 1));
     auto& independent_stats = all_buckets[c->getBucketIndex()].stats;
     return &independent_stats.at(c->getThread().index);
 }
