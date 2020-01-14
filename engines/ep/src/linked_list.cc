@@ -398,13 +398,10 @@ uint64_t BasicLinkedList::getMaxVisibleSeqno() const {
     return maxVisibleSeqno;
 }
 
-uint64_t BasicLinkedList::getRangeReadBegin() const {
-    return readRange.lock()->getBegin();
+std::pair<uint64_t, uint64_t> BasicLinkedList::getRangeRead() const {
+    return readRange.lock()->getRange();
 }
 
-uint64_t BasicLinkedList::getRangeReadEnd() const {
-    return readRange.lock()->getEnd();
-}
 std::mutex& BasicLinkedList::getListWriteLock() const {
     return writeLock;
 }

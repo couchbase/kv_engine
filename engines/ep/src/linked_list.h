@@ -84,6 +84,10 @@ public:
         end = 0;
     }
 
+    std::pair<seqno_t, seqno_t> getRange() const {
+        return {begin, end};
+    }
+
     seqno_t getBegin() const {
         return begin;
     }
@@ -203,9 +207,7 @@ public:
 
     uint64_t getMaxVisibleSeqno() const override;
 
-    uint64_t getRangeReadBegin() const override;
-
-    uint64_t getRangeReadEnd() const override;
+    std::pair<uint64_t, uint64_t> getRangeRead() const override;
 
     std::mutex& getListWriteLock() const override;
 
