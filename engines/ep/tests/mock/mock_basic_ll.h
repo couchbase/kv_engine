@@ -52,12 +52,10 @@ public:
 
     /* Register fake read range for testing */
     void registerFakeReadRange(seqno_t start, seqno_t end) {
-        std::lock_guard<SpinLock> lh(rangeLock);
-        readRange = SeqRange(start, end);
+        (*readRange.lock()) = SeqRange(start, end);
     }
 
     void resetReadRange() {
-        std::lock_guard<SpinLock> lh(rangeLock);
-        readRange.reset();
+        readRange.lock()->reset();
     }
 };

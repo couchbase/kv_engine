@@ -28,6 +28,7 @@
 #include "stored-value.h"
 
 #include <boost/intrusive/list.hpp>
+#include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 
@@ -229,14 +230,7 @@ protected:
      * To get a valid point-in-time snapshot and for correct list iteration we
      * must not de-duplicate an item in the list in this range.
      */
-    SeqRange readRange;
-
-    /**
-     * Lock that protects readRange.
-     * We use spinlock here since the lock is held only for very small time
-     * periods.
-     */
-    mutable SpinLock rangeLock;
+    folly::Synchronized<SeqRange, SpinLock> readRange;
 
     /**
      * Lock that serializes range reads on the 'seqList' - i.e. serializes
@@ -272,7 +266,7 @@ private:
      * highseqno is monotonically increasing and is reset to a lower value
      * only in case of a rollback.
      *
-     * Guarded by rangeLock.
+     * Guarded by writeLock.
      */
     Monotonic<seqno_t> highSeqno;
 

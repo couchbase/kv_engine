@@ -25,7 +25,7 @@
 
 BasicLinkedList::BasicLinkedList(Vbid vbucketId, EPStats& st)
     : SequenceList(),
-      readRange(0, 0),
+      readRange({0, 0}),
       staleSize(0),
       staleMetaDataSize(0),
       highSeqno(0),
@@ -68,9 +68,9 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
         std::lock_guard<std::mutex>& writeLock,
         OrderedStoredValue& v) {
     /* Lock that needed for consistent read of SeqRange 'readRange' */
-    std::lock_guard<SpinLock> lh(rangeLock);
+    auto rr = readRange.lock();
 
-    if (readRange.fallsInRange(v.getBySeqno())) {
+    if (rr->fallsInRange(v.getBySeqno())) {
         /* Range read is in middle of a point-in-time snapshot, hence we cannot
            move the element to the end of the list. Return a temp failure */
         return UpdateStatus::Append;
@@ -107,7 +107,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
 
     {
         std::lock_guard<std::mutex> listWriteLg(getListWriteLock());
-        std::lock_guard<SpinLock> lh(rangeLock);
+        auto rr = readRange.lock();
         if (start > highSeqno) {
             EP_LOG_WARN(
                     "BasicLinkedList::rangeRead(): "
@@ -124,7 +124,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         /* Mark the initial read range */
         end = std::min(end, static_cast<seqno_t>(highSeqno));
         end = std::max(end, static_cast<seqno_t>(highestDedupedSeqno));
-        readRange = SeqRange(1, end);
+        (*rr) = SeqRange(1, end);
     }
 
     /* Read items in the range */
@@ -139,12 +139,9 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
             break;
         }
 
-        {
-            std::lock_guard<SpinLock> lh(rangeLock);
-            readRange.setBegin(currSeqno); /* [EPHE TODO]: should we
-                                                     update the min every time ?
-                                                   */
-        }
+        readRange.lock()->setBegin(currSeqno); /* [EPHE TODO]: should we
+                                                 update the min every time ?
+                                               */
 
         if (currSeqno < start) {
             /* skip this item */
@@ -184,10 +181,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     }
 
     /* Done with range read, reset the range */
-    {
-        std::lock_guard<SpinLock> lh(rangeLock);
-        readRange.reset();
-    }
+    readRange.lock()->reset();
 
     /* Return all the range read items */
     return std::make_tuple(ENGINE_SUCCESS, std::move(items), end);
@@ -307,8 +301,7 @@ size_t BasicLinkedList::purgeTombstones(
         }
 
         // Update readRange
-        std::lock_guard<SpinLock> rangeGuard(rangeLock);
-        readRange = SeqRange(startIt->getBySeqno(), purgeUpToSeqno);
+        (*readRange.lock()) = SeqRange(startIt->getBySeqno(), purgeUpToSeqno);
     }
 
     // Iterate across all but the last item in the seqList, looking
@@ -321,13 +314,10 @@ size_t BasicLinkedList::purgeTombstones(
             break;
         }
 
-        {
-            // As we move past the items in the list, increment the begin of
-            // 'readRange' to reduce the window of creating stale items during
-            // updates
-            std::lock_guard<SpinLock> rangeGuard(rangeLock);
-            readRange.setBegin(it->getBySeqno());
-        }
+        // As we move past the items in the list, increment the begin of
+        // 'readRange' to reduce the window of creating stale items during
+        // updates
+        readRange.lock()->setBegin(it->getBySeqno());
 
         {
             std::lock_guard<std::mutex> writeGuard(getListWriteLock());
@@ -355,10 +345,7 @@ size_t BasicLinkedList::purgeTombstones(
     }
 
     // Complete; reset the readRange.
-    {
-        std::lock_guard<SpinLock> lh(rangeLock);
-        readRange.reset();
-    }
+    readRange.lock()->reset();
     return purgedCount;
 }
 
@@ -412,13 +399,11 @@ uint64_t BasicLinkedList::getMaxVisibleSeqno() const {
 }
 
 uint64_t BasicLinkedList::getRangeReadBegin() const {
-    std::lock_guard<SpinLock> lh(rangeLock);
-    return readRange.getBegin();
+    return readRange.lock()->getBegin();
 }
 
 uint64_t BasicLinkedList::getRangeReadEnd() const {
-    std::lock_guard<SpinLock> lh(rangeLock);
-    return readRange.getEnd();
+    return readRange.lock()->getEnd();
 }
 std::mutex& BasicLinkedList::getListWriteLock() const {
     return writeLock;
@@ -503,7 +488,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     }
 
     std::lock_guard<std::mutex> listWriteLg(list.getListWriteLock());
-    std::lock_guard<SpinLock> lh(list.rangeLock);
+    auto rr = list.readRange.lock();
     if (list.highSeqno < 1) {
         /* No need of holding a lock for the snapshot as there are no items;
            Also iterator range is at default (0, 0) */
@@ -525,8 +510,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
 
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */
-    list.readRange =
-            SeqRange(currIt->getBySeqno(), list.seqList.back().getBySeqno());
+    (*rr) = SeqRange(currIt->getBySeqno(), list.seqList.back().getBySeqno());
 
     /* Keep the range in the iterator obj. We store the range end seqno as one
        higher than the end seqno that can be read by this iterator.
@@ -550,11 +534,11 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
 }
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
-    std::lock_guard<SpinLock> lh(list.rangeLock);
+    auto rr = list.readRange.lock();
     if (readLockHolder.owns_lock()) {
         /* we must reset the list readRange only if the list iterator still owns
            the read lock on the list */
-        list.readRange.reset();
+        rr->reset();
         auto severity = isBackfill ? spdlog::level::level_enum::info
                                    : spdlog::level::level_enum::debug;
         EP_LOG_FMT(severity, "{} Releasing the range iterator", list.vbid);
@@ -600,11 +584,10 @@ void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
     /* Check if the iterator is pointing to the last element. Increment beyond
        the last element indicates the end of the iteration */
     if (curr() == itrRange.getEnd() - 1) {
-        std::lock_guard<SpinLock> lh(list.rangeLock);
         /* We reset the range and release the readRange lock here so that any
            iterator client that does not delete the iterator obj will not end up
            holding the list readRange lock forever */
-        list.readRange.reset();
+        list.readRange.lock()->reset();
         auto severity = isBackfill ? spdlog::level::level_enum::info
                                    : spdlog::level::level_enum::debug;
         EP_LOG_FMT(severity, "{} Releasing the range iterator", list.vbid);
@@ -617,13 +600,11 @@ void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
     }
 
     ++currIt;
-    {
-        /* As the iterator moves we reduce the snapshot range being read on the
-           linked list. This helps reduce the stale items in the list during
-           heavy update load from the front end */
-        std::lock_guard<SpinLock> lh(list.rangeLock);
-        list.readRange.setBegin(currIt->getBySeqno());
-    }
+
+    /* As the iterator moves we reduce the snapshot range being read on the
+       linked list. This helps reduce the stale items in the list during
+       heavy update load from the front end */
+    list.readRange.lock()->setBegin(currIt->getBySeqno());
 
     /* Also update the current range stored in the iterator obj */
     itrRange.setBegin(currIt->getBySeqno());
