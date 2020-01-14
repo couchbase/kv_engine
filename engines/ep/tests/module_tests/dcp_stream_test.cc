@@ -2634,6 +2634,22 @@ TEST_P(SingleThreadedBackfillScanBufferTest, SingleItemScanBuffer) {
     testBackfill();
 }
 
+class SingleThreadedBackfillBufferTest : public SingleThreadedBackfillTest {
+public:
+    void SetUp() override {
+        config_string += "dcp_backfill_byte_limit=1";
+        SingleThreadedActiveStreamTest::SetUp();
+    }
+
+    void TearDown() override {
+        SingleThreadedActiveStreamTest::TearDown();
+    }
+};
+
+TEST_P(SingleThreadedBackfillBufferTest, SingleItemBuffer) {
+    testBackfill();
+}
+
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
         SingleThreadedActiveStreamTest,
@@ -2648,5 +2664,10 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         SingleThreadedBackfillScanBufferTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        SingleThreadedBackfillBufferTest,
                         STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
