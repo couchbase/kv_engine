@@ -3352,6 +3352,13 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h) {
     verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
+    // Wait for something to be removed from the checkpoint manager to ensure
+    // that when we create our stream we will start backfilling from disk. If we
+    // did not wait for this then we would often end up just attempting to
+    // stream from memory which is not what we want to test and would fail later
+    // on in the test when we expect to receive at least 2 snapshots.
+    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", 1);
+
     /* Set up a connection */
     const void* cookie = testHarness->create_cookie(h);
     std::string conn_name("unittest");
@@ -8138,9 +8145,7 @@ BaseTestCase testsuite_testcases[] = {
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;",
-
-                 // MB-28031: Test intermittently failing - disabling.
-                 prepare_broken_test,
+                 prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
