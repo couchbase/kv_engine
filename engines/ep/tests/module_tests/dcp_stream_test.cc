@@ -4143,6 +4143,107 @@ INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         SingleThreadedActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);
+class SingleThreadedBackfillTest : public SingleThreadedActiveStreamTest {
+protected:
+    void testBackfill() {
+        auto vb = engine->getVBucket(vbid);
+        auto& ckptMgr = *vb->checkpointManager;
+
+        // Delete initial stream (so we can re-create after items are only
+        // available from disk.
+        stream.reset();
+
+        // Store 3 items (to check backfill remaining counts).
+        // Add items, flush it to disk, then clear checkpoint to force backfill.
+        store_item(vbid, makeStoredDocKey("key1"), "value");
+        store_item(vbid, makeStoredDocKey("key2"), "value");
+        store_item(vbid, makeStoredDocKey("key3"), "value");
+        ckptMgr.createNewCheckpoint();
+
+        flushVBucketToDiskIfPersistent(vbid, 3);
+
+        bool newCKptCreated;
+        ASSERT_EQ(3, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+
+        // Re-create the stream now we have items only on disk.
+        stream = producer->mockActiveStreamRequest(0 /*flags*/,
+                                                   0 /*opaque*/,
+                                                   *vb,
+                                                   0 /*st_seqno*/,
+                                                   ~0 /*en_seqno*/,
+                                                   0x0 /*vb_uuid*/,
+                                                   0 /*snap_start_seqno*/,
+                                                   ~0 /*snap_end_seqno*/);
+        ASSERT_TRUE(stream->isBackfilling());
+
+        // Should report empty itemsRemaining as that would mislead
+        // ns_server if they asked for stats before the backfill task runs (they
+        // would think backfill is complete).
+        EXPECT_FALSE(stream->getNumBackfillItemsRemaining());
+
+        // Run the backfill we scheduled when we transitioned to the backfilling
+        // state.
+        auto& bfm = producer->getBFM();
+
+        // Need two backfill() calls to progress Manager to have items ready.
+        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
+        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
+
+        // First item
+        EXPECT_EQ(1, stream->getNumBackfillItems());
+
+        // Step the snapshot marker and first mutation
+        MockDcpMessageProducers producers;
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+
+        // Second item
+        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
+        EXPECT_EQ(2, stream->getNumBackfillItems());
+
+        // Step the second mutation
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+
+        // Third item
+        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
+        EXPECT_EQ(3, stream->getNumBackfillItems());
+
+        // Step the third mutation
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+
+        // Ephemeral backfill scan goes straight to complete but persistent
+        // backfill scan does not so we need an extra run
+        if (persistent()) {
+            EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
+        }
+
+        // No more backfills
+        EXPECT_EQ(backfill_status_t::backfill_finished, bfm.backfill());
+
+        // Nothing more to step in the producer
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    }
+};
+
+class SingleThreadedBackfillScanBufferTest : public SingleThreadedBackfillTest {
+public:
+    void SetUp() override {
+        config_string += "dcp_scan_byte_limit=100";
+        SingleThreadedActiveStreamTest::SetUp();
+    }
+
+    void TearDown() override {
+        SingleThreadedActiveStreamTest::TearDown();
+    }
+};
+
+TEST_P(SingleThreadedBackfillScanBufferTest, SingleItemScanBuffer) {
+    testBackfill();
+}
 
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
@@ -4480,4 +4581,9 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
 INSTANTIATE_TEST_CASE_P(Persistent,
                         STPassiveStreamPersistentTest,
                         STParameterizedBucketTest::persistentConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        SingleThreadedBackfillScanBufferTest,
+                        STParameterizedBucketTest::allConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);

@@ -2577,55 +2577,6 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_disk_backfill_limits(EngineIface* h) {
-    const int num_items = 3;
-    write_items(h, num_items);
-
-    wait_for_flusher_to_settle(h);
-    verify_curr_items(h, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
-
-    const void* cookie = testHarness->create_cookie();
-
-    DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
-    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, static_cast<uint64_t>(-1)};
-    ctx.exp_mutations = 3;
-    ctx.exp_markers = 1;
-
-    TestDcpConsumer tdc("unittest", cookie, h);
-    tdc.addStreamCtx(ctx);
-    tdc.run();
-
-    uint64_t exp_backfill_task_runs;
-    if (isPersistentBucket(h)) {
-        /* Backfill task runs are expected as below:
-           once for backfill_state_init + once for backfill_state_completing +
-           once post all backfills are run finished. Here since we have
-           dcp_scan_byte_limit = 100, we expect the backfill task to run
-           additional 'num_items' during backfill_state_scanning state. */
-        exp_backfill_task_runs = 3 + num_items;
-    } else {
-        /* Backfill task runs are expected as below:
-           once for backfill_state_init + once for backfill_state_completing.
-           Here since we have dcp_scan_byte_limit = 100, we expect the backfill
-           task to run additional 'num_items' during BackfillState::scanning
-           state. */
-        exp_backfill_task_runs = 2 + num_items;
-    }
-    checkeq(exp_backfill_task_runs,
-            get_histo_stat(h,
-                           "BackfillManagerTask[auxIO]",
-                           "runtimes",
-                           Histo_stat_info::TOTAL_COUNT),
-            "backfill_tasks did not run expected number of times");
-
-    testHarness->destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
         EngineIface* h) {
     const int num_items = 3;
@@ -8086,13 +8037,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 prepare,
-                 cleanup),
-        TestCase("test producer disk backfill limits",
-                 test_dcp_producer_disk_backfill_limits,
-                 test_setup,
-                 teardown,
-                 "dcp_scan_item_limit=100;dcp_scan_byte_limit=100",
                  prepare,
                  cleanup),
         TestCase("test producer disk backfill buffer limits",
