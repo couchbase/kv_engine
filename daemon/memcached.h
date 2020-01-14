@@ -48,6 +48,18 @@ void cleanup_buckets();
 
 void associate_initial_bucket(Connection& connection);
 
+/*
+ * Functions such as the libevent-related calls that need to do cross-thread
+ * communication in multithreaded mode (rather than actually doing the work
+ * in the current thread) are called via "dispatch_" frontends, which are
+ * also #define-d to directly call the underlying code in singlethreaded mode.
+ */
+
+void thread_init(size_t nthreads,
+                 struct event_base* main_base,
+                 void (*dispatcher_callback)(evutil_socket_t, short, void*));
+void threads_shutdown();
+void threads_cleanup();
 
 class ListeningPort;
 void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort>& interface);
@@ -79,6 +91,10 @@ SERVER_HANDLE_V1* get_server_api();
 void shutdown_server();
 bool associate_bucket(Connection& connection, const char* name);
 void disassociate_bucket(Connection& connection);
+
+void disable_listen();
+bool is_listen_disabled();
+uint64_t get_listen_disabled_num();
 
 /**
  * The executor pool used to pick up the result for requests spawn by the
