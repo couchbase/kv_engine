@@ -931,14 +931,16 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
 
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(1);
+
+    // transitionStateToBackfilling should set isBackfillTaskRunning to true
+    // which will not be reset until the task finishes which we will use to
+    // block this thread.
     stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to complete */
     {
         std::chrono::microseconds uSleepTime(128);
-        uint64_t expLastReadSeqno = 4 /*numItems*/ + 4 /*num updates*/;
-        while (expLastReadSeqno !=
-               static_cast<uint64_t>(stream->getLastReadSeqno())) {
+        while (stream->public_isBackfillTaskRunning()) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
