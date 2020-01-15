@@ -19,6 +19,7 @@
 #include "testapp_client_test.h"
 
 #include <platform/compress.h>
+#include <protocol/connection/frameinfo.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
 
@@ -294,4 +295,37 @@ TEST_P(RegressionTest, MB35528) {
     conn.increment(name, 1, 0, 0, nullptr);
     const auto info = conn.get(name, Vbid{0});
     EXPECT_EQ(cb::mcbp::Datatype::JSON, info.info.datatype);
+}
+
+/// MB-37506 - Incorrect validation of frame attributes
+TEST_P(RegressionTest, MB37506) {
+    class InvalidDurabilityFrameInfo : public DurabilityFrameInfo {
+    public:
+        InvalidDurabilityFrameInfo()
+            : DurabilityFrameInfo(cb::durability::Level::Majority,
+                                  cb::durability::Timeout(32)) {
+        }
+        std::vector<uint8_t> encode() const override {
+            auto ret = DurabilityFrameInfo::encode();
+            ret.pop_back();
+            return ret;
+        }
+    };
+
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+
+    // Add the DcpStreamID (which we used to stop parsing after checking)
+    // and add an invalid durability encoding...
+    try {
+        conn.get("MB37506", Vbid{0}, []() -> FrameInfoVector {
+            FrameInfoVector ret;
+            ret.emplace_back(std::make_unique<DcpStreamIdFrameInfo>(12));
+            ret.emplace_back(std::make_unique<InvalidDurabilityFrameInfo>());
+            return ret;
+        });
+        FAIL() << "Should not be able to find the document";
+    } catch (const ConnectionError& e) {
+        ASSERT_TRUE(e.isInvalidArguments());
+    }
 }
