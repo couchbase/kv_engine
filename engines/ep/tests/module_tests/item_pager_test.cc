@@ -294,6 +294,67 @@ TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
     runHighMemoryPager();
 }
 
+TEST_P(STItemPagerTest, PagerEvictsSomething) {
+    // Pager can't run in fail_new_data policy so test is invalid
+    if ((std::get<1>(GetParam()) == "fail_new_data")) {
+        return;
+    }
+
+    // Fill to just over HWM
+    populateUntilAboveHighWaterMark(vbid);
+
+    // Flush so items are eligible for ejection
+    flushDirectlyIfPersistent(vbid);
+
+    auto vb = store->getVBucket(vbid);
+    auto items = vb->getNumItems();
+
+    // Success if the pager is now ready
+    runHighMemoryPager();
+
+    if (persistent()) {
+        // Should have evicted something
+        EXPECT_LT(0, store->getVBucket(vbid)->getNumNonResidentItems());
+        EXPECT_EQ(vb->getNumItems(), items);
+
+        // Bump up max size and HWM so we don't encounter memory issues during
+        // get phase
+        auto quota = engine->getEpStats().getPreciseTotalMemoryUsed() * 2;
+        engine->getConfiguration().setMaxSize(quota);
+        engine->getConfiguration().setMemHighWat(quota * 0.85);
+
+        // Read all of our items to verify that they are still there. Some will
+        // be on disk
+        for (size_t i = 0; i < items; i++) {
+            auto key = makeStoredDocKey("key_" + std::to_string(i));
+            auto gv = getInternal(key,
+                                  vbid,
+                                  cookie,
+                                  ForGetReplicaOp::No,
+                                  get_options_t::QUEUE_BG_FETCH);
+            switch (gv.getStatus()) {
+            case ENGINE_SUCCESS:
+                break;
+            case ENGINE_EWOULDBLOCK: {
+                ASSERT_TRUE(vb->hasPendingBGFetchItems());
+                runBGFetcherTask();
+                gv = getInternal(key,
+                                 vbid,
+                                 cookie,
+                                 ForGetReplicaOp::No,
+                                 get_options_t::NONE);
+                EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+                break;
+            }
+            default:
+                FAIL() << "Unexpected status";
+            }
+        }
+    } else {
+        EXPECT_LT(vb->getNumItems(), items);
+    }
+}
+
 // Tests that for the hifi_mfu eviction algorithm we visit replica vbuckets
 // first.
 TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {

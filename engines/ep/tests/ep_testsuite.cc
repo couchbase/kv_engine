@@ -5173,106 +5173,6 @@ static enum test_result test_memory_condition(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_item_pager(EngineIface* h) {
-    // 1. Create enough 1KB items to hit the high watermark (i.e. get TEMP_OOM).
-    char data[1024];
-    memset(&data, 'x', sizeof(data)-1);
-    data[1023] = '\0';
-
-    // Create documents, until we hit TempOOM or have at least stored enough
-    // documents that we've overflowed the cache. Due to accurate memory
-    // tracking & overheads it's impossible to exactly predict how many we will
-    // need. Additionally the pager kicks in at the HWM before TMPFAIL so if we
-    // kept going until we hit TMPFAIL we could of stored many many docs and
-    // have a low residency ratio (basically the store loop chasing ejection)
-    // the low RR makes the final part of the test incredibly slow.
-    int docs_stored = 0;
-
-    // Calculate the number of items to store, we ensure we will fill the memory
-    // quota, but we don't want to overfill (and go heavy DGM)
-    int nDocs = get_int_stat(h, "ep_max_size") / sizeof(data);
-    for (int j = 0; j < nDocs; ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
-        std::string key(ss.str());
-
-        ENGINE_ERROR_CODE err =
-                store(h, NULL, OPERATION_SET, key.c_str(), data);
-
-        check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
-              "Failed to store a value");
-        // The pager triggers when we hit HWM, we may or may not hit TMPFAIL
-        // before we hit nDocs
-        if (err == ENGINE_TMPFAIL) {
-            break;
-        }
-        docs_stored++;
-    }
-    wait_for_flusher_to_settle(h);
-
-    checklt(10, docs_stored,
-          "Failed to store enough documents before hitting TempOOM\n");
-
-    // If the item pager hasn't run already, set mem_high_wat to a value less
-    // than mem_used which should force the item pager to run at least once.
-    if (get_int_stat(h, "ep_num_non_resident") == 0) {
-
-        // First, wait for 1 checkpoint so that the removal of a checkpoint
-        // doesn't drop us below the HWM.
-        wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
-
-        int mem_used = get_int_stat(h, "mem_used");
-        int new_low_wat = mem_used * 0.75;
-        set_param(h,
-                  cb::mcbp::request::SetParamPayload::Type::Flush,
-                  "mem_low_wat",
-                  std::to_string(new_low_wat).c_str());
-        int new_high_wat = mem_used * 0.85;
-        set_param(h,
-                  cb::mcbp::request::SetParamPayload::Type::Flush,
-                  "mem_high_wat",
-                  std::to_string(new_high_wat).c_str());
-    }
-
-    testHarness->time_travel(5);
-
-    wait_for_memory_usage_below(h, get_int_stat(h, "ep_mem_high_wat"));
-
-    int num_non_resident = get_int_stat(h, "ep_num_non_resident");
-    if (num_non_resident == 0) {
-        wait_for_stat_change(h, "ep_num_non_resident", 0);
-    }
-
-    // The pager should have ejected something
-    wait_for_stat_to_be_gte(h, "ep_num_value_ejects", 1);
-
-    // Check we can successfully fetch all of the documents (even ones not
-    // resident).
-    for (int j = 0; j < docs_stored; ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
-        std::string key(ss.str());
-
-        // Given we're in a high watermark scenario, may (temporarily) fail
-        // to allocate memory for the response, so retry in that case.
-        auto result = cb::makeEngineErrorItemPair(cb::engine_errc{});
-        do {
-            result = get(h, NULL, key, Vbid(0));
-        } while (result.first == cb::engine_errc::no_memory);
-
-        checkeq(cb::engine_errc::success,
-                result.first,
-                "Failed to get value after hitting high watermark.");
-    }
-
-    //Tmp ooms now trigger the item_pager task to eject some items,
-    //thus there would be a few background fetches at least.
-    checklt(0, get_int_stat(h, "ep_bg_fetched"),
-          "Expected a few disk reads for referenced items");
-
-    return SUCCESS;
-}
-
 static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     const void* cookie = testHarness->create_cookie(h);
 
@@ -8105,22 +8005,6 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test observe seqno error", test_observe_seqno_error,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test item pager",
-                 test_item_pager,
-                 test_setup,
-                 teardown,
-                 "max_size=6291456;max_num_shards=4;chk_expel_enabled=false;",
-                 // TODO RDB: This test requires full control and accurate
-                 // tracking on how memory is allocated by the underlying
-                 // store. We do not have that yet for RocksDB. Depending
-                 // on the configuration, RocksDB pre-allocates default-size
-                 // blocks of memory in the internal Arena.
-                 // For this specific test, the problem is that the memory
-                 // usage never goes below the 'ep_mem_high_wat'. Needs
-                 // to resize 'max_size' to consider RocksDB pre-allocations.
-                 // TODO magma: similar issue for magma
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
-                 cleanup),
         TestCase("test memory condition",
                  test_memory_condition,
                  test_setup,
