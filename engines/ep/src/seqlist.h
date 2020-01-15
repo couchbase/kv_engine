@@ -184,7 +184,9 @@ public:
         /**
          * Returns the stored item at iterator's position
          */
-        OrderedStoredValue& operator*() const;
+        const OrderedStoredValue& operator*() const;
+
+        const OrderedStoredValue* operator->() const;
 
         /**
          * Pre increment of the iterator position
@@ -432,14 +434,10 @@ public:
     virtual uint64_t getMaxVisibleSeqno() const = 0;
 
     /**
-     * Returns the current range read begin sequence number.
+     * Returns the current range lock begin and end sequence numbers,
+     * inclusive of both ends.
      */
-    virtual uint64_t getRangeReadBegin() const = 0;
-
-    /**
-     * Returns the current range read end sequence number.
-     */
-    virtual uint64_t getRangeReadEnd() const = 0;
+    virtual std::pair<uint64_t, uint64_t> getRangeRead() const = 0;
 
     /**
      * Returns the lock which must be held to make append/update to the seqList

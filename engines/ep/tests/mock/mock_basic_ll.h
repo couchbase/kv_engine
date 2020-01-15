@@ -45,19 +45,13 @@ public:
         return allSeqnos;
     }
 
-    /// Expose the rangeReadLock for testing.
-    std::mutex& getRangeReadLock() {
-        return rangeReadLock;
+    /* Register fake range lock for testing */
+    RangeGuard registerFakeSharedRangeLock(seqno_t start, seqno_t end) {
+        return tryLockSeqnoRangeShared(start, end);
     }
 
     /* Register fake read range for testing */
-    void registerFakeReadRange(seqno_t start, seqno_t end) {
-        std::lock_guard<SpinLock> lh(rangeLock);
-        readRange = SeqRange(start, end);
-    }
-
-    void resetReadRange() {
-        std::lock_guard<SpinLock> lh(rangeLock);
-        readRange.reset();
+    RangeGuard registerFakeRangeLock(seqno_t start, seqno_t end) {
+        return tryLockSeqnoRange(start, end);
     }
 };

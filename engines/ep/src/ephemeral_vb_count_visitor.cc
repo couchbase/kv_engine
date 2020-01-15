@@ -34,8 +34,11 @@ void EphemeralVBucket::CountVisitor::visitBucket(const VBucketPtr& vb) {
         seqlistCount += ephVB.seqList->getNumItems();
         seqlistDeletedCount += ephVB.seqList->getNumDeletedItems();
         seqListPurgeCount += ephVB.seqListPurgeCount;
-        seqlistReadRangeCount += ephVB.seqList->getRangeReadEnd() -
-                                 ephVB.seqList->getRangeReadBegin();
+
+        uint64_t rrBegin, rrEnd;
+        std::tie(rrBegin, rrEnd) = ephVB.seqList->getRangeRead();
+
+        seqlistReadRangeCount += rrEnd - rrBegin;
         seqlistStaleCount += ephVB.seqList->getNumStaleItems();
         seqlistStaleValueBytes += ephVB.seqList->getStaleValueBytes();
         seqlistStaleMetadataBytes += ephVB.seqList->getStaleMetadataBytes();

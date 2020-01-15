@@ -421,7 +421,7 @@ TEST_F(BasicLinkedListTest, UpdateDuringRangeRead) {
     /* Add 3 new items */
     addNewItemsToList(1, keyPrefix, numItems);
 
-    basicLL->registerFakeReadRange(1, numItems);
+    auto range = basicLL->registerFakeSharedRangeLock(1, numItems);
 
     /* Update an item in the list when a fake range read is happening */
     updateItemDuringRangeRead(numItems,
@@ -721,7 +721,7 @@ TEST_F(BasicLinkedListTest, MultipleRangeIterator_MB24474) {
     EXPECT_EQ(expectedSeqno, actualSeqno);
 }
 
-TEST_F(BasicLinkedListTest, NonBlockingRangeIterators) {
+TEST_F(BasicLinkedListTest, ConcurrentRangeIterators) {
     const int numItems = 3;
     const std::string keyPrefix("key");
 
@@ -729,25 +729,86 @@ TEST_F(BasicLinkedListTest, NonBlockingRangeIterators) {
     std::vector<seqno_t> expectedSeqno =
             addNewItemsToList(1, keyPrefix, numItems);
 
+    // multiple iterators should be permitted
+    auto itr1 = getRangeIterator();
+    auto itr2 = getRangeIterator();
+
+    std::vector<seqno_t> seqnos1;
+    std::vector<seqno_t> seqnos2;
+
+    /* Read all the items with the iterators */
+    for (int i = 0; i < 3; i++) {
+        seqnos1.push_back(itr1->getBySeqno());
+        seqnos2.push_back(itr2->getBySeqno());
+        ++itr1;
+        ++itr2;
+    }
+
+    EXPECT_TRUE(itr1.curr() == itr1.end());
+    EXPECT_TRUE(itr2.curr() == itr2.end());
+
+    EXPECT_TRUE(seqnos1 == seqnos2);
+
+    EXPECT_EQ(3, seqnos1.back());
+}
+
+TEST_F(BasicLinkedListTest, ConcurrentRangeReadShared) {
+    auto guard1 = basicLL->tryLockSeqnoRangeShared(1, 2);
+    auto guard2 = basicLL->tryLockSeqnoRangeShared(1, 2);
+
+    EXPECT_TRUE(guard1);
+    EXPECT_TRUE(guard2);
+}
+
+TEST_F(BasicLinkedListTest, ConcurrentRangeReadExclusive) {
     {
-        auto itr1 = getRangeIterator();
-        auto itr2 = basicLL->makeRangeIterator(true /*isBackfill*/);
-        /* itr1 is already using the list, we cannot have another iterator */
-        EXPECT_FALSE(itr2);
+        auto guard1 = basicLL->tryLockSeqnoRangeShared(1, 2);
+        auto guard2 = basicLL->tryLockSeqnoRange(1, 2);
 
-        /* itr1 goes out of scope and releases the read lock on the list */
+        EXPECT_TRUE(guard1);
+        EXPECT_FALSE(guard2);
     }
 
-    /* Iterator created now, should be able to read all items */
-    auto itr = getRangeIterator();
-    std::vector<seqno_t> actualSeqno;
+    {
+        auto guard1 = basicLL->tryLockSeqnoRangeShared(1, 2);
+        auto guard2 = basicLL->tryLockSeqnoRangeShared(1, 2);
+        auto guard3 = basicLL->tryLockSeqnoRange(1, 2);
 
-    /* Read all the items with the iterator */
-    while (itr.curr() != itr.end()) {
-        actualSeqno.push_back((*itr).getBySeqno());
-        ++itr;
+        EXPECT_TRUE(guard1);
+        EXPECT_TRUE(guard2);
+        EXPECT_FALSE(guard3);
+
+        guard1.reset();
+
+        guard3 = basicLL->tryLockSeqnoRange(1, 2);
+        EXPECT_FALSE(guard3);
+
+        guard2.reset();
+
+        guard3 = basicLL->tryLockSeqnoRange(1, 2);
+        EXPECT_TRUE(guard3);
     }
-    EXPECT_EQ(expectedSeqno, actualSeqno);
+
+    {
+        auto guard1 = basicLL->tryLockSeqnoRange(1, 2);
+        auto guard2 = basicLL->tryLockSeqnoRangeShared(1, 2);
+
+        EXPECT_TRUE(guard1);
+        EXPECT_FALSE(guard2);
+    }
+
+    {
+        auto guard1 = basicLL->tryLockSeqnoRange(1, 2);
+        auto guard2 = basicLL->tryLockSeqnoRange(1, 2);
+
+        EXPECT_TRUE(guard1);
+        EXPECT_FALSE(guard2);
+
+        guard1.reset();
+
+        guard2 = basicLL->tryLockSeqnoRange(1, 2);
+        EXPECT_TRUE(guard2);
+    }
 }
 
 TEST_F(BasicLinkedListTest, RangeReadStopsOnInvalidSeqno) {
@@ -858,17 +919,16 @@ TEST_F(BasicLinkedListTest, UpdateDuringPurge) {
        (first key here) in the linked list that is already visited by
        the purger, hence we do not expect the update to create a stale copy of
        the updated item */
-    bool sendUpdateOnce = true;
-    bool afterFirst = false;
+
+    size_t timesShouldPauseCalled = 0;
     basicLL->purgeTombstones(numItems, {}, [&]() {
         /* By sending the update in the callback, we are simulating a
            scenario where an update happens in between the purge */
-        if (sendUpdateOnce && afterFirst) {
-            sendUpdateOnce = false;
+        if (timesShouldPauseCalled == 1) {
             /* update first key */
             updateItem(numItems, keyPrefix + std::to_string(1));
         }
-        afterFirst = true;
+        ++timesShouldPauseCalled;
         return false;
     });
 
@@ -876,6 +936,42 @@ TEST_F(BasicLinkedListTest, UpdateDuringPurge) {
     EXPECT_EQ(numItems + 1, basicLL->getHighSeqno());
     /* Update should not create stale items */
     EXPECT_EQ(0, basicLL->getNumStaleItems());
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorRefusedDuringPurge) {
+    const int numItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    basicLL->purgeTombstones(numItems, {}, [&]() {
+        auto itr = basicLL->makeRangeIterator(true /*isBackfill*/);
+
+        // should not have been allowed to make a range iterator during purge
+        EXPECT_FALSE(itr);
+        return false;
+    });
+}
+
+TEST_F(BasicLinkedListTest, PurgeEarlyExitsIfRangeIteratorExists) {
+    const int numItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    auto itr = basicLL->makeRangeIterator(true /*isBackfill*/);
+    EXPECT_TRUE(itr);
+
+    auto purgedCount = basicLL->purgeTombstones(numItems, {}, [&]() {
+        // should not have tried to iterate the seqList,
+        // so shouldPause (this lambda) should not be called
+        ADD_FAILURE();
+        return false;
+    });
+
+    EXPECT_EQ(0, purgedCount);
 }
 
 /* Run purge when the last item in the list does not yet have a seqno */

@@ -24,10 +24,12 @@
 
 #include "atomic.h"
 #include "monotonic.h"
+#include "range_lock_manager.h"
 #include "seqlist.h"
 #include "stored-value.h"
 
 #include <boost/intrusive/list.hpp>
+#include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 
@@ -40,71 +42,6 @@ using MemberHookOption =
 /* This list will use the member hook */
 using OrderedLL = boost::intrusive::list<OrderedStoredValue, MemberHookOption>;
 
-/**
- * Class that represents a range of sequence numbers.
- * SeqRange is closed, that is, both begin and end are inclusive.
- *
- * Note: begin <= 0 is considered an default/inactive range and can be set
- *       only by ctor or by reset.
- */
-class SeqRange {
-public:
-    SeqRange(const seqno_t beginVal, const seqno_t endVal)
-        : end(endVal), begin(beginVal) {
-        if ((end < begin) || (begin < 0)) {
-            throw std::invalid_argument("Trying to create invalid SeqRange: [" +
-                                        std::to_string(begin) + ", " +
-                                        std::to_string(end) + "]");
-        }
-    }
-
-    SeqRange& operator=(const SeqRange& other) {
-        begin = other.begin;
-        end = other.end;
-        return *this;
-    }
-
-    /**
-     * Returns true if the range overlaps with another.
-     */
-    bool overlaps(const SeqRange& other) const {
-        return std::max(begin, other.begin) <= std::min(end, other.end);
-    }
-
-    /**
-     *  Returns true if the seqno falls in the range
-     */
-    bool fallsInRange(const seqno_t seqno) const {
-        return (seqno >= begin) && (seqno <= end);
-    }
-
-    void reset() {
-        begin = 0;
-        end = 0;
-    }
-
-    seqno_t getBegin() const {
-        return begin;
-    }
-
-    void setBegin(const seqno_t start) {
-        if ((start <= 0) || (start > end)) {
-            throw std::invalid_argument(
-                    "Trying to set incorrect begin " + std::to_string(start) +
-                    " on SeqRange: [" + std::to_string(begin) + ", " +
-                    std::to_string(end) + "]");
-        }
-        begin = start;
-    }
-
-    seqno_t getEnd() const {
-        return end;
-    }
-
-private:
-    seqno_t end;
-    seqno_t begin;
-};
 
 /**
  * This class implements SequenceList as a basic doubly linked list.
@@ -202,14 +139,41 @@ public:
 
     uint64_t getMaxVisibleSeqno() const override;
 
-    uint64_t getRangeReadBegin() const override;
-
-    uint64_t getRangeReadEnd() const override;
+    std::pair<uint64_t, uint64_t> getRangeRead() const override;
 
     std::mutex& getListWriteLock() const override;
 
     boost::optional<SequenceList::RangeIterator> makeRangeIterator(
             bool isBackfill) override;
+
+    /**
+     * Exclusively locks a range of seqnos in the sequence list. Prevents any
+     * other range locks being acquired over an intersecting range.
+     * Stops front end ops updating and relocating items in the given seqno
+     * range, allowing them to be safely read, and safely modified/removed iff
+     * stale. See `ReadRangeManager::tryLockRange`.
+     *
+     * If an existing range lock intersects the requested range the lock attempt
+     * will fail (returning an invalid RangeGuard).
+     * If successfully acquired, the lock will prevent new range locks being
+     * acquired over any intersecting range until it is released.
+     */
+    RangeGuard tryLockSeqnoRange(seqno_t start, seqno_t end);
+
+    /**
+     * Locks a range of seqnos in the sequence list. Prevents any *exclusive*
+     * range locks being acquired over an intersecting range while also stopping
+     * front end ops updating and relocating items in the given seqno range,
+     * allowing them to be safely read. See
+     * `ReadRangeManager::tryLockRangeShared`.
+     *
+     * The lock permits other shared range locks to intersect the covered range.
+     * * If an existing *exclusive* range lock intersects the requested range
+     * the lock attempt will fail (returning an invalid RangeGuard). If
+     * successfully acquired, the lock will prevent *exclusive* range locks
+     * being acquired over any intersecting range until it is released.
+     */
+    RangeGuard tryLockSeqnoRangeShared(seqno_t start, seqno_t end);
 
     void dump() const override;
 
@@ -227,31 +191,9 @@ protected:
     /**
      * Used to mark of the range where point-in-time snapshot is happening.
      * To get a valid point-in-time snapshot and for correct list iteration we
-     * must not de-duplicate an item in the list in this range.
+     * must not de-duplicate an item in the range tracked by the manager.
      */
-    SeqRange readRange;
-
-    /**
-     * Lock that protects readRange.
-     * We use spinlock here since the lock is held only for very small time
-     * periods.
-     */
-    mutable SpinLock rangeLock;
-
-    /**
-     * Lock that serializes range reads on the 'seqList' - i.e. serializes
-     * the addition / removal of range reads from the set in-flight.
-     * We need to serialize range reads because, range reads set a list level
-     * range in which items are read. If we have multiple range reads then we
-     * must handle the races in the updation of the range to have most inclusive
-     * range.
-     * For now we use this lock to allow only one range read at a time.
-     *
-     * It is also additionally used in purgeTombstones() to prevent the
-     * creation of any new rangeReads while purge is in-progress - see
-     * detailed comments there.
-     */
-    std::mutex rangeReadLock;
+    RangeLockManager rangeLockManager;
 
     /* Overall memory consumed by (stale) OrderedStoredValues owned by the
        list */
@@ -272,7 +214,7 @@ private:
      * highseqno is monotonically increasing and is reset to a lower value
      * only in case of a rollback.
      *
-     * Guarded by rangeLock.
+     * Guarded by writeLock.
      */
     Monotonic<seqno_t> highSeqno;
 
@@ -392,7 +334,7 @@ private:
          */
         bool tryLater() const {
             /* could not lock and the list has items */
-            return (!readLockHolder && (list.getHighSeqno() > 0));
+            return (!rangeGuard && (list.getHighSeqno() > 0));
         }
 
         /**
@@ -417,8 +359,9 @@ private:
         /* The current list element pointed by the iterator */
         OrderedLL::iterator currIt;
 
-        /* Lock holder which allows having only one iterator at a time */
-        std::unique_lock<std::mutex> readLockHolder;
+        /* guard holding the range lock over the linked list to stop items
+         * in the needed range being updated */
+        RangeGuard rangeGuard;
 
         /* Current range of the iterator */
         SeqRange itrRange;

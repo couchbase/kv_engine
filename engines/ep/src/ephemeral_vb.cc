@@ -183,8 +183,10 @@ void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                 add_stat,
                 c);
         addStat("seqlist_purged_count", seqListPurgeCount.load(), add_stat, c);
-        const auto rr_begin = seqList->getRangeReadBegin();
-        const auto rr_end = seqList->getRangeReadEnd();
+
+        uint64_t rr_begin, rr_end;
+        std::tie(rr_begin, rr_end) = seqList->getRangeRead();
+
         addStat("seqlist_range_read_begin", rr_begin, add_stat, c);
         addStat("seqlist_range_read_end", rr_end, add_stat, c);
         addStat("seqlist_range_read_count", rr_end - rr_begin, add_stat, c);

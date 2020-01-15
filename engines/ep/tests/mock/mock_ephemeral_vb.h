@@ -45,13 +45,14 @@ public:
                          Configuration& config,
                          EvictionPolicy evictionPolicy);
 
-    /* Register fake read range for testing */
-    void registerFakeReadRange(seqno_t start, seqno_t end) {
-        mockLL->registerFakeReadRange(start, end);
+    /* Register fake shared range lock for testing */
+    RangeGuard registerFakeSharedRangeLock(seqno_t start, seqno_t end) {
+        return mockLL->registerFakeSharedRangeLock(start, end);
     }
 
-    void resetReadRange() {
-        mockLL->resetReadRange();
+    /* Register fake exclusive range lock for testing */
+    RangeGuard registerFakeRangeLock(seqno_t start, seqno_t end) {
+        return mockLL->registerFakeRangeLock(start, end);
     }
 
     int public_getNumStaleItems() {
