@@ -49,6 +49,54 @@ struct DatabaseContext {
 /// We keep one context for the local scope, and one for the external
 DatabaseContext contexts[2];
 
+static std::vector<std::string> privilegeMask2Vector(
+        const PrivilegeMask& mask) {
+    std::vector<std::string> ret;
+
+    if (mask.all()) {
+        ret.emplace_back("all");
+        return ret;
+    }
+
+    for (std::size_t ii = 0; ii < mask.size(); ++ii) {
+        if (mask.test(ii)) {
+            ret.emplace_back(cb::rbac::to_string(Privilege(ii)));
+        }
+    }
+
+    return ret;
+}
+
+/**
+ * Parse a JSON array containing a set of privileges.
+ *
+ * @param priv The JSON array to parse
+ * @param buckets Set to true if this is for the bucket list (which
+ *                will mask out some of the privileges you can't
+ *                specify for a bucket)
+ * @return A privilege mask containing the privileges found in the JSON
+ */
+static PrivilegeMask parsePrivileges(const nlohmann::json& privs,
+                                     bool buckets) {
+    PrivilegeMask ret;
+    for (const auto& priv : privs) {
+        const std::string str{priv.get<std::string>()};
+        if (str == "all") {
+            ret.set();
+        } else {
+            ret[int(to_privilege(str))] = true;
+        }
+    }
+
+    for (std::size_t ii = 0; ii < ret.size(); ++ii) {
+        if (buckets == !is_bucket_privilege(Privilege(ii))) {
+            ret[ii] = false;
+        }
+    }
+
+    return ret;
+}
+
 /// Convert the Domain into the correct index to use into the contexts
 /// array.
 static int to_index(Domain domain) {
@@ -62,9 +110,169 @@ static int to_index(Domain domain) {
     throw std::invalid_argument("to_index(): Invalid domain provided");
 }
 
+bool Collection::operator==(const Collection& other) const {
+    return privilegeMask == other.privilegeMask;
+}
+
+Collection::Collection(const nlohmann::json& json) {
+    auto iter = json.find("privileges");
+    if (iter != json.end()) {
+        privilegeMask = parsePrivileges(*iter, true);
+    }
+}
+
+nlohmann::json Collection::to_json() const {
+    return nlohmann::json{privilegeMask2Vector(privilegeMask)};
+}
+
+PrivilegeAccess Collection::check(Privilege privilege) const {
+    return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
+                                                  : PrivilegeAccess::Fail;
+}
+
+bool Collection::dropPrivilege(Privilege privilege) {
+    if (privilegeMask[int(privilege)]) {
+        privilegeMask[int(privilege)] = false;
+        return true;
+    }
+
+    return false;
+}
+
+bool Scope::operator==(const Scope& other) const {
+    return privilegeMask == other.privilegeMask &&
+           collections == other.collections;
+}
+
+Scope::Scope(const nlohmann::json& json) {
+    auto iter = json.find("privileges");
+    if (iter != json.end()) {
+        privilegeMask = parsePrivileges(*iter, true);
+    }
+    iter = json.find("collections");
+    if (iter != json.end()) {
+        for (auto it = iter->begin(); it != iter->end(); ++it) {
+            uint32_t cid = std::stoi(it.key());
+            collections.emplace(cid, Collection(it.value()));
+        }
+    }
+}
+
+nlohmann::json Scope::to_json() const {
+    nlohmann::json ret;
+    ret["privileges"] = privilegeMask2Vector(privilegeMask);
+    for (auto& e : collections) {
+        ret["collections"][std::to_string(e.first)] = e.second.to_json();
+    }
+
+    return ret;
+}
+
+PrivilegeAccess Scope::check(Privilege privilege, uint32_t collection) const {
+    if (collections.empty()) {
+        return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
+                                                      : PrivilegeAccess::Fail;
+    }
+
+    const auto iter = collections.find(collection);
+    if (iter == collections.end()) {
+        // We don't have access to that collection
+        return PrivilegeAccess ::Fail;
+    }
+
+    // delegate the check to the collections
+    return iter->second.check(privilege);
+}
+
+bool Scope::dropPrivilege(Privilege privilege) {
+    bool ret = false;
+
+    if (privilegeMask[int(privilege)]) {
+        privilegeMask[int(privilege)] = false;
+        ret = true;
+    }
+
+    for (auto& c : collections) {
+        if (c.second.dropPrivilege(privilege)) {
+            ret = true;
+        }
+    }
+
+    return ret;
+}
+
+bool Bucket::operator==(const Bucket& other) const {
+    return privilegeMask == other.privilegeMask && scopes == other.scopes;
+}
+
+Bucket::Bucket(const nlohmann::json& json) {
+    if (json.is_array()) {
+        // This is the old file format and everything should be
+        // a list of privileges
+        privilegeMask = parsePrivileges(json, true);
+    } else {
+        auto iter = json.find("privileges");
+        if (iter != json.end()) {
+            privilegeMask = parsePrivileges(*iter, true);
+        }
+        iter = json.find("scopes");
+        if (iter != json.end()) {
+            for (auto it = iter->begin(); it != iter->end(); ++it) {
+                uint32_t sid = std::stoi(it.key());
+                scopes.emplace(sid, Scope(it.value()));
+            }
+        }
+    }
+}
+
+nlohmann::json Bucket::to_json() const {
+    nlohmann::json ret;
+    ret["privileges"] = privilegeMask2Vector(privilegeMask);
+    for (auto& e : scopes) {
+        ret["scopes"][std::to_string(e.first)] = e.second.to_json();
+    }
+
+    return ret;
+}
+
+PrivilegeAccess Bucket::check(Privilege privilege,
+                              uint32_t scope,
+                              uint32_t collection) const {
+    if (scopes.empty()) {
+        return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
+                                                      : PrivilegeAccess::Fail;
+    }
+
+    const auto iter = scopes.find(scope);
+    if (iter == scopes.end()) {
+        // We don't have access to that scope
+        return PrivilegeAccess ::Fail;
+    }
+
+    // Delegate the check to the scopes
+    return iter->second.check(privilege, collection);
+}
+
+bool Bucket::dropPrivilege(Privilege privilege) {
+    bool ret = false;
+
+    if (privilegeMask[int(privilege)]) {
+        privilegeMask[int(privilege)] = false;
+        ret = true;
+    }
+
+    for (auto& s : scopes) {
+        if (s.second.dropPrivilege(privilege)) {
+            ret = true;
+        }
+    }
+
+    return ret;
+}
+
 bool UserEntry::operator==(const UserEntry& other) const {
-    return (internal == other.internal && privileges == other.privileges &&
-            buckets == other.buckets);
+    return (internal == other.internal &&
+            privilegeMask == other.privilegeMask && buckets == other.buckets);
 }
 
 UserEntry::UserEntry(const std::string& username,
@@ -92,7 +300,7 @@ UserEntry::UserEntry(const std::string& username,
     iter = json.find("privileges");
     if (iter != json.end()) {
         // Parse the privileges
-        privileges = parsePrivileges(*iter, false);
+        privilegeMask = parsePrivileges(*iter, false);
     }
 
     iter = json.find("buckets");
@@ -103,10 +311,7 @@ UserEntry::UserEntry(const std::string& username,
         }
 
         for (auto it = iter->begin(); it != iter->end(); ++it) {
-            auto privileges = parsePrivileges(it.value(), true);
-            if (privileges.any()) {
-                buckets[it.key()] = privileges;
-            }
+            buckets.emplace(it.key(), Bucket(it.value()));
         }
     }
 }
@@ -114,68 +319,9 @@ UserEntry::UserEntry(const std::string& username,
 nlohmann::json UserEntry::to_json(Domain domain) const {
     nlohmann::json ret;
     ret["domain"] = ::to_string(domain);
-    ret["privileges"] = mask2string(privileges);
-    for (const auto b : buckets) {
-        ret["buckets"][b.first] = mask2string(b.second);
-    }
-
-    return ret;
-}
-
-std::vector<std::string> UserEntry::mask2string(
-        const PrivilegeMask& mask) const {
-    std::vector<std::string> ret;
-
-    if (mask.all()) {
-        ret.emplace_back("all");
-        return ret;
-    }
-
-    for (std::size_t ii = 0; ii < mask.size(); ++ii) {
-        if (mask.test(ii)) {
-            ret.emplace_back(cb::rbac::to_string(Privilege(ii)));
-        }
-    }
-
-    return ret;
-}
-
-PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
-                                         bool buckets) {
-    PrivilegeMask ret;
-    for (const auto& priv : privs) {
-        const std::string str{priv.get<std::string>()};
-        if (str == "all") {
-            ret.set();
-        } else {
-            ret[int(to_privilege(str))] = true;
-        }
-    }
-
-    if (buckets) {
-        ret[int(Privilege::BucketManagement)] = false;
-        ret[int(Privilege::NodeManagement)] = false;
-        ret[int(Privilege::SessionManagement)] = false;
-        ret[int(Privilege::Audit)] = false;
-        ret[int(Privilege::AuditManagement)] = false;
-        ret[int(Privilege::IdleConnection)] = false;
-        ret[int(Privilege::CollectionManagement)] = false;
-        ret[int(Privilege::Impersonate)] = false;
-        ret[int(Privilege::SystemSettings)] = false;
-    } else {
-        ret[int(Privilege::Read)] = false;
-        ret[int(Privilege::Insert)] = false;
-        ret[int(Privilege::Delete)] = false;
-        ret[int(Privilege::Upsert)] = false;
-        ret[int(Privilege::DcpConsumer)] = false;
-        ret[int(Privilege::DcpProducer)] = false;
-        ret[int(Privilege::Tap)] = false;
-        ret[int(Privilege::MetaRead)] = false;
-        ret[int(Privilege::MetaWrite)] = false;
-        ret[int(Privilege::XattrRead)] = false;
-        ret[int(Privilege::XattrWrite)] = false;
-        ret[int(Privilege::Select)] = false;
-        ret[int(Privilege::Settings)] = false;
+    ret["privileges"] = privilegeMask2Vector(privilegeMask);
+    for (const auto& b : buckets) {
+        ret["buckets"][b.first] = b.second.to_json();
     }
 
     return ret;
@@ -215,33 +361,29 @@ PrivilegeContext PrivilegeDatabase::createContext(
         const std::string& user,
         Domain domain,
         const std::string& bucket) const {
-    PrivilegeMask mask;
-
     const auto& ue = lookup(user);
-
-    if (!bucket.empty()) {
-        // Add the bucket specific privileges
-        auto iter = ue.getBuckets().find(bucket);
-        if (iter == ue.getBuckets().cend()) {
-            // No explicit match.. Is there a wildcard entry
-            iter = ue.getBuckets().find("*");
-            if (iter == ue.getBuckets().cend()) {
-                throw NoSuchBucketException(bucket.c_str());
-            }
-        }
-
-        mask |= iter->second;
+    if (bucket.empty()) {
+        return PrivilegeContext(generation, domain, ue.getPrivileges(), {});
     }
 
-    // Add the rest of the privileges
-    mask |= ue.getPrivileges();
-    return PrivilegeContext(generation, domain, mask);
+    // Add the bucket specific privileges
+    auto iter = ue.getBuckets().find(bucket);
+    if (iter == ue.getBuckets().cend()) {
+        // No explicit match.. Is there a wildcard entry
+        iter = ue.getBuckets().find("*");
+        if (iter == ue.getBuckets().cend()) {
+            throw NoSuchBucketException(bucket.c_str());
+        }
+    }
+
+    return PrivilegeContext(
+            generation, domain, ue.getPrivileges(), iter->second);
 }
 
 std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
         const std::string& user, Domain domain) const {
     const auto& ue = lookup(user);
-    return {PrivilegeContext(generation, domain, ue.getPrivileges()),
+    return {PrivilegeContext(generation, domain, ue.getPrivileges(), {}),
             ue.isInternal()};
 }
 
@@ -283,6 +425,14 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
         throw std::invalid_argument("Invalid privilege passed for the check)");
     }
 #endif
+
+    // Optimization.. Most requests will be for bucket privileges and not
+    // the other privileges.. Check the bucket privileges first, then
+    // the global privileges
+    if (bucket.check(privilege, 0, 0) == PrivilegeAccess::Ok) {
+        return PrivilegeAccess::Ok;
+    }
+
     if (mask.test(idx)) {
         return PrivilegeAccess::Ok;
     }
@@ -312,12 +462,18 @@ std::string PrivilegeContext::to_string() const {
 }
 
 bool PrivilegeContext::dropPrivilege(Privilege privilege) {
+    bool ret = false;
+
     if (mask[int(privilege)]) {
         mask[int(privilege)] = false;
-        return true;
+        ret = true;
     }
 
-    return false;
+    if (bucket.dropPrivilege(privilege)) {
+        ret = true;
+    }
+
+    return ret;
 }
 
 void PrivilegeContext::clearBucketPrivileges() {
@@ -329,20 +485,11 @@ void PrivilegeContext::setBucketPrivileges() {
 }
 
 void PrivilegeContext::setBucketPrivilegeBits(bool value) {
-    mask[int(Privilege::Read)] = value;
-    mask[int(Privilege::Insert)] = value;
-    mask[int(Privilege::Upsert)] = value;
-    mask[int(Privilege::Delete)] = value;
-    mask[int(Privilege::SimpleStats)] = value;
-    mask[int(Privilege::DcpConsumer)] = value;
-    mask[int(Privilege::DcpProducer)] = value;
-    mask[int(Privilege::Tap)] = value;
-    mask[int(Privilege::MetaRead)] = value;
-    mask[int(Privilege::MetaWrite)] = value;
-    mask[int(Privilege::XattrRead)] = value;
-    mask[int(Privilege::SystemXattrRead)] = value;
-    mask[int(Privilege::XattrWrite)] = value;
-    mask[int(Privilege::SystemXattrWrite)] = value;
+    for (std::size_t ii = 0; ii < mask.size(); ++ii) {
+        if (is_bucket_privilege(Privilege(ii))) {
+            mask[ii] = value;
+        }
+    }
 }
 
 PrivilegeContext createContext(const std::string& user,

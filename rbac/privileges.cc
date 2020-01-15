@@ -16,6 +16,7 @@
  */
 
 #include <memcached/rbac/privileges.h>
+#include <platform/string_hex.h>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -70,7 +71,7 @@ Privilege to_privilege(const std::string& str) {
     return it->second;
 }
 
-std::string to_string(const PrivilegeAccess privilegeAccess) {
+std::string to_string(PrivilegeAccess privilegeAccess) {
     switch (privilegeAccess) {
     case PrivilegeAccess::Ok:
         return "Ok";
@@ -83,6 +84,44 @@ std::string to_string(const PrivilegeAccess privilegeAccess) {
                                 std::to_string(int(privilegeAccess)));
 }
 
+/// is this a privilege related to a bucket or not
+bool is_bucket_privilege(Privilege priv) {
+    switch (priv) {
+    case Privilege::Read:
+    case Privilege::Insert:
+    case Privilege::Delete:
+    case Privilege::Upsert:
+    case Privilege::DcpConsumer:
+    case Privilege::DcpProducer:
+    case Privilege::Tap:
+    case Privilege::MetaRead:
+    case Privilege::MetaWrite:
+    case Privilege::XattrRead:
+    case Privilege::SystemXattrRead:
+    case Privilege::XattrWrite:
+    case Privilege::SystemXattrWrite:
+    case Privilege::Select:
+    case Privilege::Settings:
+    case Privilege::SimpleStats:
+    case Privilege::Stats:
+        return true;
 
+    case Privilege::BucketManagement:
+    case Privilege::NodeManagement:
+    case Privilege::SessionManagement:
+    case Privilege::Audit:
+    case Privilege::AuditManagement:
+    case Privilege::IdleConnection:
+    case Privilege::CollectionManagement:
+    case Privilege::SecurityManagement:
+    case Privilege::Impersonate:
+    case Privilege::SystemSettings:
+        return false;
+    }
+
+    throw std::invalid_argument(
+            "is_bucket_privilege() invalid privilege provided: " +
+            cb::to_hex(uint8_t(priv)));
 }
-}
+} // namespace rbac
+} // namespace cb

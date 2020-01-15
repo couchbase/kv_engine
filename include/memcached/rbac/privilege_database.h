@@ -47,6 +47,140 @@ using Domain = cb::sasl::Domain;
  */
 using PrivilegeMask = std::bitset<size_t(Privilege::SystemSettings) + 1>;
 
+/// The in-memory representation of a collection
+class Collection {
+public:
+    /// Initialize the collection from the JSON representation
+    explicit Collection(const nlohmann::json& json);
+    /// Get a JSON dump of the Collection
+    nlohmann::json to_json() const;
+    /**
+     * Check if the privilege is set for the collection
+     *
+     * @param privilege The privilege to check for
+     * @return PrivilegeAccess::Ok if the privilege is held
+     *         PrivilegeAccess::Fail otherwise
+     */
+    PrivilegeAccess check(Privilege privilege) const;
+
+    /// Check if this object is identical to another object
+    bool operator==(const Collection& other) const;
+
+    /**
+     * Drop the named privilege from the privilege mask
+     *
+     * @param privilege the privilege to drop
+     * @return true if the privilege was dropped
+     *         false if the requested privilege wasn't set in the mask
+     */
+    bool dropPrivilege(Privilege privilege);
+
+protected:
+    /// The privilege mask describing the access to this collection
+    PrivilegeMask privilegeMask;
+};
+
+/// The in-memory representation of a scope
+class Scope {
+public:
+    /// Initialize the scope from the JSON representation
+    explicit Scope(const nlohmann::json& json);
+
+    /// Get a JSON dump of the Scope
+    nlohmann::json to_json() const;
+
+    /**
+     * Check if the privilege is set for the scope by using the following
+     * algorithm:
+     *
+     *  1  If the scope is configured with collections the check is delegated
+     *     to the collection (and no access if the collection isn't found)
+     *  2  If no collections are defined for the scope, use the scopes
+     *     privilege mask.
+     *
+     * @param privilege The privilege to check for
+     * @param collection The requested collection id
+     * @return PrivilegeAccess::Ok if the privilege is held
+     *         PrivilegeAccess::Fail otherwise
+     */
+    PrivilegeAccess check(Privilege privilege, uint32_t collection) const;
+
+    /// Check if this object is identical to another object
+    bool operator==(const Scope& other) const;
+
+    /**
+     * Drop the named privilege from the privilege mask
+     *
+     * @param privilege the privilege to drop
+     * @return true if the privilege was dropped
+     *         false if the requested privilege wasn't set in the mask
+     */
+    bool dropPrivilege(Privilege privilege);
+
+protected:
+    /// The privilege mask describing the access to this scope IFF no
+    /// collections is configured
+    PrivilegeMask privilegeMask;
+    /// All the collections the scope contains
+    std::unordered_map<uint32_t, Collection> collections;
+};
+
+class Bucket {
+public:
+    Bucket() = default;
+
+    /// Initialize the bucket from the JSON representation
+    explicit Bucket(const nlohmann::json& json);
+
+    /// Get a JSON dump of the Bucket
+    nlohmann::json to_json() const;
+
+    /**
+     * Check if the privilege is set for the bucket by using the following
+     * algorithm:
+     *
+     *  1  If the bucket is configured with scopes the check is delegated
+     *     to the scope (and no access if the scope isn't found)
+     *  2  If no scopes are defined for the bucket, use the buckets
+     *     privilege mask.
+     *
+     * @param privilege The privilege to check for
+     * @param scope The requested scope id
+     * @param collection The requested collection id
+     * @return PrivilegeAccess::Ok if the privilege is held
+     *         PrivilegeAccess::Fail otherwise
+     */
+    PrivilegeAccess check(Privilege privilege,
+                          uint32_t scope,
+                          uint32_t collection) const;
+
+    /// Check if this object is identical to another object
+    bool operator==(const Bucket& other) const;
+
+    /// Get the underlying privilege mask (used for some of the old unit
+    /// tests.. should be removed when we drop the support for the old
+    /// password database format.
+    const PrivilegeMask& getPrivileges() const {
+        return privilegeMask;
+    }
+
+    /**
+     * Drop the named privilege from the privilege mask
+     *
+     * @param privilege the privilege to drop
+     * @return true if the privilege was dropped
+     *         false if the requested privilege wasn't set in the mask
+     */
+    bool dropPrivilege(Privilege privilege);
+
+protected:
+    /// The privilege mask describing the access to this scope IFF no
+    /// scopes is configured
+    PrivilegeMask privilegeMask;
+    /// All of the scopes the bucket contains
+    std::unordered_map<uint32_t, Scope> scopes;
+};
+
 /**
  * The UserEntry object is in an in-memory representation of the per-user
  * privileges.
@@ -77,7 +211,7 @@ public:
      * Get a map containing all of the buckets and the privileges in those
      * buckets that the user have access to.
      */
-    const std::unordered_map<std::string, PrivilegeMask>& getBuckets() const {
+    const std::unordered_map<std::string, Bucket>& getBuckets() const {
         return buckets;
     }
 
@@ -86,7 +220,7 @@ public:
      * have in its effective set.
      */
     const PrivilegeMask& getPrivileges() const {
-        return privileges;
+        return privilegeMask;
     }
 
     /**
@@ -122,22 +256,19 @@ public:
         timestamp = ts;
     }
 
-protected:
     /**
-     * Parse a JSON array containing a set of privileges.
+     * Drop the named privilege from the privilege mask
      *
-     * @param priv The JSON array to parse
-     * @param buckets Set to true if this is for the bucket list (which
-     *                will mask out some of the privileges you can't
-     *                specify for a bucket)
-     * @return A vector of all of the privileges found in the specified JSON
+     * @param privilege the privilege to drop
+     * @return true if the privilege was dropped
+     *         false if the requested privilege wasn't set in the mask
      */
-    PrivilegeMask parsePrivileges(const nlohmann::json& privs, bool buckets);
+    bool dropPrivilege(Privilege privilege);
 
-    std::vector<std::string> mask2string(const PrivilegeMask& mask) const;
+protected:
     mutable std::chrono::steady_clock::time_point timestamp;
-    std::unordered_map<std::string, PrivilegeMask> buckets;
-    PrivilegeMask privileges;
+    std::unordered_map<std::string, Bucket> buckets;
+    PrivilegeMask privilegeMask;
     bool internal;
 };
 
@@ -171,8 +302,11 @@ public:
      * @param gen the generation of the privilege database
      * @param m the mask to set it to.
      */
-    PrivilegeContext(uint32_t gen, Domain domain, const PrivilegeMask& m)
-        : generation(gen), domain(domain), mask(m) {
+    PrivilegeContext(uint32_t gen,
+                     Domain domain,
+                     const PrivilegeMask& m,
+                     Bucket bucket)
+        : generation(gen), domain(domain), mask(m), bucket(std::move(bucket)) {
         // empty
     }
 
@@ -233,6 +367,9 @@ protected:
     Domain domain;
     /// The mask of effective privileges
     PrivilegeMask mask;
+
+    /// The Bucket rbac setting
+    Bucket bucket;
 };
 
 /**

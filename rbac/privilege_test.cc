@@ -19,7 +19,7 @@
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 
-TEST(UserEntryTest, ParseLegalConfig) {
+TEST(UserEntryTest, ParseLegalConfigOldFormat) {
     nlohmann::json json;
     json["trond"]["privileges"] = {"Audit", "BucketManagement"};
     json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
@@ -43,7 +43,7 @@ TEST(UserEntryTest, ParseLegalConfig) {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
         privs[int(cb::rbac::Privilege::Insert)] = true;
-        EXPECT_EQ(privs, it->second);
+        EXPECT_EQ(privs, it->second.getPrivileges());
     }
 
     it = buckets.find("bucket2");
@@ -51,7 +51,7 @@ TEST(UserEntryTest, ParseLegalConfig) {
     {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
-        EXPECT_EQ(privs, it->second);
+        EXPECT_EQ(privs, it->second.getPrivileges());
     }
 
     // The username does not start with @
@@ -138,9 +138,10 @@ TEST(PrivilegeDatabaseTest, GenerationCounter) {
 TEST(PrivilegeDatabaseTest, to_json) {
     nlohmann::json json;
     json["trond"]["privileges"] = {"BucketManagement", "Audit"};
-    json["trond"]["buckets"]["mybucket"] = {"Read", "Upsert"};
-    json["trond"]["buckets"]["app"] = {"Delete"};
+    json["trond"]["buckets"]["mybucket"]["privileges"] = {"Read", "Upsert"};
+    json["trond"]["buckets"]["app"]["privileges"] = {"Delete"};
     json["trond"]["domain"] = "external";
     cb::rbac::PrivilegeDatabase db(json, cb::rbac::Domain::External);
-    EXPECT_EQ(json.dump(2), db.to_json(cb::rbac::Domain::External).dump(2));
+    EXPECT_EQ(json.dump(2), db.to_json(cb::rbac::Domain::External).dump(2))
+            << db.to_json(cb::rbac::Domain::External).dump(2);
 }

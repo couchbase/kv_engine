@@ -179,7 +179,10 @@ enum class PrivilegeAccess { Ok, Fail, Stale };
 /**
  * Get a textual representation of the privilege access
  */
-std::string to_string(const PrivilegeAccess privilegeAccess);
+std::string to_string(PrivilegeAccess privilegeAccess);
+
+/// is this a privilege related to a bucket or not
+bool is_bucket_privilege(Privilege);
 
 /**
  * Convert a textual string to a Privilege

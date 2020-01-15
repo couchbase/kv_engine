@@ -51,14 +51,114 @@ operation being performed.
 
 ## File Format
 
-The RBAC database is specified in JSON with the following syntax.
+The RBAC database is specified in a JSON object where the keys
+is the name of the user, and the value is the users RBAC entry.
+
+### User object
+
+The user value is an object containing the following keys:
+
+* `buckets` An object containing all of the buckets the user have
+          access to. The keys in the object is the name of the bucket
+          and the depending on the value type it may be an array
+          of privileges for the bucket _or_ a bucket object (see
+          below)
+* `domain` The domain the user is defined within. May be "external"
+           "local"
+* `privileges` an array containing all of the privileges not related
+               to any bucket operations (management etc).
+
+It is possible to specify "*" for the bucket name indicating all buckets.
+The system will first search for an exact match for a bucket and only
+use the wildcard entry if there isn't an exact match.
+
+### Bucket object
+
+The bucket object is an object containing one of the following
+keys:
+
+* `scopes` An object containing all of the scopes the user have
+           access to. The key is the scope id, and the value is
+           a scope object (see below).
+
+* `privileges` The privileges the user have to this bucket
+
+The reason why only one of these should be set is because if a
+scope is defined the privilege check happens within the given
+scope.
+
+### Scope object
+
+The scope object is an object containing one of the following
+keys:
+
+* `collections` An object containing all of the collections the
+                user have access to. The key is the collection id,
+                and the value is a collection object (see below).
+
+* `privileges` The privileges the user have to this scope
+
+The reason why only one of these should be set is because if a
+collection is defined the privilege check happens within the given
+collection.
+
+### Collection object
+
+The collection object is an object containing the following
+keys:
+
+* `privileges` The privileges the user have to this collection
+
+
+### Example containing collections
+
+    {
+      "user1": {
+        "buckets": {
+          "bucket1": {
+            "privileges": ["Read"]
+          },
+          "bucket2": {
+            "scopes": {
+              "1": {
+                "privileges": ["Read"]
+              }
+            }
+          },
+          "bucket3": {
+            "scopes": {
+              "1": {
+                "collections" : {
+                  "1" : {
+                    "privileges": ["Read"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "privileges": ["BucketManagement"],
+        "domain": "local"
+      }
+    }
+
+In the example above a user named `user` is defined with:
+
+* read access to all scopes and collection in `bucket1`
+* read access to all collections within scope `1` in `bucket2`
+* read access to collection `1` in scope `1` in `bucket3`
+* `BucketManagement` on the node
+
+The user is a locally defined user.
+
+### Example without scopes
 
     {
         "user1": {
-           "buckets": [
+           "buckets": {
               "bucket1": ["Read", "Write", "SimpleStats"],
               "bucket2": ["Read", "SimpleStats"]
-           ],
+           },
            "privileges": ["BucketManagement"],
            "domain": "local"
         }
@@ -69,10 +169,6 @@ named `bucket1` and `bucket2`. For each of those two buckets there is an
 array of privileges allowed in that bucket. In addition to that the user
 have access to the `BucketManagement` privilege. The user is a locally
 defined user.
-
-It is possible to specify "*" for the bucket name indicating all buckets.
-The system will first search for an exact match for a bucket and only
-use the wildcard entry if there isn't an exact match.
 
 ## Privilege debug
 
