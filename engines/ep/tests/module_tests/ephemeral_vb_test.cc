@@ -344,7 +344,7 @@ TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {
     setMany(keys, MutationStatus::WasClean);
 
     /* Set up a mock backfill by setting the range of the backfill */
-    mockEpheVB->registerFakeReadRange(2, numItems - 1);
+    auto range = mockEpheVB->registerFakeReadRange(2, numItems - 1);
 
     /* Update the first, middle and last item in the range read and 2 items
        that are outside (before and after) range read */
@@ -395,7 +395,7 @@ TEST_F(EphemeralVBucketTest, GetAndUpdateTtl) {
     EXPECT_EQ(0, mockEpheVB->public_getNumStaleItems());
 
     /* --- Repeat the above test with a similated ReadRange --- */
-    mockEpheVB->registerFakeReadRange(1, numItems);
+    auto range = mockEpheVB->registerFakeReadRange(1, numItems);
     GetValue gv2 = public_getAndUpdateTtl(keys[1], 101).second;
 
     /* New seqno should have been used */
@@ -427,7 +427,7 @@ TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {
     setMany(keys, MutationStatus::WasClean);
 
     /* Set up a mock backfill by setting the range of the backfill */
-    mockEpheVB->registerFakeReadRange(2, numItems - 1);
+    auto range = mockEpheVB->registerFakeReadRange(2, numItems - 1);
 
     /* Update the first, middle and last item in the range read and 2 items
        that are outside (before and after) range read */
@@ -654,9 +654,7 @@ TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
     // be added for that key.
     auto& seqList = mockEpheVB->getLL()->getSeqList();
     {
-        std::lock_guard<std::mutex> rrGuard(
-                mockEpheVB->getLL()->getRangeReadLock());
-        mockEpheVB->registerFakeReadRange(1, 2);
+        auto range = mockEpheVB->registerFakeReadRange(1, 2);
         ASSERT_EQ(MutationStatus::WasClean, setOne(keys.at(1)));
 
         // Sanity check - our state is as expected:
@@ -679,10 +677,9 @@ TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
         EXPECT_EQ(4, seqList.size());
         EXPECT_EQ(0, vbucket->getPurgeSeqno());
 
-        // Clear the ReadRange (so we can actually purge items) and retry the
+        // readrange released when `range` goes out of scope, retry the
         // purge which should now succeed.
-        mockEpheVB->getLL()->resetReadRange();
-    } // END rrGuard.
+    }
 
     // Scan sequenceList for stale items.
     EXPECT_EQ(1, mockEpheVB->purgeStaleItems());
@@ -700,7 +697,6 @@ TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
     int expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
 
     // Run the tombstone purger.
-    mockEpheVB->getLL()->resetReadRange();
     ASSERT_EQ(1, mockEpheVB->markOldTombstonesStale(0));
     ASSERT_EQ(expectedItems, vbucket->getNumItems());
 

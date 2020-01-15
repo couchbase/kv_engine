@@ -421,7 +421,7 @@ TEST_F(BasicLinkedListTest, UpdateDuringRangeRead) {
     /* Add 3 new items */
     addNewItemsToList(1, keyPrefix, numItems);
 
-    basicLL->registerFakeReadRange(1, numItems);
+    auto range = basicLL->registerFakeReadRange(1, numItems);
 
     /* Update an item in the list when a fake range read is happening */
     updateItemDuringRangeRead(numItems,

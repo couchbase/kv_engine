@@ -46,12 +46,8 @@ public:
                          EvictionPolicy evictionPolicy);
 
     /* Register fake read range for testing */
-    void registerFakeReadRange(seqno_t start, seqno_t end) {
-        mockLL->registerFakeReadRange(start, end);
-    }
-
-    void resetReadRange() {
-        mockLL->resetReadRange();
+    RangeGuard registerFakeReadRange(seqno_t start, seqno_t end) {
+        return mockLL->registerFakeReadRange(start, end);
     }
 
     int public_getNumStaleItems() {
