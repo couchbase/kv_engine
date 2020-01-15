@@ -128,10 +128,11 @@ public:
     uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
         return wrapped->get_connection_id(cookie);
     }
-    cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> cookie,
-            cb::rbac::Privilege privilege) override {
-        return wrapped->check_privilege(cookie, privilege);
+    cb::rbac::PrivilegeAccess check_privilege(gsl::not_null<const void*> cookie,
+                                              cb::rbac::Privilege privilege,
+                                              ScopeID sid,
+                                              CollectionID cid) override {
+        return wrapped->check_privilege(cookie, privilege, sid, cid);
     }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
                                        ENGINE_ERROR_CODE code) override {

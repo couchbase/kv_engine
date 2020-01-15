@@ -4472,7 +4472,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
         cb::const_char_buffer key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
     switch (getServerApi()->cookie->check_privilege(
-            cookie, cb::rbac::Privilege::Stats)) {
+            cookie, cb::rbac::Privilege::Stats, {}, {})) {
     case cb::rbac::PrivilegeAccess::Fail:
     case cb::rbac::PrivilegeAccess::Stale:
         return ENGINE_EACCESS;

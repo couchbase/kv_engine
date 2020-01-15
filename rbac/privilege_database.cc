@@ -405,16 +405,9 @@ const UserEntry& PrivilegeDatabase::lookup(const std::string& user) const {
     return iter->second;
 }
 
-PrivilegeAccess PrivilegeDatabase::check(const PrivilegeContext& context,
-                                         Privilege privilege) const {
-    if (context.getGeneration() != generation) {
-        return PrivilegeAccess::Stale;
-    }
-
-    return context.check(privilege);
-}
-
-PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
+PrivilegeAccess PrivilegeContext::check(Privilege privilege,
+                                        ScopeID sid,
+                                        CollectionID cid) const {
     if (generation != contexts[to_index(domain)].current_generation) {
         return PrivilegeAccess::Stale;
     }
@@ -429,7 +422,7 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
     // Optimization.. Most requests will be for bucket privileges and not
     // the other privileges.. Check the bucket privileges first, then
     // the global privileges
-    if (bucket.check(privilege, 0, 0) == PrivilegeAccess::Ok) {
+    if (bucket.check(privilege, sid, cid) == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     }
 

@@ -485,7 +485,17 @@ public:
     }
 
     /// Check if the current command have the requested privilege
-    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege);
+    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege) {
+        return checkPrivilege(privilege,
+                              currentCollectionInfo.first,
+                              currentCollectionInfo.second);
+    }
+
+    /// Check if the current command have the requested privilege for
+    /// for the provided scope collection identifier
+    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege,
+                                             ScopeID sid,
+                                             CollectionID cid);
 
 protected:
     /**

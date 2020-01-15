@@ -180,18 +180,18 @@ struct ServerCookieIface {
      * Check if the cookie have the specified privilege in it's
      * active set.
      *
-     * @todo We should probably add the key we want to access as part
-     *       of the API. We're going to need that when we're adding
-     *       support for collections. For now let's assume that it
-     *       won't be a big problem to fix that later on.
      * @param cookie the cookie sent to the engine for an operation
      * @param privilege the privilege to check for
+     * @param sid the scope id
+     * @param cid the collection id
      * @return true if the cookie have the privilege in its active set,
      *         false otherwise
      */
     virtual cb::rbac::PrivilegeAccess check_privilege(
             gsl::not_null<const void*> cookie,
-            cb::rbac::Privilege privilege) = 0;
+            cb::rbac::Privilege privilege,
+            ScopeID sid,
+            CollectionID cid) = 0;
 
     /**
      * Method to map an engine error code to the appropriate mcbp response

@@ -292,9 +292,10 @@ struct MockServerCookieApi : public ServerCookieIface {
         return c->sfd;
     }
 
-    cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> cookie,
-            cb::rbac::Privilege privilege) override {
+    cb::rbac::PrivilegeAccess check_privilege(gsl::not_null<const void*> cookie,
+                                              cb::rbac::Privilege privilege,
+                                              ScopeID sid,
+                                              CollectionID cid) override {
         // @todo allow for mocking privilege access
         return cb::rbac::PrivilegeAccess::Ok;
     }

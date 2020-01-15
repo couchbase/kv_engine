@@ -23,6 +23,7 @@
  */
 #include <boost/optional.hpp>
 #include <cbsasl/domain.h>
+#include <memcached/dockey.h>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json_fwd.hpp>
 #include <bitset>
@@ -314,9 +315,13 @@ public:
      * Check if the given privilege is part of the context
      *
      * @param privilege the privilege to check
+     * @param sid the scope id
+     * @param cid the collection id
      * @return if access is granted or not.
      */
-    PrivilegeAccess check(Privilege privilege) const;
+    PrivilegeAccess check(Privilege privilege,
+                          ScopeID sid,
+                          CollectionID cid) const;
 
     /**
      * Get the generation of the Privilege Database this context maps
@@ -428,19 +433,6 @@ public:
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
     const UserEntry& lookup(const std::string& user) const;
-
-    /**
-     * Check if the provided context contains the requested privilege
-     *
-     * @param context The privilege context for the user
-     * @param privilege The privilege to check
-     * @return PrivilegeAccess::Stale If the context was created by a
-     *                                different generation of the database
-     *         PrivilegeAccess::Ok If the context contains the privilege
-     *         PrivilegeAccess::Fail If the context lacks the privilege
-     */
-    PrivilegeAccess check(const PrivilegeContext& context,
-                          Privilege privilege) const;
 
     /**
      * Create a new PrivilegeContext for the specified user in the specified

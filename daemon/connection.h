@@ -208,15 +208,20 @@ public:
     }
 
     /**
-     * Check if this connection is in posession of the requested privilege
+     * Check if this connection is in possession of the requested privilege
      *
      * @param privilege the privilege to check for
+     *        cookie the command requesting the privilege
+     *        sid the scope identifier
+     *        cid the collection identifier
      * @return Ok - the connection holds the privilege
      *         Fail - the connection is missing the privilege
      *         Stale - the authentication context is stale
      */
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege,
-                                             Cookie& cookie);
+                                             Cookie& cookie,
+                                             ScopeID sid,
+                                             CollectionID cid);
 
     /**
      * Try to drop the specified privilege from the current context

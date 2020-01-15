@@ -304,10 +304,11 @@ struct ServerCookieApi : public ServerCookieIface {
         return uint64_t(&cookie->getConnection());
     }
 
-    cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> cookie,
-            cb::rbac::Privilege privilege) override {
-        return getCookie(cookie).checkPrivilege(privilege);
+    cb::rbac::PrivilegeAccess check_privilege(gsl::not_null<const void*> cookie,
+                                              cb::rbac::Privilege privilege,
+                                              ScopeID sid,
+                                              CollectionID cid) override {
+        return getCookie(cookie).checkPrivilege(privilege, sid, cid);
     }
 
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> void_cookie,

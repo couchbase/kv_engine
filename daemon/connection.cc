@@ -246,12 +246,15 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
 }
 
 cb::rbac::PrivilegeAccess Connection::checkPrivilege(
-        cb::rbac::Privilege privilege, Cookie& cookie) {
+        cb::rbac::Privilege privilege,
+        Cookie& cookie,
+        ScopeID scopeId,
+        CollectionID collectionId) {
     cb::rbac::PrivilegeAccess ret;
     unsigned int retries = 0;
     const unsigned int max_retries = 100;
 
-    while ((ret = privilegeContext.check(privilege)) ==
+    while ((ret = privilegeContext.check(privilege, scopeId, collectionId)) ==
                    cb::rbac::PrivilegeAccess::Stale &&
            retries < max_retries) {
         ++retries;

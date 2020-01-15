@@ -437,6 +437,12 @@ public:
             cb::const_char_buffer path) override {
         return {cb::engine_errc::no_bucket, 0, 0};
     }
+
+    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key) const override {
+        return {0, ScopeID{0}};
+    }
 };
 
 MEMCACHED_PUBLIC_API
