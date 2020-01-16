@@ -306,6 +306,8 @@ public:
 
     void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
 
+    bool collectionAllowed(CollectionID cid) const;
+
 protected:
     /**
      * @param vb reference to the associated vbucket

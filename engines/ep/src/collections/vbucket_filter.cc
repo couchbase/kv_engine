@@ -228,6 +228,20 @@ bool Filter::checkAndUpdateSlow(CollectionID cid, Item& item) {
     return allowed;
 }
 
+bool Filter::checkSlow(CollectionID cid) const {
+    bool allowed = false;
+    if (cid == CollectionID::System && systemEventsAllowed) {
+        // For a collection filter, we could figure out from the entire DocKey
+        // however we will just defer the decision to the more comprehensive
+        // checkAndUpdate
+        allowed = true;
+    } else {
+        allowed = filter.count(cid);
+    }
+
+    return allowed;
+}
+
 bool Filter::remove(const Item& item) {
     if (passthrough) {
         return false;

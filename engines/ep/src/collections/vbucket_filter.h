@@ -122,6 +122,29 @@ public:
     }
 
     /**
+     * Check if the filter allows the collection
+     *
+     * Note: if cid is SystemEvent then we say it is allowed as we don't know
+     * enough about the type/scope/collection it represents to say it is not.
+     *
+     * @param cid The collection-ID to check.
+     * @return if the key should be allowed to be sent on the DcpStream
+     */
+    bool check(CollectionID cid) const {
+        // passthrough, everything is allowed.
+        if (passthrough) {
+            return true;
+        }
+
+        // The presence of _default is a simple check against defaultAllowed
+        if (cid.isDefaultCollection() && defaultAllowed) {
+            return true;
+        }
+        // More complex checks needed...
+        return checkSlow(cid);
+    }
+
+    /**
      * @return if the filter is empty
      */
     bool empty() const;
@@ -205,6 +228,9 @@ protected:
 
     /// Non-inline, slow path of checkAndUpdate().
     bool checkAndUpdateSlow(CollectionID cid, Item& item);
+
+    /// Non-inline slow path of check(key)
+    bool checkSlow(CollectionID cid) const;
 
     /**
      * Remove the collection of the item from the filter

@@ -1909,3 +1909,7 @@ std::string ActiveStream::to_string(StreamState st) {
     throw std::invalid_argument("ActiveStream::to_string(StreamState): " +
                                 std::to_string(int(st)));
 }
+
+bool ActiveStream::collectionAllowed(CollectionID cid) const {
+    return filter.check(cid);
+}

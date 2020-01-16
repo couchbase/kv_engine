@@ -83,6 +83,14 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
+    // Check if the stream will allow the key, this is here to avoid reading
+    // the value when dropping keys
+    if (!stream_->collectionAllowed(
+                lookup.getKey().getDocKey().getCollectionID())) {
+        setStatus(ENGINE_KEY_EEXISTS);
+        return;
+    }
+
     auto gv = get(*vb, lookup, *stream_);
     if (gv.getStatus() == ENGINE_SUCCESS) {
         // If the value is a commit of a SyncWrite then the in-memory
