@@ -492,8 +492,6 @@ protected:
                                               VBucket& vb,
                                               const queued_item& qi);
 
-    CheckpointList checkpointList;
-
     bool removeCursor_UNLOCKED(CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,
@@ -587,6 +585,7 @@ protected:
                                      Vbid vbid,
                                      queue_op checkpoint_op);
 
+    CheckpointList checkpointList;
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
     mutable std::mutex       queueLock;
