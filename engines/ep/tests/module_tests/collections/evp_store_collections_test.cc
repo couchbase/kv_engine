@@ -479,6 +479,20 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
     EXPECT_EQ(ScopeEntry::shop2.getId(), rv.extras.data.scopeId.to_host());
+
+    // Test the collection/vbucket lookup
+    auto sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy},
+                                 Vbid(0));
+    EXPECT_TRUE(sid.is_initialized());
+    EXPECT_EQ(ScopeEntry::shop1.uid, sid.get());
+
+    sid = store->getScopeID(StoredDocKey{"apple", CollectionEntry::fruit},
+                            Vbid(0));
+    EXPECT_FALSE(sid.is_initialized());
+
+    sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy},
+                            Vbid(1));
+    EXPECT_FALSE(sid.is_initialized());
 }
 
 // Test high seqno values

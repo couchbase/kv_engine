@@ -90,12 +90,14 @@ static size_t percentOf(size_t val, double percent) {
 }
 
 struct EPHandleReleaser {
-    void operator()(EventuallyPersistentEngine*) {
+    void operator()(const EventuallyPersistentEngine*) {
         ObjectRegistry::onSwitchThread(nullptr);
     }
 };
 
 using EPHandle = std::unique_ptr<EventuallyPersistentEngine, EPHandleReleaser>;
+using ConstEPHandle =
+        std::unique_ptr<const EventuallyPersistentEngine, EPHandleReleaser>;
 
 /**
  * Helper function to acquire a handle to the engine which allows access to
@@ -111,6 +113,21 @@ static inline EPHandle acquireEngine(EngineIface* handle) {
     ObjectRegistry::onSwitchThread(ret);
 
     return EPHandle(ret);
+}
+
+static inline ConstEPHandle acquireEngine(const EngineIface* handle) {
+    auto ret = reinterpret_cast<const EventuallyPersistentEngine*>(handle);
+    // A const engine call, can in theory still mutate the engine in that
+    // memory allocation can trigger an update of the stats counters. It's
+    // difficult to express const/mutable through the thread-local engine, but
+    // that is the assumption that only a limited amount of the engine may
+    // mutate through the ObjectRegistry. Note with MB-23086 in-place, EPStats
+    // won't be updated by general memory allocation, so the scope for changing
+    // the const engine* is very much reduced.
+    ObjectRegistry::onSwitchThread(
+            const_cast<EventuallyPersistentEngine*>(ret));
+
+    return ConstEPHandle(ret);
 }
 
 /**
@@ -1823,6 +1840,15 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
                 Collections::getUnknownCollectionErrorContext(
                         rv.getManifestId()));
     }
+    return rv;
+}
+
+boost::optional<ScopeID> EventuallyPersistentEngine::get_scope_id(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        Vbid vbucket) const {
+    auto engine = acquireEngine(this);
+    auto rv = engine->getKVBucket()->getScopeID(key, vbucket);
     return rv;
 }
 

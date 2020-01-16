@@ -436,6 +436,13 @@ public:
         }
 
         /**
+         * @return the scopeID of the collection associated with the handle
+         */
+        ScopeID getScopeID() const {
+            return itr->second.getScopeID();
+        }
+
+        /**
          * Dump this VB::Manifest to std::cerr
          */
         void dump() {
