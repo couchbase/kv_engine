@@ -590,6 +590,21 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     }
 
     /**
+     * Get the scope for the provided key in the given vbucket
+     *
+     * @param cookie cookie object used to identify the request
+     * @param key the key to look up
+     * @param vbucket the vbucket the request belongs to
+     * @return if found the scope where the key belongs
+     */
+    virtual boost::optional<ScopeID> get_scope_id(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            Vbid vbucket) const {
+        return {};
+    }
+
+    /**
      * Ask the engine what features it supports.
      */
     virtual cb::engine::FeatureSet getFeatures() = 0;
