@@ -422,6 +422,10 @@ protected:
 
     Cursor cursor;
 
+    // MB-37468: Test only hooks set via Mock class
+    std::function<void()> completeBackfillHook;
+    std::function<void()> nextHook;
+
 private:
     std::unique_ptr<DcpResponse> next(std::lock_guard<std::mutex>& lh);
 

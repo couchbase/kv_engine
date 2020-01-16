@@ -152,6 +152,14 @@ public:
     cb::mcbp::DcpStreamId getStreamId() const {
         return sid;
     }
+
+    void setCompleteBackfillHook(std::function<void()> hook) {
+        completeBackfillHook = hook;
+    }
+
+    void setNextHook(std::function<void()> hook) {
+        nextHook = hook;
+    }
 };
 
 /**

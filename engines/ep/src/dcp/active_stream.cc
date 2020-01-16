@@ -172,6 +172,10 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
         break;
     }
 
+    if (nextHook) {
+        nextHook();
+    }
+
     itemsReady.store(response ? true : false);
     return response;
 }
@@ -427,9 +431,21 @@ void ActiveStream::completeBackfill() {
         }
     }
 
+    if (completeBackfillHook) {
+        completeBackfillHook();
+    }
+
     bool inverse = true;
     isBackfillTaskRunning.compare_exchange_strong(inverse, false);
-    notifyStreamReady();
+
+    // MB-37468: Items may not be ready, but we need to notify the stream
+    // regardless as a racing stepping producer that had just finished
+    // processing all items and found an empty ready queue could clear the flag
+    // immediately after we call notifyStreamReady (which does not notify as
+    // itemsReady is true). This would then result in us not notifying the
+    // stream and not putting it back in the producer's readyQueue. A similar
+    // case exists for transitioning state to TakeoverSend or InMemory.
+    notifyStreamReady(true);
 }
 
 void ActiveStream::snapshotMarkerAckReceived() {
