@@ -494,13 +494,6 @@ protected:
 
     CheckpointList checkpointList;
 
-    // Pair of {sequence number, cursor at checkpoint start} used when
-    // updating cursor positions when collapsing checkpoints.
-    struct CursorPosition {
-        uint64_t seqno;
-        bool onCpktStart;
-    };
-
     bool removeCursor_UNLOCKED(CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,
