@@ -61,8 +61,8 @@ protected:
 
         ObjectRegistry::onSwitchThread(engine.get());
 
-        // Bump the quota 350KiB above the current mem_used
-        const size_t quota = expectedStart + (350 * 1024);
+        // Bump the quota 700KiB above the current mem_used
+        const size_t quota = expectedStart + (700 * 1024);
         engine->getConfiguration().setMaxSize(quota);
 
         // Set the water marks to 70% and 85%
