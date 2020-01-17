@@ -173,6 +173,15 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
     return {cb::engine_errc::success, current->getUid(), scope.get()};
 }
 
+boost::optional<ScopeID> Collections::Manager::getScopeID(
+        const DocKey& key) const {
+    std::unique_lock<std::mutex> ul(lock);
+    if (!current) {
+        return {}; // no manifest, no collections/scopes
+    }
+    return current->getScopeID(key);
+}
+
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
     std::lock_guard<std::mutex> ul(lock);

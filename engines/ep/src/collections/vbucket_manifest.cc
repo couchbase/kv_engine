@@ -464,7 +464,7 @@ Manifest::ProcessResult Manifest::processManifest(
             if (mapItr == map.end()) {
                 rv->collectionsToAdd.push_back(
                         {std::make_pair(scopeItr->first, m.id),
-                         manifest.findCollection(m.id)->second,
+                         manifest.findCollection(m.id)->second.name,
                          m.maxTtl});
             }
         }

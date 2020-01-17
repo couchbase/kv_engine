@@ -79,6 +79,13 @@ public:
             cb::const_char_buffer path) const;
 
     /**
+     * Lookup scope id from DocKey
+     *
+     * @return optional scope-ID initialised if the lookup was successful
+     */
+    boost::optional<ScopeID> getScopeID(const DocKey& key) const;
+
+    /**
      * Update the vbucket's manifest with the current Manifest
      * The Manager is locked to prevent current changing whilst this update
      * occurs.

@@ -661,10 +661,9 @@ public:
     /**
      * Method to lookup a collection's scope
      * @param key Will use id from the key
-     * @param vbucket Will use collection state of this vbucket
      * @return optional scope, if empty returned the collection does not exist
      */
-    boost::optional<ScopeID> getScopeID(const DocKey& key, Vbid vbucket) const;
+    boost::optional<ScopeID> getScopeID(const DocKey& key) const;
 
     const Collections::Manager& getCollectionsManager() const;
 

@@ -481,17 +481,11 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     EXPECT_EQ(ScopeEntry::shop2.getId(), rv.extras.data.scopeId.to_host());
 
     // Test the collection/vbucket lookup
-    auto sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy},
-                                 Vbid(0));
+    auto sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy});
     EXPECT_TRUE(sid.is_initialized());
     EXPECT_EQ(ScopeEntry::shop1.uid, sid.get());
 
-    sid = store->getScopeID(StoredDocKey{"apple", CollectionEntry::fruit},
-                            Vbid(0));
-    EXPECT_FALSE(sid.is_initialized());
-
-    sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy},
-                            Vbid(1));
+    sid = store->getScopeID(StoredDocKey{"apple", CollectionEntry::fruit});
     EXPECT_FALSE(sid.is_initialized());
 }
 

@@ -213,8 +213,7 @@ public:
             cb::const_char_buffer path) override;
 
     boost::optional<ScopeID> get_scope_id(gsl::not_null<const void*> cookie,
-                                          const DocKey& key,
-                                          Vbid vbucket) const override;
+                                          const DocKey& key) const override;
 
     bool isXattrEnabled() override;
 

@@ -189,7 +189,7 @@ Manifest::Manifest(cb::const_char_buffer json,
             for (const auto& itr : scopeCollections) {
                 auto existingCollection = this->collections.find(itr.id);
                 if (existingCollection != this->collections.end()) {
-                    if (existingCollection->second == cnameValue) {
+                    if (existingCollection->second.name == cnameValue) {
                         throw std::invalid_argument(
                                 "Manifest::Manifest duplicate collection "
                                 "name:" +
@@ -218,7 +218,8 @@ Manifest::Manifest(cb::const_char_buffer json,
             }
 
             enableDefaultCollection(cuidValue);
-            this->collections.emplace(cuidValue, cnameValue);
+            this->collections.emplace(std::make_pair(
+                    cuidValue, Collection{uidValue, cnameValue}));
             scopeCollections.push_back({cuidValue, maxTtl});
         }
 
@@ -291,7 +292,7 @@ std::string Manifest::toJson() const {
             // Add all collections
             size_t nCollections = 0;
             for (const auto& collection : scope.second.collections) {
-                json << R"({"name":")" << collections.at(collection.id)
+                json << R"({"name":")" << collections.at(collection.id).name
                      << R"(","uid":")" << std::hex << collection.id << "\"";
                 if (collection.maxTtl) {
                     json << R"(,"maxTTL":)" << std::dec
@@ -334,7 +335,8 @@ void Manifest::addCollectionStats(const void* cookie,
                              bsize,
                              "manifest:collection:%s:name",
                              entry.first.to_string().c_str());
-            add_casted_stat(buffer, entry.second.c_str(), add_stat, cookie);
+            add_casted_stat(
+                    buffer, entry.second.name.c_str(), add_stat, cookie);
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(
@@ -401,7 +403,7 @@ boost::optional<CollectionID> Manifest::getCollectionID(
     for (const auto& c : scopeItr->second.collections) {
         auto cItr = collections.find(c.id);
         if (cItr != collections.end()) {
-            if (cItr->second == collection) {
+            if (cItr->second.name == collection) {
                 return c.id;
             }
         }
@@ -433,6 +435,14 @@ boost::optional<ScopeID> Manifest::getScopeID(const std::string& path) const {
     return {};
 }
 
+boost::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
+    auto itr = collections.find(key.getCollectionID());
+    if (itr != collections.end()) {
+        return itr->second.sid;
+    }
+    return {};
+}
+
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
 }
@@ -446,8 +456,9 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
         os << "scope:{" << std::hex << entry.first << ", " << entry.second.name
            << ", collections:[";
         for (const auto& collection : entry.second.collections) {
-            os << "{" << std::hex << collection.id << ", "
-               << manifest.collections.at(collection.id) << "}";
+            os << "{" << std::hex << collection.id << ", sid:" << std::hex
+               << manifest.collections.at(collection.id).sid << ", "
+               << manifest.collections.at(collection.id).name << "}";
         }
         os << "]\n";
     }

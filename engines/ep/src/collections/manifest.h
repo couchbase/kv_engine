@@ -77,8 +77,12 @@ public:
     // This manifest object stores UID to Scope mappings
     using scopeContainer = std::unordered_map<ScopeID, Scope>;
 
-    // This manifest object stores CID to name mappings for collections
-    using collectionContainer = std::unordered_map<CollectionID, std::string>;
+    // This manifest object stores CID mapped to SID and collection name
+    struct Collection {
+        ScopeID sid;
+        std::string name;
+    };
+    using collectionContainer = std::unordered_map<CollectionID, Collection>;
 
     collectionContainer::const_iterator begin() const {
         return collections.begin();
@@ -135,7 +139,7 @@ public:
                     auto collection = collections.find(scopeCollection.id);
 
                     if (collection != collections.end() &&
-                        collection->second == collectionName) {
+                        collection->second.name == collectionName) {
                         return collection;
                     }
                 }
@@ -190,6 +194,12 @@ public:
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
     boost::optional<ScopeID> getScopeID(const std::string& path) const;
+
+    /**
+     * Attempt to lookup the scope-id of the "key" (using the collection-ID)
+     * @return an optional ScopeID, undefined if nothing found
+     */
+    boost::optional<ScopeID> getScopeID(const DocKey& key) const;
 
     /**
      * @returns this manifest as a std::string (JSON formatted)

@@ -2580,16 +2580,8 @@ cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
     }
 }
 
-boost::optional<ScopeID> KVBucket::getScopeID(const DocKey& key,
-                                              Vbid vbucket) const {
-    auto vb = vbMap.getBucket(vbucket);
-    if (vb) {
-        auto cHandle = vb->lockCollections(key);
-        if (cHandle.valid()) {
-            return cHandle.getScopeID();
-        }
-    }
-    return {};
+boost::optional<ScopeID> KVBucket::getScopeID(const DocKey& key) const {
+    return collectionsManager->getScopeID(key);
 }
 
 const Collections::Manager& KVBucket::getCollectionsManager() const {
