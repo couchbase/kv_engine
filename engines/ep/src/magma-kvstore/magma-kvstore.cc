@@ -387,8 +387,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                       const magma::Slice& keySlice,
                                       const magma::Slice& metaSlice,
                                       const magma::Slice& valueSlice) {
-    std::stringstream itemString;
+    auto& itemString = cbCtx.itemKeyBuf;
     if (logger->should_log(spdlog::level::TRACE)) {
+        itemString.clear();
         itemString << "key:"
                    << cb::UserData{makeDiskDocKey(keySlice).to_string()};
         itemString << " ";
