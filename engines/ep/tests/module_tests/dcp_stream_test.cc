@@ -2525,6 +2525,114 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 }
 
+// MB-37468: A stepping producer that has found no items (backfill fully
+// processed can race with a completing backfill in such a way that we fail to
+// notify the producer that the stream needs further processing. This causes us
+// to fail to send a StreamEnd message. A similar case exists for transitioning
+// state to TakeoverSend or InMemory.
+TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Delete initial stream (so we can re-create after items are available
+    // from backing store).
+    stream.reset();
+
+    // Add items, flush it to disk, then clear checkpoint to force backfill.
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    ckptMgr.createNewCheckpoint();
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    bool newCKptCreated;
+    ASSERT_EQ(1, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+
+    // Re-create producer now we have items only on disk. We want to stream up
+    // to seqno 1 (our only item) to test that we get the StreamEnd message.
+    stream = producer->mockActiveStreamRequest(0 /*flags*/,
+                                               0 /*opaque*/,
+                                               *vb,
+                                               0 /*st_seqno*/,
+                                               1 /*en_seqno*/,
+                                               0x0 /*vb_uuid*/,
+                                               0 /*snap_start_seqno*/,
+                                               ~0 /*snap_end_seqno*/);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    MockDcpMessageProducers producers(engine.get());
+
+    // Step to schedule our backfill
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(0, stream->public_readyQ().size());
+
+    auto& bfm = producer->getBFM();
+
+    // Ephemeral has a single stage backfill and we only compare about the
+    // complete stage so skip over create and scan for persistent buckets
+    if (persistent()) {
+        bfm.backfill();
+        bfm.backfill();
+    }
+
+    ThreadGate tg1(2);
+    ThreadGate tg2(2);
+    std::thread t1;
+    stream->setCompleteBackfillHook([this, &t1, &tg1, &tg2, &producers]() {
+        // Step past our normal items to expose the race with backfill complete
+        // and an empty readyQueue.
+
+        EXPECT_EQ(1, *stream->getNumBackfillItemsRemaining());
+        EXPECT_EQ(2, stream->public_readyQ().size());
+
+        // Step snapshot marker
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+
+        // Step mutation
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+
+        stream->setNextHook([&tg1, &tg2]() {
+            if (!tg1.isComplete()) {
+                tg1.threadUp();
+
+                // Wait for the completeBackfill thread to have attempted to
+                // notify that the stream is ready before exiting the hook and
+                // setting itemsReady.
+                tg2.threadUp();
+            }
+        });
+
+        // Run the step in a different thread
+        t1 = std::thread{[this, &producers]() {
+            // This step should produce the stream end
+            EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+        }};
+
+        // Wait for the stepping thread to have reached the point at which it is
+        // about to set itemsReady before we attempt to set itemsReady after we
+        // exit this hook.
+        tg1.threadUp();
+    });
+
+    // Complete the backfill to expose the race condition
+    bfm.backfill();
+
+    // Unblock the stepping thread to now find the stream end
+    tg2.threadUp();
+
+    t1.join();
+
+    // Should have sent StreamEnd but stream still in queue
+    EXPECT_FALSE(producer->findStream(vbid)->isActive());
+    EXPECT_FALSE(producer->getReadyQueue().empty());
+
+    // Step to remove stream from queue
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_FALSE(producer->findStream(vbid)->isActive());
+    EXPECT_TRUE(producer->getReadyQueue().empty());
+}
+
 class SingleThreadedBackfillTest : public SingleThreadedActiveStreamTest {
 protected:
     void testBackfill() {
