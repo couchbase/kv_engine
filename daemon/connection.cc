@@ -238,11 +238,8 @@ void Connection::restartAuthentication() {
 }
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
-    if (privilegeContext.dropPrivilege(privilege)) {
-        return cb::engine_errc::success;
-    }
-
-    return cb::engine_errc::no_access;
+    privilegeContext.dropPrivilege(privilege);
+    return cb::engine_errc::success;
 }
 
 cb::rbac::PrivilegeAccess Connection::checkPrivilege(

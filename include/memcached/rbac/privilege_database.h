@@ -33,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace cb {
@@ -67,15 +68,6 @@ public:
     /// Check if this object is identical to another object
     bool operator==(const Collection& other) const;
 
-    /**
-     * Drop the named privilege from the privilege mask
-     *
-     * @param privilege the privilege to drop
-     * @return true if the privilege was dropped
-     *         false if the requested privilege wasn't set in the mask
-     */
-    bool dropPrivilege(Privilege privilege);
-
 protected:
     /// The privilege mask describing the access to this collection
     PrivilegeMask privilegeMask;
@@ -108,15 +100,6 @@ public:
 
     /// Check if this object is identical to another object
     bool operator==(const Scope& other) const;
-
-    /**
-     * Drop the named privilege from the privilege mask
-     *
-     * @param privilege the privilege to drop
-     * @return true if the privilege was dropped
-     *         false if the requested privilege wasn't set in the mask
-     */
-    bool dropPrivilege(Privilege privilege);
 
 protected:
     /// The privilege mask describing the access to this scope IFF no
@@ -165,15 +148,6 @@ public:
         return privilegeMask;
     }
 
-    /**
-     * Drop the named privilege from the privilege mask
-     *
-     * @param privilege the privilege to drop
-     * @return true if the privilege was dropped
-     *         false if the requested privilege wasn't set in the mask
-     */
-    bool dropPrivilege(Privilege privilege);
-
 protected:
     /// The privilege mask describing the access to this scope IFF no
     /// scopes is configured
@@ -212,7 +186,8 @@ public:
      * Get a map containing all of the buckets and the privileges in those
      * buckets that the user have access to.
      */
-    const std::unordered_map<std::string, Bucket>& getBuckets() const {
+    const std::unordered_map<std::string, std::shared_ptr<const Bucket>>&
+    getBuckets() const {
         return buckets;
     }
 
@@ -257,18 +232,9 @@ public:
         timestamp = ts;
     }
 
-    /**
-     * Drop the named privilege from the privilege mask
-     *
-     * @param privilege the privilege to drop
-     * @return true if the privilege was dropped
-     *         false if the requested privilege wasn't set in the mask
-     */
-    bool dropPrivilege(Privilege privilege);
-
 protected:
     mutable std::chrono::steady_clock::time_point timestamp;
-    std::unordered_map<std::string, Bucket> buckets;
+    std::unordered_map<std::string, std::shared_ptr<const Bucket>> buckets;
     PrivilegeMask privilegeMask;
     bool internal;
 };
@@ -306,7 +272,7 @@ public:
     PrivilegeContext(uint32_t gen,
                      Domain domain,
                      const PrivilegeMask& m,
-                     Bucket bucket)
+                     std::shared_ptr<const Bucket> bucket)
         : generation(gen), domain(domain), mask(m), bucket(std::move(bucket)) {
         // empty
     }
@@ -358,10 +324,8 @@ public:
      * Drop the named privilege from the privilege mask
      *
      * @param privilege the privilege to drop
-     * @return true if the privilege was dropped
-     *         false if the requested privilege wasn't set in the mask
      */
-    bool dropPrivilege(Privilege privilege);
+    void dropPrivilege(Privilege privilege);
 
 protected:
     void setBucketPrivilegeBits(bool value);
@@ -374,7 +338,10 @@ protected:
     PrivilegeMask mask;
 
     /// The Bucket rbac setting
-    Bucket bucket;
+    std::shared_ptr<const Bucket> bucket;
+
+    /// The list of dropped privileges
+    std::vector<Privilege> droppedPrivileges;
 };
 
 /**

@@ -130,15 +130,6 @@ PrivilegeAccess Collection::check(Privilege privilege) const {
                                                   : PrivilegeAccess::Fail;
 }
 
-bool Collection::dropPrivilege(Privilege privilege) {
-    if (privilegeMask[int(privilege)]) {
-        privilegeMask[int(privilege)] = false;
-        return true;
-    }
-
-    return false;
-}
-
 bool Scope::operator==(const Scope& other) const {
     return privilegeMask == other.privilegeMask &&
            collections == other.collections;
@@ -182,23 +173,6 @@ PrivilegeAccess Scope::check(Privilege privilege, uint32_t collection) const {
 
     // delegate the check to the collections
     return iter->second.check(privilege);
-}
-
-bool Scope::dropPrivilege(Privilege privilege) {
-    bool ret = false;
-
-    if (privilegeMask[int(privilege)]) {
-        privilegeMask[int(privilege)] = false;
-        ret = true;
-    }
-
-    for (auto& c : collections) {
-        if (c.second.dropPrivilege(privilege)) {
-            ret = true;
-        }
-    }
-
-    return ret;
 }
 
 bool Bucket::operator==(const Bucket& other) const {
@@ -253,23 +227,6 @@ PrivilegeAccess Bucket::check(Privilege privilege,
     return iter->second.check(privilege, collection);
 }
 
-bool Bucket::dropPrivilege(Privilege privilege) {
-    bool ret = false;
-
-    if (privilegeMask[int(privilege)]) {
-        privilegeMask[int(privilege)] = false;
-        ret = true;
-    }
-
-    for (auto& s : scopes) {
-        if (s.second.dropPrivilege(privilege)) {
-            ret = true;
-        }
-    }
-
-    return ret;
-}
-
 bool UserEntry::operator==(const UserEntry& other) const {
     return (internal == other.internal &&
             privilegeMask == other.privilegeMask && buckets == other.buckets);
@@ -311,7 +268,7 @@ UserEntry::UserEntry(const std::string& username,
         }
 
         for (auto it = iter->begin(); it != iter->end(); ++it) {
-            buckets.emplace(it.key(), Bucket(it.value()));
+            buckets.emplace(it.key(), std::make_shared<Bucket>(it.value()));
         }
     }
 }
@@ -321,7 +278,7 @@ nlohmann::json UserEntry::to_json(Domain domain) const {
     ret["domain"] = ::to_string(domain);
     ret["privileges"] = privilegeMask2Vector(privilegeMask);
     for (const auto& b : buckets) {
-        ret["buckets"][b.first] = b.second.to_json();
+        ret["buckets"][b.first] = b.second->to_json();
     }
 
     return ret;
@@ -405,6 +362,13 @@ const UserEntry& PrivilegeDatabase::lookup(const std::string& user) const {
     return iter->second;
 }
 
+void PrivilegeContext::dropPrivilege(Privilege privilege) {
+    // Given that we're using a shared_ptr to the buckets we can't modify
+    // the privilege mask for the buckets/scopes/collections.
+    // Keep them around in a vector and check it later on.
+    droppedPrivileges.push_back(privilege);
+}
+
 PrivilegeAccess PrivilegeContext::check(Privilege privilege,
                                         ScopeID sid,
                                         CollectionID cid) const {
@@ -419,10 +383,19 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
     }
 #endif
 
+    // Check if the user dropped the privilege over the connection.
+    if (!droppedPrivileges.empty()) {
+        if (std::find(droppedPrivileges.begin(),
+                      droppedPrivileges.end(),
+                      privilege) != droppedPrivileges.end()) {
+            return PrivilegeAccess::Fail;
+        }
+    }
+
     // Optimization.. Most requests will be for bucket privileges and not
     // the other privileges.. Check the bucket privileges first, then
     // the global privileges
-    if (bucket.check(privilege, sid, cid) == PrivilegeAccess::Ok) {
+    if (bucket && bucket->check(privilege, sid, cid) == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     }
 
@@ -450,21 +423,6 @@ std::string PrivilegeContext::to_string() const {
         }
     }
     ret.back() = ']';
-
-    return ret;
-}
-
-bool PrivilegeContext::dropPrivilege(Privilege privilege) {
-    bool ret = false;
-
-    if (mask[int(privilege)]) {
-        mask[int(privilege)] = false;
-        ret = true;
-    }
-
-    if (bucket.dropPrivilege(privilege)) {
-        ret = true;
-    }
 
     return ret;
 }

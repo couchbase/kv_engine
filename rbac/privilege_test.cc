@@ -43,7 +43,8 @@ TEST(UserEntryTest, ParseLegalConfigOldFormat) {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
         privs[int(cb::rbac::Privilege::Insert)] = true;
-        EXPECT_EQ(privs, it->second.getPrivileges());
+        ASSERT_TRUE(it->second);
+        EXPECT_EQ(privs, it->second->getPrivileges());
     }
 
     it = buckets.find("bucket2");
@@ -51,7 +52,8 @@ TEST(UserEntryTest, ParseLegalConfigOldFormat) {
     {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
-        EXPECT_EQ(privs, it->second.getPrivileges());
+        ASSERT_TRUE(it->second);
+        EXPECT_EQ(privs, it->second->getPrivileges());
     }
 
     // The username does not start with @
