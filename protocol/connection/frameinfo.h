@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <mcbp/protocol/request.h>
 #include <memcached/durability_spec.h>
 #include <cstdint>
 #include <vector>
@@ -30,6 +31,12 @@ public:
      * for this FrameInfo object.
      */
     virtual std::vector<uint8_t> encode() const = 0;
+
+protected:
+    /// Encode a FrameInfoId and a blob according to the encoding
+    /// rules in the binary protocol spec.
+    std::vector<uint8_t> encode(cb::mcbp::request::FrameInfoId id,
+                                cb::const_byte_buffer data) const;
 };
 
 class BarrierFrameInfo : public FrameInfo {
@@ -40,8 +47,8 @@ public:
 
 class DurabilityFrameInfo : public FrameInfo {
 public:
-    DurabilityFrameInfo(cb::durability::Level level,
-                        cb::durability::Timeout timeout = {})
+    explicit DurabilityFrameInfo(cb::durability::Level level,
+                                 cb::durability::Timeout timeout = {})
         : level(level), timeout(timeout) {
     }
     ~DurabilityFrameInfo() override;
@@ -54,7 +61,7 @@ protected:
 
 class DcpStreamIdFrameInfo : public FrameInfo {
 public:
-    DcpStreamIdFrameInfo(uint16_t id) : id(id){};
+    explicit DcpStreamIdFrameInfo(uint16_t id) : id(id){};
     ~DcpStreamIdFrameInfo() override;
     std::vector<uint8_t> encode() const override;
 
@@ -64,7 +71,8 @@ protected:
 
 class OpenTracingContextFrameInfo : public FrameInfo {
 public:
-    OpenTracingContextFrameInfo(std::string ctx) : ctx(std::move(ctx)) {
+    explicit OpenTracingContextFrameInfo(std::string ctx)
+        : ctx(std::move(ctx)) {
     }
     ~OpenTracingContextFrameInfo() override;
     std::vector<uint8_t> encode() const override;

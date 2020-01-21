@@ -27,6 +27,43 @@ OpenTracingContextFrameInfo::~OpenTracingContextFrameInfo() = default;
 
 using cb::mcbp::request::FrameInfoId;
 
+std::vector<uint8_t> FrameInfo::encode(cb::mcbp::request::FrameInfoId id,
+                                       cb::const_byte_buffer data) const {
+    // From the spec:
+    //
+    // * 4 bits: *Object Identifier*. Encodes first 15 object IDs directly; with
+    // the 16th value (15) used
+    //   as an escape to support an additional 256 IDs by combining the value of
+    //   the next byte:
+    //   * `0..14`: Identifier for this element.
+    //   * `15`: Escape: ID is 15 + value of next byte.
+    //* 4 bits: *Object Length*. Encodes sizes 0..14 directly; value 15 is
+    //   used to encode sizes above 14 by combining the value of a following
+    //   byte:
+    //   * `0..14`: Size in bytes of the element data.
+    //   * `15`: Escape: Size is 15 + value of next byte (after any object ID
+    //   escape bytes).
+    //* N Bytes: *Object data*.
+
+    if (uint8_t(id) > 0xf) {
+        throw std::runtime_error(
+                "FrameInfo::encode: Multibyte frame identifiers not supported");
+    }
+
+    std::vector<uint8_t> ret(1);
+    ret[0] = uint8_t(id) << 0x04U;
+    if (data.size() < 0x0fU) {
+        // We may fit in a single byte
+        ret[0] |= uint8_t(data.size());
+    } else {
+        // we need an extra length byte to set the length
+        ret[0] |= 0x0fU;
+        ret.push_back(gsl::narrow<uint8_t>(data.size() - 0x0fU));
+    }
+    ret.insert(ret.end(), data.cbegin(), data.cend());
+    return ret;
+}
+
 std::vector<uint8_t> BarrierFrameInfo::encode() const {
     std::vector<uint8_t> ret;
     ret.push_back(uint8_t(FrameInfoId::Barrier) << 0x04U);
@@ -60,28 +97,14 @@ std::vector<uint8_t> DurabilityFrameInfo::encode() const {
 }
 
 std::vector<uint8_t> DcpStreamIdFrameInfo::encode() const {
-    std::vector<uint8_t> ret(1);
-    ret[0] = uint8_t(FrameInfoId::DcpStreamId) << 0x04U;
-    ret[0] |= sizeof(id);
     auto value = htons(id);
-    const auto* ptr = reinterpret_cast<const char*>(&value);
-    ret.insert(ret.end(), ptr, ptr + sizeof(value));
-
-    return ret;
+    return FrameInfo::encode(
+            FrameInfoId::DcpStreamId,
+            {reinterpret_cast<const uint8_t*>(&value), sizeof(value)});
 }
 
 std::vector<uint8_t> OpenTracingContextFrameInfo::encode() const {
-    std::vector<uint8_t> ret(1);
-    ret[0] = uint8_t(FrameInfoId::OpenTracingContext) << 0x04U;
-    if (ctx.size() < 0x0fU) {
-        // We may fit in a single byte
-        ret[0] |= uint8_t(ctx.size());
-    } else {
-        // we need an extra length byte to set the length
-        ret[0] |= 0x0fU;
-        ret.push_back(gsl::narrow<uint8_t>(ctx.size()));
-    }
-    ret.insert(ret.end(), ctx.cbegin(), ctx.cend());
-
-    return ret;
+    return FrameInfo::encode(
+            FrameInfoId::OpenTracingContext,
+            {reinterpret_cast<const uint8_t*>(ctx.data()), ctx.size()});
 }
