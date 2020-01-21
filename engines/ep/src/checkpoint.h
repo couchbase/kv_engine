@@ -153,6 +153,14 @@ public:
     // that std::atomic implicitly deleted the assignment operator
     CheckpointCursor(const CheckpointCursor& other);
 
+    /**
+     * Construct by copy and assign the new name.
+     *
+     * @param other
+     * @param name The new name
+     */
+    CheckpointCursor(const CheckpointCursor& other, const std::string& name);
+
     CheckpointCursor& operator=(const CheckpointCursor& other);
 
     ~CheckpointCursor();

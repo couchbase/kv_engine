@@ -49,10 +49,10 @@ using LockHolder = std::lock_guard<std::mutex>;
 struct CheckpointSnapshotRange {
     // Getters for start and end to allow us to use this in the same way as a
     // normal snapshot_range_t
-    uint64_t getStart() {
+    uint64_t getStart() const {
         return range.getStart();
     }
-    uint64_t getEnd() {
+    uint64_t getEnd() const {
         return range.getEnd();
     }
 
@@ -131,6 +131,9 @@ public:
          * This value would be 1
          */
         uint64_t visibleSeqno;
+
+        /// Set only for persistence cursor, resets the CM state after flush.
+        UniqueFlushHandle flushHandle;
     };
 
     /// Return type of expelUnreferencedCheckpointItems()
@@ -199,6 +202,20 @@ public:
      * @return true if the cursor is removed successfully.
      */
     bool removeCursor(CheckpointCursor* cursor);
+
+    /**
+     * Removes the backup persistence cursor created at getItemsForCursor().
+     */
+    void removeBackupPersistenceCursor();
+
+    /**
+     * Moves the pcursor back to the backup cursor.
+     * Note that:
+     *  1) it is logical move, the function has constant complexity
+     *  2) the backup cursor is logically removed (as it becomes the new
+     *     pcursor)
+     */
+    void resetPersistenceCursor();
 
     /**
      * Queue an item to be written to persistent layer.
@@ -405,6 +422,13 @@ public:
      */
     bool hasClosedCheckpointWhichCanBeRemoved() const;
 
+    /**
+     * @return true if only the backup pcursor is blocking checkpoint removal.
+     *  Ie, some checkpoints will be eligible for removal as soon as the backup
+     *  pcursor is removed.
+     */
+    bool isEligibleForCheckpointRemovalAfterPersistence() const;
+
     void createSnapshot(uint64_t snapStartSeqno,
                         uint64_t snapEndSeqno,
                         boost::optional<uint64_t> highCompletedSeqno,
@@ -444,6 +468,9 @@ public:
     CheckpointCursor* getPersistenceCursor() const {
         return persistenceCursor;
     }
+
+    /// @return the backup-pcursor
+    std::shared_ptr<CheckpointCursor> getBackupPersistenceCursor();
 
     void dump() const;
 
@@ -506,6 +533,19 @@ protected:
     CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,
                                                    const std::string& name,
                                                    uint64_t startBySeqno);
+
+    /**
+     * Called by getItemsForCursor() for registering a copy of the persistence
+     * cursor before pcursor moves.
+     * The copy is used for resetting the pcursor to the backup position (in
+     * the case of flush failure) for re-attempting the flush.
+     *
+     * The function forbids to overwrite an existing backup pcursor.
+     *
+     * @param lh Lock to CM::queueLock
+     * @throws logic_error if the user attempts to overwrite the backup pcursor
+     */
+    void registerBackupPersistenceCursor(const LockHolder& lh);
 
     size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
 
@@ -628,6 +668,15 @@ protected:
     static constexpr const char* pCursorName = "persistence";
     Cursor pCursor;
     CheckpointCursor* persistenceCursor = nullptr;
+
+    // Only for persistence, we register a copy of the cursor before the cursor
+    // moves. Then:
+    //  1) if flush succeeds, we just remove the copy
+    //  2) if flush fails, we reset the pcursor to the copy
+    //
+    // That allows to rely entirely on the CM for re-attemping the flush after
+    // failure.
+    static constexpr const char* backupPCursorName = "persistence-backup";
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };

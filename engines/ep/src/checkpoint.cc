@@ -71,6 +71,12 @@ CheckpointCursor::CheckpointCursor(const CheckpointCursor& other)
     }
 }
 
+CheckpointCursor::CheckpointCursor(const CheckpointCursor& other,
+                                   const std::string& name)
+    : CheckpointCursor(other) {
+    this->name = name;
+}
+
 CheckpointCursor::~CheckpointCursor() {
     if (isValid) {
         (*currentCheckpoint)->decNumOfCursorsInCheckpoint();

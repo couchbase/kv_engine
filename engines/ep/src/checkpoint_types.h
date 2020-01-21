@@ -20,7 +20,39 @@
 #include <memory>
 
 class Checkpoint;
+class CheckpointManager;
 
 // List of Checkpoints used by class CheckpointManager to store Checkpoints for
 // a given vBucket.
 using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
+
+/**
+ * RAII resource, used to reset the state of the CheckpointManager after
+ * flush.
+ * An instance of this is returned from getItemsForPersistence(). The
+ * callback is triggered as soon as the instance goes out of scope.
+ */
+class FlushHandle {
+public:
+    FlushHandle(CheckpointManager& m) : manager(m) {
+    }
+
+    ~FlushHandle();
+
+    FlushHandle(const FlushHandle&) = delete;
+    FlushHandle& operator=(const FlushHandle&) = delete;
+    FlushHandle(FlushHandle&&) = delete;
+    FlushHandle& operator=(FlushHandle&&) = delete;
+
+    // Signal that the flush has failed, we will release resources
+    // accordingly in the dtor.
+    void markFlushFailed() {
+        failed = true;
+    }
+
+private:
+    bool failed = false;
+    CheckpointManager& manager;
+};
+
+using UniqueFlushHandle = std::unique_ptr<FlushHandle>;

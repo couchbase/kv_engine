@@ -1290,12 +1290,14 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     store_item(vbid, makeStoredDocKey("key1"), "value");
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
+    EXPECT_FALSE(ckpt_mgr.hasClosedCheckpointWhichCanBeRemoved());
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
 
     store_item(vbid, makeStoredDocKey("key2"), "value");
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
+    EXPECT_FALSE(ckpt_mgr.hasClosedCheckpointWhichCanBeRemoved());
     ckpt_mgr.createNewCheckpoint();
     EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
 

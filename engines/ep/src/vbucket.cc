@@ -395,7 +395,11 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
 
     // First add any items from the rejectQueue.
     while (result.items.size() < approxLimit && !rejectQueue.empty()) {
-        result.items.push_back(rejectQueue.front());
+        // @todo: For now just discard items from the rejectQueue as all items
+        //  will be retrieved again from the CM, we will process out-of-order
+        //  and duplicate items otherwise.
+        //  I will completely remove the rejectQueue in a follow-up.
+        // result.items.push_back(rejectQueue.front());
         rejectQueue.pop();
     }
 
@@ -412,6 +416,7 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
         result.ranges = std::move(ckptItems.ranges);
         result.maxDeletedRevSeqno = ckptItems.maxDeletedRevSeqno;
         result.checkpointType = ckptItems.checkpointType;
+        result.flushHandle = std::move(ckptItems.flushHandle);
         ckptItemsAvailable = ckptItems.moreAvailable;
         stats.persistenceCursorGetItemsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(

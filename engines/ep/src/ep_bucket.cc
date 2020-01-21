@@ -345,16 +345,16 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // a single flush.
     auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
 
+    // Callback must be initialized at persistence
+    Expects(toFlush.flushHandle.get());
+
     const auto moreAvailable =
             toFlush.moreAvailable ? MoreAvailable::Yes : MoreAvailable::No;
 
-    // The Flusher task is responsible for waking up the CheckpointRemover if
-    // necessary.
-    //
-    // @todo: The condition currently used must be replaced when we introduced
-    //  the backup cursor, as the backup cursor may prevent checkpoint removal
+    // The Flusher will wake up the CheckpointRemover if necessary.
     const auto wakeupCheckpointRemover =
-            vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()
+            vb->checkpointManager
+                            ->isEligibleForCheckpointRemovalAfterPersistence()
                     ? WakeCkptRemover::Yes
                     : WakeCkptRemover::No;
 
@@ -681,6 +681,13 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // Also, when we re-attempt to flush a set-vbstate item we may fail again
     // because of the optimization at vbucket_state::needsToBePersisted().
     if (!rwUnderlying->snapshotVBucket(vb->getId(), vbstate, options)) {
+        // @todo: Add test for stressing this code path
+        //
+        // Flush failed, we need to reset the pcursor to the original
+        // position. At the next run the flusher will re-attempt by retrieving
+        // all the items from the disk queue again.
+        toFlush.flushHandle->markFlushFailed();
+
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
 
@@ -732,6 +739,11 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         if (rwUnderlying->getVBucketState(vbid)) {
             *rwUnderlying->getVBucketState(vbid) = vbstateRollback;
         }
+
+        // Flush failed, we need to reset the pcursor to the original
+        // position. At the next run the flusher will re-attempt by retrieving
+        // all the items from the disk queue again.
+        toFlush.flushHandle->markFlushFailed();
 
         Expects(!vb->rejectQueue.empty());
         Expects(vb->rejectQueue.size() == flushBatchSize);
@@ -1536,6 +1548,9 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
     do {
         itemsForCursor =
                 vb.checkpointManager->getNextItemsForPersistence(items);
+        // RAII callback, need to trigger it manually here
+        itemsForCursor.flushHandle.reset();
+
         for (const auto& item : items) {
             if (item->getBySeqno() <= rollbackSeqno ||
                 item->isCheckPointMetaItem() ||
