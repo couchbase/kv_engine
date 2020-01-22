@@ -61,8 +61,7 @@ public:
     explicit GetValue(std::unique_ptr<Item> v,
                       ENGINE_ERROR_CODE s = ENGINE_SUCCESS,
                       uint64_t i = -1,
-                      bool incomplete = false,
-                      uint8_t _nru = 0xff);
+                      bool incomplete = false);
 
     /// Cannot copy GetValues (cannot copy underlying Item).
     GetValue(const GetValue&) = delete;
@@ -98,15 +97,12 @@ public:
 
     void setPartial() { partial = true; }
 
-    uint8_t getNRUValue() const { return nru; }
-
     std::unique_ptr<Item> item;
 
 private:
     uint64_t id;
     ENGINE_ERROR_CODE status;
     bool partial;
-    uint8_t nru;
 };
 
 /**

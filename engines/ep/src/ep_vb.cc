@@ -712,8 +712,7 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
     if (queueBgFetch == QueueBgFetch::Yes) {
         bgFetch(key, cookie, engine);
     }
-    return GetValue(
-            nullptr, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());
+    return GetValue(nullptr, ENGINE_EWOULDBLOCK, v.getBySeqno(), true);
 }
 
 void EPVBucket::setupDeferredDeletion(const void* cookie) {

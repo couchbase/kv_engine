@@ -2720,8 +2720,7 @@ GetValue VBucket::getInternal(
         return GetValue(std::move(item),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
-                        !v->isResident(),
-                        v->getNRUValue());
+                        !v->isResident());
     } else {
         if (!getDeletedValue && (eviction == EvictionPolicy::Value)) {
             return GetValue();

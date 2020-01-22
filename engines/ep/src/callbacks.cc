@@ -19,8 +19,7 @@
 
 #include "item.h"
 
-GetValue::GetValue()
-    : id(-1), status(ENGINE_KEY_ENOENT), partial(false), nru(0xff) {
+GetValue::GetValue() : id(-1), status(ENGINE_KEY_ENOENT), partial(false) {
 }
 GetValue::GetValue(GetValue&& other) = default;
 GetValue& GetValue::operator=(GetValue&& other) = default;
@@ -28,9 +27,8 @@ GetValue& GetValue::operator=(GetValue&& other) = default;
 GetValue::GetValue(std::unique_ptr<Item> v,
                    ENGINE_ERROR_CODE s,
                    uint64_t i,
-                   bool incomplete,
-                   uint8_t _nru)
-    : item(std::move(v)), id(i), status(s), partial(incomplete), nru(_nru) {
+                   bool incomplete)
+    : item(std::move(v)), id(i), status(s), partial(incomplete) {
 }
 
 GetValue::~GetValue() = default;
