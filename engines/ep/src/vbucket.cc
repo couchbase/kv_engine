@@ -824,7 +824,6 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
                           id,
                           v.getRevSeqno());
 
-            new_item.setNRUValue(v.getNRUValue());
             new_item.setFreqCounterValue(v.getFreqCounterValue());
             new_item.setDeleted(DeleteSource::TTL);
             ht.unlocked_updateStoredValue(hbl, v, new_item);
@@ -3418,10 +3417,6 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         }
     }
 
-    if (v->isTempItem()) {
-        v->setNRUValue(MAX_NRU_VALUE);
-    }
-
     return rv;
 }
 
@@ -3667,7 +3662,6 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
 
     updateRevSeqNoOfNewStoredValue(*v);
     itm.setRevSeqno(v->getRevSeqno());
-    v->setNRUValue(MAX_NRU_VALUE);
 
     return {TempAddStatus::BgFetch, v};
 }

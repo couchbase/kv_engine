@@ -256,17 +256,6 @@ TYPED_TEST(ValueTest, deletedValueDatatypeIsBinary) {
 }
 
 /**
- * Check that NRU still works (given we now do some bitfield munging)
- */
-TYPED_TEST(ValueTest, nru) {
-    EXPECT_EQ(INITIAL_NRU_VALUE, this->sv->getNRUValue());
-    this->sv->incrNRUValue();
-    EXPECT_EQ(INITIAL_NRU_VALUE + 1, this->sv->getNRUValue());
-    this->sv->referenced();
-    EXPECT_EQ(INITIAL_NRU_VALUE, this->sv->getNRUValue());
-}
-
-/**
  * Test the get / set of the frequency counter
  */
 TYPED_TEST(ValueTest, freqCounter) {

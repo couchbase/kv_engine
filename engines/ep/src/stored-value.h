@@ -49,8 +49,8 @@ class OrderedStoredValue;
  * value of the item is not currently resident (for example it's been evicted to
  * save memory) or if the item has no value (deleted item has value as null)
  * Additionally it contains flags to help HashTable manage the state of the
- * item - such as dirty flag, NRU bits, and a `next` pointer to support
- * chaining of StoredValues which hash to the same hash bucket.
+ * item - such as dirty flag and a `next` pointer to support chaining of
+ * StoredValues which hash to the same hash bucket.
  *
  * The key of the item is of variable length (from 1 to ~256 bytes). As an
  * optimization, we allocate the key directly after the fixed size of
@@ -183,12 +183,6 @@ public:
     using UniquePtr = std::unique_ptr<StoredValue,
             TaggedPtrDeleter<StoredValue, Deleter>>;
 
-    uint8_t getNRUValue() const;
-
-    void setNRUValue(uint8_t nru_val);
-
-    uint8_t incrNRUValue();
-
     // Set the frequency counter value to the input value
     void setFreqCounterValue(uint8_t newValue) {
         auto tag = getValueTag();
@@ -200,8 +194,6 @@ public:
     uint8_t getFreqCounterValue() const {
         return getValueTag().fields.frequencyCounter;
     }
-
-    void referenced();
 
     /**
      * Mark this item as needing to be persisted.
@@ -927,17 +919,6 @@ protected:
         bits.set(dirtyIndex, value);
     }
 
-    void setNru(uint8_t nru) {
-        bits.set(nruIndex1, nru & 1);
-        bits.set(nruIndex2, (nru & 2) >> 1);
-    }
-
-    uint8_t getNru() const {
-        // Not atomic across the two bits, recommend holding the HBL
-        return uint8_t(bits.test(nruIndex1)) |
-               (uint8_t(bits.test(nruIndex2)) << 1);
-    }
-
     void setDeletionSource(DeleteSource delSource) {
         deletionSource = static_cast<uint8_t>(delSource);
     }
@@ -1015,9 +996,11 @@ protected:
     // static constexpr size_t unused = 2;
     // ordered := true if this is an instance of OrderedStoredValue
     static constexpr size_t orderedIndex = 3;
-    // 2 bit nru managed via setNru/getNru
-    static constexpr size_t nruIndex1 = 4;
-    static constexpr size_t nruIndex2 = 5;
+    // Bit 4 and 5 of bits are currently unused and may be used for new purposes
+    // These bits were used for nru value but this was replaced by
+    // frequencyCounter stored in the tag of value
+    // static constexpr size_t unused = 4;
+    // static constexpr size_t unused = 5;
     static constexpr size_t residentIndex = 6;
     // stale := Indicates if a newer instance of the item is added. Logically
     //          part of OSV, but is physically located in SV as there are spare

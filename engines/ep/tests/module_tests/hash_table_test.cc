@@ -809,61 +809,6 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(1, updated.storedValue->getValue()->getAge());
 }
 
-// Check not specifying results in the INITIAL_NRU_VALUE.
-TEST_F(HashTableTest, NRUDefault) {
-    // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    StoredDocKey key = makeStoredDocKey("key");
-
-    Item item(key, 0, 0, "value", strlen("value"));
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
-
-    // trackReferenced=false so we don't modify the NRU while validating it.
-    const auto* v(ht.findForRead(key, TrackReference::No).storedValue);
-    EXPECT_NE(nullptr, v);
-    EXPECT_EQ(INITIAL_NRU_VALUE, v->getNRUValue());
-
-    // Check that find() by default /does/ update NRU.
-    v = ht.findForRead(key).storedValue;
-    EXPECT_NE(nullptr, v);
-    EXPECT_EQ(INITIAL_NRU_VALUE - 1, v->getNRUValue());
-}
-
-// Check a specific NRU value (minimum)
-TEST_F(HashTableTest, NRUMinimum) {
-    // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    StoredDocKey key = makeStoredDocKey("key");
-
-    Item item(key, 0, 0, "value", strlen("value"));
-    item.setNRUValue(MIN_NRU_VALUE);
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
-
-    // trackReferenced=false so we don't modify the NRU while validating it.
-    const auto* v(ht.findForRead(key, TrackReference::No).storedValue);
-    EXPECT_NE(nullptr, v);
-    EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
-}
-
-// MB-27223 Check that NRU value is not modified when we set an already existing
-// item
-TEST_F(HashTableTest, NRUMinimumExistingItem) {
-    // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1);
-    StoredDocKey key = makeStoredDocKey("key");
-
-    Item item(key, 0, 0, "value", strlen("value"));
-    item.setNRUValue(MIN_NRU_VALUE);
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
-    // Now repeat the set, so the item will be found in the hashtable and
-    // considered an update.
-    EXPECT_EQ(MutationStatus::WasDirty, ht.set(item));
-    // trackReferenced=false so we don't modify the NRU while validating it.
-    const auto* v(ht.findForRead(key, TrackReference::No).storedValue);
-    EXPECT_NE(nullptr, v);
-    EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
-}
-
 /* Test release from HT (but not deletion) of an (HT) element */
 TEST_F(HashTableTest, ReleaseItem) {
     /* Setup with 2 hash buckets and 1 lock */

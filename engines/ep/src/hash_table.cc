@@ -658,10 +658,6 @@ HashTable::FindROResult HashTable::findForRead(
     // Found a non-deleted item. Now check if we should update ref-count.
     if (trackReference == TrackReference::Yes) {
         updateFreqCounter(*sv);
-
-        // @todo remove the referenced call when eviction algorithm is
-        // updated to use the frequency counter value.
-        sv->referenced();
     }
 
     return {sv, std::move(result.lock)};

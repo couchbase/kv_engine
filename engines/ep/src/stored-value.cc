@@ -51,7 +51,6 @@ StoredValue::StoredValue(const Item& itm,
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
     setOrdered(isOrdered);
-    setNru(itm.getNRUValue());
     setResident(!isTempItem());
     setStale(false);
     setCommitted(itm.getCommitted());
@@ -97,7 +96,6 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
     setDirty(other.isDirty());
     setDeletedPriv(other.isDeleted());
     setOrdered(other.isOrdered());
-    setNru(other.getNru());
     setResident(other.isResident());
     setStale(false);
     setCommitted(other.getCommitted());
@@ -126,33 +124,6 @@ void StoredValue::ejectValue() {
     markNotResident();
 }
 
-void StoredValue::referenced() {
-    uint8_t nru = getNru();
-    if (nru > MIN_NRU_VALUE) {
-        setNru(--nru);
-    }
-}
-
-void StoredValue::setNRUValue(uint8_t nru_val) {
-    if (nru_val <= MAX_NRU_VALUE) {
-        setNru(nru_val);
-    }
-}
-
-uint8_t StoredValue::incrNRUValue() {
-    uint8_t ret = MAX_NRU_VALUE;
-    uint8_t nru = getNru();
-    if (nru < MAX_NRU_VALUE) {
-        ret = ++nru;
-        setNru(nru);
-    }
-    return ret;
-}
-
-uint8_t StoredValue::getNRUValue() const {
-    return getNru();
-}
-
 void StoredValue::restoreValue(const Item& itm) {
     if (isTempInitialItem() || isTempDeletedItem()) {
         cas = itm.getCas();
@@ -160,7 +131,6 @@ void StoredValue::restoreValue(const Item& itm) {
         exptime = itm.getExptime();
         revSeqno = itm.getRevSeqno();
         bySeqno = itm.getBySeqno();
-        setNru(INITIAL_NRU_VALUE);
     }
     datatype = itm.getDataType();
     setDeletedPriv(itm.isDeleted());
@@ -187,9 +157,6 @@ void StoredValue::restoreMeta(const Item& itm) {
         setTempDeleted();
     } else { /* Regular item with the full eviction */
         bySeqno = itm.getBySeqno();
-    }
-    if (getNru() == MAX_NRU_VALUE) {
-        setNru(INITIAL_NRU_VALUE);
     }
     setFreqCounterValue(itm.getFreqCounterValue());
     setCommitted(itm.getCommitted());
@@ -314,8 +281,7 @@ bool StoredValue::operator==(const StoredValue& other) const {
             // Note: deletionCause is only checked if the item is deleted
             ((deletionSource && isDeleted()) ==
              (other.isDeleted() && other.deletionSource)) &&
-            getNru() == other.getNru() && isResident() == other.isResident() &&
-            getKey() == other.getKey() &&
+            isResident() == other.isResident() && getKey() == other.getKey() &&
             getCommitted() == other.getCommitted() && orderedEqual);
 }
 
@@ -356,7 +322,6 @@ std::unique_ptr<Item> StoredValue::toItemBase(Vbid vbid,
             vbid,
             getRevSeqno());
 
-    item->setNRUValue(getNru());
     item->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
@@ -498,7 +463,6 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
         json["delSource"] = sv.deletionSource;
     }
     json["ordered"] = sv.isOrdered();
-    json["nru"] = sv.getNru();
     json["resident"] = sv.isResident();
     std::stringstream ss;
     ss << sv.getKey();
@@ -572,7 +536,6 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         os << " exp:" << sv.getExptime();
     }
     os << " age:" << uint32_t(sv.getAge());
-    os << " nru:" << uint32_t(sv.getNru());
     os << " fc:" << uint32_t(sv.getFreqCounterValue());
 
     os << " vallen:" << sv.valuelen();
