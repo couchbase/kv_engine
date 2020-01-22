@@ -45,11 +45,6 @@ size_t TaskQueue::getFutureQueueSize() {
     return futureQueue.size();
 }
 
-size_t TaskQueue::getPendingQueueSize() {
-    LockHolder lh(mutex);
-    return pendingQueue.size();
-}
-
 ExTask TaskQueue::_popReadyTask(void) {
     ExTask t = readyQueue.top();
     readyQueue.pop();
@@ -141,15 +136,11 @@ bool TaskQueue::_fetchNextTaskInner(ExecutorThread& t,
     if (!readyQueue.empty() && readyQueue.top()->isdead()) {
         t.setCurrentTask(_popReadyTask()); // clean out dead tasks first
         ret = true;
-    } else if (!readyQueue.empty() || !pendingQueue.empty()) {
-        // we must consider any pending tasks too. To ensure prioritized run
-        // order, the function below will push any pending task back into the
-        // readyQueue (sorted by priority)
-        _checkPendingQueue();
+    } else if (!readyQueue.empty()) {
         ExTask tid = _popReadyTask(); // and pop out the top task
         t.setCurrentTask(tid);
         ret = true;
-    } else { // Let the task continue waiting in pendingQueue
+    } else {
         numToWake = numToWake ? numToWake - 1 : 0; // 1 fewer task ready
     }
 
@@ -189,15 +180,6 @@ size_t TaskQueue::_moveReadyTasks(
 
     // Current thread will pop one task, so wake up one less thread
     return numReady ? numReady - 1 : 0;
-}
-
-void TaskQueue::_checkPendingQueue(void) {
-    if (!pendingQueue.empty()) {
-        ExTask runnableTask = pendingQueue.front();
-        readyQueue.push(runnableTask);
-        manager->addWork(1, queueType);
-        pendingQueue.pop_front();
-    }
 }
 
 std::chrono::steady_clock::time_point TaskQueue::_reschedule(ExTask& task) {
@@ -257,32 +239,8 @@ void TaskQueue::_wake(ExTask &task) {
                      task->getDescription(),
                      task->getId());
 
-        std::queue<ExTask> notReady;
-        // Wake thread-count-serialized tasks too
-        for (std::list<ExTask>::iterator it = pendingQueue.begin();
-             it != pendingQueue.end();) {
-            ExTask tid = *it;
-            if (tid->getId() == task->getId() || tid->isdead()) {
-                notReady.push(tid);
-                it = pendingQueue.erase(it);
-            } else {
-                it++;
-            }
-        }
-
         futureQueue.updateWaketime(task, now);
         task->setState(TASK_RUNNING, TASK_SNOOZED);
-
-        while (!notReady.empty()) {
-            ExTask tid = notReady.front();
-            if (tid->getWaketime() <= now || tid->isdead()) {
-                readyCount++;
-            }
-
-            // MB-18453: Only push to the futureQueue
-            futureQueue.push(tid);
-            notReady.pop();
-        }
 
         _doWake_UNLOCKED(readyCount);
         sleepQ = manager->getSleepQ(queueType);

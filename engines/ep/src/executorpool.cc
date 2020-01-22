@@ -696,13 +696,6 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
                 add_casted_stat(statname, hpTaskQ[i]->getReadyQueueSize(),
                                 add_stat,
                                 cookie);
-                size_t pendingQsize = hpTaskQ[i]->getPendingQueueSize();
-                if (pendingQsize > 0) {
-                    checked_snprintf(statname, sizeof(statname),
-                                     "ep_workload:%s:PendingQ",
-                                     hpTaskQ[i]->getName().c_str());
-                    add_casted_stat(statname, pendingQsize, add_stat, cookie);
-                }
             }
         }
         if (isLowPrioQset) {
@@ -719,13 +712,6 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
                 add_casted_stat(statname, lpTaskQ[i]->getReadyQueueSize(),
                                 add_stat,
                                 cookie);
-                size_t pendingQsize = lpTaskQ[i]->getPendingQueueSize();
-                if (pendingQsize > 0) {
-                    checked_snprintf(statname, sizeof(statname),
-                                     "ep_workload:%s:PendingQ",
-                                     lpTaskQ[i]->getName().c_str());
-                    add_casted_stat(statname, pendingQsize, add_stat, cookie);
-                }
             }
         }
     } catch (std::exception& error) {

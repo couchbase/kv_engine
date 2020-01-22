@@ -44,8 +44,6 @@ public:
      */
     std::chrono::steady_clock::time_point reschedule(ExTask& task);
 
-    void checkPendingQueue(void);
-
     void doWake(size_t &numToWake);
 
     /**
@@ -74,8 +72,6 @@ public:
 
     size_t getFutureQueueSize();
 
-    size_t getPendingQueueSize();
-
     void snooze(ExTask& task, const double secs) {
         futureQueue.snooze(task, secs);
     }
@@ -83,7 +79,6 @@ public:
 private:
     void _schedule(ExTask &task);
     std::chrono::steady_clock::time_point _reschedule(ExTask& task);
-    void _checkPendingQueue(void);
     bool _sleepThenFetchNextTask(ExecutorThread& t);
     bool _fetchNextTask(ExecutorThread& thread);
     bool _fetchNextTaskInner(ExecutorThread& t,
@@ -106,6 +101,4 @@ private:
 
     // sorted by waketime. Guarded by `mutex`.
     FutureQueue<> futureQueue;
-
-    std::list<ExTask> pendingQueue;
 };
