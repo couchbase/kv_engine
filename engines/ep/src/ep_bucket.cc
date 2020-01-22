@@ -331,7 +331,6 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
 
 std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     int items_flushed = 0;
-    bool moreAvailable = false;
     const auto flush_start = std::chrono::steady_clock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
@@ -340,7 +339,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         return {true, 0};
     }
     if (!vb) {
-        return {moreAvailable, items_flushed};
+        return {false /*moreAvailable*/, 0 /*itemsFlushed*/};
     }
 
     // The range becomes initialised only when an item is flushed
@@ -352,7 +351,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // a single flush.
     auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
     auto& items = toFlush.items;
-    moreAvailable = toFlush.moreAvailable;
 
     if (!items.empty()) {
         while (!rwUnderlying->begin(
@@ -753,7 +751,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 engine, seqno, HighPriorityVBNotify::Seqno);
         vb->notifyHighPriorityRequests(
                 engine, chkid, HighPriorityVBNotify::ChkPersistence);
-        return {moreAvailable, items_flushed};
+        return {toFlush.moreAvailable, items_flushed};
     }
 
     // Reject queue not empty
