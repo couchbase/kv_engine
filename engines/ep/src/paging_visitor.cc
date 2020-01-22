@@ -91,6 +91,14 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
+    // We don't skip temp initial items (state_temp_init) here. This means that
+    // we could evict one before a BG fetch completes. This is fine as it may be
+    // desirable to do so under extremely high memory pressure and this ensures
+    // that they are cleaned up should a BG fetch fail or get stuck for whatever
+    // reason. Should a BG fetch complete after eviction of a temp initial item
+    // it will return SUCCESS and notify the client to run the op again which
+    // will rerun the BG fetch.
+
     // return if not ItemPager, which uses valid eviction percentage
     if (percent <= 0 || !pager_phase) {
         return true;
