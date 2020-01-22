@@ -113,9 +113,8 @@ protected:
         for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
             auto key = makeStoredDocKey("xxx_" + std::to_string(count));
             auto item = make_item(vbid, key, value, expiry);
-            // Set NRU of item to maximum; so will be a candidate for paging out
-            // straight away.
-            item.setNRUValue(MAX_NRU_VALUE);
+            // Set freqCount to 0 so will be a candidate for paging out straight
+            // away.
             item.setFreqCounterValue(0);
             result = storeItem(item);
         }
@@ -149,9 +148,9 @@ protected:
         while (populate) {
             auto key = makeStoredDocKey("key_" + std::to_string(count++));
             auto item = make_item(vbid, key, {"x", 128}, 0 /*ttl*/);
-            // Set NRU of item to maximum; so will be a candidate for paging out
-            // straight away.
-            item.setNRUValue(MAX_NRU_VALUE);
+            // Set freqCount to 0 so will be a candidate for paging out straight
+            // away.
+            item.setFreqCounterValue(0);
             EXPECT_EQ(ENGINE_SUCCESS, storeItem(item));
             populate = stats.getEstimatedTotalMemoryUsed() <=
                        stats.mem_high_wat.load();
@@ -496,8 +495,9 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     {
         auto item =
                 make_item(vbid, {"key", DocKeyEncodesCollectionId::No}, value);
-        // ensure this is eligible for eviction on the first pass of the pager
-        item.setNRUValue(MAX_NRU_VALUE);
+        // Set freqCount to 0 so will be a candidate for paging out straight
+        // away.
+        item.setFreqCounterValue(0);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
     }
 
@@ -730,9 +730,8 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     do {
         auto key = makeStoredDocKey("key_" + std::to_string(active_count));
         auto item = make_item(active_vb, key, value);
-        // Set NRU of item to maximum; so will be a candidate for paging out
-        // straight away.
-        item.setNRUValue(MAX_NRU_VALUE);
+        // Set freqCount to 0 so will be a candidate for paging out straight
+        // away.
         item.setFreqCounterValue(0);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
         active_count++;

@@ -131,9 +131,7 @@ TEST_F(ItemTest, checkNRUandFreqCounterValueSetCorrectly) {
                                   -1 /* bySeqno */,
                                   Vbid(0),
                                   1 /* revSeqno */,
-                                  1 /* nru */,
                                   128 /* freqCount */);
-    EXPECT_EQ(1, int(item->getNRUValue()));
     EXPECT_EQ(128, item->getFreqCounterValue());
 }
 
@@ -151,7 +149,6 @@ TEST_F(ItemTest, retainInfoUponItemCopy) {
                       7 /* bySeqno */,
                       Vbid(99),
                       13 /* revSeqno */,
-                      2 /* nru */,
                       128 /* freqCount */);
     // Delete the item via TTL
     item1.setDeleted(DeleteSource::TTL);

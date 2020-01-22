@@ -436,7 +436,6 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
                                  mutation->getItem()->getBySeqno(),
                                  mutation->getItem()->getVBucketId(),
                                  mutation->getItem()->getRevSeqno(),
-                                 mutation->getItem()->getNRUValue(),
                                  mutation->getItem()->getFreqCounterValue());
         msg.reset(new MutationConsumerMessage(
                 newItem,

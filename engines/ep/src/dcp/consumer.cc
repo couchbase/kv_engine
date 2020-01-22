@@ -482,7 +482,6 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                               bySeqno,
                               vbucket,
                               revSeqno,
-                              nru,
                               nru /*freqCounter */));
 
     return processMutationOrPrepare(vbucket,
@@ -1657,7 +1656,6 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
                               by_seqno,
                               vbucket,
                               rev_seqno,
-                              nru,
                               nru /*freqCounter */));
     using cb::durability::Requirements;
     using cb::durability::Timeout;

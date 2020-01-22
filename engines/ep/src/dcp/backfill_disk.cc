@@ -133,7 +133,6 @@ void DiskCallback::callback(GetValue& val) {
 
     // MB-26705: Make the backfilled item cold so ideally the consumer would
     // evict this before any cached item if they get into memory pressure.
-    val.item->setNRUValue(MAX_NRU_VALUE);
     val.item->setFreqCounterValue(0);
 
     if (!stream_->backfillReceived(std::move(val.item),

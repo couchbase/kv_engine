@@ -45,7 +45,6 @@ Item::Item(const DocKey& k,
       vbucketId(vbid),
       op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
                                                      : queue_op::mutation),
-      nru(INITIAL_NRU_VALUE),
       deleted(0), // false
       maybeVisible(0),
       datatype(dtype) {
@@ -66,7 +65,6 @@ Item::Item(const DocKey& k,
            int64_t i,
            Vbid vbid,
            uint64_t sno,
-           uint8_t nru,
            uint8_t freqCount)
     : metaData(theCas, sno, fl, exp),
       value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
@@ -75,7 +73,6 @@ Item::Item(const DocKey& k,
       vbucketId(vbid),
       op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
                                                      : queue_op::mutation),
-      nru(nru),
       deleted(0), // false
       maybeVisible(0),
       datatype(dtype) {
@@ -98,7 +95,6 @@ Item::Item(const DocKey& k,
       bySeqno(bySeq),
       vbucketId(vb),
       op(o),
-      nru(INITIAL_NRU_VALUE),
       deleted(0), // false
       maybeVisible(0) {
     if (bySeqno < 0) {
@@ -116,7 +112,6 @@ Item::Item(const Item& other)
       prepareSeqno(other.prepareSeqno),
       vbucketId(other.vbucketId),
       op(other.op),
-      nru(other.nru),
       deleted(other.deleted),
       deletionCause(other.deletionCause),
       maybeVisible(other.maybeVisible),
@@ -171,7 +166,7 @@ bool operator==(const Item& lhs, const Item& rhs) {
            // be ignored from an "equivilence" pov.
            // (lhs.queuedTime == rhs.queuedTime) &&
            (lhs.vbucketId == rhs.vbucketId) && (lhs.op == rhs.op) &&
-           (lhs.nru == rhs.nru) && (lhs.deleted == rhs.deleted) &&
+           (lhs.deleted == rhs.deleted) &&
            // Note: deletionCause is only checked if the item is deleted
            ((lhs.deleted && lhs.deletionCause) ==
             (rhs.deleted && rhs.deletionCause)) &&
@@ -196,7 +191,7 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
     if (i.maybeVisible) {
         os << "(maybeVisible)";
     }
-    os << " nru:" << int(i.nru) << " datatype:" << int(i.getDataType());
+    os << " datatype:" << int(i.getDataType());
 
     if (i.isDeleted()) {
         os << " deleted:true(" << to_string(i.deletionSource()) << ")";

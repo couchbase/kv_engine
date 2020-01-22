@@ -110,7 +110,6 @@ public:
          int64_t i = -1,
          Vbid vbid = Vbid(0),
          uint64_t sno = 1,
-         uint8_t nru = INITIAL_NRU_VALUE,
          uint8_t freqCount = initialFreqCount);
 
     Item(const DocKey& k,
@@ -136,7 +135,6 @@ public:
             int64_t i = -1,
             Vbid vbid = Vbid(0),
             uint64_t sno = 1,
-            uint8_t nru = INITIAL_NRU_VALUE,
             uint8_t freqCount = initialFreqCount) {
         auto ret = new Item(k,
                             fl,
@@ -148,7 +146,6 @@ public:
                             i,
                             vbid,
                             sno,
-                            nru,
                             freqCount);
         ret->setDeleted(cause);
         return ret;
@@ -370,14 +367,6 @@ public:
         return isCheckPointMetaItem() && (op != queue_op::empty);
     }
 
-    void setNRUValue(uint8_t nru_value) {
-        nru = nru_value;
-    }
-
-    uint8_t getNRUValue() const {
-        return nru;
-    }
-
     /// Set the frequency counter value to the input value
     void setFreqCounterValue(uint8_t newValue) {
         value.unsafeGetPointer().setTag(newValue);
@@ -543,7 +532,6 @@ private:
 
     Vbid vbucketId;
     queue_op op;
-    uint8_t nru  : 2;
     uint8_t deleted : 1;
     // If deleted, deletionCause stores the cause of the deletion.
     uint8_t deletionCause : 1;
