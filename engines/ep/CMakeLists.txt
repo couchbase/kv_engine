@@ -151,6 +151,18 @@ ADD_CUSTOM_COMMAND(OUTPUT
                     src/collections/events.fbs
                   COMMENT "Generating flatbuffers - collection events")
 
+# Custom build target to generate source files that we normally generate as part
+# of a build.
+add_custom_target(generated_source_files
+        DEPENDS
+            ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+            ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
+            src/generated_configuration.cc
+            src/generated_configuration.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h)
+
 # Collections library for things required outside of ep-engine
 ADD_LIBRARY(ep-engine_collections STATIC
   ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
