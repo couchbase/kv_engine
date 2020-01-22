@@ -202,22 +202,6 @@ nlohmann::json get_bucket_details(size_t idx);
 bool is_bucket_dying(Connection& c);
 
 namespace BucketValidator {
-    class InvalidBucketName : public std::invalid_argument {
-    public:
-        InvalidBucketName(const std::string &msg)
-            : std::invalid_argument(msg) {
-            // empty
-        }
-    };
-
-    class InvalidBucketType : public std::invalid_argument {
-    public:
-        InvalidBucketType(const std::string &msg)
-            : std::invalid_argument(msg) {
-            // empty
-        }
-    };
-
     /**
      * Validate that a bucket name confirms to the restrictions for bucket
      * names.
