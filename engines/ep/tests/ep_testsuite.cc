@@ -2152,10 +2152,6 @@ static enum test_result test_mem_stats(EngineIface* h) {
         if (isActiveCompressionEnabled(h)) {
             wait_for_item_compressor_to_settle(h);
         }
-
-        checkle(mem_used, get_int_stat(h, "mem_used"),
-                "Expected mem_used to remain the same after an item is loaded "
-                "from disk");
         checkeq(value_size, get_int_stat(h, "ep_value_size"),
                 "Expected ep_value_size to remain the same after item is "
                 "loaded from disk");
