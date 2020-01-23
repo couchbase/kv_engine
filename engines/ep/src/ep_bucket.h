@@ -55,7 +55,15 @@ public:
      */
     void setFlusherBatchSplitTrigger(size_t limit);
 
-    void commit(Vbid vbid,
+    /**
+     * Persist whatever flush-batch previously queued into KVStore.
+     *
+     * @param vbid
+     * @param kvstore
+     * @param [out] collectionsFlush
+     * @return true if flush succeeds, false otherwise
+     */
+    bool commit(Vbid vbid,
                 KVStore& kvstore,
                 Collections::VB::Flush& collectionsFlush);
 

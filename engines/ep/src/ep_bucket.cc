@@ -695,8 +695,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     }
 
     // Persist the flush-batch if not empty.
+    // The result of the flush is defaulted to true to comply the current logic
+    // that considers flush-success/no-flush equivalent.
+    auto flushSuccessOrNoFlush = true;
     if (items_flushed > 0) {
-        commit(vb->getId(), *rwUnderlying, collectionFlush);
+        flushSuccessOrNoFlush =
+                commit(vb->getId(), *rwUnderlying, collectionFlush);
 
         // @todo MB-37693: Commit could fail, do this only if flush-success.
         // Now the commit is complete, vBucket file must exist.
@@ -705,7 +709,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         }
     }
 
-    if (vb->rejectQueue.empty()) {
+    if (flushSuccessOrNoFlush) {
+        Expects(vb->rejectQueue.empty());
+
         // only update the snapshot range if items were flushed, i.e.
         // don't appear to be in a snapshot when you have no data for it
         if (range) {
@@ -787,7 +793,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // just after getItemsToPersist(). See above for details.
 
     // Handle HighPriority requests
-    if (vb->rejectQueue.empty()) {
+    if (flushSuccessOrNoFlush) {
+        Expects(vb->rejectQueue.empty());
+
         handleCheckpointPersistence();
         vb->notifyHighPriorityRequests(
                 engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
@@ -795,7 +803,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         return {toFlush.moreAvailable, items_flushed};
     }
 
-    // Reject queue not empty
+    // Flush has failed
+    Expects(!vb->rejectQueue.empty());
+
     return {true, items_flushed};
 }
 
@@ -803,17 +813,18 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     flusherBatchSplitTrigger = limit;
 }
 
-void EPBucket::commit(Vbid vbid,
+bool EPBucket::commit(Vbid vbid,
                       KVStore& kvstore,
                       Collections::VB::Flush& collectionsFlush) {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
-    if (!kvstore.commit(collectionsFlush)) {
+    const auto res = kvstore.commit(collectionsFlush);
+    if (res) {
+        ++stats.flusherCommits;
+    } else {
         ++stats.commitFailed;
         EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
-    } else {
-        ++stats.flusherCommits;
     }
 
     auto commit_end = std::chrono::steady_clock::now();
@@ -822,6 +833,8 @@ void EPBucket::commit(Vbid vbid,
                                .count();
     stats.commit_time.store(commit_time);
     stats.cumulativeCommitTime.fetch_add(commit_time);
+
+    return res;
 }
 
 void EPBucket::startFlusher() {
