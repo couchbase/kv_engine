@@ -157,8 +157,26 @@ public:
      * will fail (returning an invalid RangeGuard).
      * If successfully acquired, the lock will prevent new range locks being
      * acquired over any intersecting range until it is released.
+     *
+     * If req == RangeRequirement::Exact, the lock will cover the entire
+     * requested range, or fail if existing range locks intersect that range. If
+     * req == RangeRequirement::Partial, the lock will cover the entire
+     * requested range if possible, but will lock part of the range if possible.
+     * Callers should check the value of guard.getRange() to find what range of
+     * seqnos was locked. Will fail if the entire requested range is covered by
+     * existing range locks.
+     *
+     * @param start requested range start
+     * @param end requested range end
+     * @param req flag indicating if a lock covering a smaller range of seqnos
+     *            would be acceptable to the caller if the full range cannot be
+     *            locked
+     * @return
      */
-    RangeGuard tryLockSeqnoRange(seqno_t start, seqno_t end);
+    RangeGuard tryLockSeqnoRange(
+            seqno_t start,
+            seqno_t end,
+            RangeRequirement req = RangeRequirement::Exact);
 
     /**
      * Locks a range of seqnos in the sequence list. Prevents any *exclusive*

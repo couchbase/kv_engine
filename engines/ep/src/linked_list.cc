@@ -421,8 +421,10 @@ boost::optional<SequenceList::RangeIterator> BasicLinkedList::makeRangeIterator(
                      : boost::optional<SequenceList::RangeIterator>{};
 }
 
-RangeGuard BasicLinkedList::tryLockSeqnoRange(seqno_t start, seqno_t end) {
-    return rangeLockManager.tryLockRange(start, end);
+RangeGuard BasicLinkedList::tryLockSeqnoRange(seqno_t start,
+                                              seqno_t end,
+                                              RangeRequirement req) {
+    return rangeLockManager.tryLockRange(start, end, req);
 }
 
 RangeGuard BasicLinkedList::tryLockSeqnoRangeShared(seqno_t start,

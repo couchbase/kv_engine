@@ -41,6 +41,29 @@ void SeqRange::setBegin(const seqno_t start) {
     begin = start;
 }
 
+SeqRange SeqRange::makeNonOverlapping(const SeqRange& other) const {
+    if (!valid() || !other.valid()) {
+        return {0, 0};
+    }
+    if (!overlaps(other)) {
+        // case A (from comments in header)
+        return *this;
+    } else if (begin < other.begin) {
+        // case B or E
+        return {begin, other.begin - 1};
+    } else if (end > other.end) {
+        // case C
+        return {other.end + 1, end};
+    } else {
+        // case D
+        return {0, 0};
+    }
+}
+
+std::ostream& operator<<(std::ostream& os, const SeqRange& sr) {
+    return os << to_string(sr);
+}
+
 std::string to_string(const SeqRange& range) {
     using std::to_string;
     return std::string("{") + to_string(range.getBegin()) + ", " +
@@ -103,18 +126,38 @@ SeqRange rangeUnion(const SeqRange& a, const SeqRange& b) {
     return {std::min(a.getBegin(), b.getBegin()),
             std::max(a.getEnd(), b.getEnd())};
 }
-RangeGuard RangeLockManager::tryLockRange(seqno_t start, seqno_t end) {
+RangeGuard RangeLockManager::tryLockRange(seqno_t start,
+                                          seqno_t end,
+                                          RangeRequirement req) {
     auto r = ranges.lock();
 
     SeqRange requestedRange{start, end};
 
-    for (const auto& existingRange :
-         boost::range::join(r->shared, r->exclusive)) {
-        if (requestedRange.overlaps(existingRange)) {
-            // if any overlapping existing ranges are present
-            // exit early, because this lock cannot proceed.
-            return {};
+    auto blockingRanges = boost::range::join(r->shared, r->exclusive);
+
+    switch (req) {
+    case RangeRequirement::Exact:
+        for (const auto& seqRange : blockingRanges) {
+            if (requestedRange.overlaps(seqRange)) {
+                // if any overlapping ranges locks which we cannot overlap are
+                // present exit early, because this lock cannot proceed.
+                return {};
+            }
         }
+        break;
+    case RangeRequirement::Partial:
+        // Partial locks can try to reduce the locked range if possible to
+        // allow e.g., the stale item remove to run on a reduced range of
+        // seqnos while backfills are in progress.
+        for (const auto& seqRange : blockingRanges) {
+            requestedRange = requestedRange.makeNonOverlapping(seqRange);
+            if (!requestedRange) {
+                // reducing the requested range down to avoid intersecting
+                // with an existing range was not possible, locking failed.
+                return {};
+            }
+        }
+        break;
     }
 
     r->exclusive.push_back(requestedRange);

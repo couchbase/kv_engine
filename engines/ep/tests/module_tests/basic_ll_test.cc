@@ -40,6 +40,16 @@ public:
         return std::make_unique<OrderedStoredValueFactory>(global_stats);
     }
 
+    static void expectRange(const SeqRange& expected, const RangeGuard& guard) {
+        EXPECT_TRUE(guard) << "Expected range:" << expected
+                           << " but guard invalid";
+        if (guard) {
+            EXPECT_EQ(expected, guard.getRange())
+                    << "Expected range:" << expected << " but got "
+                    << guard.getRange();
+        }
+    };
+
 protected:
     void SetUp() {
         basicLL = std::make_unique<MockBasicLinkedList>(global_stats);
@@ -811,6 +821,69 @@ TEST_F(BasicLinkedListTest, ConcurrentRangeReadExclusive) {
     }
 }
 
+TEST_F(BasicLinkedListTest, ConcurrentPartialRangeRead_Partial) {
+    auto guard1 = basicLL->tryLockSeqnoRangeShared(2, 3);
+    auto guard2 = basicLL->tryLockSeqnoRange(1, 2, RangeRequirement::Partial);
+
+    expectRange({2, 3}, guard1);
+    // A reduced range was locked because a shared range lock exists
+    expectRange({1, 1}, guard2);
+}
+
+TEST_F(BasicLinkedListTest, ConcurrentPartialRangeRead_MultipleExistingShared) {
+    auto guard1 = basicLL->tryLockSeqnoRangeShared(1, 3);
+    auto guard2 = basicLL->tryLockSeqnoRangeShared(1, 2);
+    auto guard3 = basicLL->tryLockSeqnoRange(1, 4, RangeRequirement::Partial);
+
+    // full requested range (first lock)
+    expectRange({1, 3}, guard1);
+    // full requested range (shared not affected by other shared locks)
+    expectRange({1, 2}, guard2);
+    // reduced range, does not intersect either shared range
+    expectRange({4, 4}, guard3);
+
+    // release the "wider" shared range
+    guard1.reset();
+
+    // recreate the partial lock
+    guard3.reset();
+    guard3 = basicLL->tryLockSeqnoRange(1, 4, RangeRequirement::Partial);
+    // a "wider" range than last time was acquired: the released shared lock
+    // correctly relinquished seqno 3, and this range was only prevented from
+    // intersecting {1,2}
+    expectRange({3, 4}, guard3);
+
+    // reset remaining shared range
+    guard2.reset();
+
+    // recreate partial lock
+    guard3.reset();
+    guard3 = basicLL->tryLockSeqnoRange(1, 4, RangeRequirement::Partial);
+    // full range acquired
+    expectRange({1, 4}, guard3);
+}
+
+TEST_F(BasicLinkedListTest,
+       ConcurrentPartialRangeRead_RequestedRangeLockedExclusive) {
+    auto guard1 = basicLL->tryLockSeqnoRange(1, 2, RangeRequirement::Partial);
+    auto guard2 = basicLL->tryLockSeqnoRange(1, 2, RangeRequirement::Partial);
+
+    expectRange({1, 2}, guard1);
+    // failed because the entire range is covered by an existing exclusive range
+    // lock
+    EXPECT_FALSE(guard2);
+}
+
+TEST_F(BasicLinkedListTest,
+       ConcurrentPartialRangeRead_RequestedRangeLockedShared) {
+    auto guard1 = basicLL->tryLockSeqnoRangeShared(1, 2);
+    auto guard2 = basicLL->tryLockSeqnoRange(1, 2, RangeRequirement::Partial);
+
+    expectRange({1, 2}, guard1);
+    // exclusive lock blocked by shared lock covering entire requested range
+    EXPECT_FALSE(guard2);
+}
+
 TEST_F(BasicLinkedListTest, RangeReadStopsOnInvalidSeqno) {
     /* MB-24376: rangeRead has to stop if it encounters an OSV with a seqno of
      * -1; this item is definitely past the end of the rangeRead, and has not
@@ -1120,4 +1193,121 @@ TEST_F(BasicLinkedListTest, PurgePauseResumeWithUpdateAtPausedPoint) {
     EXPECT_EQ(0, basicLL->getNumStaleItems());
     EXPECT_GE(numPaused, 1);
     EXPECT_EQ(numItems, basicLL->getNumItems());
+}
+
+TEST_F(BasicLinkedListTest, SeqRangeOverlapTest) {
+    const auto diff = [](SeqRange a, SeqRange b, SeqRange expected) {
+        SeqRange res = a.makeNonOverlapping(b);
+        EXPECT_EQ(expected, res)
+                << "SeqRange(" << a << ").makeNonOverlapping(" << b
+                << ") != " << expected << ", is instead " << res;
+    };
+    /*
+     * A: no overlap
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - - |
+     * other         :           | - |
+     * result        : | - - - |
+     */
+    diff({1, 5}, {6, 8}, {1, 5});
+
+    /*
+     * B: overlap at end
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - - |
+     * other         :       | - - |
+     * result        : | - |
+     */
+    diff({1, 5}, {4, 7}, {1, 3});
+
+    /*
+     * B: overlap at end
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - - |
+     * other         :   | - - - |
+     * result        : |
+     */
+    diff({1, 5}, {2, 6}, {1, 1});
+
+    /*
+     * B: overlap at end
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - - |
+     * other         :         | - - |
+     * result        : | - - |
+     */
+    diff({1, 5}, {5, 8}, {1, 4});
+
+    /*
+     * C: overlap at start
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          :       | - - - |
+     * other         :   | - - |
+     * result        :           | - |
+     */
+    diff({4, 8}, {2, 5}, {6, 8});
+
+    /*
+     * C: overlap at start
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          :       | - - - |
+     * other         :     | - - - |
+     * result        :               |
+     */
+    diff({4, 8}, {3, 7}, {8, 8});
+
+    /*
+     * C: overlap at start
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          :       | - - - |
+     * other         : | - - |
+     * result        :         | - - |
+     */
+    diff({4, 8}, {1, 4}, {5, 8});
+
+    /*
+     * D: fully contained
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - |
+     * other         : | - - - - |
+     * result        :    Not valid (returns invalid SeqRange)
+     */
+    diff({1, 4}, {1, 6}, {0, 0});
+
+    /*
+     * D: fully contained
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          :     | - - |
+     * other         : | - - - - |
+     * result        :    Not valid (returns invalid SeqRange)
+     */
+    diff({3, 6}, {1, 6}, {0, 0});
+
+    /*
+     * D: fully contained
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          :   | - - |
+     * other         : | - - - - |
+     * result        :    Not valid (returns invalid SeqRange)
+     */
+    diff({2, 5}, {1, 6}, {0, 0});
+
+    /*
+     * E: fully contains
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - - - - - - - |
+     * other         :       | - - |
+     * result        : | - |         X X X
+     */
+    diff({1, 10}, {4, 7}, {1, 3});
+
+    /*
+     * E: fully contains
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          : | - - - - - - - - |
+     * other         :   | - - |
+     * result        : |         X X X X X
+     */
+
+    diff({1, 10}, {2, 5}, {1, 1});
 }

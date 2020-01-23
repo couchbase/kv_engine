@@ -54,6 +54,61 @@ public:
         return (seqno >= begin) && (seqno <= end);
     }
 
+    /**
+     * Generate a (potentially) reduced range which does
+     * not intersect with a second SeqRange.
+     *
+     * For example, if `this` covers {3,8} and `other` covers {1,5}
+     * the result of this.makeNonOverlapping(other) covers {6,8}.
+     *
+     *
+     * SeqnoRanges are inclusive of both ends, and therefore the
+     * result cannot include the start or end seqno of `other`
+     * (otherwise they would intersect).
+     *
+     * NB: There is one caveated case, noted below.
+     *
+     *                 1 2 3 4 5 6 7 8 9 10
+     * this          :     | - - - - |
+     * other SeqRange: | - - - |
+     * result        :           | - |
+     * Cases:
+     *
+     * A: no overlap
+     * this          : | - - - |
+     * other         :           | - |
+     * result        : | - - - |
+     *
+     * B: overlap at end
+     * this          : | - - - |
+     * other         :       | - - |
+     * result        : | - |
+     *
+     * C: overlap at start
+     * this          :       | - - - |
+     * other         :   | - - |
+     * result        :           | - |
+     *
+     * D: fully contained
+     * this          : | - - |
+     * other         : | - - - - |
+     * result        :    Not valid (returns invalid SeqRange)
+     *
+     * E: fully contains
+     * this          : | - - - - - - - - |
+     * other         :       | - - |
+     * result        : | - |         | - |
+     *
+     * HOWEVER, for simplicity, rather than dealing with two discontinuous
+     * ranges as the result, this is reduced to:
+     *
+     * result        : | - |
+     *
+     * That is, only the earlier range (as if in case B)
+     *
+     */
+    SeqRange makeNonOverlapping(const SeqRange& other) const;
+
     void reset() {
         begin = 0;
         end = 0;
@@ -90,7 +145,20 @@ private:
 
 std::string to_string(const SeqRange& range);
 
+std::ostream& operator<<(std::ostream& os, const SeqRange& sr);
+
 class RangeLockManager;
+
+/**
+ * Flag whether lockSeqnoRange should fail if the requested seqno range cannot
+ * be locked (Exact) or try to reduce the requested range by moving begin
+ * forward and/or end backward to reach a range which *can* be locked
+ * (BestEffort)
+ *
+ * E.g., Deleting stale items requires exclusive access, but could operate on a
+ * smaller range of seqnos if a backfill is in progress.
+ */
+enum class RangeRequirement { Exact, Partial };
 
 /**
  * A class providing RAII style release of read-ranges; see ReadRangeManager.
@@ -138,6 +206,15 @@ public:
 
     operator bool() const {
         return valid();
+    }
+
+    /**
+     * Get the range for which this guard is holding a lock. This *may*
+     * be different than the requested range if the lock request permitted
+     * partial ranges.
+     */
+    const SeqRange& getRange() const {
+        return *itrToRange;
     }
 
 protected:
@@ -198,14 +275,27 @@ public:
      * access is required. If an overlapping range lock is already present,
      * immediately returns an invalid RangeGuard without blocking.
      *
+     * If req == RangeRequirement::Exact, the lock will cover the entire
+     * requested range, or fail if existing range locks intersect that range. If
+     * req == RangeRequirement::Partial, the lock will cover the entire
+     * requested range if possible, but will lock part of the range if possible.
+     * Callers should check the value of guard.getRange() to find what range of
+     * seqnos was locked. Will fail if the entire requested range is covered by
+     * existing range locks.
+     *
      * @param start First seqno which must be protected from modification
      * (inclusive)
      * @param end Last seqno which must be protected from modification
      * (inclusive)
+     * @param req flag indicating if a lock covering a smaller range of seqnos
+     *            would be acceptable to the caller if the full range cannot be
+     *            locked
      * @return an object which will release the range lock upon destruction, if
      * valid.
      */
-    RangeGuard tryLockRange(seqno_t start, seqno_t end);
+    RangeGuard tryLockRange(seqno_t start,
+                            seqno_t end,
+                            RangeRequirement req = RangeRequirement::Exact);
 
     /**
      * Variant of tryLockRange which permits concurrent read-only access to
@@ -278,8 +368,7 @@ protected:
          * existing seqlist items against a single range, rather than many.
          *
          * In general it is not expected that there will be many concurrent
-         * range locks (largely limited by the max number of replicas), and they
-         * are unlikely to be disjoint anyway.
+         * range locks (largely limited by the max number of replicas).
          *
          * std::list used over std::vector/std::deque so ranges can be added and
          * randomly removed without invalidating the iterators held by
