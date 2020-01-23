@@ -20,7 +20,7 @@
 #include <mcbp/protocol/status.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
-#include <memcached/rbac/privileges.h>
+#include <memcached/rbac.h>
 #include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
 #include <platform/compression/buffer.h>
@@ -606,4 +606,7 @@ protected:
     /// The Scope and Collection information for the current command picked
     /// out from the incomming packet as part of packet validation
     std::pair<ScopeID, CollectionID> currentCollectionInfo;
+
+    /// The privilege context the command should use for evaluating commands
+    cb::rbac::PrivilegeContext privilegeContext;
 };

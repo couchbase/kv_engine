@@ -394,7 +394,8 @@ void Cookie::maybeLogSlowCommand(
     }
 }
 
-Cookie::Cookie(Connection& conn) : connection(conn) {
+Cookie::Cookie(Connection& conn)
+    : connection(conn), privilegeContext(conn.getDomain()) {
 }
 
 void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
@@ -486,6 +487,7 @@ void Cookie::reset() {
     reorder = connection.allowUnorderedExecution();
     inflated_input_payload.reset();
     currentCollectionInfo = {};
+    privilegeContext = connection.getPrivilegeContext();
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
@@ -582,5 +584,48 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(cb::rbac::Privilege privilege,
                                                  ScopeID sid,
                                                  CollectionID cid) {
-    return connection.checkPrivilege(privilege, *this, sid, cid);
+    const auto ret = privilegeContext.check(privilege, sid, cid);
+    if (ret == cb::rbac::PrivilegeAccess::Fail) {
+        const auto opcode = getRequest().getClientOpcode();
+        const std::string command(to_string(opcode));
+        const std::string privilege_string = cb::rbac::to_string(privilege);
+        const std::string context = privilegeContext.to_string();
+
+        if (Settings::instance().isPrivilegeDebug()) {
+            audit_privilege_debug(connection,
+                                  command,
+                                  connection.getBucket().name,
+                                  privilege_string,
+                                  context);
+
+            LOG_INFO(
+                    "{}: RBAC privilege debug:{} command:[{}] bucket:[{}] "
+                    "privilege:[{}] context:{}",
+                    connection.getId(),
+                    connection.getDescription(),
+                    command,
+                    connection.getBucket().name,
+                    privilege_string,
+                    context);
+
+            return cb::rbac::PrivilegeAccess::Ok;
+        } else {
+            LOG_INFO(
+                    "{} RBAC {} missing privilege {} for {} in bucket:[{}] "
+                    "with context: {} UUID:[{}]",
+                    connection.getId(),
+                    connection.getDescription(),
+                    privilege_string,
+                    command,
+                    connection.getBucket().name,
+                    context,
+                    getEventId());
+            // Add a textual error as well
+            setErrorContext("Authorization failure: can't execute " + command +
+                            " operation without the " + privilege_string +
+                            " privilege");
+        }
+    }
+
+    return ret;
 }
