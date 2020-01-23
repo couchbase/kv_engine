@@ -419,7 +419,37 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
     ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
     ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
     EXPECT_EQ(expectedSeqno, msg->getBySeqno().get());
-    auto* mutation = static_cast<MutationResponse*>(msg.get());
+    auto* mutation = static_cast<MutationConsumerMessage*>(msg.get());
+
+    // If the item is actually a commit_sync_write which had to be transmitted
+    // as a DCP_MUTATION (i.e. MutationConsumerResponse), we need
+    // to recreate the Item as operation==mutation otherwise the Consumer cannot
+    // handle it.
+    if (mutation->getItem()->getOperation() == queue_op::commit_sync_write) {
+        auto* newItem = new Item(mutation->getItem()->getKey(),
+                                 mutation->getItem()->getFlags(),
+                                 mutation->getItem()->getExptime(),
+                                 mutation->getItem()->getValue()->getData(),
+                                 mutation->getItem()->getValue()->valueSize(),
+                                 mutation->getItem()->getDataType(),
+                                 mutation->getItem()->getCas(),
+                                 mutation->getItem()->getBySeqno(),
+                                 mutation->getItem()->getVBucketId(),
+                                 mutation->getItem()->getRevSeqno(),
+                                 mutation->getItem()->getNRUValue(),
+                                 mutation->getItem()->getFreqCounterValue());
+        msg.reset(new MutationConsumerMessage(
+                newItem,
+                mutation->getOpaque(),
+                mutation->getIncludeValue(),
+                mutation->getIncludeXattrs(),
+                mutation->getIncludeDeleteTime(),
+                mutation->getDocKeyEncodesCollectionId(),
+                mutation->getExtMetaData(),
+                mutation->getStreamId()));
+        mutation = static_cast<MutationConsumerMessage*>(msg.get());
+    }
+
     EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
     EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
 }
