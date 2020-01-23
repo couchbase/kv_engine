@@ -1798,13 +1798,6 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        cb::mcbp::DcpStreamId sid) {
-    // Should be using the V2 callback
-    if (isCollectionsSupported()) {
-        LOG_WARNING("{}: Connection::deletion: called when collections-enabled",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::deletion: Failed to get item info",
