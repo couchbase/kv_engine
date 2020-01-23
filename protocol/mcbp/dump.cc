@@ -254,12 +254,6 @@ protected:
                 case cb::mcbp::request::FrameInfoId::OpenTracingContext:
                     ss << " " << cb::to_hex(payload);
                     break;
-                case cb::mcbp::request::FrameInfoId::Impersonate:
-                    ss << " euid="
-                       << std::string{
-                                  reinterpret_cast<const char*>(payload.data()),
-                                  payload.size()};
-                    break;
                 }
 
                 vector.emplace_back(ss.str());

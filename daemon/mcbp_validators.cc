@@ -302,22 +302,6 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     cookie.setOpenTracingContext(data);
                 }
                 return true;
-            case cb::mcbp::request::FrameInfoId::Impersonate:
-                if (data.empty()) {
-                    cookie.setErrorContext("Impersonated user must be set");
-                    status = Status::Einval;
-                    // terminate parsing
-                    return false;
-                } else if (data.front() == '^') {
-                    cookie.setErrorContext(
-                            "Impersonate of externally defined users is "
-                            "currently not supported");
-                    status = Status::NotSupported;
-                    // terminate parsing
-                    return false;
-                }
-                status = Status::Success;
-                return true;
             } // switch (id)
             status = Status::UnknownFrameInfo;
             return false;

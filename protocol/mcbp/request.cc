@@ -305,34 +305,6 @@ Request::getDurabilityRequirements() const {
     return {};
 }
 
-boost::optional<request::EffectiveUser> Request::getEffectiveUser() const {
-    boost::optional<request::EffectiveUser> ret;
-    parseFrameExtras([&ret](cb::mcbp::request::FrameInfoId id,
-                            cb::const_byte_buffer data) -> bool {
-        if (id == cb::mcbp::request::FrameInfoId::Impersonate) {
-            request::EffectiveUser user;
-            if (data.front() == '^') {
-                user.domain = cb::rbac::Domain::External;
-                user.username = std::string{
-                        reinterpret_cast<const char*>(data.data() + 1),
-                        data.size() - 1};
-            } else {
-                user.username =
-                        std::string{reinterpret_cast<const char*>(data.data()),
-                                    data.size()};
-                user.domain = cb::rbac::Domain::Local;
-            }
-            ret.reset(user);
-            // stop parsing
-            return false;
-        }
-        // Continue parsing
-        return true;
-    });
-
-    return ret;
-}
-
 std::string printableString(cb::const_byte_buffer buffer) {
     std::string ret;
     ret.reserve(buffer.size() + 9);
@@ -379,20 +351,6 @@ nlohmann::json Request::toJSON(bool validated) const {
                     break;
                 case request::FrameInfoId::OpenTracingContext:
                     frameid["OpenTracing context"] = printableString(buffer);
-                    break;
-                case request::FrameInfoId::Impersonate:
-                    if (buffer[0] == '@') {
-                        frameid["euid"]["user"] =
-                                std::string{reinterpret_cast<const char*>(
-                                                    buffer.data() + 1),
-                                            buffer.size() - 1};
-                        frameid["euid"]["domain"] = "external";
-                    } else {
-                        frameid["euid"]["user"] = std::string{
-                                reinterpret_cast<const char*>(buffer.data()),
-                                buffer.size()};
-                        frameid["euid"]["domain"] = "local";
-                    }
                     break;
                 }
 
@@ -445,8 +403,6 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "DcpStreamId";
     case FrameInfoId::OpenTracingContext:
         return "OpenTracingContext";
-    case FrameInfoId::Impersonate:
-        return "Impersonate";
     }
 
     throw std::invalid_argument("to_string(): Invalid frame id: " +

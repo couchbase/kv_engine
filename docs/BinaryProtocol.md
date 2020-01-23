@@ -161,18 +161,6 @@ ID value which was specified in the DCP stream-request that created the stream.
 Request the server to submit trace information by using the supplied context
 information as the parent span. The context must be present (length > 0)
 
-##### ID:4 - Impersonate user
-
-Request the server to execute the command as the provided user username (must
-be present) to identify users defined outside Couchbase (ldap) the username
-must be prefixed with `^` (ex: `^trond`). Local users do not need a prefix.
-
-The authenticated user must possess the `impersonate` privilege in order
-to utilize the feature (otherwise an error will be returned), and the
-effective privilege set when executing the command is an intersection of
-the authenticated users privilege set and the impersonated persons privilege
-set.
-
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |

@@ -22,7 +22,6 @@
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
-#include <memcached/rbac/privilege_database.h>
 #include <memcached/vbucket.h>
 #include <platform/sized_buffer.h>
 
@@ -48,12 +47,6 @@ enum class FrameInfoId {
     DurabilityRequirement = 1,
     DcpStreamId = 2,
     OpenTracingContext = 3,
-    Impersonate = 4,
-};
-
-struct EffectiveUser {
-    std::string username;
-    cb::rbac::Domain domain;
 };
 }
 
@@ -218,8 +211,6 @@ public:
      */
     boost::optional<cb::durability::Requirements> getDurabilityRequirements()
             const;
-
-    boost::optional<request::EffectiveUser> getEffectiveUser() const;
 
     /**
      * Is this a quiet command or not
