@@ -1706,7 +1706,8 @@ void wait_for_item_compressor_to_settle(EngineIface* h) {
     int visited_count = get_int_stat(h, "ep_item_compressor_num_visited");
 
     // We need to wait for at least one more run of the item compressor
-    wait_for_stat_to_be(h, "ep_item_compressor_num_visited", visited_count + 1);
+    wait_for_stat_to_be_gte(
+            h, "ep_item_compressor_num_visited", visited_count + 1);
 }
 
 void wait_for_rollback_to_finish(EngineIface* h) {
