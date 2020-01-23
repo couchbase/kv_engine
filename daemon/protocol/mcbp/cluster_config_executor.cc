@@ -51,17 +51,6 @@ static bool check_access_to_global_config(Cookie& cookie) {
         }
 
         return false;
-    case PrivilegeAccess::Stale:
-        LOG_WARNING("{}: Stale authentication context.{}",
-                    conn.getId(),
-                    xerror ? "" : " XError not enabled, closing connection");
-        if (xerror) {
-            cookie.sendResponse(cb::mcbp::Status::AuthStale);
-        } else {
-            conn.shutdown();
-        }
-
-        return false;
     }
 
     throw std::invalid_argument(

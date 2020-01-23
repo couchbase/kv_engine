@@ -817,8 +817,6 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(
         case cb::rbac::PrivilegeAccess::Fail:
             xattrRead = false;
             break;
-        case cb::rbac::PrivilegeAccess::Stale:
-            return ENGINE_AUTH_STALE;
         }
 
         bool xattrSysRead = false;
@@ -831,8 +829,6 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(
         case cb::rbac::PrivilegeAccess::Fail:
             xattrSysRead = false;
             break;
-        case cb::rbac::PrivilegeAccess::Stale:
-            return ENGINE_AUTH_STALE;
         }
 
         if (xattrRead && xattrSysRead) {
@@ -887,8 +883,6 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
         return ENGINE_SUCCESS;
     case cb::rbac::PrivilegeAccess::Fail:
         return ENGINE_EACCESS;
-    case cb::rbac::PrivilegeAccess::Stale:
-        return ENGINE_AUTH_STALE;
     }
 
     throw std::logic_error(

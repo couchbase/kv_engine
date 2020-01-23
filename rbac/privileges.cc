@@ -77,8 +77,6 @@ std::string to_string(PrivilegeAccess privilegeAccess) {
         return "Ok";
     case PrivilegeAccess::Fail:
         return "Fail";
-    case PrivilegeAccess::Stale:
-        return "Stale";
     }
     throw std::invalid_argument("to_string(PrivilegeAccess): Unknown value: " +
                                 std::to_string(int(privilegeAccess)));

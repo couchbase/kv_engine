@@ -30,8 +30,6 @@ static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,
         return ENGINE_SUCCESS;
     case cb::rbac::PrivilegeAccess::Fail:
         return ENGINE_EACCESS;
-    case cb::rbac::PrivilegeAccess::Stale:
-        return ENGINE_AUTH_STALE;
     }
 
     // Just to satisfy our commit validator.

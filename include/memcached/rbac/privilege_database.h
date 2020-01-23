@@ -327,6 +327,9 @@ public:
      */
     void dropPrivilege(Privilege privilege);
 
+    /// Is this privilege context stale, or may it be used?
+    bool isStale() const;
+
 protected:
     void setBucketPrivilegeBits(bool value);
 

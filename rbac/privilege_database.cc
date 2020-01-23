@@ -369,13 +369,13 @@ void PrivilegeContext::dropPrivilege(Privilege privilege) {
     droppedPrivileges.push_back(privilege);
 }
 
+bool PrivilegeContext::isStale() const {
+    return generation != contexts[to_index(domain)].current_generation;
+}
+
 PrivilegeAccess PrivilegeContext::check(Privilege privilege,
                                         ScopeID sid,
                                         CollectionID cid) const {
-    if (generation != contexts[to_index(domain)].current_generation) {
-        return PrivilegeAccess::Stale;
-    }
-
     const auto idx = size_t(privilege);
 #ifndef NDEBUG
     if (idx >= mask.size()) {

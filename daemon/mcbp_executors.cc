@@ -855,13 +855,6 @@ void execute_client_request_packet(Cookie& cookie,
         handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
                 cookie);
         return;
-    case cb::rbac::PrivilegeAccess::Stale:
-        if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
-            c->shutdown();
-        } else {
-            cookie.sendResponse(cb::mcbp::Status::AuthStale);
-        }
-        return;
     }
 
     LOG_WARNING(

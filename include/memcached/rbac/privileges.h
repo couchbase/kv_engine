@@ -174,7 +174,7 @@ enum class Privilege {
      */
 };
 
-enum class PrivilegeAccess { Ok, Fail, Stale };
+enum class PrivilegeAccess { Ok, Fail };
 
 /**
  * Get a textual representation of the privilege access

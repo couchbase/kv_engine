@@ -4474,7 +4474,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
     switch (getServerApi()->cookie->check_privilege(
             cookie, cb::rbac::Privilege::Stats, {}, {})) {
     case cb::rbac::PrivilegeAccess::Fail:
-    case cb::rbac::PrivilegeAccess::Stale:
         return ENGINE_EACCESS;
 
     case cb::rbac::PrivilegeAccess::Ok:

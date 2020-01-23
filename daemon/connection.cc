@@ -247,14 +247,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         Cookie& cookie,
         ScopeID scopeId,
         CollectionID collectionId) {
-    cb::rbac::PrivilegeAccess ret;
-    unsigned int retries = 0;
-    const unsigned int max_retries = 100;
-
-    while ((ret = privilegeContext.check(privilege, scopeId, collectionId)) ==
-                   cb::rbac::PrivilegeAccess::Stale &&
-           retries < max_retries) {
-        ++retries;
+    if (privilegeContext.isStale()) {
         const auto opcode = cookie.getRequest().getClientOpcode();
         const std::string command(to_string(opcode));
 
@@ -299,20 +292,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         }
     }
 
-    if (retries == max_retries) {
-        LOG_INFO(
-                "{}: RBAC: Gave up rebuilding privilege context after {} "
-                "times. Let the client handle the stale authentication "
-                "context",
-                getId(),
-                retries);
-
-    } else if (retries > 1) {
-        LOG_INFO("{}: RBAC: Had to rebuild privilege context {} times",
-                 getId(),
-                 retries);
-    }
-
+    const auto ret = privilegeContext.check(privilege, scopeId, collectionId);
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
         const auto opcode = cookie.getRequest().getClientOpcode();
         const std::string command(to_string(opcode));
