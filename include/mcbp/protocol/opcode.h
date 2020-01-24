@@ -420,6 +420,9 @@ bool is_durability_supported(ClientOpcode opcode);
 /// Does the provided opcode support reordering
 bool is_reorder_supported(ClientOpcode opcode);
 
+/// Does the command carry a key which contains a collection identifier
+bool is_collection_command(ClientOpcode opcode);
+
 } // namespace mcbp
 } // namespace cb
 
