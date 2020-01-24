@@ -303,7 +303,7 @@ TEST_P(SaslTest, CollectionsBucketAssociation) {
     // bucket
     BinprotGetCommand getCmd;
     getCmd.setOp(cb::mcbp::ClientOpcode::Get);
-    getCmd.setKey("key");
+    getCmd.setKey(std::string{"\0key", 4});
     getCmd.setVBucket(Vbid(0));
 
     // Should be able to authenticate to the memcache bucket because the
@@ -385,7 +385,7 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     // Do a get
     BinprotGetCommand getCmd;
     getCmd.setOp(cb::mcbp::ClientOpcode::Get);
-    getCmd.setKey("key");
+    getCmd.setKey(std::string{"\0key", 4});
     getCmd.setVBucket(Vbid(0));
 
     auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();

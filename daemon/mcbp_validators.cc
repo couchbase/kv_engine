@@ -311,7 +311,36 @@ Status McbpValidator::verify_header(Cookie& cookie,
         cookie.setErrorContext("Invalid encoding in FrameExtras");
     }
 
-    return status;
+    if (status != Status::Success) {
+        return status;
+    }
+
+    if (connection.getBucket().type != BucketType::NoBucket &&
+        cb::mcbp::is_collection_command(request.getClientOpcode()) &&
+        connection.getBucket().supports(cb::engine::Feature::Collections)) {
+        // verify that we can map the connection to sid. To make our
+        // unit tests easier lets go through the connection
+        auto key = cookie.getRequestKey();
+        ScopeID sid;
+
+        if (key.getCollectionID().isDefaultCollection()) {
+            sid = ScopeID{ScopeID::Default};
+        } else {
+            auto res = connection.getBucket().getEngine()->get_scope_id(&cookie,
+                                                                        key);
+            if (!res.second) {
+                nlohmann::json json;
+                // return the uid without the 0x prefix
+                json["manifest_uid"] = cb::to_hex(res.first).substr(2);
+                cookie.setErrorJsonExtras(json);
+                return Status::UnknownCollection;
+            }
+            sid = res.second.get();
+        }
+        cookie.setCurrentCollectionInfo({sid, key.getCollectionID()});
+    }
+
+    return Status::Success;
 }
 
 /******************************************************************************

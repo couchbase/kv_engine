@@ -475,6 +475,15 @@ public:
      */
     bool inflateInputPayload(const cb::mcbp::Header& header);
 
+    /// Set the current collection meta information. The packet validator
+    /// is responsible for checking that the requested collection identifier
+    /// is a legal scope (and return an error if it isn't) and to avoid having
+    /// to redo the check as part of privilege checks (as the lookup needs
+    /// a lock for the manifest) we'll keep the the result in the cookie
+    void setCurrentCollectionInfo(std::pair<ScopeID, CollectionID> collection) {
+        currentCollectionInfo = std::move(collection);
+    }
+
     /// Check if the current command have the requested privilege
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege);
 
@@ -583,4 +592,8 @@ protected:
     bool authorized = false;
 
     cb::compression::Buffer inflated_input_payload;
+
+    /// The Scope and Collection information for the current command picked
+    /// out from the incomming packet as part of packet validation
+    std::pair<ScopeID, CollectionID> currentCollectionInfo;
 };

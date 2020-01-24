@@ -485,6 +485,7 @@ void Cookie::reset() {
     authorized = false;
     reorder = connection.allowUnorderedExecution();
     inflated_input_payload.reset();
+    currentCollectionInfo = {};
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
