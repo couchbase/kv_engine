@@ -360,7 +360,7 @@ if (NOT EP_BYPASS_TESTS)
                    $<TARGET_OBJECTS:mock_dcp>
                    $<TARGET_OBJECTS:engine_testapp>)
     TARGET_LINK_LIBRARIES(ep_perfsuite
-            engine_testapp
+            engine_testapp_dependencies
             cbcompress
             dirutils
             engine_utilities

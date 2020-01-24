@@ -25,7 +25,13 @@ target_link_libraries(mock_server INTERFACE
                       ${MALLOC_LIBRARIES})
 
 add_library(engine_testapp OBJECT engine_testapp.cc)
-target_link_libraries(engine_testapp PUBLIC
+
+# An object library will not propagate dependencies
+# https://gitlab.kitware.com/cmake/cmake/issues/18090
+# Here we create an interface library to bring the libraries that
+# will be needed in a target
+add_library(engine_testapp_dependencies INTERFACE)
+target_link_libraries(engine_testapp_dependencies INTERFACE
                       phosphor
                       platform
                       mock_server

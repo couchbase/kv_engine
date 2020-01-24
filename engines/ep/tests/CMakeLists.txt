@@ -168,9 +168,17 @@ ADD_EXECUTABLE(ep_testsuite
                $<TARGET_OBJECTS:ep_testsuite_objs>
                $<TARGET_OBJECTS:mock_dcp>
                $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(ep_testsuite engine_testapp engine_utilities mcbp mcd_util
-                      ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
-                      platform xattr
+TARGET_LINK_LIBRARIES(ep_testsuite
+                      engine_testapp_dependencies
+                      engine_utilities
+                      mcbp
+                      mcd_util
+                      ${EP_STORAGE_LIBS}
+                      cbcompress
+                      dirutils
+                      JSON_checker
+                      platform
+                      xattr
                       ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep_testsuite)
 
@@ -180,7 +188,7 @@ ADD_EXECUTABLE(ep_testsuite_basic
                $<TARGET_OBJECTS:mock_dcp>
                $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_basic
-                      engine_testapp
+                      engine_testapp_dependencies
                       cbcompress
                       dirutils
                       engine_utilities
@@ -198,7 +206,7 @@ ADD_EXECUTABLE(ep_testsuite_dcp
                $<TARGET_OBJECTS:mock_dcp>
                $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_dcp
-                      engine_testapp
+                      engine_testapp_dependencies
                       cbcompress
                       dirutils
                       engine_utilities
@@ -215,7 +223,7 @@ ADD_EXECUTABLE(ep_testsuite_checkpoint
                $<TARGET_OBJECTS:ep_testsuite_objs>
                $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
-                      engine_testapp
+                      engine_testapp_dependencies
                       cbcompress
                       dirutils
                       engine_utilities
@@ -232,7 +240,7 @@ ADD_EXECUTABLE(ep_testsuite_xdcr
                $<TARGET_OBJECTS:ep_testsuite_objs>
                $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_xdcr
-                      engine_testapp mcd_util engine_utilities
+                      engine_testapp_dependencies mcd_util engine_utilities
                       mcbp JSON_checker dirutils platform xattr
                       ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 add_sanitizers(ep_testsuite_xdcr)

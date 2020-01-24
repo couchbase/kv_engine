@@ -24,7 +24,7 @@ IF(${COUCHBASE_PYTHON})
                        ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_${ID}.cc
                        $<TARGET_OBJECTS:engine_testapp>)
         TARGET_LINK_LIBRARIES(memcached_generated_testsuite_${ID}
-                              engine_testapp)
+                              engine_testapp_dependencies)
         ADD_DEPENDENCIES(memcached_generated_testsuite_${ID}
                          DUMMY_generated_suite)
 
