@@ -83,7 +83,8 @@ public:
      *
      * @return optional scope-ID initialised if the lookup was successful
      */
-    boost::optional<ScopeID> getScopeID(const DocKey& key) const;
+    std::pair<uint64_t, boost::optional<ScopeID>> getScopeID(
+            const DocKey& key) const;
 
     /**
      * Update the vbucket's manifest with the current Manifest

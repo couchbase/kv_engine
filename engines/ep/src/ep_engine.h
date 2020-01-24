@@ -212,8 +212,9 @@ public:
             gsl::not_null<const void*> cookie,
             cb::const_char_buffer path) override;
 
-    boost::optional<ScopeID> get_scope_id(gsl::not_null<const void*> cookie,
-                                          const DocKey& key) const override;
+    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key) const override;
 
     bool isXattrEnabled() override;
 

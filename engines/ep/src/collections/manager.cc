@@ -173,13 +173,22 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
     return {cb::engine_errc::success, current->getUid(), scope.get()};
 }
 
-boost::optional<ScopeID> Collections::Manager::getScopeID(
+std::pair<uint64_t, boost::optional<ScopeID>> Collections::Manager::getScopeID(
         const DocKey& key) const {
+    if (key.getCollectionID().isDefaultCollection()) {
+        // Allow the default collection in the default scope...
+        return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+                0, ScopeID{ScopeID::Default});
+    }
+
     std::unique_lock<std::mutex> ul(lock);
     if (!current) {
-        return {}; // no manifest, no collections/scopes
+        return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+                0, {}); // no manifest, no collections/scopes
     }
-    return current->getScopeID(key);
+
+    return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+            current->getUid(), current->getScopeID(key));
 }
 
 void Collections::Manager::update(VBucket& vb) const {

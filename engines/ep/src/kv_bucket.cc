@@ -2580,7 +2580,8 @@ cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
     }
 }
 
-boost::optional<ScopeID> KVBucket::getScopeID(const DocKey& key) const {
+std::pair<uint64_t, boost::optional<ScopeID>> KVBucket::getScopeID(
+        const DocKey& key) const {
     return collectionsManager->getScopeID(key);
 }
 

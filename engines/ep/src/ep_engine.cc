@@ -1843,8 +1843,9 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     return rv;
 }
 
-boost::optional<ScopeID> EventuallyPersistentEngine::get_scope_id(
-        gsl::not_null<const void*> cookie, const DocKey& key) const {
+std::pair<uint64_t, boost::optional<ScopeID>>
+EventuallyPersistentEngine::get_scope_id(gsl::not_null<const void*>,
+                                         const DocKey& key) const {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(key);
     return rv;

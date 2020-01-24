@@ -482,11 +482,11 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
 
     // Test the collection/vbucket lookup
     auto sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy});
-    EXPECT_TRUE(sid.is_initialized());
-    EXPECT_EQ(ScopeEntry::shop1.uid, sid.get());
+    EXPECT_TRUE(sid.second.is_initialized());
+    EXPECT_EQ(ScopeEntry::shop1.uid, sid.second.get());
 
     sid = store->getScopeID(StoredDocKey{"apple", CollectionEntry::fruit});
-    EXPECT_FALSE(sid.is_initialized());
+    EXPECT_FALSE(sid.second.is_initialized());
 }
 
 // Test high seqno values
