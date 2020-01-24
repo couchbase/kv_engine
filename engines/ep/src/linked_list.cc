@@ -526,8 +526,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     EP_LOG_FMT(severity,
                "{} Created range iterator from {} to {}",
                list.vbid,
-               curr(),
-               end());
+               itrRange.getBegin(),
+               itrRange.getEnd());
 }
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
