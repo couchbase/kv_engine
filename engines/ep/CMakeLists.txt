@@ -409,12 +409,13 @@ if (NOT EP_BYPASS_TESTS)
             gmock
             hdr_histogram_static
             JSON_checker
-	        mcbp
+            mcbp
             mcd_util
             mcd_tracing
             memcached_logger
             phosphor
             platform
+            platform_cb_malloc_arena
             xattr
             ${MALLOC_LIBRARIES}
             ${EP_STORAGE_LIBS}

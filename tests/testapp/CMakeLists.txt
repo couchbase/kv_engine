@@ -91,6 +91,7 @@ target_link_libraries(memcached_testapp
     mc_client_connection
     cbsasl
     platform
+    platform_cb_malloc_arena
     dirutils
     gtest
     gtest_main

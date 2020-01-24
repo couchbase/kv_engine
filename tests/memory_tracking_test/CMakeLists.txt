@@ -3,7 +3,9 @@ if (NOT MEMORY_ALLOCATOR STREQUAL "system")
                    memory_tracking_test.cc)
     target_link_libraries(memcached_memory_tracking_test
                           memcached_logger
-                          platform gtest
+                          platform
+                          platform_cb_malloc_arena
+                          gtest
                           ${MALLOC_LIBRARIES})
 
     add_test(NAME memcached-memory-tracking

@@ -117,6 +117,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         mcd_tracing
         mock_server
         platform
+        platform_cb_malloc_arena
         phosphor
         xattr
         ${EP_STORAGE_LIBS}
@@ -129,7 +130,7 @@ add_sanitizers(ep-engine_ep_unit_tests)
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
         module_tests/atomic_ptr_test.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/atomic.cc)
-TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform)
+TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform platform_cb_malloc_arena)
 
 ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/couch-kvstore/couch-fs-stats.cc

@@ -34,6 +34,7 @@ add_library(engine_testapp_dependencies INTERFACE)
 target_link_libraries(engine_testapp_dependencies INTERFACE
                       phosphor
                       platform
+                      platform_cb_malloc_arena
                       mock_server
                       crash_engine
                       default_engine

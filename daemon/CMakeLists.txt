@@ -237,6 +237,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       engine_utilities
                       gsl_lite
                       platform
+                      platform_cb_malloc_arena
                       JSON_checker
                       memcached_rbac
                       subjson
