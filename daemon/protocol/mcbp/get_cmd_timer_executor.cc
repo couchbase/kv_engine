@@ -49,9 +49,8 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
         // Check to see if we've got access to the bucket
         bool access = false;
         try {
-            auto context = cb::rbac::createContext(connection.getUsername(),
-                                                   connection.getDomain(),
-                                                   bucket.name);
+            auto context =
+                    cb::rbac::createContext(connection.getUser(), bucket.name);
             const auto check =
                     context.check(cb::rbac::Privilege::SimpleStats, {}, {});
             if (check == cb::rbac::PrivilegeAccess::Ok) {

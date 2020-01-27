@@ -169,15 +169,8 @@ public:
     /**
      * Get the username this connection is authenticated as
      */
-    const std::string& getUsername() const {
-        return username;
-    }
-
-    /**
-     * Get the domain where the user is defined (builtin or saslauthd)
-     */
-    cb::sasl::Domain getDomain() const {
-        return domain;
+    const cb::rbac::UserIdent& getUser() const {
+        return user;
     }
 
     cb::sasl::server::ServerContext& getSaslConn() {
@@ -825,11 +818,8 @@ protected:
     /** Is the connection authenticated or not */
     bool authenticated{false};
 
-    /** The username authenticated as */
-    std::string username{"unknown"};
-
-    /** The domain where the user is defined */
-    cb::sasl::Domain domain{cb::sasl::Domain::Local};
+    /// The authenticated user
+    cb::rbac::UserIdent user{std::string("unknown"), cb::sasl::Domain::Local};
 
     /** The description of the connection */
     std::string description;

@@ -336,7 +336,7 @@ struct ServerCookieApi : public ServerCookieIface {
 
     std::string get_authenticated_user(
             gsl::not_null<const void*> cookie) override {
-        return getCookie(cookie).getConnection().getUsername();
+        return getCookie(cookie).getConnection().getUser().name;
     }
 
     in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {

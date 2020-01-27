@@ -55,8 +55,7 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto oldIndex = connection.getBucketIndex();
 
     try {
-        cb::rbac::createContext(
-                connection.getUsername(), connection.getDomain(), bucketname);
+        cb::rbac::createContext(connection.getUser(), bucketname);
         if (associate_bucket(connection, bucketname.c_str())) {
             // We found the bucket, great. Test to see if it is valid for the
             // given connection

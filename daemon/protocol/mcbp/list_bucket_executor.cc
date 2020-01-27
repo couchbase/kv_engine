@@ -55,16 +55,14 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {
 
         try {
             // Check if the user have access to the bucket
-            cb::rbac::createContext(connection.getUsername(),
-                                    connection.getDomain(),
-                                    bucketname);
+            cb::rbac::createContext(connection.getUser(), bucketname);
             blob += bucketname + " ";
         } catch (const cb::rbac::Exception&) {
             // The client doesn't have access to this bucket
         }
     }
 
-    if (blob.size() > 0) {
+    if (!blob.empty()) {
         /* remove trailing " " */
         blob.pop_back();
     }

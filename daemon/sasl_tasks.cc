@@ -55,8 +55,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         // Authentication successful, but it still has to be defined in
         // our system
         try {
-            context = cb::rbac::createInitialContext(connection.getUsername(),
-                                                     connection.getDomain());
+            context = cb::rbac::createInitialContext(connection.getUser());
         } catch (const cb::rbac::NoSuchUserException&) {
             response.first = cb::sasl::Error::NO_RBAC_PROFILE;
         }
@@ -72,19 +71,17 @@ void SaslAuthTask::notifyExecutionComplete() {
         LOG_INFO("{}: Client {} authenticated as {}",
                  connection.getId(),
                  connection.getPeername(),
-                 cb::UserDataView(connection.getUsername()));
+                 cb::UserDataView(connection.getUser().name));
 
         /* associate the connection with the appropriate bucket */
         {
-            std::string username = connection.getUsername();
+            std::string username = connection.getUser().name;
             auto idx = username.find(";legacy");
             if (idx != username.npos) {
                 username.resize(idx);
             }
 
-            if (cb::rbac::mayAccessBucket(connection.getUsername(),
-                                          connection.getDomain(),
-                                          username)) {
+            if (cb::rbac::mayAccessBucket(connection.getUser(), username)) {
                 associate_bucket(connection, username.c_str());
                 // Auth succeeded but the connection may not be valid for the
                 // bucket
@@ -116,14 +113,14 @@ void SaslAuthTask::notifyExecutionComplete() {
     case cb::sasl::Error::NO_USER:
         LOG_WARNING("{}: User [{}] not found. UUID:[{}]",
                     connection.getId(),
-                    cb::UserDataView(connection.getUsername()),
+                    cb::UserDataView(connection.getUser().name),
                     cookie.getEventId());
         break;
 
     case cb::sasl::Error::PASSWORD_ERROR:
         LOG_WARNING("{}: Invalid password specified for [{}] UUID:[{}]",
                     connection.getId(),
-                    cb::UserDataView(connection.getUsername()),
+                    cb::UserDataView(connection.getUser().name),
                     cookie.getEventId());
         break;
     case cb::sasl::Error::NO_RBAC_PROFILE:
@@ -131,7 +128,7 @@ void SaslAuthTask::notifyExecutionComplete() {
                 "{}: User [{}] is not defined as a user in Couchbase. "
                 "UUID:[{}]",
                 connection.getId(),
-                cb::UserDataView(connection.getUsername()),
+                cb::UserDataView(connection.getUser().name),
                 cookie.getEventId());
         break;
     case cb::sasl::Error::AUTH_PROVIDER_DIED:

@@ -127,10 +127,11 @@ nlohmann::json Connection::toJSON() const {
         if (internal) {
             // We want to be able to map these connections, and given
             // that it is internal we don't reveal any user data
-            ret["username"] = username;
+            ret["user"]["name"] = user.name;
         } else {
-            ret["username"] = cb::tagUserData(username);
+            ret["user"]["name"] = cb::tagUserData(user.name);
         }
+        ret["user"]["domain"] = to_string(user.domain);
     }
 
     ret["refcount"] = refcount;
@@ -228,13 +229,13 @@ void Connection::setDCP(bool enable) {
 }
 
 void Connection::restartAuthentication() {
-    if (authenticated && domain == cb::sasl::Domain::External) {
-        externalAuthManager->logoff(username);
+    if (authenticated && user.domain == cb::sasl::Domain::External) {
+        externalAuthManager->logoff(user.name);
     }
     sasl_conn.reset();
     setInternal(false);
     authenticated = false;
-    username = "";
+    user = cb::rbac::UserIdent{"", cb::rbac::Domain::Local};
 }
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
@@ -245,12 +246,10 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
 cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
     if (privilegeContext.isStale()) {
         try {
-            privilegeContext = cb::rbac::createContext(
-                    getUsername(), getDomain(), getBucket().name);
+            privilegeContext = cb::rbac::createContext(user, getBucket().name);
         } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
-            privilegeContext =
-                    cb::rbac::createContext(getUsername(), getDomain(), "");
+            privilegeContext = cb::rbac::createContext(user, "");
             LOG_INFO(
                     "{}: RBAC: Connection::refreshPrivilegeContext() {} No "
                     "access "
@@ -261,7 +260,7 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
                     privilegeContext.to_string());
 
         } catch (const cb::rbac::Exception& error) {
-            privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
+            privilegeContext = cb::rbac::PrivilegeContext{user.domain};
             LOG_WARNING(
                     "{}: RBAC: Connection::refreshPrivilegeContext() {}: An "
                     "exception occurred. bucket:[{}] message: {}",
@@ -351,11 +350,9 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
 
 void Connection::resetUsernameCache() {
     if (sasl_conn.isInitialized()) {
-        username = sasl_conn.getUsername();
-        domain = sasl_conn.getDomain();
+        user = {sasl_conn.getUsername(), sasl_conn.getDomain()};
     } else {
-        username = "unknown";
-        domain = cb::sasl::Domain::Local;
+        user = {"unknown", cb::sasl::Domain::Local};
     }
 
     updateDescription();
@@ -368,9 +365,9 @@ void Connection::updateDescription() {
         if (isInternal()) {
             description += "System, ";
         }
-        description += cb::tagUserData(getUsername());
+        description += cb::tagUserData(user.name);
 
-        if (domain == cb::sasl::Domain::External) {
+        if (user.domain == cb::sasl::Domain::External) {
             description += " (LDAP)";
         }
         description += ")";
@@ -390,7 +387,7 @@ void Connection::setBucketIndex(int bucketIndex) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
             privilegeContext = cb::rbac::createContext(
-                    username, getDomain(), all_buckets[bucketIndex].name);
+                    user, all_buckets[bucketIndex].name);
         } else if (is_default_bucket_enabled() &&
                    strcmp("default", all_buckets[bucketIndex].name) == 0) {
             // We've just connected to the _default_ bucket, _AND_ the client
@@ -401,15 +398,15 @@ void Connection::setBucketIndex(int bucketIndex) {
             // assign that. It should only contain access to the default
             // bucket.
             privilegeContext = cb::rbac::createContext(
-                    "default", getDomain(), all_buckets[bucketIndex].name);
+                    {"default", user.domain}, all_buckets[bucketIndex].name);
         } else {
             // The user has not authenticated, and this isn't for the
             // "default bucket". Assign an empty profile which won't give
             // you any privileges.
-            privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
+            privilegeContext = cb::rbac::PrivilegeContext{user.domain};
         }
     } catch (const cb::rbac::Exception&) {
-        privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
+        privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
 
     if (bucketIndex == 0) {
@@ -883,20 +880,19 @@ void Connection::setAuthenticated(bool authenticated) {
     Connection::authenticated = authenticated;
     if (authenticated) {
         updateDescription();
-        privilegeContext = cb::rbac::createContext(username, getDomain(), "");
+        privilegeContext = cb::rbac::createContext(user, "");
     } else {
         resetUsernameCache();
-        privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
+        privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
 }
 
 bool Connection::tryAuthFromSslCert(const std::string& userName) {
-    username.assign(userName);
-    domain = cb::sasl::Domain::Local;
+    user.name.assign(userName);
+    user.domain = cb::sasl::Domain::Local;
 
     try {
-        auto context =
-                cb::rbac::createInitialContext(getUsername(), getDomain());
+        auto context = cb::rbac::createInitialContext(user);
         setAuthenticated(true);
         setInternal(context.second);
         audit_auth_success(*this);
@@ -905,7 +901,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
                 "certificate",
                 getId(),
                 getPeername(),
-                cb::UserDataView(getUsername()));
+                cb::UserDataView(user.name));
         // Connections authenticated by using X.509 certificates should not
         // be able to use SASL to change it's identity.
         saslAuthEnabled = false;
@@ -1032,8 +1028,8 @@ Connection::~Connection() {
     if (connectedToSystemPort) {
         --stats.system_conns;
     }
-    if (authenticated && domain == cb::sasl::Domain::External) {
-        externalAuthManager->logoff(username);
+    if (authenticated && user.domain == cb::sasl::Domain::External) {
+        externalAuthManager->logoff(user.name);
     }
 
     if (bev) {

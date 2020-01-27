@@ -42,6 +42,18 @@ namespace rbac {
 using Domain = cb::sasl::Domain;
 
 /**
+ * A user in our system is defined with a name and a domain
+ */
+struct UserIdent {
+    UserIdent() = default;
+    UserIdent(std::string n, Domain d) : name(std::move(n)), domain(d) {
+    }
+    nlohmann::json to_json() const;
+    std::string name;
+    Domain domain{cb::rbac::Domain::Local};
+};
+
+/**
  * An array containing all of the possible privileges we've got. It is
  * tightly coupled with the Privilege enum class, and when entries is
  * added to the Privilege enum class the size of the mask needs to
@@ -454,7 +466,7 @@ protected:
  *
  * @todo this might starve the writers?
  *
- * @param user The name of the user
+ * @param user The user to look up
  * @param bucket The name of the bucket (may be "" if you're not
  *               connecting to a bucket (aka the no bucket)).
  * @return The privilege context representing the user in that bucket
@@ -462,22 +474,19 @@ protected:
  * @throws cb::rbac::NoSuchBucketException if the user doesn't have access
  *                                         to that bucket.
  */
-PrivilegeContext createContext(const std::string& user,
-                               Domain domain,
+PrivilegeContext createContext(const UserIdent& user,
                                const std::string& bucket);
 
 /**
  * Create the initial context for a given user
  *
- * @param user The username to look up
- * @param domain The domain where the user exists
+ * @param user The user to look up
  * @return A pair with a privilege context as the first element, and
  *         a boolean indicating if this is a system user as the second
  *         element.
  * @throws cb::rbac::NoSuchUserException if the user doesn't exist
  */
-std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
-                                                       Domain domain);
+std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user);
 
 /**
  * Load the named file and install it as the current privilege database
@@ -490,9 +499,7 @@ void loadPrivilegeDatabase(const std::string& filename);
 /**
  * Check if the specified user have access to the specified bucket
  */
-bool mayAccessBucket(const std::string& user,
-                     Domain domain,
-                     const std::string& bucket);
+bool mayAccessBucket(const UserIdent& user, const std::string& bucket);
 
 /**
  * Update the user entry with the supplied new configuration

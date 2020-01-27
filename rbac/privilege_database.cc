@@ -32,6 +32,13 @@
 namespace cb {
 namespace rbac {
 
+nlohmann::json UserIdent::to_json() const {
+    nlohmann::json ret;
+    ret["user"] = name;
+    ret["domain"] = ::to_string(domain);
+    return ret;
+}
+
 struct DatabaseContext {
     // Every time we create a new PrivilegeDatabase we bump the generation.
     // The PrivilegeContext contains the generation number it was generated
@@ -443,17 +450,15 @@ void PrivilegeContext::setBucketPrivilegeBits(bool value) {
     }
 }
 
-PrivilegeContext createContext(const std::string& user,
-                               Domain domain,
+PrivilegeContext createContext(const UserIdent& user,
                                const std::string& bucket) {
-    auto& ctx = contexts[to_index(domain)];
-    return (*ctx.db.rlock())->createContext(user, domain, bucket);
+    auto& ctx = contexts[to_index(user.domain)];
+    return (*ctx.db.rlock())->createContext(user.name, user.domain, bucket);
 }
 
-std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
-                                                       Domain domain) {
-    auto& ctx = contexts[to_index(domain)];
-    return (*ctx.db.rlock())->createInitialContext(user, domain);
+std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user) {
+    auto& ctx = contexts[to_index(user.domain)];
+    return (*ctx.db.rlock())->createInitialContext(user.name, user.domain);
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
@@ -499,11 +504,9 @@ void destroy() {
     contexts[to_index(Domain::External)].db.wlock()->reset();
 }
 
-bool mayAccessBucket(const std::string& user,
-                     Domain domain,
-                     const std::string& bucket) {
+bool mayAccessBucket(const UserIdent& user, const std::string& bucket) {
     try {
-        createContext(user, domain, bucket);
+        createContext(user, bucket);
         return true;
     } catch (const Exception&) {
         // The user do not have access to the bucket

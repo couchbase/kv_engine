@@ -395,7 +395,7 @@ void Cookie::maybeLogSlowCommand(
 }
 
 Cookie::Cookie(Connection& conn)
-    : connection(conn), privilegeContext(conn.getDomain()) {
+    : connection(conn), privilegeContext(conn.getUser().domain) {
 }
 
 void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
