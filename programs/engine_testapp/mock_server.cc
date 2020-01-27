@@ -261,9 +261,6 @@ static rel_time_t mock_realtime(rel_time_t exptime, cb::ExpiryLimit limit) {
         rv = (rel_time_t)(exptime + mock_get_current_time());
     }
 
-    if (limit && rv > limit.get().count()) {
-        rv = gsl::narrow<rel_time_t>(limit.get().count());
-    }
     return rv;
 }
 

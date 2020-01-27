@@ -2236,7 +2236,7 @@ EventuallyPersistentEngine::getExpiryParameters(rel_time_t exptime) const {
         // it makes sense as an expiry time.
         if (exptime == 0) {
             if (limit.count() > (60 * 60 * 24 * 30)) {
-                exptime = ep_abs_time(limit.count());
+                exptime = ep_abs_time(ep_current_time() + limit.count());
             } else {
                 exptime = limit.count();
             }
