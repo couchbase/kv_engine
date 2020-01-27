@@ -1108,10 +1108,21 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         return false;
     }
 
+    const auto errorMessageHandler = [&]() -> bool {
+        logger->error(
+                "DcpProducer::handleResponse disconnecting, received "
+                "unexpected "
+                "response:{}",
+                resp->response.toJSON(true).dump());
+        return false;
+    };
+
     const auto opcode = resp->response.getClientOpcode();
     const auto responseStatus = resp->response.getStatus();
-    if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState ||
-        opcode == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
+
+    switch (opcode) {
+    case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+    case cb::mcbp::ClientOpcode::DcpSnapshotMarker: {
         const auto opaque = resp->response.getOpaque();
 
         // Search for an active stream with the same opaque as the response.
@@ -1138,62 +1149,58 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         }
 
         return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpMutation ||
-               opcode == cb::mcbp::ClientOpcode::DcpDeletion ||
-               opcode == cb::mcbp::ClientOpcode::DcpExpiration ||
-               opcode == cb::mcbp::ClientOpcode::DcpStreamEnd ||
-               opcode == cb::mcbp::ClientOpcode::DcpSystemEvent) {
+    }
+    case cb::mcbp::ClientOpcode::DcpStreamEnd:
         // The consumer could of closed the stream (DcpStreamEnd), enoent is
         // expected, but any other errors are not expected.
-        if (responseStatus != cb::mcbp::Status::Success) {
-            logger->warn(
-                    "DcpProducer::handleResponse received unexpected "
-                    "response:{}",
-                    resp->response.toJSON(true).dump());
-        }
-        return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpCommit ||
-               opcode == cb::mcbp::ClientOpcode::DcpPrepare ||
-               opcode == cb::mcbp::ClientOpcode::DcpAbort) {
         if (responseStatus == cb::mcbp::Status::KeyEnoent ||
-            responseStatus == cb::mcbp::Status::Einval) {
-            logger->error(
-                    "Disconnecting. Received status {} for op:{} "
-                    "response:{}",
-                    to_string(responseStatus),
-                    to_string(opcode),
-                    resp->response.toJSON(true).dump());
-            // KeyEnoent:
-            // In this case we receive a KeyEnoent, we need to disconnect as we
-            // must have sent an a commit or abort of key that the consumer is
-            // unaware of and we should never see KeyEnoent from a DcpPrepare.
-            // Einval:
-            // If we have seen a Einval we also need to disconnect as we must
-            // have sent an invalid. Mutation or packet to the consumer e.g. we
-            // sent an abort to the consumer in a non disk snapshot without it
-            // having seen a prepare.
-            return false;
-        } else {
-            // Keep connection open for all other response codes
-            if (responseStatus != cb::mcbp::Status::Success) {
-                logger->warn(
-                        "DcpProducer::handleResponse received unexpected "
-                        "response:{}",
-                        resp->response.toJSON(true).dump());
-            }
+            responseStatus == cb::mcbp::Status::Success) {
             return true;
         }
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpNoop) {
+        return errorMessageHandler();
+    case cb::mcbp::ClientOpcode::DcpNoop:
         if (noopCtx.opaque == resp->response.getOpaque()) {
             noopCtx.pendingRecv = false;
             return true;
         }
+        return errorMessageHandler();
+    case cb::mcbp::ClientOpcode::DcpOpen:
+    case cb::mcbp::ClientOpcode::DcpAddStream:
+    case cb::mcbp::ClientOpcode::DcpCloseStream:
+    case cb::mcbp::ClientOpcode::DcpStreamReq:
+    case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
+    case cb::mcbp::ClientOpcode::DcpMutation:
+    case cb::mcbp::ClientOpcode::DcpDeletion:
+    case cb::mcbp::ClientOpcode::DcpExpiration:
+    case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
+    case cb::mcbp::ClientOpcode::DcpControl:
+    case cb::mcbp::ClientOpcode::DcpSystemEvent:
+    case cb::mcbp::ClientOpcode::GetErrorMap:
+    case cb::mcbp::ClientOpcode::DcpPrepare:
+    case cb::mcbp::ClientOpcode::DcpCommit:
+    case cb::mcbp::ClientOpcode::DcpAbort:
+        if (responseStatus == cb::mcbp::Status::Success) {
+            return true;
+        }
+        // For DcpPrepare, DcpCommit and DcpAbort we may see KeyEnoent or
+        // Einval for the following reasons.
+        // KeyEnoent:
+        // In this case we receive a KeyEnoent, we need to disconnect as we
+        // must have sent an a commit or abort of key that the consumer is
+        // unaware of and we should never see KeyEnoent from a DcpPrepare.
+        // Einval:
+        // If we have seen a Einval we also need to disconnect as we must
+        // have sent an invalid. Mutation or packet to the consumer e.g. we
+        // sent an abort to the consumer in a non disk snapshot without it
+        // having seen a prepare.
+        return errorMessageHandler();
+    default:
+        std::string errorMsg(
+                "DcpProducer::handleResponse received an unknown client "
+                "opcode: ");
+        errorMsg += resp->response.toJSON(true).dump();
+        throw std::logic_error(errorMsg);
     }
-
-    logger->warn("Disconnecting. Trying to handle an unknown response:{}",
-                 resp->response.toJSON(true).dump());
-
-    return false;
 }
 
 std::pair<std::shared_ptr<Stream>, bool> DcpProducer::closeStreamInner(

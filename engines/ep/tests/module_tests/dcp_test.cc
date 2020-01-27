@@ -2891,54 +2891,137 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
 
     MockDcpMessageProducers producers(engine.get());
 
-    for (auto status : {cb::mcbp::Status::Success,
-                        cb::mcbp::Status::Etmpfail,
-                        cb::mcbp::Status::Enomem}) {
-        protocol_binary_response_header message{};
-        message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-        message.response.setStatus(status);
-        for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
-                        cb::mcbp::ClientOpcode::DcpDeletion,
-                        cb::mcbp::ClientOpcode::DcpExpiration,
-                        cb::mcbp::ClientOpcode::DcpStreamEnd,
-                        cb::mcbp::ClientOpcode::DcpSystemEvent,
-                        cb::mcbp::ClientOpcode::DcpCommit,
-                        cb::mcbp::ClientOpcode::DcpPrepare,
-                        cb::mcbp::ClientOpcode::DcpAbort}) {
-            message.response.setOpcode(op);
-            EXPECT_TRUE(producer->handleResponse(&message));
-        }
+    protocol_binary_response_header message{};
+    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.response.setStatus(cb::mcbp::Status::Success);
+    for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
+                    cb::mcbp::ClientOpcode::DcpAddStream,
+                    cb::mcbp::ClientOpcode::DcpCloseStream,
+                    cb::mcbp::ClientOpcode::DcpStreamReq,
+                    cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                    cb::mcbp::ClientOpcode::DcpMutation,
+                    cb::mcbp::ClientOpcode::DcpDeletion,
+                    cb::mcbp::ClientOpcode::DcpExpiration,
+                    cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                    cb::mcbp::ClientOpcode::DcpControl,
+                    cb::mcbp::ClientOpcode::DcpSystemEvent,
+                    cb::mcbp::ClientOpcode::GetErrorMap,
+                    cb::mcbp::ClientOpcode::DcpPrepare,
+                    cb::mcbp::ClientOpcode::DcpCommit,
+                    cb::mcbp::ClientOpcode::DcpAbort}) {
+        message.response.setOpcode(op);
+        EXPECT_TRUE(producer->handleResponse(&message));
     }
 }
 
-TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDuribilityErrorCodes) {
+// Test that we disconnect whe we receive a non success status code for the
+// majority of Dcp Opcodes.
+TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "ProducerHandleResponceEinVal", 0);
+            *engine, cookie, "ProducerHandleResponceDiscconnect", 0);
     MockDcpMessageProducers producers(engine.get());
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    // check we return false from DcpProducer::handleResponse when receiving
-    // an EINVAL and KeyEnoent for Commit, Prepare and abort
-    for (auto errorCode :
-         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::Einval}) {
+    for (auto errorCode : {cb::mcbp::Status::E2big,
+                           cb::mcbp::Status::Einval,
+                           cb::mcbp::Status::Enomem,
+                           cb::mcbp::Status::Erange,
+                           cb::mcbp::Status::Etmpfail,
+                           cb::mcbp::Status::KeyEexists,
+                           cb::mcbp::Status::KeyEnoent,
+                           cb::mcbp::Status::Locked,
+                           cb::mcbp::Status::NotMyVbucket,
+                           cb::mcbp::Status::SyncWriteAmbiguous,
+                           cb::mcbp::Status::SyncWriteInProgress,
+                           cb::mcbp::Status::SyncWriteReCommitInProgress,
+                           cb::mcbp::Status::UnknownCollection}) {
         message.response.setStatus(errorCode);
-        for (auto op : {cb::mcbp::ClientOpcode::DcpCommit,
+        for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
+                        cb::mcbp::ClientOpcode::DcpAddStream,
+                        cb::mcbp::ClientOpcode::DcpCloseStream,
+                        cb::mcbp::ClientOpcode::DcpStreamReq,
+                        cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                        cb::mcbp::ClientOpcode::DcpMutation,
+                        cb::mcbp::ClientOpcode::DcpDeletion,
+                        cb::mcbp::ClientOpcode::DcpExpiration,
+                        cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                        cb::mcbp::ClientOpcode::DcpControl,
+                        cb::mcbp::ClientOpcode::DcpSystemEvent,
+                        cb::mcbp::ClientOpcode::GetErrorMap,
                         cb::mcbp::ClientOpcode::DcpPrepare,
+                        cb::mcbp::ClientOpcode::DcpCommit,
                         cb::mcbp::ClientOpcode::DcpAbort}) {
             message.response.setOpcode(op);
             EXPECT_FALSE(producer->handleResponse(&message));
         }
-        // for the other ops check that we don't return false
-        for (auto op : {cb::mcbp::ClientOpcode::DcpMutation,
-                        cb::mcbp::ClientOpcode::DcpDeletion,
-                        cb::mcbp::ClientOpcode::DcpExpiration,
-                        cb::mcbp::ClientOpcode::DcpStreamEnd,
-                        cb::mcbp::ClientOpcode::DcpSystemEvent}) {
-            message.response.setOpcode(op);
-            EXPECT_TRUE(producer->handleResponse(&message));
+    }
+}
+
+// Test how we handle DcpStreamEnd responses from a consumer
+TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "ProducerHandleResponceStreamEnd", 0);
+    MockDcpMessageProducers producers(engine.get());
+
+    protocol_binary_response_header message{};
+    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    for (auto errorCode :
+         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::Success}) {
+        message.response.setStatus(errorCode);
+        EXPECT_TRUE(producer->handleResponse(&message));
+    }
+    for (auto errorCode : {cb::mcbp::Status::E2big,
+                           cb::mcbp::Status::Einval,
+                           cb::mcbp::Status::Enomem,
+                           cb::mcbp::Status::Erange,
+                           cb::mcbp::Status::Etmpfail,
+                           cb::mcbp::Status::KeyEexists,
+                           cb::mcbp::Status::Locked,
+                           cb::mcbp::Status::NotMyVbucket,
+                           cb::mcbp::Status::SyncWriteAmbiguous,
+                           cb::mcbp::Status::SyncWriteInProgress,
+                           cb::mcbp::Status::SyncWriteReCommitInProgress,
+                           cb::mcbp::Status::UnknownCollection}) {
+        message.response.setStatus(errorCode);
+        EXPECT_FALSE(producer->handleResponse(&message));
+    }
+}
+
+// Test how we handle DcpNoop responses from a consumer
+TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "ProducerHandleResponceNoop", 0);
+    MockDcpMessageProducers producers(engine.get());
+
+    protocol_binary_response_header message{};
+    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.response.setOpcode(cb::mcbp::ClientOpcode::DcpNoop);
+
+    for (auto errorCode : {cb::mcbp::Status::E2big,
+                           cb::mcbp::Status::Einval,
+                           cb::mcbp::Status::Enomem,
+                           cb::mcbp::Status::Erange,
+                           cb::mcbp::Status::Etmpfail,
+                           cb::mcbp::Status::KeyEexists,
+                           cb::mcbp::Status::KeyEnoent,
+                           cb::mcbp::Status::Locked,
+                           cb::mcbp::Status::NotMyVbucket,
+                           cb::mcbp::Status::Success,
+                           cb::mcbp::Status::SyncWriteAmbiguous,
+                           cb::mcbp::Status::SyncWriteInProgress,
+                           cb::mcbp::Status::SyncWriteReCommitInProgress,
+                           cb::mcbp::Status::UnknownCollection}) {
+        message.response.setStatus(errorCode);
+        // Test DcpNoop when the opaque is the default opaque value
+        message.response.setOpaque(10000000);
+        EXPECT_TRUE(producer->handleResponse(&message));
+        for (uint32_t Opaque : {123, 0}) {
+            message.response.setOpaque(Opaque);
+            EXPECT_FALSE(producer->handleResponse(&message));
         }
     }
 }
@@ -2991,7 +3074,7 @@ struct PrintToStringCombinedNameXattrOnOff {
                     info) const {
         if (::testing::get<1>(info.param)) {
             return ::testing::get<0>(info.param) + "_xattr";
-        }
+}
         return ::testing::get<0>(info.param);
     }
 };
