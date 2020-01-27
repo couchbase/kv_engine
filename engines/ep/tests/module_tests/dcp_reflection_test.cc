@@ -357,10 +357,12 @@ std::unique_ptr<DcpResponse>
 DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
     std::unique_ptr<DcpResponse> producerMsg(stream->next());
     if (!producerMsg) {
-        EXPECT_GE(getLpAuxQ()->getFutureQueueSize(), 1)
+        auto queueSize = getLpAuxQ()->getReadyQueueSize() +
+                         getLpAuxQ()->getFutureQueueSize();
+        EXPECT_GE(queueSize, 1)
                 << "Expected to have at least "
                    "ActiveStreamCheckpointProcessorTask "
-                   "in future queue after null producerMsg";
+                   "in ready/future queue after null producerMsg";
 
         // Run the next waiting task to populate the streams' items.
         CheckedExecutor executor(ExecutorPool::get(), *getLpAuxQ());

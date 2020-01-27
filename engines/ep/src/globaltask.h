@@ -286,15 +286,19 @@ private:
 typedef std::shared_ptr<GlobalTask> ExTask;
 
 /**
- * Order tasks by their priority and taskId (try to ensure FIFO)
+ * Order tasks by their priority. If priority is the same, order by waketime to
+ * ensure that we keep the ordering the tasks had when we moved them from the
+ * futureQueue. This sort may not be stable, but if a task has the same priority
+ * and wakeTime then we don't really care if they are re-ordered as wakeTime has
+ * a nano second granularity.
  * @return true if t2 should have priority over t1
  */
 class CompareByPriority {
 public:
     bool operator()(ExTask &t1, ExTask &t2) {
-        return (t1->getQueuePriority() == t2->getQueuePriority()) ?
-               (t1->uid > t2->uid) :
-               (t1->getQueuePriority() > t2->getQueuePriority());
+        return (t1->priority == t2->priority)
+                       ? (t1->waketime > t2->waketime)
+                       : (t1->getQueuePriority() > t2->getQueuePriority());
     }
 };
 
