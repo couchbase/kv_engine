@@ -662,8 +662,9 @@ public:
      * Method to lookup a collection's scope
      * @param key Will use id from the key
      * @return pair with the manifest uid and the optional scope,
-     *             if empty returned the collection does not exist in the
-     * manifest uid
+     *              if the returned optional is empty the collection
+     *              does not exist in the manifest with the returned
+     *              uid
      */
     std::pair<uint64_t, boost::optional<ScopeID>> getScopeID(
             const DocKey& key) const;
