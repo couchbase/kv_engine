@@ -16,10 +16,57 @@
  */
 #include "auth_provider.h"
 
+#include <mcbp/protocol/request.h>
+#include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::process(
+        const cb::mcbp::Request& req) {
+    switch (req.getServerOpcode()) {
+    case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
+    case cb::mcbp::ServerOpcode::ActiveExternalUsers:
+        // not supported
+        break;
+    case cb::mcbp::ServerOpcode::Authenticate:
+        return processAuthnRequest(req.getValue());
+
+    case cb::mcbp::ServerOpcode::GetAuthorization:
+        return processAuthzRequest(req.getKey());
+    }
+    throw std::runtime_error("AuthProvider::process: unsupported opcode");
+}
+
+std::pair<cb::mcbp::Status, std::string> AuthProvider::processAuthzRequest(
+        const std::string& user) {
+    auto ret = getUserEntry(user);
+    switch (ret.first) {
+    case cb::sasl::Error::OK:
+        break;
+    case cb::sasl::Error::CONTINUE:
+    case cb::sasl::Error::BAD_PARAM:
+    case cb::sasl::Error::NO_MEM:
+    case cb::sasl::Error::NO_MECH:
+    case cb::sasl::Error::FAIL:
+    case cb::sasl::Error::AUTH_PROVIDER_DIED:
+    case cb::sasl::Error::NO_USER:
+    case cb::sasl::Error::PASSWORD_ERROR:
+        throw std::runtime_error(
+                "AuthProvider::processAuthzRequest: Invalid return value from "
+                "getUserEntry");
+
+    case cb::sasl::Error::NO_RBAC_PROFILE:
+        return std::make_pair<cb::mcbp::Status, std::string>(
+                cb::mcbp::Status::AuthError, {});
+    }
+
+    nlohmann::json payload;
+    payload["rbac"] = ret.second;
+    return std::pair<cb::mcbp::Status, std::string>(cb::mcbp::Status::Success,
+                                                    payload.dump());
+}
+
+std::pair<cb::mcbp::Status, std::string> AuthProvider::processAuthnRequest(
         const std::string& request) {
     const auto json = nlohmann::json::parse(request);
     return start(json.at("mechanism").get<std::string>(),

@@ -20,6 +20,9 @@
 #include "buckets.h"
 #include "connection.h"
 #include "cookie_trace_context.h"
+#include "executorpool.h"
+#include "external_auth_manager_thread.h"
+#include "get_authorization_task.h"
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
@@ -128,8 +131,16 @@ bool Cookie::execute() {
 
     if (euid && !euidPrivilegeContext) {
         // We're supposed to run as a different user, but we don't
-        // have the privilege set configured.
-        fetchEuidPrivilegeSet();
+        // have the privilege set configured yet...
+        // @todo we should audit and return an error here if the user
+        //       don't have access!!!
+        if (!fetchEuidPrivilegeSet()) {
+            // we failed  to fetch the access privileges for the requested user
+            audit_command_access_failed(*this);
+            collectTimings();
+            return true;
+        }
+
         if (isEwouldblock()) {
             return false;
         }
@@ -658,33 +669,57 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
 }
 
 cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
-    // The user needs to hold the impersonate privilege:
-    if (checkPrivilege(
-                privilegeContext, cb::rbac::Privilege::Impersonate, {}, {}) ==
-        cb::rbac::PrivilegeAccess::Fail) {
-        // @todo I guess I should have added an audit entry for this?
-        setErrorContext(
-                "You need the Impersonate privilege in order to impersonate "
-                "users");
-        return cb::mcbp::Status::Eaccess;
-    }
-
-    if (e.domain == cb::rbac::Domain::External &&
-        Settings::instance().isExternalAuthServiceEnabled()) {
-        // We don't support external users at the moment (needs a new API
-        // from ns_server)
-        return cb::mcbp::Status::NotSupported;
+    if (e.name.empty()) {
+        setErrorContext("Username must be at least one character");
+        return cb::mcbp::Status::Einval;
     }
 
     euid.reset(e);
     return cb::mcbp::Status::Success;
 }
 
-void Cookie::fetchEuidPrivilegeSet() {
-    //    if (euid->domain == cb::rbac::Domain::External) {
-    //        euidPrivilegeContext.reset(cb::rbac::PrivilegeContext{euid->domain});
-    //        ewouldblock = true;
-    //    }
+bool Cookie::fetchEuidPrivilegeSet() {
+    if (checkPrivilege(
+                privilegeContext, cb::rbac::Privilege::Impersonate, {}, {}) ==
+        cb::rbac::PrivilegeAccess::Fail) {
+        setErrorContext(
+                "You need the Impersonate privilege in order to impersonate "
+                "users");
+        sendResponse(cb::mcbp::Status::Eaccess);
+        return false;
+    }
+
+    if (euid->domain == cb::rbac::Domain::External) {
+        if (!Settings::instance().isExternalAuthServiceEnabled()) {
+            setErrorContext("External authentication service not configured");
+            sendResponse(cb::mcbp::Status::NotSupported);
+            return false;
+        }
+
+        if (getAuthorizationTask) {
+            auto* task = dynamic_cast<GetAuthorizationTask*>(
+                    getAuthorizationTask.get());
+            if (task == nullptr) {
+                throw std::runtime_error(
+                        "Cookie::fetchEuidPrivilegeSet: Invalid object stored "
+                        "in getAuthorizationTask");
+            }
+
+            const auto ret = task->getStatus();
+            getAuthorizationTask.reset();
+            if (ret != cb::sasl::Error::OK) {
+                sendResponse(cb::mcbp::Status::Eaccess);
+                return false;
+            }
+        } else if (!externalAuthManager->haveRbacEntryForUser(euid->name)) {
+            getAuthorizationTask =
+                    std::make_shared<GetAuthorizationTask>(*this, *euid);
+            std::lock_guard<std::mutex> guard(getAuthorizationTask->getMutex());
+            executorPool->schedule(getAuthorizationTask, true);
+            ewouldblock = true;
+            return true;
+        }
+    }
 
     try {
         euidPrivilegeContext.reset(
@@ -697,5 +732,9 @@ void Cookie::fetchEuidPrivilegeSet() {
         euidPrivilegeContext.reset(cb::rbac::PrivilegeContext{euid->domain});
     } catch (const cb::rbac::Exception&) {
         setErrorContext("User \"" + euid->name + "\" is not a Couchbase user");
+        sendResponse(cb::mcbp::Status::Eaccess);
+        return false;
     }
+
+    return true;
 }

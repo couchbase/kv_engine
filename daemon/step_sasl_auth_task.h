@@ -35,4 +35,6 @@ public:
                      const std::string& challenge_);
 
     Status execute() override;
+    void externalResponse(cb::mcbp::Status status,
+                          const std::string& payload) override;
 };

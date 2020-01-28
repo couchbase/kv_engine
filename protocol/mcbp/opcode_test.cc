@@ -378,15 +378,16 @@ TEST(ClientOpcode, is_collection_command) {
                    "collection");
 }
 
-const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
-        {{ServerOpcode::ClustermapChangeNotification,
-          "ClustermapChangeNotification"},
-         {ServerOpcode::Authenticate, "Authenticate"},
-         {ServerOpcode::ActiveExternalUsers, "ActiveExternalUsers"}}};
-
 TEST(ServerOpcode, to_string) {
+    const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
+            {{ServerOpcode::ClustermapChangeNotification,
+              "ClustermapChangeNotification"},
+             {ServerOpcode::Authenticate, "Authenticate"},
+             {ServerOpcode::ActiveExternalUsers, "ActiveExternalUsers"},
+             {ServerOpcode::GetAuthorization, "GetAuthorization"}}};
+
     for (int ii = 0; ii < 0x100; ++ii) {
-        ServerOpcode opcode = ServerOpcode(ii);
+        const auto opcode = ServerOpcode(ii);
         const auto iter = server_blueprint.find(opcode);
         if (iter == server_blueprint.end()) {
             EXPECT_THROW(to_string(opcode), std::invalid_argument);

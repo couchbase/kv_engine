@@ -20,6 +20,7 @@
 #include "testapp_client_test.h"
 
 #include <mcbp/protocol/framebuilder.h>
+#include <protocol/connection/frameinfo.h>
 #include <memory>
 
 class TestappAuthProvider : public AuthProvider {
@@ -51,6 +52,26 @@ protected:
 
         return std::make_pair<cb::sasl::Error, nlohmann::json>(
                 cb::sasl::Error::OK, std::move(ret));
+    }
+
+    std::pair<cb::sasl::Error, nlohmann::json> getUserEntry(
+            const std::string& username) override {
+        if (username == "satchel") {
+            auto ret = nlohmann::json::parse(
+                    R"({"satchel" : {
+  "domain" : "external",
+  "buckets": {
+    "default": ["Read","SimpleStats","Insert","Delete","Upsert"]
+  },
+  "privileges": []
+}})");
+
+            return std::make_pair<cb::sasl::Error, nlohmann::json>(
+                    cb::sasl::Error::OK, std::move(ret));
+        }
+
+        return std::make_pair<cb::sasl::Error, nlohmann::json>(
+                cb::sasl::Error::NO_RBAC_PROFILE, {});
     }
 };
 
@@ -88,25 +109,22 @@ protected:
         // Perform the authentication
 
         TestappAuthProvider authProvider;
-        const auto payload = frame.getRequest()->getValue();
-        auto auth_success = authProvider.process(std::string{
-                reinterpret_cast<const char*>(payload.data()), payload.size()});
-
-        uint32_t opaque = frame.getRequest()->getOpaque();
+        const auto result = authProvider.process(*frame.getRequest());
+        const auto opaque = frame.getRequest()->getOpaque();
+        const auto opcode = frame.getRequest()->getServerOpcode();
         frame.reset();
-        frame.payload.resize(sizeof(cb::mcbp::Response) +
-                             auth_success.second.size());
+        frame.payload.resize(sizeof(cb::mcbp::Response) + result.second.size());
 
         using namespace cb::mcbp;
         ResponseBuilder builder({frame.payload.data(), frame.payload.size()});
         builder.setMagic(Magic::ServerResponse);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
-        builder.setOpcode(ServerOpcode::Authenticate);
+        builder.setOpcode(opcode);
         builder.setOpaque(opaque);
         builder.setValue(
-                {reinterpret_cast<const uint8_t*>(auth_success.second.data()),
-                 auth_success.second.size()});
-        builder.setStatus(auth_success.first);
+                {reinterpret_cast<const uint8_t*>(result.second.data()),
+                 result.second.size()});
+        builder.setStatus(result.first);
         provider->sendFrame(frame);
     }
 
@@ -335,4 +353,23 @@ TEST_P(ExternalAuthTest, GetActiveUsers) {
     osbourne2.reset();
 
     waitForUserList(R"([])");
+}
+
+TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Noop);
+    cmd.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
+    conn.sendCommand(cmd);
+
+    // Step the auth provider as we're expecting it to fetch the rbac profile
+    // for satchel
+    stepAuthProvider();
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+
+    // The next time we call the op it should hit it in the cache..
+    conn.execute(cmd);
 }

@@ -270,10 +270,9 @@ bool Request::isQuiet() const {
     } else {
         switch (getServerOpcode()) {
         case ServerOpcode::ClustermapChangeNotification:
-            return false;
         case ServerOpcode::Authenticate:
-            return false;
         case ServerOpcode::ActiveExternalUsers:
+        case ServerOpcode::GetAuthorization:
             return false;
         }
     }

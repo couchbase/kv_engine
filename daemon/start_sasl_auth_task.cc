@@ -97,8 +97,8 @@ std::string StartSaslAuthTask::getUsername() const {
     return connection.getSaslConn().getUsername();
 }
 
-void StartSaslAuthTask::externalAuthResponse(cb::mcbp::Status status,
-                                             const std::string& payload) {
+void StartSaslAuthTask::externalResponse(cb::mcbp::Status status,
+                                         const std::string& payload) {
     std::lock_guard<std::mutex> guard(getMutex());
 
     if (status == cb::mcbp::Status::Success) {

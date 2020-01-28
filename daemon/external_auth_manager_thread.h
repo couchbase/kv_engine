@@ -29,7 +29,7 @@
 #include <vector>
 
 class Connection;
-class StartSaslAuthTask;
+class AuthnAuthzServiceTask;
 
 /**
  * The ExternalAuthManagerThread class takes care of the scheduling between
@@ -82,7 +82,7 @@ public:
      *
      * @param request the task to notify when the result comes back
      */
-    void enqueueRequest(StartSaslAuthTask& request);
+    void enqueueRequest(AuthnAuthzServiceTask& request);
 
     /**
      * Received an authentication response on the provided connection
@@ -103,6 +103,9 @@ public:
     }
 
     void setRbacCacheEpoch(std::chrono::steady_clock::time_point tp);
+
+    /// Check to see if we've got an up to date RBAC entry for the user
+    bool haveRbacEntryForUser(const std::string& user) const;
 
 protected:
     /// The main loop of the thread
@@ -140,7 +143,7 @@ protected:
     /// when we remove a connection we can iterate over the entire
     /// map and create aborts for the one we don't have anymore (or
     /// we could redistribute them O:)
-    std::unordered_map<uint32_t, std::pair<Connection*, StartSaslAuthTask*>>
+    std::unordered_map<uint32_t, std::pair<Connection*, AuthnAuthzServiceTask*>>
             requestMap;
 
     /// The mutex variable used to protect access to _all_ the internal
@@ -158,7 +161,7 @@ protected:
      * to allow the authentication provider thread to inject them into
      * the worker thread (to avoid a possible deadlock)
      */
-    std::queue<StartSaslAuthTask*> incomingRequests;
+    std::queue<AuthnAuthzServiceTask*> incomingRequests;
 
     /**
      * We need to pass the response information from one of the frontend

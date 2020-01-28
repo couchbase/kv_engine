@@ -200,6 +200,7 @@ bool is_valid_opcode(ServerOpcode opcode) {
     case ServerOpcode::ClustermapChangeNotification:
     case ServerOpcode::Authenticate:
     case ServerOpcode::ActiveExternalUsers:
+    case ServerOpcode::GetAuthorization:
         return true;
     }
     return false;
@@ -1076,6 +1077,8 @@ std::string to_string(cb::mcbp::ServerOpcode opcode) {
         return "Authenticate";
     case ServerOpcode::ActiveExternalUsers:
         return "ActiveExternalUsers";
+    case ServerOpcode::GetAuthorization:
+        return "GetAuthorization";
     }
     throw std::invalid_argument(
             "to_string(cb::mcbp::ServerOpcode): Invalid opcode: " +

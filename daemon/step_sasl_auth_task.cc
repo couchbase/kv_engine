@@ -55,3 +55,9 @@ Task::Status StepSaslAuthTask::execute() {
     }
     return Status::Finished;
 }
+
+void StepSaslAuthTask::externalResponse(cb::mcbp::Status, const std::string&) {
+    throw std::runtime_error(
+            "StepSaslAuthTask::externalResponse(): multiple roundtrips to the "
+            "external service is not implemented");
+}

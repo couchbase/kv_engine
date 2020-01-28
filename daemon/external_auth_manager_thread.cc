@@ -18,6 +18,7 @@
 
 #include "connection.h"
 #include "front_end_thread.h"
+#include "get_authorization_task.h"
 #include "server_event.h"
 #include "start_sasl_auth_task.h"
 
@@ -78,6 +79,43 @@ protected:
 };
 
 /**
+ * The GetAuthorizatonServerEvent is responsible for injecting
+ * the GetAuthorization Request packet onto the connections stream.
+ */
+class GetAuthorizationServerEvent : public ServerEvent {
+public:
+    GetAuthorizationServerEvent(uint32_t id, GetAuthorizationTask& req)
+        : id(id), user(req.getUsername()) {
+    }
+
+    std::string getDescription() const override {
+        return "GetAuthorizatonServerEvent";
+    }
+
+    bool execute(Connection& connection) override {
+        using namespace cb::mcbp;
+
+        const size_t needed = sizeof(cb::mcbp::Request) + user.size();
+        std::string buffer;
+        buffer.resize(needed);
+        RequestBuilder builder(buffer);
+        builder.setMagic(Magic::ServerRequest);
+        builder.setDatatype(cb::mcbp::Datatype::Raw);
+        builder.setOpcode(ServerOpcode::GetAuthorization);
+        builder.setOpaque(id);
+        builder.setKey(user);
+
+        // Inject our packet into the stream!
+        connection.copyToOutputStream(builder.getFrame()->getFrame());
+        return true;
+    }
+
+protected:
+    const uint32_t id;
+    const std::string user;
+};
+
+/**
  * The ActiveExternalUsersServerEvent is responsible for injecting
  * the ActiveExternalUsers packet onto the connections stream.
  */
@@ -131,7 +169,7 @@ void ExternalAuthManagerThread::remove(Connection& connection) {
     }
 }
 
-void ExternalAuthManagerThread::enqueueRequest(StartSaslAuthTask& request) {
+void ExternalAuthManagerThread::enqueueRequest(AuthnAuthzServiceTask& request) {
     // We need to make sure that the lock ordering for these
     // mutexes is the same. Let's unlock the task (and the executor thread
     // is currently blocked waiting for this method to return. It won't
@@ -269,25 +307,30 @@ void ExternalAuthManagerThread::processRequestQueue() {
     // Ok, build up a list of all of the server events before locking
     // the provider, so that I don't need to block the provider for a long
     // period of time.
-    std::vector<std::unique_ptr<AuthenticationRequestServerEvent>> events;
-    // Just authenticate if we've got an entry which is newer than 2x of the
-    // push interval (and that it is newer than the max rbac cache age)
-    const auto then = std::chrono::steady_clock::now() -
-                      2 * activeUsersPushInterval.load();
+    std::vector<std::unique_ptr<ServerEvent>> events;
     while (!incomingRequests.empty()) {
-        using namespace std::chrono;
-
-        const auto ts = cb::rbac::getExternalUserTimestamp(
-                incomingRequests.front()->getUsername());
-        const auto timestamp = ts ? ts.get() : steady_clock::time_point{};
-        const uint64_t age = static_cast<uint64_t>(
-                duration_cast<seconds>(timestamp.time_since_epoch()).count());
-
-        const bool authOnly =
-                (timestamp > then) &&
-                (age >= rbacCacheEpoch.load(std::memory_order_acquire));
-        events.emplace_back(std::make_unique<AuthenticationRequestServerEvent>(
-                next, *incomingRequests.front(), authOnly));
+        auto* startSaslTask =
+                dynamic_cast<StartSaslAuthTask*>(incomingRequests.front());
+        if (startSaslTask == nullptr) {
+            auto* getAuthz = dynamic_cast<GetAuthorizationTask*>(
+                    incomingRequests.front());
+            if (getAuthz == nullptr) {
+                LOG_CRITICAL(
+                        "ExternalAuthManagerThread::processRequestQueue(): "
+                        "Invalid entry found in request queue!");
+                incomingRequests.pop();
+                continue;
+            }
+            events.emplace_back(std::make_unique<GetAuthorizationServerEvent>(
+                    next, *getAuthz));
+        } else {
+            events.emplace_back(
+                    std::make_unique<AuthenticationRequestServerEvent>(
+                            next,
+                            *startSaslTask,
+                            haveRbacEntryForUser(
+                                    startSaslTask->getUsername())));
+        }
         requestMap[next++] = std::make_pair(provider, incomingRequests.front());
         incomingRequests.pop();
     }
@@ -335,10 +378,10 @@ void ExternalAuthManagerThread::processResponseQueue() {
             LOG_WARNING("processResponseQueue(): Ignoring unknown opaque: {}",
                         entry->opaque);
         } else {
-            StartSaslAuthTask* task = iter->second.second;
+            auto* task = iter->second.second;
             requestMap.erase(iter);
             mutex.unlock();
-            task->externalAuthResponse(entry->status, entry->payload);
+            task->externalResponse(entry->status, entry->payload);
             mutex.lock();
         }
         responses.pop();
@@ -386,6 +429,20 @@ void ExternalAuthManagerThread::logoff(const std::string& user) {
 
 nlohmann::json ExternalAuthManagerThread::getActiveUsers() const {
     return activeUsers.to_json();
+}
+
+bool ExternalAuthManagerThread::haveRbacEntryForUser(
+        const std::string& user) const {
+    const auto then = std::chrono::steady_clock::now() -
+                      2 * activeUsersPushInterval.load();
+    using namespace std::chrono;
+    const auto ts = cb::rbac::getExternalUserTimestamp(user);
+    const auto timestamp = ts ? ts.get() : steady_clock::time_point{};
+    const uint64_t age = static_cast<uint64_t>(
+            duration_cast<seconds>(timestamp.time_since_epoch()).count());
+
+    return (timestamp > then) &&
+           (age >= rbacCacheEpoch.load(std::memory_order_acquire));
 }
 
 void ExternalAuthManagerThread::ActiveUsers::login(const std::string& user) {

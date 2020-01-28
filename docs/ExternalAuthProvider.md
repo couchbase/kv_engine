@@ -453,3 +453,64 @@ updated RBAC definition for the user:
            "domain": "external"
         }
     }
+
+## GetAuthorization request
+
+memcached will send `Authorize` to request the authorization data for
+the user provided in the key. (no extras, no value).
+
+## Successful GetAuthorization response
+
+The provider should reply with status code Success.
+
+    {
+      "rbac": {
+        "Users RBAC entry": ""
+      }
+    }
+
+`rbac` contains the RBAC entry in the same format as in
+[rbac.md](rbac.md#File-Format).
+
+## Unsuccessfull GetAuthorization response
+
+The provider should use the correct error code, and use the following
+payload:
+
+    {
+      "error": {
+        "context": "textual error context",
+        "ref": "UUID client may search for"
+      }
+    }
+
+### Packet example of missing RBAC entry
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x83          | 0x02          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x01          | 0x00          | 0x20          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      12| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+        Total 24 bytes
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x83 (ServerResponse)
+    Opcode       (1)    : 0x04 (GetAuthorization)
+    Key length   (2,3)  : 0x0000
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x01
+    Status       (6,7)  : 0x0020 (Auth failure)
+    Total body   (8-11) : 0x00000000
+    Opaque       (12-15): 0x00000000
+    CAS          (16-23): 0x0000000000000000

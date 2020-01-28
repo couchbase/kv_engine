@@ -18,16 +18,25 @@
 #pragma once
 
 #include <cbsasl/error.h>
-#include <mcbp/protocol/status.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 #include <utility>
 
+namespace cb {
+namespace mcbp {
+class Request;
+enum class Status : uint16_t;
+} // namespace mcbp
+} // namespace cb
+
 class AuthProvider {
 public:
     virtual ~AuthProvider() = default;
+
+    std::pair<cb::mcbp::Status, std::string> process(
+            const cb::mcbp::Request& req);
 
     /**
      * Process the provided authentication request
@@ -41,15 +50,32 @@ public:
      *         std::bad_alloc for memory allocation problems
      *         std::bad_function if no password validator is set
      */
-    std::pair<cb::mcbp::Status, std::string> process(
+    std::pair<cb::mcbp::Status, std::string> processAuthnRequest(
             const std::string& request);
 
+    std::pair<cb::mcbp::Status, std::string> processAuthzRequest(
+            const std::string& user);
+
 protected:
+    std::pair<cb::mcbp::Status, std::string> processAuthnRequest(
+            cb::const_byte_buffer value) {
+        return processAuthnRequest(std::string{
+                reinterpret_cast<const char*>(value.data()), value.size()});
+    }
+    std::pair<cb::mcbp::Status, std::string> processAuthzRequest(
+            cb::const_byte_buffer user) {
+        return processAuthzRequest(std::string{
+                reinterpret_cast<const char*>(user.data()), user.size()});
+    }
+
     /**
      * Callback called during password validation (used by PLAIN auth)
      */
     virtual std::pair<cb::sasl::Error, nlohmann::json> validatePassword(
             const std::string& username, const std::string& password) = 0;
+
+    virtual std::pair<cb::sasl::Error, nlohmann::json> getUserEntry(
+            const std::string& username) = 0;
 
     std::pair<cb::mcbp::Status, std::string> start(const std::string& mechanism,
                                                    const std::string& challenge,

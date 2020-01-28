@@ -16,10 +16,10 @@
  */
 #pragma once
 
+#include "authn_authz_service_task.h"
 #include <cbsasl/server.h>
 #include <platform/sized_buffer.h>
 #include <string>
-#include "task.h"
 
 class Connection;
 class Cookie;
@@ -36,7 +36,7 @@ class ServerContext;
  * The SaslAuthTask is the abstract base class used during SASL
  * authentication (which is being run by the executor service)
  */
-class SaslAuthTask : public Task {
+class SaslAuthTask : public AuthnAuthzServiceTask {
 public:
     SaslAuthTask() = delete;
 

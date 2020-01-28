@@ -916,6 +916,7 @@ static void execute_server_response_packet(Cookie& cookie,
         // ignore
         return;
     case cb::mcbp::ServerOpcode::Authenticate:
+    case cb::mcbp::ServerOpcode::GetAuthorization:
         externalAuthManager->responseReceived(response);
         return;
     }

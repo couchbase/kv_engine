@@ -409,6 +409,13 @@ enum class ServerOpcode {
      *     [ "joe", "smith", "perry" ]
      */
     ActiveExternalUsers = 0x03,
+    /**
+     * GetAuthorization request
+     *
+     * The request contains the name of the user in the key field,
+     * no additional extras, value.
+     */
+    GetAuthorization = 0x04,
 };
 
 bool is_valid_opcode(ClientOpcode opcode);

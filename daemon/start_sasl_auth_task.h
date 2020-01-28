@@ -38,8 +38,8 @@ public:
 
     Status execute() override;
 
-    void externalAuthResponse(cb::mcbp::Status status,
-                              const std::string& payload);
+    void externalResponse(cb::mcbp::Status status,
+                          const std::string& payload) override;
 
     std::string getUsername() const;
 
