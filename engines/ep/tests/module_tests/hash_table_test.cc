@@ -253,7 +253,9 @@ public:
 
     AccessGenerator(const std::vector<StoredDocKey> &k,
                     HashTable &h) : keys(k), ht(h), size(10000) {
-        std::random_shuffle(keys.begin(), keys.end());
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(keys.begin(), keys.end(), g);
     }
 
     bool operator()() {

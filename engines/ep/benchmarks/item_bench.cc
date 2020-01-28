@@ -24,6 +24,7 @@
 #include <benchmark/benchmark.h>
 
 #include <algorithm>
+#include <random>
 
 static void BM_CompareQueuedItemsBySeqnoAndKey(benchmark::State& state) {
     std::vector<queued_item> items;
@@ -34,10 +35,12 @@ static void BM_CompareQueuedItemsBySeqnoAndKey(benchmark::State& state) {
                 DocKey(key, DocKeyEncodesCollectionId::No), {}, {}, "data", 4));
     }
     OrderItemsForDeDuplication cq;
+    std::random_device rd;
+    std::mt19937 g(rd());
     while (state.KeepRunning()) {
         // shuffle (while timing paused)
         state.PauseTiming();
-        std::random_shuffle(items.begin(), items.end());
+        std::shuffle(items.begin(), items.end(), g);
         state.ResumeTiming();
 
         // benchmark

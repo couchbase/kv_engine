@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <random>
 
 /**
  * A fixture for performing topkeys updates
@@ -83,7 +84,9 @@ BENCHMARK_DEFINE_F(TopkeysBench, UpdateRandomKey)(benchmark::State& state) {
 
     std::vector<std::string> mine;
     std::copy(keys.begin(), keys.end(), std::back_inserter(mine));
-    std::random_shuffle(mine.begin(), mine.end());
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(mine.begin(), mine.end(), g);
 
     size_t start = 0;
     const auto size = keys.size();
