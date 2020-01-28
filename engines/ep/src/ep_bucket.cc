@@ -618,72 +618,67 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         }
     }
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_active) {
-            if (maxSeqno) {
-                range = snapshot_range_t(maxSeqno, maxSeqno);
-            }
+    if (vbstate.transition.state == vbucket_state_active) {
+        if (maxSeqno) {
+            range = snapshot_range_t(maxSeqno, maxSeqno);
         }
-        // @todo: I think that the vbstateLock can be safely released here
+    }
 
-        // Update VBstate based on the changes we have just made,
-        // then tell the rwUnderlying the 'new' state
-        // (which will persisted as part of the commit() below).
+    // Update VBstate based on the changes we have just made,
+    // then tell the rwUnderlying the 'new' state
+    // (which will persisted as part of the commit() below).
 
-        // only update the snapshot range if items were flushed, i.e.
-        // don't appear to be in a snapshot when you have no data for it
-        // We also update the checkpointType here as this should only
-        // change with snapshots.
-        if (range) {
-            vbstate.lastSnapStart = range->getStart();
-            vbstate.lastSnapEnd = range->getEnd();
-            vbstate.checkpointType = toFlush.checkpointType;
-        }
+    // only update the snapshot range if items were flushed, i.e.
+    // don't appear to be in a snapshot when you have no data for it
+    // We also update the checkpointType here as this should only
+    // change with snapshots.
+    if (range) {
+        vbstate.lastSnapStart = range->getStart();
+        vbstate.lastSnapEnd = range->getEnd();
+        vbstate.checkpointType = toFlush.checkpointType;
+    }
 
-        // Track the lowest seqno written in spock and record it as
-        // the HLC epoch, a seqno which we can be sure the value has a
-        // HLC CAS.
-        vbstate.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
-        if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
-            minSeqno != std::numeric_limits<uint64_t>::max()) {
-            vbstate.hlcCasEpochSeqno = minSeqno;
+    // Track the lowest seqno written in spock and record it as
+    // the HLC epoch, a seqno which we can be sure the value has a
+    // HLC CAS.
+    vbstate.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+    if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
+        minSeqno != std::numeric_limits<uint64_t>::max()) {
+        vbstate.hlcCasEpochSeqno = minSeqno;
 
-            // @todo MB-37692: Defer this call at flush-success only or reset
-            //  the value if flush fails.
-            vb->setHLCEpochSeqno(vbstate.hlcCasEpochSeqno);
-        }
+        // @todo MB-37692: Defer this call at flush-success only or reset
+        //  the value if flush fails.
+        vb->setHLCEpochSeqno(vbstate.hlcCasEpochSeqno);
+    }
 
-        // Do we need to trigger a persist of the state?
-        // If there are no "real" items to flush, and we encountered
-        // a set_vbucket_state meta-item.
-        auto options = VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY;
-        if ((flushBatchSize == 0) && mustCheckpointVBState) {
-            options = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
-        }
+    // Do we need to trigger a persist of the state?
+    // If there are no "real" items to flush, and we encountered
+    // a set_vbucket_state meta-item.
+    auto options = VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY;
+    if ((flushBatchSize == 0) && mustCheckpointVBState) {
+        options = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
+    }
 
-        if (hcs) {
-            Expects(hcs > vbstate.persistedCompletedSeqno);
-            vbstate.persistedCompletedSeqno = *hcs;
-        }
+    if (hcs) {
+        Expects(hcs > vbstate.persistedCompletedSeqno);
+        vbstate.persistedCompletedSeqno = *hcs;
+    }
 
-        if (hps) {
-            Expects(hps > vbstate.persistedPreparedSeqno);
-            vbstate.persistedPreparedSeqno = *hps;
-        }
+    if (hps) {
+        Expects(hps > vbstate.persistedPreparedSeqno);
+        vbstate.persistedPreparedSeqno = *hps;
+    }
 
-        vbstate.maxVisibleSeqno = maxVisibleSeqno;
+    vbstate.maxVisibleSeqno = maxVisibleSeqno;
 
-        if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate, options) !=
-            true) {
-            return {true, 0};
-        }
+    if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate, options) != true) {
+        return {true, 0};
+    }
 
-        // @todo MB-37693: The call to snapshotVBucket() could not perform any
-        //   flush to disk depending on Options. Defer this to flush-success.
-        if (vb->setBucketCreation(false)) {
-            EP_LOG_DEBUG("{} created", vbid);
-        }
+    // @todo MB-37693: The call to snapshotVBucket() could not perform any
+    //   flush to disk depending on Options. Defer this to flush-success.
+    if (vb->setBucketCreation(false)) {
+        EP_LOG_DEBUG("{} created", vbid);
     }
 
     // Release the memory allocated for vectors in toFlush before we call
