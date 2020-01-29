@@ -1026,11 +1026,6 @@ int64_t CheckpointManager::getHighSeqno() const {
     return lastBySeqno;
 }
 
-int64_t CheckpointManager::nextBySeqno() {
-    LockHolder lh(queueLock);
-    return ++lastBySeqno;
-}
-
 uint64_t CheckpointManager::getMaxVisibleSeqno() const {
     LockHolder lh(queueLock);
     return maxVisibleSeqno;

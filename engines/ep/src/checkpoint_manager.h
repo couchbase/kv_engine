@@ -436,8 +436,6 @@ public:
 
     int64_t getHighSeqno() const;
 
-    int64_t nextBySeqno();
-
     uint64_t getMaxVisibleSeqno() const;
 
     /// @return the persistence cursor which can be null
