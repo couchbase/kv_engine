@@ -20,6 +20,7 @@
 #include <benchmark/benchmark.h>
 #include <engines/ep/src/bucket_logger.h>
 #include <logger/logger.h>
+#include <platform/cbassert.h>
 
 #include "ep_time.h"
 
@@ -33,6 +34,7 @@ static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
  * the tests / benchmarks.
  */
 int main(int argc, char** argv) {
+    setupWindowsDebugCRTAssertHandling();
     putenv(allow_no_stats_env);
     cb::logger::createBlackholeLogger();
     mock_init_alloc_hooks();

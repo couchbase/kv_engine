@@ -14,6 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include <platform/cbassert.h>
+
 extern "C" int memcached_main(int argc, char** argv);
 
 /**
@@ -30,5 +33,6 @@ extern "C" int memcached_main(int argc, char** argv);
  * @return the process exit number
  */
 int main(int argc, char** argv) {
+    setupWindowsDebugCRTAssertHandling();
     return memcached_main(argc, argv);
 }
