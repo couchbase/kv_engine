@@ -161,7 +161,8 @@ add_custom_target(generated_source_files
             src/generated_configuration.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
-            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h)
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
+            generate_audit_descriptors)
 
 # Collections library for things required outside of ep-engine
 ADD_LIBRARY(ep-engine_collections STATIC
