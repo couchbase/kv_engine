@@ -1579,6 +1579,43 @@ TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
     }
 }
 
+TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
+    class TestTask : public GlobalTask {
+    public:
+        TestTask(Taskable& t, TaskId id, double s) : GlobalTask(t, id, s) {
+        }
+        bool run() {
+            return false;
+        }
+
+        std::string getDescription() {
+            return "Task uid:" + std::to_string(getId());
+        }
+
+        std::chrono::microseconds maxExpectedDuration() {
+            return std::chrono::seconds(0);
+        }
+    };
+
+    ExTask task1 = std::make_shared<TestTask>(
+            engine->getTaskable(), TaskId::FlusherTask, 0);
+    // Create one of our tasks with a negative wake time. This is equivalent
+    // to scheduling the task then waiting 1 second, but our current test
+    // CheckedExecutor doesn't deal with TimeTraveller and I don't want to add
+    // sleeps to tests.
+    ExTask task2 = std::make_shared<TestTask>(
+            engine->getTaskable(), TaskId::FlusherTask, -1);
+
+    task_executor->schedule(task1);
+    task_executor->schedule(task2);
+
+    // TEST
+    // We expect task2 to run first because it should have an earlier wake time
+    TaskQueue& lpWriteQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    runNextTask(lpWriteQ, "Task uid:" + std::to_string(task2->getId()));
+    runNextTask(lpWriteQ, "Task uid:" + std::to_string(task1->getId()));
+}
+
 /*
  * Test that TaskQueue::wake results in a sensible ExecutorPool work count
  * Incorrect counting can result in the run loop spinning for many threads.
