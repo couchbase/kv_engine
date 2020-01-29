@@ -202,4 +202,8 @@ public:
     }
 
     std::function<void(uint64_t)> beforeScheduleBackfillCB = [](uint64_t) {};
+
+    void setCloseAllStreamsHook(std::function<void()> hook) {
+        closeAllStreamsHook = hook;
+    }
 };

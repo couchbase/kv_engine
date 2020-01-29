@@ -1534,6 +1534,10 @@ void DcpProducer::closeAllStreams() {
         engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
     }
 
+    if (closeAllStreamsHook) {
+        closeAllStreamsHook();
+    }
+
     // Destroy the backfillManager. (BackfillManager task also
     // may hold a weak reference to it while running, but that is
     // guaranteed to decay and free the BackfillManager once it
