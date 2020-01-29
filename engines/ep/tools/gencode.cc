@@ -24,8 +24,7 @@
 #include <fstream>
 #include <vector>
 
-static void usage(void)
-{
+static void usage() {
     std::cerr << "Usage: gencode -j JSON -c cfile -h headerfile -f function"
               << std::endl
               << "\tThe JSON file will be read to generate the c and h file."
@@ -51,10 +50,10 @@ static std::string escapeQuotes(const std::string& str) {
 
 int main(int argc, char **argv) {
     int cmd;
-    const char *json = NULL;
-    const char *hfile = NULL;
-    const char *cfile = NULL;
-    const char *function = NULL;
+    const char* json = nullptr;
+    const char* hfile = nullptr;
+    const char* cfile = nullptr;
+    const char* function = nullptr;
 
     while ((cmd = getopt(argc, argv, "j:c:h:f:")) != -1) {
         switch (cmd) {
@@ -75,7 +74,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (json == NULL || hfile == NULL || cfile == NULL || function == NULL) {
+    if (json == nullptr || hfile == nullptr || cfile == nullptr ||
+        function == nullptr) {
         usage();
     }
 
@@ -94,8 +94,12 @@ int main(int argc, char **argv) {
     auto escaped = escapeQuotes(parsed.dump());
 
     std::ofstream headerfile(hfile);
+    if (!headerfile.is_open()) {
+        std::cerr << "Unable to create header file : " << hfile << std::endl;
+        return 1;
+    }
     headerfile << "/*" << std::endl
-               << " *     Copyright 2019 Couchbase, Inc" << std::endl
+               << " *     Copyright 2020 Couchbase, Inc" << std::endl
                << " *" << std::endl
                << " *   Licensed under the Apache License, Version 2.0 (the "
                   "\"License\");"
@@ -140,8 +144,12 @@ int main(int argc, char **argv) {
     headerfile.close();
 
     std::ofstream sourcefile(cfile);
+    if (!sourcefile.is_open()) {
+        std::cerr << "Unable to create source file : " << cfile << std::endl;
+        return 1;
+    }
     sourcefile << "/*" << std::endl
-               << " *     Copyright 2019 Couchbase, Inc" << std::endl
+               << " *     Copyright 2020 Couchbase, Inc" << std::endl
                << " *" << std::endl
                << " *   Licensed under the Apache License, Version 2.0 (the "
                   "\"License\");"
@@ -178,5 +186,7 @@ int main(int argc, char **argv) {
                << "{" << std::endl
                << "    return \"" << escaped << "\";" << std::endl
                << "}" << std::endl;
+    sourcefile.close();
+
     return 0;
 }

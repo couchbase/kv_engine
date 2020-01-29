@@ -462,7 +462,7 @@ static void generate(const nlohmann::json& params, const std::string& key) {
  */
 int main(int argc, char **argv) {
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0]
+        std::cerr << "Usage: " << argv[0] << " "
                   << "<input config file> <header> <source>\n";
         return 1;
     }
@@ -492,10 +492,18 @@ int main(int argc, char **argv) {
     }
 
     std::ofstream headerfile(header);
+    if (!headerfile.is_open()) {
+        std::cerr << "Unable to create header file : " << header << std::endl;
+        return 1;
+    }
     headerfile << prototypes.str();
     headerfile.close();
 
     std::ofstream implfile(source);
+    if (!implfile.is_open()) {
+        std::cerr << "Unable to create source file : " << header << std::endl;
+        return 1;
+    }
     implfile << implementation.str() << std::endl
              << "void Configuration::initialize() {" << std::endl
              << initialization.str() << "}" << std::endl;
