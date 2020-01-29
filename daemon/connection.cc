@@ -608,15 +608,19 @@ void Connection::executeCommandPipeline() {
         get_thread_stats(this)->conn_yields++;
     }
 
-    if ((cookies.size() < maxActiveCommands) &&
-        (getSendQueueSize() < Settings::instance().getMaxPacketSize())) {
+    // We have to make sure that we drain the send queue back to a "normal"
+    // size if it grows too big. At the same time we don't want to signal
+    // the thread to be run again if we've got a pending notification for
+    // the thread (an active command running which is waiting for the engine)
+    // If the last command in the pipeline may be reordered we can add more
+    if ((getSendQueueSize() < Settings::instance().getMaxPacketSize()) &&
+        (!active || (cookies.back()->mayReorder() &&
+                     cookies.size() < maxActiveCommands))) {
         enableReadEvent();
-        if (isPacketAvailable()) {
+        if ((!active || numEvents == 0) && isPacketAvailable()) {
             triggerCallback();
         }
     } else {
-        // The cookies pipeline is full, and we don't want to start executing
-        // even more commands..
         disableReadEvent();
     }
 }
