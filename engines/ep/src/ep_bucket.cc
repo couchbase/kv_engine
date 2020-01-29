@@ -721,79 +721,73 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         EP_LOG_DEBUG("{} created", vbid);
     }
 
-    if (flushSuccess) {
-        Expects(vb->rejectQueue.empty());
-
-        // only update the snapshot range if items were flushed, i.e.
-        // don't appear to be in a snapshot when you have no data for it
-        if (range) {
-            vb->setPersistedSnapshot(*range);
-        }
-        uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
-        if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
-            vb->setPersistenceSeqno(highSeqno);
-        }
-
-        // Notify the local DM that the Flusher has run. Persistence
-        // could unblock some pending Prepares in the DM.
-        // If it is the case, this call updates the High Prepared Seqno
-        // for this node.
-        // In the case of a Replica node, that could trigger a SeqnoAck
-        // to the Active.
-        //
-        // Note: This is a NOP if the there's no Prepare queued in DM.
-        //     We could notify the DM only if strictly required (i.e.,
-        //     only when the Flusher has persisted up to the snap-end
-        //     mutation of an in-memory snapshot, see HPS comments in
-        //     PassiveDM for details), but that requires further work.
-        //     The main problem is that in general a flush-batch does
-        //     not coincide with in-memory snapshots (ie, we don't
-        //     persist at snapshot boundaries). So, the Flusher could
-        //     split a single in-memory snapshot into multiple
-        //     flush-batches. That may happen at Replica, e.g.:
-        //
-        //     1) received snap-marker [1, 2]
-        //     2) received 1:PRE
-        //     3) flush-batch {1:PRE}
-        //     4) received 2:mutation
-        //     5) flush-batch {2:mutation}
-        //
-        //     In theory we need to notify the DM only at step (5) and
-        //     only if the the snapshot contains at least 1 Prepare
-        //     (which is the case in our example), but the problem is
-        //     that the Flusher doesn't know about 1:PRE at step (5).
-        //
-        //     So, given that here we are executing in a slow bg-thread
-        //     (write+sync to disk), then we can just afford to calling
-        //     back to the DM unconditionally.
-        vb->notifyPersistenceToDurabilityMonitor();
-    } else {
+    if (!flushSuccess) {
         // Flusher failed to commit the batch, rollback vbstate
         if (rwUnderlying->getVBucketState(vbid)) {
             *rwUnderlying->getVBucketState(vbid) = vbstateRollback;
         }
+
+        Expects(!vb->rejectQueue.empty());
+        Expects(vb->rejectQueue.size() == flushBatchSize);
+
+        return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
     }
 
-    // @todo: This call performs some steps that should not be executed if flush
-    //   fails. Deferring this improvement to a follow-up.
+    // Flush succeeded, no item in the reject queue
+    Expects(vb->rejectQueue.empty());
+
+    // Note: We want to update the snap-range only if we have flushed at least
+    // one item. I.e. don't appear to be in a snap when you have no data for it
+    Expects(range.is_initialized());
+    vb->setPersistedSnapshot(*range);
+
+    uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
+    if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
+        vb->setPersistenceSeqno(highSeqno);
+    }
+
+    // Notify the local DM that the Flusher has run. Persistence
+    // could unblock some pending Prepares in the DM.
+    // If it is the case, this call updates the High Prepared Seqno
+    // for this node.
+    // In the case of a Replica node, that could trigger a SeqnoAck
+    // to the Active.
+    //
+    // Note: This is a NOP if the there's no Prepare queued in DM.
+    //     We could notify the DM only if strictly required (i.e.,
+    //     only when the Flusher has persisted up to the snap-end
+    //     mutation of an in-memory snapshot, see HPS comments in
+    //     PassiveDM for details), but that requires further work.
+    //     The main problem is that in general a flush-batch does
+    //     not coincide with in-memory snapshots (ie, we don't
+    //     persist at snapshot boundaries). So, the Flusher could
+    //     split a single in-memory snapshot into multiple
+    //     flush-batches. That may happen at Replica, e.g.:
+    //
+    //     1) received snap-marker [1, 2]
+    //     2) received 1:PRE
+    //     3) flush-batch {1:PRE}
+    //     4) received 2:mutation
+    //     5) flush-batch {2:mutation}
+    //
+    //     In theory we need to notify the DM only at step (5) and
+    //     only if the the snapshot contains at least 1 Prepare
+    //     (which is the case in our example), but the problem is
+    //     that the Flusher doesn't know about 1:PRE at step (5).
+    //
+    //     So, given that here we are executing in a slow bg-thread
+    //     (write+sync to disk), then we can just afford to calling
+    //     back to the DM unconditionally.
+    vb->notifyPersistenceToDurabilityMonitor();
+
     flushSuccessEpilogue(
             *vb, flushStart, flushBatchSize /*itemsFlushed*/, collectionFlush);
 
-    // Handle HighPriority requests
-    if (flushSuccess) {
-        Expects(vb->rejectQueue.empty());
+    // Handle Seqno Persistence requests
+    vb->notifyHighPriorityRequests(
+            engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
 
-        vb->notifyHighPriorityRequests(
-                engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
-
-        return {toFlush.moreAvailable, flushBatchSize /*itemsFlushed*/};
-    }
-
-    // Flush has failed
-    Expects(!vb->rejectQueue.empty());
-    Expects(vb->rejectQueue.size() == flushBatchSize);
-
-    return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
+    return {toFlush.moreAvailable, flushBatchSize /*itemsFlushed*/};
 }
 
 void EPBucket::handleCheckpointPersistence(VBucket& vb) const {
