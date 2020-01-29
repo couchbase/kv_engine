@@ -24,6 +24,7 @@
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
 #include <limits>
@@ -1044,6 +1045,79 @@ TEST_F(BasicLinkedListTest, PurgeEarlyExitsIfRangeIteratorExists) {
         return false;
     });
 
+    EXPECT_EQ(0, purgedCount);
+}
+
+// MockFunction.AsStdFunction exists, but due to MB-37860 could not
+// be used under windows. For now, this serves as a replacement
+template <class Return, class... Args>
+std::function<Return(Args...)> asStdFunction(
+        testing::MockFunction<Return(Args...)>& mockFunction) {
+    return [&mockFunction](Args&&... args) {
+        return mockFunction.Call(std::forward<Args>(args)...);
+    };
+}
+
+TEST_F(BasicLinkedListTest, PurgeRunsOnPartialRangeIfOverlappingRangeLock) {
+    const int numItems = 5;
+    const std::string keyPrefix("key");
+
+    // initial stale item
+    addStaleItem("stale", 1);
+    /* Add 5 new items */
+    addNewItemsToList(2, keyPrefix, numItems);
+    // a later stale item which should not be purged (will be covered by range
+    // lock)
+    addStaleItem("stale", numItems + 2);
+
+    // lock partial range
+    auto range = basicLL->tryLockSeqnoRangeShared(3, 6);
+    EXPECT_TRUE(range);
+
+    using namespace testing;
+    StrictMock<MockFunction<bool()>> mockShouldPause;
+
+    // should only try to purge the first two items
+    EXPECT_CALL(mockShouldPause, Call()).Times(2).WillRepeatedly(Return(false));
+
+    auto purgedCount = basicLL->purgeTombstones(
+            numItems, {}, asStdFunction(mockShouldPause));
+
+    // single item purged
+    EXPECT_EQ(1, purgedCount);
+}
+
+TEST_F(BasicLinkedListTest, PurgeEarlyExitsIfRangeLockCoversStartSeqno) {
+    const int numItems = 5;
+    const std::string keyPrefix("key");
+
+    // nothing should be purged because the range lock covers the start
+    // of the range the purger will try to lock. See
+    // BasicLinkedList::purgeTombstones.
+
+    // initial stale item
+    addStaleItem("stale", 1);
+    /* Add 5 new items */
+    addNewItemsToList(2, keyPrefix, numItems);
+    // a later stale item
+    addStaleItem("stale", numItems + 2);
+
+    // lock partial range
+    auto range = basicLL->tryLockSeqnoRangeShared(1, 3);
+    EXPECT_TRUE(range);
+
+    using namespace testing;
+    StrictMock<MockFunction<bool()>> mockShouldPause;
+
+    // should not be called - purgeTombstones should
+    // early exit because the range start could not
+    // be locked.
+    EXPECT_CALL(mockShouldPause, Call()).Times(0);
+
+    auto purgedCount = basicLL->purgeTombstones(
+            numItems, {}, asStdFunction(mockShouldPause));
+
+    // nothing purged
     EXPECT_EQ(0, purgedCount);
 }
 

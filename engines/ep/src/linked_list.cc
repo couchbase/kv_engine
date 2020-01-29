@@ -303,7 +303,8 @@ size_t BasicLinkedList::purgeTombstones(
 
         // Try to update the range lock. It will be released when the RangeGuard
         // goes out of scope.
-        range = tryLockSeqnoRange(startSeqno, purgeUpToSeqno);
+        range = tryLockSeqnoRange(
+                startSeqno, purgeUpToSeqno, RangeRequirement::Partial);
         if (!range) {
             // If we cannot set the read range, another thread is already
             // holding a read range. Given read range users are typically
@@ -312,13 +313,58 @@ size_t BasicLinkedList::purgeTombstones(
         }
     }
 
+    if (range.getRange().getBegin() != startSeqno) {
+        // a partial range lock was acquired, but the start had to
+        // be moved forward. Can't efficiently advance the iterator
+        // to the correct item and it would need to be under the write lock -
+        // the items from startIt to the locked seqno are not protected
+        // by the range lock, so we can't iterate through them safely outside
+        // the write lock.
+        EP_LOG_FMT(spdlog::level::level_enum::info,
+                   "{} BasicLinkedList::purgeTombstones tried to lock seqno "
+                   "range [{},{}] "
+                   "but got [{},{}] instead. Start is different - cannot purge "
+                   "right now",
+                   vbid,
+                   range.getRange().getBegin(),
+                   range.getRange().getEnd(),
+                   startSeqno,
+                   purgeUpToSeqno);
+        return 0;
+    }
+
+    // purge may have to stop at a lower seqno if the range lock
+    // does not cover the full requested seqno range.
+    seqno_t lastLockedSeqno = range.getRange().getEnd();
+
+    // Sanity check, the rangeGuard would not be valid if this were not the case
+    Expects(lastLockedSeqno >= startSeqno);
+
+    // sanity check, the range lock doesn't extend to a seqno
+    // later than what we requested.
+    Expects(lastLockedSeqno <= purgeUpToSeqno);
+
     // Iterate across all but the last item in the seqList, looking
-    // for stale items.
+    // for stale items. May stop early if the range lock could only
+    // cover a section of the seqList (see BasicLinkedList::tryLockSeqnoRange)
     size_t purgedCount = 0;
     bool stale;
     for (auto it = startIt; it != seqList.end();) {
-        if ((it->getBySeqno() > purgeUpToSeqno) ||
-            (it->getBySeqno() <= 0) /* last item with no valid seqno yet */) {
+        if (it->getBySeqno() > lastLockedSeqno) {
+            if (lastLockedSeqno != purgeUpToSeqno) {
+                //  have reached the end of the locked range, but the original
+                //  requested end was higher i.e., the range lock was partial. Pause
+                //  so next time purge is attempted it will resume from here (the
+                //  range lock "blocking" part of the requested seqno range may have
+                //  moved/gone)
+                pausedPurgePoint = it;
+            }
+            // reached the end of the locked range, stop
+            break;
+        }
+
+        if (it->getBySeqno() <= 0) {
+            /* last item with no valid seqno yet */
             break;
         }
 
