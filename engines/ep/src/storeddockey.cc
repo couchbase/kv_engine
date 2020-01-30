@@ -38,6 +38,14 @@ StoredDocKey::StoredDocKey(const std::string& key, CollectionID cid) {
               std::copy(leb128.begin(), leb128.end(), keydata.begin()));
 }
 
+StoredDocKey::StoredDocKey(const DocKey& key, CollectionID cid) {
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
+    keydata.resize(key.size() + leb128.size());
+    std::copy(key.begin(),
+              key.end(),
+              std::copy(leb128.begin(), leb128.end(), keydata.begin()));
+}
+
 CollectionID StoredDocKey::getCollectionID() const {
     return cb::mcbp::decode_unsigned_leb128<CollectionIDType>({data(), size()})
             .first;

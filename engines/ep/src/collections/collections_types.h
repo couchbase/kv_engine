@@ -37,10 +37,10 @@ static cb::const_char_buffer DefaultCollectionIdentifier(DefaultCollectionName);
 const char* const DefaultScopeName = "_default";
 static cb::const_char_buffer DefaultScopeIdentifier(DefaultScopeName);
 
-// SystemEvent keys or parts which will be made into keys
-const char* const SystemSeparator = ":"; // Note this never changes
-const char* const CollectionEventPrefixWithSeparator = "_collection:";
-const char* const ScopeEventPrefixWithSeparator = "_scope:";
+// The SystemEvent keys are given some human readable tags to make disk or
+// memory dumps etc... more helpful.
+const char* const CollectionEventDebugTag = "_collection";
+const char* const ScopeEventDebugTag = "_scope";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";
@@ -299,34 +299,20 @@ nlohmann::json getUnknownCollectionErrorContext(uint64_t manifestUid);
 std::string makeCollectionIdIntoString(CollectionID collection);
 
 /**
- * For creation of scope SystemEvents - The SystemEventFactory
- * glues the ScopeID into the event key (so create of x doesn't
- * collide with create of y). This method yields the 'keyExtra' parameter
- *
- * @param sid The ScopeId to turn into a string
- * @return the keyExtra parameter to be passed to SystemEventFactory
- */
-std::string makeScopeIdIntoString(ScopeID sid);
-
-/**
  * For creation of collection SystemEvents - The SystemEventFactory
  * glues the CollectionID into the event key (so create of x doesn't
  * collide with create of y). This method basically reverses
  * makeCollectionIdIntoString so we can get a CollectionID from a
  * SystemEvent key
  *
- * @param key DocKey from a SystemEvent
- * @param separator the separator between the SystemEvent prefix and the
- *        CollectionID
+ * @param key DocKey from an Item in the System namespace and is a collection
+ *        event
  * @return the ID which was in the event
  */
-CollectionID getCollectionIDFromKey(
-        const DocKey& key,
-        const char* separator = Collections::SystemSeparator);
+CollectionID getCollectionIDFromKey(const DocKey& key);
 
 /// Same as getCollectionIDFromKey but for events changing scopes
-ScopeID getScopeIDFromKey(const DocKey& key,
-                          const char* separator = Collections::SystemSeparator);
+ScopeID getScopeIDFromKey(const DocKey& key);
 
 /**
  * Callback function for processing against dropped collections in an ephemeral

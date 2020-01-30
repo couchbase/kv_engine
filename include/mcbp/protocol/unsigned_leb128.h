@@ -169,7 +169,7 @@ public:
         return encodedSize;
     }
 
-    static size_t getMaxSize() {
+    constexpr static size_t getMaxSize() {
         return maxSize;
     }
 

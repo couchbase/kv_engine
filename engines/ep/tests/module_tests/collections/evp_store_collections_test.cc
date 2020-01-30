@@ -66,7 +66,8 @@ TEST_P(CollectionsParameterizedTest, uid_equal) {
 // in a different namespace.
 TEST_F(CollectionsTest, namespace_separation) {
     // Use the event factory to get an event which we'll borrow the key from
-    auto se = SystemEventFactory::make(SystemEvent::Collection, "meat", {}, {});
+    auto se = SystemEventFactory::makeCollectionEvent(
+            CollectionEntry::meat, {}, {});
     DocKey key(se->getKey().data(),
                se->getKey().size(),
                DocKeyEncodesCollectionId::No);

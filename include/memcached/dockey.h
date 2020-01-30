@@ -322,6 +322,14 @@ struct DocKey : DocKeyInterface<DocKey> {
         return buffer.size();
     }
 
+    const uint8_t* begin() const {
+        return buffer.begin();
+    }
+
+    const uint8_t* end() const {
+        return buffer.end();
+    }
+
     CollectionID getCollectionID() const;
 
     /// Certain key prefixes are internal and not to be seen

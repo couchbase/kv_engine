@@ -23,16 +23,17 @@
 #include "item.h"
 #include "kvstore.h"
 
-std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
-                                               const std::string& keyExtra,
+#include <mcbp/protocol/unsigned_leb128.h>
+
+std::unique_ptr<Item> SystemEventFactory::make(const DocKey& key,
+                                               SystemEvent se,
                                                cb::const_byte_buffer data,
                                                OptionalSeqno seqno) {
-    auto item = std::make_unique<Item>(
-            StoredDocKey(makeKey(se, keyExtra), CollectionID::System),
-            uint32_t(se) /*flags*/,
-            0 /*exptime*/,
-            data.data(),
-            data.size());
+    auto item = std::make_unique<Item>(key,
+                                       uint32_t(se) /*flags*/,
+                                       0 /*exptime*/,
+                                       data.data(),
+                                       data.size());
 
     if (seqno) {
         item->setBySeqno(seqno.value());
@@ -41,55 +42,60 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
     return item;
 }
 
-// Build a key using the separator so we can split it if needed
-std::string SystemEventFactory::makeKey(SystemEvent se,
-                                        const std::string& keyExtra) {
-    std::string key;
-    switch (se) {
-    case SystemEvent::Collection:
-        // _collection:<collection-id>
-        key = Collections::CollectionEventPrefixWithSeparator + keyExtra;
-        break;
-    case SystemEvent::Scope:
-        // _scope:<scope-id>
-        key = Collections::ScopeEventPrefixWithSeparator + keyExtra;
-        break;
-    }
-
-    return key;
+std::unique_ptr<Item> SystemEventFactory::makeCollectionEvent(
+        CollectionID cid, cb::const_byte_buffer data, OptionalSeqno seqno) {
+    return make(
+            makeCollectionEventKey(cid), SystemEvent::Collection, data, seqno);
 }
 
-//
-// Locate the 'keyExtra' data by locating our separator character and returning
-// a byte_buffer of the data
-//
-const cb::const_byte_buffer::iterator SystemEventFactory::findKeyExtra(
-        const DocKey& key, const std::string& separator) {
-    if (key.size() == 0 || separator.empty() || separator.size() > key.size()) {
-        return nullptr;
-    }
-
-    auto rv = std::search(key.data(),
-                          key.data() + key.size(),
-                          separator.begin(),
-                          separator.end());
-    if (rv != (key.data() + key.size())) {
-        return rv + separator.size();
-    }
-    return nullptr;
+std::unique_ptr<Item> SystemEventFactory::makeScopeEvent(
+        ScopeID sid, cb::const_byte_buffer data, OptionalSeqno seqno) {
+    // Make a key which is:
+    // [0x01] [0x01] [0xsid] _scope
+    StoredDocKey key1{Collections::ScopeEventDebugTag, (CollectionID)sid};
+    StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Scope)}};
+    return make(StoredDocKey(key2, CollectionID::System),
+                SystemEvent::Scope,
+                data,
+                seqno);
 }
 
-// Reverse what makeKey did so we get 'keyExtra' back
-cb::const_byte_buffer SystemEventFactory::getKeyExtra(const DocKey& key,
-                                                      const char* separator) {
-    const uint8_t* collection = findKeyExtra(key, separator);
-    if (collection) {
-        return {collection,
-                gsl::narrow<uint8_t>(key.size() - (collection - key.data()))};
-    } else {
-        throw std::invalid_argument("DocKey::make incorrect namespace:" +
-                                    std::to_string(int(key.getCollectionID())));
-    }
+StoredDocKey SystemEventFactory::makeCollectionEventKey(CollectionID cid) {
+    // Make a key which is:
+    // [0x01] [0x00] [0xcid] _collection
+    StoredDocKey key1{Collections::CollectionEventDebugTag, cid};
+    StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Collection)}};
+    return StoredDocKey(key2, CollectionID::System);
+}
+
+CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKey& key) {
+    // Input key is made up of a sequence of prefixes as per makeCollectionEvent
+    // or makeScopeEvent
+    // This function skips (1), checks (2) and returns 3
+    auto se = getSystemEventType(key);
+    Expects(se.first == SystemEvent::Collection); // expected Collection
+    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(se.second).first;
+}
+
+ScopeID SystemEventFactory::getScopeIDFromKey(const DocKey& key) {
+    // logic same as getCollectionIDFromKey, but the event type is expected to
+    // be a scope event.
+    auto se = getSystemEventType(key);
+    Expects(se.first == SystemEvent::Scope);
+    return cb::mcbp::decode_unsigned_leb128<ScopeIDType>(se.second).first;
+}
+
+std::pair<SystemEvent, cb::const_byte_buffer>
+SystemEventFactory::getSystemEventType(const DocKey& key) {
+    // Input key is made up of a sequence of prefixes.
+    // (1) System (system namespace of 0x01)
+    // (2) SystemEvent type (scope 0x1 or collection 0x0)
+    // (3) ScopeID or CollectionID
+    // This function skips (1) and returns (2)
+    auto event = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
+            {key.data(), key.size()});
+    auto type = cb::mcbp::decode_unsigned_leb128<uint32_t>(event);
+    return {SystemEvent(type.first), type.second};
 }
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(

@@ -56,24 +56,16 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
                                                    uint64_t value,
                                                    bool deleted) {
     if (key.getCollectionID() == CollectionID::System) {
-        CollectionID cid;
-        try {
-            // Pass in the Collections specific SystemEvent prefix. We should
-            // throw an exception if this isn't a Collections SystemEvent as
-            // we shouldn't try to lookup and update a collection using say a
-            // ScopeID
-            cid = getCollectionIDFromKey(key,
-                    Collections::CollectionEventPrefixWithSeparator);
-        } catch (std::invalid_argument&) {
-            // Not a collection system event, do nothing
-            return;
-        }
+        auto eventType = SystemEventFactory::getSystemEventType(key);
+        if (eventType.first == SystemEvent::Collection) {
+            CollectionID cid = SystemEventFactory::getCollectionIDFromKey(key);
 
-        // If this system event is a deletion, then it may be the case that we
-        // are the replica and we know nothing about the previous state of this
-        // collection. In this case, we do not want to throw if we cannot find
-        // the collection, we should simply do nothing.
-        manifest.lock().setPersistedHighSeqno(cid, value, deleted);
+            // If this system event is a deletion, then it may be the case that
+            // we are the replica and we know nothing about the previous state
+            // of this collection. In this case, we do not want to throw if we
+            // cannot find the collection, we should simply do nothing.
+            manifest.lock().setPersistedHighSeqno(cid, value, deleted);
+        }
     }
     else {
         mutated.insert(key.getCollectionID());

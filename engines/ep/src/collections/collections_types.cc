@@ -68,28 +68,18 @@ std::string makeCollectionIdIntoString(CollectionID collection) {
                        leb128.size());
 }
 
-std::string makeScopeIdIntoString(ScopeID sid) {
-    cb::mcbp::unsigned_leb128<ScopeIDType> leb128(sid);
-    return std::string(reinterpret_cast<const char*>(leb128.data()),
-                       leb128.size());
-}
-
-CollectionID getCollectionIDFromKey(const DocKey& key, const char* separator) {
+CollectionID getCollectionIDFromKey(const DocKey& key) {
     if (!key.getCollectionID().isSystem()) {
         throw std::invalid_argument("getCollectionIDFromKey: non-system key");
     }
-    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                   SystemEventFactory::getKeyExtra(key, separator))
-            .first;
+    return SystemEventFactory::getCollectionIDFromKey(key);
 }
 
-ScopeID getScopeIDFromKey(const DocKey& key, const char* separator) {
+ScopeID getScopeIDFromKey(const DocKey& key) {
     if (!key.getCollectionID().isSystem()) {
-        throw std::invalid_argument("getCollectionIDFromKey: non-system key");
+        throw std::invalid_argument("getScopeIDFromKey: non-system key");
     }
-    return cb::mcbp::decode_unsigned_leb128<ScopeIDType>(
-                   SystemEventFactory::getKeyExtra(key, separator))
-            .first;
+    return SystemEventFactory::getScopeIDFromKey(key);
 }
 
 } // end namespace Collections

@@ -855,24 +855,21 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::VB::Filter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
-    EXPECT_TRUE(
-            checkAndUpdate(vbf,
-                           *SystemEventFactory::make(
-                                   SystemEvent::Collection, "meat", {}, {})));
+    EXPECT_TRUE(checkAndUpdate(vbf,
+                               *SystemEventFactory::makeCollectionEvent(
+                                       CollectionEntry::meat, {}, {})));
 
     // $default system event is allowed by the filter
-    EXPECT_TRUE(checkAndUpdate(
-            vbf,
-            *SystemEventFactory::make(
-                    SystemEvent::Collection, "$default", {}, {})));
+    EXPECT_TRUE(checkAndUpdate(vbf,
+                               *SystemEventFactory::makeCollectionEvent(
+                                       CollectionEntry::defaultC, {}, {})));
 
     // dairy system event is allowed even though dairy doesn't exist in the
     // manifest, we wouldn't actually create this event as dairy isn't present
     // but this just shows the passthrough interface at work.
-    EXPECT_TRUE(
-            checkAndUpdate(vbf,
-                           *SystemEventFactory::make(
-                                   SystemEvent::Collection, "dairy", {}, {})));
+    EXPECT_TRUE(checkAndUpdate(vbf,
+                               *SystemEventFactory::makeCollectionEvent(
+                                       CollectionEntry::dairy, {}, {})));
 }
 
 /**
@@ -1037,18 +1034,15 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::VB::Filter vbf(json, vbm);
 
     // All system events dropped by this empty/legacy filter
-    EXPECT_FALSE(
-            checkAndUpdate(vbf,
-                           *SystemEventFactory::make(
-                                   SystemEvent::Collection, "meat", {}, {})));
-    EXPECT_FALSE(checkAndUpdate(
-            vbf,
-            *SystemEventFactory::make(
-                    SystemEvent::Collection, "$default", {}, {})));
-    EXPECT_FALSE(
-            checkAndUpdate(vbf,
-                           *SystemEventFactory::make(
-                                   SystemEvent::Collection, "dairy", {}, {})));
+    EXPECT_FALSE(checkAndUpdate(vbf,
+                                *SystemEventFactory::makeCollectionEvent(
+                                        CollectionEntry::meat, {}, {})));
+    EXPECT_FALSE(checkAndUpdate(vbf,
+                                *SystemEventFactory::makeCollectionEvent(
+                                        CollectionEntry::defaultC, {}, {})));
+    EXPECT_FALSE(checkAndUpdate(vbf,
+                                *SystemEventFactory::makeCollectionEvent(
+                                        CollectionEntry::dairy, {}, {})));
 }
 
 /**

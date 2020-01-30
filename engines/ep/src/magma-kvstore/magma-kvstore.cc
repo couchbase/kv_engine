@@ -2043,9 +2043,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
             // We've finish processing this collection.
             // Create a SystemEvent key for the collection and process it.
             auto collectionKey =
-                    StoredDocKey(SystemEventFactory::makeKey(
-                                         SystemEvent::Collection, keyString),
-                                 CollectionID::System);
+                    SystemEventFactory::makeCollectionEventKey(dc.collectionId);
 
             keySlice = {reinterpret_cast<const char*>(collectionKey.data()),
                         collectionKey.size()};

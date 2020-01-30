@@ -49,34 +49,50 @@ A SystemEvent key is structured so that it does not conflict with real data or
 other system events. The following diagram shows the key's components.
 
 ```
-                ┌────┬────────────┬────┐
-              ┌▶│ \1 │_collection:│LEgq│◀──┐
-              │ └────┴─────▲──────┴────┘   │
-              │            │               │
-┌───────────┐ │     ┌──────┴──────┐    ┌───┴───────────┐
-│ namespace │ │     │    event    │    │  affected ID  │
-│  prefix   │─┘     │   family    │    └───────────────┘
-└───────────┘       │             │
-                    └─────────────┘
+┌────────────────┐                                                 
+│                │                                                 
+│     leb128     │    ┌────┬────┬──────┬───────────┐               
+│   namespace.   │───▶│0x01│0xaa│0xbbbb│_collection│◀────┐         
+│0x01 is 'System'│    └────┴─▲──┴──▲───┴───────────┘     │         
+│                │   ┌───────┘     │                     │         
+└────────────────┘   │         ┌───┴────────┐            │         
+                     │         │ leb128 ID  │            │         
+            ┌────────────────┐ │for affected│            │         
+            │ leb128 type of │ │ collection │  ┌──────────────────┐
+            │event collection│ │  or scope  │  │ debug assist tag │
+            │0x0 or scope 0x1│ │            │  │  _collection or  │
+            └────────────────┘ └────────────┘  │      _scope      │
+                                               └──────────────────┘
 ```
 
-Consider a collection with a integer value of 0x4c456771, for this document this
-value is deliberately in the printable ascii range, and would be seen as 'LEqq'
-when interpreted as a ascii string:
+Consider a collection with a integer value of 303 (0x12F), this has a leb128
+encoding of 0xaf.0x02.
 
 * Creating the collection generates the following Item.
-  * event = 0 `SystemEvent::Collection`, key = `\1_collection:LEgq`, deleted = false
+  * event = 0 `SystemEvent::Collection`,
+  * key = raw bytes (hex) `[01][AF.02][5F636F6C6C656374696F6E]`
+  ** That is two leb128 prefixes on the string "_collection".
+  * deleted = false
 * Logically deleting the collection generates the following Item.
-  * event = 0 `SystemEvent::Collection`, key = `\1_collection:LEgq`, deleted = true
-
+  * event = 0 `SystemEvent::Collection`
+  * key = raw bytes (hex) `[01][AF.02][5F636F6C6C656374696F6E]`
+  ** That is two leb128 prefixes on the string "_collection".
+  * deleted = true
 SystemEvent's affecting Scopes are similar.
 
-Consider a scope with a integer value of 0x4c456771
+Consider a scope with a integer value of 303 (0x12F)
 
 * Creating the scope generates the following Item.
-  * event = 0 `SystemEvent::Scope`, key = `\1_scope:LEgq`, deleted = false
+  * event = 0 `SystemEvent::Scope`
+  * key = raw bytes (hex) `[01][AF.02][5F73636F7065]`
+  ** That is two leb128 prefixes on the string "_scope".
+  * deleted = false
+
 * Logically deleting the scope generates the following Item.
-  * event = 0 `SystemEvent::Scope`, key = `\1_scope:LEgq`, deleted = true
+  * event = 0 `SystemEvent::Scope`
+  * key = raw bytes (hex) `[01][AF.02][5F73636F7065]`
+  ** That is two leb128 prefixes on the string "_scope".
+  * deleted = true
 
 ### SystemEvent flushing actions
 

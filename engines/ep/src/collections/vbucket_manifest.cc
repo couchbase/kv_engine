@@ -356,9 +356,8 @@ void Manifest::addScope(const WriteHandle& wHandle,
             builder.CreateString(scopeName.data(), scopeName.size()));
     builder.Finish(scope);
 
-    auto item = SystemEventFactory::make(
-            SystemEvent::Scope,
-            makeScopeIdIntoString(sid),
+    auto item = SystemEventFactory::makeScopeEvent(
+            sid,
             {builder.GetBufferPointer(), builder.GetSize()},
             optionalSeqno);
 
@@ -403,9 +402,8 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     auto scope = CreateDroppedScope(builder, getManifestUid(), sid);
     builder.Finish(scope);
 
-    auto item = SystemEventFactory::make(
-            SystemEvent::Scope,
-            makeScopeIdIntoString(sid),
+    auto item = SystemEventFactory::makeScopeEvent(
+            sid,
             {builder.GetBufferPointer(), builder.GetSize()},
             optionalSeqno);
 
@@ -579,11 +577,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         builder.Finish(collection);
     }
 
-    auto item = SystemEventFactory::make(
-            SystemEvent::Collection,
-            makeCollectionIdIntoString(cid),
-            {builder.GetBufferPointer(), builder.GetSize()},
-            seq);
+    auto item = SystemEventFactory::makeCollectionEvent(
+            cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
 
     if (deleted) {
         item->setDeleted();

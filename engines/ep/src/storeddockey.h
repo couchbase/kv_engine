@@ -53,6 +53,14 @@ public:
     StoredDocKey(const DocKey& key);
 
     /**
+     * Create a StoredDocKey from another, essentially wrapping a DocKey
+     * with another collection.
+     * @param key data that is to be copied-in
+     * @param cid CollectionID to give to the new key
+     */
+    StoredDocKey(const DocKey& key, CollectionID cid);
+
+    /**
      * Create a StoredDocKey from a std::string (test code uses this)
      *
      * @param key std::string to be copied-in

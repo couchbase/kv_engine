@@ -25,6 +25,7 @@
 
 class Item;
 class KVStore;
+class StoredDocKey;
 class SystemEventMessage;
 
 namespace Collections {
@@ -76,6 +77,65 @@ static inline std::string to_string(const SystemEvent se) {
 class SystemEventFactory {
 public:
     /**
+     * Make an Item representing the Collection SystemEvent, the returned Item
+     * will represent a "Create of CID" but can be marked deleted by the caller
+     * to represent a "Drop of CID"
+     *
+     * @param cid The ID of the collection
+     * @param data The data which will be written to the value of the Item
+     * @param seqno An OptionalSeqno - if defined the returned Item will have
+     *        the seqno value set as its bySeqno.
+     * @return Item with correct configuration for a system event
+     */
+    static std::unique_ptr<Item> makeCollectionEvent(CollectionID cid,
+                                                     cb::const_byte_buffer data,
+                                                     OptionalSeqno seqno);
+
+    /**
+     * Make an Item representing the Scope SystemEvent, the returned Item
+     * will represent a "Create of SID" but can be marked deleted by the caller
+     * to represent a "Drop of SID"
+     *
+     * @param sid The ID of the scope
+     * @param data The data which will be written to the value of the Item
+     * @param seqno An OptionalSeqno - if defined the returned Item will have
+     *        the seqno value set as its bySeqno.
+     * @return Item with correct configuration for a system event
+     */
+    static std::unique_ptr<Item> makeScopeEvent(ScopeID sid,
+                                                cb::const_byte_buffer data,
+                                                OptionalSeqno seqno);
+
+    /**
+     * Make a key for a Collection SystemEvent. This is the same key that an
+     * Item of makeCollectionEVent would have.
+     * @param cid The ID of the collection
+     * @return StoredDocKey with a collection system event key
+     */
+    static StoredDocKey makeCollectionEventKey(CollectionID cid);
+
+    /**
+     * Given a key from makeCollectionEventKey/makeCollectionEvent, returns the
+     * collection ID that was used in the key's construction.
+     */
+    static CollectionID getCollectionIDFromKey(const DocKey& key);
+
+    /**
+     * Given a key from makeScopeEvent returns the scope ID that was used in the
+     * key's construction.
+     */
+    static ScopeID getScopeIDFromKey(const DocKey& key);
+
+    /**
+     * Given a key from makeCollectionEventKey, makeCollectionEvent or
+     * makeScopeEvent retrieve the system event type which is embedded in the
+     * key. A second buffer is returned that is the key data after the type.
+     */
+    static std::pair<SystemEvent, cb::const_byte_buffer> getSystemEventType(
+            const DocKey& key);
+
+private:
+    /**
      * Make an Item representing the SystemEvent
      * @param se The SystemEvent being created. The returned Item will have this
      *           value stored in the flags field.
@@ -85,29 +145,8 @@ public:
      * @param seqno An OptionalSeqno - if defined the returned Item will have
      *        the seqno value set as its bySeqno.
      */
-    static std::unique_ptr<Item> make(SystemEvent se,
-                                      const std::string& keyExtra,
+    static std::unique_ptr<Item> make(const DocKey& key,
+                                      SystemEvent se,
                                       cb::const_byte_buffer data,
                                       OptionalSeqno seqno);
-
-    /**
-     * Retrieve the 'keyExtra' from a SystemEvent Item's key created by
-     * SystemEventFactory make
-     *
-     * @param key the DocKey of the SystemEvent
-     * @param separator the separator between the SystemEvent prefix and the
-     *        key extra
-     * @return a byte_buffer which should contain the 'keyExtra' data originally
-     *  passed to make
-     */
-    static cb::const_byte_buffer getKeyExtra(const DocKey& key,
-                                             const char* separator);
-
-    static std::string makeKey(SystemEvent se,
-                               const std::string& keyExtra);
-
-private:
-    /// helper method for getKeyExtra
-    static const cb::const_byte_buffer::iterator findKeyExtra(
-            const DocKey& key, const std::string& separator);
 };
