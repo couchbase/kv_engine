@@ -161,6 +161,20 @@ void BackfillManager::schedule(VBucket& vb,
     LockHolder lh(lock);
     UniqueDCPBackfillPtr backfill =
             vb.createDCPBackfill(engine, stream, start, end);
+    addBackfill_UNLOCKED(vb, stream, backfill);
+}
+
+void BackfillManager::schedule(VBucket& vb,
+                               std::shared_ptr<ActiveStream> stream,
+                               CollectionID cid) {
+    LockHolder lh(lock);
+    UniqueDCPBackfillPtr backfill = vb.createDCPBackfill(engine, stream, cid);
+    addBackfill_UNLOCKED(vb, stream, backfill);
+}
+
+void BackfillManager::addBackfill_UNLOCKED(VBucket& vb,
+                                           std::shared_ptr<ActiveStream> stream,
+                                           UniqueDCPBackfillPtr& backfill) {
     if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(std::move(backfill));
     } else {

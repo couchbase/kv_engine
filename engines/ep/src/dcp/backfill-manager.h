@@ -70,10 +70,21 @@ public:
 
     void addStats(DcpProducer& conn, const AddStatFn& add_stat, const void* c);
 
+    /**
+     * Explicitly schedule a seqno range scan to perform a backfill.
+     */
     void schedule(VBucket& vb,
                   std::shared_ptr<ActiveStream> stream,
                   uint64_t start,
                   uint64_t end);
+
+    /**
+     * Schedule a collection-ID backfill, this may choose to use a name
+     * index to retrieve items in name order.
+     */
+    void schedule(VBucket& vb,
+                  std::shared_ptr<ActiveStream> stream,
+                  CollectionID cid);
 
     /**
      * Checks if the read size can fit into the backfill buffer and scan
@@ -112,6 +123,13 @@ protected:
         return activeBackfills.size() + snoozingBackfills.size() +
                pendingBackfills.size();
     }
+
+    /**
+     * Common code for adding a new backfill
+     */
+    void addBackfill_UNLOCKED(VBucket& vb,
+                              std::shared_ptr<ActiveStream> stream,
+                              UniqueDCPBackfillPtr& backfill);
 
     //! The buffer is the total bytes used by all backfills for this connection
     struct {

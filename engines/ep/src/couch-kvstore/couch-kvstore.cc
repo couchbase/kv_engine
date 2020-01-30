@@ -33,6 +33,7 @@
 #include "vbucket_state.h"
 
 #include <JSON_checker.h>
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
@@ -1463,7 +1464,7 @@ void CouchKVStore::pendingTasks() {
     }
 }
 
-std::unique_ptr<BySeqnoScanContext> CouchKVStore::initScanContext(
+std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vbid,
@@ -1474,8 +1475,10 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initScanContext(
 
     if (!handle) {
         // makeFileHandle/openDb will of logged details of failure.
-        logger.warn("CouchKVStore::initScanContext: makeFileHandle failure {}",
-                    vbid.get());
+        logger.warn(
+                "CouchKVStore::initBySeqnoScanContext: makeFileHandle failure "
+                "{}",
+                vbid.get());
         return nullptr;
     }
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
@@ -1485,10 +1488,12 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initScanContext(
     auto errorCode = couchstore_db_info(db, &info);
     if (errorCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::initScanContext: couchstore_db_info error:{}",
+                "CouchKVStore::initBySeqnoScanContext: couchstore_db_info "
+                "error:{}",
                 couchstore_strerror(errorCode));
         EP_LOG_WARN(
-                "CouchKVStore::initScanContext: Failed to read DB info for "
+                "CouchKVStore::initBySeqnoScanContext: Failed to read DB info "
+                "for "
                 "backfill. {} rev:{} error: {}",
                 vbid,
                 db.getFileRev(),
@@ -1501,7 +1506,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initScanContext(
             db, startSeqno, std::numeric_limits<uint64_t>::max(), &count);
     if (errorCode != COUCHSTORE_SUCCESS) {
         EP_LOG_WARN(
-                "CouchKVStore::initScanContext:Failed to obtain changes "
+                "CouchKVStore::initBySeqnoScanContext:Failed to obtain changes "
                 "count for {} rev:{} start_seqno:{} error: {}",
                 vbid,
                 db.getFileRev(),
@@ -1513,7 +1518,8 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initScanContext(
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
         EP_LOG_WARN(
-                "CouchKVStore::initScanContext:Failed to obtain vbState for "
+                "CouchKVStore::initBySeqnoScanContext:Failed to obtain vbState "
+                "for "
                 "the highCompletedSeqno");
         return nullptr;
     }
@@ -1532,6 +1538,65 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initScanContext(
                                                      count,
                                                      readVbStateResult.state,
                                                      collectionsManifest);
+    sctx->logger = &logger;
+    return sctx;
+}
+
+std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vbid,
+        const std::vector<ByIdRange>& ranges,
+        DocumentFilter options,
+        ValueFilter valOptions) {
+    auto handle = makeFileHandle(vbid);
+
+    if (!handle) {
+        // makeFileHandle/openDb will have logged details of failure.
+        logger.warn(
+                "CouchKVStore::initByIdScanContext (byName): makeFileHandle "
+                "failure {}",
+                vbid.get());
+        return {};
+    }
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
+    auto& db = couchKvHandle.getDbHolder();
+
+    DbInfo info;
+    auto errorCode = couchstore_db_info(db, &info);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::initByIdScanContext: couchstore_db_info "
+                "error:{}",
+                couchstore_strerror(errorCode));
+        EP_LOG_WARN(
+                "CouchKVStore::initByIdScanContext: Failed to read DB info for "
+                "backfill. {} rev:{} error: {}",
+                vbid,
+                db.getFileRev(),
+                couchstore_strerror(errorCode));
+        return {};
+    }
+
+    auto readVbStateResult = readVBState(db, vbid);
+    if (readVbStateResult.status != ReadVBStateStatus::Success) {
+        EP_LOG_WARN(
+                "CouchKVStore::initByIdScanContext:Failed to obtain vbState "
+                "for "
+                "the highCompletedSeqno");
+        return {};
+    }
+
+    auto collectionsManifest = getDroppedCollections(*db);
+
+    auto sctx = std::make_unique<ByIdScanContext>(std::move(cb),
+                                                  std::move(cl),
+                                                  vbid,
+                                                  std::move(handle),
+                                                  ranges,
+                                                  options,
+                                                  valOptions,
+                                                  collectionsManifest);
     sctx->logger = &logger;
     return sctx;
 }
@@ -1579,6 +1644,51 @@ scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) {
 
     TRACE_EVENT_END1(
             "CouchKVStore", "scan", "lastReadSeqno", ctx.lastReadSeqno);
+
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        if (errorCode == COUCHSTORE_ERROR_CANCEL) {
+            return scan_again;
+        } else {
+            logger.warn(
+                    "CouchKVStore::scan couchstore_changes_since "
+                    "error:{} [{}]",
+                    couchstore_strerror(errorCode),
+                    couchkvstore_strerrno(db, errorCode));
+            return scan_failed;
+        }
+    }
+    return scan_success;
+}
+
+scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
+    TRACE_EVENT_START2("CouchKVStore",
+                       "scan by id",
+                       "vbid",
+                       ctx.vbid.get(),
+                       "ranges",
+                       uint32_t(ctx.ranges.size()));
+
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*ctx.handle);
+    auto& db = couchKvHandle.getDbHolder();
+
+    couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
+    for (const auto& range : ctx.ranges) {
+        sized_buf ids[2];
+        ids[0] = sized_buf{const_cast<char*>(reinterpret_cast<const char*>(
+                                   range.startKey.data())),
+                           range.startKey.size()};
+        ids[1] = sized_buf{const_cast<char*>(reinterpret_cast<const char*>(
+                                   range.endKey.data())),
+                           range.endKey.size()};
+
+        errorCode = couchstore_docinfos_by_id(
+                db, ids, 2, RANGES, recordDbDumpC, static_cast<void*>(&ctx));
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            break;
+        }
+    }
+    TRACE_EVENT_END1(
+            "CouchKVStore", "scan by id", "lastReadSeqno", ctx.lastReadSeqno);
 
     if (errorCode != COUCHSTORE_SUCCESS) {
         if (errorCode == COUCHSTORE_ERROR_CANCEL) {
@@ -2912,12 +3022,12 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     cb->setKVFileHandle(std::move(newdb));
     auto cl = std::make_unique<NoLookupCallback>();
 
-    auto ctx = initScanContext(std::move(cb),
-                               std::move(cl),
-                               vbid,
-                               info.last_sequence + 1,
-                               DocumentFilter::ALL_ITEMS,
-                               ValueFilter::KEYS_ONLY);
+    auto ctx = initBySeqnoScanContext(std::move(cb),
+                                      std::move(cl),
+                                      vbid,
+                                      info.last_sequence + 1,
+                                      DocumentFilter::ALL_ITEMS,
+                                      ValueFilter::KEYS_ONLY);
     if (!ctx) {
         return RollbackResult(false);
     }

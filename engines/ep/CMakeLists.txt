@@ -227,6 +227,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/active_stream_checkpoint_processor_task.cc
             src/dcp/active_stream_checkpoint_processor_task.h
             src/dcp/backfill.cc
+            src/dcp/backfill_by_id_disk.cc
             src/dcp/backfill_by_seqno_disk.cc
             src/dcp/backfill_disk.cc
             src/dcp/backfill-manager.cc

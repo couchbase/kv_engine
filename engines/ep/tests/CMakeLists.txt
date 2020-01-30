@@ -33,6 +33,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         module_tests/checkpoint_utils.h
         module_tests/collections/collections_dcp_test.cc
         module_tests/collections/collections_kvstore_test.cc
+        module_tests/collections/collections_oso_dcp_test.cc
         module_tests/collections/evp_store_collections_dcp_test.cc
         module_tests/collections/evp_store_collections_dcp_stream_test.cc
         module_tests/collections/evp_store_collections_eraser_test.cc

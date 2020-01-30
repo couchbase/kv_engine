@@ -126,6 +126,11 @@ public:
             uint64_t startSeqno,
             uint64_t endSeqno) override;
 
+    std::unique_ptr<DCPBackfill> createDCPBackfill(
+            EventuallyPersistentEngine& e,
+            std::shared_ptr<ActiveStream> stream,
+            CollectionID cid) override;
+
     /**
      * Reads backfill items from in memory ordered data structure.
      *

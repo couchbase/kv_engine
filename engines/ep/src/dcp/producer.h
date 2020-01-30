@@ -181,6 +181,9 @@ public:
                                          std::shared_ptr<ActiveStream> s,
                                          uint64_t start,
                                          uint64_t end);
+    bool scheduleBackfillManager(VBucket& vb,
+                                 std::shared_ptr<ActiveStream> s,
+                                 CollectionID cid);
 
     bool isExtMetaDataEnabled () {
         return enableExtMetaData;
@@ -349,9 +352,7 @@ public:
 
     void setIdleTimeout(size_t newValue);
 
-    bool isOutOfOrderSnapshotsEnabled() const {
-        return outOfOrderSnapshots == OutOfOrderSnapshots::Yes;
-    }
+    bool isOutOfOrderSnapshotsEnabled() const;
 
 protected:
     /** We may disconnect if noop messages are enabled and the last time we

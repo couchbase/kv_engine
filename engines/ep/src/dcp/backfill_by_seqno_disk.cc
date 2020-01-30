@@ -70,7 +70,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         }
     }
 
-    auto scanCtx = kvstore->initScanContext(
+    auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<DiskCallback>(stream),
             std::make_unique<CacheCallback>(bucket, stream),
             vbid,

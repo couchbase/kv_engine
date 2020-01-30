@@ -1440,7 +1440,7 @@ std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) {
     return std::make_unique<RocksDBHandle>(*this, *rdb);
 }
 
-std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initScanContext(
+std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vbid,

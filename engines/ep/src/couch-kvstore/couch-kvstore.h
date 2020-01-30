@@ -340,7 +340,7 @@ public:
             uint32_t count,
             std::shared_ptr<Callback<const DiskDocKey&>> cb) override;
 
-    std::unique_ptr<BySeqnoScanContext> initScanContext(
+    std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
             std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vbid,
@@ -348,7 +348,16 @@ public:
             DocumentFilter options,
             ValueFilter valOptions) override;
 
+    std::unique_ptr<ByIdScanContext> initByIdScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vbid,
+            const std::vector<ByIdRange>& ranges,
+            DocumentFilter options,
+            ValueFilter valOptions) override;
+
     scan_error_t scan(BySeqnoScanContext& sctx) override;
+    scan_error_t scan(ByIdScanContext& sctx) override;
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 

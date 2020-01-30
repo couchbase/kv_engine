@@ -864,7 +864,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     }
 
     /* Add 2 items */
-    int numItems = 2;
+    uint64_t numItems = 2;
     addItemsAndRemoveCheckpoint(numItems);
 
     /* Set up a DCP stream for the backfill */
@@ -881,7 +881,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     /* Backfill can only read 1 as its buffer will become full after that */
     {
         std::chrono::microseconds uSleepTime(128);
-        while ((numItems - 1) != stream->getLastReadSeqno()) {
+        while ((numItems - 1) != stream->getLastBackfilledSeqno()) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
@@ -966,7 +966,7 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
 
 TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
     /* Add 2 items; we need this to keep stream in backfill state */
-    const int numItems = 2;
+    const uint64_t numItems = 2;
     addItemsAndRemoveCheckpoint(numItems);
 
     /* Set up a DCP stream */
@@ -996,7 +996,7 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
  */
 TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
     /* Add 2 items; we need this to keep stream in backfill state */
-    const int numItems = 2;
+    const uint64_t numItems = 2;
     addItemsAndRemoveCheckpoint(numItems);
 
     /* Set up a DCP stream */

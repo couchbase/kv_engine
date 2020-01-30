@@ -139,7 +139,7 @@ protected:
     uint64_t snap_end_seqno_;
 
     std::atomic<bool> itemsReady;
-    std::mutex streamMutex;
+    mutable std::mutex streamMutex;
 
     /**
      * Ordered queue of DcpResponses to be sent on the stream.

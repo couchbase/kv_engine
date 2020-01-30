@@ -270,7 +270,7 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
     flush.proposedVBState.lastSnapEnd = 5;
     kvstore->commit(flush);
 
-    auto scanCtx = kvstore->initScanContext(
+    auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<GetCallback>(true /*expectcompressed*/),
             std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
             Vbid(0),
@@ -526,7 +526,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
     output.commit();
 
     auto kvstore2 = KVStoreFactory::create(config2);
-    auto scanCtx = kvstore2.rw->initScanContext(
+    auto scanCtx = kvstore2.rw->initBySeqnoScanContext(
             std::make_unique<CollectionsOfflineGetCallback>(
                     std::pair<int, int>{18, 18 + deletedKeys}),
             std::make_unique<CollectionsOfflineUpgradeCallback>(cid),
@@ -981,9 +981,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, reset_commit) {
 }
 
 /**
- * Injects error during CouchKVStore::initScanContext/couchstore_changes_count
+ * Injects error during
+ * CouchKVStore::initBySeqnoScanContext/couchstore_changes_count
  */
-TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
+TEST_F(CouchKVStoreErrorInjectionTest, initBySeqnoScanContext_changes_count) {
     populate_items(1);
     {
         /* Establish FileOps expectation */
@@ -991,17 +992,18 @@ TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
 
-        auto scanCtx = kvstore->initScanContext(
+        auto scanCtx = kvstore->initBySeqnoScanContext(
                 std::make_unique<CustomCallback<GetValue>>(),
                 std::make_unique<CustomCallback<CacheLookup>>(),
                 Vbid(0),
                 0,
                 DocumentFilter::ALL_ITEMS,
                 ValueFilter::VALUES_DECOMPRESSED);
-        EXPECT_FALSE(scanCtx) << "kvstore->initScanContext(cb, cl, 0, 0, "
-                                 "DocumentFilter::ALL_ITEMS, "
-                                 "ValueFilter::VALUES_DECOMPRESSED); should "
-                                 "have returned NULL";
+        EXPECT_FALSE(scanCtx)
+                << "kvstore->initBySeqnoScanContext(cb, cl, 0, 0, "
+                   "DocumentFilter::ALL_ITEMS, "
+                   "ValueFilter::VALUES_DECOMPRESSED); should "
+                   "have returned NULL";
     }
 }
 
@@ -1010,7 +1012,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
     populate_items(1);
-    auto scan_context = kvstore->initScanContext(
+    auto scan_context = kvstore->initBySeqnoScanContext(
             std::make_unique<CustomCallback<GetValue>>(),
             std::make_unique<CustomCallback<CacheLookup>>(),
             Vbid(0),
@@ -1039,7 +1041,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
     populate_items(1);
-    auto scan_context = kvstore->initScanContext(
+    auto scan_context = kvstore->initBySeqnoScanContext(
             std::make_unique<CustomCallback<GetValue>>(),
             std::make_unique<CustomCallback<CacheLookup>>(),
             Vbid(0),
@@ -1181,7 +1183,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
 
         /* Establish FileOps expectation */
         // Called twice, once when we read the vbstate from disk in
-        // initScanContext, and again when we read the vbstate as part of
+        // initBySeqnoScanContext, and again when we read the vbstate as part of
         // rollback.
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .Times(2)
@@ -2396,7 +2398,7 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
     auto initScan = [&] {
         tg.threadUp();
         while (!stop.load()) {
-            auto scanCtx = kvstore->initScanContext(
+            auto scanCtx = kvstore->initBySeqnoScanContext(
                     std::make_unique<GetCallback>(true),
                     std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
                     Vbid(0),
@@ -2444,7 +2446,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         for (int i = 0; i < 10; i++) {
             auto cb = std::make_unique<GetCallback>(true /*expectcompressed*/);
             auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0));
-            auto scanCtx = kvstore->initScanContext(
+            auto scanCtx = kvstore->initBySeqnoScanContext(
                     std::make_unique<GetCallback>(true /*expectcompressed*/),
                     std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
                     Vbid(0),
@@ -2452,7 +2454,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
                     DocumentFilter::ALL_ITEMS,
                     ValueFilter::VALUES_COMPRESSED);
             if (!scanCtx) {
-                FAIL() << "initScanContext returned nullptr";
+                FAIL() << "initBySeqnoScanContext returned nullptr";
                 return;
             }
         }
@@ -2698,7 +2700,8 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     auto cb = std::make_unique<ReuseSnapshotCallback>(1, 2, 2);
     auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 2, vbid);
     auto callback = cb.get();
-    auto scanCtx = kvstore->initScanContext(std::move(cb),
+    auto scanCtx =
+            kvstore->initBySeqnoScanContext(std::move(cb),
                                             std::move(cl),
                                             vbid,
                                             1,

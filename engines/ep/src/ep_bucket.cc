@@ -1752,7 +1752,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     // Don't expect to find anything already in the HashTable, so use
     // NoLookupCallback.
-    auto scanCtx = kvStore->initScanContext(
+    auto scanCtx = kvStore->initBySeqnoScanContext(
             std::make_unique<LoadSyncWrites>(epVb, endSeqno),
             std::make_unique<NoLookupCallback>(),
             epVb.getId(),

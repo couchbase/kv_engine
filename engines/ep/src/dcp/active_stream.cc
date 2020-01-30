@@ -359,6 +359,12 @@ bool ActiveStream::markDiskSnapshot(
     return true;
 }
 
+bool ActiveStream::markOSODiskSnapshot() {
+    pushToReadyQ(std::make_unique<OSOSnapshot>(opaque_, vb_, sid));
+    notifyStreamReady();
+    return true;
+}
+
 bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
                                     backfill_source_t backfill_source,
                                     bool force) {
@@ -390,7 +396,8 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 
         bufferedBackfill.bytes.fetch_add(resp->getApproximateSize());
         bufferedBackfill.items++;
-        lastReadSeqno.store(uint64_t(*resp->getBySeqno()));
+        lastBackfilledSeqno = std::max<uint64_t>(lastBackfilledSeqno,
+                                                 uint64_t(*resp->getBySeqno()));
 
         pushToReadyQ(std::move(resp));
 
@@ -410,6 +417,14 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 void ActiveStream::completeBackfill() {
     {
         LockHolder lh(streamMutex);
+
+        // backfills can be scheduled and return nothing. lastReadSeqno is
+        // monotonic (and assigned in many places). In this backfill assignment
+        // we will only assign when not equal
+        if (lastReadSeqno != lastBackfilledSeqno) {
+            lastReadSeqno.store(lastBackfilledSeqno);
+        }
+
         if (isBackfilling()) {
             log(spdlog::level::level_enum::info,
                 "{} Backfill complete, {}"
@@ -445,6 +460,40 @@ void ActiveStream::completeBackfill() {
     // itemsReady is true). This would then result in us not notifying the
     // stream and not putting it back in the producer's readyQueue. A similar
     // case exists for transitioning state to TakeoverSend or InMemory.
+    notifyStreamReady(true);
+}
+
+void ActiveStream::completeOSOBackfill() {
+    {
+        LockHolder lh(streamMutex);
+        lastReadSeqno.store(lastBackfilledSeqno);
+        if (isBackfilling()) {
+            log(spdlog::level::level_enum::info,
+                "{} OSO Backfill complete, {} items read from disk, {}"
+                " from memory, lastReadSeqno:{}, pendingBackfill:{}",
+                logPrefix,
+                backfillItems.disk.load(),
+                backfillItems.memory.load(),
+                lastReadSeqno.load(),
+                pendingBackfill ? "True" : "False");
+        } else {
+            log(spdlog::level::level_enum::warn,
+                "{} ActiveStream::completeOSOBackfill: Unexpected state_:{}",
+                logPrefix,
+                to_string(state_.load()));
+        }
+    }
+
+    if (completeBackfillHook) {
+        completeBackfillHook();
+    }
+
+    bool inverse = true;
+    isBackfillTaskRunning.compare_exchange_strong(inverse, false);
+
+    pushToReadyQ(std::make_unique<OSOSnapshot>(
+            opaque_, vb_, sid, OSOSnapshot::End{}));
+
     notifyStreamReady(true);
 }
 
@@ -558,8 +607,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
 
         // Only DcpResponse objects representing items from "disk" have a size
         // so only update backfillRemaining when non-zero
-        if (resp->getApproximateSize()) {
-            Expects(backfillRemaining.is_initialized());
+        if (resp->getApproximateSize() && backfillRemaining.is_initialized()) {
             (*backfillRemaining)--;
         }
     }
@@ -1498,9 +1546,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         backfillEnd = std::min(end_seqno_, curChkSeqno - 1);
     }
 
-    if (tryBackfill &&
-        producer->scheduleBackfillManager(
-                *vbucket, shared_from_this(), backfillStart, backfillEnd)) {
+    if (tryBackfill && tryAndScheduleOSOBackfill(*producer, *vbucket)) {
+        return;
+    } else if (tryBackfill &&
+               producer->scheduleBackfillManager(*vbucket,
+                                                 shared_from_this(),
+                                                 backfillStart,
+                                                 backfillEnd)) {
         // backfill will be needed to catch up to the items in the
         // CheckpointManager
         log(spdlog::level::level_enum::info,
@@ -1539,6 +1591,38 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             notifyStreamReady();
         }
     }
+}
+
+bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
+                                             VBucket& vb) {
+    // OSO only allowed:
+    // if the filter is set to a single collection.
+    // if this is the initial backfill request
+    // if the client has enabled OSO
+    if (filter.singleCollection() && lastReadSeqno.load() == 0 &&
+        curChkSeqno.load() > lastReadSeqno.load() + 1 &&
+        producer.isOutOfOrderSnapshotsEnabled()) {
+        CollectionID cid = filter.front();
+
+        // OSO possible - engage.
+        producer.scheduleBackfillManager(vb, shared_from_this(), cid);
+        // backfill will be needed to catch up to the items in the
+        // CheckpointManager
+        log(spdlog::level::level_enum::info,
+            "{} Scheduling OSO backfill "
+            "for cid:{} lastReadSeqno:{} curChkSeqno:{}",
+            logPrefix,
+            cid.to_string(),
+            lastReadSeqno.load(),
+            curChkSeqno.load());
+
+        isBackfillTaskRunning.store(true);
+        /// Number of backfill items is unknown until the Backfill task
+        /// completes the scan phase - reset backfillRemaining counter.
+        backfillRemaining.reset();
+        return true;
+    }
+    return false;
 }
 
 void ActiveStream::notifyEmptyBackfill(uint64_t lastSeenSeqno) {

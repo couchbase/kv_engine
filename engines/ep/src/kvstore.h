@@ -297,6 +297,34 @@ public:
     const uint64_t persistedCompletedSeqno;
 };
 
+/**
+ * ByIdRange describes a sub-set of 'keys' from the lexicographically ordered
+ * ById index.
+ *    keys = {k | k >= startKey and k < endKey}
+ * E.g. startKey="b" and endKey="c" when the ById index is:
+ *    {"a", "b", "ba", "bb", "c" }
+ * yields:
+ *    {"b", "ba", "bb"}
+ */
+struct ByIdRange {
+    DiskDocKey startKey;
+    DiskDocKey endKey;
+};
+
+class ByIdScanContext : public ScanContext {
+public:
+    ByIdScanContext(std::unique_ptr<StatusCallback<GetValue>> cb,
+                    std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                    Vbid vb,
+                    std::unique_ptr<KVFileHandle> handle,
+                    const std::vector<ByIdRange>& ranges,
+                    DocumentFilter _docFilter,
+                    ValueFilter _valFilter,
+                    const std::vector<Collections::KVStore::DroppedCollection>&
+                            droppedCollections);
+    const std::vector<ByIdRange> ranges;
+};
+
 struct FileStats {
     FileStats() = default;
 
@@ -832,9 +860,9 @@ public:
             std::shared_ptr<Callback<const DiskDocKey&>> cb) = 0;
 
     /**
-     * Create a KVStore Scan Context with the given options. On success,
-     * returns a unique_pointer to the ScanContext. The caller can then call
-     * scan() to execute the scan.
+     * Create a KVStore seqno range Scan Context with the given options.
+     * On success, returns a unique_pointer to the ScanContext. The caller can
+     * then call scan() to execute the scan.
      *
      * The caller specifies two callback objects - GetValue and CacheLookup:
      *
@@ -859,11 +887,45 @@ public:
      * @param valOptions ValueFilter - e.g. return the document body
      * @return a BySeqnoScanContext, null if there's an error
      */
-    virtual std::unique_ptr<BySeqnoScanContext> initScanContext(
+    virtual std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
             std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vbid,
             uint64_t startSeqno,
+            DocumentFilter options,
+            ValueFilter valOptions) = 0;
+
+    /**
+     * Create a KVStore id range Scan Context with the given options.
+     * On success, returns a unique_pointer to the ScanContext. The caller can
+     * then call scan() to execute the scan.
+     *
+     * The caller specifies two callback objects - GetValue and CacheLookup:
+     *
+     * 1. GetValue callback is invoked for each object loaded from disk, for
+     *    the caller to process that item.
+     * 2. CacheLookup callback an an optimization to avoid loading data from
+     *    disk for already-resident items - it is invoked _before_ loading the
+     *    item's value from disk, to give ep-engine's in-memory cache the
+     *    opportunity to fulfil the item (assuming the item is in memory).
+     *    If this callback has status ENGINE_KEY_EEXISTS then the document is
+     *    considered to have been handled purely from memory and the GetValue
+     *    callback is skipped.
+     *    If this callback has status ENGINE_SUCCESS then it wasn't fulfilled
+     *    from memory, and will instead be loaded from disk and GetValue
+     *    callback invoked.
+     *
+     * @param cb GetValue callback - ownership passes to the returned object
+     * @param cl Cache lookup callback - ownership passes to the returned object
+     * @param vbid vbucket to scan
+     * @param ranges Multiple ranges can be scanned, this param specifies them
+     * If the ScanContext cannot be created, returns null.
+     */
+    virtual std::unique_ptr<ByIdScanContext> initByIdScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vbid,
+            const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
             ValueFilter valOptions) = 0;
 
@@ -873,6 +935,13 @@ public:
      *        write to the object as progress is made through the scan
      */
     virtual scan_error_t scan(BySeqnoScanContext& sctx) = 0;
+
+    /**
+     * Run a ById scan
+     * @param sctx non-const reference to the context, internal callbacks may
+     *        write to the object as progress is made through the scan
+     */
+    virtual scan_error_t scan(ByIdScanContext& sctx) = 0;
 
     /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle

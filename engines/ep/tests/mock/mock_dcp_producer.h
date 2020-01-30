@@ -188,6 +188,10 @@ public:
         sendStreamEndOnClientStreamClose = true;
     }
 
+    void enableOutOfOrderSnapshots() {
+        outOfOrderSnapshots = OutOfOrderSnapshots::Yes;
+    }
+
     bool scheduleBackfillManager(VBucket& vb,
                                  std::shared_ptr<ActiveStream> s,
                                  uint64_t start,

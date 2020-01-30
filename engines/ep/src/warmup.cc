@@ -1293,7 +1293,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
 {
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initScanContext(
+        auto ctx = kvstore->initBySeqnoScanContext(
                 std::make_unique<LoadStorageKVPairCallback>(
                         store, false, state.getState()),
                 std::make_unique<NoLookupCallback>(),
@@ -1495,7 +1495,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initScanContext(
+        auto ctx = kvstore->initBySeqnoScanContext(
                 std::make_unique<LoadStorageKVPairCallback>(
                         store, maybe_enable_traffic, state.getState()),
                 std::make_unique<LoadValueCallback>(store.vbMap,
@@ -1537,7 +1537,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
     ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initScanContext(
+        auto ctx = kvstore->initBySeqnoScanContext(
                 std::make_unique<LoadStorageKVPairCallback>(
                         store, true, state.getState()),
                 std::make_unique<LoadValueCallback>(store.vbMap,

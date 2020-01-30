@@ -281,7 +281,7 @@ public:
         return ENGINE_SUCCESS;
     }
 
-    std::unique_ptr<BySeqnoScanContext> initScanContext(
+    std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
             std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vbid,
@@ -289,7 +289,21 @@ public:
             DocumentFilter options,
             ValueFilter valOptions) override;
 
+    std::unique_ptr<ByIdScanContext> initByIdScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vbid,
+            const std::vector<ByIdRange>& ranges,
+            DocumentFilter options,
+            ValueFilter valOptions) override {
+        throw std::runtime_error(
+                "RocksDB no support for byID initByIdScanContext");
+    }
+
     scan_error_t scan(BySeqnoScanContext& sctx) override;
+    scan_error_t scan(ByIdScanContext& sctx) override {
+        throw std::runtime_error("RocksDB no support for byID scan");
+    }
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 

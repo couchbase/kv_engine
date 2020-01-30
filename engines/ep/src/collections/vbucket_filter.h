@@ -169,10 +169,28 @@ public:
         return filter.size();
     }
 
+    CollectionID front() const {
+        return *filter.begin();
+    }
+
     std::string getUid() const;
 
     cb::mcbp::DcpStreamId getStreamId() const {
         return streamId;
+    }
+
+    using Container = ::std::unordered_set<CollectionID>;
+    Container::const_iterator begin() const {
+        return filter.begin();
+    }
+
+    Container::const_iterator end() const {
+        return filter.end();
+    }
+
+    /// @return true if this filter represents a single collection
+    bool singleCollection() const {
+        return !passthrough && filter.size() == 1;
     }
 
     /**
@@ -247,7 +265,6 @@ protected:
      */
     void disableDefaultCollection();
 
-    using Container = ::std::unordered_set<CollectionID>;
     Container filter;
     boost::optional<ScopeID> scopeID;
     bool scopeIsDropped = false;

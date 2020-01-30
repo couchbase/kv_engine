@@ -3943,7 +3943,7 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
     } while (ret);
 
     // Check that we have pushed some items to the Stream::readyQ
-    auto lastSeqno = stream->getLastReadSeqno();
+    auto lastSeqno = stream->getLastBackfilledSeqno();
     ASSERT_GT(lastSeqno, 1);
     ASSERT_EQ(lastSeqno, expectedLastSeqno);
     // Check that we have not pushed more than what expected given the limit.

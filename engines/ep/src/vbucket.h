@@ -1521,6 +1521,22 @@ public:
             uint64_t endSeqno) = 0;
 
     /**
+     * Creates a DCP backfill object for retrieving the given collection
+     *
+     * @param e ref to EventuallyPersistentEngine
+     * @param stream Shared ptr to the stream for which this backfill obj is
+     *               created
+     * @param cid CollectionID to scan for
+     *
+     * @return pointer to the backfill object created. Caller to own this
+     *         object and hence must handle deletion.
+     */
+    virtual std::unique_ptr<DCPBackfill> createDCPBackfill(
+            EventuallyPersistentEngine& e,
+            std::shared_ptr<ActiveStream> stream,
+            CollectionID cid) = 0;
+
+    /**
      * Update failovers, checkpoint mgr and other vBucket members after
      * rollback.
      *

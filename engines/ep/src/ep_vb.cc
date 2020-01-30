@@ -20,6 +20,8 @@
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "dcp/backfill_by_id_disk.h"
+#include "dcp/backfill_by_seqno_disk.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_engine.h"
@@ -451,9 +453,17 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
         std::shared_ptr<ActiveStream> stream,
         uint64_t startSeqno,
         uint64_t endSeqno) {
-    /* create a disk backfill object */
+    /* create a DCPBackfillBySeqnoDisk object */
     return std::make_unique<DCPBackfillBySeqnoDisk>(
             *e.getKVBucket(), stream, startSeqno, endSeqno);
+}
+
+UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
+        EventuallyPersistentEngine& e,
+        std::shared_ptr<ActiveStream> stream,
+        CollectionID cid) {
+    /* create a DCPBackfillByIdDisk object */
+    return std::make_unique<DCPBackfillByIdDisk>(*e.getKVBucket(), stream, cid);
 }
 
 cb::mcbp::Status EPVBucket::evictKey(

@@ -1393,7 +1393,7 @@ MagmaScanContext::MagmaScanContext(
       itr(std::move(itr)) {
 }
 
-std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
+std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vbid,
@@ -1405,7 +1405,8 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
     auto readState = readVBStateFromDisk(vbid);
     if (!readState.status.IsOK()) {
         logger->warn(
-                "MagmaKVStore::initScanContext {} failed to read vbstate "
+                "MagmaKVStore::initBySeqnoScanContext {} failed to read "
+                "vbstate "
                 "from disk. Status:{}",
                 vbid,
                 readState.status.String());
@@ -1433,7 +1434,8 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
         }
         if (docFilter.size() == 0) {
             throw std::logic_error(
-                    "MagmaKVStore::initScanContext Unknown DocumentFilter:" +
+                    "MagmaKVStore::initBySeqnoScanContext Unknown "
+                    "DocumentFilter:" +
                     std::to_string(static_cast<int>(options)));
         }
 
@@ -1451,12 +1453,13 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
         }
         if (valFilter.size() == 0) {
             throw std::logic_error(
-                    "MagmaKVStore::initScanContext Unknown ValueFilter:" +
+                    "MagmaKVStore::initBySeqnoScanContext Unknown "
+                    "ValueFilter:" +
                     std::to_string(static_cast<int>(valOptions)));
         }
 
         logger->info(
-                "MagmaKVStore::initScanContext {} seqno:{} endSeqno:{}"
+                "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
                 " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{}",
                 vbid,
                 startSeqno,
@@ -1490,6 +1493,18 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
                                                    collectionsManifest,
                                                    std::move(itr));
     return mctx;
+}
+
+std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vbid,
+        const std::vector<ByIdRange>& ranges,
+        DocumentFilter options,
+        ValueFilter valOptions) {
+    throw std::runtime_error(
+            "MagmaKVStore::initByIdScanContext (id scan) unimplemented");
+    return {};
 }
 
 scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
@@ -1625,6 +1640,12 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
     }
 
     return scan_success;
+}
+
+scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) {
+    throw std::runtime_error(
+            "MagmaKVStore::initScanContext (id scan) unimplemented");
+    return scan_failed;
 }
 
 vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {

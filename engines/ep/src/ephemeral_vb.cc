@@ -301,6 +301,14 @@ std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
             evb, stream, startSeqno, endSeqno);
 }
 
+std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
+        EventuallyPersistentEngine& e,
+        std::shared_ptr<ActiveStream> stream,
+        CollectionID cid) {
+    (void)cid;
+    return createDCPBackfill(e, stream, 0, ~0);
+}
+
 std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
 EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
     return seqList->rangeRead(start, end);

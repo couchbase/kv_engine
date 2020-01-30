@@ -97,10 +97,14 @@ void CollectionsDcpTest::createDcpConsumer() {
 }
 
 void CollectionsDcpTest::createDcpObjects(
-        boost::optional<cb::const_char_buffer> collections) {
+        boost::optional<cb::const_char_buffer> collections,
+        bool enableOutOfOrderSnapshots) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
+    if (enableOutOfOrderSnapshots) {
+        producer->enableOutOfOrderSnapshots();
+    }
     // Give the producers object access to the consumer and vbid of replica
     producers->consumer = consumer.get();
     producers->replicaVB = replicaVB;

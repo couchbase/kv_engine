@@ -103,7 +103,7 @@ public:
         return backfillItems.memory + backfillItems.disk;
     }
 
-    int getLastReadSeqno() const {
+    uint64_t getLastReadSeqno() const {
         return lastReadSeqno;
     }
 
@@ -159,6 +159,11 @@ public:
 
     void setNextHook(std::function<void()> hook) {
         nextHook = hook;
+    }
+
+    uint64_t getLastBackfilledSeqno() const {
+        LockHolder lh(streamMutex);
+        return lastBackfilledSeqno;
     }
 };
 

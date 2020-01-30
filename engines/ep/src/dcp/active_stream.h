@@ -186,11 +186,23 @@ public:
                           boost::optional<uint64_t> highCompletedSeqno,
                           uint64_t maxVisibleSeqno);
 
+    /**
+     * Queues a single "Out of Seqno Order" marker with the 'start' flag
+     * into the ready queue
+     */
+    bool markOSODiskSnapshot();
+
     bool backfillReceived(std::unique_ptr<Item> itm,
                           backfill_source_t backfill_source,
                           bool force);
 
     void completeBackfill();
+
+    /**
+     * Queues a single "Out of Seqno Order" marker with the 'end' flag
+     * into the ready queue
+     */
+    void completeOSOBackfill();
 
     bool isCompressionEnabled();
 
@@ -386,6 +398,15 @@ protected:
         return syncReplication != SyncReplication::No;
     }
 
+    /**
+     * An OSO backfill is not always possible, this method will try to
+     * schedule one.
+     * @param the owning producer
+     * @param the vbucket for the stream
+     * @return true if the backfill was scheduled
+     */
+    bool tryAndScheduleOSOBackfill(DcpProducer& producer, VBucket& vb);
+
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.
     std::atomic<StreamState> state_{StreamState::Pending};
@@ -411,6 +432,10 @@ protected:
     /* The last sequence number queued from disk or memory and is
        snapshotted and put onto readyQ */
     AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastReadSeqno;
+
+    /* backfill ById or BySeqno updates this member during the scan, then
+       this value is copied into the lastReadSeqno member when completed */
+    uint64_t lastBackfilledSeqno{0};
 
     /* backfillRemaining is a stat recording the amount of items remaining to
      * be read from disk.

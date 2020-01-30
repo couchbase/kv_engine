@@ -74,7 +74,8 @@ public:
 
     void createDcpConsumer();
 
-    void createDcpObjects(boost::optional<cb::const_char_buffer> collections);
+    void createDcpObjects(boost::optional<cb::const_char_buffer> collections,
+                          bool enableOutOfOrderSnapshots = false);
 
     void TearDown() override;
 

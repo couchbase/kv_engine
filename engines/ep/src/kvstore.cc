@@ -96,6 +96,26 @@ BySeqnoScanContext::BySeqnoScanContext(
       persistedCompletedSeqno(vbucketState.persistedCompletedSeqno) {
 }
 
+ByIdScanContext::ByIdScanContext(
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vb,
+        std::unique_ptr<KVFileHandle> handle,
+        const std::vector<ByIdRange>& ranges,
+        DocumentFilter _docFilter,
+        ValueFilter _valFilter,
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections)
+    : ScanContext(vb,
+                  std::move(handle),
+                  _docFilter,
+                  _valFilter,
+                  std::move(cb),
+                  std::move(cl),
+                  droppedCollections),
+      ranges(ranges) {
+}
+
 void FileStats::reset() {
     readTimeHisto.reset();
     readSeekHisto.reset();
