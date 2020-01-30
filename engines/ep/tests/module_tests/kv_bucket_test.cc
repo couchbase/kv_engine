@@ -1517,10 +1517,10 @@ TEST_F(StoreIfTest, store_if_basic) {
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
 }
 
-class ExpiryLimitTest : public KVBucketTest {
+class RelativeExpiryLimitTest : public KVBucketTest {
 public:
     void SetUp() override {
-        config_string += "max_ttl=86400";
+        config_string += "max_ttl=2592000";
         KVBucketTest::SetUp();
         // Have all the objects, activate vBucket zero so we can store data.
         store->setVBucketState(vbid, vbucket_state_active);
@@ -1528,7 +1528,7 @@ public:
 };
 
 // Test add/set/replace gets an enforced expiry
-TEST_F(ExpiryLimitTest, add_set_replace) {
+TEST_F(RelativeExpiryLimitTest, add_set_replace) {
     auto item1 = make_item(vbid, makeStoredDocKey("key1"), "value");
     auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
     auto item3 = make_item(vbid, makeStoredDocKey("key2"), "value");
@@ -1559,7 +1559,7 @@ TEST_F(ExpiryLimitTest, add_set_replace) {
 }
 
 // Test that GAT with a limit stops 0 expiry
-TEST_F(ExpiryLimitTest, gat) {
+TEST_F(RelativeExpiryLimitTest, gat) {
     // This will actually skip the initial expiry limiting code as this function
     // doesn't use itemAllocate
     Item item = store_item(
@@ -1574,6 +1574,30 @@ TEST_F(ExpiryLimitTest, gat) {
     Item* i = reinterpret_cast<Item*>(rval.second.get());
     auto info = engine->getItemInfo(*i);
     EXPECT_NE(0, info.exptime);
+}
+
+class AbsoluteExpiryLimitTest : public KVBucketTest {
+public:
+    void SetUp() override {
+        config_string += "max_ttl=2592001";
+        KVBucketTest::SetUp();
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active);
+    }
+};
+
+TEST_F(AbsoluteExpiryLimitTest, MB_37643) {
+    // Go forwards by 30 days + 1000 seconds, we want uptime > max_ttl
+    const int uptime = (60 * 60 * 24 * 30) + 1000;
+    TimeTraveller biff(uptime);
+
+    auto item = store_item(Vbid(0), makeStoredDocKey("key"), "value");
+
+    // We expect that the expiry time is in the future. The future here being
+    // current_time + our time shift.
+
+    // We expect that the expiry is at least now+uptime+max_ttl
+    EXPECT_GT(item.getExptime(), ep_abs_time(ep_current_time()));
 }
 
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
