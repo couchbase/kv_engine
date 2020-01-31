@@ -895,9 +895,18 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             (*cursor.currentCheckpoint)->getHighCompletedSeqno(),
             (*cursor.currentCheckpoint)->getVisibleSnapshotEndSeqno());
 
+    // Only enforce a hard limit for Disk Checkpoints (i.e backfill). This will
+    // prevent huge memory growth due to flushing vBuckets on replicas during a
+    // rebalance. Memory checkpoints can still grow unbounded due to max number
+    // of checkpoints constraint, but that should be solved by reducing
+    // Checkpoint size and increasing max number.
+    bool hardLimit = (*cursor.currentCheckpoint)->getCheckpointType() ==
+                             CheckpointType::Disk &&
+                     cursor.name == pCursorName;
     size_t itemCount = 0;
     bool enteredNewCp = true;
-    while ((result.moreAvailable = incrCursor(cursor))) {
+    while ((!hardLimit || itemCount < approxLimit) &&
+           (result.moreAvailable = incrCursor(cursor))) {
         if (enteredNewCp) {
             result.checkpointType =
                     (*cursor.currentCheckpoint)->getCheckpointType();
@@ -927,7 +936,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             enteredNewCp = true; // the next incrCuror will move to a new CP
 
             // Reached the end of a checkpoint; check if we have exceeded
-            // our limit.
+            // our limit (soft limit check only returns complete checkpoints).
             if (itemCount >= approxLimit) {
                 // Reached our limit - don't want any more items.
 

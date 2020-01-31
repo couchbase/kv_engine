@@ -837,6 +837,55 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
             << "Cursor should have moved into second checkpoint.";
 }
 
+// Limit returned to flusher is strict for Disk checkpoints
+TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
+    // Test only relevant for persistent buckets as it relates to the
+    // persistence cursor
+    if (!persistent()) {
+        return;
+    }
+    /* We want to have items across 2 checkpoints. Size down the default number
+      of items to create a new checkpoint and recreate the manager */
+    this->checkpoint_config =
+            CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                             MIN_CHECKPOINT_ITEMS,
+                             /*numCheckpoints*/ 2,
+                             /*itemBased*/ true,
+                             /*keepClosed*/ false,
+                             persistent() /*persistenceEnabled*/);
+    createManager();
+
+    // Force the first checkpoint to be a disk one
+    this->manager->createSnapshot(this->manager->getOpenSnapshotStartSeqno(),
+                                  0,
+                                  0 /*highCompletedSeqno*/,
+                                  CheckpointType::Disk,
+                                  0);
+
+    /* Add items such that we have 2 checkpoints */
+    queued_item qi;
+    for (unsigned int ii = 0; ii < 2 * MIN_CHECKPOINT_ITEMS; ii++) {
+        ASSERT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
+    }
+
+    /* Verify we have desired number of checkpoints and desired number of
+       items */
+    ASSERT_EQ(2, this->manager->getNumCheckpoints());
+    ASSERT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumOpenChkItems());
+
+    /* Get items for persistence. Specify a limit of 1 so we should only
+     * fetch the first item
+     */
+    std::vector<queued_item> items;
+    auto result = manager->getItemsForCursor(cursor, items, 1);
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(0, result.ranges.front().getStart());
+    EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, result.ranges.front().getEnd());
+    EXPECT_EQ(1, items.size()) << "Should have 1 item";
+    EXPECT_EQ(1, cursor->getId())
+            << "Cursor should not have moved into second checkpoint.";
+}
+
 // Test the checkpoint cursor movement
 TEST_P(CheckpointTest, CursorMovement) {
     /* We want to have items across 2 checkpoints. Size down the default number
