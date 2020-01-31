@@ -110,7 +110,8 @@ void OpenTracingThread::run() {
 
         // move the entries over to another vector so the clients don't have
         // to wait while I'm working
-        auto entries = std::move(contexts);
+        std::vector<CookieTraceContext> entries{};
+        std::swap(contexts, entries);
 
         // Release the lock to the internal variables while I process the
         // batch of trace elements

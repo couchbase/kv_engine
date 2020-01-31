@@ -340,7 +340,7 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
         /* It is necessary that the toNotifyLock is not held while
            actually notifying. */
         std::lock_guard<std::mutex> lg(toNotifyLock);
-        notifyQ = std::move(toNotify);
+        std::swap(notifyQ, toNotify);
     }
 
     for (auto& notify : notifyQ) {
@@ -358,7 +358,7 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     bool scheduleSoon = false;
     {
         std::lock_guard<std::mutex> lg(toNotifyLock);
-        if (toNotify.size()) {
+        if (!notifyQ.empty()) {
             scheduleSoon = true;
         }
     }
