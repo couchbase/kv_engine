@@ -17,11 +17,14 @@
 
 #pragma once
 
-#include <platform/platform_thread.h>
+#ifdef WIN32
+#include <folly/portability/Windows.h>
+#endif
 
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <thread>
 
 /* Class which monitors the parent process and will terminate this
  * process if the parent ever dies.
@@ -32,19 +35,16 @@ public:
      * periodically verify the existence of the specified parent_ID
      * (pid on *ix, processID on Windows).
      */
-    ParentMonitor(int parent_id);
+    explicit ParentMonitor(int parent_id);
 
     /* Shuts down the background thread */
     ~ParentMonitor();
 
 protected:
-    /* Main function for the background thread. */
-    static void thread_main(void* arg);
-
-    cb_thread_t thread;
+    std::thread thread;
     std::mutex mutex;
     std::condition_variable shutdown_cv;
-    std::atomic<bool> active;
+    std::atomic<bool> active{true};
     const int parent_pid;
 
 #ifdef WIN32

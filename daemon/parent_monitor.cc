@@ -17,17 +17,16 @@
 #include "parent_monitor.h"
 
 #include "log_macros.h"
-#include "memcached.h"
 
+#include <platform/platform_thread.h>
 #include <platform/strerror.h>
 
 #include <iostream>
 #ifndef WIN32
-#include <signal.h>
+#include <csignal>
 #endif
 
 ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
-    active = true;
 #ifdef WIN32
     handle = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
     if (handle == INVALID_HANDLE_VALUE) {
@@ -36,54 +35,44 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
                     cb_strerror());
     }
 #endif
-    if (cb_create_named_thread(&thread,
-                               ParentMonitor::thread_main,
-                               this, 0, "mc:parent_mon") != 0) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to open parent process: {}",
-                    cb_strerror());
-    }
-}
+    thread = std::thread{[this]() {
+        cb_set_thread_name("mc:parent_mon");
+        while (true) {
+            // Wait for either the shutdown condvar to be notified, or for
+            // 1s. If we hit the timeout then time to check the parent.
+            std::unique_lock<std::mutex> lock(mutex);
+            if (shutdown_cv.wait_for(lock, std::chrono::seconds(1), [this] {
+                    return !active;
+                })) {
+                // No longer monitoring - exit thread.
+                return;
+            }
 
-ParentMonitor::~ParentMonitor() {
-    active = false;
-    shutdown_cv.notify_all();
-    cb_join_thread(thread);
-}
-
-void ParentMonitor::thread_main(void* arg) {
-    auto* monitor = reinterpret_cast<ParentMonitor*>(arg);
-
-    while (true) {
-        // Wait for either the shutdown condvar to be notified, or for
-        // 1s. If we hit the timeout then time to check the parent.
-        std::unique_lock<std::mutex> lock(monitor->mutex);
-        if (monitor->shutdown_cv.wait_for(
-                lock,
-                std::chrono::seconds(1),
-                [monitor]{return !monitor->active;})) {
-            // No longer monitoring - exit thread.
-            return;
-        } else {
             // Check our parent.
             bool die = false;
 
 #ifdef WIN32
-            if (WaitForSingleObject(monitor->handle, 0) != WAIT_TIMEOUT) {
+            if (WaitForSingleObject(handle, 0) != WAIT_TIMEOUT) {
                 die = true;
             }
 #else
-            if (kill(monitor->parent_pid, 0) == -1 && errno == ESRCH) {
+            if (kill(parent_pid, 0) == -1 && errno == ESRCH) {
                 die = true;
             }
 #endif
 
             if (die) {
-                std::cerr << "Parent process " << monitor->parent_pid
-                          << " died. Exiting" << std::endl;
+                std::cerr << "Parent process " << parent_pid << " died. Exiting"
+                          << std::endl;
                 std::cerr.flush();
                 _exit(EXIT_FAILURE);
             }
         }
-    }
+    }};
+}
+
+ParentMonitor::~ParentMonitor() {
+    active = false;
+    shutdown_cv.notify_all();
+    thread.join();
 }
