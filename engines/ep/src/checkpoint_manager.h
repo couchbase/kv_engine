@@ -432,8 +432,6 @@ public:
 
     void notifyFlusher();
 
-    void setBySeqno(int64_t seqno);
-
     int64_t getHighSeqno() const;
 
     uint64_t getMaxVisibleSeqno() const;

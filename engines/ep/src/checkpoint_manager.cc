@@ -1016,11 +1016,6 @@ void CheckpointManager::notifyFlusher() {
     }
 }
 
-void CheckpointManager::setBySeqno(int64_t seqno) {
-    LockHolder lh(queueLock);
-    lastBySeqno = seqno;
-}
-
 int64_t CheckpointManager::getHighSeqno() const {
     LockHolder lh(queueLock);
     return lastBySeqno;
