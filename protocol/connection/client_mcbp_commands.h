@@ -32,8 +32,6 @@ class FrameInfo;
  */
 class BinprotCommand {
 public:
-    BinprotCommand(const BinprotCommand&) = delete;
-
     BinprotCommand() = default;
 
     virtual ~BinprotCommand() = default;
@@ -348,6 +346,10 @@ public:
         std::string path;
         std::string value;
     };
+
+    BinprotSubdocMultiMutationCommand(std::string key,
+                                      std::vector<MutationSpecifier> specs,
+                                      mcbp::subdoc::doc_flag docFlags);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

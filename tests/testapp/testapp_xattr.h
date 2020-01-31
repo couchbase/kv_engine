@@ -21,10 +21,33 @@
 
 #include <platform/cb_malloc.h>
 
-class XattrTest : public TestappXattrClientTest {
-public:
+/**
+ * Text fixture for XAttr tests which do not want to have an initial document
+ * created.
+ */
+class XattrNoDocTest : public TestappXattrClientTest {
+protected:
     void SetUp() override {
         TestappXattrClientTest::SetUp();
+    }
+
+    BinprotSubdocResponse subdoc_get(
+            const std::string& path,
+            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
+            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
+        return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+                      name,
+                      path,
+                      {},
+                      flag,
+                      docFlag);
+    }
+};
+
+class XattrTest : public XattrNoDocTest {
+protected:
+    void SetUp() override {
+        XattrNoDocTest::SetUp();
 
         // Create the document to operate on (with some compressible data).
         document.info.id = name;
@@ -201,18 +224,6 @@ protected:
         // Combined result will not be compressed; so just check for
         // JSON / not JSON.
         EXPECT_EQ(expectedJSONDatatype(), response.info.datatype);
-    }
-
-    BinprotSubdocResponse subdoc_get(
-            const std::string& path,
-            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
-                      name,
-                      path,
-                      {},
-                      flag,
-                      docFlag);
     }
 
     /**

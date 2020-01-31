@@ -140,6 +140,11 @@ protected:
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None);
 
+    /// Perform the specified subdoc multi-mutation command; returning the
+    /// response.
+    BinprotSubdocResponse subdocMultiMutation(
+            BinprotSubdocMultiMutationCommand cmd);
+
     cb::mcbp::Status xattr_upsert(const std::string& path,
                                   const std::string& value);
 

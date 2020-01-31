@@ -299,9 +299,10 @@ public:
         xattr_key = key;
     }
 
+    // The semantics to use when mutaing the document in the Bucket.
     MutationSemantics mutationSemantics = MutationSemantics::Replace;
 
-    void setMutationSemantics(mcbp::subdoc::doc_flag docFlags);
+    void decodeDocFlags(mcbp::subdoc::doc_flag docFlags);
 
     /**
      * Get the document containing all of the virtual attributes for
@@ -348,6 +349,10 @@ public:
     cb::unique_item_ptr fetchedItem;
 
     XtocSemantics xtocSemantics = XtocSemantics::None;
+
+    // If we need to create a new document (Add / Set), what state should
+    // that document be created in?
+    DocumentState createState = DocumentState::Alive;
 
 private:
     // The item info representing the input document

@@ -213,13 +213,17 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
     }
 }
 
-void SubdocCmdContext::setMutationSemantics(mcbp::subdoc::doc_flag docFlags) {
-    if (docFlags == mcbp::subdoc::doc_flag::Add) {
+void SubdocCmdContext::decodeDocFlags(mcbp::subdoc::doc_flag docFlags) {
+    if (mcbp::subdoc::hasAdd(docFlags)) {
         mutationSemantics = MutationSemantics::Add;
-    } else if (docFlags == mcbp::subdoc::doc_flag::Mkdoc) {
+    } else if (mcbp::subdoc::hasMkdoc(docFlags)) {
         mutationSemantics = MutationSemantics::Set;
     } else {
         mutationSemantics = MutationSemantics::Replace;
+    }
+
+    if (mcbp::subdoc::hasCreateAsDeleted(docFlags)) {
+        createState = DocumentState::Deleted;
     }
 }
 

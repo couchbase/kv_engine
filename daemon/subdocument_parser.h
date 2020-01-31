@@ -53,13 +53,13 @@ public:
     }
 
     bool isValid() const {
-        using ::mcbp::subdoc::doc_flag;
         switch (extras.size()) {
         case 3: // just the mandatory fields
         case 4: // including doc flags
         case 7: // including expiry
         case 8: // including expiry and doc flags
-            if ((uint8_t(0xf8) & uint8_t(getDocFlag())) != 0) {
+            if ((::mcbp::subdoc::extrasDocFlagMask & uint8_t(getDocFlag())) !=
+                0) {
                 return false;
             }
             return true;
@@ -93,13 +93,13 @@ public:
     }
 
     bool isValid() const {
-        using ::mcbp::subdoc::doc_flag;
         switch (extras.size()) {
         case 0: // None specified
         case 1: // Only doc flag
         case 4: // Expiry time
         case 5: // Expiry time and doc flag
-            if ((uint8_t(0xf8) & uint8_t(getDocFlag())) != 0) {
+            if ((::mcbp::subdoc::extrasDocFlagMask & uint8_t(getDocFlag())) !=
+                0) {
                 return false;
             }
             return true;

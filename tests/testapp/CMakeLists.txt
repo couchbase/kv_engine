@@ -73,6 +73,7 @@ set(memcached_testapp_SOURCES
     testapp_tune_mcbp_sla.cc
     testapp_withmeta.cc
     testapp_xattr.cc
+    testapp_xattr_deleted.cc
     testapp_xattr.h
     utilities.cc
     utilities.h
