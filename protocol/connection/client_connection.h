@@ -525,16 +525,20 @@ public:
      */
     void
     stats(std::function<void(const std::string&, const std::string&)> callback,
-          const std::string& group = std::string{});
+          const std::string& group = std::string{},
+          GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Get stats as a map
      * @param subcommand
      * @return
      */
-    std::map<std::string, std::string> statsMap(const std::string& subcommand);
+    std::map<std::string, std::string> statsMap(
+            const std::string& subcommand,
+            GetFrameInfoFunction getFrameInfo = {});
 
-    nlohmann::json stats(const std::string& subcommand);
+    nlohmann::json stats(const std::string& subcommand,
+                         GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Instruct the audit daemon to reload the configuration

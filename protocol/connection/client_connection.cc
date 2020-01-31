@@ -644,7 +644,8 @@ void MemcachedConnection::read(Frame& frame, size_t bytes) {
     }
 }
 
-nlohmann::json MemcachedConnection::stats(const std::string& subcommand) {
+nlohmann::json MemcachedConnection::stats(const std::string& subcommand,
+                                          GetFrameInfoFunction getFrameInfo) {
     nlohmann::json ret;
     stats(
             [&ret](const std::string& key, const std::string& value) -> void {
@@ -659,7 +660,8 @@ nlohmann::json MemcachedConnection::stats(const std::string& subcommand) {
                     ret[key] = value;
                 }
             },
-            subcommand);
+            subcommand,
+            getFrameInfo);
     return ret;
 }
 
@@ -1051,8 +1053,10 @@ MutationInfo MemcachedConnection::store(const std::string& id,
 
 void MemcachedConnection::stats(
         std::function<void(const std::string&, const std::string&)> callback,
-        const std::string& group) {
+        const std::string& group,
+        GetFrameInfoFunction getFrameInfo) {
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat, group);
+    applyFrameInfos(cmd, getFrameInfo);
     sendCommand(cmd);
 
     int counter = 0;
@@ -1079,11 +1083,12 @@ void MemcachedConnection::stats(
 }
 
 std::map<std::string, std::string> MemcachedConnection::statsMap(
-        const std::string& subcommand) {
+        const std::string& subcommand, GetFrameInfoFunction getFrameInfo) {
     std::map<std::string, std::string> ret;
     stats([&ret](const std::string& key,
                  const std::string& value) -> void { ret[key] = value; },
-          subcommand);
+          subcommand,
+          getFrameInfo);
     return ret;
 }
 

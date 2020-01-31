@@ -22,6 +22,7 @@
 #include <protocol/connection/client_connection.h>
 #include <utilities/terminate_handler.h>
 
+#include <protocol/connection/frameinfo.h>
 #include <iostream>
 
 /**
@@ -33,10 +34,20 @@
 static void request_stat(MemcachedConnection& connection,
                          const std::string& key,
                          bool json,
-                         bool format) {
+                         bool format,
+                         const std::string& impersonate) {
     try {
+        auto getFrameInfos = [&impersonate]() -> FrameInfoVector {
+            if (impersonate.empty()) {
+                return {};
+            }
+            FrameInfoVector ret;
+            ret.emplace_back(
+                    std::make_unique<ImpersonateUserFrameInfo>(impersonate));
+            return ret;
+        };
         if (json) {
-            auto stats = connection.stats(key);
+            auto stats = connection.stats(key, getFrameInfos);
             std::cout << stats.dump(format ? 1 : -1, '\t') << std::endl;
         } else {
             connection.stats(
@@ -44,7 +55,8 @@ static void request_stat(MemcachedConnection& connection,
                        const std::string& value) -> void {
                         std::cout << key << " " << value << std::endl;
                     },
-                    key);
+                    key,
+                    getFrameInfos);
         }
     } catch (const ConnectionError& ex) {
         std::cerr << ex.what() << std::endl;
@@ -71,6 +83,7 @@ Options:
   -6 or --ipv6                   Connect over IPv6
   -j or --json                   Print result as JSON (unformatted)
   -J or --json=pretty            Print result in JSON (formatted)
+  -I or --impersonate username   Try to impersonate the specified user
   --help                         This help text
   statkey ...  Statistic(s) to request
 )";
@@ -90,6 +103,7 @@ int main(int argc, char** argv) {
     std::string bucket{};
     std::string ssl_cert;
     std::string ssl_key;
+    std::string impersonate;
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
     bool json = false;
@@ -110,12 +124,13 @@ int main(int argc, char** argv) {
             {"ssl-cert", required_argument, nullptr, 'C'},
             {"ssl-key", required_argument, nullptr, 'K'},
             {"json", optional_argument, nullptr, 'j'},
+            {"impersonate", required_argument, nullptr, 'I'},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "46h:p:u:b:P:SsjJC:K:",
+                              "46h:p:u:b:P:SsjJC:K:I:",
                               long_options,
                               nullptr)) != EOF) {
         switch (cmd) {
@@ -163,6 +178,9 @@ int main(int argc, char** argv) {
             break;
         case 'K':
             ssl_key.assign(optarg);
+            break;
+        case 'I':
+            impersonate.assign(optarg);
             break;
         default:
             usage();
@@ -212,10 +230,10 @@ int main(int argc, char** argv) {
         }
 
         if (optind == argc) {
-            request_stat(connection, "", json, format);
+            request_stat(connection, "", json, format, impersonate);
         } else {
             for (int ii = optind; ii < argc; ++ii) {
-                request_stat(connection, argv[ii], json, format);
+                request_stat(connection, argv[ii], json, format, impersonate);
             }
         }
     } catch (const ConnectionError& ex) {
