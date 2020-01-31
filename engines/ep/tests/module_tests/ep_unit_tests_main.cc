@@ -32,6 +32,7 @@
 #include <memcached/server_core_iface.h>
 #include <memcached/server_log_iface.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/cbassert.h>
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
@@ -78,6 +79,8 @@ public:
 };
 
 int main(int argc, char **argv) {
+    setupWindowsDebugCRTAssertHandling();
+
     bool verbose_logging = false;
 
     // Initialise GoogleMock (and GoogleTest), consuming any cmd-line arguments

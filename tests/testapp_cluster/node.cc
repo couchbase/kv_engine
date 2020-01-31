@@ -100,12 +100,7 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
               {"minidump_dir", minidump_dir},
               {"content", "default"}}},
             {"portnumber_file", portnumber_file},
-#ifdef WIN32
-            {"parent_identifier",
-             static_cast<pid_t>(reinterpret_cast<size_t>(GetCurrentProcess()))}
-#else
             {"parent_identifier", (int)getpid()}
-#endif
 
     };
     config["interfaces"][0] = {{"tag", "plain"},
