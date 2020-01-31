@@ -1778,10 +1778,8 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     testAddPrepare(seqnos);
     ASSERT_EQ(seqnos.size(), pdm.getNumTracked());
 
-    // Need to force the high seqno to be the snap end seqno for Ephemeral as
-    // the persisted seqno in Ephemeral is just high seqno.
-    ckptMgr->setBySeqno(3);
-
+    // Store an unrelated item
+    setOne(makeStoredDocKey("committedItem"));
     ASSERT_EQ(3, vbucket->getHighSeqno());
 
     // Trick the ckptMgr and PDM into thinking this is a Disk
