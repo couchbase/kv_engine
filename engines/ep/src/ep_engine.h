@@ -49,10 +49,6 @@ class KVBucket;
 class StoredValue;
 class VBucketCountVisitor;
 
-extern "C" {
-    void EvpNotifyPendingConns(void*arg);
-}
-
 // Forward decl
 class EventuallyPersistentEngine;
 class ReplicationThrottle;

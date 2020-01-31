@@ -24,11 +24,9 @@
 #include <memcached/visibility.h>
 
 /* Public API declaration ****************************************************/
-extern "C" {
 MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_ewouldblock_instance(GET_SERVER_API gsa,
                                               EngineIface** handle);
 
 MEMCACHED_PUBLIC_API
-void destroy_ewouldblock_engine(void);
-}
+void destroy_ewouldblock_engine();

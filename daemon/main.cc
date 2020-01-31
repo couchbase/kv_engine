@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-extern "C" int memcached_main(int argc, char** argv);
+int memcached_main(int argc, char** argv);
 
 /**
  * This is the program entry point for memcached. We're building the

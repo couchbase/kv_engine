@@ -1700,7 +1700,7 @@ static void initialize_sasl() {
     }
 }
 
-extern "C" int memcached_main(int argc, char **argv) {
+int memcached_main(int argc, char** argv) {
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
     _set_FMA3_enable (0);

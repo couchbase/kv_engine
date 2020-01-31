@@ -83,8 +83,8 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.min_compression_ratio = default_min_compression_ratio;
 }
 
-extern "C" ENGINE_ERROR_CODE create_memcache_instance(
-        GET_SERVER_API get_server_api, EngineIface** handle) {
+ENGINE_ERROR_CODE create_memcache_instance(GET_SERVER_API get_server_api,
+                                           EngineIface** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
     struct default_engine* engine;
 
@@ -103,7 +103,7 @@ extern "C" ENGINE_ERROR_CODE create_memcache_instance(
     return ENGINE_SUCCESS;
 }
 
-extern "C" void destroy_memcache_engine() {
+void destroy_memcache_engine() {
     engine_manager_shutdown();
     assoc_destroy();
 }

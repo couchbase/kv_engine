@@ -224,16 +224,5 @@ hash_key* item_get_key(const hash_item* item);
 void item_set_cas(gsl::not_null<EngineIface*> handle,
                   gsl::not_null<item*> item,
                   uint64_t val);
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-MEMCACHED_PUBLIC_API
-void destroy_engine(void);
-
 void default_engine_constructor(struct default_engine* engine, bucket_id_t id);
 void destroy_engine_instance(struct default_engine* engine);
-
-#ifdef __cplusplus
-}
-#endif

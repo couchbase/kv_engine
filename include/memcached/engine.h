@@ -84,9 +84,7 @@ struct server_handle_v1_t {
     ServerBucketIface* bucket;
 };
 
-extern "C" {
 typedef SERVER_HANDLE_V1* (*GET_SERVER_API)();
-}
 
 namespace cb {
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;

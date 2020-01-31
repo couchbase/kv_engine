@@ -6,10 +6,6 @@
 
 #include "memcached/types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*
  * Initialise this module.
  */
@@ -18,19 +14,19 @@ void mc_time_init(struct event_base* ev_base);
 /*
  * Init the epoch time tracking variables
  */
-void mc_time_init_epoch(void);
+void mc_time_init_epoch();
 
 /*
  * Return a monotonically increasing value.
  * The value returned represents seconds since memcached started.
  */
-rel_time_t mc_time_get_current_time(void);
+rel_time_t mc_time_get_current_time();
 
 /*
  * Update a number of time keeping variables and account for system
  * clock changes.
  */
-void mc_time_clock_tick(void);
+void mc_time_clock_tick();
 
 /*
  * Convert a relative time value to an absolute time.
@@ -40,7 +36,7 @@ void mc_time_clock_tick(void);
  *
  * time_convert_to_abs_time(time_get_current_time());
  */
-time_t mc_time_convert_to_abs_time(const rel_time_t rel_time);
+time_t mc_time_convert_to_abs_time(rel_time_t rel_time);
 
 /**
  * Convert a protocol encoded expiry time stamp to a relative time stamp
@@ -71,7 +67,3 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t);
  * @return The expiry time after checking it against now + limit.
  */
 time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit);
-
-#ifdef __cplusplus
-}
-#endif

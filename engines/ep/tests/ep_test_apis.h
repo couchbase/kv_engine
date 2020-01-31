@@ -39,10 +39,6 @@
 
 void abort_msg(const char* expr, const char* msg, const char* file, int line);
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 bool add_response(cb::const_char_buffer key,
                   cb::const_char_buffer extras,
                   cb::const_char_buffer body,
@@ -54,10 +50,6 @@ bool add_response(cb::const_char_buffer key,
 void add_stats(cb::const_char_buffer key,
                cb::const_char_buffer value,
                gsl::not_null<const void*> cookie);
-
-#ifdef __cplusplus
-}
-#endif
 
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;

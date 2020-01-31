@@ -611,7 +611,7 @@ void TestappTest::parse_portnumber_file() {
     EXPECT_EQ(0, remove(portnumber_file.c_str()));
 }
 
-extern "C" int memcached_main(int argc, char** argv);
+int memcached_main(int argc, char** argv);
 
 void memcached_server_thread_main(const std::string& config) {
     char* argv[4];

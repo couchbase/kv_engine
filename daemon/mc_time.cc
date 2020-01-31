@@ -84,7 +84,7 @@ void mc_time_init(struct event_base* ev_base) {
  * In order to provide a monotonic "uptime" and track system time, we record
  * some points in time.
  */
-void mc_time_init_epoch(void) {
+void mc_time_init_epoch() {
     struct timeval t;
     memcached_uptime = 0;
     memcached_monotonic_start = cb_get_monotonic_seconds();
@@ -96,7 +96,7 @@ void mc_time_init_epoch(void) {
  * Return a monotonically increasing value.
  * The value returned represents seconds since memcached started.
  */
-rel_time_t mc_time_get_current_time(void) {
+rel_time_t mc_time_get_current_time() {
     return memcached_uptime;
 }
 
@@ -258,7 +258,7 @@ void mc_time_clock_tick(void) {
     executorPool->clockTick();
 }
 
-static void mc_gather_timing_samples(void) {
+static void mc_gather_timing_samples() {
     bucketsForEach([](Bucket& bucket, void *) -> bool {
         bucket.timings.sample(std::chrono::seconds(1));
         return true;

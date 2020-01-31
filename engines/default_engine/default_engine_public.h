@@ -22,10 +22,8 @@
 #include <memcached/engine.h>
 #include <memcached/visibility.h>
 
-extern "C" {
 MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_memcache_instance(GET_SERVER_API get_server_api,
                                            EngineIface** handle);
 MEMCACHED_PUBLIC_API
 void destroy_memcache_engine();
-}

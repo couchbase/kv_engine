@@ -22,7 +22,6 @@
  */
 #pragma once
 
-#ifdef __cplusplus
 #include <condition_variable>
 #include <mutex>
 #include <unordered_set>
@@ -99,9 +98,6 @@ private:
     std::unordered_set<struct default_engine*> engines;
 };
 
-extern "C" {
-#endif
-
 /*
  * Create a new engine instance.
  * Returns NULL for failure.
@@ -127,7 +123,3 @@ void engine_manager_scrub_engine(struct default_engine* engine);
  * This method will block until background threads are joined.
  */
 void engine_manager_shutdown();
-
-#ifdef __cplusplus
-}
-#endif
