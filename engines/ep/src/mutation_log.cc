@@ -724,6 +724,7 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
 
 MutationLog::iterator::iterator(const MutationLog* l, bool e)
     : log(l),
+      p(buf.begin()),
       offset(l->header().blockSize() * l->header().blockCount()),
       items(0),
       isEnd(e) {

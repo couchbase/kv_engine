@@ -1080,14 +1080,12 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
             }
         }
 
-        // Only change the counts if the checkpoints are different
-        if (cit.second->currentCheckpoint != checkpointList.begin()) {
-            (*cit.second->currentCheckpoint)->decNumOfCursorsInCheckpoint();
-            checkpointList.front()->incNumOfCursorsInCheckpoint();
-        }
+        // Remove this cursor from the accounting of it's old checkpoint.
+        (*cit.second->currentCheckpoint)->decNumOfCursorsInCheckpoint();
 
         cit.second->currentCheckpoint = checkpointList.begin();
         cit.second->currentPos = checkpointList.front()->begin();
+        checkpointList.front()->incNumOfCursorsInCheckpoint();
     }
 }
 
