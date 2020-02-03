@@ -7269,7 +7269,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     }
 
     // Set the manifest now that we have created vBuckets
-    h->set_collection_manifest(cookie, R"({"uid" : "0",
+    h->set_collection_manifest(cookie, R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"beer", "uid":"8"},

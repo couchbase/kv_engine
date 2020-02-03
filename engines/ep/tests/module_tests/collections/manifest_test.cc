@@ -25,6 +25,33 @@
 #include <limits>
 #include <unordered_set>
 
+TEST(ManifestTest, defaultState) {
+    Collections::Manifest m;
+    EXPECT_TRUE(m.doesDefaultCollectionExist());
+    EXPECT_EQ(1, m.size());
+    EXPECT_EQ(0, m.getUid());
+    auto collection = m.findCollection(CollectionID::Default);
+    EXPECT_NE(collection, m.end());
+    EXPECT_EQ(ScopeID::Default, collection->second.sid);
+    EXPECT_EQ("_default", collection->second.name);
+
+    collection = m.findCollection("_default", "_default");
+    EXPECT_NE(collection, m.end());
+    EXPECT_EQ(ScopeID::Default, collection->second.sid);
+    EXPECT_EQ("_default", collection->second.name);
+
+    auto scope = m.findScope(ScopeID::Default);
+    EXPECT_NE(scope, m.endScopes());
+    EXPECT_EQ("_default", scope->second.name);
+    EXPECT_EQ(1, scope->second.collections.size());
+    EXPECT_EQ(CollectionID::Default, scope->second.collections[0].id);
+
+    auto oScope = m.getScopeID("_default._default");
+    EXPECT_EQ(ScopeID::Default, oScope.value_or(~0));
+    auto oCollection = m.getCollectionID(oScope.get(), "_default._default");
+    EXPECT_EQ(CollectionID::Default, oCollection.value_or(~0));
+}
+
 TEST(ManifestTest, validation) {
     std::vector<std::string> invalidManifests = {
             "", // empty
@@ -283,6 +310,10 @@ TEST(ManifestTest, validation) {
     std::vector<std::string> validManifests = {
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"}]}]})",
+
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
 
             R"({"uid" : "0",
@@ -362,6 +393,10 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":4294967295}]}]})",
+
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"brewery","uid":"8"}]}]})",
     };
 
     for (auto& manifest : invalidManifests) {
@@ -383,6 +418,28 @@ TEST(ManifestTest, validation) {
                     << std::endl
                     << " what:" << e.what();
         }
+    }
+
+    // Following logic requires even number of valid manifests
+    ASSERT_EQ(0, validManifests.size() % 2);
+
+    // Make use of the valid manifests to give some coverage on the compare
+    // operator.
+    auto itr = validManifests.rbegin();
+    for (auto& manifest : validManifests) {
+        try {
+            Collections::Manifest m1(manifest);
+            Collections::Manifest m2(manifest);
+            Collections::Manifest m3(*itr);
+            EXPECT_EQ(m1, m2);
+            EXPECT_NE(m1, m3);
+        } catch (std::exception& e) {
+            EXPECT_TRUE(false)
+                    << "Exception thrown for valid manifest:" << manifest
+                    << std::endl
+                    << " what:" << e.what();
+        }
+        itr++;
     }
 }
 

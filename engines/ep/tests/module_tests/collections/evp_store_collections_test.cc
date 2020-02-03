@@ -356,8 +356,6 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
 }
 
 TEST_P(CollectionsParameterizedTest, get_collection_id) {
-    auto rv = store->getCollectionID("");
-    EXPECT_EQ(cb::engine_errc::no_collections_manifest, rv.result);
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
     cm.add(ScopeEntry::shop2);
@@ -365,7 +363,7 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     std::string json = cm;
     store->setCollections(json);
     // Check bad 'paths'
-    rv = store->getCollectionID("");
+    auto rv = store->getCollectionID("");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
     rv = store->getCollectionID("..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
@@ -428,8 +426,6 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
 }
 
 TEST_P(CollectionsParameterizedTest, get_scope_id) {
-    auto rv = store->getScopeID("");
-    EXPECT_EQ(cb::engine_errc::no_collections_manifest, rv.result);
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
@@ -439,7 +435,7 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     store->setCollections(json);
 
     // Check bad 'paths', require 0 or 1 dot
-    rv = store->getScopeID("..");
+    auto rv = store->getScopeID("..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
     // Check bad 'paths', require 0 or 1 dot
     rv = store->getScopeID("a.b.c");

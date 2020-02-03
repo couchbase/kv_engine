@@ -31,12 +31,11 @@
 namespace Collections {
 
 // The reserved name of the system owned, default collection.
-const char* const _DefaultCollectionIdentifier = "_default";
-static cb::const_char_buffer DefaultCollectionIdentifier(
-        _DefaultCollectionIdentifier);
+const char* const DefaultCollectionName = "_default";
+static cb::const_char_buffer DefaultCollectionIdentifier(DefaultCollectionName);
 
-const char* const _DefaultScopeIdentifier = "_default";
-static cb::const_char_buffer DefaultScopeIdentifier(_DefaultScopeIdentifier);
+const char* const DefaultScopeName = "_default";
+static cb::const_char_buffer DefaultScopeIdentifier(DefaultScopeName);
 
 // SystemEvent keys or parts which will be made into keys
 const char* const SystemSeparator = ":"; // Note this never changes
@@ -145,7 +144,7 @@ static inline ScopeID makeScopeID(const std::string& uid) {
 struct CollectionMetaData {
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
-    std::string name{_DefaultCollectionIdentifier}; // The collection's name
+    std::string name{DefaultCollectionName}; // The collection's name
     cb::ExpiryLimit maxTtl; // The collection's maxTTL
 
     bool operator==(const CollectionMetaData& other) const {

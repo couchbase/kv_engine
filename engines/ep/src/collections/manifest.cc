@@ -80,7 +80,7 @@ static void throwIfWrongType(const std::string& errorKey,
 Manifest::Manifest(cb::const_char_buffer json,
                    size_t maxNumberOfScopes,
                    size_t maxNumberOfCollections)
-    : defaultCollectionExists(false), uid(0) {
+    : defaultCollectionExists(false), scopes(), collections(), uid(0) {
     nlohmann::json parsed;
     try {
         parsed = nlohmann::json::parse(json);
@@ -436,15 +436,51 @@ boost::optional<ScopeID> Manifest::getScopeID(const std::string& path) const {
 }
 
 boost::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
-    auto itr = collections.find(key.getCollectionID());
-    if (itr != collections.end()) {
-        return itr->second.sid;
+    if (key.getCollectionID().isDefaultCollection() &&
+        defaultCollectionExists) {
+        return ScopeID{ScopeID::Default};
+    } else {
+        auto itr = collections.find(key.getCollectionID());
+        if (itr != collections.end()) {
+            return itr->second.sid;
+        }
     }
     return {};
 }
 
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
+}
+
+bool CollectionEntry::operator==(const CollectionEntry& other) const {
+    return id == other.id && maxTtl == other.maxTtl;
+}
+
+bool Scope::operator==(const Scope& other) const {
+    bool equal = name == other.name &&
+                 collections.size() == other.collections.size();
+    if (equal) {
+        for (const auto c : collections) {
+            equal &= std::find(other.collections.begin(),
+                               other.collections.end(),
+                               c) != other.collections.end();
+            if (!equal) {
+                break;
+            }
+        }
+    }
+    return equal;
+}
+
+bool Manifest::Collection::operator==(const Manifest::Collection& other) const {
+    return sid == other.sid && name == other.name;
+}
+
+bool Manifest::operator==(const Manifest& other) const {
+    bool equal = defaultCollectionExists == other.defaultCollectionExists;
+    equal &= uid == other.uid;
+    equal &= scopes == other.scopes && collections == other.collections;
+    return equal;
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

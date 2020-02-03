@@ -17,10 +17,13 @@
 
 #pragma once
 
+#include "collections/manifest.h"
+
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <platform/sized_buffer.h>
 
+#include <folly/Synchronized.h>
 #include <memory>
 #include <mutex>
 
@@ -28,8 +31,6 @@ class KVBucket;
 class VBucket;
 
 namespace Collections {
-
-class Manifest;
 
 /**
  * Collections::Manager provides some bucket level management functions
@@ -172,6 +173,8 @@ private:
 
     /// Store the most recent (current) manifest received
     std::unique_ptr<Manifest> current;
+
+    folly::Synchronized<Manifest> currentManifest;
 };
 
 std::ostream& operator<<(std::ostream& os, const Manager& manager);

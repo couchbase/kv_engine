@@ -33,11 +33,19 @@ static const size_t MaxCollectionNameSize = 30;
 struct CollectionEntry {
     CollectionID id;
     cb::ExpiryLimit maxTtl;
+    bool operator==(const CollectionEntry& other) const;
+    bool operator!=(const CollectionEntry& other) const {
+        return !(*this == other);
+    }
 };
 
 struct Scope {
     std::string name;
     std::vector<CollectionEntry> collections;
+    bool operator==(const Scope& other) const;
+    bool operator!=(const Scope& other) const {
+        return !(*this == other);
+    }
 };
 
 /**
@@ -49,6 +57,8 @@ struct Scope {
  */
 class Manifest {
 public:
+    Manifest() = default;
+
     /*
      * Create a manifest from json.
      * Validates the json as per SET_COLLECTIONS rules.
@@ -81,6 +91,10 @@ public:
     struct Collection {
         ScopeID sid;
         std::string name;
+        bool operator==(const Collection& other) const;
+        bool operator!=(const Collection& other) const {
+            return !(*this == other);
+        }
     };
     using collectionContainer = std::unordered_map<CollectionID, Collection>;
 
@@ -216,6 +230,11 @@ public:
      */
     void dump() const;
 
+    bool operator==(const Manifest& other) const;
+    bool operator!=(const Manifest& other) const {
+        return !(*this == other);
+    }
+
 private:
     /**
      * Set defaultCollectionExists to true if identifier matches
@@ -240,10 +259,12 @@ private:
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
-    bool defaultCollectionExists;
-    scopeContainer scopes;
-    collectionContainer collections;
-    ManifestUid uid;
+    bool defaultCollectionExists{true};
+    scopeContainer scopes = {
+            {ScopeID::Default, {DefaultScopeName, {{CollectionID::Default}}}}};
+    collectionContainer collections = {
+            {CollectionID::Default, {ScopeID::Default, DefaultCollectionName}}};
+    ManifestUid uid{0};
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);

@@ -32,13 +32,10 @@ Collections::Manager::Manager() {
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                               cb::const_char_buffer manifest) {
-    std::unique_lock<std::mutex> ul(lock, std::try_to_lock);
-    if (!ul.owns_lock()) {
-        // Make concurrent updates fail, in reality there should only be one
-        // admin connection making changes.
-        return cb::engine_error(cb::engine_errc::temporary_failure,
-                                "Collections::Manager::update already locked");
-    }
+    // Get upgrade access to the manifest for the initial part of the update
+    // This gives shared access (other readers allowed) but would block other
+    // attempts to get upgrade access.
+    auto current = currentManifest.ulock();
 
     std::unique_ptr<Manifest> newManifest;
     // Construct a newManifest (will throw if JSON was illegal)
@@ -60,10 +57,11 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                         cb::to_string(manifest));
     }
 
-    // Check the new manifest UID
-    if (current) {
+    // If the new manifest has a non zero uid, try to apply it
+    if (newManifest->getUid() != 0) {
+        // However expect it to be increasing
         if (newManifest->getUid() <= current->getUid()) {
-            // Bad - newManifest has a lower UID
+            // Bad - newManifest has a equal/lower UID
             EP_LOG_WARN(
                     "Collections::Manager::update the new manifest has "
                     "UID < current manifest UID. Current UID:{}, New "
@@ -75,21 +73,34 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                     "Collections::Manager::update new UID cannot "
                     "be lower than existing UID");
         }
-    }
 
-    auto updated = updateAllVBuckets(bucket, *newManifest);
-    if (updated.is_initialized()) {
-        auto rolledback = updateAllVBuckets(bucket, *current);
+        auto updated = updateAllVBuckets(bucket, *newManifest);
+        if (updated.is_initialized()) {
+            auto rolledback = updateAllVBuckets(bucket, *current);
+            return cb::engine_error(
+                    cb::engine_errc::cannot_apply_collections_manifest,
+                    "Collections::Manager::update aborted on " +
+                            updated->to_string() + " and rolled-back success:" +
+                            std::to_string(!rolledback.is_initialized()) +
+                            ", cannot apply:" + cb::to_string(manifest));
+        }
+
+        // Now switch to write locking and change the manifest. The lock is
+        // released after this statement.
+        *current.moveFromUpgradeToWrite() = std::move(*newManifest);
+    } else if (*newManifest != *current) {
+        // The new manifest has a uid:0, we tolerate an update where current and
+        // new have a uid:0, but expect that the manifests are equal.
+        // So this else case catches when the manifests aren't equal
+        EP_LOG_WARN(
+                "Collections::Manager::update error. The new manifest does not "
+                "match and we think it should. current:{}, new:{}",
+                current->toJson(),
+                cb::to_string(manifest));
         return cb::engine_error(
                 cb::engine_errc::cannot_apply_collections_manifest,
-                "Collections::Manager::update aborted on " +
-                        updated->to_string() + " and rolled-back success:" +
-                        std::to_string(!rolledback.is_initialized()) +
-                        ", cannot apply:" + cb::to_string(manifest));
+                "Collections::Manager::update failed. Manifest mismatch");
     }
-
-    current = std::move(newManifest);
-
     return cb::engine_error(cb::engine_errc::success,
                             "Collections::Manager::update");
 }
@@ -110,12 +121,7 @@ boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
 
 std::pair<cb::mcbp::Status, std::string> Collections::Manager::getManifest()
         const {
-    std::unique_lock<std::mutex> ul(lock);
-    if (current) {
-        return {cb::mcbp::Status::Success, current->toJson()};
-    } else {
-        return {cb::mcbp::Status::NoCollectionsManifest, {}};
-    }
+    return {cb::mcbp::Status::Success, currentManifest.rlock()->toJson()};
 }
 
 bool Collections::Manager::validateGetCollectionIDPath(
@@ -129,10 +135,7 @@ bool Collections::Manager::validateGetScopeIDPath(const std::string& path) {
 
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         cb::const_char_buffer path) const {
-    std::unique_lock<std::mutex> ul(lock);
-    if (!current) {
-        return {cb::engine_errc::no_collections_manifest, 0, 0};
-    }
+    auto current = currentManifest.rlock();
 
     auto sPath = cb::to_string(path);
 
@@ -155,10 +158,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         cb::const_char_buffer path) const {
-    std::unique_lock<std::mutex> ul(lock);
-    if (!current) {
-        return {cb::engine_errc::no_collections_manifest, 0, 0};
-    }
+    auto current = currentManifest.rlock();
 
     auto sPath = cb::to_string(path);
     if (!validateGetScopeIDPath(sPath)) {
@@ -175,28 +175,24 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
 
 std::pair<uint64_t, boost::optional<ScopeID>> Collections::Manager::getScopeID(
         const DocKey& key) const {
+    // 'shortcut' For the default collection, just return the default scope.
+    // If the default collection was deleted the vbucket will have the final say
+    // but for this interface allow this without taking the rlock.
     if (key.getCollectionID().isDefaultCollection()) {
         // Allow the default collection in the default scope...
         return std::make_pair<uint64_t, boost::optional<ScopeID>>(
                 0, ScopeID{ScopeID::Default});
     }
 
-    std::unique_lock<std::mutex> ul(lock);
-    if (!current) {
-        return std::make_pair<uint64_t, boost::optional<ScopeID>>(
-                0, {}); // no manifest, no collections/scopes
-    }
-
+    auto current = currentManifest.rlock();
     return std::make_pair<uint64_t, boost::optional<ScopeID>>(
             current->getUid(), current->getScopeID(key));
 }
 
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
-    std::lock_guard<std::mutex> ul(lock);
-    if (current) {
-        vb.updateFromManifest(*current);
-    }
+    currentManifest.withRLock(
+            [&vb](const auto& manifest) { vb.updateFromManifest(manifest); });
 }
 
 // This method is really to aid development and allow the dumping of the VB
@@ -217,22 +213,12 @@ void Collections::Manager::logAll(KVBucket& bucket) const {
 
 void Collections::Manager::addCollectionStats(const void* cookie,
                                               const AddStatFn& add_stat) const {
-    std::lock_guard<std::mutex> lg(lock);
-    if (current) {
-        current->addCollectionStats(cookie, add_stat);
-    } else {
-        add_casted_stat("manifest", "none", add_stat, cookie);
-    }
+    currentManifest.rlock()->addCollectionStats(cookie, add_stat);
 }
 
 void Collections::Manager::addScopeStats(const void* cookie,
                                          const AddStatFn& add_stat) const {
-    std::lock_guard<std::mutex> lg(lock);
-    if (current) {
-        current->addScopeStats(cookie, add_stat);
-    } else {
-        add_casted_stat("manifest", "none", add_stat, cookie);
-    }
+    currentManifest.rlock()->addScopeStats(cookie, add_stat);
 }
 
 /**
