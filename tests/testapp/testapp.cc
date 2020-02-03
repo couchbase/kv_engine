@@ -1404,6 +1404,8 @@ int main(int argc, char** argv) {
     snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
     putenv(envvar);
 
+    setupWindowsDebugCRTAssertHandling();
+
     ::testing::InitGoogleTest(&argc, argv);
 
 #ifndef WIN32

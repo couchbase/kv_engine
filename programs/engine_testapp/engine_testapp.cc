@@ -423,6 +423,7 @@ int main(int argc, char **argv) {
        job. */
     int attempts = 1;
 
+    setupWindowsDebugCRTAssertHandling();
     cb::logger::createConsoleLogger();
     cb_initialize_sockets();
 

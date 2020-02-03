@@ -19,6 +19,7 @@
 #include "bucket.h"
 #include "cluster.h"
 #include <event2/thread.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -95,6 +96,7 @@ TEST_F(BasicClusterTest, MultiGet) {
 
 char isasl_env_var[1024];
 int main(int argc, char** argv) {
+    setupWindowsDebugCRTAssertHandling();
     cb_initialize_sockets();
 
 #if defined(EVTHREAD_USE_WINDOWS_THREADS_IMPLEMENTED)

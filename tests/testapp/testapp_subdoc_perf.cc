@@ -42,10 +42,11 @@ protected:
         ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,
                                      0);
 
-        if (folly::kIsSanitize || RUNNING_ON_VALGRIND) {
+        if (folly::kIsSanitize || RUNNING_ON_VALGRIND ||
+            (folly::kIsWindows && folly::kIsDebug)) {
             // Reduce the iterations to a minimal value if we're running under
-            // Sanitizers or Valgrind - we aren't benchmarking under
-            // these modes, just checking for bugs.
+            // a configuration which is not running at release speed - we aren't
+            // benchmarking under these modes, just checking for bugs.
             iterations = 10;
         } else {
             iterations = 5000;
