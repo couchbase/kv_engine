@@ -51,6 +51,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             doc_pre_expiry.h
             enginemap.cc
             enginemap.h
+            environment.cc
             executor.cc
             executor.h
             executorpool.cc

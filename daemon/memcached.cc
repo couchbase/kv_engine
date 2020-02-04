@@ -19,6 +19,7 @@
 #include "cmdline.h"
 #include "cookie.h"
 #include "enginemap.h"
+#include "environment.h"
 #include "executor.h"
 #include "executorpool.h"
 #include "external_auth_manager_thread.h"
@@ -111,11 +112,6 @@ std::unique_ptr<cb::ExecutorPool> executorPool;
 
 /* Mutex for global stats */
 std::mutex stats_mutex;
-
-/// The maximum number of file handles we may have. During startup
-/// we'll try to increase the allowed number of file handles to the
-/// limit specified for the current user.
-static size_t max_file_handles;
 
 /*
  * forward declarations
@@ -303,8 +299,8 @@ static void recalculate_max_connections() {
             (3 * (Settings::instance().getNumWorkerThreads() + 2)) + 1024;
     const uint64_t maxfiles = maxconn + system;
 
-    if (max_file_handles < maxfiles) {
-        const auto newmax = max_file_handles - system;
+    if (environment.max_file_descriptors < maxfiles) {
+        const auto newmax = environment.max_file_descriptors - system;
         Settings::instance().setMaxConnections(newmax, false);
         LOG_WARNING(
                 "max_connections is set higher than the available number of "
@@ -1711,7 +1707,7 @@ int memcached_main(int argc, char** argv) {
     const std::string numa_status = configure_numa_policy();
 #endif
 
-    max_file_handles = cb::io::maximizeFileDescriptors(
+    environment.max_file_descriptors = cb::io::maximizeFileDescriptors(
             std::numeric_limits<uint32_t>::max());
 
     std::unique_ptr<ParentMonitor> parent_monitor;
