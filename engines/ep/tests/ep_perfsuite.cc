@@ -469,10 +469,10 @@ static enum test_result perf_latency(EngineIface* h,
     add_sentinel_doc(h, Vbid(0));
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
-    all_timings.push_back(std::make_pair("Add", &add_timings));
-    all_timings.push_back(std::make_pair("Get", &get_timings));
-    all_timings.push_back(std::make_pair("Replace", &replace_timings));
-    all_timings.push_back(std::make_pair("Delete", &delete_timings));
+    all_timings.emplace_back("Add", &add_timings);
+    all_timings.emplace_back("Get", &get_timings);
+    all_timings.emplace_back("Replace", &replace_timings);
+    all_timings.emplace_back("Delete", &delete_timings);
     output_result(title, description, all_timings, "µs");
     return SUCCESS;
 }
@@ -621,10 +621,10 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
         // done with these arrays now
         thread_args[ii].clear();
     }
-    all_timings.push_back(std::make_pair("Add", &add_timings));
-    all_timings.push_back(std::make_pair("Get", &get_timings));
-    all_timings.push_back(std::make_pair("Replace", &replace_timings));
-    all_timings.push_back(std::make_pair("Delete", &delete_timings));
+    all_timings.emplace_back("Add", &add_timings);
+    all_timings.emplace_back("Get", &get_timings);
+    all_timings.emplace_back("Replace", &replace_timings);
+    all_timings.emplace_back("Delete", &delete_timings);
     std::stringstream title;
     title << n_buckets << "_buckets_" << n_threads << "_threads_baseline";
     output_result(title.str(), "Timings", all_timings, "µs");
@@ -1114,8 +1114,8 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
                                                     "As_is",
                                                     /*opaque*/ 0xFFFFFF00,
                                                     false);
-    all_timings.push_back({"As_is", &as_is_results.first});
-    all_sizes.push_back({"As_is", &as_is_results.second});
+    all_timings.emplace_back("As_is", &as_is_results.first);
+    all_sizes.emplace_back("As_is", &as_is_results.second);
 
     // For Loader & DCP client to get documents compressed from vbucket 1
     auto compress_results = single_dcp_latency_bw_test(h,
@@ -1125,8 +1125,8 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
                                                        "Compress",
                                                        /*opaque*/ 0xFF000000,
                                                        true);
-    all_timings.push_back({"Compress", &compress_results.first});
-    all_sizes.push_back({"Compress", &compress_results.second});
+    all_timings.emplace_back("Compress", &compress_results.first);
+    all_sizes.emplace_back("Compress", &compress_results.second);
 
     printf("\n\n");
 
@@ -1292,7 +1292,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     }
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*>> result;
-    result.push_back({"Datatype::Raw", &timings});
+    result.emplace_back("Datatype::Raw", &timings);
 
     std::string title = "DCP Consumer snapshot-end mutation";
     // Note: I need to print the title here as it is ignore by output_result

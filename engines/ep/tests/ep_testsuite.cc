@@ -7406,8 +7406,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         }
 
         auto& vb_details = statsKeys.at("vbucket-details 0");
-        vb_details.push_back("vb_0:db_data_size");
-        vb_details.push_back("vb_0:db_file_size");
+        vb_details.emplace_back("vb_0:db_data_size");
+        vb_details.emplace_back("vb_0:db_file_size");
 
         // Config variables only valid for persistent
         auto& config_stats = statsKeys.at("config");

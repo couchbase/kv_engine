@@ -51,7 +51,7 @@ void ScrubberTask::placeOnWorkQueue(struct default_engine* engine,
     std::lock_guard<std::mutex> lck(lock);
     if (!shuttingdown) {
         engine->scrubber.force_delete = destroy;
-        workQueue.push_back(std::make_pair(engine, destroy));
+        workQueue.emplace_back(engine, destroy);
         cvar.notify_one();
     }
 }

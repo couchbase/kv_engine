@@ -92,7 +92,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         }
     } else {
         // Nothing on disk - the default scope is assumed
-        rv.scopes.push_back(ScopeID::Default);
+        rv.scopes.emplace_back(ScopeID::Default);
     }
 
     // Do dropped collections exist?

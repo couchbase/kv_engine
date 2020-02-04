@@ -94,7 +94,7 @@ static void test_subdoc_multi_lookup_getmulti() {
         lookup.specs.push_back(
                 {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, key});
 
-        expected.push_back({cb::mcbp::Status::Success, value});
+        expected.emplace_back(cb::mcbp::Status::Success, value);
     }
     expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
 
@@ -131,7 +131,7 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
         lookup.specs.push_back({cb::mcbp::ClientOpcode::SubdocGet,
                                 SUBDOC_FLAG_NONE,
                                 path.first});
-        expected.push_back({path.second, ""});
+        expected.emplace_back(path.second, "");
     }
     expect_subdoc_cmd(
             lookup, cb::mcbp::Status::SubdocMultiPathFailure, expected);
@@ -573,8 +573,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
                                   value,
                                   std::to_string(ii + 1)});
 
-        expected_results.push_back(
-                {ii, cb::mcbp::Status::Success, std::to_string(ii + 1)});
+        expected_results.emplace_back(ii, cb::mcbp::Status::Success, std::to_string(ii + 1));
     }
 
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, expected_results);

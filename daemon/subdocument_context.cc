@@ -197,8 +197,7 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
             if (payload.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
             } else {
-                paddedMacros.push_back(
-                        std::make_pair(macro.name.buf, candidate));
+                paddedMacros.emplace_back(macro.name.buf, candidate);
             }
         }
     }

@@ -3722,7 +3722,7 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
                                      const void* cookie,
                                      HighPriorityVBNotify reqType) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
-    hpVBReqs.push_back(HighPriorityVBEntry(cookie, seqnoOrChkId, reqType));
+    hpVBReqs.emplace_back(cookie, seqnoOrChkId, reqType);
     numHpVBReqs.store(hpVBReqs.size());
 
     EP_LOG_INFO(
