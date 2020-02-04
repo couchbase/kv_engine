@@ -34,6 +34,17 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     // Tests may need to create multiple failover table entries, so allow that
     maxFailoverEntries = 5;
 
+    // Default to a reduced number of vBuckets & shards to speed up test
+    // setup / teardown (fewer VBucket & other related objects).
+    // Tests which require additional vbuckets can specify that in
+    // extra_config string.
+    if (!configuration.parseConfiguration("max_vbuckets=4;max_num_shards=1",
+                                          serverApi)) {
+        throw std::invalid_argument(
+                "SynchronousEPEngine: Unable to set reduced max_vbuckets & "
+                "max_num_shards");
+    }
+
     // Merge any extra config into the main configuration.
     if (extra_config.size() > 0) {
         if (!configuration.parseConfiguration(extra_config.c_str(),

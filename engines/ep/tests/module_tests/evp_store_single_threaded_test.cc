@@ -686,8 +686,17 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
  *    for this vb. At this point the newly woken task should be blocked from
  *    doing any work (and return early).
  */
-TEST_F(SingleThreadedEPBucketTest,
-       MB29369_CursorDroppingPendingCkptProcessorTask) {
+class MB29369_SingleThreadedEPBucketTest : public SingleThreadedEPBucketTest {
+protected:
+    MB29369_SingleThreadedEPBucketTest() {
+        // Need dcp_producer_snapshot_marker_yield_limit + 1 (11) vBuckets for
+        // this test.
+        config_string = "max_vbuckets=11";
+    }
+};
+
+TEST_F(MB29369_SingleThreadedEPBucketTest,
+       CursorDroppingPendingCkptProcessorTask) {
     // Create a Mock Dcp producer and schedule on executorpool.
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     producer->scheduleCheckpointProcessorTask();
