@@ -34,6 +34,7 @@
 #include "module_tests/test_helpers.h"
 #include "module_tests/thread_gate.h"
 
+#include <folly/Portability.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <platform/cbassert.h>
@@ -56,19 +57,18 @@
 // override this, but is generally desirable for them to scale the
 // default iteration count instead of blindly overriding it.
 const size_t ITERATIONS =
-#if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER) || defined(DEBUG)
-        // Reduced iteration count for Address/ThreadSanitizer, as it runs ~20x
-        // slower than without TSan.  Note: We don't actually track
-        // performance when run under TSan, however the workloads of this
-        // testsuite are still useful to run under TSan to expose any data
-        // race issues.
-        // Similary for DEBUG builds; we don't track performance, just want
-        // to run to check functionality.
-        100000 / 20;
-#else
-    // Set to a value a typical ~2015 laptop can run Baseline in 3s.
-    100000;
-#endif
+        (folly::kIsSanitize || folly::kIsDebug)
+                // Reduced iteration count for Address/ThreadSanitizer, as it
+                // runs ~20x slower than without TSan.  Note: We don't actually
+                // track performance when run under TSan, however the workloads
+                // of this testsuite are still useful to run under TSan to
+                // expose any data race issues. Similary for DEBUG builds; we
+                // don't track performance, just want to run to check
+                // functionality.
+                ? 100000 / 20
+
+                // Set to a value a typical ~2015 laptop can run Baseline in 3s.
+                : 100000;
 
 // Key of the sentinel document, used to detect the end of a run.
 const char SENTINEL_KEY[] = "__sentinel__";
