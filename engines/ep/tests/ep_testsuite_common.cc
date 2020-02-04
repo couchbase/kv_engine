@@ -103,6 +103,14 @@ engine_test_t* BaseTestCase::getTest() {
         ss << "dbname=" << default_dbname << ";";
     }
 
+    // Default to 4 vBuckets (faster to setup/teardown) if the test config
+    // didn't already specify it or shards.
+    if ((cfg == nullptr) ||
+        ((std::string(cfg).find("max_vbuckets=") == std::string::npos) &&
+        (std::string(cfg).find("max_num_shards=") == std::string::npos))) {
+        ss << "max_vbuckets=4;max_num_shards=4;";
+    }
+
     if (skip) {
         nm.append(" (skipped)");
         ret->tfun = skipped_test_function;
