@@ -835,7 +835,8 @@ TEST_P(McdTestappTest, PipelineSet) {
 }
 
 TEST_P(McdTestappTest, PipelineSetGetDel) {
-    if (RUNNING_ON_VALGRIND) {
+    // Skip on slow environments.
+    if (RUNNING_ON_VALGRIND || (folly::kIsWindows && folly::kIsDebug)) {
         return;
     }
 
@@ -854,7 +855,8 @@ TEST_P(McdTestappTest, PipelineSetGetDel) {
 }
 
 TEST_P(McdTestappTest, PipelineSetDel) {
-    if (RUNNING_ON_VALGRIND) {
+    // Skip on slow environments.
+    if (RUNNING_ON_VALGRIND || (folly::kIsWindows && folly::kIsDebug)) {
         return;
     }
 
