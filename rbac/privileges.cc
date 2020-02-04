@@ -101,7 +101,6 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::Select:
     case Privilege::Settings:
     case Privilege::SimpleStats:
-    case Privilege::Stats:
         return true;
 
     case Privilege::BucketManagement:
@@ -114,6 +113,7 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::SecurityManagement:
     case Privilege::Impersonate:
     case Privilege::SystemSettings:
+    case Privilege::Stats:
         return false;
     }
 
