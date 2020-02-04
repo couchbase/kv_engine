@@ -53,22 +53,24 @@
 #include <type_traits>
 #include <unordered_map>
 
+/**
+ * Are we testing performance numbers, or just checking functionality?
+ * Note: We don't actually track performance when run under TSan, however the
+ * workloads of this testsuite are still useful to run under TSan to expose
+ * any data race issues. Similary for DEBUG builds; we don't track
+ * performance, just want to run to check functionality.
+ */
+static const bool testingPerformance = !(folly::kIsSanitize || folly::kIsDebug);
+
 // Default number of iterations for tests. Individual tests may
 // override this, but is generally desirable for them to scale the
 // default iteration count instead of blindly overriding it.
 const size_t ITERATIONS =
-        (folly::kIsSanitize || folly::kIsDebug)
-                // Reduced iteration count for Address/ThreadSanitizer, as it
-                // runs ~20x slower than without TSan.  Note: We don't actually
-                // track performance when run under TSan, however the workloads
-                // of this testsuite are still useful to run under TSan to
-                // expose any data race issues. Similary for DEBUG builds; we
-                // don't track performance, just want to run to check
-                // functionality.
-                ? 100000 / 20
-
+        testingPerformance
                 // Set to a value a typical ~2015 laptop can run Baseline in 3s.
-                : 100000;
+                ? 100000
+                // Reduced iteration count is not testing performance.
+                : 100000 / 100;
 
 // Key of the sentinel document, used to detect the end of a run.
 const char SENTINEL_KEY[] = "__sentinel__";
@@ -109,9 +111,12 @@ struct Stats {
     std::vector<T>* values;
 };
 
-static const int iterations_for_fast_stats = 100;
-static const int iterations_for_slow_stats = 10;
-
+/**
+ * Number of iterations to run for "slow" and "fast" stats.
+ * Use reduced counts if this isn't a performance configuration.
+ */
+static const int iterations_for_fast_stats = testingPerformance ? 100 : 10;
+static const int iterations_for_slow_stats = testingPerformance ? 10 : 1;
 
 struct StatProperties {
      const std::string key;
@@ -632,18 +637,22 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
     return SUCCESS;
 }
 
-static enum test_result perf_latency_baseline_multi_bucket_2(engine_test_t* test) {
-    return perf_latency_baseline_multi_thread_bucket(test,
-                                                     2, /* buckets */
-                                                     2, /* threads */
-                                                     10000/* documents */);
+static enum test_result perf_latency_baseline_multi_bucket_2(
+        engine_test_t* test) {
+    return perf_latency_baseline_multi_thread_bucket(
+            test,
+            2, /* buckets */
+            2, /* threads */
+            ITERATIONS / 10 /* documents */);
 }
 
-static enum test_result perf_latency_baseline_multi_bucket_4(engine_test_t* test) {
-    return perf_latency_baseline_multi_thread_bucket(test,
-                                                     4, /* buckets */
-                                                     4, /* threads */
-                                                     10000/* documents */);
+static enum test_result perf_latency_baseline_multi_bucket_4(
+        engine_test_t* test) {
+    return perf_latency_baseline_multi_thread_bucket(
+            test,
+            4, /* buckets */
+            4, /* threads */
+            ITERATIONS / 10 /* documents */);
 }
 
 enum class Doc_format {
@@ -1311,7 +1320,7 @@ static enum test_result perf_multi_thread_latency(engine_test_t* test) {
     return perf_latency_baseline_multi_thread_bucket(test,
                                                      1, /* bucket */
                                                      4, /* threads */
-                                                     10000/* documents */);
+        ITERATIONS / 10/* documents */);
 }
 
 static enum test_result perf_latency_dcp_impact(EngineIface* h) {
@@ -1506,7 +1515,7 @@ static enum test_result perf_stat_latency_100vb(EngineIface* h) {
                              "Stats with 100 vbuckets",
                              StatRuntime::Fast,
                              BackgroundWork::None,
-                             100);
+                             testingPerformance ? 100 : 10);
 }
 
 /*
@@ -1519,7 +1528,7 @@ static enum test_result perf_stat_latency_100vb_sets_and_dcp(EngineIface* h) {
             "Stats with 100 vbuckets and background sets and DCP",
             StatRuntime::Fast,
             (BackgroundWork::Sets | BackgroundWork::Dcp),
-            100);
+            testingPerformance ? 100 : 10);
 }
 
 /* Benchmark the baseline slow stats (without any tasks running) of ep-engine */
@@ -1537,7 +1546,7 @@ static enum test_result perf_slow_stat_latency_100vb(EngineIface* h) {
                              "Slow Stats with 100 vbuckets",
                              StatRuntime::Slow,
                              BackgroundWork::None,
-                             100);
+                             testingPerformance ? 100 : 10);
 }
 
 /*
@@ -1551,7 +1560,7 @@ static enum test_result perf_slow_stat_latency_100vb_sets_and_dcp(
             "Slow Stats with 100 vbuckets and background sets and DCP",
             StatRuntime::Slow,
             (BackgroundWork::Sets | BackgroundWork::Dcp),
-            100);
+            testingPerformance ? 100 : 10);
 }
 
 /*****************************************************************************
