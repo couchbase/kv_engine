@@ -552,7 +552,7 @@ void DCPLoopbackStreamTest::takeoverTest(
         EnableExpiryOutput enableExpiryOutput) {
     uint32_t exp_time = 0;
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
-        exp_time = time(NULL) + 256;
+        exp_time = time(nullptr) + 256;
     }
 
     // Add some items to the source Bucket.

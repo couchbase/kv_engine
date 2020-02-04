@@ -165,20 +165,20 @@ ExecutorPool::~ExecutorPool(void) {
 
 TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
     if (!tick) {
-        return NULL;
+        return nullptr;
     }
 
     task_type_t myq = t.taskType;
     TaskQueue *checkQ; // which TaskQueue set should be polled first
     TaskQueue *checkNextQ; // which set of TaskQueue should be polled next
-    TaskQueue *toggle = NULL;
+    TaskQueue *toggle = nullptr;
     if ( !(tick % LOW_PRIORITY_FREQ)) { // if only 1 Q set, both point to it
         checkQ = isLowPrioQset ? lpTaskQ[myq] :
-                (isHiPrioQset ? hpTaskQ[myq] : NULL);
+                (isHiPrioQset ? hpTaskQ[myq] : nullptr);
         checkNextQ = isHiPrioQset ? hpTaskQ[myq] : checkQ;
     } else {
         checkQ = isHiPrioQset ? hpTaskQ[myq] :
-                (isLowPrioQset ? lpTaskQ[myq] : NULL);
+                (isLowPrioQset ? lpTaskQ[myq] : nullptr);
         checkNextQ = isLowPrioQset ? lpTaskQ[myq] : checkQ;
     }
     while (t.state == EXECUTOR_RUNNING) {
@@ -197,7 +197,7 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         checkQ = checkNextQ;
         checkNextQ = toggle;
     }
-    return NULL;
+    return nullptr;
 }
 
 TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
@@ -332,7 +332,7 @@ bool ExecutorPool::snooze(size_t taskId, double toSleep) {
 
 TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
                                        task_type_t qidx) {
-    TaskQueue         *q             = NULL;
+    TaskQueue         *q             = nullptr;
     size_t            curNumThreads  = 0;
 
     bucket_priority_t bucketPriority = t.getWorkloadPriority();

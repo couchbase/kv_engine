@@ -108,7 +108,7 @@ public:
         if (totalSleepTime >= maxWaitTime) {
             std::cerr << "Exceeded maximum wait time of " << maxWaitTime
                     << "us waiting for stat '" << stat;
-            if (statKey != NULL) {
+            if (statKey != nullptr) {
                 std::cerr << "(" << statKey << ")";
             }
             std::cerr << "' " << compareName << " " << final << " (last value:"
@@ -220,7 +220,7 @@ void enable_traffic(EngineIface* h);
 void evict_key(EngineIface* h,
                const char* key,
                Vbid vbucketId = Vbid(0),
-               const char* msg = NULL,
+               const char* msg = nullptr,
                bool expectError = false);
 cb::EngineErrorItemPair gat(EngineIface* h,
                             const char* key,
@@ -411,7 +411,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset = nullptr);
 int get_int_stat_or_default(EngineIface* h,
                             int default_value,
                             const char* statname,
-                            const char* statkey = NULL);
+                            const char* statkey = nullptr);
 
 /**
  * Templated function prototype to return a stat of the given type.
@@ -457,14 +457,14 @@ void wait_for_stat_to_be(EngineIface* h,
 void wait_for_stat_to_be_gte(EngineIface* h,
                              const char* stat,
                              int final,
-                             const char* stat_key = NULL,
+                             const char* stat_key = nullptr,
                              const time_t max_wait_time_in_secs = 60);
 
 template <typename T>
 void wait_for_stat_to_be_lte(EngineIface* h,
                              const char* stat,
                              T final,
-                             const char* stat_key = NULL,
+                             const char* stat_key = nullptr,
                              const time_t max_wait_time_in_secs = 60);
 
 void wait_for_expired_items_to_be(EngineIface* h,

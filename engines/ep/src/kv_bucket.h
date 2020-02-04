@@ -153,7 +153,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = NULL) override;
+            ExtendedMetaData* emd = nullptr) override;
 
     ENGINE_ERROR_CODE prepare(Item& item, const void* cookie);
 
@@ -353,7 +353,7 @@ public:
         return vbsetMutex;
     }
 
-    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL) override;
+    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = nullptr) override;
 
     ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id) override;
 

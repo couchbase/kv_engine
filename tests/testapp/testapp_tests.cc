@@ -623,7 +623,7 @@ TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
        wait 2 seconds (allow mc time to tick)
        (defect was that time went negative and expired keys immediatley)
     */
-    time_t now = time(0);
+    time_t now = time(nullptr);
     test_expiry("test_expiry_relative_with_clock_change_backwards",
                 120, 2, (int)(0 - ((now - get_server_start_time()) * 2)));
 }
@@ -720,7 +720,7 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
 #endif
     struct timeval timeout = {0};
     timeout.tv_sec = 5;
-    int ready_fds = select((int)(sock_ssl + 1), &fdset, NULL, NULL, &timeout);
+    int ready_fds = select((int)(sock_ssl + 1), &fdset, nullptr, nullptr, &timeout);
     cb_assert(ready_fds == 1);
 
     /* Verify that attempting to read from the socket returns 0 (peer has

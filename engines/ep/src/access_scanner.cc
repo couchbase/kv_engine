@@ -338,7 +338,7 @@ bool AccessScanner::run() {
 
 void AccessScanner::updateAlogTime(double sleepSecs) {
     struct timeval _waketime;
-    gettimeofday(&_waketime, NULL);
+    gettimeofday(&_waketime, nullptr);
     _waketime.tv_sec += sleepSecs;
     stats.alogTime.store(_waketime.tv_sec);
 }

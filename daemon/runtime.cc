@@ -18,7 +18,7 @@
 #include <atomic>
 #include <string>
 
-static const bool unit_tests{getenv("MEMCACHED_UNIT_TESTS") != NULL};
+static const bool unit_tests{getenv("MEMCACHED_UNIT_TESTS") != nullptr};
 
 static std::atomic_bool default_bucket_enabled;
 bool is_default_bucket_enabled() {

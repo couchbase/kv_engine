@@ -247,7 +247,7 @@ TEST(ConfigParserTest, A) {
     size_t size_val = 0;
     ssize_t ssize_val = 0;
     float float_val = 0;
-    char *string_val = 0;
+    char *string_val = nullptr;
     int ii;
     char buffer[1024];
     FILE *cfg;
@@ -286,7 +286,7 @@ TEST(ConfigParserTest, A) {
     items[ii].datatype = DT_CONFIGFILE;
     ++ii;
 
-    items[ii].key = NULL;
+    items[ii].key = nullptr;
     ++ii;
 
     ASSERT_EQ(7, ii);

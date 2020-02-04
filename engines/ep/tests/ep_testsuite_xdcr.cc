@@ -66,9 +66,9 @@ static std::vector<char> createXattrValue(const std::string& body) {
 
 static enum test_result test_get_meta(EngineIface* h) {
     char const *key = "test_get_meta";
-    item *i = NULL;
+    item *i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     // check the stat
@@ -92,9 +92,9 @@ static enum test_result test_get_meta(EngineIface* h) {
 
 static enum test_result test_get_meta_with_extras(EngineIface* h) {
     const char *key1 = "test_getm_one";
-    item *i = NULL;
+    item *i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
 
     wait_for_flusher_to_settle(h);
@@ -134,13 +134,13 @@ static enum test_result test_get_meta_with_extras(EngineIface* h) {
 
 static enum test_result test_get_meta_deleted(EngineIface* h) {
     char const *key = "k1";
-    item *i = NULL;
+    item *i = nullptr;
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key, "somevalue"),
             "Failed set.");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
 
     Item *it = reinterpret_cast<Item*>(i);
@@ -202,7 +202,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
 
     // test get_meta followed by get for an existing key. should pass.
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     // check the stat
@@ -212,7 +212,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    auto ret = get(h, NULL, key1, Vbid(0));
+    auto ret = get(h, nullptr, key1, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first,
             "Expected get success");
     ret.second.reset();
@@ -228,7 +228,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
             errorMetaPair.second.document_state,
             "Expected deleted flag to be set");
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, key1, Vbid(0)).first,
+            get(h, nullptr, key1, Vbid(0)).first,
             "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
@@ -241,7 +241,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
             errorMetaPair.first,
             "Expected no_such_key");
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, key2, Vbid(0)).first,
+            get(h, nullptr, key2, Vbid(0)).first,
             "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
@@ -258,7 +258,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
 
     // test get_meta followed by set for an existing key. should pass.
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 1);
@@ -272,7 +272,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
     // check the stat
     checkeq(1, get_int_stat(h, "ep_num_ops_get_meta"), "Expect one getMeta op");
@@ -296,7 +296,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
             errorMetaPair.second.document_state,
             "Expected deleted flag to be set");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -315,7 +315,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
             errorMetaPair.first,
             "Expected no_such_key");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key2, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key2, "someothervalue"),
             "Failed set.");
     // check the stat again
     checkeq(3,
@@ -331,7 +331,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
 
     // test get_meta followed by delete for an existing key. should pass.
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     // check the stat
@@ -505,13 +505,13 @@ static enum test_result test_add_with_meta(EngineIface* h) {
 
     // store an item with meta data
     checkeq(ENGINE_SUCCESS,
-            add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, key, keylen, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // store the item again, expect key exists
     checkeq(ENGINE_KEY_EEXISTS,
-            add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta, true),
+            add_with_meta(h, key, keylen, nullptr, 0, Vbid(0), &itemMeta, true),
             "Expected add to fail when the item exists already");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -540,15 +540,15 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
 
     // store an item
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key2, "somevalue2"),
+            store(h, nullptr, OPERATION_SET, key2, "somevalue2"),
             "Failed set.");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key3, "somevalue3"),
+            store(h, nullptr, OPERATION_SET, key3, "somevalue3"),
             "Failed set.");
 
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
@@ -623,7 +623,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
 
     // add a key
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -831,7 +831,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
 
     // create a new key and do get_meta
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -841,7 +841,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
 
     // do a concurrent set that changes the cas
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
@@ -872,7 +872,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
 
     // do a concurrent set that changes the cas
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
 
     checkeq(ENGINE_KEY_EEXISTS,
@@ -906,7 +906,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
 
     // create a new key and do get_meta
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -1015,7 +1015,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     // create a new key
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, val),
+            store(h, nullptr, OPERATION_SET, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -1028,7 +1028,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = errorMetaPair.second.cas;
     // init some random metadata
-    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(NULL) + 300);
+    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
 
     char *bigValue = new char[32*1024*1024];
     // do set with meta with the value size bigger than the max size allowed.
@@ -1153,7 +1153,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     // Make sure the item expiration was processed correctly
     testHarness->time_travel(301);
-    auto ret = get(h, NULL, key, Vbid(0));
+    auto ret = get(h, nullptr, key, Vbid(0));
     checkeq(cb::engine_errc::no_such_key, ret.first, "Failed to get value.");
 
     testHarness->destroy_cookie(cookie);
@@ -1166,7 +1166,7 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     const char* val = "somevalue";
 
     // init some random metadata
-    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(NULL) + 300);
+    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
 
     // Pass true to force SetWithMeta.
     checkeq(ENGINE_SUCCESS,
@@ -1216,7 +1216,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
 
     // create a new key
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, val),
+            store(h, nullptr, OPERATION_SET, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
@@ -1371,7 +1371,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
 
     // create a new key and do get_meta
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -1379,7 +1379,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
 
     // do a concurrent set that changes the cas
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
@@ -1391,7 +1391,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
             set_with_meta(h,
                           key1,
                           keylen1,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &meta,
@@ -1415,7 +1415,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
 
     // do a concurrent set that changes the cas
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "someothervalue"),
+            store(h, nullptr, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
@@ -1427,7 +1427,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
             set_with_meta(h,
                           key1,
                           keylen1,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &meta,
@@ -1455,7 +1455,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
 
     // create a new key and do get_meta
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -1473,7 +1473,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
             set_with_meta(h,
                           key1,
                           keylen1,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &meta,
@@ -1512,7 +1512,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
             set_with_meta(h,
                           key1,
                           keylen1,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &meta,
@@ -1542,7 +1542,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     // Attempt set_with_meta. This should pass as we set a new key passing 0 as
     // command CAS.
     checkeq(ENGINE_SUCCESS,
-            set_with_meta(h, key2, keylen2, NULL, 0, Vbid(0), &meta, 0, true),
+            set_with_meta(h, key2, keylen2, nullptr, 0, Vbid(0), &meta, 0, true),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
@@ -1802,7 +1802,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     char const *k1 = "k1";
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, k1, "somevalue"),
+            store(h, nullptr, OPERATION_SET, k1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -1906,7 +1906,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     checkeq(ENGINE_SUCCESS,
-            add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
@@ -1924,7 +1924,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     itemMeta.revSeqno++;
     itemMeta.cas++;
     checkeq(ENGINE_KEY_EEXISTS,
-            add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected exists");
     expected_bg_meta_fetched = 0;
     if (isPersistentBucket(h)) {
@@ -1942,7 +1942,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     checkeq(ENGINE_KEY_EEXISTS,
-            add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1951,7 +1951,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     // Check testing with old seqno
     itemMeta.revSeqno--;
     checkeq(ENGINE_KEY_EEXISTS,
-            add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1959,7 +1959,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
 
     itemMeta.revSeqno += 10;
     checkeq(ENGINE_SUCCESS,
-            add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(3,
@@ -1982,7 +1982,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
             "Expect zero setMeta ops");
 
     checkeq(ENGINE_SUCCESS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
@@ -1997,7 +1997,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check all meta data is the same
     checkeq(ENGINE_KEY_EEXISTS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -2006,7 +2006,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     checkeq(ENGINE_KEY_EEXISTS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -2015,21 +2015,21 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
     checkeq(ENGINE_SUCCESS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that newer exptime wins
-    itemMeta.exptime = time(NULL) + 10;
+    itemMeta.exptime = time(nullptr) + 10;
     checkeq(ENGINE_SUCCESS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     checkeq(ENGINE_KEY_EEXISTS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -2038,7 +2038,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // Check testing with old seqno
     itemMeta.revSeqno--;
     checkeq(ENGINE_KEY_EEXISTS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(4,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -2046,7 +2046,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     itemMeta.revSeqno += 10;
     checkeq(ENGINE_SUCCESS,
-            set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0),
+            set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(4,
@@ -2080,7 +2080,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             set_with_meta(h,
                           "key",
                           3,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &itemMeta,
@@ -2102,7 +2102,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             set_with_meta(h,
                           "key",
                           3,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &itemMeta,
@@ -2119,7 +2119,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             set_with_meta(h,
                           "key",
                           3,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &itemMeta,
@@ -2136,7 +2136,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             set_with_meta(h,
                           "key",
                           3,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &itemMeta,
@@ -2149,7 +2149,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
     itemMeta.cas = 0xdeadbeff + 1;
     checkeq(ENGINE_EINVAL,
             set_with_meta(
-                    h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0, 0 /*options*/),
+                    h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0, 0 /*options*/),
             "Expected EINVAL");
 
     return SUCCESS;
@@ -2157,7 +2157,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
 
 static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
@@ -2221,11 +2221,11 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 }
 
 static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
-    item *i = NULL;
+    item *i = nullptr;
     item_info info;
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
 
     h->get_item_info(i, &info);
@@ -2306,9 +2306,9 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
 
 static enum test_result test_getMeta_with_item_eviction(EngineIface* h) {
     char const *key = "test_get_meta";
-    item *i = NULL;
+    item *i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     evict_key(h, key, Vbid(0), "Ejected.");
@@ -2368,7 +2368,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
                     set_with_meta(h,
                                   key.data(),
                                   key.size(),
-                                  NULL,
+                                  nullptr,
                                   0,
                                   Vbid(ii),
                                   &itm_meta,
@@ -2471,7 +2471,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
                     set_with_meta(h,
                                   key.data(),
                                   key.size(),
-                                  NULL,
+                                  nullptr,
                                   0,
                                   Vbid(ii),
                                   &itm_meta,
@@ -2834,7 +2834,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
             set_with_meta(h,
                           "key",
                           3,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &itemMeta,
@@ -2851,7 +2851,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
             set_with_meta(h,
                           "key",
                           3,
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(0),
                           &itemMeta,
@@ -3039,7 +3039,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 set_with_meta(h,
                               "key4",
                               4,
-                              NULL,
+                              nullptr,
                               0,
                               Vbid(0),
                               &itemMeta,
@@ -3137,7 +3137,7 @@ static enum test_result test_expiration_options(EngineIface* h) {
     // store an item
     checkeq(ENGINE_SUCCESS,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_SET,
                   key,
                   "somevalue",
@@ -3168,35 +3168,35 @@ BaseTestCase testsuite_testcases[] = {
                  test_get_meta,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get meta with extras",
                  test_get_meta_with_extras,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get meta deleted",
                  test_get_meta_deleted,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get meta nonexistent",
                  test_get_meta_nonexistent,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get meta followed by get",
                  test_get_meta_with_get,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get meta followed by set",
@@ -3211,28 +3211,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_get_meta_with_delete,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get meta with xattr",
                  test_get_meta_with_xattr,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("add with meta",
                  test_add_with_meta,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("delete with meta",
                  test_delete_with_meta,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("delete with meta deleted",
@@ -3261,21 +3261,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_delete_with_meta_race_with_delete,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("delete_with_meta race with concurrent set",
                  test_delete_with_meta_race_with_set,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set with meta",
                  test_set_with_meta,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  /* TODO RDB: curr_items not correct under Rocks when full
                   * eviction */
                  prepare_ep_bucket_skip_broken_under_rocks_full_eviction,
@@ -3284,7 +3284,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_with_meta_by_force,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set with meta deleted",
@@ -3300,21 +3300,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_with_meta_nonexistent,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set_with_meta race with concurrent set",
                  test_set_with_meta_race_with_set,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set_with_meta race with concurrent delete",
                  test_set_with_meta_race_with_delete,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test set_with_meta exp persisted",
@@ -3340,7 +3340,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_add_meta_conflict_resolution,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  /* TODO RDB: curr_items not correct under Rocks in full
                   * eviction */
                  prepare_skip_broken_under_rocks_full_eviction,
@@ -3349,7 +3349,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_meta_conflict_resolution,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test del meta lww conflict resolution",
@@ -3498,8 +3498,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_expiration_options,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
+        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};

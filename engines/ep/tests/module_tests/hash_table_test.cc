@@ -98,7 +98,7 @@ static const char* toString(AddStatus a) {
         return "AddStatus::BgFetch";
     }
     abort();
-    return NULL;
+    return nullptr;
 }
 
 static std::vector<StoredDocKey> generateKeys(int num, int start=0) {

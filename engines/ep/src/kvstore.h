@@ -1013,7 +1013,7 @@ public:
  */
 class RollbackCB : public StatusCallback<GetValue> {
 public:
-    RollbackCB() : dbHandle(NULL) { }
+    RollbackCB() : dbHandle(nullptr) { }
 
     virtual void callback(GetValue &val) = 0;
 

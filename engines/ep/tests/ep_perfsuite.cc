@@ -1578,11 +1578,11 @@ BaseTestCase testsuite_testcases[] = {
                  ";exp_pager_stime=0",
                  prepare, cleanup),
         TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_2,
-                   NULL, NULL,
+                   nullptr, nullptr,
                    "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
         TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_4,
-                   NULL, NULL,
+                   nullptr, nullptr,
                    "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
 
@@ -1612,7 +1612,7 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
 
         TestCaseV2("Multi thread latency", perf_multi_thread_latency,
-                   NULL, NULL,
+                   nullptr, nullptr,
                    "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
 
@@ -1680,6 +1680,6 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL,
+        TestCase(nullptr, nullptr, nullptr, nullptr,
                  "backend=couchdb", prepare, cleanup)
 };

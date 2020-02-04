@@ -275,7 +275,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
       stats(engine.getEpStats()),
       vbMap(theEngine.getConfiguration(), *this),
-      defragmenterTask(NULL),
+      defragmenterTask(nullptr),
       itemCompressorTask(nullptr),
       itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
@@ -1662,7 +1662,7 @@ ENGINE_ERROR_CODE KVBucket::prepare(Item& itm, const void* cookie) {
             cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->prepare(itm,
                              0,
-                             NULL,
+                             nullptr,
                              cookie,
                              engine,
                              CheckConflicts::No,

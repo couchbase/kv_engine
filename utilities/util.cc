@@ -30,7 +30,7 @@ bool safe_strtoull(const char* str, uint64_t& out) {
             /* only check for negative signs in the uncommon case when
              * the unsigned number is so big that it's negative as a
              * signed number. */
-            if (strchr(str, '-') != NULL) {
+            if (strchr(str, '-') != nullptr) {
                 return false;
             }
         }
@@ -59,7 +59,7 @@ bool safe_strtoll(const char* str, int64_t& out) {
 }
 
 bool safe_strtoul(const char* str, uint32_t& out) {
-    char *endptr = NULL;
+    char *endptr = nullptr;
     unsigned long l = 0;
     out = 0;
     errno = 0;
@@ -74,7 +74,7 @@ bool safe_strtoul(const char* str, uint32_t& out) {
             /* only check for negative signs in the uncommon case when
              * the unsigned number is so big that it's negative as a
              * signed number. */
-            if (strchr(str, '-') != NULL) {
+            if (strchr(str, '-') != nullptr) {
                 return false;
             }
         }

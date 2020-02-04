@@ -62,7 +62,7 @@ inline bool parseUint16(const char *in, uint16_t *out) {
 }
 
 inline bool parseUint32(const char *str, uint32_t *out) {
-    char *endptr = NULL;
+    char *endptr = nullptr;
     if (out == nullptr || str == nullptr) {
         return false;
     }
@@ -79,7 +79,7 @@ inline bool parseUint32(const char *str, uint32_t *out) {
             /* only check for negative signs in the uncommon case when
              * the unsigned number is so big that it's negative as a
              * signed number. */
-            if (strchr(str, '-') != NULL) {
+            if (strchr(str, '-') != nullptr) {
                 return false;
             }
         }
@@ -131,7 +131,7 @@ inline bool parseUint64(const char *str, uint64_t *out) {
             /* only check for negative signs in the uncommon case when
              * the unsigned number is so big that it's negative as a
              * signed number. */
-            if (strchr(str, '-') != NULL) {
+            if (strchr(str, '-') != nullptr) {
                 return false;
             }
         }

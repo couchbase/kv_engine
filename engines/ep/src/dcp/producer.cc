@@ -525,7 +525,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     // See MB-25820:  Ensure that callback is called only after all other
     // possible error cases have been tested.  This is to ensure we do not
     // generate two responses for a single streamRequest.
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(nullptr,
                                                                      true);
     ENGINE_ERROR_CODE rv = callback(failoverEntries.data(),
                                     failoverEntries.size(),

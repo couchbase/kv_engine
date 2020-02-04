@@ -1625,7 +1625,7 @@ void addStat(const char* nm,
              const AddStatFn& add_stat,
              const void* c) {
     std::string name = "ep_warmup";
-    if (nm != NULL) {
+    if (nm != nullptr) {
         name.append("_");
         name.append(nm);
     }

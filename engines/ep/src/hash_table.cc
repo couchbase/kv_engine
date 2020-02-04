@@ -346,7 +346,7 @@ std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
         if (curr == size) {
             curr = 0;
         }
-    } while (ret == NULL && curr != start);
+    } while (ret == nullptr && curr != start);
 
     return ret;
 }
@@ -827,7 +827,7 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
     auto* v = (itm.isCommitted() ? htRes.committedSV : htRes.pendingSV);
     auto& hbl = htRes.lock;
 
-    if (v == NULL) {
+    if (v == nullptr) {
         v = unlocked_addNewStoredValue(hbl, itm);
 
         // TODO: Would be faster if we just skipped creating the value in the

@@ -161,7 +161,7 @@ public:
     bool decompressValue();
 
     const char *getData() const {
-        return value ? value->getData() : NULL;
+        return value ? value->getData() : nullptr;
     }
 
     const value_t &getValue() const {

@@ -66,15 +66,15 @@ static void *my_allocate(struct default_engine *e, size_t size) {
         size_t n = e->slabs.allocs.size + 1024;
         void** p = static_cast<void**>(cb_realloc(e->slabs.allocs.ptrs,
                                                   n * sizeof(void*)));
-        if (p == NULL) {
-            return NULL;
+        if (p == nullptr) {
+            return nullptr;
         }
         e->slabs.allocs.ptrs = p;
         e->slabs.allocs.size = n;
     }
 
     ptr = cb_malloc(size);
-    if (ptr != NULL) {
+    if (ptr != nullptr) {
         e->slabs.allocs.ptrs[e->slabs.allocs.next++] = ptr;
 
     }
@@ -97,7 +97,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
     if (prealloc) {
         /* Allocate everything in a big chunk with malloc */
         engine->slabs.mem_base = my_allocate(engine, engine->slabs.mem_limit);
-        if (engine->slabs.mem_base != NULL) {
+        if (engine->slabs.mem_base != nullptr) {
             engine->slabs.mem_current = engine->slabs.mem_base;
             engine->slabs.mem_avail = engine->slabs.mem_limit;
         } else {
@@ -169,7 +169,7 @@ static int grow_slab_list (struct default_engine *engine, const unsigned int id)
         unsigned int new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
         void** new_list = static_cast<void**>
             (cb_realloc(p->slab_list, new_size * sizeof(void *)));
-        if (new_list == 0) return 0;
+        if (new_list == nullptr) return 0;
         p->list_size = new_size;
         p->slab_list = new_list;
     }
@@ -183,7 +183,7 @@ static int do_slabs_newslab(struct default_engine *engine, const unsigned int id
 
     if ((engine->slabs.mem_limit && engine->slabs.mem_malloced + len > engine->slabs.mem_limit && p->slabs > 0) ||
         (grow_slab_list(engine, id) == 0) ||
-        ((ptr = static_cast<char*>(memory_allocate(engine, (size_t)len))) == 0)) {
+        ((ptr = static_cast<char*>(memory_allocate(engine, (size_t)len))) == nullptr)) {
 
         return 0;
     }
@@ -201,10 +201,10 @@ static int do_slabs_newslab(struct default_engine *engine, const unsigned int id
 /*@null@*/
 static void *do_slabs_alloc(struct default_engine *engine, const size_t size, unsigned int id) {
     slabclass_t *p;
-    void *ret = NULL;
+    void *ret = nullptr;
 
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest) {
-        return NULL;
+        return nullptr;
     }
 
     p = &engine->slabs.slabclass[id];
@@ -222,21 +222,21 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
 
     /* fail unless we have space at the end of a recently allocated page,
        we have something on our freelist, or we could allocate a new page */
-    if (! (p->end_page_ptr != 0 || p->sl_curr != 0 ||
+    if (! (p->end_page_ptr != nullptr || p->sl_curr != 0 ||
            do_slabs_newslab(engine, id) != 0)) {
         /* We don't have more memory available */
-        ret = NULL;
+        ret = nullptr;
     } else if (p->sl_curr != 0) {
         /* return off our freelist */
         ret = p->slots[--p->sl_curr];
     } else {
         /* if we recently allocated a whole page, return from that */
-        cb_assert(p->end_page_ptr != NULL);
+        cb_assert(p->end_page_ptr != nullptr);
         ret = p->end_page_ptr;
         if (--p->end_page_free != 0) {
             p->end_page_ptr = ((unsigned char *)p->end_page_ptr) + p->size;
         } else {
-            p->end_page_ptr = 0;
+            p->end_page_ptr = nullptr;
         }
     }
 
@@ -265,7 +265,7 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
         int new_size = (p->sl_total != 0) ? p->sl_total * 2 : 16;  /* 16 is arbitrary */
         void **new_slots = static_cast<void**>(cb_realloc(p->slots,
                                                new_size * sizeof(void *)));
-        if (new_slots == 0)
+        if (new_slots == nullptr)
             return;
         p->slots = new_slots;
         p->sl_total = new_size;
@@ -301,7 +301,7 @@ void add_statistics(const void* cookie,
         return;
     }
 
-    if (prefix != NULL) {
+    if (prefix != nullptr) {
         klen = snprintf(name, sizeof(name), "%s:", prefix);
         if (klen < 0 || klen >= int(sizeof(name))) {
             return;
@@ -338,21 +338,21 @@ static void do_slabs_stats(struct default_engine* engine,
             slabs = p->slabs;
             perslab = p->perslab;
 
-            add_statistics(cookie, add_stats, NULL, i, "chunk_size", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "chunk_size", "%u",
                            p->size);
-            add_statistics(cookie, add_stats, NULL, i, "chunks_per_page", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "chunks_per_page", "%u",
                            perslab);
-            add_statistics(cookie, add_stats, NULL, i, "total_pages", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "total_pages", "%u",
                            slabs);
-            add_statistics(cookie, add_stats, NULL, i, "total_chunks", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "total_chunks", "%u",
                            slabs * perslab);
-            add_statistics(cookie, add_stats, NULL, i, "used_chunks", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "used_chunks", "%u",
                            slabs*perslab - p->sl_curr - p->end_page_free);
-            add_statistics(cookie, add_stats, NULL, i, "free_chunks", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "free_chunks", "%u",
                            p->sl_curr);
-            add_statistics(cookie, add_stats, NULL, i, "free_chunks_end", "%u",
+            add_statistics(cookie, add_stats, nullptr, i, "free_chunks_end", "%u",
                            p->end_page_free);
-            add_statistics(cookie, add_stats, NULL, i, "mem_requested",
+            add_statistics(cookie, add_stats, nullptr, i, "mem_requested",
                            "%" PRIu64,
                            (uint64_t)p->requested);
             total++;
@@ -361,22 +361,22 @@ static void do_slabs_stats(struct default_engine* engine,
 
     /* add overall slab stats and append terminator */
 
-    add_statistics(cookie, add_stats, NULL, -1, "active_slabs", "%d", total);
-    add_statistics(cookie, add_stats, NULL, -1, "total_malloced", "%" PRIu64,
+    add_statistics(cookie, add_stats, nullptr, -1, "active_slabs", "%d", total);
+    add_statistics(cookie, add_stats, nullptr, -1, "total_malloced", "%" PRIu64,
                    (uint64_t)engine->slabs.mem_malloced);
 }
 
 static void *memory_allocate(struct default_engine *engine, size_t size) {
     void *ret;
 
-    if (engine->slabs.mem_base == NULL) {
+    if (engine->slabs.mem_base == nullptr) {
         /* We are not using a preallocated large memory chunk */
         ret = my_allocate(engine, size);
     } else {
         ret = engine->slabs.mem_current;
 
         if (size > engine->slabs.mem_avail) {
-            return NULL;
+            return nullptr;
         }
 
         /* mem_current pointer _must_ be aligned!!! */

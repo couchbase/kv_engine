@@ -1207,7 +1207,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     }
 
     // Allocate a new item of this size.
-    if (context.out_doc == NULL &&
+    if (context.out_doc == nullptr &&
         !(context.no_sys_xattrs && context.do_delete_doc)) {
 
         if (ret == ENGINE_SUCCESS) {

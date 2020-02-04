@@ -87,7 +87,7 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
       }
 
       if (trim_copy(key, sizeof(key), ptr, &end, '=') == -1) {
-         if (error != NULL) {
+         if (error != nullptr) {
             fprintf(error, "ERROR: Invalid key, starting at: <%s>\n", ptr);
          }
          return -1;
@@ -95,7 +95,7 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
 
       ptr = end + 1;
       if (trim_copy(value, sizeof(value), ptr, &end, ';') == -1) {
-         if (error != NULL) {
+         if (error != nullptr) {
             fprintf(error, "ERROR: Invalid value, starting at: <%s>\n", ptr);
          }
          return -1;
@@ -107,10 +107,10 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
       }
 
       ii = 0;
-      while (items[ii].key != NULL) {
+      while (items[ii].key != nullptr) {
          if (strcmp(key, items[ii].key) == 0) {
             if (items[ii].found) {
-               if (error != NULL) {
+               if (error != nullptr) {
                   fprintf(error, "WARNING: Found duplicate entry for \"%s\"\n",
                           items[ii].key);
                }
@@ -128,10 +128,10 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                   for (p = sfx; *p != '\0'; ++p) {
                      char *ptr = strchr(value, *p);
                      m *= 1024;
-                     if (ptr == NULL) {
+                     if (ptr == nullptr) {
                         ptr = strchr(value, toupper(*p));
                      }
-                     if (ptr != NULL) {
+                     if (ptr != nullptr) {
                         multiplier = m;
                         *ptr = '\0';
                         break;
@@ -204,7 +204,7 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
             }
 
             if (ret == -1) {
-               if (error != NULL) {
+               if (error != nullptr) {
                   fprintf(error, "Invalid entry, Key: <%s> Value: <%s>\n",
                           key, value);
                }
@@ -215,8 +215,8 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
          ++ii;
       }
 
-      if (items[ii].key == NULL) {
-         if (error != NULL) {
+      if (items[ii].key == nullptr) {
+         if (error != nullptr) {
             fprintf(error, "Unsupported key: <%s>\n", key);
          }
          ret = 1;
@@ -230,14 +230,14 @@ static int read_config_file(const char *fname, struct config_item items[],
    char line[1024];
    int ret = 0;
    FILE *fp = fopen(fname, "r");
-   if (fp == NULL) {
-      if (error != NULL) {
+   if (fp == nullptr) {
+      if (error != nullptr) {
          fprintf(error, "Failed to open file: %s\n", fname);
       }
       return -1;
    }
 
-   while (fgets(line, sizeof(line), fp) != NULL && ret != -1) {
+   while (fgets(line, sizeof(line), fp) != nullptr && ret != -1) {
       int r;
       if (line[0] == '#') {
          /* Ignore comment line */

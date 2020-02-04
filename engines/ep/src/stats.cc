@@ -122,7 +122,7 @@ EPStats::EPStats()
       compressorNumCompressed(0),
       dirtyAgeHisto(),
       diskCommitHisto(),
-      timingLog(NULL),
+      timingLog(nullptr),
       maxDataSize(DEFAULT_MAX_DATA_SIZE) {
 }
 

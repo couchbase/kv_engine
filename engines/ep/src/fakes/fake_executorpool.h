@@ -51,7 +51,7 @@ public:
         }
 
         EventuallyPersistentEngine *epe =
-                ObjectRegistry::onSwitchThread(NULL, true);
+                ObjectRegistry::onSwitchThread(nullptr, true);
         tmp = new SingleThreadedExecutorPool(NUM_TASK_GROUPS);
         ObjectRegistry::onSwitchThread(epe);
         instance.store(tmp);

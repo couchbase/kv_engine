@@ -90,7 +90,7 @@ public:
           state(EXECUTOR_RUNNING),
           now(std::chrono::steady_clock::now()),
           taskStart(),
-          currentTask(NULL) {
+          currentTask(nullptr) {
     }
 
     ~ExecutorThread();

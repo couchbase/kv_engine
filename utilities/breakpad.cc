@@ -87,7 +87,7 @@ static void write_to_logger(void* ctx, const char* frame) {
 
 static void dump_stack() {
     LOG_CRITICAL("Stack backtrace of crashed thread:");
-    print_backtrace(write_to_logger, NULL);
+    print_backtrace(write_to_logger, nullptr);
     cb::logger::flush();
 }
 #endif
@@ -154,9 +154,9 @@ void create_handler(const std::string& minidump_dir) {
 #elif defined(linux) && defined(HAVE_BREAKPAD)
     MinidumpDescriptor descriptor(minidump_dir.c_str());
     handler.reset(new ExceptionHandler(descriptor,
-                                       /*filter*/ NULL,
+                                       /*filter*/ nullptr,
                                        dumpCallback,
-                                       /*callback-context*/ NULL,
+                                       /*callback-context*/ nullptr,
                                        /*install_handler*/ true,
                                        /*server_fd*/ -1));
 #else

@@ -101,7 +101,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::remove() {
     items[0].key = "force";
     items[0].datatype = DT_BOOL;
     items[0].value.dt_bool = &force;
-    items[1].key = NULL;
+    items[1].key = nullptr;
 
     if (parse_config(config.c_str(), items.data(), stderr) != 0) {
         return ENGINE_EINVAL;

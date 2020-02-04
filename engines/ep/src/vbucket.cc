@@ -777,7 +777,7 @@ void VBucket::addStat(const char* nm,
                       const AddStatFn& add_stat,
                       const void* c) {
     std::string stat = statPrefix;
-    if (nm != NULL) {
+    if (nm != nullptr) {
         add_prefixed_stat(statPrefix, nm, val, add_stat, c);
     } else {
         add_casted_stat(statPrefix.data(), val, add_stat, c);
@@ -3646,7 +3646,7 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
     Item itm(key,
              /*flags*/ 0,
              /*exp*/ 0,
-             /*data*/ NULL,
+             /*data*/ nullptr,
              /*size*/ 0,
              PROTOCOL_BINARY_RAW_BYTES,
              0,

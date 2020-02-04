@@ -862,7 +862,7 @@ void TestappTest::start_memcached_server() {
     config_file = cb::io::mktemp("memcached_testapp.json");
     write_config_to_file(memcached_cfg.dump(2), config_file);
 
-    server_start_time = time(0);
+    server_start_time = time(nullptr);
 
     if (embedded_memcached_server) {
         spawn_embedded_server();
@@ -1390,7 +1390,7 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
 nlohmann::json TestappTest::memcached_cfg;
 const std::string TestappTest::portnumber_file =
         "memcached_ports." + std::to_string(getpid()) + "." +
-        std::to_string(time(NULL));
+        std::to_string(time(nullptr));
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;

@@ -312,7 +312,7 @@ void Configuration::addStats(const AddStatFn& add_stat, const void* c) const {
 class ConfigItem: public config_item {
 public:
     ConfigItem(const char *theKey, config_datatype theDatatype) :
-                                                                holder(NULL) {
+                                                                holder(nullptr) {
         key = theKey;
         datatype = theDatatype;
         value.dt_string = &holder;

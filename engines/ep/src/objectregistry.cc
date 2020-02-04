@@ -45,7 +45,7 @@ public:
 
 static bool verifyEngine(EventuallyPersistentEngine *engine)
 {
-   if (engine == NULL) {
+   if (engine == nullptr) {
        static const char* allowNoStatsUpdate = getenv("ALLOW_NO_STATS_UPDATE");
        if (allowNoStatsUpdate) {
            return false;
@@ -138,7 +138,7 @@ EventuallyPersistentEngine *ObjectRegistry::getCurrentEngine() {
 EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
                                             EventuallyPersistentEngine *engine,
                                             bool want_old_thread_local) {
-    EventuallyPersistentEngine *old_engine = NULL;
+    EventuallyPersistentEngine *old_engine = nullptr;
 
     if (want_old_thread_local) {
         old_engine = th->get();

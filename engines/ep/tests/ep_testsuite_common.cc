@@ -29,7 +29,7 @@
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 
-const char *dbname_env = NULL;
+const char *dbname_env = nullptr;
 
 static enum test_result skipped_test_function(EngineIface* h);
 
@@ -81,7 +81,7 @@ engine_test_t* BaseTestCase::getTest() {
     std::string nm(name);
     std::stringstream ss;
 
-    if (cfg != 0) {
+    if (cfg != nullptr) {
         ss << cfg << ";";
     } else {
         ss << ";";
@@ -147,7 +147,7 @@ bool test_setup(EngineIface* h) {
     // data traffic
     auto request = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, *request, add_response),
+            h->unknown_command(nullptr, *request, add_response),
             "Failed to enable data traffic");
 
     return true;
@@ -387,7 +387,7 @@ std::vector<engine_test_t> get_tests() {
 
     // Calculate the size of the tests..
     int num = 0;
-    while (testsuite_testcases[num].getName() != NULL) {
+    while (testsuite_testcases[num].getName() != nullptr) {
         ++num;
     }
 
@@ -489,7 +489,7 @@ void check_key_value(EngineIface* h,
                      Vbid vbucket) {
     // Fetch item itself, to ensure we maintain a ref-count on the underlying
     // Blob while comparing the key.
-    auto getResult = get(h, NULL, key, vbucket);
+    auto getResult = get(h, nullptr, key, vbucket);
     checkeq(cb::engine_errc::success,
             getResult.first,
             "Failed to fetch document");

@@ -80,7 +80,7 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
     if (global_assoc == nullptr) {
         global_assoc = assoc_consruct(16);
     }
-    return (global_assoc != NULL) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
+    return (global_assoc != nullptr) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
 }
 
 void assoc_destroy() {
@@ -96,7 +96,7 @@ void assoc_destroy() {
 hash_item *assoc_find(uint32_t hash, const hash_key *key) {
     hash_item *it;
     unsigned int oldbucket;
-    hash_item *ret = NULL;
+    hash_item *ret = nullptr;
     int depth = 0;
     std::lock_guard<std::mutex> guard(global_assoc->mutex);
     if (global_assoc->expanding &&
@@ -196,7 +196,7 @@ static void assoc_expand() {
 int assoc_insert(uint32_t hash, hash_item *it) {
     unsigned int oldbucket;
 
-    cb_assert(assoc_find(hash, item_get_key(it)) == 0);  /* shouldn't have duplicately named things defined */
+    cb_assert(assoc_find(hash, item_get_key(it)) == nullptr);  /* shouldn't have duplicately named things defined */
 
     std::lock_guard<std::mutex> guard(global_assoc->mutex);
     if (global_assoc->expanding &&
@@ -224,13 +224,13 @@ void assoc_delete(uint32_t hash, const hash_key *key) {
         hash_item *nxt;
         global_assoc->hash_items--;
         nxt = (*before)->h_next;
-        (*before)->h_next = 0;   /* probably pointless, but whatever. */
+        (*before)->h_next = nullptr;   /* probably pointless, but whatever. */
         *before = nxt;
         return;
     }
     /* Note:  we never actually get here.  the callers don't delete things
        they can't find. */
-    cb_assert(*before != 0);
+    cb_assert(*before != nullptr);
 }
 
 
@@ -249,7 +249,7 @@ static void assoc_maintenance_thread(void *arg) {
             int bucket;
 
             for (it = global_assoc->old_hashtable[global_assoc->expand_bucket];
-                 NULL != it; it = next) {
+                 nullptr != it; it = next) {
                 next = it->h_next;
                 const hash_key* key = item_get_key(it);
                 bucket = crc32c(hash_key_get_key(key),
@@ -259,7 +259,7 @@ static void assoc_maintenance_thread(void *arg) {
                 global_assoc->primary_hashtable[bucket] = it;
             }
 
-            global_assoc->old_hashtable[global_assoc->expand_bucket] = NULL;
+            global_assoc->old_hashtable[global_assoc->expand_bucket] = nullptr;
             global_assoc->expand_bucket++;
             if (global_assoc->expand_bucket == hashsize(global_assoc->hashpower - 1)) {
                 global_assoc->expanding = false;

@@ -41,7 +41,7 @@ Blob* Blob::Copy(const Blob& other) {
 
 Blob::Blob(const char* start, const size_t len)
     : size(static_cast<uint32_t>(len)), age(0) {
-    if (start != NULL) {
+    if (start != nullptr) {
         std::memcpy(data, start, len);
 #ifdef VALGRIND
     } else {

@@ -497,7 +497,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
 TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
     const DocKey dockey("key", DocKeyEncodesCollectionId::No);
     const int numTouchCmds = 2;
-    auto expiryTime = time(NULL) + 1000;
+    auto expiryTime = time(nullptr) + 1000;
 
     // Store an item
     store_item(vbid, dockey, "value");
@@ -901,7 +901,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
 //           both value and full eviction.
 TEST_P(EPStoreEvictionTest, expiredItemCount) {
     // Create a item with an expiry time
-    auto expiryTime = time(NULL) + 290;
+    auto expiryTime = time(nullptr) + 290;
     auto key = makeStoredDocKey("key");
     auto item = make_item(vbid, key, "expire value", expiryTime);
     ASSERT_EQ(ENGINE_SUCCESS, store->set(item, cookie));

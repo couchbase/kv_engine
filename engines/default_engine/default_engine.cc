@@ -88,11 +88,11 @@ ENGINE_ERROR_CODE create_memcache_instance(GET_SERVER_API get_server_api,
     SERVER_HANDLE_V1* api = get_server_api();
     struct default_engine* engine;
 
-    if (api == NULL) {
+    if (api == nullptr) {
         return ENGINE_ENOTSUP;
     }
 
-    if ((engine = engine_manager_create_engine()) == NULL) {
+    if ((engine = engine_manager_create_engine()) == nullptr) {
         return ENGINE_ENOMEM;
     }
 
@@ -212,7 +212,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
                     cookie,
                     datatype);
 
-    if (it != NULL) {
+    if (it != nullptr) {
         item_info info;
         if (!get_item_info(it, &info)) {
             // This should never happen (unless we provide invalid
@@ -270,7 +270,7 @@ ENGINE_ERROR_CODE default_engine::remove(
                                    cookie,
                                    PROTOCOL_BINARY_RAW_BYTES);
 
-        if (deleted == NULL) {
+        if (deleted == nullptr) {
             item_release(this, it);
             return ENGINE_TMPFAIL;
         }
@@ -602,7 +602,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
 
    se->config.vb0 = true;
 
-   if (cfg_str != NULL) {
+   if (cfg_str != nullptr) {
        struct config_item items[13];
        int ii = 0;
 
@@ -666,7 +666,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
        items[ii].value.dt_bool = &se->config.keep_deleted;
        ++ii;
 
-       items[ii].key = NULL;
+       items[ii].key = nullptr;
        ++ii;
        cb_assert(ii == 13);
        ret = ENGINE_ERROR_CODE(se->server.core->parse_config(cfg_str,

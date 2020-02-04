@@ -56,7 +56,7 @@ const time_t memcached_maximum_relative_time = 60*60*24*30;
 static std::atomic<rel_time_t> memcached_uptime(0);
 static std::atomic<time_t> memcached_epoch(0);
 static volatile uint64_t memcached_monotonic_start = 0;
-static struct event_base* main_ev_base = NULL;
+static struct event_base* main_ev_base = nullptr;
 
 static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
 static void mc_gather_timing_samples(void);
@@ -74,7 +74,7 @@ void mc_time_init(struct event_base* ev_base) {
     mc_time_clock_tick();
 
     /* Begin the time keeping by registering for a time based callback */
-    mc_time_clock_event_handler(0, 0, 0);
+    mc_time_clock_event_handler(0, 0, nullptr);
 }
 
 /*

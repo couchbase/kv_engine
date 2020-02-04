@@ -95,7 +95,7 @@ VBucketPtr KVShard::getBucket(Vbid id) const {
         Expects(element.get() == nullptr || element.get()->getId() == id);
         return element.get();
     } else {
-        return NULL;
+        return nullptr;
     }
 }
 

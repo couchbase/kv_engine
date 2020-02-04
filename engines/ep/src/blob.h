@@ -154,7 +154,7 @@ protected:
     explicit Blob(const Blob& other);
 
     static size_t getAllocationSize(size_t len) {
-        return sizeof(Blob) + len - sizeof(Blob(0, 0).data);
+        return sizeof(Blob) + len - sizeof(Blob(nullptr, 0).data);
     }
 
     // Size of the value. The highest bit is used to represent if the

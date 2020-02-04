@@ -122,7 +122,7 @@ void MemoryTrackerTest::AccountingTestThread() {
     EXPECT_LT(cb::ArenaMalloc::getPreciseAllocated(client), prev_size);
 
     prev_size = cb::ArenaMalloc::getPreciseAllocated(client);
-    char* q = static_cast<char*>(cb_realloc(NULL, 10));
+    char* q = static_cast<char*>(cb_realloc(nullptr, 10));
     EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), prev_size + 10);
 
     cb_free(p);

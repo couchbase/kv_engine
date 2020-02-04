@@ -478,7 +478,7 @@ void TestDcpConsumer::run(bool openConn) {
                         std::string key("key" + std::to_string(j));
                         checkeq(ENGINE_SUCCESS,
                                 store(h,
-                                      NULL,
+                                      nullptr,
                                       OPERATION_SET,
                                       key.c_str(),
                                       "data",
@@ -3080,7 +3080,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
         }
         std::string key("key" + std::to_string(j));
         checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, key.c_str(), "data"),
+                store(h, nullptr, OPERATION_SET, key.c_str(), "data"),
                 "Failed to store a value");
     }
 
@@ -4051,7 +4051,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
           "Failed to set vbucket state.");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "Error in SET operation.");
 
     wait_for_flusher_to_settle(h);
@@ -4370,7 +4370,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
         std::stringstream ss;
         ss << "key" << (j + num_items);
         checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, ss.str().c_str(), "data"),
+                store(h, nullptr, OPERATION_SET, ss.str().c_str(), "data"),
                 "Failed to store a value");
     }
 
@@ -4852,10 +4852,10 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
         std::string uuid = "vb_0:" + itr + ":id";
         std::string seqno = "vb_0:" + itr + ":seq";
         checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].first),
-                strtoull((vals[uuid]).c_str(), NULL, 10),
+                strtoull((vals[uuid]).c_str(), nullptr, 10),
                 "UUID mismatch in failover stats");
         checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].second),
-                strtoull((vals[seqno]).c_str(), NULL, 10),
+                strtoull((vals[seqno]).c_str(), nullptr, 10),
                 "SEQNO mismatch in failover stats");
     }
 
@@ -5254,7 +5254,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     // Store an item
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_ADD, "key", "value"),
+            store(h, nullptr, OPERATION_ADD, "key", "value"),
             "Failed to fail to store an item.");
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, 1, "one item stored");
@@ -5821,7 +5821,7 @@ static test_result test_stream_deleteWithMeta_expiration(
     // store an item
     checkeq(ENGINE_SUCCESS,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_SET,
                   key,
                   "somevalue",
@@ -6049,7 +6049,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, key[count], "somevalue"),
+                store(h, nullptr, OPERATION_SET, key[count], "somevalue"),
                 "Error setting.");
     }
 
@@ -6117,7 +6117,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, key[count], "somevalue"),
+                store(h, nullptr, OPERATION_SET, key[count], "somevalue"),
                 "Error setting.");
     }
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
@@ -7287,7 +7287,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                           OPERATION_SET,
                           key.c_str(),
                           "value",
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(i)),
                     "Failed to store an item.");
@@ -7303,7 +7303,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                           OPERATION_SET,
                           key.c_str(),
                           "value",
-                          NULL,
+                          nullptr,
                           0,
                           Vbid(i)),
                     "Failed to store an item.");
@@ -8040,7 +8040,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_latest,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test producer keep stream open",
@@ -8065,7 +8065,7 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
         TestCase("test producer stream request nmvb",
-                 test_dcp_producer_stream_req_nmvb, test_setup, teardown, NULL,
+                 test_dcp_producer_stream_req_nmvb, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("test dcp agg stats",
                  test_dcp_agg_stats,
@@ -8153,17 +8153,17 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp stream takeover no items", test_dcp_takeover_no_items,
                  test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp consumer takeover", test_dcp_consumer_takeover,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test failover scenario one with dcp",
                  test_failover_scenario_one_with_dcp, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 nullptr, prepare, cleanup),
         TestCase("test failover scenario two with dcp",
                  test_failover_scenario_two_with_dcp, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 nullptr, prepare, cleanup),
         TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
                  "dcp_enable_noop=false", prepare, cleanup),
         TestCase("test consumer backoff stat", test_consumer_backoff_stat,
-                 test_setup, teardown, NULL,
+                 test_setup, teardown, nullptr,
                  prepare_ep_bucket,  // relies on persistence (disk queue)
                  cleanup),
         /* [TODO]: Write a test case for backoff based on high memory usage */
@@ -8234,21 +8234,21 @@ BaseTestCase testsuite_testcases[] = {
                  prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
-                test_setup, teardown, NULL, prepare, cleanup),
+                test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp producer flow control",
                  test_dcp_producer_flow_control,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test get failover log", test_dcp_get_failover_log,
-                test_setup, teardown, NULL, prepare, cleanup),
+                test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test add stream exists", test_dcp_add_stream_exists,
                  test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test add stream nmvb", test_dcp_add_stream_nmvb, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, nullptr, prepare, cleanup),
         TestCase("test add stream prod exists", test_dcp_add_stream_prod_exists,
                  test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
@@ -8256,7 +8256,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test close stream (no stream)",
-                 test_dcp_close_stream_no_stream, test_setup, teardown, NULL,
+                 test_dcp_close_stream_no_stream, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("test close stream", test_dcp_close_stream,
                  test_setup, teardown, "dcp_enable_noop=false", prepare,
@@ -8274,13 +8274,13 @@ BaseTestCase testsuite_testcases[] = {
                  test_failover_log_dcp,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  // TODO RDB: implement getItemCount. Needs the 'curr_items'
                  // stat.
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
-                 teardown, NULL,
+                 teardown, nullptr,
                  prepare,
                  cleanup),
         TestCase("dcp persistence seqno for backfill items",
@@ -8321,65 +8321,65 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_erroneous_mutations,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("dcp erroneous snapshot marker scenario", test_dcp_erroneous_marker,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("dcp invalid mutation(s)/deletion(s)",
                  test_dcp_invalid_mutation_deletion,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("dcp invalid snapshot marker",
                  test_dcp_invalid_snapshot_marker,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test MB-16357", test_mb16357,
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
         TestCase("test dcp early termination", test_dcp_early_termination,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test MB-17517 CAS -1 DCP",
                  test_mb17517_cas_minus_1_dcp,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  /* TODO RDB: curr_items not correct under RocksDB */
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp multiple streams", test_dcp_multiple_streams,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp on vbucket state change",
                  test_dcp_on_vbucket_state_change,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp consumer's processer task behavior",
                  test_dcp_consumer_processer_behavior,
                  test_setup, teardown, "max_size=1048576",
                  prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, nullptr, prepare, cleanup),
         TestCase("test MB-19153", test_mb19153,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test MB-19982", test_mb19982, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, nullptr, prepare, cleanup),
         TestCase("test MB-19982 (buffer input)", test_mb19982, test_setup,
                  teardown, "replication_throttle_cap_pcnt=0;replication_throttle_queue_cap=0", prepare, cleanup),
         TestCase("test_set_dcp_param",
-                 test_set_dcp_param, test_setup, teardown, NULL,
+                 test_set_dcp_param, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("test MB-23863 backfill deleted value",
                  test_dcp_producer_deleted_item_backfill, test_setup, teardown,
-                 NULL, prepare_ep_bucket, cleanup),
+                 nullptr, prepare_ep_bucket, cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Disabled",
                  test_dcp_producer_expired_item_backfill_delete,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Enabled",
                  test_dcp_producer_expired_item_backfill_expire,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test MB-32443 delete with meta with expiration stream "
@@ -8387,7 +8387,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_stream_deleteWithMeta_expiration_disabled,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                 /* TODO RDB: curr_items not correct under RocksDB */
                  prepare_skip_broken_under_rocks,
                  cleanup),
@@ -8396,18 +8396,18 @@ BaseTestCase testsuite_testcases[] = {
                  test_stream_deleteWithMeta_expiration_enabled,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                 /* TODO RDB: curr_items not correct under RocksDB */
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
 
         TestCase("test_MB_34634",
                  test_MB_34634,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
 
@@ -8415,8 +8415,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_MB_34664,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
+        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};

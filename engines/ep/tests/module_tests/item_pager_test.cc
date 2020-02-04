@@ -571,7 +571,7 @@ TEST_P(STItemPagerTest, isEligible) {
     populateUntilTmpFail(vbid);
 
     EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+            ObjectRegistry::onSwitchThread(nullptr, true);
     get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);

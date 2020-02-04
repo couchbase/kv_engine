@@ -20,7 +20,7 @@
 #include "utilities.h"
 
 void initialize_openssl() {
-    OPENSSL_init_ssl(0, NULL);
+    OPENSSL_init_ssl(0, nullptr);
     SSL_load_error_strings();
     ERR_load_BIO_strings();
     OpenSSL_add_all_algorithms();

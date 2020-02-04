@@ -46,7 +46,7 @@ static bool epsilon(int val, int target, int ep=5) {
 
 static enum test_result test_alloc_limit(EngineIface* h) {
     auto rv = allocate(h,
-                       NULL,
+                       nullptr,
                        "key",
                        20 * 1024 * 1024,
                        0,
@@ -56,7 +56,7 @@ static enum test_result test_alloc_limit(EngineIface* h) {
     checkeq(cb::engine_errc::success, rv.first, "Allocated 20MB item");
 
     rv = allocate(h,
-                  NULL,
+                  nullptr,
                   "key",
                   (20 * 1024 * 1024) + 1,
                   0,
@@ -292,7 +292,7 @@ static enum test_result test_set(EngineIface* h) {
             std::string err_str_store("Error setting " + key_arr[k]);
             checkeq(ENGINE_SUCCESS,
                     store(h,
-                          NULL,
+                          nullptr,
                           OPERATION_SET,
                           key_arr[k].c_str(),
                           "somevalue"),
@@ -336,7 +336,7 @@ extern "C" {
         auto* h = static_cast<EngineIface*>(arg);
 
         for (int i = 0; i < 5000; ++i) {
-            store(h, NULL, OPERATION_ADD, "key", "somevalue");
+            store(h, nullptr, OPERATION_ADD, "key", "somevalue");
             checkeq(ENGINE_SUCCESS,
                     store(h, nullptr, OPERATION_SET, "key", "somevalue"),
                     "Error setting.");
@@ -394,7 +394,7 @@ extern "C" {
             std::string key(s.str());
             checkeq(ENGINE_SUCCESS,
                     store(msa->h,
-                          NULL,
+                          nullptr,
                           OPERATION_SET,
                           key.c_str(),
                           "somevalue"),
@@ -433,7 +433,7 @@ static enum test_result test_multi_set(EngineIface* h) {
 
 static enum test_result test_set_get_hit(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "store failure");
     check_key_value(h, "key", "somevalue", 9);
     return SUCCESS;
@@ -441,7 +441,7 @@ static enum test_result test_set_get_hit(EngineIface* h) {
 
 static enum test_result test_getl_delete_with_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "value"),
+            store(h, nullptr, OPERATION_SET, "key", "value"),
             "Failed to set key");
 
     auto ret = getl(h, nullptr, "key", Vbid(0), 15);
@@ -460,7 +460,7 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h) {
 
 static enum test_result test_getl_delete_with_bad_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "value"),
+            store(h, nullptr, OPERATION_SET, "key", "value"),
             "Failed to set key");
 
     uint64_t cas = last_cas;
@@ -480,7 +480,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
     const char *val = "value";
     const char *newval = "newvalue";
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, val),
+            store(h, nullptr, OPERATION_SET, key, val),
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
@@ -491,7 +491,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
 
     //init some random metadata
-    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(NULL) + 300);
+    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
 
     //do a set with meta
     checkeq(ENGINE_LOCKED,
@@ -723,7 +723,7 @@ static enum test_result test_unl(EngineIface* h) {
 
     checkeq(ENGINE_SUCCESS,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_SET,
                   key,
                   "lockdata",
@@ -826,7 +826,7 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
 
 static enum test_result test_set_change_flags(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "Failed to set.");
 
     item_info info;
@@ -863,7 +863,7 @@ static enum test_result test_add(EngineIface* h) {
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_ADD, "key", "somevalue"),
+            store(h, nullptr, OPERATION_ADD, "key", "somevalue"),
             "Failed to add value.");
 
     check(get_item_info(h, &info, "key"), "Error getting item info");
@@ -871,7 +871,7 @@ static enum test_result test_add(EngineIface* h) {
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
     checkeq(ENGINE_NOT_STORED,
-            store(h, NULL, OPERATION_ADD, "key", "somevalue"),
+            store(h, nullptr, OPERATION_ADD, "key", "somevalue"),
             "Failed to fail to re-add value.");
 
     // This aborts on failure.
@@ -881,7 +881,7 @@ static enum test_result test_add(EngineIface* h) {
     testHarness->time_travel(3800);
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_ADD, "key", "newvalue"),
+            store(h, nullptr, OPERATION_ADD, "key", "newvalue"),
             "Failed to add value again.");
 
     check_key_value(h, "key", "newvalue", 8);
@@ -889,9 +889,9 @@ static enum test_result test_add(EngineIface* h) {
 }
 
 static enum test_result test_add_add_with_cas(EngineIface* h) {
-    item *i = NULL;
+    item *i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_ADD, "key", "somevalue", &i),
+            store(h, nullptr, OPERATION_ADD, "key", "somevalue", &i),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
@@ -899,7 +899,7 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
 
     checkeq(ENGINE_KEY_EEXISTS,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_ADD,
                   "key",
                   "somevalue",
@@ -913,13 +913,13 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
 
 static enum test_result test_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "Failed to do initial set.");
-    checkne(ENGINE_SUCCESS, store(h, NULL, OPERATION_CAS, "key", "failcas"),
+    checkne(ENGINE_SUCCESS, store(h, nullptr, OPERATION_CAS, "key", "failcas"),
             "Failed to fail initial CAS.");
     check_key_value(h, "key", "somevalue", 9);
 
-    auto ret = get(h, NULL, "key", Vbid(0));
+    auto ret = get(h, nullptr, "key", Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
@@ -928,7 +928,7 @@ static enum test_result test_cas(EngineIface* h) {
 
     checkeq(ENGINE_SUCCESS,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_CAS,
                   "key",
                   "winCas",
@@ -940,7 +940,7 @@ static enum test_result test_cas(EngineIface* h) {
     uint64_t cval = 99999;
     checkeq(ENGINE_KEY_ENOENT,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_CAS,
                   "non-existing",
                   "winCas",
@@ -958,18 +958,18 @@ static enum test_result test_replace(EngineIface* h) {
     memset(&info, 0, sizeof(info));
 
     checkne(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_REPLACE, "key", "somevalue"),
+            store(h, nullptr, OPERATION_REPLACE, "key", "somevalue"),
             "Failed to fail to replace non-existing value.");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "Failed to set value.");
 
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_REPLACE, "key", "somevalue"),
+            store(h, nullptr, OPERATION_REPLACE, "key", "somevalue"),
             "Failed to replace existing value.");
 
     check(get_item_info(h, &info, "key"), "Error getting item info");
@@ -994,7 +994,7 @@ static enum test_result test_touch(EngineIface* h) {
 
     // Store the item!
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "mykey", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "mykey", "somevalue"),
             "Failed set.");
 
     check_key_value(h, "mykey", "somevalue", strlen("somevalue"));
@@ -1006,7 +1006,7 @@ static enum test_result test_touch(EngineIface* h) {
     item_info currMeta = errorMetaPair.second;
 
     checkeq(ENGINE_SUCCESS,
-            touch(h, "mykey", Vbid(0), uint32_t(time(NULL) + 10)),
+            touch(h, "mykey", Vbid(0), uint32_t(time(nullptr) + 10)),
             "touch mykey");
     checkne(last_cas.load(),
             currMeta.cas,
@@ -1032,7 +1032,7 @@ static enum test_result test_touch(EngineIface* h) {
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "mykey", Vbid(0)).first,
+            get(h, nullptr, "mykey", Vbid(0)).first,
             "Item should be gone");
     return SUCCESS;
 }
@@ -1041,7 +1041,7 @@ static enum test_result test_touch_mb7342(EngineIface* h) {
     const char *key = "MB-7342";
     // Store the item!
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "v"),
+            store(h, nullptr, OPERATION_SET, key, "v"),
             "Failed set.");
 
     checkeq(ENGINE_SUCCESS, touch(h, key, Vbid(0), 0), "touch key");
@@ -1061,7 +1061,7 @@ static enum test_result test_touch_mb10277(EngineIface* h) {
     const char *key = "MB-10277";
     // Store the item!
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, key, "v"),
+            store(h, nullptr, OPERATION_SET, key, "v"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     evict_key(h, key, Vbid(0), "Ejected.");
@@ -1090,7 +1090,7 @@ static enum test_result test_gat(EngineIface* h) {
     // Store the item!
     checkeq(ENGINE_SUCCESS,
             store(h,
-                  NULL,
+                  nullptr,
                   OPERATION_SET,
                   "mykey",
                   "{\"some\":\"value\"}",
@@ -1133,14 +1133,14 @@ static enum test_result test_gat(EngineIface* h) {
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "mykey", Vbid(0)).first,
+            get(h, nullptr, "mykey", Vbid(0)).first,
             "Item should be gone");
     return SUCCESS;
 }
 
 static enum test_result test_gat_locked(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "value"),
+            store(h, nullptr, OPERATION_SET, "key", "value"),
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
@@ -1156,15 +1156,15 @@ static enum test_result test_gat_locked(EngineIface* h) {
 
     testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "key", Vbid(0)).first,
+            get(h, nullptr, "key", Vbid(0)).first,
             "Expected value to be expired");
     return SUCCESS;
 }
 
 static enum test_result test_touch_locked(EngineIface* h) {
-    item *itm = NULL;
+    item *itm = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "value", &itm),
+            store(h, nullptr, OPERATION_SET, "key", "value", &itm),
             "Failed to set key");
     h->release(itm);
 
@@ -1179,7 +1179,7 @@ static enum test_result test_touch_locked(EngineIface* h) {
 
     testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "key", Vbid(0)).first,
+            get(h, nullptr, "key", Vbid(0)).first,
             "Expected value to be expired");
 
     return SUCCESS;
@@ -1191,13 +1191,13 @@ static enum test_result test_mb5215(EngineIface* h) {
     }
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "coolkey", "cooler"),
+            store(h, nullptr, OPERATION_SET, "coolkey", "cooler"),
             "Failed set.");
 
     check_key_value(h, "coolkey", "cooler", strlen("cooler"));
 
     // set new exptime to 111
-    int expTime = time(NULL) + 111;
+    int expTime = time(nullptr) + 111;
 
     checkeq(ENGINE_SUCCESS,
             touch(h, "coolkey", Vbid(0), expTime),
@@ -1215,7 +1215,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     const char *statkey = "key coolkey 0";
     int newExpTime;
     checkeq(cb::engine_errc::success,
-            get(h, NULL, "coolkey", Vbid(0)).first,
+            get(h, nullptr, "coolkey", Vbid(0)).first,
             "Missing key");
     newExpTime = get_int_stat(h, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
@@ -1223,7 +1223,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     // evict key, touch expiration time, and verify
     evict_key(h, "coolkey", Vbid(0), "Ejected.");
 
-    expTime = time(NULL) + 222;
+    expTime = time(nullptr) + 222;
     checkeq(ENGINE_SUCCESS,
             touch(h, "coolkey", Vbid(0), expTime),
             "touch coolkey");
@@ -1237,7 +1237,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     checkeq(cb::engine_errc::success,
-            get(h, NULL, "coolkey", Vbid(0)).first,
+            get(h, nullptr, "coolkey", Vbid(0)).first,
             "Missing key");
     newExpTime = get_int_stat(h, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
@@ -1530,13 +1530,13 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 }
 
 static enum test_result test_delete(EngineIface* h) {
-    item *i = NULL;
+    item *i = nullptr;
     // First try to delete something we know to not be there.
     checkeq(ENGINE_KEY_ENOENT,
             del(h, "key", 0, Vbid(0)),
             "Failed to fail initial delete.");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
@@ -1562,7 +1562,7 @@ static enum test_result test_delete(EngineIface* h) {
 
     // Can I time travel to an expired object and delete it?
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
     h->release(i);
     testHarness->time_travel(3617);
@@ -1576,7 +1576,7 @@ static enum test_result test_delete(EngineIface* h) {
 
 static enum test_result test_set_delete(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     checkeq(ENGINE_SUCCESS,
@@ -1589,9 +1589,9 @@ static enum test_result test_set_delete(EngineIface* h) {
 }
 
 static enum test_result test_set_delete_invalid_cas(EngineIface* h) {
-    item *i = NULL;
+    item *i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
@@ -1662,14 +1662,14 @@ static enum test_result test_get_delete_missing_file(EngineIface* h) {
     CouchstoreFileAccessGuard makeCouchstoreFileInaccessible(
             dbname, CouchstoreFileAccessGuard::Mode::DenyAll);
 
-    auto ret = get(h, NULL, key, Vbid(0));
+    auto ret = get(h, nullptr, key, Vbid(0));
 
     // ep engine must be unaware of well-being of the db file as long as
     // the item is still in the memory
     checkeq(cb::engine_errc::success, ret.first, "Expected success for get");
 
     evict_key(h, key);
-    ret = get(h, NULL, key, Vbid(0));
+    ret = get(h, nullptr, key, Vbid(0));
 
     // ep engine must be now aware of the ill-fated db file where
     // the item is supposedly stored
@@ -1701,7 +1701,7 @@ static enum test_result test_bug7023(EngineIface* h) {
               "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             checkeq(ENGINE_SUCCESS,
-                    store(h, NULL, OPERATION_SET, it->c_str(), it->c_str()),
+                    store(h, nullptr, OPERATION_SET, it->c_str(), it->c_str()),
                     "Failed to store a value");
         }
     }
@@ -1725,13 +1725,13 @@ static enum test_result test_bug7023(EngineIface* h) {
 
 static enum test_result test_mb3169(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "set", "value"),
+            store(h, nullptr, OPERATION_SET, "set", "value"),
             "Failed to store a value");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "delete", "0"),
+            store(h, nullptr, OPERATION_SET, "delete", "0"),
             "Failed to store a value");
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "get", "getvalue"),
+            store(h, nullptr, OPERATION_SET, "get", "getvalue"),
             "Failed to store a value");
 
     wait_for_stat_to_be(h, "ep_total_persisted", 3);
@@ -1746,7 +1746,7 @@ static enum test_result test_mb3169(EngineIface* h) {
             "Expected all items to be resident");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "set", "value2"),
+            store(h, nullptr, OPERATION_SET, "set", "value2"),
             "Failed to store a value");
     wait_for_flusher_to_settle(h);
 
@@ -1779,11 +1779,11 @@ static enum test_result test_mb5172(EngineIface* h) {
     }
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key-1", "value-1"),
+            store(h, nullptr, OPERATION_SET, "key-1", "value-1"),
             "Failed to store a value");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key-2", "value-2"),
+            store(h, nullptr, OPERATION_SET, "key-2", "value-2"),
             "Failed to store a value");
 
     wait_for_flusher_to_settle(h);
@@ -2079,7 +2079,7 @@ static test_result max_ttl(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(absoluteExpiry + 1);
 
-    auto ret = get(h, NULL, "key-abs", Vbid(0));
+    auto ret = get(h, nullptr, "key-abs", Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2114,7 +2114,7 @@ static test_result max_ttl(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(relativeExpiry + 1);
 
-    ret = get(h, NULL, "key-rel", Vbid(0));
+    ret = get(h, nullptr, "key-rel", Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2167,7 +2167,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(absoluteExpiry + 1);
 
-    auto ret = get(h, NULL, keyAbs.c_str(), Vbid(0));
+    auto ret = get(h, nullptr, keyAbs.c_str(), Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2200,7 +2200,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(relativeExpiry + 1);
 
-    ret = get(h, NULL, keyRel.c_str(), Vbid(0));
+    ret = get(h, nullptr, keyRel.c_str(), Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2241,14 +2241,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_alloc_limit,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test_memory_tracking",
                  test_memory_tracking,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test max_size - water_mark changes",
@@ -2269,151 +2269,151 @@ BaseTestCase testsuite_testcases[] = {
                  test_get_miss,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
-        TestCase("set", test_set, test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("set", test_set, test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("concurrent set",
                  test_conc_set,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("multi set",
                  test_multi_set,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare_ep_bucket_skip_broken_under_magma, // MB-36547
                  cleanup),
         TestCase("set+get hit",
                  test_set_get_hit,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test getl then del with cas",
                  test_getl_delete_with_cas,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test getl then del with bad cas",
                  test_getl_delete_with_bad_cas,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test getl then set with meta",
                  test_getl_set_del_with_meta,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("getl",
                  test_getl,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
-        TestCase("unl", test_unl, test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("unl", test_unl, test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("unl not my vbucket",
                  test_unl_nmvb,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set+get hit (bin)",
                  test_set_get_hit_bin,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set with cas non-existent",
                  test_set_with_cas_non_existent,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set+change flags",
                  test_set_change_flags,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
-        TestCase("add", test_add, test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("add", test_add, test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("add+add(same cas)",
                  test_add_add_with_cas,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
-        TestCase("cas", test_cas, test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("cas", test_cas, test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("replace",
                  test_replace,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test touch",
                  test_touch,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test touch (MB-7342)",
                  test_touch_mb7342,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test touch (MB-10277)",
                  test_touch_mb10277,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare_ep_bucket,
                  cleanup),
         TestCase("test gat",
                  test_gat,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test locked gat",
                  test_gat_locked,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test locked touch",
                  test_touch_locked,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test mb5215",
                  test_mb5215,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  // TODO RDB: implement getItemCount. Needs the
                  // 'ep_num_non_resident' stat.
                  prepare_ep_bucket_skip_broken_under_rocks,
@@ -2422,14 +2422,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_delete,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("delete with value",
                  test_delete_with_value,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  /* TODO RDB: vBucket num_items not correct under Rocks when
                   * full eviction */
                  prepare_skip_broken_under_rocks_full_eviction,
@@ -2438,35 +2438,35 @@ BaseTestCase testsuite_testcases[] = {
                  test_delete_with_value_cas,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set/delete",
                  test_set_delete,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare_skip_broken_under_rocks_full_eviction,
                  cleanup),
         TestCase("set/delete (invalid cas)",
                  test_set_delete_invalid_cas,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("delete/set/delete",
                  test_delete_set,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("get/delete with missing db file",
                  test_get_delete_missing_file,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  // TODO RDB: This test fails because under RocksDB we can
                  // still find a key after deleting the DB file and evicting
                  // the key in the internal MemTable (which is also used as
@@ -2478,7 +2478,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_bug7023,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  // TODO RDB: implement getItemCount. Needs the
                  // 'ep_warmup_value_count' stat.
                  prepare_skip_broken_under_rocks,
@@ -2487,7 +2487,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb3169,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  // TODO RDB: implement getItemCount. Needs the 'curr_items'
                  // stat.
                  prepare_ep_bucket_skip_broken_under_rocks,
@@ -2496,7 +2496,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb5172,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("set vb 10000",
@@ -2562,4 +2562,4 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
 
         // sentinel
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
+        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};

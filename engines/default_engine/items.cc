@@ -102,7 +102,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
                          const int nbytes,
                          const void *cookie,
                          uint8_t datatype) {
-    hash_item *it = NULL;
+    hash_item *it = nullptr;
     int tries = search_items;
     hash_item *search;
     rel_time_t oldest_live;
@@ -112,7 +112,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     size_t ntotal = sizeof(hash_item) + hash_key_get_alloc_size(key) + nbytes;
 
     if ((id = slabs_clsid(engine, ntotal)) == 0) {
-        return 0;
+        return nullptr;
     }
 
     /* do a quick check if we have any expired items in the tail.. */
@@ -120,7 +120,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     current_time = engine->server.core->get_current_time();
 
     for (search = engine->items.tails[id];
-         tries > 0 && search != NULL;
+         tries > 0 && search != nullptr;
          tries--, search=search->prev) {
         if (search->refcount == 0 &&
             ((search->time < oldest_live) || /* dead by flush */
@@ -142,8 +142,8 @@ hash_item *do_item_alloc(struct default_engine *engine,
         }
     }
 
-    if (it == NULL &&
-        (it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id))) == NULL) {
+    if (it == nullptr &&
+        (it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id))) == nullptr) {
         /*
         ** Could not find an expired item at the tail, and memory allocation
         ** failed. Try to evict some items!
@@ -156,7 +156,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
 
         if (engine->config.evict_to_free == 0) {
             engine->items.itemstats[id].outofmemory++;
-            return NULL;
+            return nullptr;
         }
 
         /*
@@ -166,12 +166,12 @@ hash_item *do_item_alloc(struct default_engine *engine,
          * tries
          */
 
-        if (engine->items.tails[id] == 0) {
+        if (engine->items.tails[id] == nullptr) {
             engine->items.itemstats[id].outofmemory++;
-            return NULL;
+            return nullptr;
         }
 
-        for (search = engine->items.tails[id]; tries > 0 && search != NULL; tries--, search=search->prev) {
+        for (search = engine->items.tails[id]; tries > 0 && search != nullptr; tries--, search=search->prev) {
             if (search->refcount == 0 && search->locktime <= current_time) {
                 if (search->exptime == 0 || search->exptime > current_time) {
                     engine->items.itemstats[id].evicted++;
@@ -189,7 +189,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
             }
         }
         it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id));
-        if (it == 0) {
+        if (it == nullptr) {
             engine->items.itemstats[id].outofmemory++;
             /* Last ditch effort. There is a very rare bug which causes
              * refcount leaks. We've fixed most of them, but it still happens,
@@ -199,7 +199,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
              * free it anyway.
              */
             tries = search_items;
-            for (search = engine->items.tails[id]; tries > 0 && search != NULL; tries--, search=search->prev) {
+            for (search = engine->items.tails[id]; tries > 0 && search != nullptr; tries--, search=search->prev) {
                 if (search->refcount != 0 && search->time + TAIL_REPAIR_TIME < current_time) {
                     engine->items.itemstats[id].tailrepairs++;
                     search->refcount = 0;
@@ -208,8 +208,8 @@ hash_item *do_item_alloc(struct default_engine *engine,
                 }
             }
             it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id));
-            if (it == 0) {
-                return NULL;
+            if (it == nullptr) {
+                return nullptr;
             }
         }
     }
@@ -220,7 +220,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
 
     cb_assert(it != engine->items.heads[it->slabs_clsid]);
 
-    it->next = it->prev = it->h_next = 0;
+    it->next = it->prev = it->h_next = nullptr;
     it->refcount = 1;     /* the caller will have a reference */
     DEBUG_REFCNT(it, '*');
     it->iflag = 0;
@@ -257,12 +257,12 @@ static void item_link_q(struct default_engine *engine, hash_item *it) { /* item 
     head = &engine->items.heads[it->slabs_clsid];
     tail = &engine->items.tails[it->slabs_clsid];
     cb_assert(it != *head);
-    cb_assert((*head && *tail) || (*head == 0 && *tail == 0));
-    it->prev = 0;
+    cb_assert((*head && *tail) || (*head == nullptr && *tail == nullptr));
+    it->prev = nullptr;
     it->next = *head;
     if (it->next) it->next->prev = it;
     *head = it;
-    if (*tail == 0) *tail = it;
+    if (*tail == nullptr) *tail = it;
     engine->items.sizes[it->slabs_clsid]++;
     return;
 }
@@ -274,11 +274,11 @@ static void item_unlink_q(struct default_engine *engine, hash_item *it) {
     tail = &engine->items.tails[it->slabs_clsid];
 
     if (*head == it) {
-        cb_assert(it->prev == 0);
+        cb_assert(it->prev == nullptr);
         *head = it->next;
     }
     if (*tail == it) {
-        cb_assert(it->next == 0);
+        cb_assert(it->next == nullptr);
         *tail = it->prev;
     }
     cb_assert(it->next != it);
@@ -418,11 +418,11 @@ static void do_item_stats(struct default_engine* engine,
     int i;
     rel_time_t current_time = engine->server.core->get_current_time();
     for (i = 0; i < POWER_LARGEST; i++) {
-        if (engine->items.tails[i] != NULL) {
+        if (engine->items.tails[i] != nullptr) {
             const char *prefix = "items";
             int search = search_items;
             while (search > 0 &&
-                   engine->items.tails[i] != NULL &&
+                   engine->items.tails[i] != nullptr &&
                    ((engine->config.oldest_live != 0 && /* Item flushd */
                      engine->config.oldest_live <= current_time &&
                      engine->items.tails[i]->time <= engine->config.oldest_live) ||
@@ -435,7 +435,7 @@ static void do_item_stats(struct default_engine* engine,
                     break;
                 }
             }
-            if (engine->items.tails[i] == NULL) {
+            if (engine->items.tails[i] == nullptr) {
                 /* We removed all of the items in this slab class */
                 continue;
             }
@@ -470,7 +470,7 @@ static void do_item_stats_sizes(struct default_engine* engine,
     unsigned int* histogram = static_cast<unsigned int*>
         (cb_calloc(num_buckets, sizeof(unsigned int)));
 
-    if (histogram != NULL) {
+    if (histogram != nullptr) {
         int i;
 
         /* build the histogram */
@@ -515,19 +515,19 @@ hash_item* do_item_get(struct default_engine* engine,
                                       hash_key_get_key_len(key), 0),
                                key);
 
-    if (it != NULL && engine->config.oldest_live != 0 &&
+    if (it != nullptr && engine->config.oldest_live != 0 &&
         engine->config.oldest_live <= current_time &&
         it->time <= engine->config.oldest_live) {
         do_item_unlink(engine, it);           /* MTSAFE - items.lock held */
-        it = NULL;
+        it = nullptr;
     }
 
-    if (it != NULL && it->exptime != 0 && it->exptime <= current_time) {
+    if (it != nullptr && it->exptime != 0 && it->exptime <= current_time) {
         do_item_unlink(engine, it);           /* MTSAFE - items.lock held */
-        it = NULL;
+        it = nullptr;
     }
 
-    if (it != NULL) {
+    if (it != nullptr) {
         if (it->iflag & ITEM_ZOMBIE) {
             if (documentStateFilter == DocStateFilter::Alive) {
                 // The requested document is deleted, and you asked for alive
@@ -569,7 +569,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         locked = old_it->locktime > engine->server.core->get_current_time();
     }
 
-    if (old_it != NULL && operation == OPERATION_ADD &&
+    if (old_it != nullptr && operation == OPERATION_ADD &&
         (old_it->iflag & ITEM_ZOMBIE) == 0) {
         /* add only adds a nonexistent item, but promote to head of LRU */
         do_item_update(engine, old_it);
@@ -577,7 +577,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         /* replace only replaces an existing value; don't store */
     } else if (operation == OPERATION_CAS) {
         /* validate cas operation */
-        if (old_it == NULL) {
+        if (old_it == nullptr) {
             /* LRU expired */
             stored = ENGINE_KEY_ENOENT;
         } else if (it->cas == old_it->cas) {
@@ -601,7 +601,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
             stored = ENGINE_LOCKED;
         } else {
             stored = ENGINE_SUCCESS;
-            if (old_it != NULL) {
+            if (old_it != nullptr) {
                 do_item_replace(engine, cookie, old_it, it);
             } else {
                 if (do_item_link(engine, cookie, it) == 0) {
@@ -611,7 +611,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         }
     }
 
-    if (old_it != NULL) {
+    if (old_it != nullptr) {
         do_item_release(engine, old_it);         /* release our reference */
     }
 
@@ -634,7 +634,7 @@ hash_item *item_alloc(struct default_engine *engine,
     hash_item *it;
     hash_key hkey;
     if (!hash_key_create(&hkey, key, nkey, engine)) {
-        return NULL;
+        return nullptr;
     }
 
     {
@@ -658,7 +658,7 @@ hash_item* item_get(struct default_engine* engine,
     hash_item *it;
     hash_key hkey;
     if (!hash_key_create(&hkey, key, nkey, engine)) {
-        return NULL;
+        return nullptr;
     }
     it = item_get(engine, cookie, hkey, document_state);
     hash_key_destroy(&hkey);
@@ -709,7 +709,7 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
                              const void *cookie,
                              const DocumentState document_state) {
     ENGINE_ERROR_CODE ret;
-    hash_item* stored_item = NULL;
+    hash_item* stored_item = nullptr;
 
     if (document_state == DocumentState::Deleted) {
         item->iflag |= ITEM_ZOMBIE;
@@ -1009,7 +1009,7 @@ void item_flush_expired(struct default_engine *engine) {
          * oldest_live time.
          * The oldest_live checking will auto-expire the remaining items.
          */
-        for (iter = engine->items.heads[ii]; iter != NULL; iter = next) {
+        for (iter = engine->items.heads[ii]; iter != nullptr; iter = next) {
             if (iter->time >= engine->config.oldest_live) {
                 next = iter->next;
                 if ((iter->iflag & ITEM_SLABBED) == 0) {
@@ -1041,7 +1041,7 @@ static void do_item_link_cursor(struct default_engine *engine,
                                 hash_item *cursor, int ii)
 {
     cursor->slabs_clsid = (uint8_t)ii;
-    cursor->next = NULL;
+    cursor->next = nullptr;
     cursor->prev = engine->items.tails[ii];
     engine->items.tails[ii]->next = cursor;
     engine->items.tails[ii] = cursor;
@@ -1061,7 +1061,7 @@ static bool do_item_walk_cursor(struct default_engine *engine,
     int ii = 0;
     *error = ENGINE_SUCCESS;
 
-    while (cursor->prev != NULL && ii < steplength) {
+    while (cursor->prev != nullptr && ii < steplength) {
         /* Move cursor */
         hash_item *ptr = cursor->prev;
         bool done = false;
@@ -1071,7 +1071,7 @@ static bool do_item_walk_cursor(struct default_engine *engine,
 
         if (ptr == engine->items.heads[cursor->slabs_clsid]) {
             done = true;
-            cursor->prev = NULL;
+            cursor->prev = nullptr;
         } else {
             cursor->next = ptr;
             cursor->prev = ptr->prev;
@@ -1094,7 +1094,7 @@ static bool do_item_walk_cursor(struct default_engine *engine,
         }
     }
 
-    return (cursor->prev != NULL);
+    return (cursor->prev != nullptr);
 }
 
 static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
@@ -1129,7 +1129,7 @@ static void item_scrub_class(struct default_engine *engine,
     bool more;
     do {
         std::lock_guard<std::mutex> guard(engine->items.lock);
-        more = do_item_walk_cursor(engine, cursor, 200, item_scrub, NULL, &ret);
+        more = do_item_walk_cursor(engine, cursor, 200, item_scrub, nullptr, &ret);
         if (ret != ENGINE_SUCCESS) {
             break;
         }
@@ -1147,7 +1147,7 @@ void item_scrubber_main(struct default_engine *engine)
         bool skip = false;
         {
             std::lock_guard<std::mutex> guard(engine->items.lock);
-            if (engine->items.heads[ii] == NULL) {
+            if (engine->items.heads[ii] == nullptr) {
                 skip = true;
             } else {
                 /* add the item at the tail */
@@ -1191,7 +1191,7 @@ static bool hash_key_create(hash_key* hkey,
     if (nkey > sizeof(hkey->key_storage.client_key)) {
         hkey->header.full_key =
             static_cast<hash_key_data*>(cb_malloc(hash_key_len));
-        if (hkey->header.full_key == NULL) {
+        if (hkey->header.full_key == nullptr) {
             return false;
         }
     } else {

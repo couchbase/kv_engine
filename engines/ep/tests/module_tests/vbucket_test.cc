@@ -306,7 +306,7 @@ bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs) {
 
 class BlobTest : public Blob {
 public:
-    BlobTest() : Blob(0,0) {}
+    BlobTest() : Blob(nullptr,0) {}
     static size_t getAllocationSize(size_t len){
         return Blob::getAllocationSize(len);
     }

@@ -505,7 +505,7 @@ class EventuallyPersistentEngine;
  */
 class MutationLogHarvester {
 public:
-    MutationLogHarvester(MutationLog &ml, EventuallyPersistentEngine *e = NULL) :
+    MutationLogHarvester(MutationLog &ml, EventuallyPersistentEngine *e = nullptr) :
         mlog(ml), engine(e)
     {
         memset(itemsSeen, 0, sizeof(itemsSeen));

@@ -10,7 +10,7 @@ int main() {
     }
 
     // Dump allocator statistics to stderr.
-    je_malloc_stats_print(NULL, NULL, NULL);
+    je_malloc_stats_print(nullptr, nullptr, nullptr);
 
     return 0;
 }

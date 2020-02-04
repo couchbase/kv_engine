@@ -46,8 +46,8 @@ static char* get_command(char* buffer, size_t buffsize) {
     while (true) {
         switch (poll(&fds, 1, 60000)) {
         case 1:
-            if (fgets(buffer, buffsize, stdin) == NULL) {
-                return NULL;
+            if (fgets(buffer, buffsize, stdin) == nullptr) {
+                return nullptr;
             }
             return buffer;
         case 0:

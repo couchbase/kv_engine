@@ -1179,7 +1179,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
         const auto rv = delVBucket(h, cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
-            h->storeEngineSpecific(cookie, NULL);
+            h->storeEngineSpecific(cookie, nullptr);
         }
         return rv;
     }
@@ -1247,11 +1247,11 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
         res = cb::mcbp::Status::UnknownCommand;
     }
 
-    msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
+    msg_size = (msg_size > 0 || msg == nullptr) ? msg_size : strlen(msg);
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         msg,
                         static_cast<uint16_t>(msg_size),
@@ -1740,7 +1740,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::abort(
 ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
                                             EngineIface** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
-    if (api == NULL) {
+    if (api == nullptr) {
         return ENGINE_ENOTSUP;
     }
 
@@ -1753,7 +1753,7 @@ ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
     EventuallyPersistentEngine* engine;
     engine = new EventuallyPersistentEngine(get_server_api, arena);
 
-    if (engine == NULL) {
+    if (engine == nullptr) {
         cb::ArenaMalloc::unregisterClient(arena);
         return ENGINE_ENOMEM;
     }
@@ -1868,10 +1868,10 @@ bool EventuallyPersistentEngine::isXattrEnabled() {
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api, cb::ArenaMallocClient arena)
     : kvBucket(nullptr),
-      workload(NULL),
+      workload(nullptr),
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
-      checkpointConfig(NULL),
+      checkpointConfig(nullptr),
       trafficEnabled(false),
       startupTime(0),
       taskable(this),
@@ -2224,7 +2224,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
                     0 /*cas*/,
                     -1 /*seq*/,
                     vbucket);
-    if (*itm == NULL) {
+    if (*itm == nullptr) {
         return memoryCondition();
     } else {
         stats.itemAllocSizeHisto.addValue(nbytes);
@@ -3572,14 +3572,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
         int nkey) {
     if (nkey == 10) {
         void* es = getEngineSpecific(cookie);
-        if (es == NULL) {
+        if (es == nullptr) {
             ExTask task = std::make_shared<StatCheckpointTask>(
                     this, cookie, add_stat);
             ExecutorPool::get()->schedule(task);
             storeEngineSpecific(cookie, this);
             return ENGINE_EWOULDBLOCK;
         } else {
-            storeEngineSpecific(cookie, NULL);
+            storeEngineSpecific(cookie, nullptr);
         }
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
@@ -3710,7 +3710,7 @@ struct ConnAggStatBuilder {
         : counters(m), sep(s), sep_len(sl) {}
 
     ConnCounter* getTarget(std::shared_ptr<ConnHandler> tc) {
-        ConnCounter *rv = NULL;
+        ConnCounter *rv = nullptr;
 
         if (tc) {
             const std::string name(tc->getName());
@@ -3724,7 +3724,7 @@ struct ConnAggStatBuilder {
             if (pos2 != name.npos) {
                 std::string prefix(name.substr(pos1+1, pos2 - pos1 - 1));
                 rv = (*counters)[prefix];
-                if (rv == NULL) {
+                if (rv == nullptr) {
                     rv = new ConnCounter;
                     (*counters)[prefix] = rv;
                 }
@@ -3752,11 +3752,11 @@ struct ConnAggStatBuilder {
     }
 
     ConnCounter *getTotalCounter() {
-        ConnCounter *rv = NULL;
+        ConnCounter *rv = nullptr;
         std::string sepr(sep);
         std::string total(sepr + "total");
         rv = (*counters)[total];
-        if(rv == NULL) {
+        if(rv == nullptr) {
             rv = new ConnCounter;
             (*counters)[total] = rv;
         }
@@ -4897,9 +4897,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
                &persistedChkId,
                sizeof(persistedChkId));
         return sendResponse(response,
-                            NULL,
+                            nullptr,
                             0,
-                            NULL,
+                            nullptr,
                             0,
                             val,
                             sizeof(val),
@@ -4910,11 +4910,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
     }
 
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
@@ -4977,7 +4977,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
             break;
         }
     } else {
-        storeEngineSpecific(cookie, NULL);
+        storeEngineSpecific(cookie, nullptr);
         EP_LOG_DEBUG("Checkpoint {} persisted for {}", chk_id, vbucket);
     }
 
@@ -6086,7 +6086,7 @@ void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
 
 void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
                                                   ENGINE_ERROR_CODE status) {
-    if (cookie == NULL) {
+    if (cookie == nullptr) {
         EP_LOG_WARN("Tried to signal a NULL cookie!");
     } else {
         HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
@@ -6132,14 +6132,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     (void) seqno;
     std::string connName = cb::to_string(stream_name);
 
-    if (getEngineSpecific(cookie) != NULL) {
+    if (getEngineSpecific(cookie) != nullptr) {
         EP_LOG_WARN(
                 "Cannot open DCP connection as another"
                 " connection exists on the same socket");
         return ENGINE_DISCONNECT;
     }
 
-    ConnHandler *handler = NULL;
+    ConnHandler *handler = nullptr;
     if (flags & (cb::mcbp::request::DcpOpenPayload::Producer |
                  cb::mcbp::request::DcpOpenPayload::Notifier)) {
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
@@ -6221,12 +6221,12 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
      *
      * Commands to be considered: DEL_VBUCKET, COMPACT_DB
      */
-    if (getEngineSpecific(cookie) != NULL) {
+    if (getEngineSpecific(cookie) != nullptr) {
         switch (getOpcodeIfEwouldblockSet(cookie)) {
         case cb::mcbp::ClientOpcode::DelVbucket:
         case cb::mcbp::ClientOpcode::CompactDb: {
             decrementSessionCtr();
-            storeEngineSpecific(cookie, NULL);
+            storeEngineSpecific(cookie, nullptr);
             break;
         }
             default:
@@ -6252,7 +6252,7 @@ cb::mcbp::Status EventuallyPersistentEngine::stopFlusher(const char** msg,
                                                          size_t* msg_size) {
     (void)msg_size;
     auto rv = cb::mcbp::Status::Success;
-    *msg = NULL;
+    *msg = nullptr;
     if (!kvBucket->pauseFlusher()) {
         EP_LOG_DEBUG("Unable to stop flusher");
         *msg = "Flusher not running.";
@@ -6265,7 +6265,7 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
                                                           size_t* msg_size) {
     (void)msg_size;
     auto rv = cb::mcbp::Status::Success;
-    *msg = NULL;
+    *msg = nullptr;
     if (!kvBucket->resumeFlusher()) {
         EP_LOG_DEBUG("Unable to start flusher");
         *msg = "Flusher not shut down.";
@@ -6404,11 +6404,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         payload.reserve(vbuckets.size() * (sizeof(uint16_t) + sizeof(uint64_t)));
     } catch (const std::bad_alloc&) {
         return sendResponse(response,
+                            nullptr,
                             0,
+                            nullptr,
                             0,
-                            0,
-                            0,
-                            0,
+                            nullptr,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             cb::mcbp::Status::Enomem,

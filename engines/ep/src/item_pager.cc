@@ -252,7 +252,7 @@ bool ExpiredItemPager::run(void) {
 
 void ExpiredItemPager::updateExpPagerTime(double sleepSecs) {
     struct timeval _waketime;
-    gettimeofday(&_waketime, NULL);
+    gettimeofday(&_waketime, nullptr);
     _waketime.tv_sec += sleepSecs;
     stats.expPagerTime.store(_waketime.tv_sec);
 }

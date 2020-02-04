@@ -112,7 +112,7 @@ TEST(X509, ParseValidMultipleEntryFormat) {
 class SslParseCertTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {
-        OPENSSL_init_ssl(0, NULL);
+        OPENSSL_init_ssl(0, nullptr);
         SSL_load_error_strings();
         ERR_load_BIO_strings();
         OpenSSL_add_all_algorithms();
@@ -124,7 +124,7 @@ public:
         auto* certbio = BIO_new_mem_buf(
                 const_cast<void*>(static_cast<const void*>(data.data())),
                 gsl::narrow<int>(data.size()));
-        cert.reset(PEM_read_bio_X509(certbio, NULL, 0, NULL));
+        cert.reset(PEM_read_bio_X509(certbio, nullptr, nullptr, nullptr));
         BIO_free(certbio);
         ASSERT_TRUE(cert.get()) << "Error in reading certificate file: "
                                 << certPath;

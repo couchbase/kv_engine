@@ -376,7 +376,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             }
             rwUnderlying->optimizeWrites(items);
 
-            Item* prev = NULL;
+            Item* prev = nullptr;
 
             // Read the vbucket_state from disk as many values from the
             // in-memory vbucket_state may be ahead of what we are flushing.
@@ -1081,7 +1081,7 @@ bool EPBucket::doCompact(const CompactionConfig& config,
 
         if (!vb) {
             err = ENGINE_NOT_MY_VBUCKET;
-            engine.storeEngineSpecific(cookie, NULL);
+            engine.storeEngineSpecific(cookie, nullptr);
             /**
              * Decrement session counter here, as memcached thread wouldn't
              * visit the engine interface in case of a NOT_MY_VB notification

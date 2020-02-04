@@ -79,7 +79,7 @@ ssize_t phase_send_ssl(const void *buf, size_t len) {
     ssize_t rv = 0, send_rv = 0;
 
     long send_len = 0;
-    char* send_buf = NULL;
+    char* send_buf = nullptr;
     /* push the data through SSL into the BIO */
     rv = (ssize_t)SSL_write(ssl, (const char*)buf, (int)len);
     send_len = BIO_get_mem_data(ssl_bio_w, &send_buf);

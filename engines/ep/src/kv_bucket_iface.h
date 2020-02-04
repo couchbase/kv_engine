@@ -208,7 +208,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = NULL) = 0;
+            ExtendedMetaData* emd = nullptr) = 0;
 
     /**
      * Add a prepare to the store
@@ -412,7 +412,7 @@ public:
      *          to notify the connection of operation completion.
      */
     virtual ENGINE_ERROR_CODE deleteVBucket(Vbid vbid,
-                                            const void* c = NULL) = 0;
+                                            const void* c = nullptr) = 0;
 
     /**
      * Check for the existence of a vbucket in the case of couchstore.

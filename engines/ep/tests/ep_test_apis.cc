@@ -541,7 +541,7 @@ void evict_key(EngineIface* h,
                             {},
                             {key, strlen(key)});
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, *pkt, add_response),
+            h->unknown_command(nullptr, *pkt, add_response),
             "Failed to perform CMD_EVICT_KEY.");
 
     if (expectError) {
@@ -563,7 +563,7 @@ void evict_key(EngineIface* h,
             get_int_stat(h, "ep_num_value_ejects"),
             "Incorrect number of ejected items");
 
-    if (msg != NULL && last_body != msg) {
+    if (msg != nullptr && last_body != msg) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
                 msg, last_body.c_str());
         abort();
@@ -618,7 +618,7 @@ cb::EngineErrorItemPair gat(EngineIface* h,
 }
 
 bool get_item_info(EngineIface* h, item_info* info, const char* key, Vbid vb) {
-    auto ret = get(h, NULL, key, vb);
+    auto ret = get(h, nullptr, key, vb);
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
@@ -1049,7 +1049,7 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
     return return_meta(h,
                        key,
                        keylen,
-                       NULL,
+                       nullptr,
                        0,
                        vb,
                        cas,
@@ -1103,7 +1103,7 @@ void stop_persistence(EngineIface* h) {
 
     useconds_t sleepTime = 128;
     while (true) {
-        if (get_str_stat(h, "ep_flusher_state", 0) == "running") {
+        if (get_str_stat(h, "ep_flusher_state", nullptr) == "running") {
             break;
         }
         decayingSleep(&sleepTime);
@@ -1304,7 +1304,7 @@ ENGINE_ERROR_CODE vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
 }
 
 ENGINE_ERROR_CODE verify_key(EngineIface* h, const char* key, Vbid vbucket) {
-    auto rv = get(h, NULL, key, vbucket);
+    auto rv = get(h, nullptr, key, vbucket);
     return ENGINE_ERROR_CODE(rv.first);
 }
 
@@ -1360,7 +1360,7 @@ bool verify_vbucket_state(EngineIface* h,
                           bool mute) {
     auto pkt = createPacket(cb::mcbp::ClientOpcode::GetVbucket, vb, 0);
 
-    ENGINE_ERROR_CODE errcode = h->unknown_command(NULL, *pkt, add_response);
+    ENGINE_ERROR_CODE errcode = h->unknown_command(nullptr, *pkt, add_response);
     if (errcode != ENGINE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
@@ -1454,7 +1454,7 @@ std::string get_stat(EngineIface* h,
     const auto* cookie = testHarness->create_cookie(h);
     ENGINE_ERROR_CODE err =
             h->get_stats(cookie,
-                         {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                         {statkey, statkey == nullptr ? 0 : strlen(statkey)},
                          {},
                          add_individual_stat);
     testHarness->destroy_cookie(cookie);
@@ -1571,7 +1571,7 @@ static void get_histo_stat(EngineIface* h,
 
     const auto* cookie = testHarness->create_cookie(h);
     auto err = h->get_stats(cookie,
-                            {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                            {statkey, statkey == nullptr ? 0 : strlen(statkey)},
                             {},
                             add_individual_histo_stat);
     testHarness->destroy_cookie(cookie);
@@ -1588,7 +1588,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
     }
     const auto* cookie = testHarness->create_cookie(h);
     auto err = h->get_stats(cookie,
-                            {statset, statset == NULL ? 0 : strlen(statset)},
+                            {statset, statset == nullptr ? 0 : strlen(statset)},
                             {},
                             add_stats);
     testHarness->destroy_cookie(cookie);
@@ -1636,7 +1636,7 @@ void wait_for_expired_items_to_be(EngineIface* h,
                                   const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<int> accumulator("to be", "expired items",
-                                         NULL, final,
+                                         nullptr, final,
                                          max_wait_time_in_secs);
     for (;;) {
         auto current = get_int_stat(h, "ep_expired_access") +
@@ -1654,7 +1654,7 @@ void wait_for_memory_usage_below(EngineIface* h,
                                  int mem_threshold,
                                  const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
-    WaitTimeAccumulator<int> accumulator("to be below", "mem_used", NULL,
+    WaitTimeAccumulator<int> accumulator("to be below", "mem_used", nullptr,
                                          mem_threshold,
                                          max_wait_time_in_secs);
     for (;;) {

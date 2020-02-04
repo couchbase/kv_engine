@@ -97,7 +97,7 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() {
 }
 
 BackfillManager::BackfillManager(EventuallyPersistentEngine& e)
-    : engine(e), managerTask(NULL) {
+    : engine(e), managerTask(nullptr) {
     Configuration& config = e.getConfiguration();
 
     scanBuffer.bytesRead = 0;

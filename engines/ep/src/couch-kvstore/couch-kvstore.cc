@@ -251,7 +251,7 @@ CouchRequest::CouchRequest(queued_item it)
         dbDoc.data.buf = const_cast<char *>(value->getData());
         dbDoc.data.size = item->getNBytes();
     } else {
-        dbDoc.data.buf = NULL;
+        dbDoc.data.buf = nullptr;
         dbDoc.data.size = 0;
     }
     meta.setCas(item->getCas());
@@ -499,7 +499,7 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
                                      GetMetaOnly getMetaOnly) {
     Db *db = (Db *)dbHandle;
     auto start = std::chrono::steady_clock::now();
-    DocInfo *docInfo = NULL;
+    DocInfo *docInfo = nullptr;
     GetValue rv;
 
     sized_buf id = to_sized_buf(key);
@@ -1452,7 +1452,7 @@ ScanContext* CouchKVStore::initScanContext(
                 dbname,
                 vbid.get(),
                 db.getFileRev());
-        return NULL;
+        return nullptr;
     }
 
     DbInfo info;
@@ -1467,7 +1467,7 @@ ScanContext* CouchKVStore::initScanContext(
                 vbid,
                 db.getFileRev(),
                 couchstore_strerror(errorCode));
-        return NULL;
+        return nullptr;
     }
 
     uint64_t count = 0;
@@ -1481,7 +1481,7 @@ ScanContext* CouchKVStore::initScanContext(
                 db.getFileRev(),
                 startSeqno,
                 couchstore_strerror(errorCode));
-        return NULL;
+        return nullptr;
     }
 
     auto readVbStateResult = readVBState(db, vbid);
@@ -1489,7 +1489,7 @@ ScanContext* CouchKVStore::initScanContext(
         EP_LOG_WARN(
                 "CouchKVStore::initScanContext:Failed to obtain vbState for "
                 "the highCompletedSeqno");
-        return NULL;
+        return nullptr;
     }
 
     size_t scanId = scanCounter++;
@@ -2408,7 +2408,7 @@ CouchKVStore::processVbstateSnapshot(Vbid vb,
 
 CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
     sized_buf id;
-    LocalDoc *ldoc = NULL;
+    LocalDoc *ldoc = nullptr;
     ReadVBStateStatus status = ReadVBStateStatus::Success;
     // High sequence number and purge sequence number are stored automatically
     // by couchstore.

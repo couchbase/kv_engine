@@ -22,7 +22,7 @@
 #include <platform/platform_thread.h>
 
 void initialize_openssl() {
-    OPENSSL_init_ssl(0, NULL);
+    OPENSSL_init_ssl(0, nullptr);
 
     SSL_load_error_strings();
     ERR_load_BIO_strings();

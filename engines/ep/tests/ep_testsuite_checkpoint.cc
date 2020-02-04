@@ -107,7 +107,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
         char key[8];
         sprintf(key, "key%d", i);
         checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, key, "value"),
+                store(h, nullptr, OPERATION_SET, key, "value"),
                 "Failed to store an item.");
     }
     checkeq(3,
@@ -121,7 +121,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
 
 static enum test_result test_checkpoint_timeout(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, NULL, OPERATION_SET, "key", "value"),
+            store(h, nullptr, OPERATION_SET, "key", "value"),
             "Failed to store an item.");
     testHarness->time_travel(600);
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
@@ -134,7 +134,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
             char key[8];
             sprintf(key, "key%d", j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, NULL, OPERATION_SET, key, "value"),
+                    store(h, nullptr, OPERATION_SET, key, "value"),
                     "Failed to store an item.");
         }
     }
@@ -162,7 +162,7 @@ extern "C" {
             ss << "key" << j;
             checkeq(ENGINE_SUCCESS,
                     store(h,
-                          NULL,
+                          nullptr,
                           OPERATION_SET,
                           ss.str().c_str(),
                           ss.str().c_str()),
@@ -255,7 +255,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_validate_checkpoint_params,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test checkpoint create",
@@ -300,11 +300,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_wait_for_persist_vb_del,
                  test_setup,
                  teardown,
-                 NULL,
+                 nullptr,
                  prepare_ep_bucket, /* checks if we delete vb is successful
                                        in presence of a pending chkPersistence
                                        req; in ephemeral buckets we don't
                                        handle chkPersistence requests */
                  cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};
+        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};
