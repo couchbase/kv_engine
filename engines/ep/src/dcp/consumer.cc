@@ -432,7 +432,7 @@ ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
     UpdateFlowControl ufc(*this, msgBytes);
 
     std::unique_ptr<ExtendedMetaData> emd;
-    if (meta.size() > 0) {
+    if (!meta.empty()) {
         emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
         if (emd->getStatus() == ENGINE_EINVAL) {
             return ENGINE_EINVAL;
@@ -584,7 +584,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     // MB-29040: Producer may send deleted doc with value that still has
     // the user xattrs and the body. Fix up that mistake by running the
     // expiry hook which will correctly process the document
-    if (value.size()) {
+    if (!value.empty()) {
         if (mcbp::datatype::is_xattr(datatype)) {
             auto vb = engine_.getVBucket(vbucket);
             if (vb) {
@@ -599,7 +599,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
 
     ENGINE_ERROR_CODE err;
     std::unique_ptr<ExtendedMetaData> emd;
-    if (meta.size() > 0) {
+    if (!meta.empty()) {
         emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
         if (emd->getStatus() == ENGINE_EINVAL) {
             err = ENGINE_EINVAL;

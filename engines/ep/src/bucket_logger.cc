@@ -98,7 +98,7 @@ std::string BucketLogger::prefixStringWithBucketName(
     }
 
     // Append the given prefix (if set)
-    if (prefix.size() > 0) {
+    if (!prefix.empty()) {
         fmtString.append(prefix + " ");
     }
 

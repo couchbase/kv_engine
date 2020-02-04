@@ -652,7 +652,7 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
         cb::const_char_buffer& doc) {
     switch (spec.traits.mcbpCommand) {
     case cb::mcbp::ClientOpcode::Get:
-        if (doc.size() == 0) {
+        if (doc.empty()) {
             // Size of zero indicates the document body ("path") doesn't exist.
             return cb::mcbp::Status::SubdocPathEnoent;
         }

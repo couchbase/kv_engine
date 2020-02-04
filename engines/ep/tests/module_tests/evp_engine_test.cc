@@ -58,7 +58,7 @@ void EventuallyPersistentEngineTest::SetUp() {
 
     // Add dbname to config string.
     std::string config = config_string;
-    if (config.size() > 0) {
+    if (!config.empty()) {
         config += ";";
     }
     config += "dbname=" + std::string(test_dbname);

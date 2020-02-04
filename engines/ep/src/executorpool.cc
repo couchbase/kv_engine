@@ -621,7 +621,7 @@ std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
 
     taskOwners.erase(&taskable);
     if (!(--numBuckets)) {
-        if (taskLocator.size()) {
+        if (!taskLocator.empty()) {
             throw std::logic_error("ExecutorPool::_unregisterTaskable: "
                     "Attempting to unregister taskable '" +
                     taskable.getName() + "' but taskLocator is not empty");

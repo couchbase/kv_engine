@@ -65,8 +65,7 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
 //
 const cb::const_byte_buffer::iterator SystemEventFactory::findKeyExtra(
         const DocKey& key, const std::string& separator) {
-    if (key.size() == 0 || separator.size() == 0 ||
-        separator.size() > key.size()) {
+    if (key.size() == 0 || separator.empty() || separator.size() > key.size()) {
         return nullptr;
     }
 

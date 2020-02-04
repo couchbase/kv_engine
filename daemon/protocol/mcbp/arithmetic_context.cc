@@ -138,7 +138,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     auto* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
     // If the input buffer was compressed we should use the temporary
     // allocated buffer instead
-    if (buffer.size() != 0) {
+    if (!buffer.empty()) {
         ptr = buffer.data();
         oldsize = buffer.size();
     }
@@ -197,7 +197,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
     // copy the data over..
     const auto* src = (const char*)oldItemInfo.value[0].iov_base;
-    if (buffer.size() != 0) {
+    if (!buffer.empty()) {
         src = buffer.data();
     }
 

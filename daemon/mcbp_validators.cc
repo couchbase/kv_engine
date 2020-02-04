@@ -65,7 +65,7 @@ bool is_document_key_valid(Cookie& cookie) {
         cookie.setErrorContext("No stop-byte found");
         return false;
     }
-    if (leb.second.size() == 0) {
+    if (leb.second.empty()) {
         cookie.setErrorContext("No logical key found");
         return false;
     }

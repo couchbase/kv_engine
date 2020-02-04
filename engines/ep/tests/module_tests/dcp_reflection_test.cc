@@ -97,7 +97,7 @@ protected:
         ASSERT_LE(node, Node3) << "Out of bounds for Node" << node;
 
         std::string config = config_string;
-        if (config.size() > 0) {
+        if (!config.empty()) {
             config += ";";
         }
         config += "dbname=" + std::string(test_dbname) + "-node_" +

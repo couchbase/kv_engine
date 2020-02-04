@@ -560,7 +560,7 @@ bool RocksDBKVStore::commit(VB::Commit& commitData) {
         return true;
     }
 
-    if (pendingReqs->size() == 0) {
+    if (pendingReqs->empty()) {
         in_transaction = false;
         return true;
     }

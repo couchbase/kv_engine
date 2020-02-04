@@ -248,7 +248,7 @@ static void process_bucket_details(Cookie& cookie) {
 
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         auto o = get_bucket_details(ii);
-        if (o.size() > 0) {
+        if (!o.empty()) {
             array.push_back(o);
         }
     }

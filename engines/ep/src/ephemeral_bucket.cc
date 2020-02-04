@@ -275,7 +275,7 @@ void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
         auto toNotify = vb->getHighPriorityNotifications(
                 engine, notifyCtx.bySeqno, HighPriorityVBNotify::Seqno);
 
-        if (toNotify.size() && notifyHpReqTask) {
+        if (!toNotify.empty() && notifyHpReqTask) {
             notifyHpReqTask->wakeup(std::move(toNotify));
         }
     }

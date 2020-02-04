@@ -44,7 +44,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                                               cb::const_byte_buffer dropped) {
     Collections::KVStore::Manifest rv{Collections::KVStore::Manifest::Empty{}};
 
-    if (manifest.size() > 0) {
+    if (!manifest.empty()) {
         verifyFlatbuffersData<Collections::KVStore::CommittedManifest>(
                 manifest, "decodeManifest(manifest)");
         auto fbData =
@@ -52,7 +52,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                         manifest.data());
         rv.manifestUid = fbData->uid();
     }
-    if (collections.size() > 0) {
+    if (!collections.empty()) {
         verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
                 collections, "decodeManifest(open)");
 
@@ -82,7 +82,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                   {}}});
     }
 
-    if (scopes.size() > 0) {
+    if (!scopes.empty()) {
         verifyFlatbuffersData<Collections::KVStore::Scopes>(
                 scopes, "decodeManifest(scopes)");
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
@@ -97,13 +97,13 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
 
     // Do dropped collections exist?
     auto dc = decodeDroppedCollections(dropped);
-    rv.droppedCollectionsExist = dc.size() > 0;
+    rv.droppedCollectionsExist = !dc.empty();
     return rv;
 }
 
 std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
         cb::const_byte_buffer dc) {
-    if (dc.size() == 0) {
+    if (dc.empty()) {
         return {};
     }
     std::vector<Collections::KVStore::DroppedCollection> rv;
@@ -171,7 +171,7 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
     }
 
     // And 'merge' with the data we read
-    if (collections.size() > 0) {
+    if (!collections.empty()) {
         verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
                 collections, "encodeOpenCollections()");
         auto fbData =
@@ -265,7 +265,7 @@ flatbuffers::DetachedBuffer encodeScopes(
     }
 
     // And 'merge' with the data we read (remove any dropped)
-    if (scopes.size() > 0) {
+    if (!scopes.empty()) {
         verifyFlatbuffersData<Collections::KVStore::Scopes>(scopes,
                                                             "encodeScopes()");
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(

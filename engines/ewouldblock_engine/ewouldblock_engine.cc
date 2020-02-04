@@ -1837,7 +1837,7 @@ void EWB_Engine::process_notifications() {
     std::unique_lock<std::mutex> lk(mutex);
     while (!stop_notification_thread) {
         condvar.wait(lk, [this] {
-            return (pending_io_ops.size() > 0) || stop_notification_thread;
+            return (!pending_io_ops.empty()) || stop_notification_thread;
         });
         while (!pending_io_ops.empty()) {
             const auto op = pending_io_ops.front();

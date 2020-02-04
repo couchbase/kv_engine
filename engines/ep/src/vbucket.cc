@@ -470,7 +470,7 @@ std::string VBucket::validateReplicationTopology(
     if (!topology.is_array()) {
         return "'topology' must be an array, found:"s + topology.dump();
     }
-    if ((topology.size() < 1) || (topology.size() > 2)) {
+    if ((topology.empty()) || (topology.size() > 2)) {
         return "'topology' must contain 1..2 elements, found:"s +
                topology.dump();
     }
@@ -481,7 +481,7 @@ std::string VBucket::validateReplicationTopology(
             return "'topology' chain["s + chainId +
                    "] must be an array, found:" + nodes.dump();
         }
-        if ((nodes.size() < 1) || (nodes.size() > 4)) {
+        if ((nodes.empty()) || (nodes.size() > 4)) {
             return "'topology' chain["s + chainId +
                    "] must contain 1..4 nodes, found:" + nodes.dump();
         }
@@ -3839,7 +3839,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
 
     auto prunedXattrs = xattr.finalize();
 
-    if (prunedXattrs.size()) {
+    if (!prunedXattrs.empty()) {
         // Something remains - Create a Blob and copy-in just the XATTRs
         auto newValue =
                 Blob::New(reinterpret_cast<const char*>(prunedXattrs.data()),

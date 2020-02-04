@@ -267,7 +267,7 @@ MutationLog::MutationLog(const std::string& path, const size_t bs)
     }
     logSize.store(0);
 
-    if (logPath == "") {
+    if (logPath.empty()) {
         disabled = true;
     }
 }

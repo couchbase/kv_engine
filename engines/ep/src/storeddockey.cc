@@ -60,7 +60,7 @@ const char* StoredDocKey::c_str() const {
     auto key = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
             {reinterpret_cast<const uint8_t*>(keydata.data()), keydata.size()});
 
-    if (key.size()) {
+    if (!key.empty()) {
         return &keydata.c_str()[keydata.size() - key.size()];
     }
     return nullptr;

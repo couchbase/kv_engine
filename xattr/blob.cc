@@ -50,7 +50,7 @@ Blob::Blob(cb::char_buffer buffer,
 }
 
 Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
-    if (compressed && buffer.size()) {
+    if (compressed && !buffer.empty()) {
         // inflate and attach blob to the compression::buffer
         if (!cb::compression::inflate(
                     cb::compression::Algorithm::Snappy,
@@ -74,7 +74,7 @@ Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
         // theory /could/ release the now un-required non xattr data
         decompressed.resize(cb::xattr::get_body_offset(decompressed));
         blob = {decompressed.data(), decompressed.size()};
-    } else if (buffer.size()) {
+    } else if (!buffer.empty()) {
         // incoming data is not compressed, just get the size and attach
         blob = {buffer.data(), cb::xattr::get_body_offset(buffer)};
     } else {

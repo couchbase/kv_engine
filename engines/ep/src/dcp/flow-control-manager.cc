@@ -192,7 +192,7 @@ void DcpFlowControlManagerAggressive::handleDisconnect(
     /* Calculate new per conn buf size */
     if (iter != dcpConsumersMap.end()) {
         dcpConsumersMap.erase(iter);
-        if (dcpConsumersMap.size()) {
+        if (!dcpConsumersMap.empty()) {
             bufferSize = (dcpConnBufferSizeAggrFrac *
                           engine_.getEpStats().getMaxDataSize()) /
                          (dcpConsumersMap.size());

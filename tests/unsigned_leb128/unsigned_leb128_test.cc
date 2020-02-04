@@ -131,7 +131,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeMultipleValues) {
         decoded = cb::mcbp::decode_unsigned_leb128<TypeParam>(decoded.second);
         EXPECT_EQ(values[index], decoded.first);
         index++;
-    } while (decoded.second.size() != 0);
+    } while (!decoded.second.empty());
     EXPECT_EQ(iterations, index);
 }
 

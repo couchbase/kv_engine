@@ -33,7 +33,7 @@ std::string document_pre_expiry(const item_info& itm_info) {
     cb::xattr::Blob blob(payload, mcbp::datatype::is_snappy(itm_info.datatype));
     blob.prune_user_keys();
     auto pruned = blob.finalize();
-    if (pruned.size() == 0) {
+    if (pruned.empty()) {
         // The old payload only contained user xattrs and
         // we removed everything
         return {};

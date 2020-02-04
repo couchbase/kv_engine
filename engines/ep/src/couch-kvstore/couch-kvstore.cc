@@ -2186,7 +2186,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         size_t docsLogicalBytes = 0;
 
         // Only do a couchstore_save_documents if there are docs
-        if (docs.size() > 0) {
+        if (!docs.empty()) {
             for (size_t idx = 0; idx < docs.size(); idx++) {
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
 
@@ -2290,7 +2290,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         cachedDocCount[vbid.get()] = info.doc_count;
 
         // Check seqno if we wrote documents
-        if (docs.size() > 0 && maxDBSeqno != info.last_sequence) {
+        if (!docs.empty() && maxDBSeqno != info.last_sequence) {
             logger.warn(
                     "CouchKVStore::saveDocs: Seqno in db header ({})"
                     " is not matched with what was persisted ({})"

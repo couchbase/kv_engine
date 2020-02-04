@@ -510,7 +510,7 @@ ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
         blen += sizeof(uint32_t);
     }
 
-    if (nmeta.size() > 0) {
+    if (!nmeta.empty()) {
         uint16_t nmetaSize = htons(nmeta.size());
         memcpy(ext.get() + blen, (char*)&nmetaSize, sizeof(nmetaSize));
         blen += sizeof(uint16_t);
@@ -890,7 +890,7 @@ static ENGINE_ERROR_CODE store_with_meta(EngineIface* h,
         blen += sizeof(uint32_t);
     }
 
-    if (nmeta.size() > 0) {
+    if (!nmeta.empty()) {
         uint16_t nmetaSize = htons(nmeta.size());
         memcpy(ext.get() + blen, (char*)&nmetaSize, sizeof(nmetaSize));
         blen += sizeof(uint16_t);
@@ -1372,7 +1372,7 @@ bool verify_vbucket_state(EngineIface* h,
         if (!mute) {
             fprintf(stderr, "Last protocol status was %s (%s)\n",
                     to_string(last_status.load()).c_str(),
-                    last_body.size() > 0 ? last_body.c_str() : "unknown");
+                    !last_body.empty() ? last_body.c_str() : "unknown");
         }
         return false;
     }

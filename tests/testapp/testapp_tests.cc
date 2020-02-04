@@ -441,7 +441,7 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
     do {
         chunk = conn.ioctl_get(chunk_key);
         dump += chunk;
-    } while (chunk.size() > 0);
+    } while (!chunk.empty());
 
     conn.ioctl_set("trace.dump.clear", uuid);
 

@@ -152,7 +152,7 @@ static std::string getEnumValidatorCode(const std::string& key,
         exit(1);
     }
 
-    if (first->size() < 1) {
+    if (first->empty()) {
         std::cerr << "At least one validator enum element is required (" << key
                   << ")" << std::endl;
         exit(1);
@@ -305,7 +305,7 @@ static std::string getRequirements(const std::string& key,
                                    const nlohmann::json& json,
                                    const nlohmann::json& params) {
     auto requirements = json.find("requires");
-    if (requirements == json.end() || requirements->size() <= 0) {
+    if (requirements == json.end() || requirements->empty()) {
         return "";
     }
 

@@ -30,7 +30,7 @@ PersistedStats::PersistedStats(const char* buf, size_t size) {
     decoded = cb::mcbp::decode_unsigned_leb128<uint64_t>(decoded.second);
     highSeqno = decoded.first;
 
-    if (decoded.second.size() != 0) {
+    if (!decoded.second.empty()) {
         throw std::runtime_error(
                 "PersistedStats:: cid:{} "
                 "decoded stats not empty after processing");

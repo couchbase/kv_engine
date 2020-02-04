@@ -156,7 +156,7 @@ bool BgFetcher::run(GlobalTask *task) {
             }
 
             auto items = vb->getBGFetchItems();
-            if (items.size() > 0) {
+            if (!items.empty()) {
                 num_fetched_items += doFetch(vbId, items);
             }
         }

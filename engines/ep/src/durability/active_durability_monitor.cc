@@ -218,7 +218,7 @@ void ActiveDurabilityMonitor::setReplicationTopology(
                                               "Topology is not an array");
     }
 
-    if (topology.size() == 0) {
+    if (topology.empty()) {
         throwException<std::invalid_argument>(__func__, "Topology is empty");
     }
 
@@ -1015,7 +1015,7 @@ void ActiveDurabilityMonitor::chainToOstream(
 void ActiveDurabilityMonitor::validateChain(
         const nlohmann::json& chain,
         DurabilityMonitor::ReplicationChainName chainName) {
-    if (chain.size() == 0) {
+    if (chain.empty()) {
         throw std::invalid_argument("ActiveDurabilityMonitor::validateChain: " +
                                     to_string(chainName) +
                                     " chain cannot be empty");

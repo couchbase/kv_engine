@@ -76,7 +76,7 @@ std::pair<std::string, StrToStrMap> decode_query(const std::string& s) {
     result.first = parts.at(0);
 
     // Split up the query arguments (looks like "key=value&key2=value2")
-    if (parts.size() == 2 && parts.at(1) != "") {
+    if (parts.size() == 2 && !parts.at(1).empty()) {
         for (const auto& str_pair : split_string(parts.at(1), "&")) {
             auto pair = split_string(str_pair, "=", 1);
 
@@ -84,7 +84,7 @@ std::pair<std::string, StrToStrMap> decode_query(const std::string& s) {
                 throw std::invalid_argument(
                         "decode_query(): Query pair '"
                         + str_pair + "' did not contain '='");
-            } else if (pair[0] == "") {
+            } else if (pair[0].empty()) {
                 throw std::invalid_argument(
                         "decode_query(): Query pair had empty argument name");
             } else {

@@ -93,7 +93,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
     protocol_binary_datatype_t datatype;
-    if (xattr.size() == 0) {
+    if (xattr.empty()) {
         datatype = PROTOCOL_BINARY_RAW_BYTES;
     } else {
         datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -116,7 +116,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
         bucket_item_set_cas(connection, deleted.get(), input_cas);
     }
 
-    if (xattr.size() > 0) {
+    if (!xattr.empty()) {
         std::memcpy(pair.second.value[0].iov_base, xattr.buf, xattr.size());
     }
 
@@ -252,7 +252,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
         }
     }
 
-    if (xattr.size() > 0) {
+    if (!xattr.empty()) {
         state = State::AllocateDeletedItem;
     } else {
         // All xattrs should be nuked

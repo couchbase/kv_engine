@@ -36,7 +36,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     maxFailoverEntries = 5;
 
     // Merge any extra config into the main configuration.
-    if (extra_config.size() > 0) {
+    if (!extra_config.empty()) {
         if (!configuration.parseConfiguration(extra_config.c_str(),
                                               serverApi)) {
             throw std::invalid_argument("Unable to parse config string: " +

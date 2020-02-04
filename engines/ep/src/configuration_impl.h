@@ -172,7 +172,7 @@ public:
             for (const auto& it : acceptable) {
                 error += it + ", ";
             }
-            if (acceptable.size() > 0) {
+            if (!acceptable.empty()) {
                 error.pop_back();
                 error.pop_back();
             }

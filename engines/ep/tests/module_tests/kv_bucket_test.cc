@@ -80,7 +80,7 @@ void KVBucketTest::SetUp() {
 
 void KVBucketTest::initialise(std::string config) {
     // Add dbname to config string.
-    if (config.size() > 0) {
+    if (!config.empty()) {
         config += ";";
     }
     config += "dbname=" + std::string(test_dbname);

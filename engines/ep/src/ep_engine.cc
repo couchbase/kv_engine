@@ -6353,7 +6353,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // if extlen is non-zero, it limits the result to either only include the
     // vbuckets in the specified vbucket state, or in the specified vbucket
     // state and for the specified collection ID.
-    if (extras.size() > 0) {
+    if (!extras.empty()) {
         auto rawState = ntohl(*reinterpret_cast<const uint32_t*>(
                 extras.substr(0, sizeof(vbucket_state_t)).data()));
 

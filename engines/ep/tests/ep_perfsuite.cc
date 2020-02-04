@@ -254,7 +254,7 @@ void renderToXML(const std::string& name, const std::string& description,
 
     std::string classname = "ep-perfsuite";
 
-    if (testHarness->bucket_type == "") {
+    if (testHarness->bucket_type.empty()) {
         file << "  <testsuite name=\"ep-perfsuite\">\n";
     } else {
         file << "  <testsuite name=\"ep-perfsuite-" << testHarness->bucket_type
