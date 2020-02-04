@@ -868,11 +868,11 @@ std::string to_string(const DurabilityMonitor::Position<Container>& pos,
                       typename Container::const_iterator trackedWritesEnd) {
     std::stringstream ss;
     ss << "{lastAck:" << pos.lastAckSeqno << " lastWrite:" << pos.lastWriteSeqno
-       << " it: @" << &*pos.it;
+       << " it:";
     if (pos.it == trackedWritesEnd) {
-        ss << " <end>";
+        ss << "<end>";
     } else {
-        ss << " seqno:" << pos.it->getBySeqno();
+        ss << " @" << &*pos.it << " seqno:" << pos.it->getBySeqno();
     }
     ss << "}";
     return ss.str();
