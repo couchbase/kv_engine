@@ -49,6 +49,5 @@ TEST_F(BucketLoggerEngineTest, EngineTest) {
     EXPECT_EQ(1,
               countInFile(files.back(),
                           "INFO (default) EPEngine::initialize: using "
-                          "configuration:\"dbname=ep_engine_ep_unit_tests_db"
-                          ";bucket_type=persistent\""));
+                          "configuration:"));
 }

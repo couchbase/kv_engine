@@ -38,7 +38,7 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     // setup / teardown (fewer VBucket & other related objects).
     // Tests which require additional vbuckets can specify that in
     // extra_config string.
-    if (!configuration.parseConfiguration("max_vbuckets=4;max_num_shards=1",
+    if (!configuration.parseConfiguration("max_vbuckets=4;max_num_shards=2",
                                           serverApi)) {
         throw std::invalid_argument(
                 "SynchronousEPEngine: Unable to set reduced max_vbuckets & "
