@@ -8145,7 +8145,7 @@ BaseTestCase testsuite_testcases[] = {
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;"
-                 "chk_period=1",
+                 "chk_period=1;max_num_shards=4",
                  prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
