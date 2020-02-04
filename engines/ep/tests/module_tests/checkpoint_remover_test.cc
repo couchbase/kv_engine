@@ -141,6 +141,10 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
         // On windows for an empty list we still allocate space for
         // containing one element.
         expected_size += perElementOverhead;
+#if _DEBUG
+        // additional 16 bytes overhead in an empty list with Debug CRT.
+        expected_size += 16;
+#endif
 #endif
 
         for (auto itr = checkpoint->begin(); itr != checkpoint->end(); ++itr) {
