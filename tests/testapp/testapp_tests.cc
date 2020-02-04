@@ -813,7 +813,8 @@ void test_pipeline_impl(ClientOpcode cmd,
 }
 
 TEST_P(McdTestappTest, PipelineSet) {
-    if (RUNNING_ON_VALGRIND) {
+    // Skip on slow environments.
+    if (RUNNING_ON_VALGRIND || (folly::kIsWindows && folly::kIsDebug)) {
         return;
     }
 
