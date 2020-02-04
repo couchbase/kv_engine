@@ -297,12 +297,25 @@ void Configuration::addStats(const AddStatFn& add_stat, const void* c) const {
         if (!requirementsMet(*attribute.second)) {
             continue;
         }
-        std::stringstream value;
-        value << std::boolalpha << attribute.second->value;
-        std::stringstream key;
-        key << "ep_" << attribute.first;
-        std::string k = key.str();
-        add_casted_stat(k.c_str(), value.str().data(), add_stat, c);
+        // Use fmtlib to format key with stack-local (non-heap) buffer to
+        // minimise the cost of constructing keys & values.
+        fmt::memory_buffer key;
+        format_to(key, "ep_{}", attribute.first);
+
+        // Due to the way fmtlib and boost::variant interact, if the variant
+        // contains a bool type it will get converted to a integer type
+        // and hence printed as '0' or '1' instead of 'false' / 'true'.
+        // Avoid this by explicitly printing as a bool type if that's
+        // what the variant contains.
+        fmt::memory_buffer value;
+        if (bool* bool_ptr = boost::get<bool>(&attribute.second->value)) {
+            format_to(value, "{}", *bool_ptr);
+        } else {
+            format_to(value, "{}", attribute.second->value);
+        }
+
+        // Note: fmt::memory_buffer is not null-terminated.
+        add_stat(key.data(), key.size(), value.data(), value.size(), c);
     }
 }
 
