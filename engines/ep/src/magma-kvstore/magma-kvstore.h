@@ -397,24 +397,6 @@ public:
                                         CollectionID cid);
 
     /**
-     * Encode a document being stored in the local db by prefixing the
-     * MetaData to the value.
-     *
-     * Magma requires all documents stored in local DB to also include
-     * metadata because it uses the callback functions like getExpiryTime,
-     * isDeleted() and getSeqNum() as part of compaction.
-     */
-    std::string encodeLocalDoc(Vbid vbid,
-                               const std::string& value,
-                               bool isDelete);
-
-    /**
-     * Decode a document being stored in the local db by extracting the
-     * MetaData from the value
-     */
-    std::pair<std::string, bool> decodeLocalDoc(const magma::Slice& valSlice);
-
-    /**
      * Read from local DB
      */
     std::pair<magma::Status, std::string> readLocalDoc(
@@ -425,8 +407,13 @@ public:
      */
     magma::Status setLocalDoc(magma::Magma::CommitBatch& commitBatch,
                               const magma::Slice& keySlice,
-                              std::string& valBuf,
-                              bool deleted = false);
+                              const magma::Slice& valSlice);
+
+    /**
+     * Add delete local document to the commitBatch
+     */
+    magma::Status deleteLocalDoc(magma::Magma::CommitBatch& commitBatch,
+                                 const magma::Slice& keySlice);
 
     /**
      * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct

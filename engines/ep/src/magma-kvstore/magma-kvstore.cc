@@ -1714,29 +1714,8 @@ magma::Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                                                MagmaInfo& minfo) {
     auto jstr = encodeVBState(vbs, minfo).dump();
     logger->TRACE("MagmaKVStore::writeVBStateToDisk {} vbstate:{}", vbid, jstr);
-    return setLocalDoc(commitBatch, vbstateKey, jstr);
-}
-
-std::string MagmaKVStore::encodeLocalDoc(Vbid vbid,
-                                         const std::string& value,
-                                         const bool isDelete) {
-    uint64_t seqno;
-    magma->GetMaxSeqno(vbid.get(), seqno);
-    auto docMeta = magmakv::MetaData(
-            isDelete, sizeof(magmakv::MetaData) + value.size(), seqno, vbid);
-    std::string retString;
-    retString.reserve(sizeof(magmakv::MetaData) + value.size());
-    retString.append(reinterpret_cast<char*>(&docMeta),
-                     sizeof(magmakv::MetaData));
-    retString.append(value.data(), value.size());
-    return retString;
-}
-
-std::pair<std::string, bool> MagmaKVStore::decodeLocalDoc(
-        const Slice& valSlice) {
-    std::string value = {valSlice.Data() + sizeof(magmakv::MetaData),
-                         valSlice.Len() - sizeof(magmakv::MetaData)};
-    return std::make_pair(value, isDeleted(valSlice));
+    Slice valSlice(jstr);
+    return setLocalDoc(commitBatch, vbstateKey, valSlice);
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
@@ -1762,53 +1741,36 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
                     magma::Status::Code::NotFound,
                     "MagmaKVStore::readLocalDoc(vbid:" + vbid.to_string() +
                             " key:" + keySlice.ToString() + " not found.");
-        } else {
-            bool deleted;
-            std::tie(valString, deleted) = decodeLocalDoc(valSlice);
-            // If deleted, return empty value
-            if (deleted) {
-                retStatus = magma::Status(
-                        magma::Status::Code::NotFound,
-                        "MagmaKVStore::readLocalDoc(vbid:" + vbid.to_string() +
-                                " key:" + keySlice.ToString() + " deleted.");
-                if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->warn("MagmaKVStore::readLocalDoc {} key:{} deleted",
-                                 vbid,
-                                 keySlice.ToString());
-                }
-            } else {
-                if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->TRACE(
-                            "MagmaKVStore::readLocalDoc {} key:{} valueLen:{}",
-                            vbid,
-                            keySlice.ToString(),
-                            valString.length());
-                }
-            }
+        } else if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE("MagmaKVStore::readLocalDoc {} key:{} valueLen:{}",
+                          vbid,
+                          keySlice.ToString(),
+                          valString.length());
         }
     }
-
-    return std::make_pair(retStatus, valString);
+    return std::make_pair(retStatus, valSlice.ToString());
 }
 
 Status MagmaKVStore::setLocalDoc(Magma::CommitBatch& commitBatch,
                                  const Slice& keySlice,
-                                 std::string& valBuf,
-                                 bool deleted) {
-    auto valString =
-            encodeLocalDoc(Vbid(commitBatch.GetkvID()), valBuf, deleted);
-
-    // Store in localDB
-    Slice valSlice = {valString.c_str(), valString.size()};
-
+                                 const Slice& valSlice) {
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE("MagmaKVStore::setLocalDoc {} key:{} valueLen:{}",
                       commitBatch.GetkvID(),
                       keySlice.ToString(),
-                      valBuf.length());
+                      valSlice.Len());
     }
-
     return commitBatch.SetLocal(keySlice, valSlice);
+}
+
+Status MagmaKVStore::deleteLocalDoc(Magma::CommitBatch& commitBatch,
+                                    const Slice& keySlice) {
+    if (logger->should_log(spdlog::level::TRACE)) {
+        logger->TRACE("MagmaKVStore::deleteLocalDoc {} key:{}",
+                      commitBatch.GetkvID(),
+                      keySlice.ToString());
+    }
+    return commitBatch.DeleteLocal(keySlice);
 }
 
 nlohmann::json MagmaKVStore::encodeVBState(const vbucket_state& vbstate,
@@ -2060,11 +2022,10 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     writeVBStateToDisk(vbid, *(batch.get()), vbs, minfo);
 
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
-        std::string s;
-        status = setLocalDoc(*(batch.get()), droppedCollectionsKey, s, true);
+        status = deleteLocalDoc(*(batch.get()), droppedCollectionsKey);
         if (!status) {
             logger->warn(
-                    "MagmaKVStore::saveDocs: magma::setLocalDoc "
+                    "MagmaKVStore::saveDocs: magma::deleteLocalDoc "
                     "{} update dropped collections failed status:{}",
                     vbid,
                     status.String());
@@ -2301,8 +2262,8 @@ Status MagmaKVStore::updateCollectionsMeta(
 Status MagmaKVStore::updateManifestUid(Magma::CommitBatch& commitBatch) {
     // write back, no read required
     auto buf = Collections::KVStore::encodeManifestUid(collectionsMeta);
-    std::string s{reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return setLocalDoc(commitBatch, manifestKey, s);
+    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
+    return setLocalDoc(commitBatch, manifestKey, valSlice);
 }
 
 std::pair<magma::Status, std::vector<Collections::KVStore::DroppedCollection>>
@@ -2318,8 +2279,8 @@ MagmaKVStore::updateOpenCollections(Vbid vbid,
             {reinterpret_cast<const uint8_t*>(collections.data()),
              collections.length()});
 
-    std::string s{reinterpret_cast<const char*>(buf.data()), buf.size()};
-    status = setLocalDoc(commitBatch, openCollectionsKey, s);
+    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
+    status = setLocalDoc(commitBatch, openCollectionsKey, valSlice);
     return std::make_pair(status, dropped);
 }
 
@@ -2341,8 +2302,8 @@ magma::Status MagmaKVStore::updateDroppedCollections(
 
     auto buf = Collections::KVStore::encodeDroppedCollections(collectionsMeta,
                                                               dropped);
-    std::string s{reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return setLocalDoc(commitBatch, droppedCollectionsKey, s);
+    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
+    return setLocalDoc(commitBatch, droppedCollectionsKey, valSlice);
 }
 
 std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) {
@@ -2356,7 +2317,8 @@ void MagmaKVStore::saveCollectionStats(
     auto key = getCollectionsStatsKey(cid);
     Slice keySlice(key);
     auto encodedStats = stats.getLebEncodedStats();
-    auto status = setLocalDoc(commitBatch, keySlice, encodedStats);
+    Slice valSlice(encodedStats);
+    auto status = setLocalDoc(commitBatch, keySlice, valSlice);
     if (!status) {
         logger->warn(
                 "MagmaKVStore::saveCollectionStats setLocalDoc {} failed. "
@@ -2387,8 +2349,7 @@ magma::Status MagmaKVStore::deleteCollectionStats(
         Magma::CommitBatch& commitBatch, CollectionID cid) {
     auto key = getCollectionsStatsKey(cid);
     Slice keySlice(key);
-    std::string value;
-    return setLocalDoc(commitBatch, keySlice, value, true);
+    return deleteLocalDoc(commitBatch, keySlice);
 }
 
 magma::Status MagmaKVStore::updateScopes(Vbid vbid,
@@ -2399,8 +2360,8 @@ magma::Status MagmaKVStore::updateScopes(Vbid vbid,
     auto buf = encodeScopes(
             collectionsMeta,
             {reinterpret_cast<const uint8_t*>(scopes.data()), scopes.length()});
-    std::string s{reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return setLocalDoc(commitBatch, openScopesKey, s);
+    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
+    return setLocalDoc(commitBatch, openScopesKey, valSlice);
 }
 
 bool MagmaKVStore::getStat(const char* name, size_t& value) {
