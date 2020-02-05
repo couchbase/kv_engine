@@ -19,6 +19,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
+#include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
@@ -2615,7 +2616,9 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
 TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
     // Replace RW kvstore and use a gmocked ops so we an inject failure
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
 
     // Inject one fsync error when writing the pending mutation
     EXPECT_CALL(ops, sync(testing::_, testing::_))

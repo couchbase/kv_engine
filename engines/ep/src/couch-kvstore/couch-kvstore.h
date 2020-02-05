@@ -38,6 +38,7 @@
 
 #define COUCHSTORE_NO_OPTIONS 0
 
+class CouchKVStoreConfig;
 class EventuallyPersistentEngine;
 
 /**
@@ -101,7 +102,7 @@ public:
      *
      * @param config    Configuration information
      */
-    explicit CouchKVStore(KVStoreConfig& config);
+    explicit CouchKVStore(CouchKVStoreConfig& config);
 
     /**
      * Alternate constructor for injecting base FileOps
@@ -109,7 +110,7 @@ public:
      * @param config    Configuration information
      * @param ops       Couchstore FileOps implementation to be used
      */
-    CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops);
+    CouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops);
 
     /**
      * Deconstructor
@@ -485,6 +486,8 @@ protected:
         LocalDoc* localDoc;
     };
 
+    const KVStoreConfig& getConfig() const override;
+
     /**
      * Container for pending couchstore requests.
      *
@@ -748,6 +751,8 @@ protected:
                            Vbid vb,
                            GetMetaOnly getMetaOnly);
 
+    CouchKVStoreConfig& configuration;
+
     const std::string dbname;
 
     using MonotonicRevision = AtomicMonotonic<uint64_t, ThrowExceptionPolicy>;
@@ -820,7 +825,7 @@ private:
      * @param dbFileRevMap a revisionMap to use (which should be data owned by
      *        the RW store).
      */
-    CouchKVStore(KVStoreConfig& config,
+    CouchKVStore(CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
                  bool readOnly,
                  std::shared_ptr<RevisionMap> dbFileRevMap);
@@ -833,9 +838,8 @@ private:
      * @param dbFileRevMap The revisionMap to use (which should be intially
      * created owned by the RW store).
      */
-    CouchKVStore(KVStoreConfig& config,
+    CouchKVStore(CouchKVStoreConfig& config,
                  std::shared_ptr<RevisionMap> dbFileRevMap);
-
 
     class CouchKVFileHandle : public ::KVFileHandle {
     public:

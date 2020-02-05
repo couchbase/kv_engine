@@ -21,6 +21,7 @@
 #include <string>
 
 #include "common.h"
+#include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "item.h"
 #include "vbucket_state.h"
@@ -158,7 +159,8 @@ void KVStoreStats::reset() {
 KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     std::string backend = config.getBackend();
     if (backend == "couchdb") {
-        auto rw = std::make_unique<CouchKVStore>(config);
+        auto rw = std::make_unique<CouchKVStore>(
+                dynamic_cast<CouchKVStoreConfig&>(config));
         auto ro = rw->makeReadOnlyStore();
         return {rw.release(), ro.release()};
     }
@@ -267,7 +269,7 @@ bool KVStore::snapshotStats(const std::map<std::string,
         }
     }
     stats_buf << "}";
-    std::string dbname = configuration.getDBName();
+    std::string dbname = getConfig().getDBName();
     std::string next_fname = dbname + "/stats.json.new";
 
     FILE *new_stats = fopen(next_fname.c_str(), "w");
@@ -322,14 +324,13 @@ bool KVStore::snapshotStats(const std::map<std::string,
     return rv;
 }
 
-KVStore::KVStore(KVStoreConfig& config, bool read_only)
-    : configuration(config), readOnly(read_only) {
+KVStore::KVStore(bool read_only) : readOnly(read_only) {
 }
 
 KVStore::~KVStore() = default;
 
 std::string KVStore::getStatsPrefix() const {
-    const auto shardId = configuration.getShardId();
+    const auto shardId = getConfig().getShardId();
     if (isReadOnly()) {
         return "ro_" + std::to_string(shardId);
     }
@@ -339,7 +340,7 @@ std::string KVStore::getStatsPrefix() const {
 void KVStore::addStats(const AddStatFn& add_stat,
                        const void* c,
                        const std::string& args) {
-    const char* backend = configuration.getBackend().c_str();
+    const char* backend = getConfig().getBackend().c_str();
     const auto prefix = getStatsPrefix();
 
     /* stats for both read-only and read-write threads */

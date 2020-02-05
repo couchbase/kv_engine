@@ -20,6 +20,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore_generated.h"
 #include "common.h"
+#include "couch-kvstore-config.h"
 #include "diskdockey.h"
 #include "ep_time.h"
 #include "item.h"
@@ -314,15 +315,16 @@ static constexpr const char* droppedCollectionsName =
         "_local/collections/dropped";
 } // namespace Collections
 
-CouchKVStore::CouchKVStore(KVStoreConfig& config)
+CouchKVStore::CouchKVStore(CouchKVStoreConfig& config)
     : CouchKVStore(config, *couchstore_get_default_file_ops()) {
 }
 
-CouchKVStore::CouchKVStore(KVStoreConfig& config,
+CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
                            FileOpsInterface& ops,
                            bool readOnly,
                            std::shared_ptr<RevisionMap> dbFileRevMap)
-    : KVStore(config, readOnly),
+    : KVStore(readOnly),
+      configuration(config),
       dbname(config.getDBName()),
       dbFileRevMap(dbFileRevMap),
       intransaction(false),
@@ -347,7 +349,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config,
     initialize();
 }
 
-CouchKVStore::CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops)
+CouchKVStore::CouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops)
     : CouchKVStore(config,
                    ops,
                    false /*readonly*/,
@@ -363,7 +365,7 @@ std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() {
             new CouchKVStore(configuration, dbFileRevMap));
 }
 
-CouchKVStore::CouchKVStore(KVStoreConfig& config,
+CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
                            std::shared_ptr<RevisionMap> dbFileRevMap)
     : CouchKVStore(config,
                    *couchstore_get_default_file_ops(),
@@ -3326,4 +3328,6 @@ couchstore_error_t CouchKVStore::updateScopes(Db& db) {
             {reinterpret_cast<const char*>(buf.data()), buf.size()});
 }
 
-/* end of couch-kvstore.cc */
+const KVStoreConfig& CouchKVStore::getConfig() const {
+    return configuration;
+}

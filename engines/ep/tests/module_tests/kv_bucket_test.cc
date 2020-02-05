@@ -27,6 +27,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
+#include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
@@ -377,11 +378,12 @@ Collections::Manager& KVBucketTest::getCollectionsManager() {
  * Replace the rw KVStore with one that uses the given ops. This function
  * will test the config to be sure the KVBucket is persistsent/couchstore
  */
-void KVBucketTest::replaceCouchKVStore(FileOpsInterface& ops) {
+void KVBucketTest::replaceCouchKVStore(CouchKVStoreConfig& config,
+                                       FileOpsInterface& ops) {
     EXPECT_EQ(engine->getConfiguration().getBucketType(), "persistent");
     EXPECT_EQ(engine->getConfiguration().getBackend(), "couchdb");
     auto rwro = store->takeRWRO(0);
-    auto rw = std::make_unique<CouchKVStore>(rwro.rw->getConfig(), ops);
+    auto rw = std::make_unique<CouchKVStore>(config, ops);
     store->setRWRO(0, std::move(rw), std::move(rwro.ro));
 }
 

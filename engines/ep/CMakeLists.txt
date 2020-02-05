@@ -184,7 +184,8 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            ${CMAKE_CURRENT_BINARY_DIR}/src/)
 
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
-            src/couch-kvstore/couch-fs-stats.cc)
+                         src/couch-kvstore/couch-fs-stats.cc
+                         src/couch-kvstore/couch-kvstore-config.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)

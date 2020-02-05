@@ -20,6 +20,7 @@
 
 #include "bucket_logger.h"
 #include "collections/vbucket_manifest.h"
+#include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "item.h"
 #include "kvstore.h"
@@ -283,7 +284,7 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
 
 // Verify the stats returned from operations are accurate.
 TEST_F(CouchKVStoreTest, StatsTest) {
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
@@ -313,7 +314,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
 
 // Verify the compaction stats returned from operations are accurate.
 TEST_F(CouchKVStoreTest, CompactStatsTest) {
-    KVStoreConfig config(1, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config(1, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
@@ -353,7 +354,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 // Regression test for MB-17517 - ensure that if a couchstore file has a max
 // CAS of -1, it is detected and reset to zero when file is loaded.
 TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = KVStoreFactory::create(config);
     ASSERT_NE(nullptr, kvstore.rw);
 
@@ -376,7 +377,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // item count from a file which doesn't exist yet propagates the
 // error so the caller can detect (and retry as necessary).
 TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     // Create a read-only kvstore (which disables item count caching), then
     // attempt to get the count from a non-existent vbucket.
     auto kvstore = KVStoreFactory::create(config);
@@ -446,9 +447,9 @@ private:
 // check they do what we expect, that is create a new couchfile with all keys
 // moved into a specified collection.
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
-    KVStoreConfig config1(1024, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config1(1024, 4, data_dir, "couchdb", 0);
 
-    KVStoreConfig config2(1024, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config2(1024, 4, data_dir, "couchdb", 0);
 
     // Test setup, create a new file
     auto kvstore = setup_kv_store(config1);
@@ -650,7 +651,8 @@ public:
                 throw e;
             }
         }
-        kvstore.reset(new CouchKVStore(config, ops));
+        kvstore.reset(new CouchKVStore(
+                dynamic_cast<CouchKVStoreConfig&>(config), ops));
         initialize_kv_store(kvstore.get());
     }
     ~CouchKVStoreErrorInjectionTest() {
@@ -694,7 +696,7 @@ protected:
     ::testing::NiceMock<MockOps> ops;
     ::testing::NiceMock<MockBucketLogger> logger;
 
-    KVStoreConfig config;
+    CouchKVStoreConfig config;
     std::unique_ptr<CouchKVStore> kvstore;
     std::vector<queued_item> items;
     Collections::VB::Manifest manifest;
@@ -1419,7 +1421,7 @@ public:
 
 class MockCouchKVStore : public CouchKVStore {
 public:
-    MockCouchKVStore(KVStoreConfig& config) : CouchKVStore(config) {
+    MockCouchKVStore(CouchKVStoreConfig& config) : CouchKVStore(config) {
     }
 
     /**
@@ -1489,7 +1491,7 @@ protected:
     std::string data_dir;
     std::unique_ptr<MockCouchKVStore> kvstore;
     Vbid vbid;
-    KVStoreConfig config;
+    CouchKVStoreConfig config;
     Collections::VB::Manifest manifest;
     VB::Commit flush;
 };
@@ -2184,7 +2186,7 @@ void KVStoreParamTest::SetUp() {
                             config.getMaxNumShards());
 
     if (config.getBackend() == "couchdb") {
-        kvstoreConfig = std::make_unique<KVStoreConfig>(
+        kvstoreConfig = std::make_unique<CouchKVStoreConfig>(
                 config, workload.getNumShards(), 0 /*shardId*/);
     }
 #ifdef EP_USE_ROCKSDB

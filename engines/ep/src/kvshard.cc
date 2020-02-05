@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "bgfetcher.h"
+#include "couch-kvstore/couch-kvstore-config.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "flusher.h"
@@ -41,7 +42,7 @@ KVShard::KVShard(id_type numShards, id_type id, Configuration& config)
       highPriorityCount(0) {
     const std::string backend = config.getBackend();
     if (backend == "couchdb") {
-        kvConfig = std::make_unique<KVStoreConfig>(config, numShards, id);
+        kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
         roStore = std::move(stores.ro);

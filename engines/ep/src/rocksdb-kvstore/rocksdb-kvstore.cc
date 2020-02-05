@@ -289,7 +289,8 @@ public:
 };
 
 RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
-    : KVStore(configuration),
+    : KVStore(),
+      configuration(configuration),
       vbHandles(configuration.getMaxVBuckets()),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
@@ -1253,8 +1254,6 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
     // Compaction
     if (cfOptions.compaction_style ==
         rocksdb::CompactionStyle::kCompactionStyleUniversal) {
-        auto& configuration =
-                dynamic_cast<RocksDBKVStoreConfig&>(this->configuration);
         cfOptions.compaction_options_universal.max_size_amplification_percent =
                 configuration.getUCMaxSizeAmplificationPercent();
     }
@@ -1676,9 +1675,6 @@ void RocksDBKVStore::applyMemtablesQuota(
         const std::lock_guard<std::mutex>& lock) {
     const auto vbuckets = getVBucketsCount(lock);
 
-    auto& configuration =
-            dynamic_cast<RocksDBKVStoreConfig&>(this->configuration);
-
     // 1) If configuration.getMemtablesRatio() == 0.0, then
     //      we just want to use the baseline write_buffer_size.
     // 2) If vbuckets == 0, then there is no Memtable (this happens only
@@ -1885,4 +1881,8 @@ void RocksDBKVStore::addStats(const AddStatFn& add_stat,
         add_prefixed_stat(
                 prefix, "rocksdb_scan_oldSeqnoHits", val, add_stat, c);
     }
+}
+
+const KVStoreConfig& RocksDBKVStore::getConfig() const {
+    return configuration;
 }

@@ -521,7 +521,8 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 }
 
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
-    : KVStore(configuration),
+    : KVStore(),
+      configuration(configuration),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma." +
@@ -529,7 +530,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       scanCounter(0),
       cachedMagmaInfo(configuration.getMaxVBuckets()),
       compaction_ctxList(configuration.getMaxVBuckets()) {
-
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
     configuration.magmaCfg.MaxKVStoreLSDBufferSize =
@@ -785,8 +785,6 @@ StorageProperties MagmaKVStore::getStorageProperties() {
 }
 
 void MagmaKVStore::setMaxDataSize(size_t size) {
-    auto& configuration =
-            dynamic_cast<MagmaKVStoreConfig&>(this->configuration);
     const size_t memoryQuota = (size / configuration.getMaxShards()) *
                                configuration.getMagmaMemQuotaRatio();
     magma->SetMemoryQuota(memoryQuota);
@@ -2430,4 +2428,8 @@ compaction_ctx MagmaKVStore::makeCompactionContext(Vbid vbid) {
     ctx.highCompletedSeqno = vbState->persistedCompletedSeqno;
 
     return ctx;
+}
+
+const KVStoreConfig& MagmaKVStore::getConfig() const {
+    return configuration;
 }

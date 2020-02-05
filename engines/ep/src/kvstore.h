@@ -537,7 +537,7 @@ public:
      */
     enum class MutationSetResultState { DocNotFound, Failed, Insert, Update };
 
-    KVStore(KVStoreConfig& config, bool read_only = false);
+    KVStore(bool read_only = false);
 
     virtual ~KVStore();
 
@@ -821,10 +821,6 @@ public:
         return readOnly;
     }
 
-    KVStoreConfig& getConfig(void) {
-        return configuration;
-    }
-
     KVStoreStats& getKVStoreStat(void) {
         return st;
     }
@@ -952,6 +948,16 @@ public:
         makeCompactionContextCallback = cb;
     }
 
+    /**
+     * Get the configuration class from the derived class. We have derived class
+     * specific config so we want to store the derived class specific config in
+     * the derived classes to save from having to dynamic cast all over the
+     * place, but, we have common code here that needs the common config too.
+     *
+     * @return Non derived class specific config
+     */
+    virtual const KVStoreConfig& getConfig() const = 0;
+
 protected:
     /// Get a string to use as the prefix for the stats. This is typically
     /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the
@@ -996,7 +1002,6 @@ protected:
 
     /* all stats */
     KVStoreStats st;
-    KVStoreConfig& configuration;
     bool readOnly;
     std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
     /* non-deleted docs in each file, indexed by vBucket.

@@ -321,6 +321,8 @@ public:
         return {};
     }
 
+    const KVStoreConfig& getConfig() const override;
+
 protected:
     // Write a batch of updates to the given database; measuring the time
     // taken and adding the timer to the commit histogram.
@@ -334,6 +336,8 @@ private:
      * std::vector (RocksRequest objects are ~160 bytes in size).
      */
     using PendingRequestQueue = std::deque<RocksRequest>;
+
+    RocksDBKVStoreConfig& configuration;
 
     // Unique RocksDB instance, per-Shard.
     std::unique_ptr<rocksdb::DB> rdb;

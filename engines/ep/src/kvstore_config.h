@@ -43,6 +43,8 @@ public:
                   const std::string& _backend,
                   uint16_t _shardId);
 
+    KVStoreConfig(const KVStoreConfig& other);
+
     virtual ~KVStoreConfig();
 
     uint16_t getMaxVBuckets() const {
@@ -70,26 +72,9 @@ public:
     }
 
     /**
-     * Indicates whether or not underlying file operations will be
-     * buffered by the storage engine used.
-     *
-     * Only recognised by CouchKVStore
-     */
-    bool getBuffered() const {
-        return buffered;
-    }
-
-    /**
      * Used to override the default logger object
      */
     KVStoreConfig& setLogger(BucketLogger& _logger);
-
-    /**
-     * Used to override the default buffering behaviour.
-     *
-     * Only recognised by CouchKVStore
-     */
-    KVStoreConfig& setBuffered(bool _buffered);
 
     uint64_t getPeriodicSyncBytes() const {
         return periodicSyncBytes;
@@ -98,30 +83,8 @@ public:
     void setPeriodicSyncBytes(uint64_t bytes) {
         periodicSyncBytes = bytes;
     }
-    void setCouchstoreTracingEnabled(bool value) {
-        couchstoreTracingEnabled = value;
-    }
 
-    bool getCouchstoreTracingEnabled() const {
-        return couchstoreTracingEnabled;
-    }
-    void setCouchstoreWriteValidationEnabled(bool value) {
-        couchstoreWriteValidationEnabled = value;
-    }
-
-    bool getCouchstoreWriteValidationEnabled() const {
-        return couchstoreWriteValidationEnabled;
-    }
-
-    void setCouchstoreMprotectEnabled(bool value) {
-        couchstoreMprotectEnabled = value;
-    }
-
-    bool getCouchstoreMprotectEnabled() const {
-        return couchstoreMprotectEnabled;
-    }
-
-private:
+protected:
     class ConfigChangeListener;
 
     uint16_t maxVBuckets;
@@ -130,7 +93,6 @@ private:
     std::string backend;
     uint16_t shardId;
     BucketLogger* logger;
-    bool buffered;
 
     // Following config variables are atomic as can be changed (via
     // ConfigChangeListener) at runtime by front-end threads while read by
@@ -141,11 +103,4 @@ private:
      * N bytes written.
      */
     std::atomic<uint64_t> periodicSyncBytes;
-
-    /* enable tracing for couchstore */
-    std::atomic_bool couchstoreTracingEnabled;
-    /* enable write verification for couchstore */
-    std::atomic_bool couchstoreWriteValidationEnabled;
-    /* enbale mprotect of couchstore internal io buffer */
-    std::atomic_bool couchstoreMprotectEnabled;
 };
