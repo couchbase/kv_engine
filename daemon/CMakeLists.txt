@@ -219,8 +219,8 @@ if (KV_USE_OPENTRACING)
    list(APPEND MEMCACHED_EXTRA_LIBS ${OPENTRACING_LIBRARIES})
 endif()
 
-target_include_directories(memcached_daemon
-                           SYSTEM PRIVATE ${FOLLY_INCLUDE_DIR})
+target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
+
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
 TARGET_LINK_LIBRARIES(memcached_daemon

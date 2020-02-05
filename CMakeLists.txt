@@ -6,7 +6,6 @@ INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckIncludeFileCXX)
 INCLUDE(CTest)
 INCLUDE(GenerateExportHeader)
-INCLUDE_DIRECTORIES(BEFORE ${BOOST_INCLUDE_DIR})
 include(check_unit_test_enabled)
 include(HeaderObjectLibrary)
 
@@ -92,30 +91,30 @@ if (WIN32)
    add_definitions(/wd4267)
 endif()
 
-INCLUDE_DIRECTORIES(BEFORE
-                    ${LIBEVENT_INCLUDE_DIR}
-                    ${OPENSSL_INCLUDE_DIR}
-                    ${CMAKE_INSTALL_PREFIX}/include
+include_directories(BEFORE
                     ${CMAKE_CURRENT_SOURCE_DIR}/include
-                    ${CMAKE_CURRENT_BINARY_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}
-                    ${Platform_SOURCE_DIR}/include
-                    ${subjson_SOURCE_DIR}
-                    ${spdlog_SOURCE_DIR}/include)
+                    ${CMAKE_CURRENT_BINARY_DIR}/include)
 
-INCLUDE_DIRECTORIES(AFTER SYSTEM
+include_directories(AFTER SYSTEM
+                    ${Platform_SOURCE_DIR}/include
+                    ${phosphor_SOURCE_DIR}/include
+                    ${gsl_lite_SOURCE_DIR}/include
+                    ${spdlog_SOURCE_DIR}/include
                     ${gtest_SOURCE_DIR}/include
                     ${gmock_SOURCE_DIR}/include
-                    ${FOLLY_INCLUDE_DIR})
+                    ${subjson_SOURCE_DIR}
+                    ${LIBEVENT_INCLUDE_DIR}
+                    ${OPENSSL_INCLUDE_DIR}
+                    ${FOLLY_INCLUDE_DIR}
+                    ${BOOST_INCLUDE_DIR})
 
-INCLUDE_DIRECTORIES(AFTER
-                    ${gsl_lite_SOURCE_DIR}/include
-                    ${phosphor_SOURCE_DIR}/include)
-
-INCLUDE_DIRECTORIES(AFTER ${PROJECT_BINARY_DIR}/include)
+if (WIN32)
+    include_directories(BEFORE SYSTEM ${Platform_SOURCE_DIR}/include/win32)
+endif (WIN32)
 
 IF (MEMORY_ALLOCATOR)
-    INCLUDE_DIRECTORIES(AFTER ${MALLOC_INCLUDE_DIR})
+    include_directories(AFTER SYSTEM ${MALLOC_INCLUDE_DIR})
 ELSE (MEMORY_ALLOCATOR)
     SET(MALLOC_LIBRARIES "")
 ENDIF (MEMORY_ALLOCATOR)
@@ -157,10 +156,6 @@ IF (BREAKPAD_FOUND)
         #          ${Memcached_BINARY_DIR}/memcached)
     ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 ENDIF (BREAKPAD_FOUND)
-
-IF (WIN32)
-    INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
-ENDIF (WIN32)
 
 ADD_SUBDIRECTORY(etc)
 ADD_SUBDIRECTORY(auditd)
