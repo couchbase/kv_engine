@@ -19,6 +19,7 @@
 
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_global_task.h"
@@ -36,6 +37,7 @@
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "ephemeral_tombstone_purger.h"
+#include "ephemeral_vb.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
@@ -53,7 +55,6 @@
 #include <xattr/utils.h>
 
 #include <thread>
-#include <engines/ep/src/ephemeral_vb.h>
 
 std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ, const std::string& expectedTaskName) {
@@ -349,6 +350,89 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
         return bucket;
     }
     return bucket + "_" + evictionPolicy;
+}
+
+/**
+ * MB-37702 highlighted a potential race condition during bucket shutdown. This
+ * race condition is as follows:
+ *
+ * 1) Bucket shutdown starts (due to hard failover has we need DcpConsumers to
+ *    still consider KV to be "up". This has to then reach the point where it
+ *    starts to tear down DCP connections.
+ *
+ * 2) In DcpProducer we need to set all of our streams to dead but not yet
+ *    destroy the backfill manager.
+ *
+ * 3) A stream request now needs to come in and enter a backfilling state.
+ *
+ * 4) Bucket shutdown continues and destroys the backfill manager object for the
+ *    DcpProducer.
+ *
+ * 5) Memcached attempts to disconnect the DcpProducer again as we will tell it
+ *    to step the connection (but bucket shutdown is in progress) and then we
+ *    will seg fault as we attempt to destroy the stream because the backfill
+ *    manager has been reset.
+ */
+TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
+    MockDcpConnMap& mockConnMap =
+            static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    // 1) Store an item and ensure it isn't in the CheckpointManager so that our
+    // stream will enter backfilling state later
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 1);
+
+    // 2) Create Producer and ensure it is in the ConnMap so that we can emulate
+    // the shutdown
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    producer->createCheckpointProcessorTask();
+    mockConnMap.addConn(cookie, producer);
+
+    // 3) Set our hook to perform a StreamRequest after we remove the streams
+    // from the Producer but before we reset the backfillMgr.
+    producer->setCloseAllStreamsHook([this, &producer, &vb]() {
+        producer->createCheckpointProcessorTask();
+        uint64_t rollbackSeqno;
+        EXPECT_EQ(ENGINE_DISCONNECT,
+                  producer->streamRequest(/*flags*/ 0,
+                                          /*opaque*/ 0,
+                                          vbid,
+                                          /*st_seqno*/ 0,
+                                          /*en_seqno*/ ~0,
+                                          /*vb_uuid*/ 0xabcd,
+                                          /*snap_start_seqno*/ 0,
+                                          /*snap_end_seqno*/ ~0,
+                                          &rollbackSeqno,
+                                          fakeDcpAddFailoverLog,
+                                          {}));
+
+        // Stream should not have been created
+        auto stream =
+                dynamic_pointer_cast<ActiveStream>(producer->findStream(vbid));
+        ASSERT_FALSE(stream);
+    });
+
+    // 4) Emulate the shutdown
+    mockConnMap.shutdownAllConnections();
+
+    // 5) Emulate memcached disconnecting the connection. Before the bug-fix we
+    // would segfault at this line in ActiveStream::endStream() when we call
+    // BackfillManager::bytesSent(...)
+    mockConnMap.disconnect(cookie);
+
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
+    mockConnMap.manageConnections();
+
+    // DcpConnMapp.manageConnections() will reset our cookie so we need to
+    // recreate it for the normal test TearDown to work
+    cookie = create_mock_cookie();
 }
 
 /*

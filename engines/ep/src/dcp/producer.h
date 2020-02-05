@@ -627,4 +627,7 @@ protected:
      * per vbucket (client must enable this feature)
      */
     MultipleStreamRequests multipleStreamRequests{MultipleStreamRequests::No};
+
+    // MB-37702: Test hook set via mock class.
+    std::function<void()> closeAllStreamsHook;
 };

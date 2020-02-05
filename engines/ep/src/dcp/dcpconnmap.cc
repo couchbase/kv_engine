@@ -288,6 +288,12 @@ bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
 
 void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
     for (const auto& itr : map) {
+        // Mark the connection as disconnected. This function is called during
+        // the bucket shutdown path and if we don't do so then we could allow a
+        // Producer to accept a racing StreamRequest during shutdown. When
+        // memcached runs the connection again it will be disconnected anyways
+        // as it will see that the bucket is being shut down.
+        itr.second->flagDisconnect();
         auto producer = dynamic_pointer_cast<DcpProducer>(itr.second);
         if (producer) {
             producer->closeAllStreams();

@@ -65,6 +65,9 @@ TEST(CheckpointIteratorTest, emptyList) {
 }
 
 // Try to increment beyond end.
+#if _ITERATOR_DEBUG_LEVEL == 0
+// Windowsiterator debug throws an error below when we increment an iterator
+// past end of container so skip this test if debug iterators enabled.
 TEST(CheckpointIteratorTest, incrementBeyondEnd) {
     ListContainer c;
     ASSERT_EQ(0, c.size());
@@ -84,6 +87,7 @@ TEST(CheckpointIteratorTest, decrementBeyondBegin) {
     auto compare = (listContainerBegin(c) == cursor);
     EXPECT_TRUE(compare);
 }
+#endif // if _ITERATOR_DEBUG_LEVEL == 0
 
 // Iterate forwards with only a null element in the list.
 TEST(CheckpointIteratorTest, nullFirstElementIterateForwards) {

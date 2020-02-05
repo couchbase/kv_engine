@@ -74,6 +74,30 @@ public:
         : bytesAllocated(other.getBytesAllocated()) {
     }
 
+    MemoryTrackingAllocator(const MemoryTrackingAllocator& other) noexcept =
+            default;
+
+    MemoryTrackingAllocator(MemoryTrackingAllocator&& other) noexcept
+        // The move ctor can be invoked when the underlying container is
+        // moved; however the old (moved-from) container while _logically_
+        // empty could still _physically_ own allocations (e.g. a sentinal node
+        // in a std::list). As such, we need to ensure the moved-from
+        // container's allocator (i.e. other) can still perform deallocations,
+        // hence bytesAllocated should only be copied, not moved-from.
+        : bytesAllocated(other.getBytesAllocated()) {
+    }
+
+    MemoryTrackingAllocator& operator=(
+            const MemoryTrackingAllocator& other) noexcept = default;
+
+    MemoryTrackingAllocator& operator=(
+            MemoryTrackingAllocator&& other) noexcept {
+        // Need to copy bytesAllocated even though this is the move-assignment
+        // operator - see comment in move ctor for rationale.
+        bytesAllocated = other.getBytesAllocated();
+        return *this;
+    }
+
     value_type* allocate(std::size_t n) {
         *bytesAllocated += n * sizeof(T);
         return static_cast<value_type*>(::operator new(n * sizeof(value_type)));
