@@ -225,6 +225,7 @@ ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
+                      cbsocket
                       crash_engine
                       default_engine
                       ep

@@ -33,7 +33,7 @@ add_library(cbsasl STATIC
      user.h
      util.h)
 
-target_link_libraries(cbsasl cbcrypto cbsocket dirutils mcd_util platform)
+target_link_libraries(cbsasl cbcrypto dirutils mcd_util platform)
 add_sanitizers(cbsasl)
 
 install(TARGETS cbsasl
