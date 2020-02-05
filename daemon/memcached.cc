@@ -294,13 +294,27 @@ static size_t get_number_of_worker_threads() {
 /// We might not support as many connections as requested if
 /// we don't have enough file descriptors available
 static void recalculate_max_connections() {
-    const auto maxconn = Settings::instance().getMaxConnections();
-    const auto system =
-            (3 * (Settings::instance().getNumWorkerThreads() + 2)) + 1024;
-    const uint64_t maxfiles = maxconn + system;
+    const auto desiredMaxConnections = Settings::instance().getMaxConnections();
+
+    // File descriptors reserved for worker threads
+    const auto workerThreadFds =
+            (3 * (Settings::instance().getNumWorkerThreads() + 2));
+
+    auto totalReserved =
+            workerThreadFds + environment.memcached_reserved_file_descriptors;
+
+    // We won't allow engine_file_descriptors to change for now.
+    // @TODO allow this to be dynamic
+    if (environment.engine_file_descriptors == 0) {
+        totalReserved += environment.min_engine_file_descriptors;
+    } else {
+        totalReserved += environment.engine_file_descriptors;
+    }
+
+    const uint64_t maxfiles = desiredMaxConnections + totalReserved;
 
     if (environment.max_file_descriptors < maxfiles) {
-        const auto newmax = environment.max_file_descriptors - system;
+        const auto newmax = environment.max_file_descriptors - totalReserved;
         Settings::instance().setMaxConnections(newmax, false);
         LOG_WARNING(
                 "max_connections is set higher than the available number of "
@@ -316,7 +330,28 @@ static void recalculate_max_connections() {
                     newmax / 2);
             Settings::instance().setSystemConnections(newmax / 2);
         }
+
+        // @TODO allow this to be dynamic
+        if (environment.engine_file_descriptors == 0) {
+            environment.engine_file_descriptors =
+                    environment.min_engine_file_descriptors;
+        }
+    } else if (environment.engine_file_descriptors == 0) {
+        environment.engine_file_descriptors =
+                environment.max_file_descriptors -
+                (workerThreadFds +
+                 environment.memcached_reserved_file_descriptors +
+                 desiredMaxConnections);
+        // @TODO send down to the engine(s)
     }
+
+    LOG_INFO(
+            "recalculate_max_connections: max_fds:{}, max_connections:{}, "
+            "system_connections:{}, engine_fds:{}",
+            environment.max_file_descriptors,
+            Settings::instance().getMaxConnections(),
+            Settings::instance().getSystemConnections(),
+            environment.engine_file_descriptors);
 }
 
 static void breakpad_changed_listener(const std::string&, Settings &s) {
