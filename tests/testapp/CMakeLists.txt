@@ -100,12 +100,7 @@ target_link_libraries(memcached_testapp
     ${SNAPPY_LIBRARIES}
     ${LIBEVENT_LIBRARIES}
     ${COUCHBASE_NETWORK_LIBS})
-add_dependencies(memcached_testapp
-    default_engine
-    ep
-    ewouldblock_engine
-    memcached
-    nobucket)
+add_dependencies(memcached_testapp memcached)
 add_sanitizers(memcached_testapp)
 
 # All tests should have a test timeout to avoid blocking our CI infrastructure
