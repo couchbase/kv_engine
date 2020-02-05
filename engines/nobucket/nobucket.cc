@@ -445,13 +445,11 @@ public:
     }
 };
 
-MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
                                             EngineIface** handle) {
     try {
-        auto* engine = new NoBucket();
-        *handle = reinterpret_cast<EngineIface*>(engine);
-    } catch (std::bad_alloc& e) {
+        *handle = new NoBucket();
+    } catch (const std::bad_alloc& e) {
         auto logger = get_server_api()->log->get_spdlogger();
         logger->warn("NoBucket: failed to create engine: {}", e.what());
         return ENGINE_FAILED;
@@ -460,7 +458,6 @@ ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
     return ENGINE_SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
-void destroy_no_bucket_engine(void) {
+void destroy_no_bucket_engine() {
     // Empty
 }

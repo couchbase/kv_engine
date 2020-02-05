@@ -1,8 +1,3 @@
-ADD_LIBRARY(nobucket SHARED nobucket.cc)
-TARGET_LINK_LIBRARIES(nobucket engine_utilities platform)
-SET_TARGET_PROPERTIES(nobucket PROPERTIES PREFIX "")
-
-INSTALL(TARGETS nobucket
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+add_library(nobucket STATIC
+            nobucket_public.h
+            nobucket.cc)
