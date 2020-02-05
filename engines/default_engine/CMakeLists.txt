@@ -12,8 +12,6 @@ ADD_LIBRARY(default_engine SHARED
             slabs.cc
             slabs.h)
 
-SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
-
 TARGET_LINK_LIBRARIES(default_engine memcached_logger engine_utilities mcbp mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 add_sanitizers(default_engine)
 
