@@ -154,6 +154,9 @@ struct MockServerCoreApi : public ServerCoreIface {
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};
     }
+    size_t getMaxEngineFileDescriptors() override {
+        return 0;
+    }
     bool isCollectionsEnabled() const override {
         return true;
     }

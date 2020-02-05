@@ -30,6 +30,7 @@
 #include "dcp/flow-control-manager.h"
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"
+#include "environment.h"
 #include "ep_bucket.h"
 #include "ep_engine_public.h"
 #include "ep_vb.h"
@@ -2043,6 +2044,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         EP_LOG_INFO(R"(EPEngine::initialize: using configuration:"{}")",
                     config);
     }
+
+    auto& env = Environment::get();
+    env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
 
     // Ensure (global) ExecutorPool has been created, and update the (local)
     // configuration with the actual number of each thread type we have (config

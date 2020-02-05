@@ -18,6 +18,7 @@
 #include "cookie.h"
 #include "doc_pre_expiry.h"
 #include "enginemap.h"
+#include "environment.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "mc_time.h"
@@ -86,6 +87,10 @@ struct ServerCoreApi : public ServerCoreIface {
         auto& instance = Settings::instance();
         return ThreadPoolConfig(instance.getNumReaderThreads(),
                                 instance.getNumWriterThreads());
+    }
+
+    size_t getMaxEngineFileDescriptors() override {
+        return environment.engine_file_descriptors;
     }
 
     bool isCollectionsEnabled() const override {

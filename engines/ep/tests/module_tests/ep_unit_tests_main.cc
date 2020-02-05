@@ -73,6 +73,10 @@ public:
         return {};
     }
 
+    size_t getMaxEngineFileDescriptors() override {
+        return 0;
+    }
+
     bool isCollectionsEnabled() const override {
         return true;
     }

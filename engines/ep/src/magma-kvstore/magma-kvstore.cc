@@ -566,6 +566,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.WriteCacheRatio =
             configuration.getMagmaWriteCacheRatio();
 
+    magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
+
     cachedVBStates.resize(configuration.getMaxVBuckets());
 
     commitPointEveryBatch = configuration.getMagmaCommitPointEveryBatch();

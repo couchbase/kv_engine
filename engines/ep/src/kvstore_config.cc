@@ -18,6 +18,7 @@
 #include "kvstore_config.h"
 
 #include "bucket_logger.h"
+#include "environment.h"
 
 #include <memory>
 
@@ -62,6 +63,8 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       backend(_backend),
       shardId(_shardId),
       logger(globalBucketLogger.get()) {
+    auto env = Environment::get();
+    maxFileDescriptors = env.getMaxBackendFileDescriptors();
 }
 
 KVStoreConfig::KVStoreConfig(const KVStoreConfig& other)
