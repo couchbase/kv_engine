@@ -27,7 +27,6 @@
 #include "runtime.h"
 #include "settings.h"
 
-#include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
 #include <platform/string_hex.h>

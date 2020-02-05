@@ -21,7 +21,6 @@
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
-#include <xattr/utils.h>
 
 void dcp_prepare_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

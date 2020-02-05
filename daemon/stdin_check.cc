@@ -1,12 +1,10 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 #ifndef WIN32
-#include <errno.h>
-#include <fcntl.h>
 #include <sys/poll.h>
+#include <cerrno>
 #endif
 
 #include <memcached/engine.h>

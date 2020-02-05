@@ -17,8 +17,6 @@
 
 #include "bucket_type.h"
 
-#include <stdexcept>
-
 std::string to_string(BucketType type) {
     switch (type) {
     case BucketType::Memcached:

@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 #include "buckets.h"
-#include "mc_time.h"
 #include "stats.h"
 #include "topkeys.h"
 #include <memcached/dcp.h>

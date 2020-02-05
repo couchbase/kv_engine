@@ -21,7 +21,6 @@
 #include "cookie.h"
 #include "cookie_trace_context.h"
 #include "front_end_thread.h"
-#include "memcached.h"
 #include "utilities/logtags.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>

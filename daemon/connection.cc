@@ -43,7 +43,6 @@
 #include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
-#include <platform/cbassert.h>
 #include <platform/checked_snprintf.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
@@ -52,7 +51,6 @@
 #include <utilities/logtags.h>
 #include <gsl/gsl>
 
-#include <cctype>
 #include <exception>
 #ifndef WIN32
 #include <netinet/tcp.h> // For TCP_NODELAY etc

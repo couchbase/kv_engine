@@ -20,7 +20,6 @@
 
 #include <daemon/cookie.h>
 #include <mcbp/protocol/request.h>
-#include <memcached/engine.h>
 
 void collections_get_scope_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

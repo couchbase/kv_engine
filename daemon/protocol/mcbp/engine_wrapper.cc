@@ -19,7 +19,6 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>

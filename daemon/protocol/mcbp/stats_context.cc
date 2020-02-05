@@ -21,7 +21,6 @@
 #include "utilities.h"
 
 #include <daemon/buckets.h>
-#include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
@@ -34,7 +33,6 @@
 #include <daemon/topkeys.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
-#include <memcached/audit_interface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>

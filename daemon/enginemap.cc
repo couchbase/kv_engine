@@ -20,7 +20,6 @@
 #include "engines/ep/src/ep_engine_public.h"
 #include "engines/ewouldblock_engine/ewouldblock_engine_public.h"
 #include "engines/nobucket/nobucket_public.h"
-#include "logger/logger.h"
 
 #include <platform/dirutils.h>
 #include <string>

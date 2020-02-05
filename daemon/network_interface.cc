@@ -16,8 +16,6 @@
  */
 #include "network_interface.h"
 
-#include "settings.h"
-
 #include <logger/logger.h>
 #include <platform/dirutils.h>
 

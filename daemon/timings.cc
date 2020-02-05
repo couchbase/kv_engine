@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 #include "timings.h"
-#include <memcached/protocol_binary.h>
 
 Timings::Timings() {
     reset();

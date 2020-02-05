@@ -16,7 +16,6 @@
  */
 
 #include "datatype_filter.h"
-#include "settings.h"
 
 void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     switch (feature) {

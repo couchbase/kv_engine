@@ -23,7 +23,6 @@
 #include <daemon/mcaudit.h>
 #include <daemon/sendbuffer.h>
 #include <logger/logger.h>
-#include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>

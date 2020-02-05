@@ -17,7 +17,6 @@
 
 #include "mcbp_executors.h"
 
-#include "buckets.h"
 #include "cmdline.h"
 #include "config_parse.h"
 #include "external_auth_manager_thread.h"
@@ -58,7 +57,6 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
-#include <platform/string_hex.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 

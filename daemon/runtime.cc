@@ -15,13 +15,7 @@
 *   limitations under the License.
 */
 #include "runtime.h"
-#include "memcached.h"
-#include "settings.h"
-#include "ssl_utils.h"
-#include <logger/logger.h>
-#include <memcached/openssl.h>
 #include <atomic>
-#include <mutex>
 #include <string>
 
 static const bool unit_tests{getenv("MEMCACHED_UNIT_TESTS") != NULL};

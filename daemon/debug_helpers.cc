@@ -20,7 +20,6 @@
 #include <platform/checked_snprintf.h>
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <stdexcept>
 
 bool buf_to_printable_buffer(char* dest,

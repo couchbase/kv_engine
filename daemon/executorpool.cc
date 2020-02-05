@@ -22,7 +22,6 @@
 #include <platform/processclock.h>
 #include <cstdlib>
 #include <iostream>
-#include <string>
 
 cb::ExecutorPool::ExecutorPool(size_t sz)
     : ExecutorPool(sz, cb::defaultProcessClockSource()) {

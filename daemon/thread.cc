@@ -9,32 +9,24 @@
 #include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
-#include "opentracing.h"
 #include "settings.h"
 #include "stats.h"
 #include "tracing.h"
 #include <utilities/hdrhistogram.h>
 
-#include <memcached/openssl.h>
 #include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <phosphor/phosphor.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 
-#include <fcntl.h>
 #include <atomic>
-#include <cerrno>
 #include <condition_variable>
-#include <csignal>
-#include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #ifndef WIN32
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
-#include <memory>
 #include <mutex>
 #include <queue>
 

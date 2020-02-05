@@ -20,7 +20,6 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcbp.h>
-#include <logger/logger.h>
 #include <memcached/engine.h>
 
 void collections_get_manifest_executor(Cookie& cookie) {

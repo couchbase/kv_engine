@@ -17,12 +17,10 @@
 
 #include "server_socket.h"
 
-#include "connections.h"
 #include "listening_port.h"
 #include "memcached.h"
 #include "network_interface.h"
 #include "settings.h"
-#include "stats.h"
 
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
@@ -31,9 +29,6 @@
 #include <exception>
 #include <memory>
 #include <string>
-#ifndef WIN32
-#include <sys/resource.h>
-#endif
 
 ServerSocket::ServerSocket(SOCKET fd,
                            event_base* b,

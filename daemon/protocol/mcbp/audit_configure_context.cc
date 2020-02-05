@@ -18,8 +18,6 @@
 
 #include "daemon/mcaudit.h"
 
-#include <daemon/cookie.h>
-#include <daemon/runtime.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>

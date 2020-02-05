@@ -19,9 +19,6 @@
 #include <memcached/protocol_binary.h>
 #include <platform/sized_buffer.h>
 #include <xattr/blob.h>
-#include <xattr/utils.h>
-
-#include <gsl/gsl>
 
 std::string document_pre_expiry(const item_info& itm_info) {
     if (!mcbp::datatype::is_xattr(itm_info.datatype)) {

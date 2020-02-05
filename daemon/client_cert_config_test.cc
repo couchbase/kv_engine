@@ -19,7 +19,6 @@
 #include <folly/portability/GTest.h>
 #include <memcached/openssl.h>
 
-#include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <openssl/engine.h>

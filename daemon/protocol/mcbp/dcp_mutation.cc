@@ -21,11 +21,8 @@
 
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
-#include <platform/compress.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-#include <limits>
-#include <stdexcept>
 
 static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
     const auto& req = cookie.getRequest();

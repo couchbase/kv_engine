@@ -24,12 +24,10 @@
 #include "external_auth_manager_thread.h"
 #include "get_authorization_task.h"
 #include "mcaudit.h"
-#include "mcbp.h"
 #include "mcbp_executors.h"
 #include "memcached.h"
 #include "opentracing.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
-#include "sendbuffer.h"
 #include "settings.h"
 
 #include <logger/logger.h>

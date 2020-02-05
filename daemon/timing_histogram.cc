@@ -21,9 +21,7 @@
 
 #include <atomic>
 #include <chrono>
-#include <functional>
 #include <gsl/gsl>
-#include <sstream>
 #include <string>
 
 TimingHistogram::TimingHistogram() {

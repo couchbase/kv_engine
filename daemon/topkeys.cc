@@ -23,11 +23,8 @@
 #include <folly/concurrency/CacheLocality.h>
 #include <inttypes.h>
 #include <nlohmann/json.hpp>
-#include <stdlib.h>
-#include <sys/types.h>
 
 #include <algorithm>
-#include <cstring>
 #include <gsl/gsl>
 #include <set>
 #include <stdexcept>

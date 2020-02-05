@@ -21,8 +21,6 @@
 #include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
-#include <daemon/runtime.h>
-#include <daemon/settings.h>
 #include <daemon/start_sasl_auth_task.h>
 #include <daemon/stats.h>
 #include <daemon/step_sasl_auth_task.h>
