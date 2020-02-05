@@ -3,8 +3,10 @@
 # Script to show which commit(s) are not yet merged between our release branches.
 
 from __future__ import print_function
+import os
 import subprocess
 import sys
+
 
 class bcolors:
     """Define ANSI color codes, if we're running under a TTY."""
@@ -17,15 +19,16 @@ class bcolors:
         WARNING = ''
         ENDC = ''
 
+
 # Sequences of branches to check for unmerged patches. Each toplevel
-# element is a series of branches (ordered by ancestory) which should
+# element is a series of branches (ordered by ancestry) which should
 # be merged into each other.  i.e. the oldest supported branch to the
 # newest, which is the order patches should be merged.
 #
 # There is a single sequence of branches for branches representing
-# whole release "trains" - for example vulcan is a train of (5.5.0,
-# 5.5.1, 5.5.2) and should be kept merged into alice (6.0.0, 6.0.1,
-# 6.0.2, ...), as new maintenance releases come along.
+# whole release "trains" for a given project - for example kv_engine/vulcan is
+# a train of (5.5.0, 5.5.1, 5.5.2) and should be kept merged into alice
+# (6.0.0, 6.0.1, 6.0.2, ...), as new maintenance releases come along.
 #
 # However, we also have specific branches for a single release
 # (e.g. 6.5.0) are of limited lifespan - once 6.5.0 has shipped the
@@ -36,26 +39,45 @@ class bcolors:
 # As such, there are multiple (currently two) sequence of branches -
 # one for the main release trains and (currently) one for 6.5.0 in
 # particular.
-sequences = (
-    # main release train sequence
-    {('couchbase/watson_ep',
-      'couchbase/spock'),
-     ('couchbase/watson_mc',
-      'couchbase/spock'),
-     ('couchbase/spock',
-      'couchbase/vulcan'),
-     ('couchbase/vulcan',
-      'couchbase/alice'),
-     ('couchbase/alice',
-      'couchbase/mad-hatter'),
-     ('couchbase/mad-hatter',
-      'couchbase/master')},
-    # 6.5.0 specific branch
-    {('couchbase/6.5.0',
-      'couchbase/mad-hatter')})
+sequences = {
+    'couchstore': [
+        [('couchbase/spock', 'couchbase/vulcan'),
+         ('couchbase/vulcan', 'couchbase/alice'),
+         ('couchbase/alice', 'couchbase/mad-hatter'),
+         ('couchbase/mad-hatter', 'couchbase/master')], ],
+
+    'kv_engine': [
+        # main kv_engine release train sequence
+        [('couchbase/watson_ep',
+          'couchbase/spock'),
+         ('couchbase/watson_mc',
+          'couchbase/spock'),
+         ('couchbase/spock',
+          'couchbase/vulcan'),
+         ('couchbase/vulcan',
+          'couchbase/alice'),
+         ('couchbase/alice',
+          'couchbase/mad-hatter'),
+         ('couchbase/mad-hatter',
+          'couchbase/master')],
+        # kv_engine 6.5.0 specific branch
+        [('couchbase/6.5.0',
+          'couchbase/mad-hatter')]],
+
+    'platform': [
+        [('couchbase/spock', 'couchbase/vulcan'),
+         ('couchbase/vulcan', 'couchbase/alice'),
+         ('couchbase/alice', 'couchbase/mad-hatter'),
+         ('couchbase/mad-hatter', 'couchbase/master')], ]
+}
+
+
+project = os.path.basename(
+    subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).strip())
 
 total_unmerged = 0
-for sequence in sequences:
+for sequence in sequences[project]:
+    print(sequence)
     for (downstream, upstream) in sequence:
         commits = subprocess.check_output(['git', 'cherry', '-v',
                                            upstream, downstream])
