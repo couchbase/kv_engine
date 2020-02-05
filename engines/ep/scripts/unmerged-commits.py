@@ -77,7 +77,6 @@ project = os.path.basename(
 
 total_unmerged = 0
 for sequence in sequences[project]:
-    print(sequence)
     for (downstream, upstream) in sequence:
         commits = subprocess.check_output(['git', 'cherry', '-v',
                                            upstream, downstream])
