@@ -39,7 +39,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"},
          {cb::mcbp::Feature::SyncReplication, "SyncReplication"},
          {cb::mcbp::Feature::OpenTracing, "OpenTracing"},
-         {cb::mcbp::Feature::VAttr, "VAttr"}}};
+         {cb::mcbp::Feature::VAttr, "VAttr"},
+         {cb::mcbp::Feature::SubdocCreateAsDeleted, "SubdocCreateAsDeleted"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {

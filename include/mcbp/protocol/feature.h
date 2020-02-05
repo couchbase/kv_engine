@@ -74,6 +74,10 @@ enum class Feature : uint16_t {
     /// Additionally, is non-existence of a VATTR flagged with
     /// SubdocXattrUnknownVattr instead of disconnecting the client?
     VAttr = 0x15,
+
+    /// Does the server support the subdoc mutation flag
+    /// mcbp::subdoc::doc_flag::CreateAsDeleted ?
+    SubdocCreateAsDeleted = 0x17,
 };
 
 } // namespace mcbp

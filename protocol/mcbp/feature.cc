@@ -61,6 +61,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "OpenTracing";
     case cb::mcbp::Feature::VAttr:
         return "VAttr";
+    case cb::mcbp::Feature::SubdocCreateAsDeleted:
+        return "SubdocCreateAsDeleted";
     }
 
     throw std::invalid_argument(
