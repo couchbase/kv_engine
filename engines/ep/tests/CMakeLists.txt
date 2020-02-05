@@ -326,7 +326,9 @@ ENDFUNCTION()
 # MB-36322: Skipping ep_testsuite under TSan + Magma as
 # intermittently timing out.
 IF(WIN32 OR CB_THREADSANITIZER)
-    ADD_TESTSUITE(ep_testsuite 300 SKIP_MAGMA)
+    # Increased timeout on Windows as suite is slower on CV there (IO subsystem
+    # on CV machines slower?)
+    ADD_TESTSUITE(ep_testsuite 600 SKIP_MAGMA)
 ELSE()
     ADD_TESTSUITE(ep_testsuite 300)
 ENDIF()
