@@ -358,7 +358,7 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     bool scheduleSoon = false;
     {
         std::lock_guard<std::mutex> lg(toNotifyLock);
-        if (!notifyQ.empty()) {
+        if (!toNotify.empty()) {
             scheduleSoon = true;
         }
     }
