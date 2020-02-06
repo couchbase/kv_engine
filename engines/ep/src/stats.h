@@ -20,6 +20,7 @@
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 
+#include <folly/AtomicHashMap.h>
 #include <folly/CachelinePadded.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
@@ -132,6 +133,30 @@ public:
 
     /// @returns number of Item objects which exist.
     size_t getNumItem() const;
+
+    /// @returns total size of stored objects for a single collection.
+    size_t getCollectionMemUsed(CollectionID cid) const;
+
+    /// @returns total size of stored objects for each existing collection.
+    std::unordered_map<CollectionID, size_t> getAllCollectionsMemUsed() const;
+
+    /**
+     * Used when adding a collection.
+     *
+     * By explicitly starting tracking collection stats the work required
+     * per change can be minimised, and cleanup logic simplified.
+     *
+     * @param cid the collection for which to track stats
+     */
+    void trackCollectionStats(CollectionID cid);
+
+    /**
+     * Used when dropping a collection. Avoids stats lingering
+     * forever with a zero value.
+     *
+     * @param cid the collection for which to stop tracking stats
+     */
+    void dropCollectionStats(CollectionID cid);
 
     /**
      * Set the low water mark to the new value.
@@ -542,6 +567,17 @@ protected:
  */
 class CoreLocalStats {
 public:
+    /**
+     * Map of collection id to the memory usage tracked for that collection.
+     *
+     * Uses AtomicHashMap to avoid additional locking for safe concurrent
+     * access. AtomicHashMap performance decreases if more items are inserted
+     * than initially predicted; this map is initialised with an estimate of
+     * 100.
+     */
+    folly::AtomicHashMap<CollectionID, std::atomic<size_t>> collectionMemUsed{
+            100};
+
     // Thread-safe type for counting occurances of discrete,
     // non-negative entities (# events, sizes).  Relaxed memory
     // ordering (no ordering or synchronization).

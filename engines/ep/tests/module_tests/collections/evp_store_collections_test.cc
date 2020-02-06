@@ -38,6 +38,7 @@
 
 #include <folly/portability/GMock.h>
 
+#include <engines/ep/tests/module_tests/vbucket_utils.h>
 #include <functional>
 #include <thread>
 
@@ -1588,6 +1589,116 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
     for (const auto& exp : expected) {
         // newer GTest brings IsSubsetOf which could replace this
         EXPECT_THAT(actual, Contains(exp));
+    }
+}
+
+/**
+ * RAII helper to check the per-collection memory usage changes in the expected
+ * manner.
+ *
+ *
+ * Checks that the memory usage when the helper is destroyed vs when it was
+ * created meets the given invariant. E.g.,
+ *  {
+ *      auto x = MemChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+ *      // do something which should change the mem used of the default
+ *      // collection as tracked by the hash table statistics.
+ *  }
+ *
+ * This checks that when `x` goes out of scope, the memory usage of the default
+ * collection is _greater_ than when the checker was constructed.
+ */
+class MemChecker {
+public:
+    using Func = std::function<bool(size_t, size_t)>;
+
+    MemChecker(VBucket& vb,
+               const CollectionEntry::Entry& entry,
+               Func postCondition)
+        : vb(vb), entry(entry), postCondition(std::move(postCondition)) {
+        initialMemUsed = getCollectionMemUsed();
+    };
+    ~MemChecker() {
+        auto newMemUsed = getCollectionMemUsed();
+        EXPECT_TRUE(postCondition(newMemUsed, initialMemUsed))
+                << "Memory usage for collection: " << entry.name
+                << " did not meet expected condition";
+    }
+
+private:
+    size_t getCollectionMemUsed() {
+        const auto& stats = VBucketTestIntrospector::getStats(vb);
+        return stats.getCollectionMemUsed(entry.uid);
+    }
+
+    VBucket& vb;
+    const CollectionEntry::Entry& entry;
+    Func postCondition;
+    size_t initialMemUsed = 0;
+};
+
+TEST_F(CollectionsTest, PerCollectionMemUsed) {
+    // test that the per-collection memory usage (tracked by the hash table
+    // statistics) changes when items in the collection are
+    // added/updated/deleted/evicted and does not change when items in other
+    // collections are similarly changed.
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    {
+        SCOPED_TRACE("new item added to collection");
+        // default collection memory usage should _increase_
+        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        // meta collection memory usage should _stay the same_
+        auto m = MemChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        store_item(
+                vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("new item added to collection");
+        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = MemChecker(*vb, CollectionEntry::meat, std::greater<>());
+
+        store_item(vbid,
+                   StoredDocKey{"meat:beef", CollectionEntry::meat},
+                   "value");
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("update item with larger value");
+        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        auto m = MemChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        store_item(vbid,
+                   StoredDocKey{"key", CollectionEntry::defaultC},
+                   "valuesdfasdfasdfasdfasdfsadf");
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("delete item");
+        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::less<>());
+        auto m = MemChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("evict item");
+        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = MemChecker(*vb, CollectionEntry::meat, std::less<>());
+
+        evict_key(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat});
     }
 }
 

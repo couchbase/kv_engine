@@ -1151,6 +1151,10 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
         auto kvstoreContext = kvstore->makeFileHandle(vbid);
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
+            // start tracking in-memory stats before items are warmed up.
+            // This may be called repeatedly; it is idempotent.
+            store.stats.trackCollectionStats(collection.first);
+
             auto stats = kvstore->getCollectionStats(*kvstoreContext,
                                                      collection.first);
             if (stats) {

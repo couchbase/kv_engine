@@ -941,6 +941,11 @@ int64_t EphemeralVBucket::addSystemEventItem(
     // We don't record anything interesting for scopes
     if (cid) {
         doCollectionsStats(wHandle, *cid, notifyCtx);
+        if (i->isDeleted()) {
+            stats.dropCollectionStats(*cid);
+        } else {
+            stats.trackCollectionStats(*cid);
+        }
     }
     return v->getBySeqno();
 }

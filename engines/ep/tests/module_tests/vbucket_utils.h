@@ -34,4 +34,8 @@ public:
     static void setSeqnoAckCb(VBucket& vb, SeqnoAckCallback func) {
         vb.seqnoAckCb = func;
     }
+
+    static const EPStats& getStats(VBucket& vb) {
+        return vb.stats;
+    }
 };

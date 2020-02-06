@@ -865,6 +865,11 @@ int64_t EPVBucket::addSystemEventItem(
     // We don't record anything interesting for scopes
     if (cid) {
         doCollectionsStats(wHandle, *cid, notifyCtx);
+        if (qi->isDeleted()) {
+            stats.dropCollectionStats(*cid);
+        } else {
+            stats.trackCollectionStats(*cid);
+        }
     }
     return qi->getBySeqno();
 }

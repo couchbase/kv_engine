@@ -443,6 +443,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isTempItem = sv->isTempItem();
     isSystemItem = sv->getKey().getCollectionID().isSystem();
     isPreparedSyncWrite = sv->isPending() || sv->isCompleted();
+    cid = sv->getKey().getCollectionID();
 }
 
 HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
@@ -603,8 +604,22 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
 
     // Update size, metadataSize & uncompressed size if pre/post differ.
     if (pre.size != post.size) {
-        local.cacheSize.fetch_add(post.size - pre.size);
-        local.memSize.fetch_add(post.size - pre.size);
+        auto sizeDelta = post.size - pre.size;
+        // update per-collection stats
+        if (pre.isValid || post.isValid) {
+            // either of pre or post may be invalid, but if either is
+            // valid use the collection id from that.
+            auto cid = pre.isValid ? pre.cid : post.cid;
+            auto& collectionMemUsed =
+                    epStats.coreLocal.get()->collectionMemUsed;
+            auto itr = collectionMemUsed.find(cid);
+            if (itr != collectionMemUsed.end()) {
+                itr->second.fetch_add(sizeDelta);
+            }
+        }
+
+        local.cacheSize.fetch_add(sizeDelta);
+        local.memSize.fetch_add(sizeDelta);
     }
     if (pre.metaDataSize != post.metaDataSize) {
         local.metaDataMemory.fetch_add(post.metaDataSize - pre.metaDataSize);

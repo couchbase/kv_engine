@@ -245,6 +245,7 @@ public:
             int size = 0;
             int metaDataSize = 0;
             int uncompressedSize = 0;
+            CollectionID cid;
             protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
             bool isValid = false;
             bool isResident = false;
@@ -1401,6 +1402,7 @@ private:
     void updateFreqCounter(StoredValue& v);
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
+    friend class HashTableBench;
 };
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht);

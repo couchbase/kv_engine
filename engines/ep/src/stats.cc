@@ -124,6 +124,7 @@ EPStats::EPStats()
       diskCommitHisto(),
       timingLog(nullptr),
       maxDataSize(DEFAULT_MAX_DATA_SIZE) {
+    trackCollectionStats(CollectionID::Default);
 }
 
 EPStats::~EPStats() {
@@ -205,6 +206,40 @@ size_t EPStats::getNumItem() const {
         result += core->numItem;
     }
     return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getCollectionMemUsed(CollectionID cid) const {
+    size_t result = 0;
+    for (const auto& core : coreLocal) {
+        auto itr = core->collectionMemUsed.find(cid);
+        if (itr != core->collectionMemUsed.end()) {
+            result += itr->second.load();
+        }
+    }
+    return result;
+}
+
+std::unordered_map<CollectionID, size_t> EPStats::getAllCollectionsMemUsed()
+        const {
+    std::unordered_map<CollectionID, size_t> result;
+    for (const auto& core : coreLocal) {
+        for (auto& pair : core->collectionMemUsed) {
+            result[pair.first] += pair.second.load();
+        }
+    }
+    return result;
+}
+
+void EPStats::trackCollectionStats(CollectionID cid) {
+    for (auto& core : coreLocal) {
+        core->collectionMemUsed.emplace(cid, 0);
+    }
+}
+
+void EPStats::dropCollectionStats(CollectionID cid) {
+    for (auto& core : coreLocal) {
+        core->collectionMemUsed.erase(cid);
+    }
 }
 
 void EPStats::setLowWaterMark(size_t value) {

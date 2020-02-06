@@ -55,9 +55,14 @@ public:
      * @param pendingSyncWritesPcnt If non-zero, create SyncWrites for the given
      *   percentage. For example a value of 20 will create the 20% of numItems
      *   of Prepared SyncWrites.
+     * @param collections list of collections to create items in, uniformly
+     * distributed
      */
-    std::vector<Item> createUniqueItems(std::string prefix,
-                                        int pendingSyncWritesPcnt = 0) {
+    std::vector<Item> createUniqueItems(
+            const std::string& prefix,
+            int pendingSyncWritesPcnt = 0,
+            const std::vector<CollectionID>& collections = {
+                    CollectionID::Default}) {
         std::vector<Item> items;
         items.reserve(numItems);
         // Just use a minimal item (Blob) size - we are focusing on
@@ -72,9 +77,9 @@ public:
             format_to(keyBuf, "{}{}", prefix, i);
             // Note: fmt::memory_buffer is not null-terminated, cannot use the
             // cstring-ctor
-            DocKey key(reinterpret_cast<const uint8_t*>(keyBuf.data()),
-                       keyBuf.size(),
-                       DocKeyEncodesCollectionId::No);
+            const auto& collection = collections.at(i % collections.size());
+
+            StoredDocKey key(to_string(keyBuf), collection);
             items.emplace_back(key, 0, 0, data.data(), data.size());
 
             if (pendingSyncWritesPcnt > 0) {
@@ -111,6 +116,14 @@ public:
             // work.
             syncObject.wait(lock, [this]() { return waiters == 0; });
         }
+    }
+
+    auto& getValFact() {
+        return ht.valFact;
+    }
+
+    auto& getValueStats() {
+        return ht.valueStats;
     }
 
     EPStats stats;
@@ -254,6 +267,106 @@ BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations());
 }
 
+// Benchmark inserting an item into the HashTable.
+BENCHMARK_DEFINE_F(HashTableBench, MultiCollectionInsert)
+(benchmark::State& state) {
+    // To ensure we insert and not replace items, create a per-thread items
+    // vector so each thread inserts a different set of items.
+
+    const size_t numCollections = state.range(0);
+
+    std::vector<CollectionID> collections;
+
+    CollectionIDType counter = CollectionID::Default;
+    while (collections.size() < numCollections) {
+        if (!CollectionID::isReserved(counter)) {
+            collections.emplace_back(counter);
+            stats.trackCollectionStats(counter);
+        }
+        ++counter;
+    }
+
+    auto items = createUniqueItems(
+            "Thread" + std::to_string(state.thread_index) + "::",
+            0,
+            collections);
+
+    while (state.KeepRunning()) {
+        const auto index = state.iterations() % numItems;
+        ASSERT_EQ(MutationStatus::WasClean, ht.set(items[index]));
+
+        // Once a thread gets to the end of it's items; pause timing and let
+        // the *last* thread clear them all - this is to avoid measuring any
+        // of the ht.clear() cost indirectly when other threads are trying to
+        // insert.
+        // Note: state.iterations() starts at 0; hence checking for
+        // state.iterations() % numItems (aka 'index') is zero to represent we
+        // wrapped.
+        if (index == 0) {
+            state.PauseTiming();
+            waitForAllThreadsThenExecuteOnce(state, [this]() { ht.clear(); });
+            state.ResumeTiming();
+        }
+    }
+
+    state.SetItemsProcessed(state.iterations());
+}
+
+BENCHMARK_DEFINE_F(HashTableBench, HTStatsEpilogue)(benchmark::State& state) {
+    // To ensure we insert and not replace items, create a per-thread items
+    // vector so each thread inserts a different set of items.
+
+    const size_t numCollections = state.range(0);
+
+    std::vector<CollectionID> collections;
+
+    CollectionIDType counter = CollectionID::Default;
+    while (collections.size() < numCollections) {
+        if (!CollectionID::isReserved(counter)) {
+            collections.emplace_back(counter);
+            stats.trackCollectionStats(counter);
+        }
+        ++counter;
+    }
+
+    auto items = createUniqueItems(
+            "Thread" + std::to_string(state.thread_index) + "::",
+            0,
+            collections);
+
+    auto& valFact = getValFact();
+    auto& valueStats = getValueStats();
+
+    std::vector<StoredValue::UniquePtr> values;
+    values.reserve(items.size());
+
+    for (const auto& item : items) {
+        values.emplace_back((*valFact)(item, nullptr));
+    }
+
+    while (state.KeepRunning()) {
+        const auto index = state.iterations() % numItems;
+
+        auto empty = valueStats.prologue(nullptr);
+        valueStats.epilogue(empty, values[index].get().get());
+
+        // Once a thread gets to the end of it's items; pause timing and let
+        // the *last* thread clear them all - this is to avoid measuring any
+        // of the ht.clear() cost indirectly when other threads are trying to
+        // insert.
+        // Note: state.iterations() starts at 0; hence checking for
+        // state.iterations() % numItems (aka 'index') is zero to represent we
+        // wrapped.
+        if (index == 0) {
+            state.PauseTiming();
+            waitForAllThreadsThenExecuteOnce(state, [this]() { ht.clear(); });
+            state.ResumeTiming();
+        }
+    }
+
+    state.SetItemsProcessed(state.iterations());
+}
+
 BENCHMARK_REGISTER_F(HashTableBench, FindForRead)
         ->ThreadPerCpu()
         ->Iterations(HashTableBench::numItems);
@@ -269,3 +382,13 @@ BENCHMARK_REGISTER_F(HashTableBench, Replace)
 BENCHMARK_REGISTER_F(HashTableBench, Delete)
         ->ThreadPerCpu()
         ->Iterations(HashTableBench::numItems);
+
+BENCHMARK_REGISTER_F(HashTableBench, MultiCollectionInsert)
+        ->ThreadPerCpu()
+        ->Iterations(HashTableBench::numItems)
+        ->Range(1, 1000);
+
+BENCHMARK_REGISTER_F(HashTableBench, HTStatsEpilogue)
+        ->ThreadPerCpu()
+        ->Iterations(HashTableBench::numItems)
+        ->Range(1, 1000);
