@@ -33,11 +33,19 @@ enum backfill_status_t {
     backfill_snooze
 };
 
+/**
+ * This is the base class for creating backfill classes that perform specific
+ * jobs (disk scan vs memory, scanning seqno index vs id index).
+ *
+ * This exposes common elements required by BackfillManager and all concrete
+ * backfill classes.
+ *
+ */
 class DCPBackfill {
 public:
-    DCPBackfill(std::shared_ptr<ActiveStream> s,
-                uint64_t startSeqno,
-                uint64_t endSeqno);
+    DCPBackfill() = default;
+
+    DCPBackfill(std::shared_ptr<ActiveStream> s);
 
     virtual ~DCPBackfill() {
     }
@@ -48,6 +56,11 @@ public:
      * @return status of the current run
      */
     virtual backfill_status_t run() = 0;
+
+    /**
+     * Cancels the backfill
+     */
+    virtual void cancel() = 0;
 
     /**
      * Get the id of the vbucket for which this object is created
@@ -65,11 +78,6 @@ public:
      */
     bool isStreamDead() const;
 
-    /**
-     * Cancels the backfill
-     */
-    virtual void cancel() = 0;
-
 protected:
     /**
      * Ptr to the associated Active DCP stream. Backfill can be run for only
@@ -82,19 +90,9 @@ protected:
     std::weak_ptr<ActiveStream> streamPtr;
 
     /**
-     * Start seqno of the backfill
-     */
-    const uint64_t startSeqno;
-
-    /**
-     * End seqno of the backfill
-     */
-    uint64_t endSeqno;
-
-    /**
      * Id of the vbucket on which the backfill is running
      */
-    const Vbid vbid;
+    const Vbid vbid{0};
 };
 
 using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfill>;

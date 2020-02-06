@@ -446,6 +446,16 @@ void EPVBucket::addStats(VBucketStatsDetailLevel detail,
     }
 }
 
+UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
+        EventuallyPersistentEngine& e,
+        std::shared_ptr<ActiveStream> stream,
+        uint64_t startSeqno,
+        uint64_t endSeqno) {
+    /* create a disk backfill object */
+    return std::make_unique<DCPBackfillBySeqnoDisk>(
+            *e.getKVBucket(), stream, startSeqno, endSeqno);
+}
+
 cb::mcbp::Status EPVBucket::evictKey(
         const char** msg,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {

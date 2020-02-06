@@ -15,29 +15,14 @@
  *   limitations under the License.
  */
 
-#include "dcp/active_stream_impl.h"
 #include "dcp/backfill_disk.h"
+#include "active_stream.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "vbucket.h"
 
-static std::string backfillStateToString(backfill_state_t state) {
-    switch (state) {
-    case backfill_state_init:
-        return "initalizing";
-    case backfill_state_scanning:
-        return "scanning";
-    case backfill_state_completing:
-        return "completing";
-    case backfill_state_done:
-        return "done";
-    }
-    return "<invalid>:" + std::to_string(state);
-}
-
-CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
-                             std::shared_ptr<ActiveStream> s)
-    : engine_(e), streamPtr(s) {
+CacheCallback::CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s)
+    : bucket(bucket), streamPtr(s) {
     if (s == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
     }
@@ -54,7 +39,7 @@ GetValue CacheCallback::get(VBucket& vb,
         return {};
     }
     return vb.getInternal(nullptr,
-                          engine_,
+                          bucket.getEPEngine(),
                           /*options*/ NONE,
                           stream.isKeyOnly() ? VBucket::GetKeyOnly::Yes
                                              : VBucket::GetKeyOnly::No,
@@ -68,8 +53,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    VBucketPtr vb =
-            engine_.getKVBucket()->getVBucket(lookup.getVBucketId());
+    VBucketPtr vb = bucket.getVBucket(lookup.getVBucketId());
     if (!vb) {
         setStatus(ENGINE_SUCCESS);
         return;
@@ -144,14 +128,7 @@ void DiskCallback::callback(GetValue& val) {
     }
 }
 
-DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine& e,
-                                 std::shared_ptr<ActiveStream> s,
-                                 uint64_t startSeqno,
-                                 uint64_t endSeqno)
-    : DCPBackfill(s, startSeqno, endSeqno),
-      engine(e),
-      scanCtx(nullptr),
-      state(backfill_state_init) {
+DCPBackfillDisk::DCPBackfillDisk(KVBucket& bucket) : bucket(bucket) {
 }
 
 DCPBackfillDisk::~DCPBackfillDisk() {
@@ -181,156 +158,18 @@ void DCPBackfillDisk::cancel() {
     }
 }
 
-backfill_status_t DCPBackfillDisk::create() {
-    auto stream = streamPtr.lock();
-    if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillDisk::create(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn ",
-                getVBucketId());
-        transitionState(backfill_state_done);
-        return backfill_finished;
+static std::string backfillStateToString(backfill_state_t state) {
+    switch (state) {
+    case backfill_state_init:
+        return "initalizing";
+    case backfill_state_scanning:
+        return "scanning";
+    case backfill_state_completing:
+        return "completing";
+    case backfill_state_done:
+        return "done";
     }
-    Vbid vbid = stream->getVBucket();
-
-    uint64_t lastPersistedSeqno =
-            engine.getKVBucket()->getLastPersistedSeqno(vbid);
-
-    if (lastPersistedSeqno < endSeqno) {
-        stream->log(spdlog::level::level_enum::info,
-                    "({}) Rescheduling backfill"
-                    "because backfill up to seqno {}"
-                    " is needed but only up to "
-                    "{} is persisted",
-                    vbid,
-                    endSeqno,
-                    lastPersistedSeqno);
-        return backfill_snooze;
-    }
-
-    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
-    ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (stream->isKeyOnly()) {
-        valFilter = ValueFilter::KEYS_ONLY;
-    } else {
-        if (stream->isCompressionEnabled()) {
-            valFilter = ValueFilter::VALUES_COMPRESSED;
-        }
-    }
-
-    auto scanCtx = kvstore->initScanContext(
-            std::make_unique<DiskCallback>(stream),
-            std::make_unique<CacheCallback>(engine, stream),
-            vbid,
-            startSeqno,
-            DocumentFilter::ALL_ITEMS,
-            valFilter);
-
-    // Check startSeqno against the purge-seqno of the opened datafile.
-    // 1) A normal stream request would of checked inside streamRequest, but
-    //    compaction may have changed the purgeSeqno
-    // 2) Cursor dropping can also schedule backfills and they must not re-start
-    //    behind the current purge-seqno
-    // If the startSeqno != 1 (a client 0 to n request becomes 1 to n) then
-    // start-seqno must be above purge-seqno
-    if (!scanCtx || (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno))) {
-        auto vb = engine.getVBucket(vbid);
-        std::stringstream log;
-        log << "DCPBackfillDisk::create(): (" << getVBucketId()
-            << ") cannot be scanned. Associated stream is set to dead state.";
-        end_stream_status_t status = END_STREAM_BACKFILL_FAIL;
-        if (scanCtx) {
-            log << " startSeqno:" << startSeqno
-                << " < purgeSeqno:" << scanCtx->purgeSeqno;
-            status = END_STREAM_ROLLBACK;
-        } else {
-            log << " failed to create scan";
-        }
-        log << ". The vbucket state:";
-        if (vb) {
-            log << VBucket::toString(vb->getState());
-        } else {
-            log << "vb not found!!";
-        }
-
-        stream->log(spdlog::level::level_enum::warn, "{}", log.str());
-        stream->setDead(status);
-        transitionState(backfill_state_done);
-    } else {
-        bool markerSent =
-                stream->markDiskSnapshot(startSeqno,
-                                         scanCtx->maxSeqno,
-                                         scanCtx->persistedCompletedSeqno,
-                                         scanCtx->maxVisibleSeqno);
-
-        if (markerSent) {
-            // This value may be an overestimate - it includes prepares/aborts
-            // which will not be sent if the stream is not sync write aware
-            stream->setBackfillRemaining(scanCtx->documentCount);
-            transitionState(backfill_state_scanning);
-        } else {
-            transitionState(backfill_state_completing);
-        }
-    }
-
-    this->scanCtx = std::move(scanCtx);
-
-    return backfill_success;
-}
-
-backfill_status_t DCPBackfillDisk::scan() {
-    auto stream = streamPtr.lock();
-    if (!stream) {
-        return complete(true);
-    }
-
-    Vbid vbid = stream->getVBucket();
-
-    if (!(stream->isActive())) {
-        return complete(true);
-    }
-
-    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
-    scan_error_t error =
-            kvstore->scan(static_cast<BySeqnoScanContext&>(*scanCtx));
-
-    if (error == scan_again) {
-        return backfill_success;
-    }
-
-    transitionState(backfill_state_completing);
-
-    return backfill_success;
-}
-
-backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
-    auto stream = streamPtr.lock();
-    if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillDisk::complete(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn; {}",
-                getVBucketId(),
-                cancelled ? "cancelled" : "finished");
-        transitionState(backfill_state_done);
-        return backfill_finished;
-    }
-
-    stream->completeBackfill();
-
-    auto severity = cancelled ? spdlog::level::level_enum::info
-                              : spdlog::level::level_enum::debug;
-    stream->log(severity,
-                "({}) Backfill task ({} to {}) {}",
-                vbid,
-                startSeqno,
-                endSeqno,
-                cancelled ? "cancelled" : "finished");
-
-    transitionState(backfill_state_done);
-
-    return backfill_success;
+    return "<invalid>:" + std::to_string(state);
 }
 
 void DCPBackfillDisk::transitionState(backfill_state_t newState) {

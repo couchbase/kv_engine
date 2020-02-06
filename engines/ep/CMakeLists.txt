@@ -227,8 +227,9 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/active_stream_checkpoint_processor_task.cc
             src/dcp/active_stream_checkpoint_processor_task.h
             src/dcp/backfill.cc
-            src/dcp/backfill-manager.cc
+            src/dcp/backfill_by_seqno_disk.cc
             src/dcp/backfill_disk.cc
+            src/dcp/backfill-manager.cc
             src/dcp/backfill_memory.cc
             src/dcp/consumer.cc
             src/dcp/dcp-types.h
@@ -241,8 +242,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/passive_stream.cc
             src/dcp/passive_stream.h
             src/dcp/producer.cc
-        src/vb_ready_queue.cc
-        src/vb_ready_queue.h
+            src/vb_ready_queue.cc
+            src/vb_ready_queue.h
             src/dcp/response.cc
             src/dcp/stream.cc
             src/defragmenter.cc

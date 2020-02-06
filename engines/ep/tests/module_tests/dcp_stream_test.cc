@@ -1338,7 +1338,7 @@ protected:
  * ENGINE_KEY_EEXISTS.
  */
 TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
-    CacheCallback callback(*engine, stream);
+    CacheCallback callback(*engine->getKVBucket(), stream);
 
     stream->transitionStateToBackfilling();
     CacheLookup lookup(diskKey, /*BySeqno*/ 1, vbid);
@@ -1363,7 +1363,7 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
  * ENGINE_SUCCESS.
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
-    CacheCallback callback(*engine, stream);
+    CacheCallback callback(*engine->getKVBucket(), stream);
 
     stream->transitionStateToBackfilling();
     // Passing in wrong BySeqno - should be 1, but passing in 0
@@ -1395,7 +1395,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
          */
         return;
     }
-    CacheCallback callback(*engine, stream);
+    CacheCallback callback(*engine->getKVBucket(), stream);
 
     stream->transitionStateToBackfilling();
     CacheLookup lookup(diskKey, /*BySeqno*/ 1, vbid);
@@ -1431,7 +1431,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     producer->setBackfillBufferSize(0);
     producer->bytesForceRead(1);
 
-    CacheCallback callback(*engine, stream);
+    CacheCallback callback(*engine->getKVBucket(), stream);
 
     stream->transitionStateToBackfilling();
     CacheLookup lookup(diskKey, /*BySeqno*/ 1, vbid);

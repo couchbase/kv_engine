@@ -17,19 +17,18 @@
 
 #pragma once
 
-#include "callbacks.h"
-#include "dcp/backfill.h"
+#include "dcp/backfill_by_seqno.h"
 #include "ephemeral_vb.h"
 
 /**
- * Concrete class that does backfill from in-memory ordered data strucuture and
+ * Concrete class that does backfill from in-memory ordered data structure and
  * informs the DCP stream of the backfill progress.
  *
  * This class creates a range iterator on the in-memory seqList, then
  * during scan() reads items one by one, passing to the given ActiveStream
  * for disk snapshot, backfill items and backfill completion.
  */
-class DCPBackfillMemoryBuffered : public DCPBackfill {
+class DCPBackfillMemoryBuffered : public DCPBackfillBySeqno {
 public:
     DCPBackfillMemoryBuffered(EphemeralVBucketPtr evb,
                               std::shared_ptr<ActiveStream> s,

@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "dcp/backfill_disk.h"
+#include "dcp/backfill_by_seqno_disk.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
@@ -121,11 +121,7 @@ public:
     UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
                                            std::shared_ptr<ActiveStream> stream,
                                            uint64_t startSeqno,
-                                           uint64_t endSeqno) override {
-        /* create a disk backfill object */
-        return std::make_unique<DCPBackfillDisk>(
-                e, stream, startSeqno, endSeqno);
-    }
+                                           uint64_t endSeqno) override;
 
     uint64_t getPersistenceSeqno() const override {
         return persistenceSeqno.load();
