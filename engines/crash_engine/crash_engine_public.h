@@ -16,15 +16,14 @@
  */
 
 /**
- * Publicly visible symbols for crash_engine.so
+ * Publicly visible symbols for crash_engine.
+ *
+ * The crash engine is used for unit testing to verify that breakpad works
+ * and that we get correct callstacks from libraries in shared objects.
  */
 #pragma once
 #include <memcached/engine.h>
 #include <memcached/visibility.h>
 
 MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_crash_engine_instance(GET_SERVER_API gsa,
-                                               EngineIface** handle);
-
-MEMCACHED_PUBLIC_API
-void destroy_crash_engine();
+unique_engine_ptr create_crash_engine_instance();

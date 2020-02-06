@@ -294,19 +294,6 @@ cb::engine::FeatureSet CrashEngine::getFeatures() {
     return cb::engine::FeatureSet();
 }
 
-ENGINE_ERROR_CODE create_crash_engine_instance(GET_SERVER_API gsa,
-                                               EngineIface** handle) {
-    CrashEngine* engine;
-
-    try {
-        engine = new CrashEngine();
-    } catch (std::bad_alloc&) {
-        return ENGINE_ENOMEM;
-    }
-
-    *handle = engine;
-    return ENGINE_SUCCESS;
-}
-
-void destroy_crash_engine() {
+unique_engine_ptr create_crash_engine_instance() {
+    return unique_engine_ptr{new CrashEngine()};
 }

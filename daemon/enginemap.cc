@@ -67,13 +67,8 @@ unique_engine_ptr new_engine_instance(BucketType type,
 }
 
 void create_crash_instance() {
-    EngineIface* h;
-    if (create_crash_engine_instance(nullptr, &h) != ENGINE_SUCCESS) {
-        throw std::runtime_error(
-                "create_crash_instance(): Failed to create instance of crash "
-                "engine");
-    }
-    h->initialize(nullptr);
+    auto engine = create_crash_engine_instance();
+    engine->initialize(nullptr);
 }
 
 BucketType module_to_bucket_type(const std::string& module) {
