@@ -28,22 +28,29 @@ EngineIface* new_engine_instance(BucketType type,
                                  GET_SERVER_API get_server_api) {
     EngineIface* ret = nullptr;
     ENGINE_ERROR_CODE status = ENGINE_KEY_ENOENT;
-    switch (type) {
-    case BucketType::NoBucket:
-        status = create_no_bucket_instance(get_server_api, &ret);
-        break;
-    case BucketType::Memcached:
-        status = create_memcache_instance(get_server_api, &ret);
-        break;
-    case BucketType::Couchstore:
-        status = create_ep_engine_instance(get_server_api, &ret);
-        break;
-    case BucketType::EWouldBlock:
-        status = create_ewouldblock_instance(get_server_api, &ret);
-        break;
-    case BucketType::Unknown:
-        // fall through with status == ENGINE_KEY_ENOENT
-        break;
+    try {
+        switch (type) {
+        case BucketType::NoBucket:
+            ret = create_no_bucket_instance();
+            status = ENGINE_SUCCESS;
+            break;
+        case BucketType::Memcached:
+            status = create_memcache_instance(get_server_api, &ret);
+            break;
+        case BucketType::Couchstore:
+            status = create_ep_engine_instance(get_server_api, &ret);
+            break;
+        case BucketType::EWouldBlock:
+            status = create_ewouldblock_instance(get_server_api, &ret);
+            break;
+        case BucketType::Unknown:
+            // fall through with status == ENGINE_KEY_ENOENT
+            break;
+        }
+    } catch (const std::bad_alloc&) {
+        status = ENGINE_ENOMEM;
+    } catch (const std::exception&) {
+        status = ENGINE_FAILED;
     }
 
     if (status == ENGINE_SUCCESS) {
@@ -93,7 +100,7 @@ void shutdown_all_engines() {
     auto type = BucketType::NoBucket;
     switch (type) {
     case BucketType::NoBucket:
-        destroy_no_bucket_engine();
+        // no cleanup needed;
     case BucketType::Memcached:
         destroy_memcache_engine();
     case BucketType::Couchstore:

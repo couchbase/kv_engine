@@ -18,13 +18,12 @@
 
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
+#include <memcached/engine.h>
 #include <memcached/server_log_iface.h>
 
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
-
-#include <spdlog/logger.h>
 
 /**
  * The NoBucket is a bucket that just returns "ENGINE_NO_BUCKET" for "all"
@@ -445,19 +444,6 @@ public:
     }
 };
 
-ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
-                                            EngineIface** handle) {
-    try {
-        *handle = new NoBucket();
-    } catch (const std::bad_alloc& e) {
-        auto logger = get_server_api()->log->get_spdlogger();
-        logger->warn("NoBucket: failed to create engine: {}", e.what());
-        return ENGINE_FAILED;
-    }
-
-    return ENGINE_SUCCESS;
-}
-
-void destroy_no_bucket_engine() {
-    // Empty
+EngineIface* create_no_bucket_instance() {
+    return new NoBucket();
 }

@@ -24,9 +24,6 @@
  */
 #pragma once
 
-#include <memcached/engine.h>
+struct EngineIface;
 
-ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
-                                            EngineIface** handle);
-
-void destroy_no_bucket_engine();
+EngineIface* create_no_bucket_instance();
