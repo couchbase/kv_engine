@@ -705,6 +705,13 @@ protected:
     class PrePostStateChecker {
     public:
         PrePostStateChecker(VBucketPtr vb);
+
+        // Not copyable, only movable.
+        PrePostStateChecker(const PrePostStateChecker&) = delete;
+        PrePostStateChecker& operator=(const PrePostStateChecker&) = delete;
+        PrePostStateChecker(PrePostStateChecker&&) = default;
+        PrePostStateChecker& operator=(PrePostStateChecker&&) = default;
+
         ~PrePostStateChecker();
 
         void setVBucket(VBucketPtr vb) {
