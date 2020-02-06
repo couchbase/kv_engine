@@ -22,7 +22,6 @@
 #include <memcached/engine.h>
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
-#include <spdlog/sinks/ansicolor_sink.h>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -209,8 +208,7 @@ void cb::logger::createConsoleLogger() {
     // delete if already exists
     spdlog::drop(logger_name);
 
-    auto stderrsink =
-            std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
+    auto stderrsink = std::make_shared<spdlog::sinks::stderr_color_sink_st>();
 
     file_logger = std::make_shared<spdlog::logger>(logger_name, stderrsink);
     file_logger->set_level(spdlog::level::info);
