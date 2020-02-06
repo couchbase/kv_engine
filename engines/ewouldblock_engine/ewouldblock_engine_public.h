@@ -21,12 +21,9 @@
 
 #pragma once
 #include <memcached/engine.h>
-#include <memcached/visibility.h>
 
 /* Public API declaration ****************************************************/
-MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_ewouldblock_instance(GET_SERVER_API gsa,
                                               EngineIface** handle);
 
-MEMCACHED_PUBLIC_API
 void destroy_ewouldblock_engine();
