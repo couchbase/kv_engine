@@ -15,12 +15,11 @@
  *   limitations under the License.
  */
 
+#include "utilities/readfile.h"
+
 #include <json_utilities.h>
 #include <platform/dirutils.h>
-
 #include <nlohmann/json.hpp>
-
-#include <sys/stat.h>
 #include <string>
 #include <sstream>
 #include <iostream>
@@ -475,7 +474,7 @@ int main(int argc, char **argv) {
 
     nlohmann::json json;
     try {
-        json = nlohmann::json::parse(cb::io::loadFile(file));
+        json = nlohmann::json::parse(readFile(file));
     } catch (const nlohmann::json::exception& e) {
         std::cerr << "Failed to parse JSON. e.what()=" << e.what() << std::endl;
         return 1;

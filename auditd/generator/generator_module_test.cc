@@ -84,7 +84,9 @@ TEST_F(ModuleListParseTest, LoadModulesNonexistingFile) {
         parse_module_descriptors(json, modules, SOURCE_ROOT, OBJECT_ROOT);
         FAIL() << "did not detect non-existing file";
     } catch (const std::system_error& e) {
-        EXPECT_EQ(int(std::errc::no_such_file_or_directory), e.code().value());
+        auto error = std::errc(e.code().value());
+        EXPECT_TRUE(error == std::errc::no_such_file_or_directory ||
+                    error == std::errc::operation_not_permitted);
     }
 }
 

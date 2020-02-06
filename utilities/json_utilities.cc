@@ -20,13 +20,6 @@
 #include <boost/optional.hpp>
 
 namespace cb {
-void throwJsonTypeError(const std::string& msg) {
-    throw nlohmann::detail::type_error::create(
-            nlohmannExceptionTypeCode, /* the exception code nlohmann would
-                                          throw */
-            msg);
-}
-
 boost::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object, const std::string& key) {
     try {

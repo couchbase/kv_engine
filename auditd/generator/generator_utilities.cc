@@ -15,18 +15,15 @@
  *   limitations under the License.
  */
 #include "generator_utilities.h"
-#include "auditevent_generator.h"
 #include "generator_event.h"
 #include "generator_module.h"
+#include "utilities/readfile.h"
 
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 #include <platform/strerror.h>
-#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <sstream>
 
 #ifdef COUCHBASE_ENTERPRISE_EDITION
 static bool enterprise_edition = true;
@@ -61,7 +58,7 @@ bool is_enterprise_edition() {
  */
 
 nlohmann::json load_file(const std::string& fname) {
-    auto str = cb::io::loadFile(fname);
+    auto str = readFile(fname);
     if (str.empty()) {
         throw std::runtime_error(fname + " contained no data");
     }

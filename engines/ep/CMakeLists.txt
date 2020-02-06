@@ -86,11 +86,13 @@ IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
 ENDIF (WIN32)
 
-ADD_EXECUTABLE(gencode tools/gencode.cc)
-TARGET_LINK_LIBRARIES(gencode platform dirutils)
-
-ADD_EXECUTABLE(genconfig tools/genconfig.cc)
-TARGET_LINK_LIBRARIES(genconfig platform dirutils mcd_util)
+add_executable(gencode tools/gencode.cc)
+add_executable(genconfig tools/genconfig.cc)
+if (WIN32)
+    # windows need getopt
+    target_link_libraries(gencode platform)
+    target_link_libraries(genconfig platform)
+endif()
 add_sanitizers(genconfig)
 
 add_subdirectory(tools/couchfile_upgrade)

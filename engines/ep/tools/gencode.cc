@@ -14,15 +14,12 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <platform/dirutils.h>
+#include "utilities/readfile.h"
 
 #include <nlohmann/json.hpp>
-
 #include <getopt.h>
-
 #include <iostream>
 #include <fstream>
-#include <vector>
 
 static void usage() {
     std::cerr << "Usage: gencode -j JSON -c cfile -h headerfile -f function"
@@ -82,7 +79,7 @@ int main(int argc, char **argv) {
     // Parsing the json data will prettify the output easily.
     nlohmann::json parsed;
     try {
-        parsed = nlohmann::json::parse(cb::io::loadFile(json));
+        parsed = nlohmann::json::parse(readFile(json));
     } catch (const std::system_error& e) {
         std::cerr << "Failed to open file. " << e.what() << std::endl;
         exit(EXIT_FAILURE);

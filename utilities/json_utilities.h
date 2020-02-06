@@ -31,7 +31,9 @@ const int nlohmannExceptionTypeCode = 302;
  *
  * @param msg the error message to be printed
  */
-[[noreturn]] void throwJsonTypeError(const std::string& msg);
+[[noreturn]] inline void throwJsonTypeError(const std::string& msg) {
+    throw nlohmann::detail::type_error::create(nlohmannExceptionTypeCode, msg);
+}
 
 /**
  *  Helper function that will allow us to do an

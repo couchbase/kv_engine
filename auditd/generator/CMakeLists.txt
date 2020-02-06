@@ -12,8 +12,12 @@ add_executable(auditevent_generator
                auditevent_generator.cc
                auditevent_generator.h
                $<TARGET_OBJECTS:audit_generator_utilities>)
-target_link_libraries(auditevent_generator platform dirutils mcd_util)
 add_sanitizers(auditevent_generator)
+
+if (WIN32)
+    # we need getopt for windows
+    target_link_libraries(auditevent_generator platform)
+endif()
 
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
