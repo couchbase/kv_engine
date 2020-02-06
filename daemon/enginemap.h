@@ -29,8 +29,8 @@
  * @throws std::bad_alloc for memory allocation failures,
  *         cb::engine_error for engine related errors
  */
-EngineIface* new_engine_instance(BucketType type,
-                                 GET_SERVER_API get_server_api);
+unique_engine_ptr new_engine_instance(BucketType type,
+                                      GET_SERVER_API get_server_api);
 
 /**
  * Convert from a module name to a bucket type

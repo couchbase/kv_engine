@@ -224,7 +224,7 @@ public:
 
     Bucket& getBucket() const;
 
-    EngineIface* getBucketEngine() const;
+    EngineIface& getBucketEngine() const;
 
     int getClustermapRevno() const {
         return clustermap_revno;

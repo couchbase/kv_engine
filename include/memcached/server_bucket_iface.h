@@ -16,10 +16,10 @@
 
 #pragma once
 
+#include "engine.h"
+
 #include <memory>
 #include <string>
-
-struct EngineIface;
 
 typedef struct server_handle_v1_t SERVER_HANDLE_V1;
 
@@ -38,7 +38,7 @@ struct ServerBucketIface {
      * @param get_server_api the method to provide to the instance
      * @return the newly created engine, or {} if not found
      */
-    virtual std::unique_ptr<EngineIface> createBucket(
+    virtual unique_engine_ptr createBucket(
             const std::string& module,
             SERVER_HANDLE_V1* (*get_server_api)()) const = 0;
 };

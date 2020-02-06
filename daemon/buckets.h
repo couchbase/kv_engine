@@ -64,9 +64,12 @@ public:
     Bucket(const Bucket& other) = delete;
 
     /// @returns a pointer to the actual engine serving the request
-    EngineIface* getEngine() const;
+    EngineIface& getEngine() const;
 
-    void setEngine(EngineIface* engine);
+    void setEngine(unique_engine_ptr engine_);
+
+    /// Destroy the underlying engine
+    void destroyEngine(bool force);
 
     /**
      * @returns the DCP interface for the connected bucket, or nullptr if the
@@ -158,7 +161,7 @@ public:
     void reset();
 
 protected:
-    EngineIface* engine{nullptr};
+    unique_engine_ptr engine;
 
     /**
      * The dcp interface for the connected bucket. May be null if the

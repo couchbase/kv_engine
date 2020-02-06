@@ -680,6 +680,16 @@ inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err,
 }
 }
 
+struct EngineDeletor {
+    void operator()(EngineIface* engine) {
+        engine->destroy(force);
+    }
+
+    bool force = false;
+};
+
+using unique_engine_ptr = std::unique_ptr<EngineIface, EngineDeletor>;
+
 /**
  * @}
  */

@@ -24,6 +24,6 @@
  */
 #pragma once
 
-struct EngineIface;
+#include <memcached/engine.h>
 
-EngineIface* create_no_bucket_instance();
+unique_engine_ptr create_no_bucket_instance();

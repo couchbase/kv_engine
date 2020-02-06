@@ -15,15 +15,7 @@
  *   limitations under the License.
  */
 
-/**
- * Publicly visible symbols for ewouldblock_engine.so
- */
-
 #pragma once
 #include <memcached/engine.h>
 
-/* Public API declaration ****************************************************/
-ENGINE_ERROR_CODE create_ewouldblock_instance(GET_SERVER_API gsa,
-                                              EngineIface** handle);
-
-void destroy_ewouldblock_engine();
+unique_engine_ptr create_ewouldblock_instance(GET_SERVER_API gsa);

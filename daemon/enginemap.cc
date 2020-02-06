@@ -24,16 +24,14 @@
 #include <platform/dirutils.h>
 #include <string>
 
-EngineIface* new_engine_instance(BucketType type,
-                                 GET_SERVER_API get_server_api) {
+unique_engine_ptr new_engine_instance(BucketType type,
+                                      GET_SERVER_API get_server_api) {
     EngineIface* ret = nullptr;
     ENGINE_ERROR_CODE status = ENGINE_KEY_ENOENT;
     try {
         switch (type) {
         case BucketType::NoBucket:
-            ret = create_no_bucket_instance();
-            status = ENGINE_SUCCESS;
-            break;
+            return create_no_bucket_instance();
         case BucketType::Memcached:
             status = create_memcache_instance(get_server_api, &ret);
             break;
@@ -41,8 +39,7 @@ EngineIface* new_engine_instance(BucketType type,
             status = create_ep_engine_instance(get_server_api, &ret);
             break;
         case BucketType::EWouldBlock:
-            status = create_ewouldblock_instance(get_server_api, &ret);
-            break;
+            return create_ewouldblock_instance(get_server_api);
         case BucketType::Unknown:
             // fall through with status == ENGINE_KEY_ENOENT
             break;
@@ -60,7 +57,7 @@ EngineIface* new_engine_instance(BucketType type,
                     "new_engine_instance: create function returned success, "
                     "but no engine handle returned");
         }
-        return ret;
+        return unique_engine_ptr{ret};
     }
 
     throw cb::engine_error(
@@ -106,7 +103,7 @@ void shutdown_all_engines() {
     case BucketType::Couchstore:
         destroy_ep_engine();
     case BucketType::EWouldBlock:
-        destroy_ewouldblock_engine();
+        // no cleanup needed;
     case BucketType::Unknown:
         break;
     }

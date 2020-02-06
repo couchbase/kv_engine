@@ -204,21 +204,16 @@ public:
 
     EngineIface* create_bucket(bool initialize,
                                const std::string& cfg) override {
-        auto me = std::make_unique<MockEngine>();
-        EngineIface* handle =
-                new_engine_instance(bucketType, &get_mock_server_api);
-
-        if (handle) {
-            me->the_engine = (EngineIface*)handle;
-            me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
+        auto me = std::make_unique<MockEngine>(
+                new_engine_instance(bucketType, &get_mock_server_api));
+        if (me) {
             if (initialize) {
                 const auto error = me->the_engine->initialize(
                         cfg.empty() ? nullptr : cfg.c_str());
                 if (error != ENGINE_SUCCESS) {
                     me->the_engine->destroy(false /*force*/);
-                    cb::engine_error err{cb::engine_errc(error),
-                                         "Failed to initialize instance"};
-                    throw err;
+                    throw cb::engine_error{cb::engine_errc(error),
+                                           "Failed to initialize instance"};
                 }
             }
         }
@@ -226,8 +221,8 @@ public:
     }
 
     void destroy_bucket(EngineIface* handle, bool force) override {
+        // destroy should delete the handle
         handle->destroy(force);
-        delete handle;
     }
 
     void reload_engine(EngineIface** h,

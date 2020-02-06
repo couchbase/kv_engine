@@ -485,7 +485,7 @@ static void settings_init() {
                         ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
                 bucketsForEach(
                         [val](Bucket& b, void*) -> bool {
-                            b.getEngine()->set_num_reader_threads(val);
+                            b.getEngine().set_num_reader_threads(val);
                             return true;
                         },
                         nullptr);
@@ -496,7 +496,7 @@ static void settings_init() {
                         ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
                 bucketsForEach(
                         [val](Bucket& b, void*) -> bool {
-                            b.getEngine()->set_num_writer_threads(val);
+                            b.getEngine().set_num_writer_threads(val);
                             return true;
                         },
                         nullptr);
@@ -1295,14 +1295,14 @@ void CreateBucketThread::create() {
         return;
     }
 
-    auto* engine = bucket.getEngine();
+    auto& engine = bucket.getEngine();
     {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = Bucket::State::Initializing;
     }
 
     try {
-        result = engine->initialize(config.c_str());
+        result = engine.initialize(config.c_str());
     } catch (const std::runtime_error& e) {
         LOG_WARNING("{} - Failed to create bucket [{}]: {}",
                     connection.getId(),
@@ -1325,14 +1325,14 @@ void CreateBucketThread::create() {
         LOG_INFO("{} - Bucket [{}] created successfully",
                  connection.getId(),
                  name);
-        bucket.max_document_size = engine->getMaxItemSize();
-        bucket.supportedFeatures = engine->getFeatures();
+        bucket.max_document_size = engine.getMaxItemSize();
+        bucket.supportedFeatures = engine.getFeatures();
     } else {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = Bucket::State::Destroying;
         }
-        engine->destroy(false);
+
         bucket.reset();
 
         result = ENGINE_NOT_STORED;
@@ -1400,8 +1400,8 @@ void DestroyBucketThread::destroy() {
 
     LOG_INFO("{} Delete bucket [{}]. Notifying engine", connection_id, name);
 
-    all_buckets[idx].getEngine()->initiate_shutdown();
-    all_buckets[idx].getEngine()->cancel_all_operations_in_ewb_state();
+    all_buckets[idx].getEngine().initiate_shutdown();
+    all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
 
     LOG_INFO("{} Delete bucket [{}]. Engine ready for shutdown",
              connection_id,
@@ -1465,7 +1465,7 @@ void DestroyBucketThread::destroy() {
                         connection.signalIfIdle();
                     }
                 });
-                bucket.getEngine()->cancel_all_operations_in_ewb_state();
+                bucket.getEngine().cancel_all_operations_in_ewb_state();
                 guard.lock();
                 continue;
             }
@@ -1516,8 +1516,7 @@ void DestroyBucketThread::destroy() {
 
     LOG_INFO(
             "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
-
-    bucket.getEngine()->destroy(force);
+    bucket.destroyEngine(force);
 
     LOG_INFO("{} Delete bucket [{}]. Clean up allocated resources ",
              connection_id,
@@ -1552,8 +1551,8 @@ void initialize_buckets() {
                     "Failed to create the internal bucket \"No bucket\": {}",
                     exception.what());
     }
-    nobucket.max_document_size = nobucket.getEngine()->getMaxItemSize();
-    nobucket.supportedFeatures = nobucket.getEngine()->getFeatures();
+    nobucket.max_document_size = nobucket.getEngine().getMaxItemSize();
+    nobucket.supportedFeatures = nobucket.getEngine().getFeatures();
     nobucket.type = BucketType::NoBucket;
     nobucket.state = Bucket::State::Ready;
 }
@@ -1584,7 +1583,7 @@ void cleanup_buckets() {
         } while (waiting);
 
         if (bucket.state == Bucket::State::Ready) {
-            bucket.getEngine()->destroy(false);
+            bucket.destroyEngine(false);
             bucket.reset();
         }
     }

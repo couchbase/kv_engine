@@ -43,7 +43,7 @@ static Cookie& getCookie(gsl::not_null<const void*> void_cookie) {
 }
 
 struct ServerBucketApi : public ServerBucketIface {
-    std::unique_ptr<EngineIface> createBucket(
+    unique_engine_ptr createBucket(
             const std::string& module,
             SERVER_HANDLE_V1* (*get_server_api)()) const override {
         auto type = module_to_bucket_type(module);
@@ -52,8 +52,7 @@ struct ServerBucketApi : public ServerBucketIface {
         }
 
         try {
-            return std::unique_ptr<EngineIface>{
-                    new_engine_instance(type, get_server_api)};
+            return new_engine_instance(type, get_server_api);
         } catch (const std::exception&) {
             return {};
         }

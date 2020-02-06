@@ -23,7 +23,7 @@
  */
 #pragma once
 
-#include <memcached/protocol_binary.h>
+#include <cstdint>
 
 // The mode the engine is currently operating in. Determines when it will
 // inject EWOULDBLOCK instead of the real return code.

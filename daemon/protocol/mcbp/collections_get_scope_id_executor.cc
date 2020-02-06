@@ -27,7 +27,7 @@ void collections_get_scope_id_executor(Cookie& cookie) {
     auto key = req.getKey();
     cb::const_char_buffer path{reinterpret_cast<const char*>(key.data()),
                                key.size()};
-    auto rv = connection.getBucketEngine()->get_scope_id(&cookie, path);
+    auto rv = connection.getBucketEngine().get_scope_id(&cookie, path);
 
     auto remapErr = connection.remapErrorCode(rv.result);
 

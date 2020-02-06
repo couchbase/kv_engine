@@ -444,6 +444,6 @@ public:
     }
 };
 
-EngineIface* create_no_bucket_instance() {
-    return new NoBucket();
+unique_engine_ptr create_no_bucket_instance() {
+    return unique_engine_ptr{new NoBucket()};
 }

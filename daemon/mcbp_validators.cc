@@ -349,8 +349,8 @@ Status McbpValidator::verify_header(Cookie& cookie,
         if (key.getCollectionID().isDefaultCollection()) {
             sid = ScopeID{ScopeID::Default};
         } else {
-            auto res = connection.getBucket().getEngine()->get_scope_id(&cookie,
-                                                                        key);
+            auto res = connection.getBucket().getEngine().get_scope_id(&cookie,
+                                                                       key);
             if (!res.second) {
                 nlohmann::json json;
                 // return the uid without the 0x prefix

@@ -19,10 +19,10 @@
 
 #pragma once
 struct MockEngine : public EngineIface, public DcpIface {
-    MockEngine() = default;
-    MockEngine(EngineIface* e, DcpIface* d) : the_engine(e), the_engine_dcp(d) {
+    explicit MockEngine(unique_engine_ptr e)
+        : the_engine(std::move(e)),
+          the_engine_dcp(dynamic_cast<DcpIface*>(the_engine.get())) {
     }
-    virtual ~MockEngine();
 
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool force) override;
@@ -298,7 +298,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
-    EngineIface* the_engine{};
+    unique_engine_ptr the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
     // nullptr if it doesn't implement DcpIface;

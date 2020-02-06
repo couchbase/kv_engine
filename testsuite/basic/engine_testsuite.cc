@@ -42,13 +42,12 @@ void EngineTestsuite::TearDownTestCase() {
 std::unique_ptr<EngineIface> EngineTestsuite::createBucket(
         BucketType bucketType,
         const std::string& cfg) {
-    auto* handle = new_engine_instance(bucketType, &get_mock_server_api);
+    auto handle = new_engine_instance(bucketType, &get_mock_server_api);
     if (!handle) {
         throw std::runtime_error("createBucket: failed to create bucket");
     }
 
-    auto me = std::make_unique<MockEngine>(handle,
-                                           dynamic_cast<DcpIface*>(handle));
+    auto me = std::make_unique<MockEngine>(std::move(handle));
     const auto error =
             me->the_engine->initialize(cfg.empty() ? nullptr : cfg.c_str());
     if (error != ENGINE_SUCCESS) {

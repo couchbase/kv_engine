@@ -267,11 +267,8 @@ public:
     }
 
     void destroy(bool force) override {
-        engine_map.erase(real_engine.get());
         real_engine->destroy(force);
-        // destroy() released the object
-        real_engine.release();
-
+        (void)real_engine.release();
         delete this;
     }
 
@@ -877,7 +874,7 @@ public:
     SERVER_HANDLE_V1* real_api;
 
     // Actual engine we are proxying requests to.
-    std::unique_ptr<EngineIface> real_engine;
+    unique_engine_ptr real_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
     // nullptr if it doesn't implement DcpIface;
@@ -1778,22 +1775,8 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE create_ewouldblock_instance(GET_SERVER_API gsa,
-                                              EngineIface** handle) {
-    try {
-        auto* engine = new EWB_Engine(gsa);
-        *handle = reinterpret_cast<EngineIface*>(engine);
-        return ENGINE_SUCCESS;
-
-    } catch (std::exception& e) {
-        auto logger = gsa()->log->get_spdlogger();
-        logger->warn("EWB_Engine: failed to create engine: {}", e.what());
-        return ENGINE_FAILED;
-    }
-}
-
-void destroy_ewouldblock_engine(void) {
-    // nothing todo.
+unique_engine_ptr create_ewouldblock_instance(GET_SERVER_API gsa) {
+    return unique_engine_ptr{new EWB_Engine(gsa)};
 }
 
 const char* EWB_Engine::to_string(const Cmd cmd) {

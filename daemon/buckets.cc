@@ -24,6 +24,7 @@ Bucket::Bucket() = default;
 
 void Bucket::reset() {
     std::lock_guard<std::mutex> guard(mutex);
+    engine.reset();
     state = Bucket::State::None;
     name[0] = '\0';
     setEngine(nullptr);
@@ -39,7 +40,6 @@ void Bucket::reset() {
     for (auto& s : stats) {
         s.reset();
     }
-
     type = BucketType::Unknown;
 }
 
@@ -51,13 +51,18 @@ DcpIface* Bucket::getDcpIface() const {
     return bucketDcp;
 }
 
-EngineIface* Bucket::getEngine() const {
-    return engine;
+EngineIface& Bucket::getEngine() const {
+    return *engine;
 }
 
-void Bucket::setEngine(EngineIface* engine) {
-    Bucket::engine = engine;
-    bucketDcp = dynamic_cast<DcpIface*>(engine);
+void Bucket::destroyEngine(bool force) {
+    engine.get_deleter().force = force;
+    engine.reset();
+}
+
+void Bucket::setEngine(unique_engine_ptr engine_) {
+    engine = std::move(engine_);
+    bucketDcp = dynamic_cast<DcpIface*>(engine.get());
 }
 
 namespace BucketValidator {

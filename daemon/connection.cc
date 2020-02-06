@@ -276,7 +276,7 @@ Bucket& Connection::getBucket() const {
     return all_buckets[getBucketIndex()];
 }
 
-EngineIface* Connection::getBucketEngine() const {
+EngineIface& Connection::getBucketEngine() const {
     return getBucket().getEngine();
 }
 
@@ -1205,7 +1205,7 @@ void Connection::close() {
 void Connection::propagateDisconnect() const {
     for (auto& cookie : cookies) {
         if (cookie) {
-            getBucket().getEngine()->disconnect(cookie.get());
+            getBucket().getEngine().disconnect(cookie.get());
         }
     }
 }
@@ -1249,12 +1249,12 @@ void Connection::setPriority(Connection::Priority priority) {
 }
 
 bool Connection::selectedBucketIsXattrEnabled() const {
-    auto* bucketEngine = getBucketEngine();
-    if (bucketEngine) {
-        return Settings::instance().isXattrEnabled() &&
-               bucketEngine->isXattrEnabled();
+    // The unit tests call this method with no bucket
+    if (bucketIndex == 0) {
+        return Settings::instance().isXattrEnabled();
     }
-    return Settings::instance().isXattrEnabled();
+    return Settings::instance().isXattrEnabled() &&
+           getBucketEngine().isXattrEnabled();
 }
 
 void Connection::disableReadEvent() {
