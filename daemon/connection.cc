@@ -1196,11 +1196,6 @@ void Connection::close() {
     }
 
     if (rc > 1 || ewb || havePendingData()) {
-        LOG_WARNING("{}: Delay shutdown: refcount: {} ewb: {} pendingData: {}",
-                    getId(),
-                    rc,
-                    ewb,
-                    getSendQueueSize());
         state = State::pending_close;
     } else {
         state = State::immediate_close;
