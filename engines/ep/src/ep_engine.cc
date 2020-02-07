@@ -1750,18 +1750,14 @@ ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
     auto arena = cb::ArenaMalloc::registerClient();
     cb::ArenaMallocGuard trackEngineCreation(arena);
 
-    EventuallyPersistentEngine* engine;
-    engine = new EventuallyPersistentEngine(get_server_api, arena);
-
-    if (engine == nullptr) {
+    try {
+        *handle = new EventuallyPersistentEngine(get_server_api, arena);
+    } catch (const std::bad_alloc&) {
         cb::ArenaMalloc::unregisterClient(arena);
         return ENGINE_ENOMEM;
     }
 
     initialize_time_functions(api->core);
-
-    *handle = reinterpret_cast<EngineIface*>(engine);
-
     return ENGINE_SUCCESS;
 }
 
