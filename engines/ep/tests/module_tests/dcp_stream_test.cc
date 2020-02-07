@@ -896,7 +896,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 /* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
  a snaphsot */
 TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
-    EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb0.get());
+    auto* evb = dynamic_cast<EphemeralVBucket*>(vb0.get());
 
     /* Add 4 items */
     const int numItems = 4;

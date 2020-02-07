@@ -85,7 +85,7 @@ struct SanMapping : public ClientCertConfig::Mapping {
 
     std::pair<Status, std::string> match(X509* cert) const override {
         Status status = Status::Error;
-        GENERAL_NAMES* names = reinterpret_cast<GENERAL_NAMES*>(
+        auto* names = reinterpret_cast<GENERAL_NAMES*>(
                 X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
         std::string userName;
         if (names) {

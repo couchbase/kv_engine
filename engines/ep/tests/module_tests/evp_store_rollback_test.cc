@@ -2111,7 +2111,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                                                       "MB-21682",
                                                       0);
 
-    MockDcpConnMap& mockConnMap =
+    auto& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     mockConnMap.addConn(cookie, producer);
 

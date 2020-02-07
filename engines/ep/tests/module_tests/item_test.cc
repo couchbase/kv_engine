@@ -259,7 +259,7 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
 
 TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
     std::string valueData = R"({"json":"yes"})";
-    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = std::make_unique<Item>(
             makeStoredDocKey("key"),
@@ -283,7 +283,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
 
 TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
     std::string valueData = R"({"json":"yes"})";
-    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = std::make_unique<Item>(makeStoredDocKey("key"),
                                   0,

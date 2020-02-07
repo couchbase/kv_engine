@@ -1626,7 +1626,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     // Baseline test, just writes meta things and reads them
     // via standard interfaces
     // Ensure CAS, exptime and flags are set to something.
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     queued_item item(std::make_unique<Item>(key,
                                             0x01020304 /*flags*/,
@@ -1704,7 +1704,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
 
 TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     // Ensure CAS, exptime and flags are set to something.
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     queued_item item(std::make_unique<Item>(key,
                                             0x01020304 /*flags*/,
@@ -1760,7 +1760,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
 
 TEST_F(CouchstoreTest, testV2WriteRead) {
     // Ensure CAS, exptime and flags are set to something.
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     queued_item item(std::make_unique<Item>(key,
                                             0x01020304 /*flags*/,
@@ -1814,7 +1814,7 @@ static int testCompactionUpgradeHook(DocInfo** info, const sized_buf* item) {
 
 TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
     // Ensure CAS, exptime and flags are set to something.
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     queued_item item(std::make_unique<Item>(key,
                                             0x01020304 /*flags*/,
@@ -1863,7 +1863,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
 
 TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     // Ensure CAS, exptime and flags are set to something.
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
     StoredDocKey key = makeStoredDocKey("key");
     queued_item item(std::make_unique<Item>(key,
                                             0x01020304 /*flags*/,

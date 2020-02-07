@@ -41,7 +41,7 @@ public:
         if (persistent()) {
             runCompaction();
         } else {
-            EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
+            auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
 
             evb->purgeStaleItems();
         }
@@ -264,7 +264,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     // Add default back - so we don't get collection unknown errors
     vb->updateFromManifest({cm.add(CollectionEntry::defaultC)});
 
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
@@ -429,7 +429,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
     if (!persistent()) {
         EphemeralVBucket::HTTombstonePurger purger(0);
         auto vbptr = store->getVBucket(vbid);
-        EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
         purger.setCurrentVBucket(*evb);
         evb->ht.visit(purger);
     }

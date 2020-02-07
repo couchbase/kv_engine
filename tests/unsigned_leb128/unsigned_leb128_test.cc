@@ -178,7 +178,7 @@ TYPED_TEST(UnsignedLeb128, iterators) {
 
 // Set some expectations around the get/data/size API
 TYPED_TEST(UnsignedLeb128, basic_api_checks) {
-    TypeParam value = gsl::narrow_cast<TypeParam>(5555);
+    auto value = gsl::narrow_cast<TypeParam>(5555);
     cb::mcbp::unsigned_leb128<TypeParam> leb(value);
     EXPECT_EQ(leb.get().size(), leb.size());
     EXPECT_EQ(leb.get().data(), leb.data());

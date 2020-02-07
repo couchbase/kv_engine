@@ -129,7 +129,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
     size_t body_offset = 0;
 
     // If the existing item had XATTRs we need to preserve the xattrs
-    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    auto datatype = PROTOCOL_BINARY_RAW_BYTES;
     if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
 

@@ -35,9 +35,9 @@ bool ReplicationThrottle::persistenceQueueSmallEnough() const {
 }
 
 bool ReplicationThrottle::hasSomeMemory() const {
-    double memoryUsed =
+    auto memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    double maxSize = static_cast<double>(stats.getMaxDataSize());
+    auto maxSize = static_cast<double>(stats.getMaxDataSize());
 
     return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);
 }
@@ -52,7 +52,7 @@ void ReplicationThrottle::adjustWriteQueueCap(size_t totalItems) {
         stats.replicationThrottleWriteQueueCap.store(-1);
         return;
     }
-    size_t qcap = static_cast<size_t>(queueCap);
+    auto qcap = static_cast<size_t>(queueCap);
     size_t throttleCap = 0;
     if (capPercent > 0) {
         throttleCap = (static_cast<double>(capPercent) / 100.0) * totalItems;

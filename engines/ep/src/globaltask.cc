@@ -83,7 +83,7 @@ void GlobalTask::snooze(const double secs) {
     const auto curTime = std::chrono::steady_clock::now();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        int64_t nano_secs = static_cast<int64_t>(secs * 1000000000);
+        auto nano_secs = static_cast<int64_t>(secs * 1000000000);
         updateWaketime(curTime + std::chrono::nanoseconds(nano_secs));
     } else {
         updateWaketime(curTime);

@@ -345,7 +345,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
         return ENGINE_DISCONNECT;
     }
 
-    opaque_map::iterator oitr = opaqueMap_.find(opaque);
+    auto oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
         opaqueMap_.erase(oitr);
     }
@@ -848,14 +848,14 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     switch (resp->getEvent()) {
         case DcpResponse::Event::AddStream:
         {
-            AddStreamResponse* as = static_cast<AddStreamResponse*>(resp.get());
+            auto* as = static_cast<AddStreamResponse*>(resp.get());
             ret = producers->add_stream_rsp(
                     as->getOpaque(), as->getStreamOpaque(), as->getStatus());
             break;
         }
         case DcpResponse::Event::StreamReq:
         {
-            StreamRequest* sr = static_cast<StreamRequest*>(resp.get());
+            auto* sr = static_cast<StreamRequest*>(resp.get());
             ret = producers->stream_req(sr->getOpaque(),
                                         sr->getVBucket(),
                                         sr->getFlags(),
@@ -869,14 +869,14 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::SetVbucket:
         {
-            SetVBucketStateResponse* vs =
+            auto* vs =
                     static_cast<SetVBucketStateResponse*>(resp.get());
             ret = producers->set_vbucket_state_rsp(vs->getOpaque(),
                                                    vs->getStatus());
             break;
         }
         case DcpResponse::Event::SnapshotMarker: {
-            SnapshotMarkerResponse* mr =
+            auto* mr =
                     static_cast<SnapshotMarkerResponse*>(resp.get());
             ret = producers->marker_rsp(mr->getOpaque(), mr->getStatus());
             break;
@@ -918,7 +918,7 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
     const auto opaque = resp->response.getOpaque();
 
     if (opcode == cb::mcbp::ClientOpcode::DcpStreamReq) {
-        opaque_map::iterator oitr = opaqueMap_.find(opaque);
+        auto oitr = opaqueMap_.find(opaque);
         if (oitr == opaqueMap_.end()) {
             EP_LOG_WARN(
                     "Received response with opaque {} and that opaque "
@@ -1290,7 +1290,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque,
                                  cb::mcbp::Status status,
                                  const uint8_t* body,
                                  uint32_t bodylen) {
-    opaque_map::iterator oitr = opaqueMap_.find(opaque);
+    auto oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
         uint32_t add_opaque = oitr->second.first;
         Vbid vbucket = oitr->second.second;

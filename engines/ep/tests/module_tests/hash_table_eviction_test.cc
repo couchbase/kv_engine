@@ -237,7 +237,7 @@ protected:
                 if (it != vbucketLookup.end()) {
                     vbucket = it->second;
                 }
-                get_options_t options = static_cast<get_options_t>(
+                auto options = static_cast<get_options_t>(
                         QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
                         DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS);
                 item* itm = nullptr;

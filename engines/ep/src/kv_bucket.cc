@@ -2017,9 +2017,9 @@ bool KVBucket::maybeWaitForVBucketWarmup(const void* cookie) {
 }
 
 bool KVBucket::isMemoryUsageTooHigh() {
-    double memoryUsed =
+    auto memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    double maxSize = static_cast<double>(stats.getMaxDataSize());
+    auto maxSize = static_cast<double>(stats.getMaxDataSize());
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
@@ -2401,7 +2401,7 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
     folly::SharedMutex::WriteHolder wlh(vb->getStateLock());
     if ((vb->getState() == vbucket_state_replica) ||
         (vb->getState() == vbucket_state_pending)) {
-        uint64_t prevHighSeqno =
+        auto prevHighSeqno =
                 static_cast<uint64_t>(vb->checkpointManager->getHighSeqno());
         if (rollbackSeqno != 0) {
             RollbackResult result = doRollback(vbid, rollbackSeqno);

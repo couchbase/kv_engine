@@ -121,7 +121,7 @@ void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
         }
 
         // Now remove all but one document from each page.
-        for (page_to_keys_t::iterator kv = page_to_keys.begin();
+        for (auto kv = page_to_keys.begin();
              kv != page_to_keys.end();
              kv++) {
             // Free all but one document on this page.

@@ -1605,7 +1605,7 @@ struct comp_thread_ctx {
 void makeCouchstoreFileInaccessible(const std::string& dbname);
 extern "C" {
     static void compaction_thread(void *arg) {
-        struct comp_thread_ctx *ctx = static_cast<comp_thread_ctx *>(arg);
+        auto *ctx = static_cast<comp_thread_ctx *>(arg);
         compact_db(ctx->h, ctx->vbid, ctx->db_file_id, 0, 0, 0);
     }
 }
@@ -3027,7 +3027,7 @@ static enum test_result test_datatype(EngineIface* h) {
 
     item *itm = nullptr;
     const std::string key("{\"foo\":\"bar\"}");
-    const protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    const auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
     std::string value("x");
     checkeq(ENGINE_SUCCESS,
@@ -3079,7 +3079,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     testHarness->set_datatype_support(cookie, true);
     const char* key = "foo";
     const char* val = "{\"foo\":\"bar\"}";
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
@@ -3139,7 +3139,7 @@ static enum test_result test_session_cas_validation(EngineIface* h) {
     // Testing cb::mcbp::ClientOpcode::SetVbucket..
     char ext[4];
     vbucket_state_t state = vbucket_state_active;
-    uint32_t val = static_cast<uint32_t>(state);
+    auto val = static_cast<uint32_t>(state);
     val = htonl(val);
     memcpy(ext, (char*)&val, sizeof(val));
 
@@ -4294,7 +4294,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h) {
 
 extern "C" {
     static void bg_set_thread(void *arg) {
-        ThreadData* td(static_cast<ThreadData*>(arg));
+        auto* td(static_cast<ThreadData*>(arg));
 
         std::this_thread::sleep_for(
                 std::chrono::microseconds(2600)); // Exacerbate race condition.
@@ -4307,7 +4307,7 @@ extern "C" {
     }
 
     static void bg_del_thread(void *arg) {
-        ThreadData *td(static_cast<ThreadData*>(arg));
+        auto *td(static_cast<ThreadData*>(arg));
 
         std::this_thread::sleep_for(
                 std::chrono::microseconds(2600)); // Exacerbate race condition.

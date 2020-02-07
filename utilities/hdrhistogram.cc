@@ -190,7 +190,7 @@ boost::optional<std::pair<uint64_t, uint64_t>>
 HdrHistogram::getNextValueAndCount(Iterator& iter) const {
     boost::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
     if (hdr_iter_next(&iter)) {
-        uint64_t value = static_cast<uint64_t>(iter.value);
+        auto value = static_cast<uint64_t>(iter.value);
         uint64_t count = 0;
         switch (iter.type) {
         case Iterator::IterMode::Log:

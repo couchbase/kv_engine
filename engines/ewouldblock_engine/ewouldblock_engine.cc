@@ -1781,7 +1781,7 @@ ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
 ENGINE_ERROR_CODE create_ewouldblock_instance(GET_SERVER_API gsa,
                                               EngineIface** handle) {
     try {
-        EWB_Engine* engine = new EWB_Engine(gsa);
+        auto* engine = new EWB_Engine(gsa);
         *handle = reinterpret_cast<EngineIface*>(engine);
         return ENGINE_SUCCESS;
 

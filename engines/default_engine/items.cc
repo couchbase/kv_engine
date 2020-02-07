@@ -467,7 +467,7 @@ static void do_item_stats_sizes(struct default_engine* engine,
                                 const void* c) {
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
-    unsigned int* histogram = static_cast<unsigned int*>
+    auto* histogram = static_cast<unsigned int*>
         (cb_calloc(num_buckets, sizeof(unsigned int)));
 
     if (histogram != nullptr) {
@@ -1187,7 +1187,7 @@ static bool hash_key_create(hash_key* hkey,
                             const void* key,
                             const size_t nkey,
                             struct default_engine* engine) {
-    uint16_t hash_key_len = gsl::narrow<uint16_t>(sizeof(bucket_id_t) + nkey);
+    auto hash_key_len = gsl::narrow<uint16_t>(sizeof(bucket_id_t) + nkey);
     if (nkey > sizeof(hkey->key_storage.client_key)) {
         hkey->header.full_key =
             static_cast<hash_key_data*>(cb_malloc(hash_key_len));

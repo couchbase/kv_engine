@@ -128,9 +128,9 @@ size_t WorkLoadMonitor::getNumGets() {
 bool WorkLoadMonitor::run() {
     size_t curr_num_mutations = getNumMutations();
     size_t curr_num_gets = getNumGets();
-    double delta_mutations = static_cast<double>(curr_num_mutations -
+    auto delta_mutations = static_cast<double>(curr_num_mutations -
                                                  prevNumMutations);
-    double delta_gets = static_cast<double>(curr_num_gets - prevNumGets);
+    auto delta_gets = static_cast<double>(curr_num_gets - prevNumGets);
     double total_delta_ops = delta_gets + delta_mutations;
     double read_ratio = 0;
 

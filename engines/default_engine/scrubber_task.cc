@@ -20,7 +20,7 @@
 #include "engine_manager.h"
 
 static void scrubber_task_main(void* arg) {
-    ScrubberTask* task = reinterpret_cast<ScrubberTask*>(arg);
+    auto* task = reinterpret_cast<ScrubberTask*>(arg);
     task->run();
 }
 

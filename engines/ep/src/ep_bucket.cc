@@ -1106,7 +1106,7 @@ bool EPBucket::doCompact(const CompactionConfig& config,
 void EPBucket::updateCompactionTasks(Vbid db_file_id) {
     LockHolder lh(compactionLock);
     bool erased = false, woke = false;
-    std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
+    auto it = compactionTasks.begin();
     while (it != compactionTasks.end()) {
         if ((*it).first == db_file_id) {
             it = compactionTasks.erase(it);
@@ -1741,9 +1741,9 @@ void EPBucket::startWarmupTask() {
 
 bool EPBucket::maybeEnableTraffic() {
     // @todo rename.. skal vaere isTrafficDisabled elns
-    double memoryUsed =
+    auto memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    double maxSize = static_cast<double>(stats.getMaxDataSize());
+    auto maxSize = static_cast<double>(stats.getMaxDataSize());
 
     if (memoryUsed >= stats.mem_low_wat) {
         EP_LOG_INFO(

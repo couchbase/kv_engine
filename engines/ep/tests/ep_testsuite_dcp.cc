@@ -1115,7 +1115,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
 extern "C" {
     static void dcp_thread_func(void *args) {
-        struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
+        auto *ctx = static_cast<mb16357_ctx *>(args);
 
         const void* cookie = testHarness->create_cookie(ctx->h);
         uint32_t opaque = 0xFFFF0000;
@@ -1199,7 +1199,7 @@ extern "C" {
     }
 
     static void compact_thread_func(void *args) {
-        struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
+        auto *ctx = static_cast<mb16357_ctx *>(args);
         std::unique_lock<std::mutex> lk(ctx->mutex);
         ctx->compactor_waiting = true;
         ctx->cv.wait(lk, [ctx]{return ctx->compaction_start;});
@@ -1207,7 +1207,7 @@ extern "C" {
     }
 
     static void writer_thread(void *args) {
-        struct writer_thread_ctx *wtc = static_cast<writer_thread_ctx *>(args);
+        auto *wtc = static_cast<writer_thread_ctx *>(args);
 
         for (int i = 0; i < wtc->items; ++i) {
             std::string key("key_" + std::to_string(i));
@@ -1225,7 +1225,7 @@ extern "C" {
     }
 
     static void continuous_dcp_thread(void *args) {
-        struct continuous_dcp_ctx *cdc = static_cast<continuous_dcp_ctx *>(args);
+        auto *cdc = static_cast<continuous_dcp_ctx *>(args);
 
         DcpStreamCtx ctx;
         ctx.vbucket = cdc->vbid;
@@ -3646,7 +3646,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     size_t headerlen = sizeof(protocol_binary_response_header);
     size_t pkt_len = headerlen + bodylen;
 
-    protocol_binary_response_header* pkt =
+    auto* pkt =
         (protocol_binary_response_header*)cb_malloc(pkt_len);
     memset(pkt->bytes, '\0', pkt_len);
     pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -3683,7 +3683,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         checkne(opaque, producers.last_opaque, "Unexpected opaque");
         verify_curr_items(h, 0, "Wrong amount of items");
 
-        protocol_binary_response_header* pkt =
+        auto* pkt =
             (protocol_binary_response_header*)cb_malloc(pkt_len);
         memset(pkt->bytes, '\0', 40);
         pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -4409,7 +4409,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     cb_assert(producers.last_opaque != opaque);
 
     uint64_t rollbackSeqno = htonll(40);
-    protocol_binary_response_header* pkt =
+    auto* pkt =
         (protocol_binary_response_header*)cb_malloc(32);
     memset(pkt->bytes, '\0', 32);
     pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -4511,7 +4511,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
     uint64_t rollbackSeqno = htonll(5);
-    protocol_binary_response_header *pkt1 =
+    auto *pkt1 =
         (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -4532,7 +4532,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     cb_assert(producers.last_opaque != opaque);
 
     bodylen = 2 *sizeof(uint64_t);
-    protocol_binary_response_header* pkt2 =
+    auto* pkt2 =
         (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt2->bytes, '\0', headerlen + bodylen);
     pkt2->response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -4635,7 +4635,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
     uint64_t rollbackSeqno = 100;
-    protocol_binary_response_header *pkt1 =
+    auto *pkt1 =
         (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -4654,7 +4654,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     opaque++;
 
     bodylen = 2 * sizeof(uint64_t);
-    protocol_binary_response_header* pkt2 =
+    auto* pkt2 =
         (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt2->bytes, '\0', headerlen + bodylen);
     pkt2->response.setMagic(cb::mcbp::Magic::ClientResponse);

@@ -244,7 +244,7 @@ bool KVStore::snapshotStats(const std::map<std::string,
     size_t size = stats.size();
     std::stringstream stats_buf;
     stats_buf << "{";
-    std::map<std::string, std::string>::const_iterator it = stats.begin();
+    auto it = stats.begin();
     for (; it != stats.end(); ++it) {
         stats_buf << "\"" << it->first << "\": \"" << it->second << "\"";
         ++count;

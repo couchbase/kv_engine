@@ -572,7 +572,7 @@ TEST_P(STItemPagerTest, isEligible) {
 
     EventuallyPersistentEngine* epe =
             ObjectRegistry::onSwitchThread(nullptr, true);
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
@@ -932,7 +932,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     // Original bug is that we would segfault running the pager here
     wakeUpExpiryPager();
 
-    get_options_t options =
+    auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     EXPECT_EQ(err, store->get(key_1, vbid, cookie, options).getStatus())
             << "Key with TTL:10 should be removed.";
@@ -1013,7 +1013,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     // Prior to the MB fix - this would crash.
     EXPECT_EQ(err, deleteWithMeta());
 
-    get_options_t options =
+    auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     if (std::get<0>(GetParam()) == "persistent") {
         runBGFetcherTask();
@@ -1195,7 +1195,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
             << "Should have 0 non-resident items after running expiry pager";
 
     // Check our item has been deleted and the xattrs pruned
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv = store->get(key, vbid, cookie, options);
@@ -1296,7 +1296,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
         EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
     }
 
-    get_options_t options =
+    auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto gv = store->get(key, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());

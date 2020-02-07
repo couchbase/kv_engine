@@ -1796,7 +1796,7 @@ int write_items_upto_mem_perc(EngineIface* h,
                               int start_seqno,
                               const char* key_prefix,
                               const char* value) {
-    float maxSize =
+    auto maxSize =
             static_cast<float>(get_int_stat(h, "ep_max_size", "memory"));
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
     int num_items = 0;
@@ -1805,7 +1805,7 @@ int write_items_upto_mem_perc(EngineIface* h,
          is used. Getting stats is expensive, only check every 100
          iterations. */
         if ((num_items % 100) == 0) {
-            float memUsed = float(get_int_stat(h, "mem_used", "memory"));
+            auto memUsed = float(get_int_stat(h, "mem_used", "memory"));
             if (memUsed > (maxSize * mem_thresh)) {
                 /* Persist all items written so far. */
                 break;

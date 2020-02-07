@@ -50,7 +50,7 @@ struct default_engine* EngineManager::createEngine() {
     try {
         static bucket_id_t bucket_id;
 
-        struct default_engine* newEngine = new struct default_engine();
+        auto* newEngine = new struct default_engine();
         if (bucket_id + 1 == 0) {
             // We've used all of the available id's
             delete newEngine;

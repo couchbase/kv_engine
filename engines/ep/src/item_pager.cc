@@ -78,9 +78,9 @@ bool ItemPager::run(void) {
     notified.store(false);
 
     KVBucket* kvBucket = engine.getKVBucket();
-    double current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    double upper = static_cast<double>(stats.mem_high_wat);
-    double lower = static_cast<double>(stats.mem_low_wat);
+    auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
+    auto upper = static_cast<double>(stats.mem_high_wat);
+    auto lower = static_cast<double>(stats.mem_low_wat);
 
     if (current <= lower) {
         doEvict = false;

@@ -617,7 +617,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     switch (resp->getEvent()) {
         case DcpResponse::Event::StreamEnd:
         {
-            StreamEndResponse* se = static_cast<StreamEndResponse*>(resp.get());
+            auto* se = static_cast<StreamEndResponse*>(resp.get());
             ret = producers->stream_end(
                     se->getOpaque(),
                     se->getVbucket(),
@@ -645,7 +645,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             break;
         }
         case DcpResponse::Event::Commit: {
-            CommitSyncWrite* csr = static_cast<CommitSyncWrite*>(resp.get());
+            auto* csr = static_cast<CommitSyncWrite*>(resp.get());
             ret = producers->commit(csr->getOpaque(),
                                     csr->getVbucket(),
                                     csr->getKey(),
@@ -743,7 +743,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             break;
         }
         case DcpResponse::Event::Abort: {
-            AbortSyncWrite& abort = dynamic_cast<AbortSyncWrite&>(*resp);
+            auto& abort = dynamic_cast<AbortSyncWrite&>(*resp);
             ret = producers->abort(abort.getOpaque(),
                                    abort.getVbucket(),
                                    abort.getKey(),
@@ -753,7 +753,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::SnapshotMarker:
         {
-            SnapshotMarker* s = static_cast<SnapshotMarker*>(resp.get());
+            auto* s = static_cast<SnapshotMarker*>(resp.get());
             ret = producers->marker(s->getOpaque(),
                                     s->getVBucket(),
                                     s->getStartSeqno(),
@@ -766,13 +766,13 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         case DcpResponse::Event::SetVbucket:
         {
-            SetVBucketState* s = static_cast<SetVBucketState*>(resp.get());
+            auto* s = static_cast<SetVBucketState*>(resp.get());
             ret = producers->set_vbucket_state(
                     s->getOpaque(), s->getVBucket(), s->getState());
             break;
         }
         case DcpResponse::Event::SystemEvent: {
-            SystemEventProducerMessage* s =
+            auto* s =
                     static_cast<SystemEventProducerMessage*>(resp.get());
             ret = producers->system_event(
                     s->getOpaque(),
@@ -1459,7 +1459,7 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
             for (auto handle = rv->second->rlock(); !handle.end();
                  handle.next()) {
                 if (handle.get()->getCursor().lock().get() == cursor) {
-                    ActiveStream* as =
+                    auto* as =
                             static_cast<ActiveStream*>(handle.get().get());
                     return as->handleSlowStream();
                 }

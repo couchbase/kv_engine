@@ -69,8 +69,8 @@ public:
     }
 
     virtual void validateSSize(const std::string& key, ssize_t value) {
-        ssize_t s_lower = static_cast<ssize_t> (lower);
-        ssize_t s_upper = static_cast<ssize_t> (upper);
+        auto s_lower = static_cast<ssize_t> (lower);
+        auto s_upper = static_cast<ssize_t> (upper);
 
         if (value < s_lower || value > s_upper) {
             std::string error = "Validation Error, " + key +

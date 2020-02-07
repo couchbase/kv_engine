@@ -968,7 +968,7 @@ size_t ActiveDurabilityMonitor::wipeTracked() {
     // Note: Cannot just do Container::clear as it would invalidate every
     //     existing Replication Chain iterator
     size_t removed{0};
-    Container::iterator it = s->trackedWrites.begin();
+    auto it = s->trackedWrites.begin();
     while (it != s->trackedWrites.end()) {
         // Note: 'it' will be invalidated, so it will need to be reset
         const auto next = std::next(it);
@@ -1193,7 +1193,7 @@ void ActiveDurabilityMonitor::State::transitionFromNullTopology(
                               adm.vb.getPersistenceSeqno());
         auto& activePos =
                 newFirstChain.positions.find(newFirstChain.active)->second;
-        Container::iterator it = trackedWrites.begin();
+        auto it = trackedWrites.begin();
         while (it != trackedWrites.end()) {
             if (it->getBySeqno() <= static_cast<int64_t>(fence)) {
                 activePos.it = it;
@@ -1302,7 +1302,7 @@ void ActiveDurabilityMonitor::State::queueSeqnoAck(const std::string& node,
 
 void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(
         ActiveDurabilityMonitor::ResolvedQueue& toCommit) {
-    Container::iterator it = trackedWrites.begin();
+    auto it = trackedWrites.begin();
     while (it != trackedWrites.end()) {
         const auto next = std::next(it);
         // Remove from trackedWrites anything that is completed. This may happen
@@ -1337,7 +1337,7 @@ void ActiveDurabilityMonitor::State::removeExpired(
     // Given SyncWrites must complete In-Order, iterate from the beginning
     // of trackedWrites only as long as we find expired items; if we encounter
     // any unexpired items then must stop.
-    Container::iterator it = trackedWrites.begin();
+    auto it = trackedWrites.begin();
     while (it != trackedWrites.end()) {
         if (it->isExpired(asOf)) {
             // Note: 'it' will be invalidated, so it will need to be reset

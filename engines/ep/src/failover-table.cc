@@ -92,7 +92,7 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
 bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
                                         uint64_t *seqno) const {
     std::lock_guard<std::mutex> lh(lock);
-    table_t::const_iterator curr_itr = table.begin();
+    auto curr_itr = table.begin();
     table_t::const_iterator prev_itr;
 
     if (curr_itr->vb_uuid == uuid) {

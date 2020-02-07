@@ -288,7 +288,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         const DocKey& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -793,7 +793,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
             getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
                     std::stoull(val));
         } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
-            size_t v = size_t(std::stoul(val));
+            auto v = size_t(std::stoul(val));
             checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
@@ -801,7 +801,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
         } else if (key == "dcp_enable_noop") {
             getConfiguration().setDcpEnableNoop(cb_stob(val));
         } else if (key == "dcp_idle_timeout") {
-            size_t v = size_t(std::stoul(val));
+            auto v = size_t(std::stoul(val));
             checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpIdleTimeout(v);
@@ -4767,7 +4767,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
         const AddResponseFn& response) {
     Vbid vb_id = request.getVBucket();
     auto value = request.getValue();
-    uint64_t vb_uuid = static_cast<uint64_t>(
+    auto vb_uuid = static_cast<uint64_t>(
             ntohll(*reinterpret_cast<const uint64_t*>(value.data())));
 
     EP_LOG_DEBUG("Observing {} with uuid: {}", vb_id, vb_uuid);
@@ -6197,7 +6197,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
 
 ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
     void* specific = getEngineSpecific(cookie);
-    ConnHandler* handler = reinterpret_cast<ConnHandler*>(specific);
+    auto* handler = reinterpret_cast<ConnHandler*>(specific);
     if (!handler) {
         EP_LOG_WARN("Invalid streaming connection");
     }

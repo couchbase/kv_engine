@@ -494,7 +494,7 @@ DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
     auto streamRequest = consumer->getVbucketStream(vbid)->next();
     EXPECT_TRUE(streamRequest);
     EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
-    StreamRequest* sr = static_cast<StreamRequest*>(streamRequest.get());
+    auto* sr = static_cast<StreamRequest*>(streamRequest.get());
     // Create an active stream against the producing node
     uint64_t rollbackSeqno = 0;
     auto error = producer->streamRequest(sr->getFlags(),

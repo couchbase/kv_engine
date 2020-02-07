@@ -267,7 +267,7 @@ TEST_P(EPStoreEvictionTest, FreqCountTest) {
     auto item_v1 = store_item(vbid, a, "old");
 
     // Perform one or more gets to increase the frequency count
-    get_options_t options = static_cast<get_options_t>(TRACK_REFERENCE);
+    auto options = static_cast<get_options_t>(TRACK_REFERENCE);
     GetValue v = store->get(a, vbid, nullptr, options);
     while (v.item->getFreqCounterValue() == initialFreqCount) {
         v = store->get(a, vbid, nullptr, options);
@@ -464,7 +464,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     evict_key(item.getVBucketId(), item.getKey());
 
     // Perform a get, which should EWOULDBLOCK
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -552,7 +552,7 @@ TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
 
     flush_vbucket_to_disk(vbid);
 
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES   |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -607,7 +607,7 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     evict_key(vbid, makeStoredDocKey("key"));
     store->deleteExpiredItem(itm, time(NULL) + 121, ExpireBy::Compactor);
 
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -795,7 +795,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
     // Ensure that the delete has been persisted
     flush_vbucket_to_disk(vbid);
 
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -838,7 +838,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
     flush_vbucket_to_disk(vbid);
 
     //Perform a get
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -1132,7 +1132,7 @@ TEST_F(EPStoreFullEvictionNoBloomFIlterTest, MB_29816) {
     evict_key(vbid, key);
 
     auto key2 = makeStoredDocKey("004");
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);

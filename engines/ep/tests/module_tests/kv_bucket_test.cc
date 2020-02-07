@@ -716,7 +716,7 @@ TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
                                  /*allowExisting*/ true));
 
     TimeTraveller docBrown(20);
-    get_options_t options =
+    auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
 
     auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
@@ -776,7 +776,7 @@ TEST_P(KVBucketParamTest, mb22824) {
 
     uint32_t deleted = false;
     ItemMetaData itemMeta1;
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    auto datatype = PROTOCOL_BINARY_RAW_BYTES;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData(
                       key, vbid, cookie, itemMeta1, deleted, datatype));
@@ -1181,7 +1181,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
     TimeTraveller docBrown(20);
 
     // 2. Force expiry of the item and flush the delete
-    get_options_t options =
+    auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
     GetValue result = doGet();
@@ -1306,7 +1306,7 @@ TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
 
    store->setVBucketState(vbid, vbucket_state_pending);
 
-   get_options_t options = static_cast<get_options_t>(
+   auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
@@ -1453,7 +1453,7 @@ TEST_P(KVBucketParamTest, MB_34346) {
 
     TimeTraveller docBrown(15);
 
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv2 = store->get(key, vbid, cookie, options);

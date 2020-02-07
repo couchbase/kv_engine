@@ -76,7 +76,7 @@ public:
 };
 
 TEST_F(ExecutorTest, SingleExecution) {
-    BasicTestTask* cmd = new BasicTestTask(1);
+    auto* cmd = new BasicTestTask(1);
 
     std::shared_ptr<Task> task(cmd);
 
@@ -93,7 +93,7 @@ TEST_F(ExecutorTest, SingleExecution) {
 }
 
 TEST_F(ExecutorTest, MultipleExecution) {
-    BasicTestTask* cmd = new BasicTestTask(10);
+    auto* cmd = new BasicTestTask(10);
 
     std::shared_ptr<Task> task(cmd);
 
@@ -115,13 +115,13 @@ TEST_F(ExecutorTest, MultipleExecution) {
 }
 
 TEST_F(ExecutorTest, ScheduleMissingLock) {
-    BasicTestTask* cmd = new BasicTestTask(1);
+    auto* cmd = new BasicTestTask(1);
     std::shared_ptr<Task> task(cmd);
     EXPECT_THROW(executorpool->schedule(task), std::logic_error);
 }
 
 TEST_F(ExecutorTest, RescheduleMissingLock) {
-    BasicTestTask* cmd = new BasicTestTask(2);
+    auto* cmd = new BasicTestTask(2);
     std::shared_ptr<Task> task(cmd);
     std::unique_lock<std::mutex> lock(task->getMutex());
     executorpool->schedule(task);

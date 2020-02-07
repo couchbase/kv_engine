@@ -522,7 +522,7 @@ public:
 
 extern "C" {
     static void perf_latency_thread(void *arg) {
-        ThreadArguments* threadArgs = static_cast<ThreadArguments*>(arg);
+        auto* threadArgs = static_cast<ThreadArguments*>(arg);
         // run and measure on this thread.
         perf_latency_core(threadArgs->h,
                           threadArgs->key_prefix,

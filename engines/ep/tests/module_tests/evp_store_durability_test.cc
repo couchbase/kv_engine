@@ -2674,7 +2674,7 @@ void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
     TimeTraveller avenger(10000000);
 
     EphemeralVBucket::HTTombstonePurger purger(0);
-    EphemeralVBucket& evb = dynamic_cast<EphemeralVBucket&>(vb);
+    auto& evb = dynamic_cast<EphemeralVBucket&>(vb);
     purger.setCurrentVBucket(evb);
     evb.ht.visit(purger);
 
@@ -3602,7 +3602,7 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommit) {
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, store->evictKey(key, vbid, &msg));
 
     // 3) Get returns the value without BGFetch (and not KEY_ENOENT)
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);
@@ -3662,7 +3662,7 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
 
     // 4) Get returns the new value without BGFetch (and does not return a stale
     // value).
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);
@@ -3696,7 +3696,7 @@ TEST_P(DurabilityCouchstoreBucketTest,
     EXPECT_EQ(0, vb->getNumOfKeysInFilter());
 
     // A get should complete and return KEY_ENOENT without BGFetch
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);

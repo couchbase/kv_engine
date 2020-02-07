@@ -50,7 +50,7 @@ size_t StatsOps::StatFile::getWriteBytes() {
 
 couch_file_handle StatsOps::constructor(couchstore_error_info_t *errinfo) {
     FileOpsInterface* orig_ops = &wrapped_ops;
-    StatFile* sf = new StatFile(orig_ops,
+    auto* sf = new StatFile(orig_ops,
                                 orig_ops->constructor(errinfo),
                                 0);
     return reinterpret_cast<couch_file_handle>(sf);
@@ -60,7 +60,7 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
                                   couch_file_handle* h,
                                   const char* path,
                                   int flags) {
-    StatFile* sf = reinterpret_cast<StatFile*>(*h);
+    auto* sf = reinterpret_cast<StatFile*>(*h);
     sf->read_count_since_open = 0;
     sf->write_count_since_open = 0;
     sf->write_bytes_since_open = 0;
@@ -69,7 +69,7 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
 
 couchstore_error_t StatsOps::close(couchstore_error_info_t* errinfo,
                                    couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     // Add to histograms - we can have zero read (open, goto_eof and close for
     // size; or on error); or zero write (read-only activity) - so only added if
     // counts are non-zero.
@@ -85,20 +85,20 @@ couchstore_error_t StatsOps::close(couchstore_error_info_t* errinfo,
 
 couchstore_error_t StatsOps::set_periodic_sync(couch_file_handle h,
                                                uint64_t period_bytes) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->set_periodic_sync(sf->orig_handle, period_bytes);
 }
 
 couchstore_error_t StatsOps::set_tracing_enabled(couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->set_tracing_enabled(sf->orig_handle);
 }
 couchstore_error_t StatsOps::set_write_validation_enabled(couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->set_write_validation_enabled(sf->orig_handle);
 }
 couchstore_error_t StatsOps::set_mprotect_enabled(couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->set_mprotect_enabled(sf->orig_handle);
 }
 
@@ -107,7 +107,7 @@ ssize_t StatsOps::pread(couchstore_error_info_t* errinfo,
                         void* buf,
                         size_t sz,
                         cs_off_t off) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     stats.readSizeHisto.add(sz);
     if(sf->last_offs) {
         stats.readSeekHisto.add(std::abs(off - sf->last_offs));
@@ -128,7 +128,7 @@ ssize_t StatsOps::pwrite(couchstore_error_info_t*errinfo,
                          const void* buf,
                          size_t sz,
                          cs_off_t off) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     stats.writeSizeHisto.add(sz);
     HdrMicroSecBlockTimer bt(&stats.writeTimeHisto);
     ssize_t result = sf->orig_ops->pwrite(errinfo, sf->orig_handle, buf,
@@ -143,13 +143,13 @@ ssize_t StatsOps::pwrite(couchstore_error_info_t*errinfo,
 
 cs_off_t StatsOps::goto_eof(couchstore_error_info_t* errinfo,
                             couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->goto_eof(errinfo, sf->orig_handle);
 }
 
 couchstore_error_t StatsOps::sync(couchstore_error_info_t* errinfo,
                                   couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     HdrMicroSecBlockTimer bt(&stats.syncTimeHisto);
     return sf->orig_ops->sync(errinfo, sf->orig_handle);
 }
@@ -159,18 +159,18 @@ couchstore_error_t StatsOps::advise(couchstore_error_info_t* errinfo,
                                     cs_off_t offs,
                                     cs_off_t len,
                                     couchstore_file_advice_t adv) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->advise(errinfo, sf->orig_handle, offs, len, adv);
 }
 
 FileOpsInterface::FHStats* StatsOps::get_stats(couch_file_handle h) {
     // StatFile implements FHStats interface directly.
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     return sf;
 }
 
 void StatsOps::destructor(couch_file_handle h) {
-    StatFile* sf = reinterpret_cast<StatFile*>(h);
+    auto* sf = reinterpret_cast<StatFile*>(h);
     sf->orig_ops->destructor(sf->orig_handle);
     delete sf;
 }

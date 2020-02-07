@@ -63,7 +63,7 @@ protected:
             throw std::invalid_argument("Failed to parse payload: " + payload);
         }
 
-        size_t ret = json["total"].get<size_t>();
+        auto ret = json["total"].get<size_t>();
 
         return ret;
     }

@@ -392,7 +392,7 @@ TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
     EXPECT_EQ(curr_seqno, rollback_seqno);
     //client vb uuiud is not the latest vbuuid in failover table and
     //snap_end_seqno > upper && snap_start_seqno > upper
-    std::list<failover_entry_t>::iterator itr = failover_entries.begin();
+    auto itr = failover_entries.begin();
     ++itr;
     vb_uuid = itr->vb_uuid;
     --itr;

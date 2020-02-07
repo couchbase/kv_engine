@@ -247,7 +247,7 @@ TEST_P(GetValidatorTest, KeyLengthMax) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(88);
     std::copy(leb128.begin(), leb128.end(), blob + sizeof(request.bytes));
 
-    uint16_t leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
+    auto leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
     const int maxCollectionsLogicalKeyLen = 246;
     // Valid maximum keylength
     request.message.header.request.setKeylen(
@@ -347,7 +347,7 @@ TEST_P(GetValidatorTest, InvalidKey) {
     // Now make a key which is only a leb128 prefix
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(2018);
     std::copy(leb128.begin(), leb128.end(), blob + sizeof(request.bytes));
-    uint16_t leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
+    auto leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
     request.message.header.request.setKeylen(leb128Size);
     request.message.header.request.setBodylen(leb128Size);
     EXPECT_EQ("No logical key found",

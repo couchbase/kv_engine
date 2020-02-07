@@ -335,7 +335,7 @@ void SingleThreadedKVBucketTest::runCollectionsEraser() {
                             .empty());
     } else {
         auto vb = store->getVBuckets().getBucket(vbid);
-        EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
         evb->purgeStaleItems();
     }
 }
@@ -374,7 +374,7 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
  *    manager has been reset.
  */
 TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
-    MockDcpConnMap& mockConnMap =
+    auto& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -515,7 +515,7 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     } else {
         EphemeralVBucket::HTTombstonePurger purger(0);
         auto vbptr = store->getVBucket(vbid);
-        EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
         purger.setCurrentVBucket(*evb);
         evb->ht.visit(purger);
 
@@ -2469,7 +2469,7 @@ TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
     itm.setRevSeqno(1);
     kvbucket.deleteExpiredItem(itm, ep_real_time() + 1, ExpireBy::Pager);
 
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
@@ -2600,7 +2600,7 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(docKey, vbid, cookie, options);
@@ -2753,7 +2753,7 @@ TEST_P(XattrSystemUserTest, MB_29040) {
     // An expired item should of been pushed to the checkpoint
     EXPECT_EQ(std::make_pair(false, size_t(1)),
               getEPBucket().flushVBucket(vbid));
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv = kvbucket.get(
@@ -3055,7 +3055,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     // Switch to active
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(
@@ -3128,7 +3128,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
     // Switch to active
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(

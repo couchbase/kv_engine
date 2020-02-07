@@ -892,9 +892,9 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
 
 static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     char const *key1 = "key1";
-    uint16_t keylen1 = (uint16_t)strlen(key1);
+    auto keylen1 = (uint16_t)strlen(key1);
     char const *key2 = "key2";
-    uint16_t keylen2 = (uint16_t)strlen(key2);
+    auto keylen2 = (uint16_t)strlen(key2);
 
     // check the stat
     size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
@@ -1206,7 +1206,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     size_t keylen = strlen(key);
     const char* val = "somevalue";
     const char* newVal = "someothervalue";
-    uint16_t newValLen = (uint16_t)strlen(newVal);
+    auto newValLen = (uint16_t)strlen(newVal);
 
     // check the stat
     checkeq(0, get_int_stat(h, "ep_num_ops_set_meta"), "Expect zero ops");

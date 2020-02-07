@@ -549,7 +549,7 @@ private:
 static bool batchWarmupCallback(Vbid vbId,
                                 const std::set<StoredDocKey>& fetches,
                                 void* arg) {
-    WarmupCookie *c = static_cast<WarmupCookie *>(arg);
+    auto *c = static_cast<WarmupCookie *>(arg);
 
     if (!c->epstore->maybeEnableTraffic()) {
         vb_bgfetch_queue_t items2fetch;
@@ -741,7 +741,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
             }
 
-            EPVBucket* epVb = dynamic_cast<EPVBucket*>(vb.get());
+            auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
             if (!epVb) {
                 setStatus(ENGINE_NOT_MY_VBUCKET);
                 return;

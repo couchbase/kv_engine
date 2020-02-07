@@ -40,7 +40,7 @@ void ItemEviction::reset() {
 
 std::pair<uint16_t, uint64_t> ItemEviction::getThresholds(
         double freqPercentage, double agePercentage) const {
-    uint16_t freqThreshold = gsl::narrow<uint16_t>(
+    auto freqThreshold = gsl::narrow<uint16_t>(
             freqHistogram.getValueAtPercentile(freqPercentage));
     uint64_t ageThreshold = ageHistogram.getValueAtPercentile(agePercentage);
     return std::make_pair(freqThreshold, ageThreshold);

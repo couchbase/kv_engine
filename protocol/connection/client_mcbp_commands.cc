@@ -930,7 +930,7 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         buf.insert(buf.end(), p, p + 4);
     }
     if (!isNone(docFlags)) {
-        const uint8_t* doc_flag_ptr =
+        const auto* doc_flag_ptr =
                 reinterpret_cast<const uint8_t*>(&docFlags);
         buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
     }
@@ -1088,7 +1088,7 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
         buf.insert(buf.end(), p, p + 4);
     }
     if (!isNone(docFlags)) {
-        const uint8_t* doc_flag_ptr =
+        const auto* doc_flag_ptr =
                 reinterpret_cast<const uint8_t*>(&docFlags);
         buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
     }

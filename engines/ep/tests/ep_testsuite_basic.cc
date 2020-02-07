@@ -386,7 +386,7 @@ struct multi_set_args {
 
 extern "C" {
     static void multi_set_thread(void *arg) {
-        struct multi_set_args *msa = static_cast<multi_set_args *>(arg);
+        auto *msa = static_cast<multi_set_args *>(arg);
 
         for (int i = 0; i < msa->count; i++) {
             std::stringstream s;

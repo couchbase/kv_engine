@@ -203,7 +203,7 @@ TEST(ClientOpcode_to_string, LegalValues) {
 
 TEST(ClientOpcode_to_string, InvalidValues) {
     for (int ii = 0; ii < 0x100; ++ii) {
-        ClientOpcode opcode = ClientOpcode(ii);
+        auto opcode = ClientOpcode(ii);
         if (client_blueprint.find(opcode) == client_blueprint.end()) {
             EXPECT_THROW(to_string(opcode), std::invalid_argument);
         }

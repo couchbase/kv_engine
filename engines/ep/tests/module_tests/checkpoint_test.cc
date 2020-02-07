@@ -135,7 +135,7 @@ struct thread_args {
 };
 
 static void launch_persistence_thread(void *arg) {
-    struct thread_args *args = static_cast<struct thread_args *>(arg);
+    auto *args = static_cast<struct thread_args *>(arg);
     args->gate.threadUp();
 
     bool flush = false;
@@ -170,7 +170,7 @@ static void launch_persistence_thread(void *arg) {
 }
 
 static void launch_dcp_client_thread(void* arg) {
-    struct thread_args *args = static_cast<struct thread_args *>(arg);
+    auto *args = static_cast<struct thread_args *>(arg);
     args->gate.threadUp();
 
     bool flush = false;
@@ -189,7 +189,7 @@ static void launch_dcp_client_thread(void* arg) {
 }
 
 static void launch_checkpoint_cleanup_thread(void *arg) {
-    struct thread_args *args = static_cast<struct thread_args *>(arg);
+    auto *args = static_cast<struct thread_args *>(arg);
     args->gate.threadUp();
 
     while (args->checkpoint_manager->getNumOfCursors() > 1) {
@@ -202,7 +202,7 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
 }
 
 static void launch_set_thread(void *arg) {
-    struct thread_args *args = static_cast<struct thread_args *>(arg);
+    auto *args = static_cast<struct thread_args *>(arg);
     args->gate.threadUp();
 
     int i(0);

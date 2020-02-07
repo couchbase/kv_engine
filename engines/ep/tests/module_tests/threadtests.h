@@ -62,7 +62,7 @@ template <typename T> class SyncTestThread;
 
 template <typename T>
 static void launch_sync_test_thread(void *arg) {
-    SyncTestThread<T> *stt = static_cast<SyncTestThread<T>*>(arg);
+    auto *stt = static_cast<SyncTestThread<T>*>(arg);
     stt->run();
 }
 

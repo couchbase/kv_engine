@@ -123,7 +123,7 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 
             size_t length;
             if (isRange(it, filter.acceptable.end(), length)) {
-                std::set<Vbid>::iterator last = it;
+                auto last = it;
                 for (size_t i = 0; i < length; ++i) {
                     ++last;
                 }
@@ -3022,8 +3022,8 @@ bool VBucket::hasMemoryForStoredValue(
         EPStats& st,
         const Item& item,
         UseActiveVBMemThreshold useActiveVBMemThreshold) {
-    double newSize = static_cast<double>(estimateNewMemoryUsage(st, item));
-    double maxSize = static_cast<double>(st.getMaxDataSize());
+    auto newSize = static_cast<double>(estimateNewMemoryUsage(st, item));
+    auto maxSize = static_cast<double>(st.getMaxDataSize());
     if (useActiveVBMemThreshold == UseActiveVBMemThreshold::Yes ||
         getState() == vbucket_state_active) {
         return newSize <= (maxSize * mutationMemThreshold);

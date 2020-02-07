@@ -115,7 +115,7 @@ private:
     static constexpr size_t MAX_THREADS = 500;
 
     AtomicPtr<std::queue<T> > *initialize() {
-        std::queue<T> *q = new std::queue<T>;
+        auto *q = new std::queue<T>;
         size_t i(counter++);
         if (counter > MAX_THREADS) {
             throw std::overflow_error("AtomicQueue::initialize: exceeded maximum allowed threads");

@@ -218,7 +218,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
 (benchmark::State& state) {
     const auto itemCount = state.range(1);
     int itemsFlushedTotal = 0;
-    FlushMode mode = FlushMode(state.range(2));
+    auto mode = FlushMode(state.range(2));
 
     // Memory size before flushing.
     size_t baseBytes = 0;

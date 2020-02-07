@@ -254,7 +254,7 @@ struct tk_context {
 static void tk_iterfunc(const std::string& key,
                         const topkey_item_t& it,
                         void* arg) {
-    struct tk_context* c = (struct tk_context*)arg;
+    auto* c = (struct tk_context*)arg;
     char val_str[500];
     /* Note we use accessed time for both 'atime' and 'ctime' below. They have
      * had the same value since the topkeys code was added; but given that
@@ -291,7 +291,7 @@ static void tk_iterfunc(const std::string& key,
 static void tk_jsonfunc(const std::string& key,
                         const topkey_item_t& it,
                         void* arg) {
-    struct tk_context* c = (struct tk_context*)arg;
+    auto* c = (struct tk_context*)arg;
     if (c->array == nullptr) {
         throw std::invalid_argument("tk_jsonfunc: c->array can't be nullptr");
     }

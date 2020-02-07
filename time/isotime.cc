@@ -55,7 +55,7 @@ int ISOTime::generatetimestamp(ISO8601String &destination,
 
     double total_seconds_diff = difftime(local, utc);
     double total_minutes_diff = total_seconds_diff / 60;
-    int32_t hours = (int32_t)(total_minutes_diff / 60);
+    auto hours = (int32_t)(total_minutes_diff / 60);
     int32_t minutes = (int32_t)(total_minutes_diff) % 60;
 
     int offset = checked_snprintf(destination.data(), destination.size(),

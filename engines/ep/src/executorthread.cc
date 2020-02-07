@@ -32,7 +32,7 @@
 
 extern "C" {
     static void launch_executor_thread(void *arg) {
-        ExecutorThread *executor = (ExecutorThread*) arg;
+        auto *executor = (ExecutorThread*) arg;
         executor->run();
     }
 }

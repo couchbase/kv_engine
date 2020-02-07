@@ -281,7 +281,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     }
 
     /* Run the HTCleaner task, so that we can wake up the stale item deleter */
-    EphemeralBucket* bucket = dynamic_cast<EphemeralBucket*>(store);
+    auto* bucket = dynamic_cast<EphemeralBucket*>(store);
     bucket->enableTombstonePurgerTask();
     bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
 

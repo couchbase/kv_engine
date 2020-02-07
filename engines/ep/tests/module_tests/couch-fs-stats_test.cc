@@ -28,7 +28,7 @@ public:
 
     couch_file_handle constructor(couchstore_error_info_t *errinfo) override {
             FileOpsInterface* orig_ops = wrapped_ops.get();
-            StatFile* sf = new StatFile(orig_ops,
+            auto* sf = new StatFile(orig_ops,
                                         orig_ops->constructor(errinfo),
                                         0);
         return reinterpret_cast<couch_file_handle>(sf);

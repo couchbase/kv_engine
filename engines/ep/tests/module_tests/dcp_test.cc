@@ -309,7 +309,7 @@ std::unique_ptr<Item> DCPTest::makeItemWithXattrs() {
 
 std::unique_ptr<Item> DCPTest::makeItemWithoutXattrs() {
     std::string valueData = R"({"json":"yes"})";
-    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     return std::make_unique<Item>(makeStoredDocKey("key"),
                                   /*flags*/ 0,
                                   /*exp*/ 0,
@@ -1182,7 +1182,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     // to DcpConnMap - the mock just exposes normally private data - and so
     // this /seems/ ok.
     // As such allow it in general, but skip this test under UBSan.
-    MockDcpConnMap& mockConnMap =
+    auto& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     mockConnMap.addConn(cookie, producer);
     EXPECT_TRUE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));

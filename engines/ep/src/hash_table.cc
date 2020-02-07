@@ -214,7 +214,7 @@ static size_t nearest(size_t n, size_t a, size_t b) {
 }
 
 static bool isCurrently(size_t size, ssize_t a, ssize_t b) {
-    ssize_t current(static_cast<ssize_t>(size));
+    auto current(static_cast<ssize_t>(size));
     return (current == a || current == b);
 }
 
@@ -224,7 +224,7 @@ void HashTable::resize() {
     size_t new_size(0);
 
     // Figure out where in the prime table we are.
-    ssize_t target(static_cast<ssize_t>(ni));
+    auto target(static_cast<ssize_t>(ni));
     for (i = 0; prime_size_table[i] > 0 && prime_size_table[i] < target; ++i) {
         // Just looking...
     }

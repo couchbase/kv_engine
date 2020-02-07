@@ -786,7 +786,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
             data = inflated;
         }
 
-        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+        auto datatype = PROTOCOL_BINARY_RAW_BYTES;
         if (checkUTF8JSON(reinterpret_cast<const uint8_t*>(data.data()),
                           data.size())) {
             datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -812,7 +812,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
                              MetaData::getMetaDataSize(MetaData::Version::V1)));
 
 
-    DocInfo* docInfo = reinterpret_cast<DocInfo*>(buffer);
+    auto* docInfo = reinterpret_cast<DocInfo*>(buffer);
 
     // Deep-copy the incoming DocInfo, then we'll fix the pointers/buffer data
     *docInfo = **info;
@@ -889,7 +889,7 @@ static int notify_expired_item(DocInfo& info,
 }
 
 static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
-    compaction_ctx* ctx = static_cast<compaction_ctx*>(ctx_p);
+    auto* ctx = static_cast<compaction_ctx*>(ctx_p);
 
     if (info == nullptr) {
         // Compaction finished
@@ -1501,7 +1501,7 @@ ScanContext* CouchKVStore::initScanContext(
         scans[scanId] = db.releaseDb();
     }
 
-    ScanContext* sctx = new ScanContext(cb,
+    auto* sctx = new ScanContext(cb,
                                         cl,
                                         vbid,
                                         scanId,
@@ -1921,7 +1921,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
 
 int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
-    ScanContext* sctx = static_cast<ScanContext*>(ctx);
+    auto* sctx = static_cast<ScanContext*>(ctx);
     auto* cb = sctx->callback.get();
     auto* cl = sctx->lookup.get();
 
@@ -2630,11 +2630,11 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
                 "be non-NULL");
     }
 
-    GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
+    auto *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
     auto key = makeDiskDocKey(docinfo->id);
     KVStoreStats& st = cbCtx->cks.getKVStoreStat();
 
-    vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(key);
+    auto qitr = cbCtx->fetches.find(key);
     if (qitr == cbCtx->fetches.end()) {
         // this could be a serious race condition in couchstore,
         // log a warning message and continue
@@ -2952,7 +2952,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
 }
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
-    AllKeysCtx *allKeysCtx = (AllKeysCtx *)ctx;
+    auto *allKeysCtx = (AllKeysCtx *)ctx;
     auto key = makeDiskDocKey(docinfo->id);
     (allKeysCtx->cb)->callback(key);
     if (--(allKeysCtx->count) <= 0) {

@@ -81,7 +81,7 @@ TEST_F(CollectionsTest, namespace_separation) {
 
     // evict and load - should not see the system key for create collections
     evict_key(vbid, key);
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     GetValue gv = store->get(key, vbid, cookie, options);
@@ -131,7 +131,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // And read a document from beef
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
@@ -316,7 +316,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // The dairy:2 collection is empty
-    get_options_t options = static_cast<get_options_t>(
+    auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
 

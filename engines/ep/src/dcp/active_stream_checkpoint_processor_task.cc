@@ -52,7 +52,7 @@ bool ActiveStreamCheckpointProcessorTask::run() {
 
         if (streams) {
             for (auto rh = streams->rlock(); !rh.end(); rh.next()) {
-                ActiveStream* as = static_cast<ActiveStream*>(rh.get().get());
+                auto* as = static_cast<ActiveStream*>(rh.get().get());
                 as->nextCheckpointItemTask();
             }
         } else {

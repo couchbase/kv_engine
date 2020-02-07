@@ -255,7 +255,7 @@ void ExecutorPool::doneWork(task_type_t taskType) {
 
 bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     LockHolder lh(tMutex);
-    std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
+    auto itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
         EP_LOG_DEBUG("Task id {} not found", uint64_t(taskId));
         return false;
@@ -300,7 +300,7 @@ bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
 
 bool ExecutorPool::_wake(size_t taskId) {
     LockHolder lh(tMutex);
-    std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
+    auto itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
         itr->second.second->wake(itr->second.first);
         return true;
@@ -316,7 +316,7 @@ bool ExecutorPool::wake(size_t taskId) {
 
 bool ExecutorPool::_snooze(size_t taskId, double toSleep) {
     LockHolder lh(tMutex);
-    std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
+    auto itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
         itr->second.second->snooze(itr->second.first, toSleep);
         return true;
