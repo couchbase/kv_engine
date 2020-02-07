@@ -82,7 +82,6 @@ protected:
     const Vbid vbid = Vbid(0);
 
     EngineIface* handle;
-    EngineIface* engine_v1;
     EventuallyPersistentEngine* engine;
     std::string bucketType;
 

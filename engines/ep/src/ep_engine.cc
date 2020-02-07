@@ -2320,8 +2320,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         const void* cookie, const DocKey& key, Vbid vbucket, uint32_t exptime) {
-    auto* handle = reinterpret_cast<EngineIface*>(this);
-
     time_t expiry_time = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
     GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, cookie, expiry_time));
@@ -2331,7 +2329,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         ++stats.numOpsGet;
         ++stats.numOpsStore;
         return cb::makeEngineErrorItemPair(
-                cb::engine_errc::success, gv.item.release(), handle);
+                cb::engine_errc::success, gv.item.release(), this);
     }
 
     if (isDegradedMode()) {
@@ -2359,8 +2357,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
-    auto* handle = reinterpret_cast<EngineIface*>(this);
-
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats.getCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::GetIf));
@@ -2421,7 +2417,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         if (filter(info)) {
             if (!gv.isPartial()) {
                 return cb::makeEngineErrorItemPair(
-                        cb::engine_errc::success, gv.item.release(), handle);
+                        cb::engine_errc::success, gv.item.release(), this);
             }
             // We want this item, but we need to fetch it off disk
         } else {

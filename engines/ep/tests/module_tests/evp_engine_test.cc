@@ -51,8 +51,6 @@ void EventuallyPersistentEngineTest::SetUp() {
     EXPECT_EQ(ENGINE_SUCCESS,
               create_ep_engine_instance(get_mock_server_api, &handle))
             << "Failed to create ep engine instance";
-    engine_v1 = reinterpret_cast<EngineIface*>(handle);
-
     engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(engine);
 
@@ -88,7 +86,7 @@ void EventuallyPersistentEngineTest::TearDown() {
     destroy_mock_cookie(cookie);
     // Need to force the destroy (i.e. pass true) because
     // NonIO threads may have been disabled (see DCPTest subclass).
-    engine_v1->destroy(true);
+    engine->destroy(true);
     ExecutorPool::shutdown();
     // Cleanup any files we created.
     cb::io::rmrf(test_dbname);
