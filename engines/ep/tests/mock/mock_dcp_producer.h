@@ -206,4 +206,8 @@ public:
     void setCloseAllStreamsHook(std::function<void()> hook) {
         closeAllStreamsHook = hook;
     }
+
+    void setSeqnoAckHook(std::function<void()> hook) {
+        seqnoAckHook = hook;
+    }
 };

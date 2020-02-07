@@ -437,6 +437,71 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
     cookie = create_mock_cookie();
 }
 
+/**
+ * MB-37827 highlighted a potential race condition during bucket shutdown. This
+ * race condition is as follows:
+ *
+ * 1) Bucket shutdown starts but has not yet destroyed streams of our given
+ *    producer.
+ *
+ * 2) A seqno ack comes in and gets partially processed. We find the stream in
+ *    the producer but not yet process the ack.
+ *
+ * 3) Bucket shutdown continues and destroys the stream object by removing the
+ *    owning shared_ptr in DcpProducer::closeALlStreams
+ *
+ * 4) Seqno ack processing continues and segfaults when attempting to access the
+ *    stream.
+ */
+TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
+    MockDcpConnMap& mockConnMap =
+            static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    // 1) Create Producer and ensure it is in the ConnMap so that we can emulate
+    // the shutdown
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    mockConnMap.addConn(cookie, producer);
+
+    // 2) Need to enable sync rep for seqno acking and create our stream
+    producer->control(0, "consumer_name", "consumer");
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+
+    uint64_t rollbackSeqno;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      /*opaque*/ 0,
+                                      vbid,
+                                      /*st_seqno*/ 0,
+                                      /*en_seqno*/ ~0,
+                                      /*vb_uuid*/ 0xabcd,
+                                      /*snap_start_seqno*/ 0,
+                                      /*snap_end_seqno*/ ~0,
+                                      &rollbackSeqno,
+                                      fakeDcpAddFailoverLog,
+                                      {}));
+
+    // 3) Set our hook, we just need to simulate bucket shutdown in the hook
+    producer->setSeqnoAckHook(
+            [this, &mockConnMap]() { mockConnMap.shutdownAllConnections(); });
+
+    // 4) Seqno ack. Previously this would segfault due to the stream being
+    // destroyed mid seqno ack.
+    EXPECT_EQ(ENGINE_SUCCESS, producer->seqno_acknowledged(0, vbid, 0));
+
+    mockConnMap.disconnect(cookie);
+    mockConnMap.manageConnections();
+    producer.reset();
+
+    // DcpConnMapp.manageConnections() will reset our cookie so we need to
+    // recreate it for the normal test TearDown to work
+    cookie = create_mock_cookie();
+}
+
 /*
  * MB-31175
  * The following test checks to see that when we call handleSlowStream in an

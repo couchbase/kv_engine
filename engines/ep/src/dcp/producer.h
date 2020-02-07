@@ -630,4 +630,7 @@ protected:
 
     // MB-37702: Test hook set via mock class.
     std::function<void()> closeAllStreamsHook;
+
+    // MB-37827: Test hook set via mock class.
+    std::function<void()> seqnoAckHook;
 };
