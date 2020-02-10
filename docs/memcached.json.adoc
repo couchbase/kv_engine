@@ -350,6 +350,16 @@ The *topkeys_enabled* attribute is a boolean value to enable or disable
 collection of information about the most frequently used keys. If not
 specified its value is set to true.
 
+=== max_send_queue_size
+
+The *max_send_queue_size* attribute is an unsigned number used to
+specify the limit (in MB) of data we may insert in the send queue
+for a given client before we stop accept new commands and wait
+for the client to drain the socket. The motivation is to make sure
+that we don't end up consuming GB of memory serving a single client.
+The max queue size is set to 40MB by default (2x the max document
+size)
+
 === num_reader_threads and num_writer_threads
 
 Specifies the number of reader or writer threads, respectively.
@@ -428,6 +438,7 @@ A Sample memcached.json:
         "datatype_json" : true,
         "datatype_snappy" : true,
         "max_packet_size" : 25,
+        "max_send_queue_size" : 25,
         "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",
         "dedupe_nmvb_maps" : true,
         "xattr_enabled" : true,

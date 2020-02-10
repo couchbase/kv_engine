@@ -446,6 +446,14 @@ static void handle_max_packet_size(Settings& s, const nlohmann::json& obj) {
                        1024);
 }
 
+static void handle_max_send_queue_size(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(
+                R"("max_send_queue_size" must be an unsigned number)");
+    }
+    s.setMaxSendQueueSize(obj.get<size_t>() * 1024 * 1024);
+}
+
 static void handle_max_connections(Settings& s, const nlohmann::json& obj) {
     if (!obj.is_number_unsigned()) {
         cb::throwJsonTypeError(
@@ -695,6 +703,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
             {"breakpad", handle_breakpad},
             {"max_packet_size", handle_max_packet_size},
+            {"max_send_queue_size", handle_max_send_queue_size},
             {"max_connections", handle_max_connections},
             {"system_connections", handle_system_connections},
             {"sasl_mechanisms", handle_sasl_mechanisms},
@@ -907,6 +916,14 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      max_packet_size,
                      other.max_packet_size);
             setMaxPacketSize(other.max_packet_size);
+        }
+    }
+    if (other.has.max_send_queue_size) {
+        if (other.max_send_queue_size != max_send_queue_size) {
+            LOG_INFO("Change max packet size from {}MB to {}MB",
+                     max_send_queue_size / (1024 * 1024),
+                     other.max_send_queue_size / (1024 * 1024));
+            setMaxSendQueueSize(other.max_send_queue_size);
         }
     }
 

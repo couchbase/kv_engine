@@ -534,11 +534,12 @@ void Connection::executeCommandPipeline() {
         return;
     }
 
+    const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     if (!active || cookies.back()->mayReorder()) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
         auto input = bufferevent_get_input(bev.get());
-        bool stop = false;
+        bool stop = (getSendQueueSize() >= maxSendQueueSize);
         while (!stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0) {
             std::unique_ptr<Cookie> cookie;
@@ -571,6 +572,9 @@ void Connection::executeCommandPipeline() {
                         cookie->reset();
                         cookies.push_back(std::move(cookie));
                     }
+                    // Check that we're not reserving too much memory for
+                    // this client...
+                    stop = (getSendQueueSize() >= maxSendQueueSize);
                 } else {
                     active = true;
                     // We need to block so we need to preserve the request
@@ -608,7 +612,7 @@ void Connection::executeCommandPipeline() {
     // the thread to be run again if we've got a pending notification for
     // the thread (an active command running which is waiting for the engine)
     // If the last command in the pipeline may be reordered we can add more
-    if ((getSendQueueSize() < Settings::instance().getMaxPacketSize()) &&
+    if ((getSendQueueSize() < maxSendQueueSize) &&
         (!active || (cookies.back()->mayReorder() &&
                      cookies.size() < maxActiveCommands))) {
         enableReadEvent();
@@ -667,14 +671,15 @@ bool Connection::executeCommandsCallback() {
         if (cookies.front()->empty()) {
             // make sure we reset the privilege context
             cookies.front()->reset();
-            bool more = true;
-            do {
+            const auto maxSendQueueSize =
+                    Settings::instance().getMaxSendQueueSize();
+            bool more = (getSendQueueSize() < maxSendQueueSize);
+            while (more) {
                 const auto ret = getBucket().getDcpIface()->step(
                         static_cast<const void*>(cookies.front().get()), this);
                 switch (remapErrorCode(ret)) {
                 case ENGINE_SUCCESS:
-                    more = (getSendQueueSize() <
-                            Settings::instance().getMaxPacketSize());
+                    more = (getSendQueueSize() < maxSendQueueSize);
                     break;
                 case ENGINE_EWOULDBLOCK:
                     more = false;
@@ -689,7 +694,7 @@ bool Connection::executeCommandsCallback() {
                     state = State::closing;
                     more = false;
                 }
-            } while (more);
+            }
         }
     }
 

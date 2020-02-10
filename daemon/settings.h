@@ -465,6 +465,23 @@ public:
         notify_changed("max_packet_size");
     }
 
+    /// get the max number of bytes we want in the send queue before we
+    /// stop executing new commands for the client until it drains the
+    /// socket
+    size_t getMaxSendQueueSize() const {
+        return max_send_queue_size.load(std::memory_order_acquire);
+    }
+
+    /// Set the new maximum number of bytes we want to store in the send
+    /// queue for the client before we stop executing new commands (or
+    /// add data to a DCP pipe) for a given client to avoid clients
+    /// reserving gigabytes of memory in the server
+    void setMaxSendQueueSize(size_t max) {
+        max_send_queue_size.store(max, std::memory_order_release);
+        has.max_send_queue_size = true;
+        notify_changed("max_send_queue_size");
+    }
+
     /**
      * Get the list of SSL ciphers to use for TLS < 1.3
      *
@@ -901,6 +918,13 @@ protected:
      */
     uint32_t max_packet_size = 0;
 
+    /// The maximum amount of data we want to keep in the send buffer for
+    /// for a client until we pause execution of new commands until the
+    /// client drain the buffer. The motivation for the limit is to avoid
+    /// having one client consume gigabytes of memory. By default the
+    /// limit is set to 40MB (2x the max document size)
+    std::atomic<size_t> max_send_queue_size{40 * 1024 * 1024};
+
     /// The SSL cipher list to use for TLS < 1.3
     folly::Synchronized<std::string> ssl_cipher_list;
 
@@ -1041,6 +1065,7 @@ public:
         bool root = false;
         bool breakpad = false;
         bool max_packet_size = false;
+        bool max_send_queue_size = false;
         bool ssl_cipher_list = false;
         bool ssl_cipher_order = false;
         bool ssl_cipher_suites = false;
