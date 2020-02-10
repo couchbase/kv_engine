@@ -2194,6 +2194,10 @@ TEST_P(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
     // On windows for an empty list we still allocate space for
     // containing one element.
     extra = perElementOverhead;
+#if _DEBUG
+    // additional 16 bytes overhead in an empty list with Debug CRT.
+    extra += 16;
+#endif
 #endif
 
     const size_t reductionInCheckpointMemoryUsage =

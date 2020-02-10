@@ -86,6 +86,20 @@ protected:
     EventuallyPersistentEngine* engine;
     std::string bucketType;
 
+    /**
+     * Maximum number vBuckets to create (reduced from normal production count
+     * of 1024 to minimise test setup / teardown time).
+     */
+    int numVbuckets = 4;
+
+    /**
+     * Maximum number vBuckets to create (reduced from normal production count
+     * of auto-selected from #CPUS to minimise test setup / teardown time).
+     * '2' picked as is enough to still exercise KVShard logic (VBuckets
+     * distributed across > 1 shard).
+     */
+    int numShards = 2;
+
     const void* cookie = nullptr;
 };
 

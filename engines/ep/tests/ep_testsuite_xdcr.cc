@@ -3418,16 +3418,17 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "hlc_drift_ahead_threshold_us=5000000;"
-                 "hlc_drift_behind_threshold_us=0;conflict_resolution_type=lww",
+                 "hlc_drift_behind_threshold_us=0;conflict_resolution_type=lww;"
+                 "max_vbuckets=10;max_num_shards=4",
                  prepare,
                  cleanup),
         TestCase("test del_with_meta and drift stats",
                  test_del_with_meta_and_check_drift_stats,
                  test_setup,
                  teardown,
-                 "hlc_drift_ahead_threshold_us=0;"
-                 "hlc_drift_behind_threshold_us=5000000;conflict_resolution_"
-                 "type=lww",
+                 "hlc_drift_ahead_threshold_us=0;hlc_drift_behind_threshold_us="
+                 "5000000;conflict_resolution_type=lww;max_vbuckets=10;max_num_"
+                 "shards=4",
                  prepare,
                  cleanup),
         TestCase("test setting drift threshold",

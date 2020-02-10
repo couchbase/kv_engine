@@ -1179,13 +1179,13 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                                             VBucketCountVisitor& dead,
                                             const void* cookie,
                                             const AddStatFn& add_stat) {
-// Simplify the repetition of calling add_casted_stat with `add_stat` and
-// cookie each time. (Note: if we had C++14 we could use a polymorphic
-// lambda, but for now will have to stick to C++98 and macros :).
-#define DO_STAT(k, v)                            \
-    do {                                         \
-        add_casted_stat(k, v, add_stat, cookie); \
-    } while (0)
+    // Simplify the repetition of formatting and calling add_stat with cookie each
+    // time by using a generic lambda.
+    auto DO_STAT = [&add_stat, cookie](cb::const_char_buffer key, auto&& value) {
+        fmt::memory_buffer buf;
+        format_to(buf, "{}", value);
+        add_stat(key, {buf.data(), buf.size()}, cookie);
+    };
 
     // Top-level stats:
     DO_STAT("curr_items", active.getNumItems());

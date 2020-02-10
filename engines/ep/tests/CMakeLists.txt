@@ -321,7 +321,17 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
     ENDIF ()
 ENDFUNCTION()
 
-ADD_TESTSUITE(ep_testsuite 300)
+# MB-36252: Skipping ep_testsuite under Magma as intermittently times out on
+# Windows
+# MB-36322: Skipping ep_testsuite under TSan + Magma as
+# intermittently timing out.
+IF(WIN32 OR CB_THREADSANITIZER)
+    # Increased timeout on Windows as suite is slower on CV there (IO subsystem
+    # on CV machines slower?)
+    ADD_TESTSUITE(ep_testsuite 600 SKIP_MAGMA)
+ELSE()
+    ADD_TESTSUITE(ep_testsuite 300)
+ENDIF()
 
 ADD_TESTSUITE(ep_testsuite_basic 600)
 

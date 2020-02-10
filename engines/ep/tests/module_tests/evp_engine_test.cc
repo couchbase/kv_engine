@@ -66,6 +66,10 @@ void EventuallyPersistentEngineTest::SetUp() {
     // Set the bucketType
     config += ";bucket_type=" + bucketType;
 
+    // Setup vBucket and Shard count
+    config += ";max_vbuckets=" + std::to_string(numVbuckets) +
+              ";max_num_shards=" + std::to_string(numShards);
+
     EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
         << "Failed to initialize engine.";
 

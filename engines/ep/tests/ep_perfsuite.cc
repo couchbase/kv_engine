@@ -1640,7 +1640,9 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "backend=couchdb;ht_size=393209"
                  // Test requires ~1GB bucket quota
-                 ";max_size=1000000000",
+                 ";max_size=1000000000"
+                 // Test requires 100 vBuckets.
+                 ";max_vbuckets=100;max_num_shards=4",
                  prepare,
                  cleanup),
 
@@ -1651,7 +1653,9 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "backend=couchdb;ht_size=393209"
                  // Test requires ~1GB bucket quota
-                 ";max_size=1000000000",
+                 ";max_size=1000000000"
+                 // Test requires 100 vBuckets.
+                 ";max_vbuckets=100;max_num_shards=4",
                  prepare,
                  cleanup),
 
@@ -1659,24 +1663,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
 
-        TestCase("Stat latency with 100 active vbuckets",
+        TestCase("Slow Stat latency with 100 active vbuckets",
                  perf_slow_stat_latency_100vb,
                  test_setup,
                  teardown,
                  "backend=couchdb;ht_size=393209"
                  // Test requires ~1GB bucket quota
-                 ";max_size=1000000000",
+                 ";max_size=1000000000"
+                 // Test requires 100 vBuckets.
+                 ";max_vbuckets=100;max_num_shards=4",
                  prepare,
                  cleanup),
 
-        TestCase("Stat latency with 100 vbuckets. Also sets & DCP traffic on "
+        TestCase("Slow Stat latency with 100 vbuckets. Also sets & DCP traffic on "
                  "separate thread",
                  perf_slow_stat_latency_100vb_sets_and_dcp,
                  test_setup,
                  teardown,
                  "backend=couchdb;ht_size=393209"
                  // Test requires ~1GB bucket quota
-                 ";max_size=1000000000",
+                 ";max_size=1000000000"
+                 // Test requires 100 vBuckets.
+                 ";max_vbuckets=100;max_num_shards=4",
                  prepare,
                  cleanup),
 
