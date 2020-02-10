@@ -3390,4 +3390,24 @@ couchstore_error_t CouchKVStore::updateScopes(Db& db) {
             {reinterpret_cast<const char*>(buf.data()), buf.size()});
 }
 
+vbucket_state CouchKVStore::readVBState(Vbid vbid) {
+    DbHolder db(*this);
+    const auto errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        throw std::logic_error("CouchKVStore::readVBState: openDB for vbid:" +
+                               to_string(vbid) + " failed with error " +
+                               std::to_string(static_cast<int8_t>(errorCode)));
+    }
+
+    const auto res = readVBState(db, vbid);
+    if (res.status != ReadVBStateStatus::Success) {
+        throw std::logic_error(
+                "CouchKVStore::readVBState: readVBState for vbid:" +
+                to_string(vbid) + " failed with status " +
+                std::to_string(static_cast<uint8_t>(res.status)));
+    }
+
+    return res.state;
+}
+
 /* end of couch-kvstore.cc */

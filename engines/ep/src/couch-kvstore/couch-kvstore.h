@@ -391,6 +391,14 @@ public:
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Vbid vbid) override;
 
+    /**
+     * Read vbstate from disk. Does not update the cached vbstate.
+     *
+     * @param vbid
+     * @return the persisted vbstate
+     */
+    vbucket_state readVBState(Vbid vbid);
+
 protected:
     /**
      * Internal RAII class for managing a Db* and having it closed when

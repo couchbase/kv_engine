@@ -681,8 +681,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // Also, when we re-attempt to flush a set-vbstate item we may fail again
     // because of the optimization at vbucket_state::needsToBePersisted().
     if (!rwUnderlying->snapshotVBucket(vb->getId(), vbstate, options)) {
-        // @todo: Add test for stressing this code path
-        //
         // Flush failed, we need to reset the pcursor to the original
         // position. At the next run the flusher will re-attempt by retrieving
         // all the items from the disk queue again.

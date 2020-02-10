@@ -30,6 +30,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "couch-kvstore/couch-kvstore.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
@@ -47,6 +48,10 @@
 #include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
+#include "tests/test_fileops.h"
+#include "vbucket_state.h"
+
+#include "../couchstore/src/internal.h"
 
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -4416,4 +4421,291 @@ INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STParameterizedBucketTest,
                         STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
+
+using FlushResult = EPBucket::FlushResult;
+
+/**
+ * We flush if we have at least:
+ *  1) one non-meta item
+ *  2) or, one set-vbstate item in the write queue
+ * In the two cases we execute two different code paths that may both fail and
+ * trigger the reset of the persistence cursor.
+ * This test verifies scenario (1) by checking that we persist all the expected
+ * items when we re-attempt flush.
+ */
+TEST_P(STParamPersistentBucketTest, ResetPCursorAtPersistNonMetaItems) {
+    // About the first two COUCHSTORE_SUCCESS:
+    // - firts, set-vbstate precommit()
+    // - then, set-vbstate couchstore_commit()
+    // They both sync(), see couchstore code for details.
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Active receives PRE(keyA):1, M(keyB):2, D(keyB):3
+    // Note that the set of mutation is just functional to testing that we write
+    // to disk all the required vbstate entries at flush
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {cb::durability::Requirements()});
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {} /*dur-reqs*/,
+                   true /*deleted*/);
+    }
+
+    // M(keyB):2 deduplicated, just 2 items for cursor
+    const auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_EQ(2, vb->checkpointManager->getNumItemsForPersistence());
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+
+    // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
+    //  cached vbstate for verifying persistence would invalidate the test.
+    //  Check the actual vbstate on disk instead.
+    auto& kvStore = dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
+    const auto checkPersistedVBState = [this, &kvStore](
+                                               uint64_t lastSnapStart,
+                                               uint64_t lastSnapEnd,
+                                               uint64_t highSeqno,
+                                               CheckpointType type,
+                                               uint64_t hps,
+                                               uint64_t hcs,
+                                               uint64_t maxDelRevSeqno) {
+        const auto vbs = kvStore.readVBState(vbid);
+        EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+        EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+        EXPECT_EQ(highSeqno, vbs.highSeqno);
+        EXPECT_EQ(type, vbs.checkpointType);
+        EXPECT_EQ(hps, vbs.highPreparedSeqno);
+        EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+        EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+    };
+
+    // This flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkPersistedVBState(0 /*lastSnapStart*/,
+                              0 /*lastSnapEnd*/,
+                              0 /*highSeqno*/,
+                              CheckpointType::Memory,
+                              0 /*HPS*/,
+                              0 /*HCS*/,
+                              0 /*maxDelRevSeqno*/);
+    }
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats updated
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        // Notes: expected (snapStart = snapEnd) for complete snap flushed,
+        //  which is always the case at Active
+        checkPersistedVBState(3 /*lastSnapStart*/,
+                              3 /*lastSnapEnd*/,
+                              3 /*highSeqno*/,
+                              CheckpointType::Memory,
+                              1 /*HPS*/,
+                              0 /*HCS*/,
+                              2 /*maxDelRevSeqno*/);
+    }
+}
+
+/**
+ * We flush if we have at least:
+ *  1) one non-meta item
+ *  2) or, one set-vbstate item in the write queue
+ * In the two cases we execute two different code paths that may both fail and
+ * trigger the reset of the persistence cursor.
+ * This test verifies scenario (2) by checking that we persist the new vbstate
+ * when we re-attempt flush.
+ */
+TEST_P(STParamPersistentBucketTest, ResetPCursorAtPersistVBStateOnly) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
+    //  cached vbstate for verifying persistence would invalidate the test.
+    //  Check the actual vbstate on disk instead.
+    auto& kvStore = dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
+    const auto checkPersistedVBState =
+            [this, &kvStore](vbucket_state_t expectedState) -> void {
+        const auto vbs = kvStore.readVBState(vbid);
+        ASSERT_EQ(expectedState, vbs.transition.state);
+    };
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    {
+        SCOPED_TRACE("");
+        checkPersistedVBState(vbucket_state_active);
+    }
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+
+    const auto checkSetVBStateItemForCursor = [&vb]() -> void {
+        const auto& manager = *vb.checkpointManager;
+        auto pos = CheckpointCursorIntrospector::getCurrentPos(
+                *manager.getPersistenceCursor());
+        ASSERT_EQ(queue_op::set_vbucket_state, (*(pos++))->getOperation());
+    };
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_replica));
+    {
+        SCOPED_TRACE("");
+        checkPersistedVBState(vbucket_state_active);
+        checkSetVBStateItemForCursor();
+        EXPECT_EQ(1, vb.dirtyQueueSize);
+    }
+
+    // This flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkPersistedVBState(vbucket_state_active);
+        checkSetVBStateItemForCursor();
+    }
+
+    // @todo MB-37920: Remove this step, necessary as a workaround.
+    // To trigger a flush to disk, we need to alter the current cached vbstate,
+    // as at the first (failed) flush we wrongly cached the vbstate that we did
+    // not persist. If we skip this step then we would not even re-attempt the
+    // flush as the optimization logic at KVStore::updateCachedVBState sees
+    // "don't need to persist the new vbstate".
+    kvStore.getVBucketState(vbid)->transition.state = vbucket_state_active;
+
+    // This flush succeeds, we must write the new vbstate on disk
+    // Note: set-vbstate items are not accounted in numFlushed
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkPersistedVBState(vbucket_state_replica);
+    }
+}
+
+/**
+ * Check that flush stats are updated only at flush success.
+ */
+TEST_P(STParamPersistentBucketTest,
+       FlushStatsAtPersistNonMetaItems_FlusherDeduplication) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Active receives M(keyA):1, M(keyA):2.
+    // They are queued into different checkpoints. We enforce that as we want to
+    // stress deduplication at flush-vbucket, so we just avoid checkpoint dedup.
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    manager.createNewCheckpoint();
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getNumItemsForPersistence());
+
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    // This flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    // Flusher deduplication, just 1 item flushed
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+              epBucket.flushVBucket(vbid));
+    EXPECT_TRUE(vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved());
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+}
+
+INSTANTIATE_TEST_CASE_P(Persistent,
+                        STParamPersistentBucketTest,
+                        STParameterizedBucketTest::persistentConfigValues(),
                         STParameterizedBucketTest::PrintToStringParamName);

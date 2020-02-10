@@ -58,14 +58,16 @@ public:
     void TearDown() override;
 
     // Stores an item into the given vbucket. Returns the item stored.
-    Item store_item(Vbid vbid,
-                    const DocKey& key,
-                    const std::string& value,
-                    uint32_t exptime = 0,
-                    const std::vector<cb::engine_errc>& expected =
-                            {cb::engine_errc::success},
-                    protocol_binary_datatype_t datatype =
-                            PROTOCOL_BINARY_DATATYPE_JSON);
+    Item store_item(
+            Vbid vbid,
+            const DocKey& key,
+            const std::string& value,
+            uint32_t exptime = 0,
+            const std::vector<cb::engine_errc>& expected =
+                    {cb::engine_errc::success},
+            protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON,
+            boost::optional<cb::durability::Requirements> reqs = {},
+            bool deleted = false);
 
     /**
      * Store multiple items into the vbucket, the given key will have an
