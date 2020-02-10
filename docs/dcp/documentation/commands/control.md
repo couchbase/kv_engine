@@ -32,6 +32,9 @@ like to create multiple DCP streams for a vbucket. Once enabled the client must
 provide a stream-id value to all stream-requests. Note that once enabled on a
 producer, it cannot be disabled.
 
+* `enable_out_of_order_snapshots` = `true` - Tells the server that the client
+supports out of order DCP. The server may, if possible send DCP messages in a
+different order than sequence number order.
 
 The following example shows the breakdown of the message:
 
@@ -57,7 +60,7 @@ The following example shows the breakdown of the message:
         +---------------+---------------+---------------+---------------+
       32| 0x6F          | 0x6F          | 0x70          | 0x74          |
         +---------------+---------------+---------------+---------------+
-      36| 0x72          | 0x75          | 0x65          |         	
+      36| 0x72          | 0x75          | 0x65          |
         +---------------+---------------+---------------+
 
     DCP_CONTROL command

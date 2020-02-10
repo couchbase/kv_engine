@@ -349,6 +349,10 @@ public:
 
     void setIdleTimeout(size_t newValue);
 
+    bool isOutOfOrderSnapshotsEnabled() const {
+        return outOfOrderSnapshots == OutOfOrderSnapshots::Yes;
+    }
+
 protected:
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.
@@ -627,6 +631,11 @@ protected:
      * per vbucket (client must enable this feature)
      */
     MultipleStreamRequests multipleStreamRequests{MultipleStreamRequests::No};
+
+    /**
+     * Does the client support snapshots that are not sequence ordered?
+     */
+    OutOfOrderSnapshots outOfOrderSnapshots{OutOfOrderSnapshots::No};
 
     // MB-37702: Test hook set via mock class.
     std::function<void()> closeAllStreamsHook;

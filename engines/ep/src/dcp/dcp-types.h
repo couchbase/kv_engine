@@ -160,3 +160,9 @@ enum class MultipleStreamRequests : bool {
  * without acking).
  */
 enum class SyncReplication : char { No, SyncWrites, SyncReplication };
+
+/**
+ * OutOfOrderSnapshots determines if the streams created on the producer can
+ * (when possible) return a snapshot in a different order from sequence order.
+ */
+enum class OutOfOrderSnapshots : bool { Yes, No };

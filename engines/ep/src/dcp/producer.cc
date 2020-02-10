@@ -1003,6 +1003,12 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             supportsSyncReplication = SyncReplication::SyncReplication;
         }
         return ENGINE_SUCCESS;
+    } else if (key == "enable_out_of_order_snapshots") {
+        // For simplicity, only enabling is allowed (it is off by default)
+        if (valueStr == "true") {
+            outOfOrderSnapshots = OutOfOrderSnapshots::Yes;
+            return ENGINE_SUCCESS;
+        }
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
