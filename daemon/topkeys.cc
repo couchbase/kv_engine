@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2020 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -254,7 +254,7 @@ struct tk_context {
 static void tk_iterfunc(const std::string& key,
                         const topkey_item_t& it,
                         void* arg) {
-    auto* c = (struct tk_context*)arg;
+    auto* c = static_cast<struct tk_context*>(arg);
     char val_str[500];
     /* Note we use accessed time for both 'atime' and 'ctime' below. They have
      * had the same value since the topkeys code was added; but given that
@@ -291,7 +291,7 @@ static void tk_iterfunc(const std::string& key,
 static void tk_jsonfunc(const std::string& key,
                         const topkey_item_t& it,
                         void* arg) {
-    auto* c = (struct tk_context*)arg;
+    auto* c = static_cast<struct tk_context*>(arg);
     if (c->array == nullptr) {
         throw std::invalid_argument("tk_jsonfunc: c->array can't be nullptr");
     }
@@ -305,7 +305,8 @@ static void tk_jsonfunc(const std::string& key,
 }
 
 static void tk_aggregate_func(const TopKeys::topkey_t& it, void* arg) {
-    auto* map = (std::unordered_map<std::string, topkey_item_t>*)arg;
+    auto* map =
+            static_cast<std::unordered_map<std::string, topkey_item_t>*>(arg);
 
     auto res = map->insert(std::make_pair(it.first.key, it.second));
 
