@@ -59,6 +59,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "Collections";
     case cb::mcbp::Feature::OpenTracing:
         return "OpenTracing";
+    case cb::mcbp::Feature::VAttr:
+        return "VAttr";
     }
 
     throw std::invalid_argument(

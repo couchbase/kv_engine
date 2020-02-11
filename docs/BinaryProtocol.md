@@ -1793,6 +1793,7 @@ The following features is defined:
 | 0x0011 | SyncReplication support |
 | 0x0012 | Collections |
 | 0x0013 | OpenTracing |
+| 0x0015 | VAttr |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1857,6 +1858,10 @@ The following features is defined:
 * `OpenTracing` This is purely informational (it does not enable / disable
                 anything on the server). It may be used from the client to
                 figure out if the server supports OpenTracing or not.)
+* `VAttr` This is purely information (it does not enable / disable anything on
+          the server). It may be used from the client to determine if the server
+          supports VATTRs in a generic way (can request $<VATTR> and will either
+          succeed or fail with SubdocXattrUnknownVattr). Requires XATTR.
 
 Response:
 
