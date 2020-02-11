@@ -310,6 +310,12 @@ public:
      */
     cb::const_char_buffer get_document_vattr();
 
+    /**
+     * Get the document containing all of the virtual attributes for
+     * the vbucket requested.
+     */
+    cb::const_char_buffer get_vbucket_vattr();
+
     /*
      * Get the xtoc document which contains a list of xattr keys that exist for
      * the document.
@@ -384,5 +390,6 @@ private:
     std::vector<MacroPair> paddedMacros;
 
     std::string document_vattr;
+    std::string vbucket_vattr;
     std::string xtoc_vattr;
 }; // class SubdocCmdContext

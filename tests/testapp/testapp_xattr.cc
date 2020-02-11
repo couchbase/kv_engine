@@ -1254,6 +1254,117 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
 
+// Test that the $vbucket VATTR can be accessed and all properties are present
+TEST_P(XattrTest, MB_35388_VATTR_Vbucket) {
+    // Test to check that we can get both an xattr and the main body in
+    // subdoc multi-lookup
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
+
+    // Sanity checks and setup done lets try the multi-lookup
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$vbucket", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$vbucket.HLC", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$vbucket.HLC.now", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
+
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+
+    auto& results = multiResp.getResults();
+
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+
+    // Ensure that we found all we expected and they're of the correct type:
+    auto json0 = nlohmann::json::parse(results[0].value);
+    EXPECT_EQ(1, json0.size());
+    EXPECT_TRUE(json0.at("HLC").is_object());
+
+    auto json1 = nlohmann::json::parse(results[1].value);
+    EXPECT_TRUE(json1.is_object());
+    EXPECT_EQ(2, json1.size());
+    EXPECT_TRUE(json1.at("now").is_string());
+    EXPECT_TRUE(json1.at("mode").is_string());
+
+    auto json2 = nlohmann::json::parse(results[2].value);
+    EXPECT_TRUE(json2.is_string());
+
+    // Expect that we could find another XATTR (_sync.eg)
+    EXPECT_EQ(cb::mcbp::Status::Success, results[3].status);
+    EXPECT_EQ("99", results[3].value);
+}
+
+// Test that the $vbucket and $document VATTR can be accessed at the same time,
+// along with a normal (system) XATTR
+TEST_P(XattrTest, MB_35388_VATTR_Document_Vbucket) {
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$vbucket", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    auto& results = multiResp.getResults();
+
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(3, results.size());
+    for (const auto& result : results) {
+        EXPECT_EQ(cb::mcbp::Status::Success, result.status);
+    }
+    EXPECT_EQ("99", results[2].value);
+}
+
+// Test that the $vbucket.HLC.now VATTR is at least as large as the
+// last_modified time for the last document written.
+TEST_P(XattrTest, MB_35388_VbucketHlcNowIsValid) {
+    if (!mcd_env->getTestBucket().supportsLastModifiedVattr()) {
+        // Comparing HLC with CAS requires last_modified support.
+        return;
+    }
+
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$document.last_modified", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$vbucket.HLC.mode", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$vbucket.HLC.now", SUBDOC_FLAG_XATTR_PATH);
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    auto& results = multiResp.getResults();
+
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(3, results.size());
+
+    auto lastModifiedJSON = nlohmann::json::parse(results[0].value);
+    EXPECT_TRUE(lastModifiedJSON.is_string());
+    uint64_t lastModified = std::stoull(lastModifiedJSON.get<std::string>());
+
+    EXPECT_EQ("\"real\"", results[1].value);
+
+    auto hlcJSON = nlohmann::json::parse(results[2].value);
+    EXPECT_TRUE(hlcJSON.is_string());
+    uint64_t hlc = std::stoull(hlcJSON.get<std::string>());
+
+    EXPECT_GE(hlc, lastModified);
+    EXPECT_GT(lastModified + 60, hlc)
+            << "Expected difference between document being written and HLC.now "
+               "being read to be under 60s";
+}
+
 // Test that a partial failure on a multi-lookup on a deleted document returns
 // SUBDOC_MULTI_PATH_FAILURE_DELETED
 TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {

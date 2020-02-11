@@ -414,6 +414,10 @@ public:
         return ret;
     }
 
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override {
+        return {};
+    }
+
     cb::engine_errc set_collection_manifest(
             gsl::not_null<const void*> cookie,
             cb::const_char_buffer json) override {

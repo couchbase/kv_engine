@@ -758,6 +758,10 @@ public:
         return real_engine->isXattrEnabled();
     }
 
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override {
+        return real_engine->getVBucketHlcNow(vbucket);
+    }
+
     BucketCompressionMode getCompressionMode() override {
         return real_engine->getCompressionMode();
     }

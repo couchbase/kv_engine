@@ -792,6 +792,8 @@ public:
 
     cb::engine::FeatureSet getFeatures() override;
 
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
+
 protected:
     friend class EpEngineValueChangeListener;
 

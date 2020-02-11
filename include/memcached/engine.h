@@ -129,6 +129,15 @@ struct EngineErrorCasPair {
     engine_errc status;
     uint64_t cas;
 };
+
+/// Result of getVBucketHlcNow()
+struct HlcTime {
+    enum class Mode { Real, Logical };
+
+    /// Seconds since Unix epoch.
+    std::chrono::seconds now;
+    Mode mode;
+};
 } // namespace cb
 
 /**
@@ -620,6 +629,14 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual bool isXattrEnabled() {
         return false;
     }
+
+    /**
+     * Get the "current" time and mode of the Hybrid Logical Clock for the
+     * specified vBucket.
+     * @returns seconds since unix epoch of the HLC, along with the current
+     * HLC Mode (Real / Logical).
+     */
+    virtual cb::HlcTime getVBucketHlcNow(Vbid vbucket) = 0;
 
     /**
      * @returns the compression mode of the bucket

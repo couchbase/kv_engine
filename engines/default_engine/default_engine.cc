@@ -958,6 +958,10 @@ bool default_engine::isXattrEnabled() {
     return config.xattr_enabled;
 }
 
+cb::HlcTime default_engine::getVBucketHlcNow(Vbid) {
+    return {std::chrono::seconds::zero(), cb::HlcTime::Mode::Logical};
+}
+
 BucketCompressionMode default_engine::getCompressionMode() {
     return config.compression_mode;
 }

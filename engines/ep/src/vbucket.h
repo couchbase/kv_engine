@@ -295,6 +295,11 @@ public:
         hlc.setDriftBehindThreshold(threshold);
     }
 
+    /// Returns the current HLC time and which mode it is in.
+    cb::HlcTime getHLCNow() const {
+        return hlc.peekHLC();
+    }
+
     /**
      * @returns a seqno, documents with a seqno >= the returned value have a HLC
      * generated CAS. Can return HlcCasSeqnoUninitialised if warmup has not

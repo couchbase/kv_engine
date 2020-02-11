@@ -1872,6 +1872,10 @@ bool EventuallyPersistentEngine::isXattrEnabled() {
     return getKVBucket()->isXattrEnabled();
 }
 
+cb::HlcTime EventuallyPersistentEngine::getVBucketHlcNow(Vbid vbucket) {
+    return getKVBucket()->getVBucket(vbucket)->getHLCNow();
+}
+
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api)
     : kvBucket(nullptr),

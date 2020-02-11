@@ -586,6 +586,9 @@ static cb::mcbp::Status subdoc_operate_one_path(
             doc = context.get_document_vattr();
         } else if (vattr_key == cb::xattr::vattrs::XTOC) {
             doc = context.get_xtoc_vattr();
+        } else if (vattr_key == cb::xattr::vattrs::VBUCKET) {
+            // replace the document with the vbucket virtual one..
+            doc = context.get_vbucket_vattr();
         } else {
             return cb::mcbp::Status::SubdocXattrUnknownVattr;
         }

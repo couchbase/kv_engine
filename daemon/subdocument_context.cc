@@ -32,6 +32,8 @@
 #include <random>
 #include <sstream>
 
+using namespace std::string_literals;
+
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,
                                                cb::const_char_buffer path_)
@@ -276,6 +278,22 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
     }
 
     return cb::const_char_buffer(document_vattr.data(), document_vattr.size());
+}
+
+cb::const_char_buffer SubdocCmdContext::get_vbucket_vattr() {
+    if (vbucket_vattr.empty()) {
+        auto hlc = connection.getBucketEngine()->getVBucketHlcNow(vbucket);
+        using namespace nlohmann;
+        std::string mode =
+                (hlc.mode == cb::HlcTime::Mode::Real) ? "real"s : "logical"s;
+        json root = {{"$vbucket",
+                      {{"HLC",
+                        {{"now", std::to_string(hlc.now.count())},
+                         {"mode", mode}}}}}};
+        vbucket_vattr = root.dump();
+    }
+
+    return vbucket_vattr;
 }
 
 cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
