@@ -386,17 +386,25 @@ bool is_durability_supported(ClientOpcode opcode) {
 bool is_reorder_supported(ClientOpcode opcode) {
     switch (opcode) {
     case ClientOpcode::Get:
+    case ClientOpcode::Getk:
     case ClientOpcode::Set:
     case ClientOpcode::Add:
     case ClientOpcode::Replace:
     case ClientOpcode::Delete:
     case ClientOpcode::Increment:
     case ClientOpcode::Decrement:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
     case ClientOpcode::Append:
     case ClientOpcode::Prepend:
+    case ClientOpcode::Gat:
+    case ClientOpcode::Touch:
+    case ClientOpcode::EvictKey:
+    case ClientOpcode::GetLocked:
+    case ClientOpcode::UnlockKey:
+    case ClientOpcode::GetReplica:
+        return true;
+
+    case ClientOpcode::Getq:
+    case ClientOpcode::Getkq:
     case ClientOpcode::Setq:
     case ClientOpcode::Addq:
     case ClientOpcode::Replaceq:
@@ -405,15 +413,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::Decrementq:
     case ClientOpcode::Appendq:
     case ClientOpcode::Prependq:
-    case ClientOpcode::Gat:
     case ClientOpcode::Gatq:
-    case ClientOpcode::Touch:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetReplica:
-        return true;
-
     case ClientOpcode::Stat:
     case ClientOpcode::Noop:
     case ClientOpcode::Version:
