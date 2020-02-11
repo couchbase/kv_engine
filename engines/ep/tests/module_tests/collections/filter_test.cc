@@ -297,6 +297,33 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
     }
 }
 
+// class exposes some of the internal state flags
+class CollectionsTestFilter : public Collections::VB::Filter {
+public:
+    CollectionsTestFilter(boost::optional<cb::const_char_buffer> jsonFilter,
+                          const Collections::VB::Manifest& manifest)
+        : Collections::VB::Filter(jsonFilter, manifest) {
+    }
+    /// @return is this filter a passthrough (allows every collection)
+    bool isPassthrough() const {
+        return passthrough;
+    }
+
+    /**
+     * This only makes sense for !passthrough and returns if the filter allows
+     * the default collection (the cached bool). Given this is test code we
+     * aren't checking !passthrough when querying this flag
+     */
+    bool allowDefaultCollection() const {
+        return defaultAllowed;
+    }
+
+    /// @return if system-events are allowed (e.g. create collection)
+    bool allowSystemEvents() const {
+        return systemEventsAllowed;
+    }
+};
+
 /**
  * Construct a valid Collections::Filter and check its public methods
  * This creates a filter which contains a set of collections
@@ -311,7 +338,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter f(json, vbm);
+    CollectionsTestFilter f(json, vbm);
 
     // This is not a passthrough filter
     EXPECT_FALSE(f.isPassthrough());
@@ -321,9 +348,8 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
     // and allow system events
     EXPECT_TRUE(f.allowSystemEvents());
 
-    // The actual filter "list" only stores fruit and meat though, default is
-    // special cased via doesDefaultCollectionExist
-    EXPECT_EQ(2, f.size());
+    // Filter set stores all collections
+    EXPECT_EQ(3, f.size());
 }
 
 /**
@@ -337,15 +363,12 @@ TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
 
     std::string jsonFilter = R"({"scope":"0"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter f(json, vbm);
+    CollectionsTestFilter f(json, vbm);
 
     EXPECT_FALSE(f.isPassthrough());
     EXPECT_TRUE(f.allowDefaultCollection());
     EXPECT_TRUE(f.allowSystemEvents());
-
-    // There are two collections (default and meat) in the default scope,
-    // however we only include the non-default in size
-    EXPECT_EQ(1, f.size());
+    EXPECT_EQ(2, f.size());
 }
 
 /**
@@ -359,7 +382,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1_non_default_scope) {
 
     std::string jsonFilter = R"({"scope":"8"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter f(json, vbm);
+    CollectionsTestFilter f(json, vbm);
 
     EXPECT_FALSE(f.isPassthrough());
     EXPECT_FALSE(f.allowDefaultCollection());
@@ -383,18 +406,14 @@ TEST_F(CollectionsVBFilterTest, filter_basic2) {
 
     std::string jsonFilter; // empty string creates a pass through
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter f(json, vbm);
+    CollectionsTestFilter f(json, vbm);
 
     // This is a passthrough filter
     EXPECT_TRUE(f.isPassthrough());
 
-    // So this filter would send the default
-    EXPECT_TRUE(f.allowDefaultCollection());
-
     // and still allow system events
     EXPECT_TRUE(f.allowSystemEvents());
 
-    // The actual filter "list" stores nothing
     EXPECT_EQ(0, f.size());
 }
 
@@ -411,7 +430,7 @@ TEST_F(CollectionsVBFilterTest, filter_legacy) {
 
     // No string...
     boost::optional<cb::const_char_buffer> json;
-    Collections::VB::Filter f(json, vbm);
+    CollectionsTestFilter f(json, vbm);
 
     // Not a pass through
     EXPECT_FALSE(f.isPassthrough());
@@ -422,8 +441,7 @@ TEST_F(CollectionsVBFilterTest, filter_legacy) {
     // Does not allow system events
     EXPECT_FALSE(f.allowSystemEvents());
 
-    // The actual filter "list" stores nothing
-    EXPECT_EQ(0, f.size());
+    EXPECT_EQ(1, f.size());
 }
 
 /**
@@ -440,7 +458,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // Yes to these guys
     EXPECT_TRUE(
@@ -495,7 +513,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_default_scope) {
     std::string jsonFilter = R"({"scope":"0"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // Yes to default and dairy
     EXPECT_TRUE(
@@ -535,7 +553,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
     std::string jsonFilter = R"({"scope":"8"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // Yes to dairy2
     EXPECT_TRUE(
@@ -574,7 +592,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
 
     boost::optional<cb::const_char_buffer> json;
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     // Legacy would only allow default
     EXPECT_TRUE(
             checkAndUpdate(vbf,
@@ -604,7 +622,7 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
     boost::optional<cb::const_char_buffer> json(filterJson);
 
     // Everything is allowed (even junk, which isn't the filter's job to police)
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -657,7 +675,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     // Now filter!
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     EXPECT_FALSE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -712,7 +730,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     std::string jsonFilter = R"({"collections":["8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
@@ -778,7 +796,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     std::string jsonFilter = R"({"collections":["0", "8"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -852,7 +870,7 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     std::string jsonFilter;
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
     EXPECT_TRUE(checkAndUpdate(vbf,
@@ -887,7 +905,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     std::string jsonFilter = R"({"collections":["0", "8"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -935,7 +953,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
     std::string jsonFilter = R"({"scope":"0"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // default (default) system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -983,7 +1001,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
     std::string jsonFilter = R"({"scope":"8"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // meat (shop1) system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -1031,7 +1049,7 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
 
     boost::optional<cb::const_char_buffer> json;
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // All system events dropped by this empty/legacy filter
     EXPECT_FALSE(checkAndUpdate(vbf,
@@ -1057,7 +1075,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
 
     std::string jsonFilter = R"({"scope":"8"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // Only have meat in this filter
     ASSERT_EQ(vbf.size(), 1);
@@ -1089,7 +1107,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     // scope 8 is shop1
     std::string jsonFilter = R"({"scope":"8"})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
 
     // 2 collections in this filter
     ASSERT_EQ(vbf.size(), 2);
@@ -1132,7 +1150,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     // Create the filter
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     EXPECT_EQ(vbf.size(), 0);
 
     // Now add a new collection
@@ -1165,7 +1183,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
     std::string jsonFilter = R"({"collections":["9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::VB::Filter vbf(json, vbm);
+    CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},

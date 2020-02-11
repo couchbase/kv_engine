@@ -46,7 +46,7 @@ Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
     if (!jsonFilter.is_initialized()) {
         // Ask the manifest object if the default collection exists?
         if (manifest.lock().doesDefaultCollectionExist()) {
-            defaultAllowed = true;
+            enableDefaultCollection();
             return;
         } else {
             throw cb::engine_error(cb::engine_errc::unknown_collection,
@@ -61,12 +61,14 @@ Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
     // events are allowed
     systemEventsAllowed = true;
 
-    // Assume passthrough/defaultAllowed constructFromJson will correct
+    // Assume passthrough constructFromJson will correct if we reach it
     passthrough = true;
-    defaultAllowed = true;
     if (json.empty()) {
         return;
     } else {
+        // assume default, constructFromJson will correct based on the JSON
+        enableDefaultCollection();
+
         try {
             constructFromJson(json, manifest);
         } catch (const std::invalid_argument& e) {
@@ -129,14 +131,14 @@ void Filter::constructFromJson(cb::const_char_buffer json,
                                    "both scope and collections");
         }
         passthrough = false;
-        defaultAllowed = false;
+        disableDefaultCollection();
         auto scope = cb::getJsonObject(
                 parsed, ScopeKey, ScopeType, "Filter::constructFromJson");
         addScope(scope, manifest);
     } else {
         if (collectionsObject != parsed.end()) {
             passthrough = false;
-            defaultAllowed = false;
+            disableDefaultCollection();
             auto jsonCollections =
                     cb::getJsonObject(parsed,
                                       CollectionsKey,
@@ -185,7 +187,7 @@ void Filter::addCollection(const nlohmann::json& object,
     }
 
     if (cid.isDefaultCollection()) {
-        defaultAllowed = true;
+        enableDefaultCollection();
     } else {
         this->filter.insert(cid);
     }
@@ -209,7 +211,7 @@ void Filter::addScope(const nlohmann::json& object,
     scopeID = sid;
     for (const auto& cid : *collections) {
         if (cid.isDefaultCollection()) {
-            defaultAllowed = true;
+            enableDefaultCollection();
         } else {
             this->filter.insert(cid);
         }
@@ -249,7 +251,7 @@ bool Filter::remove(const Item& item) {
 
     CollectionID collection = getCollectionIDFromKey(item.getKey());
     if (collection == CollectionID::Default && defaultAllowed) {
-        defaultAllowed = false;
+        disableDefaultCollection();
         return true;
     } else {
         return filter.erase(collection);
@@ -257,6 +259,11 @@ bool Filter::remove(const Item& item) {
 }
 
 bool Filter::empty() const {
+    // Passthrough filters are never empty
+    if (passthrough) {
+        return false;
+    }
+
     if (scopeID) {
         return scopeIsDropped;
     }
@@ -370,6 +377,17 @@ bool Filter::processScopeEvent(const Item& item) {
     }
 
     return false;
+}
+
+void Filter::enableDefaultCollection() {
+    defaultAllowed = true;
+    // For simpler client usage, insert in the set
+    filter.insert(CollectionID::Default);
+}
+
+void Filter::disableDefaultCollection() {
+    defaultAllowed = false;
+    filter.erase(CollectionID::Default);
 }
 
 void Filter::addStats(const AddStatFn& add_stat,

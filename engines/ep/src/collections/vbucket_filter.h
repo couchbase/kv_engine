@@ -169,19 +169,6 @@ public:
         return filter.size();
     }
 
-    /// @return is this filter a passthrough (allows every collection)
-    bool isPassthrough() const {
-        return passthrough;
-    }
-
-    bool allowDefaultCollection() const {
-        return defaultAllowed;
-    }
-
-    bool allowSystemEvents() const {
-        return systemEventsAllowed;
-    }
-
     std::string getUid() const;
 
     cb::mcbp::DcpStreamId getStreamId() const {
@@ -249,6 +236,16 @@ protected:
      * Called Item represents a scope system event
      */
     bool processScopeEvent(const Item& item);
+
+    /**
+     * Enable the default collection at construction time
+     */
+    void enableDefaultCollection();
+
+    /**
+     * Disable the default collection
+     */
+    void disableDefaultCollection();
 
     using Container = ::std::unordered_set<CollectionID>;
     Container filter;
