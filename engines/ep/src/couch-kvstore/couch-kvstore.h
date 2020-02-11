@@ -353,10 +353,7 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            Vbid vbid) override;
-
-    void freeFileHandle(KVFileHandle* kvFileHandle) const override;
+    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
     /**
      * prepareToCreate will increment the revision number of the vbucket, but is
@@ -808,10 +805,6 @@ protected:
     /* pending file deletions */
     folly::Synchronized<std::queue<std::string>> pendingFileDeletions;
 
-    std::atomic<size_t> scanCounter; //atomic counter for generating scan id
-    std::map<size_t, Db*> scans; //map holding active scans
-    std::mutex scanLock; //lock guarding the scan map
-
     BucketLogger& logger;
 
     /**
@@ -850,8 +843,7 @@ private:
 
     class CouchKVFileHandle : public ::KVFileHandle {
     public:
-        CouchKVFileHandle(CouchKVStore& kvstore)
-            : ::KVFileHandle(kvstore), db(kvstore) {
+        CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
         }
 
         ~CouchKVFileHandle() override {

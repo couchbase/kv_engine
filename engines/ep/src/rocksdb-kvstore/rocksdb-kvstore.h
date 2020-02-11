@@ -292,19 +292,7 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            Vbid vbid) override {
-        // TODO JWW 2018-07-30 implement this fully - for now return something
-        // as this function is called from warmup
-
-        return std::unique_ptr<KVFileHandle, KVFileHandleDeleter>{
-                new KVFileHandle(*this)};
-    }
-
-    void freeFileHandle(KVFileHandle* kvFileHandle) const override {
-        // TODO JWW 2018-08-14 implement this dependent on makeFileHandle
-        delete kvFileHandle;
-    }
+    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
     boost::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle,
@@ -515,8 +503,6 @@ private:
 
     std::unique_ptr<TransactionContext> transactionCtx;
 
-    std::atomic<size_t> scanCounter; // atomic counter for generating scan id
-
     // The number of total hits in the SeqnoCF when executing 'scan()'.
     // Note that it is equal to number of times we perform a point lookup from
     // the DefaultCF.
@@ -536,8 +522,12 @@ private:
     };
     using SnapshotPtr =
             std::unique_ptr<const rocksdb::Snapshot, SnapshotDeleter>;
-    std::map<size_t, SnapshotPtr> scanSnapshots;
-    std::mutex scanSnapshotsMutex;
+
+    class RocksDBHandle : public ::KVFileHandle {
+    public:
+        RocksDBHandle(RocksDBKVStore& kvstore, rocksdb::DB& db);
+        SnapshotPtr snapshot;
+    };
 
     BucketLogger& logger;
 };

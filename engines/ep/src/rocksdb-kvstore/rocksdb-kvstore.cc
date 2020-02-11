@@ -293,7 +293,6 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
       vbHandles(configuration.getMaxVBuckets()),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       in_transaction(false),
-      scanCounter(0),
       logger(configuration.getLogger()) {
     cachedVBStates.resize(configuration.getMaxVBuckets());
     writeOptions.sync = true;
@@ -1415,6 +1414,15 @@ int64_t RocksDBKVStore::getVbstateKey() {
     return -9999;
 }
 
+RocksDBKVStore::RocksDBHandle::RocksDBHandle(RocksDBKVStore& kvstore,
+                                             rocksdb::DB& rdb)
+    : snapshot(rdb.GetSnapshot(), rdb) {
+}
+
+std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) {
+    return std::make_unique<RocksDBHandle>(*this, *rdb);
+}
+
 ScanContext* RocksDBKVStore::initScanContext(
         std::shared_ptr<StatusCallback<GetValue>> cb,
         std::shared_ptr<StatusCallback<CacheLookup>> cl,
@@ -1422,12 +1430,6 @@ ScanContext* RocksDBKVStore::initScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions) {
-    size_t scanId = scanCounter++;
-
-    {
-        std::lock_guard<std::mutex> lg(scanSnapshotsMutex);
-        scanSnapshots.emplace(scanId, SnapshotPtr(rdb->GetSnapshot(), *rdb));
-    }
 
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
@@ -1439,7 +1441,7 @@ ScanContext* RocksDBKVStore::initScanContext(
             cb,
             cl,
             vbid,
-            scanId,
+            makeFileHandle(vbid),
             startSeqno,
             state->highSeqno,
             0, /*TODO RDB: pass the real purge-seqno*/
@@ -1478,11 +1480,8 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
 
     rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
 
-    // Lock for safe access to the scanSnapshots map and to ensure the snapshot
-    // doesn't get destroyed whilst we have the pointer.
-    // @todo use a shared_ptr and reduce the lock scope to just the map::at call
-    std::lock_guard<std::mutex> lg(scanSnapshotsMutex);
-    snapshotOpts.snapshot = scanSnapshots.at(ctx->scanId).get();
+    auto& handle = static_cast<RocksDBHandle&>(*ctx->handle);
+    snapshotOpts.snapshot = handle.snapshot.get();
 
     rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
     const auto vbh = getVBHandle(ctx->vbid);
@@ -1599,13 +1598,7 @@ void RocksDBKVStore::destroyScanContext(ScanContext* ctx) {
     if (ctx == nullptr) {
         return;
     }
-    std::lock_guard<std::mutex> lg(scanSnapshotsMutex);
-    // TODO RDB: Might be nice to have the snapshot in the ctx and
-    // release it on destruction
-    auto it = scanSnapshots.find(ctx->scanId);
-    if (it != scanSnapshots.end()) {
-        scanSnapshots.erase(it);
-    }
+
     delete ctx;
 }
 

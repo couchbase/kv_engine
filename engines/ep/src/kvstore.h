@@ -193,12 +193,24 @@ enum class ValueFilter {
 
 struct vbucket_state;
 
+/**
+ * Abstract file handle class to allow a DB file to be opened and held open
+ * for multiple KVStore methods.
+ */
+class KVFileHandle {
+public:
+    KVFileHandle() {
+    }
+    virtual ~KVFileHandle() {
+    }
+};
+
 class ScanContext {
 public:
     ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
                 std::shared_ptr<StatusCallback<CacheLookup>> cl,
                 Vbid vb,
-                size_t id,
+                std::unique_ptr<KVFileHandle> handle,
                 int64_t start,
                 int64_t end,
                 uint64_t purgeSeqno,
@@ -217,7 +229,7 @@ public:
     const int64_t startSeqno;
     const int64_t maxSeqno;
     const uint64_t purgeSeqno;
-    const size_t scanId;
+    const std::unique_ptr<KVFileHandle> handle;
     const Vbid vbid;
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
@@ -467,22 +479,6 @@ private:
     ConcurrentWriteCompact concWriteCompact;
 };
 
-/**
- * Abstract file handle class to allow a DB file to be opened and held open
- * for multiple KVStore methods.
- */
-class KVFileHandle {
-public:
-    KVFileHandle(const KVStore& kvs) : kvs(kvs) {
-    }
-    virtual ~KVFileHandle() {
-    }
-    const KVStore& kvs;
-};
-
-struct KVFileHandleDeleter {
-    void operator()(KVFileHandle* kvFileHandle);
-};
 
 /**
  * Base class representing kvstore operations.
@@ -847,14 +843,7 @@ public:
      * @param vbid the vbucket to open
      * @return a unique_ptr to a new KVFileHandle object
      */
-    virtual std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            Vbid vbid) = 0;
-
-    /**
-     * Free KVFileHandle - KVStore to override and release resources allocated
-     * by makeFileHandle.
-     */
-    virtual void freeFileHandle(KVFileHandle* kvFileHandle) const = 0;
+    virtual std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) = 0;
 
     /**
      * Retrieve the stored item count for the given collection, does not error

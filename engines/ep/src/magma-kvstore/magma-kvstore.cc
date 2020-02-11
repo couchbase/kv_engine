@@ -1409,43 +1409,6 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData,
     return status.ErrorCode();
 }
 
-class MagmaScanContext : public ScanContext {
-public:
-    MagmaScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
-                     std::shared_ptr<StatusCallback<CacheLookup>> cl,
-                     Vbid vbid,
-                     size_t id,
-                     int64_t start,
-                     int64_t end,
-                     uint64_t purgeSeqno,
-                     DocumentFilter _docFilter,
-                     ValueFilter _valFilter,
-                     uint64_t _documentCount,
-                     const vbucket_state& vbucketState,
-                     const KVStoreConfig& _config,
-                     const std::vector<Collections::KVStore::DroppedCollection>&
-                             droppedCollections,
-                     MagmaKVStore::MagmaKVHandle kvHandle)
-        : ScanContext(cb,
-                      cl,
-                      vbid,
-                      id,
-                      start,
-                      end,
-                      purgeSeqno,
-                      _docFilter,
-                      _valFilter,
-                      _documentCount,
-                      vbucketState,
-                      _config,
-                      droppedCollections),
-          kvHandle(kvHandle) {
-    }
-
-private:
-    MagmaKVStore::MagmaKVHandle kvHandle;
-};
-
 ScanContext* MagmaKVStore::initScanContext(
         std::shared_ptr<StatusCallback<GetValue>> cb,
         std::shared_ptr<StatusCallback<CacheLookup>> cl,
@@ -1453,9 +1416,8 @@ ScanContext* MagmaKVStore::initScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions) {
-    size_t scanId = scanCounter++;
-
-    auto kvHandle = getMagmaKVHandle(vbid);
+    auto handle = makeFileHandle(vbid);
+    auto& kvHandle = static_cast<MagmaKVFileHandle&>(*handle).kvHandle;
 
     vbucket_state vbstate;
 
@@ -1527,31 +1489,28 @@ ScanContext* MagmaKVStore::initScanContext(
                 valFilter);
     }
 
-    auto mctx = new MagmaScanContext(cb,
-                                     cl,
-                                     vbid,
-                                     scanId,
-                                     startSeqno,
-                                     highSeqno,
-                                     purgeSeqno,
-                                     options,
-                                     valOptions,
-                                     docCount,
-                                     vbstate,
-                                     configuration,
-                                     collectionsManifest,
-                                     kvHandle);
+    auto mctx = new ScanContext(cb,
+                                cl,
+                                vbid,
+                                std::move(handle),
+                                startSeqno,
+                                highSeqno,
+                                purgeSeqno,
+                                options,
+                                valOptions,
+                                docCount,
+                                vbstate,
+                                configuration,
+                                collectionsManifest);
 
     mctx->logger = logger.get();
     return mctx;
 }
 
-scan_error_t MagmaKVStore::scan(ScanContext* inCtx) {
-    if (!inCtx) {
+scan_error_t MagmaKVStore::scan(ScanContext* ctx) {
+    if (!ctx) {
         return scan_failed;
     }
-
-    auto ctx = static_cast<MagmaScanContext*>(inCtx);
 
     if (ctx->lastReadSeqno == ctx->maxSeqno) {
         logger->TRACE("MagmaKVStore::scan {} lastReadSeqno:{} == maxSeqno:{}",
@@ -1691,9 +1650,8 @@ scan_error_t MagmaKVStore::scan(ScanContext* inCtx) {
     return scan_success;
 }
 
-void MagmaKVStore::destroyScanContext(ScanContext* inCtx) {
-    if (inCtx) {
-        auto ctx = static_cast<MagmaScanContext*>(inCtx);
+void MagmaKVStore::destroyScanContext(ScanContext* ctx) {
+    if (ctx) {
         delete ctx;
     }
 }
@@ -2147,11 +2105,8 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     return true;
 }
 
-std::unique_ptr<KVFileHandle, KVFileHandleDeleter> MagmaKVStore::makeFileHandle(
-        Vbid vbid) {
-    std::unique_ptr<MagmaKVFileHandle, KVFileHandleDeleter> kvfh(
-            new MagmaKVFileHandle(*this, vbid));
-    return std::move(kvfh);
+std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) {
+    return std::make_unique<MagmaKVFileHandle>(*this, vbid);
 }
 
 RollbackResult MagmaKVStore::rollback(Vbid vbid,

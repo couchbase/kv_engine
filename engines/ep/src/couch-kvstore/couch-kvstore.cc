@@ -326,7 +326,6 @@ CouchKVStore::CouchKVStore(KVStoreConfig& config,
       dbname(config.getDBName()),
       dbFileRevMap(dbFileRevMap),
       intransaction(false),
-      scanCounter(0),
       logger(config.getLogger()),
       base_ops(ops) {
     createDataDir(dbname);
@@ -1441,22 +1440,19 @@ ScanContext* CouchKVStore::initScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions) {
-    DbHolder db(*this);
-    couchstore_error_t errorCode =
-            openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::initScanContext: openDB error:{}, "
-                "name:{}/{}.couch.{}",
-                couchstore_strerror(errorCode),
-                dbname,
-                vbid.get(),
-                db.getFileRev());
+    auto handle = makeFileHandle(vbid);
+
+    if (!handle) {
+        // makeFileHandle/openDb will of logged details of failure.
+        logger.warn("CouchKVStore::initScanContext: makeFileHandle failure {}",
+                    vbid.get());
         return nullptr;
     }
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
+    auto& db = couchKvHandle.getDbHolder();
 
     DbInfo info;
-    errorCode = couchstore_db_info(db, &info);
+    auto errorCode = couchstore_db_info(db, &info);
     if (errorCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::initScanContext: couchstore_db_info error:{}",
@@ -1492,28 +1488,21 @@ ScanContext* CouchKVStore::initScanContext(
         return nullptr;
     }
 
-    size_t scanId = scanCounter++;
-
     auto collectionsManifest = getDroppedCollections(*db);
 
-    {
-        LockHolder lh(scanLock);
-        scans[scanId] = db.releaseDb();
-    }
-
     auto* sctx = new ScanContext(cb,
-                                        cl,
-                                        vbid,
-                                        scanId,
-                                        startSeqno,
-                                        info.last_sequence,
-                                        info.purge_seq,
-                                        options,
-                                        valOptions,
-                                        count,
-                                        readVbStateResult.state,
-                                        configuration,
-                                        collectionsManifest);
+                                 cl,
+                                 vbid,
+                                 std::move(handle),
+                                 startSeqno,
+                                 info.last_sequence,
+                                 info.purge_seq,
+                                 options,
+                                 valOptions,
+                                 count,
+                                 readVbStateResult.state,
+                                 configuration,
+                                 collectionsManifest);
     sctx->logger = &logger;
     return sctx;
 }
@@ -1548,16 +1537,8 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
                        "startSeqno",
                        ctx->startSeqno);
 
-    Db* db;
-    {
-        LockHolder lh(scanLock);
-        auto itr = scans.find(ctx->scanId);
-        if (itr == scans.end()) {
-            return scan_failed;
-        }
-
-        db = itr->second;
-    }
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*ctx->handle);
+    auto& db = couchKvHandle.getDbHolder();
 
     uint64_t start = ctx->startSeqno;
     if (ctx->lastReadSeqno != 0) {
@@ -1594,12 +1575,6 @@ void CouchKVStore::destroyScanContext(ScanContext* ctx) {
         return;
     }
 
-    LockHolder lh(scanLock);
-    auto itr = scans.find(ctx->scanId);
-    if (itr != scans.end()) {
-        closeDatabaseHandle(itr->second);
-        scans.erase(itr);
-    }
     delete ctx;
 }
 
@@ -3073,18 +3048,15 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
     }
 }
 
-std::unique_ptr<KVFileHandle, KVFileHandleDeleter> CouchKVStore::makeFileHandle(
-        Vbid vbid) {
-    std::unique_ptr<CouchKVFileHandle, KVFileHandleDeleter> db(
-            new CouchKVFileHandle(*this));
+std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) {
+    auto db = std::make_unique<CouchKVFileHandle>(*this);
     // openDB logs errors
-    openDB(vbid, db->getDbHolder(), COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (openDB(vbid, db->getDbHolder(), COUCHSTORE_OPEN_FLAG_RDONLY) !=
+        COUCHSTORE_SUCCESS) {
+        return {};
+    }
 
     return std::move(db);
-}
-
-void CouchKVStore::freeFileHandle(KVFileHandle* kvFileHandle) const {
-    delete static_cast<CouchKVFileHandle*>(kvFileHandle);
 }
 
 void CouchKVStore::prepareToCreateImpl(Vbid vbid) {

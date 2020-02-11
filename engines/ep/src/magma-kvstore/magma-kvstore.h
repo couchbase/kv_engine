@@ -258,20 +258,13 @@ public:
     class MagmaKVFileHandle : public ::KVFileHandle {
     public:
         MagmaKVFileHandle(MagmaKVStore& kvstore, Vbid vbid)
-            : ::KVFileHandle(kvstore),
-              vbid(vbid),
-              kvHandle(kvstore.getMagmaKVHandle(vbid)) {
+            : vbid(vbid), kvHandle(kvstore.getMagmaKVHandle(vbid)) {
         }
         Vbid vbid;
         MagmaKVHandle kvHandle;
     };
 
-    std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            Vbid vbid) override;
-
-    void freeFileHandle(KVFileHandle* kvFileHandle) const override {
-        delete kvFileHandle;
-    }
+    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
     boost::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;

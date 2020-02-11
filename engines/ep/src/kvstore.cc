@@ -48,7 +48,7 @@ ScanContext::ScanContext(
         std::shared_ptr<StatusCallback<GetValue>> cb,
         std::shared_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vb,
-        size_t id,
+        std::unique_ptr<KVFileHandle> handle,
         int64_t start,
         int64_t end,
         uint64_t purgeSeqno,
@@ -65,7 +65,7 @@ ScanContext::ScanContext(
       startSeqno(start),
       maxSeqno(end),
       purgeSeqno(purgeSeqno),
-      scanId(id),
+      handle(std::move(handle)),
       vbid(vb),
       docFilter(_docFilter),
       valFilter(_valFilter),
@@ -164,10 +164,6 @@ KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     }
 
     return {};
-}
-
-void KVFileHandleDeleter::operator()(KVFileHandle* kvFileHandle) {
-    kvFileHandle->kvs.freeFileHandle(kvFileHandle);
 }
 
 void KVStore::createDataDir(const std::string& dbname) {
