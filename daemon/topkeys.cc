@@ -376,13 +376,13 @@ void TopKeys::doStatsInner(const tk_context& stat_context) {
                   return a.second.ti_access_count > b.second.ti_access_count;
               });
 
-    // 2) Iterate on this set making the required callback for each key. We only
-    // iterate from the start of the container (highest access count) to the
-    // number of keys to return.
-    std::for_each(items.begin(),
-                  std::min(items.begin() + keys_to_return, items.end()),
-                  [stat_context](const topkey_stat_t& t) {
-                      stat_context.callbackFunction(
-                              t.first, t.second, (void*)&stat_context);
-                  });
+    // 2) Iterate on this set making the required callback for each key.
+    // Call for no more than keys_to_return times.
+    size_t count = 0;
+    for (const auto& t : items) {
+        if (++count > keys_to_return) {
+            break;
+        }
+        stat_context.callbackFunction(t.first, t.second, (void*)&stat_context);
+    }
 }

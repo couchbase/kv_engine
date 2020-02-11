@@ -83,10 +83,6 @@ CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
                     .c_str());
 }
 
-void RequestDeleter::operator()(cb::mcbp::Request* request) {
-    delete[] reinterpret_cast<uint8_t*>(request);
-}
-
 template<typename T> class HistogramStats;
 
 // Due to the limitations of the add_stats callback (essentially we cannot pass
@@ -354,42 +350,6 @@ void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
     uint64_t seqno = htonll(meta->revSeqno);
     uint64_t cas = htonll(meta->cas);
     encodeWithMetaExt(buffer, cas, seqno, flags, exp);
-}
-
-unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
-                                Vbid vbid,
-                                uint64_t cas,
-                                cb::const_char_buffer ext,
-                                cb::const_char_buffer key,
-                                cb::const_char_buffer val,
-                                uint8_t datatype,
-                                cb::const_char_buffer meta) {
-    using namespace cb::mcbp;
-
-    const auto total = sizeof(cb::mcbp::Request) + ext.size() + key.size() +
-                       val.size() + meta.size();
-    std::unique_ptr<uint8_t[]> memory(new uint8_t[total]);
-    RequestBuilder builder({memory.get(), total});
-
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(opcode);
-    builder.setVBucket(vbid);
-    builder.setCas(cas);
-    builder.setDatatype(cb::mcbp::Datatype(datatype));
-    builder.setExtras(
-            {reinterpret_cast<const uint8_t*>(ext.data()), ext.size()});
-    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
-    if (meta.empty()) {
-        builder.setValue(
-                {reinterpret_cast<const uint8_t*>(val.data()), val.size()});
-    } else {
-        std::vector<uint8_t> backing;
-        std::copy(val.begin(), val.end(), std::back_inserter(backing));
-        std::copy(meta.begin(), meta.end(), std::back_inserter(backing));
-        builder.setValue({backing.data(), backing.size()});
-    }
-    memory.release();
-    return unique_request_ptr(builder.getFrame());
 }
 
 void createCheckpoint(EngineIface* h) {
