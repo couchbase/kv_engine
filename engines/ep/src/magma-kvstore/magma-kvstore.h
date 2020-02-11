@@ -210,11 +210,7 @@ public:
         return vbinfo;
     }
 
-    DBFileInfo getAggrDbFileInfo() override {
-        // Magma does not support DBFileInfo
-        DBFileInfo vbinfo;
-        return vbinfo;
-    }
+    DBFileInfo getAggrDbFileInfo() override;
 
     size_t getItemCount(Vbid vbid) override;
 

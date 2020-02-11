@@ -2437,3 +2437,10 @@ compaction_ctx MagmaKVStore::makeCompactionContext(Vbid vbid) {
 const KVStoreConfig& MagmaKVStore::getConfig() const {
     return configuration;
 }
+
+DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
+    Magma::MagmaStats stats;
+    magma->GetStats(stats);
+    DBFileInfo vbinfo(stats.ActiveDiskUsage, stats.ActiveDataSize);
+    return vbinfo;
+}
