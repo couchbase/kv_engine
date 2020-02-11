@@ -2301,7 +2301,11 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     {
         // If we can get the lock we know the thread is waiting for destroy.
         std::lock_guard<std::mutex> lh(destroy_cv);
+        // suppress clang static analyzer false positive as destroy_signaled
+        // is used after its written to in another thread.
+#ifndef __clang_analyzer__
         destroy_signaled = true;
+#endif
         destroy_cv.notify_one(); // move the thread on.
     }
 

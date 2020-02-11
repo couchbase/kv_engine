@@ -23,11 +23,6 @@
 #define NUM_THREADS 50
 #define NUM_TIMES 10000
 
-// Clang analyzer doesn't really understand
-// our custom smart-pointers so we'll skip compiling
-// this test under the clang analyzer
-#ifndef __clang_analyzer__
-
 class Doodad : public RCValue {
 public:
     Doodad() {
@@ -54,8 +49,8 @@ std::atomic<int> Doodad::numInstances(0);
 
 class AtomicPtrTest : public Generator<bool> {
 public:
-
-    AtomicPtrTest(RCPtr<Doodad> *p) : ptr(p) {}
+    explicit AtomicPtrTest(RCPtr<Doodad>* p) : ptr(p) {
+    }
 
     bool operator()() {
         for (int i = 0; i < NUM_TIMES; ++i) {
@@ -103,13 +98,13 @@ public:
     }
 
 private:
-    RCPtr<Doodad> *ptr;
+    RCPtr<Doodad>* ptr;
 };
 
 static void testAtomicPtr() {
     // Just do a bunch.
     RCPtr<Doodad> dd;
-    AtomicPtrTest *testGen = new AtomicPtrTest(&dd);
+    auto* testGen = new AtomicPtrTest(&dd);
 
     getCompletedThreads<bool>(NUM_THREADS, testGen);
 
@@ -126,7 +121,7 @@ static void testOperators() {
     dd.reset();
     cb_assert(!dd);
 
-    Doodad *d = new Doodad;
+    auto* d = new Doodad;
     dd.reset(d);
     cb_assert((void*)(d) == (void*)(&(*dd)));
     dd.reset();
@@ -134,29 +129,34 @@ static void testOperators() {
     cb_assert(Doodad::getNumInstances() == 0);
 }
 
-/// Class which records whenever it's refcount changes.
-struct TrackingRCValue {
-    int _rc_incref() {
-        auto newRC = ++refcount;
+struct TrackingInt {
+    TrackingInt(int v) : value(v){};
+    ~TrackingInt() = default;
+    int operator++() {
+        auto newRC = ++value;
         history.push_back(newRC);
         return newRC;
     }
-
-    int _rc_decref() {
-        auto newRC = --refcount;
+    int operator--() {
+        auto newRC = --value;
         history.push_back(newRC);
         return newRC;
     }
-
-    TrackingRCValue& getRCValue() {
-        return *this;
+    bool operator==(const TrackingInt& rhs) {
+        return this->value == rhs.value;
     }
-
+    bool operator==(const int& rhs) {
+        return this->value == rhs;
+    }
+    int value = 0;
     // history of what values the recount has been.
     std::vector<int> history;
+};
 
+/// Class which records whenever it's refcount changes.
+struct TrackingRCValue {
     /// Current reference count.
-    int refcount = 0;
+    TrackingInt _rc_refcount = 0;
 };
 
 // Test that move semantics work correctly and refcounts are not unnecessarily
@@ -164,8 +164,8 @@ struct TrackingRCValue {
 static void testMove1() {
     RCPtr<TrackingRCValue> ptr(new TrackingRCValue());
     // Check result - history just contains initial increment; rc is 1.
-    cb_assert(ptr->getRCValue().history.size() == 1);
-    cb_assert(ptr->getRCValue().refcount == 1);
+    cb_assert(ptr->_rc_refcount.history.size() == 1);
+    cb_assert(ptr->_rc_refcount == 1);
 }
 
 // Transfer ownership to new pointer via move (rvalue-reference).
@@ -174,11 +174,16 @@ static void testMove2() {
     RCPtr<TrackingRCValue> ptr2(std::move(ptr1));
 
     // No changes in refcount should have occurred.
-    cb_assert(ptr2->getRCValue().history.size() == 1);
-    cb_assert(ptr2->getRCValue().refcount == 1);
+    cb_assert(ptr2->_rc_refcount.history.size() == 1);
+    cb_assert(ptr2->_rc_refcount == 1);
 
+    // clang will warn about using ptr1 after its been moved as ptr1 could be
+    // left in an undefined state. However, as this is a test and we've defined
+    // the move operator suppress this warning.
+#ifndef __clang_analyzer__
     // Moved-from pointer should be empty.
     cb_assert(ptr1.get() == nullptr);
+#endif
 }
 
 int main() {
@@ -187,6 +192,3 @@ int main() {
     testMove1();
     testMove2();
 }
-#else
-int main() {}
-#endif

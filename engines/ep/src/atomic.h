@@ -68,9 +68,10 @@ T atomic_swapIfNot(std::atomic<T> &obj, const T &badValue, const T &newValue) {
 template <typename T>
 class AtomicPtr : public std::atomic<T*> {
 public:
-    AtomicPtr(T *initial = NULL) : std::atomic<T*>(initial) {}
+    AtomicPtr(T* initial = nullptr) : std::atomic<T*>(initial) {
+    }
 
-    ~AtomicPtr() {}
+    ~AtomicPtr() = default;
 
     T *operator ->() const noexcept {
         return std::atomic<T*>::load();
@@ -101,11 +102,11 @@ public:
     SpinLock();
     ~SpinLock();
 
-    void lock(void);
-    void unlock(void);
+    void lock();
+    void unlock();
 
 private:
-    bool tryAcquire(void);
+    bool tryAcquire();
 
     std::atomic_flag lck;
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
@@ -122,25 +123,12 @@ class RCValue {
 public:
     RCValue() : _rc_refcount(0) {}
     RCValue(const RCValue &) : _rc_refcount(0) {}
-    ~RCValue() {}
+    ~RCValue() = default;
 
 private:
     template <class MyTT> friend class RCPtr;
     template <class MySS, class Pointer, class Deleter>
     friend class SingleThreadedRCPtr;
-    int _rc_incref() const {
-        return ++_rc_refcount;
-    }
-
-    int _rc_decref() const {
-        return --_rc_refcount;
-    }
-
-    // A get method to ensure that SingleThreadedRCPtr does not need to directly
-    // refer to a RCValue.
-    const RCValue& getRCValue() const {
-        return *this;
-    }
 
     mutable std::atomic<int> _rc_refcount;
 };
@@ -151,9 +139,9 @@ private:
 template <class C>
 class RCPtr {
 public:
-    RCPtr(C *init = NULL) : value(init) {
-        if (init != NULL) {
-            value->getRCValue()._rc_incref();
+    RCPtr(C* init = nullptr) : value(init) {
+        if (init != nullptr) {
+            ++value->_rc_refcount;
         }
     }
 
@@ -165,14 +153,14 @@ public:
     }
 
     ~RCPtr() {
-        if (value && value->getRCValue()._rc_decref() == 0) {
+        if (value && (--value->_rc_refcount) == 0) {
             delete get();
         }
     }
 
-    void reset(C *newValue = NULL) {
-        if (newValue != NULL) {
-            newValue->getRCValue()._rc_incref();
+    void reset(C* newValue = nullptr) {
+        if (newValue != nullptr) {
+            ++newValue->_rc_refcount;
         }
         swap(newValue);
     }
@@ -211,7 +199,7 @@ private:
     C *gimme() const {
         std::lock_guard<SpinLock> lh(lock);
         if (value) {
-            value->getRCValue()._rc_incref();
+            ++value->_rc_refcount;
         }
         return value;
     }
@@ -222,7 +210,7 @@ private:
             std::lock_guard<SpinLock> lh(lock);
             tmp = value.exchange(newValue);
         }
-        if (tmp != NULL && tmp->getRCValue()._rc_decref() == 0) {
+        if (tmp != nullptr && --tmp->_rc_refcount == 0) {
             delete tmp;
         }
     }
@@ -260,20 +248,20 @@ RCPtr<T> dynamic_pointer_cast(const RCPtr<U>& r) {
 template <class T, class Pointer = T*, class Deleter = std::default_delete<T>>
 class SingleThreadedRCPtr {
 public:
-    using rcptr_type = SingleThreadedRCPtr<T, Pointer, Deleter>;
-
     SingleThreadedRCPtr(Pointer init = nullptr) : value(init) {
         if (init != nullptr) {
-            value->getRCValue()._rc_incref();
+            ++value->_rc_refcount;
         }
     }
 
     // Copy construction - increases ref-count on object by 1.
-    SingleThreadedRCPtr(const rcptr_type& other) : value(other.gimme()) {
+    SingleThreadedRCPtr(const SingleThreadedRCPtr& other)
+        : value(other.gimme()) {
     }
 
     // Move construction - reference count is unchanged.
-    SingleThreadedRCPtr(rcptr_type&& other) : value(other.value) {
+    SingleThreadedRCPtr(SingleThreadedRCPtr&& other) noexcept
+        : value(other.value) {
         other.value = nullptr;
     }
 
@@ -287,29 +275,33 @@ public:
     }
 
     ~SingleThreadedRCPtr() {
-        if (value != nullptr && value->getRCValue()._rc_decref() == 0) {
+        if (value != nullptr && --value->_rc_refcount == 0) {
+// Hide the deleter function from clang analyzer as sometimes it dose not fully
+// understand how our ref counting works in RCValue
+#ifndef __clang_analyzer__
             Deleter()(value);
+#endif
         }
     }
 
     void reset(Pointer newValue = nullptr) {
         if (newValue != nullptr) {
-            newValue->getRCValue()._rc_incref();
+            ++newValue->_rc_refcount;
         }
         swap(newValue);
     }
 
-    void reset(const rcptr_type& other) {
+    void reset(const SingleThreadedRCPtr& other) {
         swap(other.gimme());
     }
 
     // Swap - reference count is unchanged on each pointed-to object.
-    void swap(rcptr_type& other) {
+    void swap(SingleThreadedRCPtr& other) {
         std::swap(this->value, other.value);
     }
 
     int refCount() const {
-        return value->getRCValue()._rc_refcount.load();
+        return value->_rc_refcount.load();
     }
 
     // safe for the lifetime of this instance
@@ -331,13 +323,13 @@ public:
         return value;
     }
 
-    rcptr_type& operator=(const rcptr_type& other) {
+    SingleThreadedRCPtr& operator=(const SingleThreadedRCPtr& other) {
         reset(other);
         return *this;
     }
 
     // Move-assignment - reference count is unchanged of incoming item.
-    rcptr_type& operator=(rcptr_type&& other) {
+    SingleThreadedRCPtr& operator=(SingleThreadedRCPtr&& other) noexcept {
         swap(other.value);
         other.value = nullptr;
         return *this;
@@ -365,7 +357,7 @@ private:
 
     Pointer gimme() const {
         if (value != nullptr) {
-            value->getRCValue()._rc_incref();
+            value->_rc_refcount++;
         }
         return value;
     }
@@ -373,8 +365,12 @@ private:
     void swap(Pointer newValue) {
         Pointer old = value;
         value = newValue;
-        if (old != nullptr && old->getRCValue()._rc_decref() == 0) {
+        if (old != nullptr && --old->_rc_refcount == 0) {
+// Hide the deleter function from clang analyzer as sometimes it dose not fully
+// understand how our ref counting works in RCValue
+#ifndef __clang_analyzer__
             Deleter()(old);
+#endif
         }
     }
 
