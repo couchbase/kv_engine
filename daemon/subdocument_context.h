@@ -58,10 +58,13 @@ public:
     class OperationSpec;
     typedef std::vector<OperationSpec> Operations;
 
-    SubdocCmdContext(Cookie& cookie_, const SubdocCmdTraits traits_)
+    SubdocCmdContext(Cookie& cookie_,
+                     const SubdocCmdTraits traits_,
+                     Vbid vbucket_)
         : cookie(cookie_),
           connection(cookie_.getConnection()),
-          traits(traits_) {
+          traits(traits_),
+          vbucket(vbucket_) {
     }
 
     ENGINE_ERROR_CODE pre_link_document(item_info& info) override;
@@ -143,6 +146,9 @@ public:
 
     // The traits for this command.
     SubdocCmdTraits traits;
+
+    /// The vBucket for this request.
+    const Vbid vbucket;
 
     // The expanded input JSON document. This may either refer to:
     // a). The raw engine item iovec

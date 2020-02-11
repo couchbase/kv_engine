@@ -59,7 +59,6 @@ static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret,
                          cb::const_byte_buffer key,
-                         Vbid vbucket,
                          uint64_t cas);
 
 static bool subdoc_operate(SubdocCmdContext& context);
@@ -67,7 +66,6 @@ static bool subdoc_operate(SubdocCmdContext& context);
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
                                        cb::const_byte_buffer key,
-                                       Vbid vbucket,
                                        uint32_t expiration);
 static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
@@ -294,10 +292,11 @@ static void create_multi_path_context(SubdocCmdContext& context,
 
 static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
                                                const SubdocCmdTraits traits,
-                                               doc_flag doc_flags) {
+                                               doc_flag doc_flags,
+                                               Vbid vbucket) {
     try {
         std::unique_ptr<SubdocCmdContext> context;
-        context = std::make_unique<SubdocCmdContext>(cookie, traits);
+        context = std::make_unique<SubdocCmdContext>(cookie, traits, vbucket);
         switch (traits.path) {
         case SubdocPath::SINGLE:
             create_single_path_context(
@@ -376,7 +375,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         auto* context =
                 dynamic_cast<SubdocCmdContext*>(cookie.getCommandContext());
         if (context == nullptr) {
-            context = subdoc_create_context(cookie, traits, doc_flags);
+            context = subdoc_create_context(cookie, traits, doc_flags, vbucket);
             if (context == nullptr) {
                 cookie.sendResponse(cb::mcbp::Status::Enomem);
                 return;
@@ -388,7 +387,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
         // case).
-        if (!subdoc_fetch(cookie, *context, ret, key, vbucket, cas)) {
+        if (!subdoc_fetch(cookie, *context, ret, key, cas)) {
             return;
         }
 
@@ -398,7 +397,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         }
 
         // 3. Update the document in the engine (mutations only).
-        ret = subdoc_update(*context, ret, key, vbucket, expiration);
+        ret = subdoc_update(*context, ret, key, expiration);
         if (ret == ENGINE_KEY_EEXISTS) {
             if (auto_retry) {
                 // Retry the operation. Reset the command context and related
@@ -463,7 +462,6 @@ static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret,
                          cb::const_byte_buffer key,
-                         Vbid vbucket,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
         if (ret == ENGINE_SUCCESS) {
@@ -472,7 +470,7 @@ static bool subdoc_fetch(Cookie& cookie,
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
             }
-            auto r = bucket_get(cookie, get_key, vbucket, state);
+            auto r = bucket_get(cookie, get_key, ctx.vbucket, state);
             if (r.first == cb::engine_errc::success) {
                 ctx.fetchedItem = std::move(r.second);
                 ret = ENGINE_SUCCESS;
@@ -1178,7 +1176,6 @@ static bool subdoc_operate(SubdocCmdContext& context) {
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
                                        cb::const_byte_buffer key,
-                                       Vbid vbucket,
                                        uint32_t expiration) {
     auto& connection = context.connection;
     auto& cookie = context.cookie;
@@ -1225,7 +1222,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                             context.in_flags,
                                             expiration,
                                             context.in_datatype,
-                                            vbucket);
+                                            context.vbucket);
                 if (r.first) {
                     // Save the allocated document in the cmd context.
                     context.out_doc = std::move(r.first);
@@ -1285,7 +1282,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             ret = bucket_remove(cookie,
                                 docKey,
                                 new_cas,
-                                vbucket,
+                                context.vbucket,
                                 cookie.getRequest(Cookie::PacketContent::Full)
                                         .getDurabilityRequirements(),
                                 mdt);
