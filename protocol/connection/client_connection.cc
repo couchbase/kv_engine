@@ -954,7 +954,7 @@ void MemcachedConnection::mget(
     int ii = 0;
     for (const auto& doc : id) {
         BinprotGetCommand command;
-        command.setOp(ClientOpcode::Getq); // Use the quiet one
+        command.setOp(ClientOpcode::Get);
         command.setKey(doc.first);
         command.setVBucket(doc.second);
         command.setOpaque(ii++);
@@ -984,10 +984,7 @@ void MemcachedConnection::mget(
         auto opcode = rsp.getOp();
         if (opcode == ClientOpcode::Noop) {
             done = true;
-        } else if (opcode != ClientOpcode::Getq) {
-            throw std::runtime_error(
-                    "MemcachedConnection::mget: Received unexpected opcode");
-        } else {
+        } else if (opcode == ClientOpcode::Get) {
             BinprotGetResponse getResponse(std::move(rsp));
             auto opaque = getResponse.getResponse().getOpaque();
             if (opaque >= id.size()) {
@@ -1004,9 +1001,14 @@ void MemcachedConnection::mget(
                 doc->info.datatype = getResponse.getResponse().getDatatype();
                 doc->value = getResponse.getDataString();
                 documentCallback(doc);
-            } else if (errorCallback) {
+            } else if (errorCallback &&
+                       getResponse.getStatus() != cb::mcbp::Status::KeyEnoent) {
                 errorCallback(key, getResponse.getResponse());
             }
+        } else {
+            throw std::runtime_error(
+                    "MemcachedConnection::mget: Received unexpected opcode: " +
+                    ::to_string(opcode));
         }
     } while (!done);
 }
