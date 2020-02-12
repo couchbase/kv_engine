@@ -330,13 +330,25 @@ void Manifest::addCollectionStats(const void* cookie,
         checked_snprintf(buffer, bsize, "manifest:uid");
         add_casted_stat(buffer, uid, add_stat, cookie);
 
-        for (const auto& entry : collections) {
-            checked_snprintf(buffer,
-                             bsize,
-                             "manifest:collection:%s:name",
-                             entry.first.to_string().c_str());
-            add_casted_stat(
-                    buffer, entry.second.name.c_str(), add_stat, cookie);
+        for (const auto& scope : scopes) {
+            for (const auto& entry : scope.second.collections) {
+                const auto id = entry.id;
+                const auto& name = collections.at(id).name;
+                checked_snprintf(buffer,
+                                 bsize,
+                                 "manifest:collection:%s:name",
+                                 id.to_string().c_str());
+                add_casted_stat(buffer, name.c_str(), add_stat, cookie);
+
+                checked_snprintf(buffer,
+                                 bsize,
+                                 "manifest:collection:%s:scope",
+                                 id.to_string().c_str());
+                add_casted_stat(buffer,
+                                scope.first.to_string().c_str(),
+                                add_stat,
+                                cookie);
+            }
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(

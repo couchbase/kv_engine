@@ -73,4 +73,6 @@ public:
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);
     }
+
+    using EventuallyPersistentEngine::doCollectionStats;
 };

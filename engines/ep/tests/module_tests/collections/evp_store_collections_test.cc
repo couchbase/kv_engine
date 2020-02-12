@@ -34,6 +34,9 @@
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include <programs/engine_testapp/mock_cookie.h>
+
+#include <folly/portability/GMock.h>
 
 #include <functional>
 #include <thread>
@@ -1531,6 +1534,55 @@ TEST_P(CollectionsParameterizedTest, item_counting) {
 
     EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::defaultC));
     EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
+}
+
+TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
+    // Test that stats returned for key "collections" includes what scope
+    // the collection is in
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+    cm.add(ScopeEntry::shop2);
+    cm.add(CollectionEntry::meat, ScopeEntry::shop2);
+    cm.add(CollectionEntry::fruit, ScopeEntry::shop2);
+    std::string json = cm;
+    store->setCollections(json);
+
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 5);
+
+    const auto makeStatPair = [](const ScopeEntry::Entry& scope,
+                                 const CollectionEntry::Entry& collection) {
+        return std::make_pair("manifest:collection:" +
+                                      collection.getId().to_string() + ":scope",
+                              scope.getId().to_string());
+    };
+
+    std::map<std::string, std::string> expected{
+            makeStatPair(ScopeEntry::defaultS, CollectionEntry::defaultC),
+            makeStatPair(ScopeEntry::shop1, CollectionEntry::dairy),
+            makeStatPair(ScopeEntry::shop2, CollectionEntry::meat),
+            makeStatPair(ScopeEntry::shop2, CollectionEntry::fruit)};
+
+    std::map<std::string, std::string> actual;
+    const auto addStat = [&actual](cb::const_char_buffer key,
+                                   cb::const_char_buffer value,
+                                   gsl::not_null<const void*> cookie) {
+        actual[to_string(key)] = to_string(value);
+    };
+
+    auto cookie = create_mock_cookie();
+    engine->doCollectionStats(cookie, addStat, "collections");
+    destroy_mock_cookie(cookie);
+
+    using namespace testing;
+
+    for (const auto& exp : expected) {
+        // newer GTest brings IsSubsetOf which could replace this
+        EXPECT_THAT(actual, Contains(exp));
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
