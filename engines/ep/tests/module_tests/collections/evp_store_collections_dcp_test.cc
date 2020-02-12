@@ -160,6 +160,16 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     uint32_t opaque = 1;
     uint32_t seqno = 1;
 
+    // Setup a snapshot on the consumer
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(/*opaque*/ 1,
+                                       /*vbucket*/ replicaVB,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 100,
+                                       /*flags*/ 0,
+                                       /*highCompletedSeqno*/ {},
+                                       /*maxVisibleSeqno*/ {}));
+
     // Call the consumer function for handling DCP events
     // create the meat collection
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -577,24 +587,35 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
 
         // Persist everything ready for warmup and check.
         // Flusher will merge create/delete and we only flush the delete
-        flush_vbucket_to_disk(Vbid(0), (2 * items) + 2);
+        flush_vbucket_to_disk(vbid, (2 * items) + 2);
 
         // We will see create fruit/dairy and delete dairy (from another CP)
         // In-memory stream will also see all 2*items mutations (ordered with
         // create
         // and delete)
-        testDcpCreateDelete({CollectionEntry::fruit, CollectionEntry::dairy},
-                            {CollectionEntry::dairy},
-                            (2 * items));
+        {
+            SCOPED_TRACE("");
+            testDcpCreateDelete(
+                    {CollectionEntry::fruit, CollectionEntry::dairy},
+                    {CollectionEntry::dairy},
+                    (2 * items));
+        }
     }
     resetEngineAndWarmup();
 
+    // Test against a different VB as our old replica will have data
+    replicaVB++;
     createDcpObjects({{nullptr, 0}}); // from disk
 
     // Streamed from disk, one create (create of fruit) and items of fruit
     // And the tombstone of dairy
-    testDcpCreateDelete(
-            {CollectionEntry::fruit}, {CollectionEntry::dairy}, items, false);
+    {
+        SCOPED_TRACE("");
+        testDcpCreateDelete({CollectionEntry::fruit},
+                            {CollectionEntry::dairy},
+                            items,
+                            false);
+    }
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
             CollectionEntry::fruit));
@@ -665,6 +686,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
 
     resetEngineAndWarmup();
 
+    // Test against a different VB as our old replica will have data
+    replicaVB++;
     createDcpObjects({{nullptr, 0}}); // from disk
 
     // Now read from DCP. We will see:
@@ -716,6 +739,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
     resetEngineAndWarmup();
 
+    // Test against a different VB as our old replica will have data
+    replicaVB++;
     createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the 2x create events or the intermediate
@@ -760,6 +785,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 
     resetEngineAndWarmup();
 
+    // Test against a different VB as our old replica will have data
+    replicaVB++;
     createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the first create (the first delete
@@ -780,9 +807,9 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     {
         auto vb = store->getVBucket(vbid);
 
+        CollectionsManifest cm;
+        vb->updateFromManifest({cm});
         for (uint32_t n = 2; n < m; n++) {
-            CollectionsManifest cm;
-            vb->updateFromManifest({cm});
 
             // add fruit (new generation), + 10 to use valid collection range
             vb->updateFromManifest({cm.add(
@@ -815,12 +842,14 @@ TEST_F(CollectionsDcpTest, MB_26455) {
 
     // Streamed from disk, one create (create of fruit) and items of fruit and
     // every delete (tombstones)
-    testDcpCreateDelete(
-            {CollectionEntry::Entry{CollectionName::fruit, (m - 1) + 10}},
-            dropped,
-            items,
-            false /*fromMemory*/);
-
+    {
+        SCOPED_TRACE("");
+        testDcpCreateDelete(
+                {CollectionEntry::Entry{CollectionName::fruit, (m - 1) + 10}},
+                dropped,
+                items,
+                false /*fromMemory*/);
+    }
     EXPECT_TRUE(
             store->getVBucket(vbid)->lockCollections().exists((m - 1) + 10));
 }
@@ -884,7 +913,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
 
         // Persist everything ready for warmup and check.
         // Flush the items + 1 delete (dairy) and 1 create (dairy2)
-        flush_vbucket_to_disk(Vbid(0), items + 2);
+        flush_vbucket_to_disk(vbid, items + 2);
 
         // However DCP - Should see 2x create dairy and 1x delete dairy
         testDcpCreateDelete({CollectionEntry::dairy, CollectionEntry::dairy2},
@@ -896,6 +925,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
 
     resetEngineAndWarmup();
 
+    // Test against a different VB as our old replica will have data
+    replicaVB++;
     createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the first create or delete
@@ -918,12 +949,12 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
         cm.add(ScopeEntry::shop1);
         cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
         vb->updateFromManifest({cm});
-        flush_vbucket_to_disk(Vbid(0), 2);
+        flush_vbucket_to_disk(vbid, 2);
 
         // remove the scope (and the collection)
         cm.remove(ScopeEntry::shop1);
         vb->updateFromManifest({cm});
-        flush_vbucket_to_disk(Vbid(0), 2);
+        flush_vbucket_to_disk(vbid, 2);
     }
 
     resetEngineAndWarmup();
@@ -932,9 +963,6 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
 
     testDcpCreateDelete(
             {}, {CollectionEntry::fruit}, 0, false, {}, {ScopeEntry::shop1});
-
-    // We've just sent the events from vb0 to vb1, flush vb1
-    flush_vbucket_to_disk(Vbid(1), 2);
 
     // Next reset ready to stream back vb1
     resetEngineAndWarmup();
@@ -1223,7 +1251,16 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Streamed from disk
     // 1x create - create of dairy
     // 2x mutations in the dairy collection
-    testDcpCreateDelete({CollectionEntry::dairy}, {}, 2, false);
+    {
+        SCOPED_TRACE("");
+        testDcpCreateDelete({CollectionEntry::dairy},
+                            {},
+                            2,
+                            false,
+                            {},
+                            {},
+                            /*compareManifests*/ false);
+    }
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
@@ -1245,6 +1282,11 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
     EXPECT_EQ(ScopeEntry::shop1.name, producers->last_key);
 
+    // Uid is 0 because we only set the manifest uid for the last SystemEvent
+    // generated in the manifest update. In this case this is for the meat
+    // collection.
+    EXPECT_EQ(0, producers->last_collection_manifest_uid);
+
     // SystemEvent createCollection dairy in shop1
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
@@ -1252,6 +1294,11 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::dairy.name, producers->last_key);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
+
+    // Uid is 0 because we only set the manifest uid for the last SystemEvent
+    // generated in the manifest update. In this case this is for the meat
+    // collection.
+    EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
@@ -1285,6 +1332,15 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
 
     flush_vbucket_to_disk(vbid, 8);
 
+    auto m2 = getPersistedManifest(replicaVB);
+
+    // Uid is 0 because we only set the manifest uid for the last SystemEvent
+    // generated in the manifest update. In this case this is for the meat
+    // collection.
+    EXPECT_EQ(0, m2.manifestUid);
+    EXPECT_EQ(1, m2.scopes.size());
+    EXPECT_EQ(1, m2.collections.size());
+
     vb.reset();
 
     // Now stream back from disk and check filtering
@@ -1296,8 +1352,13 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     // 1x create - create of dairy
     // 2x mutations in the dairy collection
     // 1x scope drop
-    testDcpCreateDelete(
-            {CollectionEntry::dairy}, {}, 2, false, {ScopeEntry::shop1});
+    testDcpCreateDelete({CollectionEntry::dairy},
+                        {},
+                        2,
+                        false,
+                        {ScopeEntry::shop1},
+                        {},
+                        /*compareManifests*/ false);
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
@@ -1455,7 +1516,9 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
                         {},
                         2,
                         false,
-                        {ScopeEntry::shop1});
+                        {ScopeEntry::shop1},
+                        {},
+                        /*compareManifests*/ false);
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
@@ -1568,7 +1631,9 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
                         {CollectionEntry::dairy},
                         2,
                         false,
-                        {ScopeEntry::shop1});
+                        {ScopeEntry::shop1},
+                        {},
+                        /*compareManifests*/ false);
 }
 
 // Created for MB-32360
@@ -1621,7 +1686,9 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
                         {CollectionEntry::dairy},
                         0,
                         false,
-                        {ScopeEntry::shop1});
+                        {ScopeEntry::shop1},
+                        {},
+                        /*compareManifests*/ false);
 }
 
 // Check that when filtering is on, we don't send snapshots for fully filtered

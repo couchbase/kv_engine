@@ -18,6 +18,7 @@
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
+#include "ep_bucket.h"
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
@@ -50,7 +51,7 @@ Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
     return store->getVBucket(vb)
             ->getShard()
             ->getRWUnderlying()
-            ->getCollectionsManifest(vbid);
+            ->getCollectionsManifest(vb);
 }
 
 void CollectionsDcpTest::createDcpStream(
@@ -80,15 +81,6 @@ void CollectionsDcpTest::createDcpConsumer() {
               consumer->addStream(/*opaque*/ 0,
                                   replicaVB,
                                   /*flags*/ 0));
-    // Setup a snapshot on the consumer
-    ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(/*opaque*/ 1,
-                                       /*vbucket*/ replicaVB,
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ 100,
-                                       /*flags*/ 0,
-                                       /*highCompletedSeqno*/ {},
-                                       /*maxVisibleSeqno*/ {}));
 }
 
 void CollectionsDcpTest::createDcpObjects(
@@ -146,10 +138,13 @@ void CollectionsDcpTest::testDcpCreateDelete(
         int expectedMutations,
         bool fromMemory,
         const std::vector<ScopeEntry::Entry>& expectedScopeCreates,
-        const std::vector<ScopeEntry::Entry>& expectedScopeDrops) {
+        const std::vector<ScopeEntry::Entry>& expectedScopeDrops,
+        bool compareManifests) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               fromMemory);
 
+    // Expect nothing outstanding before we start
+    flushVBucketToDiskIfPersistent(replicaVB, 0);
     int mutations = 0;
 
     auto createItr = expectedCreates.begin();
@@ -210,22 +205,43 @@ void CollectionsDcpTest::testDcpCreateDelete(
     EXPECT_EQ(deleteItr, expectedDeletes.end());
     EXPECT_EQ(expectedMutations, mutations);
 
+    // Flush everything. If we don't then we can't compare persisted manifests.
+    // Don't know how much we will have to flush as the flusher will de-dupe
+    // creates and deletes of collections in the same batch
+    bool more;
+    size_t size;
+    std::tie(more, size) =
+            dynamic_cast<EPBucket&>(*store).flushVBucket(replicaVB);
+    EXPECT_FALSE(more);
+
     // Finally check that the active and replica have the same manifest, our
     // BeginDeleteCollection should of contained enough information to form
     // an equivalent manifest
     auto m1 = getPersistedManifest(vbid);
-    auto m2 = getPersistedManifest(Vbid(vbid.get() + 1));
-    EXPECT_EQ(m1.manifestUid, m2.manifestUid);
+    auto m2 = getPersistedManifest(replicaVB);
 
-    auto compare = [](const Collections::KVStore::OpenCollection& a,
-                      const Collections::KVStore::OpenCollection& b) {
-        return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
-    };
-    EXPECT_TRUE(std::equal(m1.collections.begin(),
-                           m1.collections.end(),
-                           m2.collections.begin(),
-                           compare));
-    EXPECT_EQ(m1.scopes, m2.scopes);
+    // Manifest uid should always be less than or equal to the correct active
+    // manifest uid. We may have filtered a system event with a manifest uid
+    // update.
+    EXPECT_GE(m1.manifestUid, m2.manifestUid);
+
+    // We may not want to compare the actual manifests if we are testing
+    // filtered DCP
+    if (compareManifests) {
+        // For the tests that compare manifests entirely, we should also always
+        // have the correct uid.
+        EXPECT_EQ(m1.manifestUid, m2.manifestUid);
+
+        auto compare = [](const Collections::KVStore::OpenCollection& a,
+                          const Collections::KVStore::OpenCollection& b) {
+            return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
+        };
+        EXPECT_TRUE(std::equal(m1.collections.begin(),
+                               m1.collections.end(),
+                               m2.collections.begin(),
+                               compare));
+        EXPECT_EQ(m1.scopes, m2.scopes);
+    }
 }
 
 void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {
@@ -244,7 +260,7 @@ void CollectionsDcpTest::ensureDcpWillBackfill() {
 
     // Move DCP to a new vbucket so that we can replay history from 0
     // without having to wind back vbid(1)
-    replicaVB = Vbid(2);
+    replicaVB++;
 }
 
 /*
@@ -352,6 +368,39 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         return rv;
     }
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint32_t flags,
+        boost::optional<uint64_t> high_completed_seqno,
+        boost::optional<uint64_t> maxVisibleSeqno,
+        cb::mcbp::DcpStreamId sid) {
+    auto ret = ENGINE_SUCCESS;
+    if (consumer) {
+        ret = consumer->snapshotMarker(opaque,
+                                       replicaVB,
+                                       start_seqno,
+                                       end_seqno,
+                                       flags,
+                                       high_completed_seqno,
+                                       maxVisibleSeqno);
+        EXPECT_EQ(ENGINE_SUCCESS, ret);
+    }
+
+    MockDcpMessageProducers::marker(opaque,
+                                    replicaVB,
+                                    start_seqno,
+                                    end_seqno,
+                                    flags,
+                                    high_completed_seqno,
+                                    maxVisibleSeqno,
+                                    sid);
+
+    return ret;
 }
 
 ENGINE_ERROR_CODE CollectionsDcpTest::dcpAddFailoverLog(

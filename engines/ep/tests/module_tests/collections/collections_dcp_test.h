@@ -43,6 +43,15 @@ public:
                                    cb::const_byte_buffer eventData,
                                    cb::mcbp::DcpStreamId sid) override;
 
+    ENGINE_ERROR_CODE marker(uint32_t opaque,
+                             Vbid vbucket,
+                             uint64_t start_seqno,
+                             uint64_t end_seqno,
+                             uint32_t flags,
+                             boost::optional<uint64_t> high_completed_seqno,
+                             boost::optional<uint64_t> maxVisibleSeqno,
+                             cb::mcbp::DcpStreamId sid) override;
+
     MockDcpConsumer* consumer = nullptr;
     Vbid replicaVB;
 };
@@ -88,7 +97,8 @@ public:
             int expectedMutations,
             bool fromMemory = true,
             const std::vector<ScopeEntry::Entry>& expectedScopeCreates = {},
-            const std::vector<ScopeEntry::Entry>& expectedScopeDrops = {});
+            const std::vector<ScopeEntry::Entry>& expectedScopeDrops = {},
+            bool compareManifests = true);
 
     void resetEngineAndWarmup(std::string new_config = "");
 
