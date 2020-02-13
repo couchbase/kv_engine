@@ -808,11 +808,17 @@ void MagmaKVStore::set(queued_item item) {
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb) {
-    return getWithHeader(nullptr, key, vb, GetMetaOnly::No);
+    return getWithHeader(key, vb, GetMetaOnly::No);
 }
 
-GetValue MagmaKVStore::getWithHeader(void* dbHandle,
+GetValue MagmaKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
+                                     Vbid vbid,
+                                     GetMetaOnly getMetaOnly) {
+    return getWithHeader(key, vbid, getMetaOnly);
+}
+
+GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                                      Vbid vbid,
                                      GetMetaOnly getMetaOnly) {
     Slice keySlice = {reinterpret_cast<const char*>(key.data()), key.size()};
@@ -2119,8 +2125,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     Magma::FetchBuffer idxBuf;
     Magma::FetchBuffer seqBuf;
     auto cacheLookup = std::make_shared<NoLookupCallback>();
-    auto fh = makeFileHandle(vbid);
-    cb->setDbHeader(reinterpret_cast<void*>(fh.get()));
+    cb->setKVFileHandle(makeFileHandle(vbid));
 
     auto keyCallback = [&](const Slice& keySlice,
                            const uint64_t seqno,

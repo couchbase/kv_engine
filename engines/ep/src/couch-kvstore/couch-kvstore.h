@@ -195,14 +195,14 @@ public:
 
     /**
      * Retrieve the document with a given key from the underlying storage.
-     * @param dbHandle the dbhandle
+     * @param kvFileHandle the open file to get from
      * @param key the key of a document to be retrieved
      * @param vb vbucket id of a document
      * @param getMetaOnly Yes if we only want to retrieve the meta data for a
      * document
      * @return the result of the get
      */
-    GetValue getWithHeader(void* dbHandle,
+    GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
                            GetMetaOnly getMetaOnly) override;
@@ -751,6 +751,14 @@ protected:
      * Read the vbucket_state from disk and update the cache if successful
      */
     ReadVBStateResult readVBStateAndUpdateCache(Db* db, Vbid vbid);
+
+    /**
+     * Internal getWithHeader that uses Db type for the get
+     */
+    GetValue getWithHeader(DbHolder& db,
+                           const DiskDocKey& key,
+                           Vbid vb,
+                           GetMetaOnly getMetaOnly);
 
     const std::string dbname;
 

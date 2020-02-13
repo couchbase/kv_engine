@@ -695,11 +695,17 @@ void RocksDBKVStore::set(queued_item item) {
 }
 
 GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb) {
-    return getWithHeader(nullptr, key, vb, GetMetaOnly::No);
+    return getWithHeader(key, vb, GetMetaOnly::No);
 }
 
-GetValue RocksDBKVStore::getWithHeader(void* dbHandle,
+GetValue RocksDBKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                        const DiskDocKey& key,
+                                       Vbid vb,
+                                       GetMetaOnly getMetaOnly) {
+    return getWithHeader(key, vb, getMetaOnly);
+}
+
+GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
                                        Vbid vb,
                                        GetMetaOnly getMetaOnly) {
     const auto vbh = getVBHandle(vb);

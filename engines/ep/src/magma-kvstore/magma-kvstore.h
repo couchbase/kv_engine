@@ -119,7 +119,7 @@ public:
 
     GetValue get(const DiskDocKey& key, Vbid vb) override;
 
-    GetValue getWithHeader(void* dbHandle,
+    GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
                            GetMetaOnly getMetaOnly) override;
@@ -587,6 +587,11 @@ private:
      * @return a reference to the MagmaInfo for the vbid, created on demand
      */
     MagmaInfo& getMagmaInfo(Vbid vbid);
+
+    /// private getWithHeader shared with public get and getWithHeader
+    GetValue getWithHeader(const DiskDocKey& key,
+                           Vbid vbid,
+                           GetMetaOnly getMetaOnly);
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;

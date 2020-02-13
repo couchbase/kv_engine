@@ -597,7 +597,7 @@ public:
      */
     virtual GetValue get(const DiskDocKey& key, Vbid vb) = 0;
 
-    virtual GetValue getWithHeader(void* dbHandle,
+    virtual GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                                    const DiskDocKey& key,
                                    Vbid vb,
                                    GetMetaOnly getMetaOnly) = 0;
@@ -1001,18 +1001,23 @@ public:
  */
 class RollbackCB : public StatusCallback<GetValue> {
 public:
-    RollbackCB() : dbHandle(nullptr) { }
+    RollbackCB() {
+    }
 
     virtual void callback(GetValue &val) = 0;
 
-    void setDbHeader(void *db) {
-        dbHandle = db;
+    void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) {
+        kvFileHandle = std::move(handle);
+    }
+
+    const KVFileHandle* getKVFileHandle() const {
+        return kvFileHandle.get();
     }
 
 protected:
     /// The database handle to use when lookup up items in the new, rolled back
     /// database.
-    void *dbHandle;
+    std::unique_ptr<KVFileHandle> kvFileHandle;
 };
 
 /**

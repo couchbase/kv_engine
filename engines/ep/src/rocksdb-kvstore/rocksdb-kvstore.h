@@ -182,7 +182,7 @@ public:
      */
     GetValue get(const DiskDocKey& key, Vbid vb) override;
 
-    GetValue getWithHeader(void* dbHandle,
+    GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
                            GetMetaOnly getMetaOnly) override;
@@ -480,6 +480,11 @@ private:
     // RocksDB instance. It must be called under lock on 'vbhMutex', so that
     // the number of VBuckets seen is consistent.
     size_t getVBucketsCount(const std::lock_guard<std::mutex>&) const;
+
+    /// private getWithHeader shared with public get and getWithHeader
+    GetValue getWithHeader(const DiskDocKey& key,
+                           Vbid vb,
+                           GetMetaOnly getMetaOnly);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

@@ -492,11 +492,20 @@ GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb) {
     return gv;
 }
 
-GetValue CouchKVStore::getWithHeader(void* dbHandle,
+GetValue CouchKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
                                      GetMetaOnly getMetaOnly) {
-    Db *db = (Db *)dbHandle;
+    // const_cast away here, the lower level couchstore does not use const
+    auto& couchKvHandle = static_cast<CouchKVFileHandle&>(
+            const_cast<KVFileHandle&>(kvFileHandle));
+    return getWithHeader(couchKvHandle.getDbHolder(), key, vb, getMetaOnly);
+}
+
+GetValue CouchKVStore::getWithHeader(DbHolder& db,
+                                     const DiskDocKey& key,
+                                     Vbid vb,
+                                     GetMetaOnly getMetaOnly) {
     auto start = std::chrono::steady_clock::now();
     DocInfo *docInfo = nullptr;
     GetValue rv;
@@ -2816,8 +2825,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
 
     // Open the vBucket file again; and search for a header which is
     // before the requested rollback point - the Rollback Header.
-    DbHolder newdb(*this);
-    errCode = openDB(vbid, newdb, 0);
+    auto newdb = std::make_unique<CouchKVFileHandle>(*this);
+    errCode = openDB(vbid, newdb->getDbHolder(), 0);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB#2 error:{}, name:{}",
                     couchstore_strerror(errCode),
@@ -2826,11 +2835,11 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     }
 
     while (info.last_sequence > rollbackSeqno) {
-        errCode = couchstore_rewind_db_header(newdb);
+        errCode = couchstore_rewind_db_header(newdb->getDbHolder());
         if (errCode != COUCHSTORE_SUCCESS) {
             // rewind_db_header cleans up (frees DB) on error; so
             // release db in DbHolder to prevent a double-free.
-            newdb.releaseDb();
+            newdb->getDbHolder().releaseDb();
             logger.warn(
                     "CouchKVStore::rollback: couchstore_rewind_db_header "
                     "error:{} [{}], {}, latestSeqno:{}, rollbackSeqno:{}",
@@ -2843,7 +2852,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
             //as a previous header wasn't found.
             return RollbackResult(false);
         }
-        errCode = couchstore_db_info(newdb, &info);
+        errCode = couchstore_db_info(newdb->getDbHolder(), &info);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn(
                     "CouchKVStore::rollback: couchstore_db_info error:{}, "
@@ -2894,27 +2903,34 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     //   deleted in the Rollback header).
     // * If the key is present in the Rollback header then replace the in-memory
     // value with the value from the Rollback header.
-    cb->setDbHeader(newdb);
+    cb->setKVFileHandle(std::move(newdb));
     auto cl = std::make_shared<NoLookupCallback>();
-    ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence+1,
-                                       DocumentFilter::ALL_ITEMS,
-                                       ValueFilter::KEYS_ONLY);
-    scan_error_t error = scan(ctx);
-    destroyScanContext(ctx);
+
+    std::unique_ptr<ScanContext> ctx;
+    ctx.reset(initScanContext(cb,
+                              cl,
+                              vbid,
+                              info.last_sequence + 1,
+                              DocumentFilter::ALL_ITEMS,
+                              ValueFilter::KEYS_ONLY));
+    scan_error_t error = scan(ctx.get());
 
     if (error != scan_success) {
         return RollbackResult(false);
     }
 
-    if (readVBStateAndUpdateCache(newdb, vbid).status !=
+    // The RollbackCB owns the file handle.
+    auto* handle = const_cast<CouchKVFileHandle*>(
+            static_cast<const CouchKVFileHandle*>(cb->getKVFileHandle()));
+    if (readVBStateAndUpdateCache(handle->getDbHolder(), vbid).status !=
         ReadVBStateStatus::Success) {
         return RollbackResult(false);
     }
     cachedDeleteCount[vbid.get()] = info.deleted_count;
     cachedDocCount[vbid.get()] = info.doc_count;
 
-    //Append the rewinded header to the database file
-    errCode = couchstore_commit(newdb);
+    // Append the rewinded header to the database file
+    errCode = couchstore_commit(handle->getDbHolder());
 
     if (errCode != COUCHSTORE_SUCCESS) {
         return RollbackResult(false);
