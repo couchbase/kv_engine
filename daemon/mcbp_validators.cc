@@ -916,13 +916,7 @@ static Status dcp_prepare_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    auto& header = cookie.getHeader();
-    if (!is_valid_xattr_blob(cookie, header.getRequest())) {
-        cookie.setErrorContext("Xattr blob not valid");
-        return Status::XattrEinval;
-    }
-
-    auto extras = header.getExtdata();
+    auto extras = cookie.getHeader().getExtdata();
     const auto* payload =
             reinterpret_cast<const DcpPreparePayload*>(extras.data());
 
@@ -1669,11 +1663,6 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
     default:
         cookie.setErrorContext("Request extras invalid");
         return Status::Einval;
-    }
-
-    if (!is_valid_xattr_blob(cookie, header.getRequest())) {
-        cookie.setErrorContext("Xattr blob invalid");
-        return Status::XattrEinval;
     }
 
     return Status::Success;
