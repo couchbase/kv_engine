@@ -549,8 +549,9 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     // Check item count
     auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
     auto stats = kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
-    EXPECT_EQ(keys - deletedKeys, stats.itemCount);
-    EXPECT_EQ(keys + deletedKeys, stats.highSeqno);
+    ASSERT_TRUE(stats);
+    EXPECT_EQ(keys - deletedKeys, stats->itemCount);
+    EXPECT_EQ(keys + deletedKeys, stats->highSeqno);
 }
 
 /**

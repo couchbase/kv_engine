@@ -1153,11 +1153,13 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
         for (auto& collection : wh) {
             auto stats = kvstore->getCollectionStats(*kvstoreContext,
                                                      collection.first);
-            collection.second.setDiskCount(stats.itemCount);
-            collection.second.setPersistedHighSeqno(stats.highSeqno);
-            // Set the in memory high seqno - might be 0 in the case of the
-            // default collection so we have to reset the monotonic value
-            collection.second.resetHighSeqno(stats.highSeqno);
+            if (stats) {
+                collection.second.setDiskCount(stats->itemCount);
+                collection.second.setPersistedHighSeqno(stats->highSeqno);
+                // Set the in memory high seqno - might be 0 in the case of the
+                // default collection so we have to reset the monotonic value
+                collection.second.resetHighSeqno(stats->highSeqno);
+            } // Collection may have never been written to, so has no stats
         }
     }
 

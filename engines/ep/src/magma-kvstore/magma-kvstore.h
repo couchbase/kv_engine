@@ -273,7 +273,7 @@ public:
         delete kvFileHandle;
     }
 
-    Collections::VB::PersistedStats getCollectionStats(
+    boost::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     /**

@@ -44,8 +44,8 @@ public:
           scopeID(scopeID),
           maxTtl(maxTtl),
           diskCount(0),
-          highSeqno(0),
-          persistedHighSeqno(0) {
+          highSeqno(startSeqno),
+          persistedHighSeqno(startSeqno) {
         // Setters validates the start valid
         setStartSeqno(startSeqno);
     }

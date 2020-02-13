@@ -947,7 +947,8 @@ TEST_P(CollectionsParameterizedTest, MB_31212) {
 //
 TEST_F(CollectionsWarmupTest, warmup) {
     CollectionsManifest cm;
-    cm.setUid(0xface2);
+    uint32_t uid = 0xface2;
+    cm.setUid(uid);
     {
         auto vb = store->getVBucket(vbid);
 
@@ -978,12 +979,22 @@ TEST_F(CollectionsWarmupTest, warmup) {
         EXPECT_EQ(2,
                   store->getVBucket(vbid)->lockCollections().getHighSeqno(
                           CollectionEntry::meat));
+
+        // create an extra collection which we do not write to (note uid++)
+        vb->updateFromManifest({cm.add(CollectionEntry::fruit)});
+        flush_vbucket_to_disk(vbid, 1);
+
+        // The high-seqno of the collection is the start, the seqno of the
+        // creation event
+        EXPECT_EQ(3,
+                  store->getVBucket(vbid)->lockCollections().getHighSeqno(
+                          CollectionEntry::fruit));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
 
     // validate the manifest uid comes back as expected
-    EXPECT_EQ(0xface2 + 1,
+    EXPECT_EQ(uid + 2,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
     // validate we warmup the item count and high seqnos
@@ -1023,6 +1034,28 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(1,
               store->getVBucket(vbid)->lockCollections().getItemCount(
                       CollectionEntry::meat));
+
+    // Now what about the other collections, we still have the default and fruit
+    // They were never written to but should come back with sensible state
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(3,
+              store->getVBucket(vbid)->lockCollections().getPersistedHighSeqno(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(3,
+              store->getVBucket(vbid)->lockCollections().getHighSeqno(
+                      CollectionEntry::fruit));
+
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::defaultC));
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getPersistedHighSeqno(
+                      CollectionEntry::defaultC));
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getHighSeqno(
+                      CollectionEntry::defaultC));
 }
 
 //

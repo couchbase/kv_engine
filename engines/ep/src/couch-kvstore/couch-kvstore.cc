@@ -2590,8 +2590,9 @@ void CouchKVStore::deleteCollectionStats(Db& db, CollectionID cid) {
     deleteLocalDoc(db, "|" + cid.to_string() + "|"); // internally logs
 }
 
-Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
-        const KVFileHandle& kvFileHandle, CollectionID collection) {
+boost::optional<Collections::VB::PersistedStats>
+CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
+                                 CollectionID collection) {
     std::string docName = "|" + collection.to_string() + "|";
 
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);

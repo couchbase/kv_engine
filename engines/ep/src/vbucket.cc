@@ -2996,10 +2996,18 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
     for (auto& collection : wh) {
         auto stats =
                 kvstore.getCollectionStats(*kvstoreContext, collection.first);
-        collection.second.setDiskCount(stats.itemCount);
-        collection.second.resetPersistedHighSeqno(stats.highSeqno);
-        collection.second.resetHighSeqno(
-                collection.second.getPersistedHighSeqno());
+        if (stats) {
+            collection.second.setDiskCount(stats->itemCount);
+            collection.second.resetPersistedHighSeqno(stats->highSeqno);
+            collection.second.resetHighSeqno(
+                    collection.second.getPersistedHighSeqno());
+        } else {
+            // Rollback has just loaded the manifest from disk, we expect to
+            // find stats for all collections in the persisted manifest
+            throw std::logic_error(
+                    "VBucket::collectionsRolledBack failed to find:" +
+                    collection.first.to_string());
+        }
     }
 }
 

@@ -2405,8 +2405,9 @@ void MagmaKVStore::saveCollectionStats(
     return;
 }
 
-Collections::VB::PersistedStats MagmaKVStore::getCollectionStats(
-        const KVFileHandle& kvFileHandle, CollectionID cid) {
+boost::optional<Collections::VB::PersistedStats>
+MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
+                                 CollectionID cid) {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
     auto key = getCollectionsStatsKey(cid);
