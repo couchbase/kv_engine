@@ -3703,6 +3703,47 @@ TEST_P(DurabilityCouchstoreBucketTest,
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
+TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
+    // check that Observe respects recommit in progress
+    setVBucketToActiveWithValidTopology();
+
+    std::string keyMaybeVisible = "maybeVisible";
+    std::string keyCommitted = "committed";
+
+    // store a maybe visible prepare
+    auto prepare = makePendingItem(makeStoredDocKey(keyMaybeVisible), "value");
+    prepare->setPreparedMaybeVisible();
+    store->set(*prepare, cookie);
+
+    // store a committed item
+    auto committed = makeCommittedItem(makeStoredDocKey(keyCommitted), "value");
+    store->set(*committed, cookie);
+
+    const auto dummyAddResponse = [](cb::const_char_buffer key,
+                                     cb::const_char_buffer extras,
+                                     cb::const_char_buffer body,
+                                     uint8_t datatype,
+                                     cb::mcbp::Status status,
+                                     uint64_t cas,
+                                     const void* cookie) { return true; };
+
+    auto requestPtr = createObserveRequest({keyCommitted});
+    auto res = engine->observe(cookie, *requestPtr, dummyAddResponse);
+    EXPECT_EQ(ENGINE_SUCCESS, res);
+
+    // Verify that observing a maybe visble prepare causes
+    // the entire Observe to fail
+    requestPtr = createObserveRequest({keyMaybeVisible});
+    res = engine->observe(cookie, *requestPtr, dummyAddResponse);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, res);
+
+    // a request with one prepared maybe visible key should still
+    // fail the entire request
+    requestPtr = createObserveRequest({keyMaybeVisible, keyCommitted});
+    res = engine->observe(cookie, *requestPtr, dummyAddResponse);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, res);
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,

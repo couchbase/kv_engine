@@ -2819,6 +2819,9 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
     auto* v = res.storedValue;
 
     if (v) {
+        if (v->isPreparedMaybeVisible()) {
+            return ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS;
+        }
         if ((v->isDeleted() || cHandle.isLogicallyDeleted(v->getBySeqno())) &&
             wantsDeleted == WantsDeleted::No) {
             return ENGINE_KEY_ENOENT;

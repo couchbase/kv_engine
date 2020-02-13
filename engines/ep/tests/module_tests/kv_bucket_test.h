@@ -30,6 +30,7 @@
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
+#include <tests/ep_request_utils.h>
 #include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <memory>
@@ -229,6 +230,9 @@ public:
      * will test the config to be sure the KVBucket is persistent/couchstore.
      */
     void replaceCouchKVStore(FileOpsInterface& ops);
+
+    unique_request_ptr createObserveRequest(
+            const std::vector<std::string>& key);
 
 private:
     /**

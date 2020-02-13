@@ -4723,6 +4723,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
             return ENGINE_NOT_MY_VBUCKET;
         } else if (rv == ENGINE_EWOULDBLOCK) {
             return rv;
+        } else if (rv == ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS) {
+            return rv;
         } else {
             return ENGINE_FAILED;
         }
