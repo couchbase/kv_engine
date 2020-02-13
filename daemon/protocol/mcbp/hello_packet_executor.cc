@@ -74,6 +74,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::SELECT_BUCKET:
         case cb::mcbp::Feature::Collections:
         case cb::mcbp::Feature::OpenTracing:
+        case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::ClustermapChangeNotification:
         case cb::mcbp::Feature::UnorderedExecution:
@@ -110,6 +111,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::UnorderedExecution:
         case cb::mcbp::Feature::Collections:
         case cb::mcbp::Feature::OpenTracing:
+        case cb::mcbp::Feature::PreserveTtl:
             // No other dependency
             break;
 
@@ -317,6 +319,10 @@ void process_hello_packet_executor(Cookie& cookie) {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
             }
+            break;
+
+        case cb::mcbp::Feature::PreserveTtl:
+            // not supported yet
             break;
 
         case cb::mcbp::Feature::Tracing:

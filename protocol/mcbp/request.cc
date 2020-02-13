@@ -365,6 +365,8 @@ nlohmann::json Request::toJSON(bool validated) const {
                         frameid["euid"]["domain"] = "local";
                     }
                     break;
+                case request::FrameInfoId::PreserveTtl:
+                    frameid["Preserve TTL"] = true;
                 }
 
                 return true;
@@ -418,6 +420,8 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "OpenTracingContext";
     case FrameInfoId::Impersonate:
         return "Impersonate";
+    case FrameInfoId::PreserveTtl:
+        return "PreserveTtl";
     }
 
     throw std::invalid_argument("to_string(): Invalid frame id: " +

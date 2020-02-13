@@ -515,6 +515,14 @@ public:
         return euid;
     }
 
+    bool isPreserveTtl() const {
+        return preserveTtl;
+    }
+
+    void setPreserveTtl(bool val) {
+        preserveTtl = val;
+    }
+
 protected:
     /// Check if the current command have the requested privilege for
     /// for the provided scope collection identifier
@@ -626,6 +634,9 @@ protected:
 
     /// see isAuthorized/setAuthorized
     bool authorized = false;
+
+    /// should we try to preserve TTL for this operation
+    bool preserveTtl{false};
 
     cb::compression::Buffer inflated_input_payload;
 

@@ -354,6 +354,16 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         doc_flags = parser.getDocFlag();
     }
 
+    bool preserveTtl = false;
+    request.parseFrameExtras([&preserveTtl](cb::mcbp::request::FrameInfoId id,
+                                            cb::const_byte_buffer) -> bool {
+        if (id == cb::mcbp::request::FrameInfoId::PreserveTtl) {
+            preserveTtl = true;
+            return false;
+        }
+        return true;
+    });
+
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
     // c->aiostat.
@@ -402,6 +412,13 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         // 2. Perform the operation specified by CMD. Again, return if it fails.
         if (!subdoc_operate(*context)) {
             return;
+        }
+
+        // If the user wanted to preserve the item info we need to copy
+        // the one from the item we fetched (which is updated every time we
+        // run this loop
+        if (preserveTtl && context->fetchedItem) {
+            expiration = context->getInputItemInfo().exptime;
         }
 
         // 3. Update the document in the engine (mutations only).

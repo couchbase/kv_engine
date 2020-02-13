@@ -223,6 +223,7 @@ protected:
                 ss << to_string(id);
                 switch (id) {
                 case cb::mcbp::request::FrameInfoId::Barrier:
+                case cb::mcbp::request::FrameInfoId::PreserveTtl:
                     break;
                 case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
                     ss << " Level=";

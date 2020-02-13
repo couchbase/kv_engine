@@ -92,3 +92,9 @@ public:
 protected:
     const std::string user;
 };
+
+class PreserveTtlFrameInfo : public FrameInfo {
+public:
+    ~PreserveTtlFrameInfo() override;
+    std::vector<uint8_t> encode() const override;
+};

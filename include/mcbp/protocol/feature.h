@@ -68,6 +68,9 @@ enum class Feature : uint16_t {
 
     /// Do the server support OpenTracing
     OpenTracing = 0x13,
+
+    /// Do the server support preserving document expiry time
+    PreserveTtl = 0x14,
 };
 
 } // namespace mcbp

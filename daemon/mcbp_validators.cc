@@ -325,6 +325,21 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 }
 
                 return status == Status::Success;
+            case cb::mcbp::request::FrameInfoId::PreserveTtl:
+                if (data.empty()) {
+                    if (cb::mcbp::is_preserve_ttl_supported(opcode)) {
+                        cookie.setPreserveTtl(true);
+                    } else {
+                        status = Status::NotSupported;
+                        cookie.setErrorContext(
+                                "This command does not support PreserveTtl");
+                    }
+                } else {
+                    status = Status::Einval;
+                    cookie.setErrorContext(
+                            "PreserveTtl should not contain value");
+                }
+                return status == Status::Success;
             } // switch (id)
             status = Status::UnknownFrameInfo;
             return false;

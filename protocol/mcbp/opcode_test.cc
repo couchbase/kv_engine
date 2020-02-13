@@ -380,6 +380,35 @@ TEST(ClientOpcode, is_collection_command) {
                    "collection");
 }
 
+TEST(ClientOpcode, is_preserve_ttl_supported) {
+    using cb::mcbp::ClientOpcode;
+
+    testAllOpcodes(cb::mcbp::is_preserve_ttl_supported,
+                   {{ClientOpcode::Set,
+                     ClientOpcode::Setq,
+                     ClientOpcode::Replace,
+                     ClientOpcode::Replaceq,
+                     ClientOpcode::Increment,
+                     ClientOpcode::Incrementq,
+                     ClientOpcode::Decrement,
+                     ClientOpcode::Decrementq,
+                     ClientOpcode::Append,
+                     ClientOpcode::Appendq,
+                     ClientOpcode::Prepend,
+                     ClientOpcode::Prependq,
+                     ClientOpcode::SubdocDictAdd,
+                     ClientOpcode::SubdocDictUpsert,
+                     ClientOpcode::SubdocDelete,
+                     ClientOpcode::SubdocReplace,
+                     ClientOpcode::SubdocArrayPushLast,
+                     ClientOpcode::SubdocArrayPushFirst,
+                     ClientOpcode::SubdocArrayInsert,
+                     ClientOpcode::SubdocArrayAddUnique,
+                     ClientOpcode::SubdocCounter,
+                     ClientOpcode::SubdocMultiMutation}},
+                   "preserve");
+}
+
 TEST(ServerOpcode, to_string) {
     const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
             {{ServerOpcode::ClustermapChangeNotification,

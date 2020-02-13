@@ -25,6 +25,7 @@ DurabilityFrameInfo::~DurabilityFrameInfo() = default;
 DcpStreamIdFrameInfo::~DcpStreamIdFrameInfo() = default;
 OpenTracingContextFrameInfo::~OpenTracingContextFrameInfo() = default;
 ImpersonateUserFrameInfo::~ImpersonateUserFrameInfo() = default;
+PreserveTtlFrameInfo::~PreserveTtlFrameInfo() = default;
 
 using cb::mcbp::request::FrameInfoId;
 
@@ -114,4 +115,10 @@ std::vector<uint8_t> ImpersonateUserFrameInfo::encode() const {
     return FrameInfo::encode(
             FrameInfoId::Impersonate,
             {reinterpret_cast<const uint8_t*>(user.data()), user.size()});
+}
+
+std::vector<uint8_t> PreserveTtlFrameInfo::encode() const {
+    std::vector<uint8_t> ret;
+    ret.push_back(uint8_t(FrameInfoId::PreserveTtl) << 0x04U);
+    return ret;
 }

@@ -159,6 +159,19 @@ TEST_F(FrameExtrasValidatorTests, OpenTracingContextInvalidSize) {
               validate_error_context(ClientOpcode::Set, blob, Status::Einval));
 }
 
+TEST_F(FrameExtrasValidatorTests, PreserveTtl) {
+    auto fe = encodeFrameInfo(FrameInfoId::PreserveTtl, {});
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_EQ(Status::Success, validate(ClientOpcode::Set, blob));
+}
+
+TEST_F(FrameExtrasValidatorTests, PreserveTtlInvalidSize) {
+    auto fe = encodeFrameInfo(FrameInfoId::PreserveTtl, {blob, 1});
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_EQ("PreserveTtl should not contain value",
+              validate_error_context(ClientOpcode::Set, blob, Status::Einval));
+}
+
 TEST_F(FrameExtrasValidatorTests, UnknownFrameId) {
     auto fe = encodeFrameInfo(FrameInfoId(0xff), {});
     builder.setFramingExtras({fe.data(), fe.size()});

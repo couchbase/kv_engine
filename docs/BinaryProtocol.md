@@ -173,6 +173,13 @@ effective privilege set when executing the command is an intersection of
 the authenticated users privilege set and the impersonated persons privilege
 set.
 
+##### ID:5 - Preserve TTL
+
+If the request modifies an existing document the expiry time from the
+existing document should be used instead of the TTL provided. If document
+don't exist the provided TTL should be used. The frame info contains no
+value (length = 0).
+
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |
@@ -1805,6 +1812,7 @@ The following features is defined:
 | 0x0011 | SyncReplication support |
 | 0x0012 | Collections |
 | 0x0013 | OpenTracing |
+| 0x0014 | PreserveTtl |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1869,6 +1877,10 @@ The following features is defined:
 * `OpenTracing` This is purely informational (it does not enable / disable
                 anything on the server). It may be used from the client to
                 figure out if the server supports OpenTracing or not.)
+* `PreserveTtl` This is purely informational (it does not enable / disable
+                anything on the server). It may be used from the client to
+                know if it may use PreserveTtl in the operations who carries
+                the TTL for a document.
 
 Response:
 

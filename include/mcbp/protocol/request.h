@@ -49,6 +49,7 @@ enum class FrameInfoId {
     DcpStreamId = 2,
     OpenTracingContext = 3,
     Impersonate = 4,
+    PreserveTtl = 5,
 };
 }
 

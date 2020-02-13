@@ -430,6 +430,9 @@ bool is_reorder_supported(ClientOpcode opcode);
 /// Does the command carry a key which contains a collection identifier
 bool is_collection_command(ClientOpcode opcode);
 
+/// Does the provided opcode support preserving TTL
+bool is_preserve_ttl_supported(ClientOpcode opcode);
+
 } // namespace mcbp
 } // namespace cb
 

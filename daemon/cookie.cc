@@ -503,6 +503,7 @@ void Cookie::reset() {
     ewouldblock = false;
     openTracingContext.clear();
     authorized = false;
+    preserveTtl = false;
     reorder = connection.allowUnorderedExecution();
     inflated_input_payload.reset();
     currentCollectionInfo = {};
