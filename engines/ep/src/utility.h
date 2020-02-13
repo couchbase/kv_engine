@@ -31,11 +31,14 @@
 
 #include <platform/dynamic.h>
 
+#ifndef DISALLOW_COPY_AND_ASSIGN
 // A macro to disallow the copy constructor and operator= functions
 #define DISALLOW_COPY_AND_ASSIGN(TypeName)      \
     TypeName(const TypeName&) = delete;         \
     void operator=(const TypeName&) = delete
+#endif
 
+#ifndef DISALLOW_ASSIGN
 #define DISALLOW_ASSIGN(TypeName)               \
     void operator=(const TypeName&) = delete
-
+#endif
