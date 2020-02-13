@@ -332,12 +332,13 @@ ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
  * @todo should we refactor this into hash_item ** and remove the cas
  *       there so that we can get it from the item instead?
  */
-ENGINE_ERROR_CODE store_item(struct default_engine *engine,
-                             hash_item *item,
-                             uint64_t *cas,
+ENGINE_ERROR_CODE store_item(struct default_engine* engine,
+                             hash_item* item,
+                             uint64_t* cas,
                              ENGINE_STORE_OPERATION operation,
-                             const void *cookie,
-                             const DocumentState document_state);
+                             const void* cookie,
+                             const DocumentState document_state,
+                             bool preserveTtl);
 
 /**
  * Run a single scrub loop for the engine.

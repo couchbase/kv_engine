@@ -886,8 +886,8 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
                               makeStoredDocKey("key_" + std::to_string(count)),
                               value);
         uint64_t cas;
-        result =
-                engine->storeInner(dummyCookie.get(), item, cas, OPERATION_SET);
+        result = engine->storeInner(
+                dummyCookie.get(), item, cas, OPERATION_SET, false);
     }
 
     if (GetParam() == "value_only") {
@@ -960,14 +960,15 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
 
     if (::testing::get<0>(GetParam()) == "full_eviction") {
         EXPECT_NO_THROW(engine->storeIfInner(
-                cookie, item, 0 /*cas*/, OPERATION_SET, predicate));
+                cookie, item, 0 /*cas*/, OPERATION_SET, predicate, false));
         runBGFetcherTask();
     }
 
     // If the itemInfo exists, you can't ask for it again - so expect throw
-    EXPECT_THROW(engine->storeIfInner(
-                         cookie, item, 0 /*cas*/, OPERATION_SET, predicate),
-                 std::logic_error);
+    EXPECT_THROW(
+            engine->storeIfInner(
+                    cookie, item, 0 /*cas*/, OPERATION_SET, predicate, false),
+            std::logic_error);
 }
 
 TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
@@ -1033,7 +1034,8 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
                                                  item,
                                                  0 /*cas*/,
                                                  OPERATION_SET,
-                                                 test.predicate)
+                                                 test.predicate,
+                                                 false)
                                     .status;
         if (test.actualStatus == cb::engine_errc::success) {
             flush_vbucket_to_disk(vbid);
@@ -1062,7 +1064,8 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
                                                    item,
                                                    0 /*cas*/,
                                                    OPERATION_SET,
-                                                   testData[i].predicate);
+                                                   testData[i].predicate,
+                                                   false);
                 // The second run should result the same as VE
                 EXPECT_EQ(testData[i].expectedVEStatus, status.status);
             }
@@ -1092,21 +1095,33 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
     evict_key(vbid, key);
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->storeIfInner(
-                            cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
+              engine->storeIfInner(cookie,
+                                   item,
+                                   0 /*cas*/,
+                                   OPERATION_SET,
+                                   predicate,
+                                   false)
                       .status);
 
     // expect another store to the same key to be told the same, even though the
     // first store has populated the store with a temp item
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->storeIfInner(
-                            cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
+              engine->storeIfInner(cookie,
+                                   item,
+                                   0 /*cas*/,
+                                   OPERATION_SET,
+                                   predicate,
+                                   false)
                       .status);
 
     runBGFetcherTask();
     EXPECT_EQ(cb::engine_errc::success,
-              engine->storeIfInner(
-                            cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
+              engine->storeIfInner(cookie,
+                                   item,
+                                   0 /*cas*/,
+                                   OPERATION_SET,
+                                   predicate,
+                                   false)
                       .status);
 }
 

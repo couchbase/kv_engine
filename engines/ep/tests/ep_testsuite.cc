@@ -840,7 +840,8 @@ static enum test_result test_expiry(EngineIface* h) {
                        cas,
                        OPERATION_SET,
                        {},
-                       DocumentState::Alive);
+                       DocumentState::Alive,
+                       false);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
@@ -903,7 +904,8 @@ static enum test_result test_expiry_loader(EngineIface* h) {
                        cas,
                        OPERATION_SET,
                        {},
-                       DocumentState::Alive);
+                       DocumentState::Alive,
+                       false);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
@@ -1072,7 +1074,8 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
                        cas,
                        OPERATION_SET,
                        {},
-                       DocumentState::Alive);
+                       DocumentState::Alive,
+                       false);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     testHarness->destroy_cookie(cookie);
 
@@ -1151,7 +1154,8 @@ static enum test_result test_bug3454(EngineIface* h) {
                        cas,
                        OPERATION_SET,
                        {},
-                       DocumentState::Alive);
+                       DocumentState::Alive,
+                       false);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
@@ -1183,7 +1187,8 @@ static enum test_result test_bug3454(EngineIface* h) {
                   cas,
                   OPERATION_ADD,
                   {},
-                  DocumentState::Alive);
+                  DocumentState::Alive,
+                  false);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
     check_key_value(h, key, data, strlen(data));
     ret.second.reset();
@@ -1239,7 +1244,8 @@ static enum test_result test_bug3522(EngineIface* h) {
                        cas,
                        OPERATION_SET,
                        {},
-                       DocumentState::Alive);
+                       DocumentState::Alive,
+                       false);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
@@ -1268,7 +1274,8 @@ static enum test_result test_bug3522(EngineIface* h) {
                   cas,
                   OPERATION_SET,
                   {},
-                  DocumentState::Alive);
+                  DocumentState::Alive,
+                  false);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     testHarness->destroy_cookie(cookie);
 

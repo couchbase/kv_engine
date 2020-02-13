@@ -60,7 +60,8 @@ ENGINE_ERROR_CODE bucket_store(
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         boost::optional<cb::durability::Requirements> durability,
-        DocumentState document_state = DocumentState::Alive);
+        DocumentState document_state,
+        bool preserveTtl);
 
 cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
@@ -69,7 +70,8 @@ cb::EngineErrorCasPair bucket_store_if(
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
         boost::optional<cb::durability::Requirements> durability,
-        DocumentState document_state = DocumentState::Alive);
+        DocumentState document_state,
+        bool preserveTtl);
 
 ENGINE_ERROR_CODE bucket_remove(
         Cookie& cookie,

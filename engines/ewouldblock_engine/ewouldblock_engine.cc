@@ -423,14 +423,20 @@ public:
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override {
+            DocumentState document_state,
+            bool preserveTtl) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return err;
         } else {
-            return real_engine->store(
-                    cookie, item, cas, operation, durability, document_state);
+            return real_engine->store(cookie,
+                                      item,
+                                      cas,
+                                      operation,
+                                      durability,
+                                      document_state,
+                                      preserveTtl);
         }
     }
 
@@ -441,7 +447,8 @@ public:
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override {
+            DocumentState document_state,
+            bool preserveTtl) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
@@ -453,7 +460,8 @@ public:
                                          operation,
                                          predicate,
                                          durability,
-                                         document_state);
+                                         document_state,
+                                         preserveTtl);
         }
     }
 

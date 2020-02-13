@@ -131,7 +131,8 @@ public:
             uint64_t&,
             ENGINE_STORE_OPERATION,
             const boost::optional<cb::durability::Requirements>&,
-            DocumentState) override {
+            DocumentState,
+            bool) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -142,7 +143,8 @@ public:
             ENGINE_STORE_OPERATION,
             const cb::StoreIfPredicate&,
             const boost::optional<cb::durability::Requirements>&,
-            DocumentState) override {
+            DocumentState,
+            bool) override {
         return {cb::engine_errc::no_bucket, 0};
     }
 

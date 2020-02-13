@@ -1017,7 +1017,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  engine->storeInner(cookie, item, cas, OPERATION_SET));
+                  engine->storeInner(cookie, item, cas, OPERATION_SET, false));
     }
     {
         Item item(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
@@ -1028,7 +1028,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-                  engine->storeInner(cookie, item, cas, OPERATION_SET));
+                  engine->storeInner(cookie, item, cas, OPERATION_SET, false));
     }
 
     EXPECT_EQ(1,

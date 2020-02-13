@@ -47,6 +47,7 @@ Item::Item(const DocKey& k,
                                                      : queue_op::mutation),
       deleted(0), // false
       maybeVisible(0),
+      preserveTtl(0),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -75,6 +76,7 @@ Item::Item(const DocKey& k,
                                                      : queue_op::mutation),
       deleted(0), // false
       maybeVisible(0),
+      preserveTtl(0),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -96,7 +98,8 @@ Item::Item(const DocKey& k,
       vbucketId(vb),
       op(o),
       deleted(0), // false
-      maybeVisible(0) {
+      maybeVisible(0),
+      preserveTtl(0) {
     if (bySeqno < 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-negative");
     }
@@ -115,6 +118,7 @@ Item::Item(const Item& other)
       deleted(other.deleted),
       deletionCause(other.deletionCause),
       maybeVisible(other.maybeVisible),
+      preserveTtl(other.preserveTtl),
       datatype(other.datatype),
       durabilityReqs(other.durabilityReqs),
       queuedTime(other.queuedTime) {
@@ -171,7 +175,8 @@ bool operator==(const Item& lhs, const Item& rhs) {
            ((lhs.deleted && lhs.deletionCause) ==
             (rhs.deleted && rhs.deletionCause)) &&
            (lhs.durabilityReqs == rhs.durabilityReqs) &&
-           lhs.maybeVisible == rhs.maybeVisible;
+           lhs.maybeVisible == rhs.maybeVisible &&
+           lhs.preserveTtl == rhs.preserveTtl;
 }
 
 std::ostream& operator<<(std::ostream& os, const Item& i) {

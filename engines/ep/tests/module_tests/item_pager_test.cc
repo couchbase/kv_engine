@@ -92,7 +92,7 @@ protected:
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
         uint64_t cas = 0;
-        return engine->storeInner(cookie, item, cas, OPERATION_SET);
+        return engine->storeInner(cookie, item, cas, OPERATION_SET, false);
     }
 
     /**
@@ -1245,7 +1245,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     uint64_t cas = 0;
     ASSERT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, item, cas, OPERATION_SET));
+              engine->storeInner(cookie, item, cas, OPERATION_SET, false));
 
     auto& bucket = dynamic_cast<EPBucket&>(*store);
     EXPECT_EQ(1, bucket.flushVBucket(vbid).second);

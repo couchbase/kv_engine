@@ -1314,7 +1314,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                cookie.getRequest().getDurabilityRequirements(),
                                context.do_delete_doc
                                        ? DocumentState::Deleted
-                                       : context.in_document_state);
+                                       : context.in_document_state,
+                               false);
         }
         ret = connection.remapErrorCode(ret);
     }

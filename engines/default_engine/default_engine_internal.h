@@ -156,7 +156,8 @@ struct default_engine : public EngineIface {
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override;
+            DocumentState document_state,
+            bool preserveTtl) override;
 
     cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*> cookie,
@@ -165,7 +166,8 @@ struct default_engine : public EngineIface {
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override;
+            DocumentState document_state,
+            bool preserveTtl) override;
 
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
 

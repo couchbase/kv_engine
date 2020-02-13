@@ -71,6 +71,7 @@ set(memcached_testapp_SOURCES
     testapp_topkeys.cc
     testapp_touch.cc
     testapp_tracing.cc
+    testapp_ttl.cc
     testapp_tune_mcbp_sla.cc
     testapp_withmeta.cc
     testapp_xattr.cc

@@ -159,7 +159,8 @@ public:
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override;
+            DocumentState document_state,
+            bool preserveTtl) override;
     cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*> cookie,
             gsl::not_null<item*> item,
@@ -167,7 +168,8 @@ public:
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override;
+            DocumentState document_state,
+            bool preserveTtl) override;
 
     // Need to explicilty import EngineIface::flush to avoid warning about
     // DCPIface::flush hiding it.
@@ -482,13 +484,15 @@ public:
     ENGINE_ERROR_CODE storeInner(const void* cookie,
                                  Item& itm,
                                  uint64_t& cas,
-                                 ENGINE_STORE_OPERATION operation);
+                                 ENGINE_STORE_OPERATION operation,
+                                 bool preserveTtl);
 
     cb::EngineErrorCasPair storeIfInner(const void* cookie,
                                         Item& itm,
                                         uint64_t cas,
                                         ENGINE_STORE_OPERATION operation,
-                                        const cb::StoreIfPredicate& predicate);
+                                        const cb::StoreIfPredicate& predicate,
+                                        bool preserveTtl);
 
     ENGINE_ERROR_CODE dcpOpen(const void* cookie,
                               uint32_t opaque,

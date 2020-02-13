@@ -291,7 +291,8 @@ ENGINE_ERROR_CODE default_engine::remove(
                          &cas,
                          OPERATION_CAS,
                          cookie,
-                         DocumentState::Deleted);
+                         DocumentState::Deleted,
+                         false);
 
         item_release(this, it);
         item_release(this, deleted);
@@ -515,7 +516,8 @@ ENGINE_ERROR_CODE default_engine::store(
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const boost::optional<cb::durability::Requirements>& durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     if (durability) {
         return ENGINE_ENOTSUP;
     }
@@ -526,7 +528,8 @@ ENGINE_ERROR_CODE default_engine::store(
         return safe_item_unlink(this, it);
     }
 
-    return store_item(this, it, &cas, operation, cookie, document_state);
+    return store_item(
+            this, it, &cas, operation, cookie, document_state, preserveTtl);
 }
 
 cb::EngineErrorCasPair default_engine::store_if(
@@ -536,7 +539,8 @@ cb::EngineErrorCasPair default_engine::store_if(
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
         const boost::optional<cb::durability::Requirements>& durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     if (durability) {
         return {cb::engine_errc::not_supported, 0};
     }
@@ -578,7 +582,8 @@ cb::EngineErrorCasPair default_engine::store_if(
     }
 
     auto* it = get_real_item(item);
-    auto status = store_item(this, it, &cas, operation, cookie, document_state);
+    auto status = store_item(
+            this, it, &cas, operation, cookie, document_state, preserveTtl);
     return {cb::engine_errc(status), cas};
 }
 

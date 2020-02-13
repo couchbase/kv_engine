@@ -58,7 +58,8 @@ protected:
                                 cas,
                                 OPERATION_SET,
                                 {},
-                                DocumentState::Alive));
+                                DocumentState::Alive,
+                                false));
         ASSERT_NE(0, cas);
         const auto prev_cas = cas;
 
@@ -69,7 +70,8 @@ protected:
                                 cas,
                                 OPERATION_SET,
                                 {},
-                                DocumentState::Alive));
+                                DocumentState::Alive,
+                                false));
         ASSERT_NE(prev_cas, cas);
     }
 
@@ -112,7 +114,8 @@ TEST_F(BasicEngineTestsuite, Add) {
                                 cas,
                                 OPERATION_ADD,
                                 {},
-                                DocumentState::Alive);
+                                DocumentState::Alive,
+                                false);
         if (ii == 0) {
             ASSERT_EQ(ENGINE_SUCCESS, rv);
             ASSERT_NE(0, cas);
@@ -152,7 +155,8 @@ TEST_F(BasicEngineTestsuite, Replace) {
                                 cas,
                                 OPERATION_REPLACE,
                                 {},
-                                DocumentState::Alive));
+                                DocumentState::Alive,
+                                false));
         ASSERT_NE(prev_cas, cas);
     }
 
@@ -179,7 +183,8 @@ TEST_F(BasicEngineTestsuite, Store) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     ASSERT_NE(0, cas);
 }
 
@@ -199,7 +204,8 @@ TEST_F(BasicEngineTestsuite, Get) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, ret.first);
 }
@@ -220,7 +226,8 @@ TEST_F(BasicEngineTestsuite, GetDeleted) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     EXPECT_EQ(cb::engine_errc::success, ret.first);
 
@@ -255,7 +262,8 @@ TEST_F(BasicEngineTestsuite, Expiry) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     mock_time_travel(11);
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
@@ -278,7 +286,8 @@ TEST_F(BasicEngineTestsuite, Release) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 }
 
 /*
@@ -299,7 +308,8 @@ TEST_F(BasicEngineTestsuite, Remove) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     ASSERT_EQ(ENGINE_SUCCESS,
               engine->remove(cookie.get(), key, cas, Vbid(0), {}, mut_info));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
@@ -326,7 +336,8 @@ TEST_F(BasicEngineTestsuite, Flush) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     ASSERT_EQ(ENGINE_SUCCESS, engine->flush(cookie.get()));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
@@ -352,7 +363,8 @@ TEST_F(BasicEngineTestsuite, GetItemInfo) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     /* Had this been actual code, there'd be a connection here */
     ASSERT_TRUE(engine->get_item_info(ret.second.get(), &ii));
     ASSERT_EQ(cas, ii.cas);
@@ -383,7 +395,8 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     newcas = cas + 1;
     engine->item_set_cas(ret.second.get(), newcas);
     ASSERT_TRUE(engine->get_item_info(ret.second.get(), &ii));
@@ -421,7 +434,8 @@ TEST_F(BasicEngineTestsuite, LRU) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
@@ -449,7 +463,8 @@ TEST_F(BasicEngineTestsuite, LRU) {
                                 cas,
                                 OPERATION_SET,
                                 {},
-                                DocumentState::Alive));
+                                DocumentState::Alive,
+                                false));
         ASSERT_EQ(ENGINE_SUCCESS,
                   engine->get_stats(
                           cookie.get(), {}, {}, eviction_stats_handler));
@@ -495,7 +510,8 @@ TEST_F(BasicEngineTestsuite, Datatype) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, ret.first);
@@ -536,7 +552,8 @@ TEST_F(BasicEngineTestsuite, test_n_bucket_destroy) {
                                     cas,
                                     OPERATION_SET,
                                     {},
-                                    DocumentState::Alive));
+                                    DocumentState::Alive,
+                                    false));
         }
     }
 
@@ -573,7 +590,8 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
                                     cas,
                                     OPERATION_SET,
                                     {},
-                                    DocumentState::Alive));
+                                    DocumentState::Alive,
+                                    false));
         }
     }
 }

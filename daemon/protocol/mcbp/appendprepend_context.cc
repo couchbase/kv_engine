@@ -190,7 +190,9 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                             newitem.get(),
                             ncas,
                             OPERATION_CAS,
-                            cookie.getRequest().getDurabilityRequirements());
+                            cookie.getRequest().getDurabilityRequirements(),
+                            DocumentState::Alive,
+                            false);
 
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(cookie);

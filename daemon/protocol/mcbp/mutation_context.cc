@@ -289,7 +289,9 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
                                input_cas,
                                operation,
                                store_if_predicate,
-                               request.getDurabilityRequirements());
+                               request.getDurabilityRequirements(),
+                               DocumentState::Alive,
+                               cookie.isPreserveTtl());
     if (ret.status == cb::engine_errc::success) {
         cookie.setCas(ret.cas);
         state = State::SendResponse;

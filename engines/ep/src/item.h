@@ -498,6 +498,16 @@ public:
      */
     static const uint8_t initialFreqCount = 4;
 
+    /// Should the TTL of this object be replaced with the TTL for the object
+    /// it tries to replace (if found)
+    bool shouldPreserveTtl() const {
+        return preserveTtl;
+    }
+
+    void setPreserveTtl(bool enable) {
+        preserveTtl = enable;
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we
@@ -538,6 +548,10 @@ private:
 
     /// True if this Item is a PreparedMaybeVisible SyncWrite.
     uint8_t maybeVisible : 1;
+
+    /// True if this item should try to preserve the Ttl of the item
+    /// it tries to replace
+    uint8_t preserveTtl : 1;
 
     // Keep a cached version of the datatype. It allows for using
     // "partial" items created from from the hashtable. Every time the

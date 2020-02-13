@@ -131,7 +131,8 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
                             new_cas,
                             OPERATION_CAS,
                             {},
-                            DocumentState::Deleted);
+                            DocumentState::Deleted,
+                            false);
 
     if (ret == ENGINE_SUCCESS) {
 

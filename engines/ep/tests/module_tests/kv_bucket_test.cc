@@ -1547,11 +1547,11 @@ TEST_F(StoreIfTest, store_if_basic) {
     };
     auto item = make_item(
             vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0, 0);
-    auto rv = engine->storeIfInner(cookie, item, 0, OPERATION_ADD, pred);
+    auto rv = engine->storeIfInner(cookie, item, 0, OPERATION_ADD, pred, false);
     EXPECT_EQ(cb::engine_errc::success, rv.status);
-    rv = engine->storeIfInner(cookie, item, 0, OPERATION_REPLACE, pred);
+    rv = engine->storeIfInner(cookie, item, 0, OPERATION_REPLACE, pred, false);
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
-    rv = engine->storeIfInner(cookie, item, 0, OPERATION_SET, pred);
+    rv = engine->storeIfInner(cookie, item, 0, OPERATION_SET, pred, false);
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
 }
 

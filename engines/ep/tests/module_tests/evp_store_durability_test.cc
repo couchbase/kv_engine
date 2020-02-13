@@ -2321,7 +2321,8 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             cas,
                             OPERATION_SET,
                             pending->getDurabilityReqs(),
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
     ASSERT_TRUE(engine->getEngineSpecific(cookie))
             << "Expected engine specific to be set for cookie after "
                "EWOULDBLOCK";
@@ -2342,7 +2343,8 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             cas,
                             OPERATION_REPLACE,
                             pending->getDurabilityReqs(),
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 }
 
 // Test a durable set with CAS works when evicted. This checks that the set
@@ -2367,7 +2369,8 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
                             cas,
                             OPERATION_SET,
                             {},
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 
     // flush so that the hash-table allows eviction
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2384,7 +2387,8 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
                             cas,
                             OPERATION_SET,
                             pending->getDurabilityReqs(),
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 
     // Must fetch at least the meta-data to process the SET with CAS
     runBGFetcherTask();
@@ -2397,7 +2401,8 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
                             cas,
                             OPERATION_SET,
                             pending->getDurabilityReqs(),
-                            DocumentState::Alive));
+                            DocumentState::Alive,
+                            false));
 }
 
 TEST_P(DurabilityBucketTest,

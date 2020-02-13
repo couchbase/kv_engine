@@ -154,7 +154,7 @@ protected:
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
         uint64_t cas = 0;
-        return engine->storeInner(cookie, item, cas, OPERATION_SET);
+        return engine->storeInner(cookie, item, cas, OPERATION_SET, false);
     }
 
     /**

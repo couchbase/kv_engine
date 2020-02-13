@@ -99,7 +99,8 @@ public:
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override;
+            DocumentState document_state,
+            bool preserveTtl) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
@@ -271,7 +272,8 @@ ENGINE_ERROR_CODE CrashEngine::store(
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const boost::optional<cb::durability::Requirements>& durability,
-        DocumentState) {
+        DocumentState,
+        bool) {
     return ENGINE_FAILED;
 }
 

@@ -296,7 +296,8 @@ ENGINE_ERROR_CODE MockEngine::store(
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const boost::optional<cb::durability::Requirements>& durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     auto engine_fn = std::bind(&EngineIface::store,
                                the_engine.get(),
                                cookie,
@@ -304,7 +305,8 @@ ENGINE_ERROR_CODE MockEngine::store(
                                std::ref(cas),
                                operation,
                                durability,
-                               document_state);
+                               document_state,
+                               preserveTtl);
 
     auto* construct = cookie_to_mock_cookie(cookie.get());
 

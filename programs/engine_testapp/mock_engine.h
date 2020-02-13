@@ -92,7 +92,8 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) override;
+            DocumentState document_state,
+            bool preserveTtl) override;
 
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
 

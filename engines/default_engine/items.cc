@@ -554,11 +554,12 @@ hash_item* do_item_get(struct default_engine* engine,
  *
  * Returns the state of storage.
  */
-static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
-                                       hash_item *it,
+static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
+                                       hash_item* it,
                                        ENGINE_STORE_OPERATION operation,
-                                       const void *cookie,
-                                       hash_item** stored_item) {
+                                       const void* cookie,
+                                       hash_item** stored_item,
+                                       bool preserveTtl) {
     const hash_key* key = item_get_key(it);
     hash_item* old_it =
             do_item_get(engine, key, DocStateFilter::AliveOrDeleted);
@@ -584,6 +585,9 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
             /* cas validates */
             /* it and old_it may belong to different classes. */
             /* I'm updating the stats for the one that's getting pushed out */
+            if (preserveTtl) {
+                it->exptime = old_it->exptime;
+            }
             do_item_replace(engine, cookie, old_it, it);
             stored = ENGINE_SUCCESS;
         } else {
@@ -602,6 +606,9 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         } else {
             stored = ENGINE_SUCCESS;
             if (old_it != nullptr) {
+                if (preserveTtl) {
+                    it->exptime = old_it->exptime;
+                }
                 do_item_replace(engine, cookie, old_it, it);
             } else {
                 if (do_item_link(engine, cookie, it) == 0) {
@@ -703,11 +710,13 @@ ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
 /*
  * Stores an item in the cache (high level, obeys set/add/replace semantics)
  */
-ENGINE_ERROR_CODE store_item(struct default_engine *engine,
-                             hash_item *item, uint64_t *cas,
+ENGINE_ERROR_CODE store_item(struct default_engine* engine,
+                             hash_item* item,
+                             uint64_t* cas,
                              ENGINE_STORE_OPERATION operation,
-                             const void *cookie,
-                             const DocumentState document_state) {
+                             const void* cookie,
+                             const DocumentState document_state,
+                             bool preserveTtl) {
     ENGINE_ERROR_CODE ret;
     hash_item* stored_item = nullptr;
 
@@ -716,7 +725,8 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
     }
 
     std::lock_guard<std::mutex> guard(engine->items.lock);
-    ret = do_store_item(engine, item, operation, cookie, &stored_item);
+    ret = do_store_item(
+            engine, item, operation, cookie, &stored_item, preserveTtl);
     if (ret == ENGINE_SUCCESS) {
         *cas = stored_item->cas;
     }

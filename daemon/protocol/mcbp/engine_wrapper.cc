@@ -94,10 +94,16 @@ ENGINE_ERROR_CODE bucket_store(
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         boost::optional<cb::durability::Requirements> durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().store(
-            &cookie, item_, cas, operation, durability, document_state);
+    auto ret = c.getBucketEngine().store(&cookie,
+                                         item_,
+                                         cas,
+                                         operation,
+                                         durability,
+                                         document_state,
+                                         preserveTtl);
 
     LOG_TRACE("bucket_store() item:{} cas:{} op:{} -> {}",
               item_.get(),
@@ -126,7 +132,8 @@ cb::EngineErrorCasPair bucket_store_if(
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
         boost::optional<cb::durability::Requirements> durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().store_if(&cookie,
                                             item_,
@@ -134,7 +141,8 @@ cb::EngineErrorCasPair bucket_store_if(
                                             operation,
                                             predicate,
                                             durability,
-                                            document_state);
+                                            document_state,
+                                            preserveTtl);
     if (ret.status == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,

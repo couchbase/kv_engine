@@ -1127,8 +1127,13 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
     item_info info;
     check(h->get_item_info(ret.second.get(), &info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    ENGINE_ERROR_CODE res = h->store(
-            cookie, ret.second.get(), out_cas, OPERATION_SET, {}, docState);
+    ENGINE_ERROR_CODE res = h->store(cookie,
+                                     ret.second.get(),
+                                     out_cas,
+                                     OPERATION_SET,
+                                     {},
+                                     docState,
+                                     false);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1170,7 +1175,8 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
         create_cookie = true;
     }
 
-    auto storeRet = h->store(cookie, rv.second.get(), cas, op, {}, docState);
+    auto storeRet =
+            h->store(cookie, rv.second.get(), cas, op, {}, docState, false);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);

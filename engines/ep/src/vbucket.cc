@@ -1584,7 +1584,8 @@ ENGINE_ERROR_CODE VBucket::set(
         // that requires the item's info
         if ((v == nullptr || v->isTempInitialItem()) &&
             (eviction == EvictionPolicy::Full) &&
-            (cas_op || storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
+            (cas_op || storeIfStatus == cb::StoreIfStatus::GetItemInfo ||
+             itm.shouldPreserveTtl())) {
             // Check Bloomfilter's prediction
             if (!maybeKeyExistsInFilter(itm.getKey())) {
                 maybeKeyExists = false;
@@ -3249,7 +3250,8 @@ VBucket::processSetInner(HashTable::FindUpdateResult& htRes,
     // bgFetch only in FE, only if the bloom-filter thinks the key may exist.
     // But only for cas operations or if a store_if is requiring the item_info.
     if (eviction == EvictionPolicy::Full && maybeKeyExists &&
-        (cas || storeIfStatus == cb::StoreIfStatus::GetItemInfo)) {
+        (cas || storeIfStatus == cb::StoreIfStatus::GetItemInfo ||
+         itm.shouldPreserveTtl())) {
         if (!v || v->isTempInitialItem()) {
             return {MutationStatus::NeedBgFetch, {}};
         }
@@ -3332,6 +3334,11 @@ VBucket::processSetInner(HashTable::FindUpdateResult& htRes,
     MutationStatus status;
     VBNotifyCtx notifyCtx;
     if (v) {
+        if (itm.shouldPreserveTtl()) {
+            // copy the expiry time for the existing item over
+            itm.setExpTime(v->getExptime());
+        }
+
         // This is a new SyncWrite, we just want to add a new prepare unless we
         // still have a completed prepare (Ephemeral) which we should replace
         // instead.

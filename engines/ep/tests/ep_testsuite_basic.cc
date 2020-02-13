@@ -660,7 +660,8 @@ static enum test_result test_getl(EngineIface* h) {
                      cas,
                      OPERATION_SET,
                      {},
-                     DocumentState::Alive),
+                     DocumentState::Alive,
+                     false),
             "Failed to Store item");
     check_key_value(h, ekey, edata, strlen(edata));
 
@@ -817,7 +818,8 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
                      cas,
                      OPERATION_SET,
                      {},
-                     DocumentState::Alive),
+                     DocumentState::Alive,
+                     false),
             "Expected not found");
 
     testHarness->destroy_cookie(cookie);

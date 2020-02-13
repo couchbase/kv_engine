@@ -429,6 +429,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param durability An optional durability requirement
      * @param document_state The state the document should have after
      *                       the update
+     * @param preserveTtl if set to true the existing documents TTL should
+     *                    be used.
      *
      * @return ENGINE_SUCCESS if all goes well
      */
@@ -438,7 +440,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) = 0;
+            DocumentState document_state,
+            bool preserveTtl) = 0;
 
     /**
      * Store an item into the underlying engine with the given
@@ -468,6 +471,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param durability An optional durability requirement
      * @param document_state The state the document should have after
      *                       the update
+     * @param preserveTtl if set to true the existing documents TTL should
+     *                    be used.
      *
      * @return a std::pair containing the engine_error code and new CAS
      */
@@ -478,7 +483,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
             const boost::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state) {
+            DocumentState document_state,
+            bool preserveTtl) {
         return {cb::engine_errc::not_supported, 0};
     }
 

@@ -401,7 +401,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const boost::optional<cb::durability::Requirements>& durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     Item& item = *static_cast<Item*>(itm.get());
     if (document_state == DocumentState::Deleted) {
         item.setDeleted();
@@ -409,7 +410,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
     if (durability) {
         item.setPendingSyncWrite(durability.get());
     }
-    return acquireEngine(this)->storeInner(cookie, item, cas, operation);
+    return acquireEngine(this)->storeInner(
+            cookie, item, cas, operation, preserveTtl);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
@@ -419,7 +421,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
         const boost::optional<cb::durability::Requirements>& durability,
-        DocumentState document_state) {
+        DocumentState document_state,
+        bool preserveTtl) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
 
     if (document_state == DocumentState::Deleted) {
@@ -429,7 +432,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         item.setPendingSyncWrite(durability.get());
     }
     return acquireEngine(this)->storeIfInner(
-            cookie, item, cas, operation, predicate);
+            cookie, item, cas, operation, predicate, preserveTtl);
 }
 
 void EventuallyPersistentEngine::reset_stats(
@@ -2474,7 +2477,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         Item& item,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
-        const cb::StoreIfPredicate& predicate) {
+        const cb::StoreIfPredicate& predicate,
+        bool preserveTtl) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::Store));
@@ -2506,6 +2510,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         if (isDegradedMode()) {
             return {cb::engine_errc::temporary_failure, cas};
         }
+        item.setPreserveTtl(preserveTtl);
         status = kvBucket->set(item, cookie, predicate);
         break;
 
@@ -2523,6 +2528,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         break;
 
     case OPERATION_REPLACE:
+        item.setPreserveTtl(preserveTtl);
         status = kvBucket->replace(item, cookie, predicate);
         break;
     default:
@@ -2566,8 +2572,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
         const void* cookie,
         Item& itm,
         uint64_t& cas,
-        ENGINE_STORE_OPERATION operation) {
-    auto rv = storeIfInner(cookie, itm, cas, operation, {});
+        ENGINE_STORE_OPERATION operation,
+        bool preserveTtl) {
+    auto rv = storeIfInner(cookie, itm, cas, operation, {}, preserveTtl);
     cas = rv.cas;
     return ENGINE_ERROR_CODE(rv.status);
 }
