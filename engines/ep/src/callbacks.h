@@ -132,7 +132,7 @@ public:
         myStatus = status;
     }
 
-    virtual int getStatus() {
+    virtual int getStatus() const {
         return myStatus;
     }
 

@@ -215,32 +215,65 @@ public:
 
 class ScanContext {
 public:
-    ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
-                std::shared_ptr<StatusCallback<CacheLookup>> cl,
-                Vbid vb,
+    ScanContext(Vbid vbid,
                 std::unique_ptr<KVFileHandle> handle,
-                int64_t start,
-                int64_t end,
-                uint64_t purgeSeqno,
-                DocumentFilter _docFilter,
-                ValueFilter _valFilter,
-                uint64_t _documentCount,
-                const vbucket_state& vbucketState,
-                const KVStoreConfig& _config,
+                DocumentFilter docFilter,
+                ValueFilter valFilter,
+                std::unique_ptr<StatusCallback<GetValue>> cb,
+                std::unique_ptr<StatusCallback<CacheLookup>> cl,
                 const std::vector<Collections::KVStore::DroppedCollection>&
                         droppedCollections);
 
-    const std::shared_ptr<StatusCallback<GetValue>> callback;
-    const std::shared_ptr<StatusCallback<CacheLookup>> lookup;
+    virtual ~ScanContext() {
+    }
 
-    int64_t lastReadSeqno;
+    const StatusCallback<GetValue>& getValueCallback() const {
+        return *callback;
+    }
+
+    StatusCallback<GetValue>& getValueCallback() {
+        return *callback;
+    }
+
+    const StatusCallback<CacheLookup>& getCacheCallback() const {
+        return *lookup;
+    }
+
+    StatusCallback<CacheLookup>& getCacheCallback() {
+        return *lookup;
+    }
+
+    const Vbid vbid;
+    int64_t lastReadSeqno{0};
+    const std::unique_ptr<KVFileHandle> handle;
+    const DocumentFilter docFilter;
+    const ValueFilter valFilter;
+    std::unique_ptr<StatusCallback<GetValue>> callback;
+    std::unique_ptr<StatusCallback<CacheLookup>> lookup;
+    BucketLogger* logger;
+    const Collections::VB::ScanContext collectionsContext;
+};
+
+class BySeqnoScanContext : public ScanContext {
+public:
+    BySeqnoScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vb,
+            std::unique_ptr<KVFileHandle> handle,
+            int64_t start,
+            int64_t end,
+            uint64_t purgeSeqno,
+            DocumentFilter _docFilter,
+            ValueFilter _valFilter,
+            uint64_t _documentCount,
+            const vbucket_state& vbucketState,
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    droppedCollections);
+
     const int64_t startSeqno;
     const int64_t maxSeqno;
     const uint64_t purgeSeqno;
-    const std::unique_ptr<KVFileHandle> handle;
-    const Vbid vbid;
-    const DocumentFilter docFilter;
-    const ValueFilter valFilter;
     const uint64_t documentCount;
 
     /**
@@ -262,10 +295,6 @@ public:
      * end of the snapshot. This seqno is also used to optimise local warmup.
      */
     const uint64_t persistedCompletedSeqno;
-
-    BucketLogger* logger;
-    const KVStoreConfig& config;
-    Collections::VB::ScanContext collectionsContext;
 };
 
 struct FileStats {
@@ -772,7 +801,7 @@ public:
      */
     virtual RollbackResult rollback(Vbid vbid,
                                     uint64_t rollbackseqno,
-                                    std::shared_ptr<RollbackCB> cb) = 0;
+                                    std::unique_ptr<RollbackCB>) = 0;
 
     /**
      * This method is called before persisting a batch of data if you'd like to
@@ -808,9 +837,8 @@ public:
 
     /**
      * Create a KVStore Scan Context with the given options. On success,
-     * returns a pointer to the ScanContext. The caller can then call scan()
-     * to execute the scan. The context should be deleted by the caller using
-     * destroyScanContext() when finished with.
+     * returns a unique_pointer to the ScanContext. The caller can then call
+     * scan() to execute the scan.
      *
      * The caller specifies two callback objects - GetValue and CacheLookup:
      *
@@ -827,21 +855,28 @@ public:
      *    from memory, and will instead be loaded from disk and GetValue
      *    callback invoked.
      *
-     * @param cb GetValue callback
-     * @param cl Cache lookup callback
-     * If the ScanContext cannot be created, returns null.
+     * @param cb GetValue callback - ownership passes to the returned object
+     * @param cl Cache lookup callback - ownership passes to the returned object
+     * @param vbid The vbucket to scan
+     * @param startSeqno The seqno to begin scanning from
+     * @param options DocumentFilter for the scan - e.g. return deleted items
+     * @param valOptions ValueFilter - e.g. return the document body
+     * @return a BySeqnoScanContext, null if there's an error
      */
-    virtual ScanContext* initScanContext(
-            std::shared_ptr<StatusCallback<GetValue>> cb,
-            std::shared_ptr<StatusCallback<CacheLookup>> cl,
+    virtual std::unique_ptr<BySeqnoScanContext> initScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions) = 0;
 
-    virtual scan_error_t scan(ScanContext* sctx) = 0;
-
-    virtual void destroyScanContext(ScanContext* ctx) = 0;
+    /**
+     * Run a BySeqno scan
+     * @param sctx non-const reference to the context, internal callbacks may
+     *        write to the object as progress is made through the scan
+     */
+    virtual scan_error_t scan(BySeqnoScanContext& sctx) = 0;
 
     /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle

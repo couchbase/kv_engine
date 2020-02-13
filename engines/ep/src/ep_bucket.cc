@@ -1560,9 +1560,11 @@ private:
 };
 
 RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
-    auto cb = std::make_shared<EPDiskRollbackCB>(engine, rollbackSeqno);
     KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
-    auto result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+    auto result = rwUnderlying->rollback(
+            vbid,
+            rollbackSeqno,
+            std::make_unique<EPDiskRollbackCB>(engine, rollbackSeqno));
     return result;
 }
 
@@ -1740,11 +1742,6 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         endSeqno = vbState->highSeqno;
     }
 
-    auto storageCB = std::make_shared<LoadSyncWrites>(epVb, endSeqno);
-
-    // Don't expect to find anything already in the HashTable, so use
-    // NoLookupCallback.
-    auto cacheCB = std::make_shared<NoLookupCallback>();
 
     // Use ALL_ITEMS filter for the scan. NO_DELETES is insufficient
     // because (committed) SyncDeletes manifest as a prepared_sync_write
@@ -1754,8 +1751,15 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     const auto docFilter = DocumentFilter::ALL_ITEMS;
     const auto valFilter = getValueFilterForCompressionMode();
 
-    auto* scanCtx = kvStore->initScanContext(
-            storageCB, cacheCB, epVb.getId(), startSeqno, docFilter, valFilter);
+    // Don't expect to find anything already in the HashTable, so use
+    // NoLookupCallback.
+    auto scanCtx = kvStore->initScanContext(
+            std::make_unique<LoadSyncWrites>(epVb, endSeqno),
+            std::make_unique<NoLookupCallback>(),
+            epVb.getId(),
+            startSeqno,
+            docFilter,
+            valFilter);
 
     // Storage problems can lead to a null context, kvstore logs details
     if (!scanCtx) {
@@ -1766,27 +1770,27 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         return {0, 0};
     }
 
-    auto scanResult = kvStore->scan(scanCtx);
+    auto scanResult = kvStore->scan(*scanCtx);
+
+    auto& storageCB = static_cast<LoadSyncWrites&>(scanCtx->getValueCallback());
 
     // If we abort our scan early due to reaching the HPS then the scan result
     // will be failure but we will have scanned correctly.
-    if (storageCB->getStatus() != ENGINE_ENOMEM) {
+    if (storageCB.getStatus() != ENGINE_ENOMEM) {
         Expects(scanResult == scan_success);
     }
-
-    kvStore->destroyScanContext(scanCtx);
 
     EP_LOG_DEBUG(
             "EPBucket::loadPreparedSyncWrites: Identified {} outstanding "
             "prepared SyncWrites for {} in {}",
-            storageCB->outstandingPrepares.size(),
+            storageCB.outstandingPrepares.size(),
             epVb.getId(),
             cb::time2text(std::chrono::steady_clock::now() - start));
 
     // Insert all outstanding Prepares into the VBucket (HashTable &
     // DurabilityMonitor).
-    prepares.reserve(storageCB->outstandingPrepares.size());
-    for (auto& prepare : storageCB->outstandingPrepares) {
+    prepares.reserve(storageCB.outstandingPrepares.size());
+    for (auto& prepare : storageCB.outstandingPrepares) {
         prepares.emplace_back(std::move(prepare.second));
     }
     // Sequence must be sorted by seqno (ascending) for DurabilityMonitor.
@@ -1797,7 +1801,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     auto numPrepares = prepares.size();
     epVb.loadOutstandingPrepares(vbStateLh, *vbState, std::move(prepares));
-    return {storageCB->itemsVisited, numPrepares};
+    return {storageCB.itemsVisited, numPrepares};
 }
 
 ValueFilter EPBucket::getValueFilterForCompressionMode() {

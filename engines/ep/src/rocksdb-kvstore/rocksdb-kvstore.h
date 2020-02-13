@@ -259,7 +259,7 @@ public:
 
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
-                            std::shared_ptr<RollbackCB> cb) override {
+                            std::unique_ptr<RollbackCB>) override {
         // TODO vmx 2016-10-29: implement
         // NOTE vmx 2016-10-29: For LevelDB/RocksDB it will probably
         // always be a full rollback as it doesn't support Couchstore
@@ -280,17 +280,15 @@ public:
         return ENGINE_SUCCESS;
     }
 
-    ScanContext* initScanContext(
-            std::shared_ptr<StatusCallback<GetValue>> cb,
-            std::shared_ptr<StatusCallback<CacheLookup>> cl,
+    std::unique_ptr<BySeqnoScanContext> initScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions) override;
 
-    scan_error_t scan(ScanContext* sctx) override;
-
-    void destroyScanContext(ScanContext* ctx) override;
+    scan_error_t scan(BySeqnoScanContext& sctx) override;
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 

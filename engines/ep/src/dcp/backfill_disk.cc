@@ -154,6 +154,9 @@ DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine& e,
       state(backfill_state_init) {
 }
 
+DCPBackfillDisk::~DCPBackfillDisk() {
+}
+
 backfill_status_t DCPBackfillDisk::run() {
     LockHolder lh(lock);
     switch (state) {
@@ -216,10 +219,13 @@ backfill_status_t DCPBackfillDisk::create() {
         }
     }
 
-    auto cb = std::make_shared<DiskCallback>(stream);
-    auto cl = std::make_shared<CacheCallback>(engine, stream);
-    scanCtx = kvstore->initScanContext(
-            cb, cl, vbid, startSeqno, DocumentFilter::ALL_ITEMS, valFilter);
+    auto scanCtx = kvstore->initScanContext(
+            std::make_unique<DiskCallback>(stream),
+            std::make_unique<CacheCallback>(engine, stream),
+            vbid,
+            startSeqno,
+            DocumentFilter::ALL_ITEMS,
+            valFilter);
 
     // Check startSeqno against the purge-seqno of the opened datafile.
     // 1) A normal stream request would of checked inside streamRequest, but
@@ -237,7 +243,6 @@ backfill_status_t DCPBackfillDisk::create() {
         if (scanCtx) {
             log << " startSeqno:" << startSeqno
                 << " < purgeSeqno:" << scanCtx->purgeSeqno;
-            kvstore->destroyScanContext(scanCtx);
             status = END_STREAM_ROLLBACK;
         } else {
             log << " failed to create scan";
@@ -269,6 +274,8 @@ backfill_status_t DCPBackfillDisk::create() {
         }
     }
 
+    this->scanCtx = std::move(scanCtx);
+
     return backfill_success;
 }
 
@@ -285,7 +292,8 @@ backfill_status_t DCPBackfillDisk::scan() {
     }
 
     KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
-    scan_error_t error = kvstore->scan(scanCtx);
+    scan_error_t error =
+            kvstore->scan(static_cast<BySeqnoScanContext&>(*scanCtx));
 
     if (error == scan_again) {
         return backfill_success;
@@ -297,11 +305,6 @@ backfill_status_t DCPBackfillDisk::scan() {
 }
 
 backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
-    /* we want to destroy kv store context irrespective of a premature complete
-       or not */
-    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(getVBucketId());
-    kvstore->destroyScanContext(scanCtx);
-
     auto stream = streamPtr.lock();
     if (!stream) {
         EP_LOG_WARN(

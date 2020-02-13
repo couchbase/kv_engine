@@ -45,8 +45,29 @@
 #include <sys/stat.h>
 
 ScanContext::ScanContext(
-        std::shared_ptr<StatusCallback<GetValue>> cb,
-        std::shared_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vbid,
+        std::unique_ptr<KVFileHandle> handle,
+        DocumentFilter docFilter,
+        ValueFilter valFilter,
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections)
+    : vbid(vbid),
+      handle(std::move(handle)),
+      docFilter(docFilter),
+      valFilter(valFilter),
+      callback(std::move(cb)),
+      lookup(std::move(cl)),
+      logger(globalBucketLogger.get()),
+      collectionsContext(droppedCollections) {
+    Expects(callback != nullptr);
+    Expects(lookup != nullptr);
+}
+
+BySeqnoScanContext::BySeqnoScanContext(
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vb,
         std::unique_ptr<KVFileHandle> handle,
         int64_t start,
@@ -56,25 +77,22 @@ ScanContext::ScanContext(
         ValueFilter _valFilter,
         uint64_t _documentCount,
         const vbucket_state& vbucketState,
-        const KVStoreConfig& _config,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections)
-    : callback(cb),
-      lookup(cl),
-      lastReadSeqno(0),
+
+    : ScanContext(vb,
+                  std::move(handle),
+                  _docFilter,
+                  _valFilter,
+                  std::move(cb),
+                  std::move(cl),
+                  droppedCollections),
       startSeqno(start),
       maxSeqno(end),
       purgeSeqno(purgeSeqno),
-      handle(std::move(handle)),
-      vbid(vb),
-      docFilter(_docFilter),
-      valFilter(_valFilter),
       documentCount(_documentCount),
       maxVisibleSeqno(vbucketState.maxVisibleSeqno),
-      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno),
-      logger(globalBucketLogger.get()),
-      config(_config),
-      collectionsContext(droppedCollections) {
+      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno) {
 }
 
 void FileStats::reset() {
