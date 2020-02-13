@@ -23,6 +23,7 @@
 
 #include "callbacks.h"
 #include "diskdockey.h"
+#include "item.h"
 #include "kvstore.h"
 #include <boost/variant.hpp>
 #include <unordered_map>
