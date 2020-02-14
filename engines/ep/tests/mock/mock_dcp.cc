@@ -434,6 +434,19 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::abort(uint32_t opaque,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE MockDcpMessageProducers::oso_snapshot(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint32_t flags,
+        cb::mcbp::DcpStreamId sid) {
+    last_op = cb::mcbp::ClientOpcode::DcpOsoSnapshot;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_oso_snapshot_flags = flags;
+    last_stream_id = sid;
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                          uint16_t version) {
     clear_dcp_data();

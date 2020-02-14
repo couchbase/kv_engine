@@ -151,6 +151,11 @@ public:
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
+    ENGINE_ERROR_CODE oso_snapshot(uint32_t opaque,
+                                   Vbid vbucket,
+                                   uint32_t flags,
+                                   cb::mcbp::DcpStreamId sid) override;
+
     void clear_dcp_data();
 
     cb::mcbp::ClientOpcode last_op;
@@ -188,6 +193,7 @@ public:
     uint64_t last_high_completed_seqno;
     uint64_t last_commit_seqno;
     uint64_t last_abort_seqno;
+    uint32_t last_oso_snapshot_flags;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

@@ -786,6 +786,18 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     resp->getStreamId());
             break;
         }
+        case DcpResponse::Event::OSOSnapshot: {
+            auto& s = static_cast<OSOSnapshot&>(*resp);
+            ret = producers->oso_snapshot(
+                    s.getOpaque(),
+                    s.getVBucket(),
+                    s.isStart() ? uint32_t(cb::mcbp::request::
+                                                   DcpOsoSnapshotFlags::Start)
+                                : uint32_t(cb::mcbp::request::
+                                                   DcpOsoSnapshotFlags::End),
+                    resp->getStreamId());
+            break;
+        }
         default:
         {
             logger->warn(
@@ -818,6 +830,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::SnapshotMarker:
         case DcpResponse::Event::StreamReq:
         case DcpResponse::Event::StreamEnd:
+        case DcpResponse::Event::OSOSnapshot:
             break;
         }
 
@@ -1613,6 +1626,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                         case DcpResponse::Event::StreamEnd:
                         case DcpResponse::Event::SetVbucket:
                         case DcpResponse::Event::SystemEvent:
+                        case DcpResponse::Event::OSOSnapshot:
                             break;
                         default:
                             throw std::logic_error(

@@ -2219,6 +2219,27 @@ ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
+ENGINE_ERROR_CODE Connection::oso_snapshot(uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint32_t flags,
+                                           cb::mcbp::DcpStreamId sid) {
+    cb::mcbp::request::DcpOsoSnapshotPayload extras(flags);
+    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
+                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    std::vector<uint8_t> buffer(totalBytes);
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                         : cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpOsoSnapshot);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+    builder.setExtras(extras.getBuffer());
+    if (sid) {
+        cb::mcbp::DcpStreamIdFrameInfo framedSid(sid);
+        builder.setFramingExtras(framedSid.getBuf());
+    }
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+}
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //               End DCP Message producer interface                       //

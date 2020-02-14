@@ -115,6 +115,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -309,6 +310,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -478,6 +480,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -677,6 +680,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::DcpControl:
     case ClientOpcode::DcpSystemEvent:
     case ClientOpcode::DcpSeqnoAcknowledged:
+    case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -833,6 +837,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
@@ -1088,6 +1093,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DCP_COMMIT";
     case ClientOpcode::DcpAbort:
         return "DCP_ABORT";
+    case ClientOpcode::DcpOsoSnapshot:
+        return "DCP_OSO_SNAPSHOT";
     case ClientOpcode::StopPersistence:
         return "STOP_PERSISTENCE";
     case ClientOpcode::StartPersistence:

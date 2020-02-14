@@ -244,3 +244,12 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::abort(uint32_t opaque,
     NonBucketAllocationGuard guard;
     return guarded.abort(opaque, vbucket, key, prepared_seqno, abort_seqno);
 }
+
+ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::oso_snapshot(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint32_t flags,
+        cb::mcbp::DcpStreamId sid) {
+    NonBucketAllocationGuard guard;
+    return guarded.oso_snapshot(opaque, vbucket, flags, sid);
+}

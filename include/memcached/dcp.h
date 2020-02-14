@@ -352,6 +352,13 @@ struct dcp_message_producers {
                                     const DocKey& key,
                                     uint64_t prepared_seqno,
                                     uint64_t abort_seqno) = 0;
+    /**
+     * Send an OSO snapshot marker to from server to client
+     */
+    virtual ENGINE_ERROR_CODE oso_snapshot(uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint32_t flags,
+                                           cb::mcbp::DcpStreamId sid) = 0;
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(

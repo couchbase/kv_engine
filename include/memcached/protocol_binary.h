@@ -1203,6 +1203,31 @@ protected:
 };
 
 static_assert(sizeof(DcpBufferAckPayload) == 4, "Unexpected struct size");
+
+enum class DcpOsoSnapshotFlags : uint32_t {
+    Start = 0x01,
+    End = 0x02,
+};
+
+class DcpOsoSnapshotPayload {
+public:
+    DcpOsoSnapshotPayload(uint32_t flags) : flags(htonl(flags)) {
+    }
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpOsoSnapshotPayload::flags = htonl(flags);
+    }
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t flags = 0;
+};
+static_assert(sizeof(DcpOsoSnapshotPayload) == 4, "Unexpected struct size");
+
 #pragma pack()
 } // namespace request
 } // namespace mcbp

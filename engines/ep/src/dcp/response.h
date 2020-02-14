@@ -44,6 +44,7 @@ public:
         AddStream,
         SystemEvent,
         SeqnoAcknowledgement,
+        OSOSnapshot
     };
 
     DcpResponse(Event event, uint32_t opaque, cb::mcbp::DcpStreamId sid)
@@ -93,6 +94,7 @@ public:
         case Event::AddStream:
         case Event::SystemEvent:
         case Event::SeqnoAcknowledgement:
+        case Event::OSOSnapshot:
             return true;
         }
         throw std::invalid_argument(
@@ -1158,4 +1160,45 @@ public:
                         event.getEventData().data());
         return dcpData->sid.to_host();
     }
+};
+
+class OSOSnapshot : public DcpResponse {
+public:
+    OSOSnapshot(uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid)
+        : DcpResponse(Event::OSOSnapshot, opaque, sid),
+          vbucket(vbucket),
+          start{true} {
+    }
+
+    struct End {};
+    OSOSnapshot(uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid, End)
+        : DcpResponse(Event::OSOSnapshot, opaque, sid),
+          vbucket(vbucket),
+          start{false} {
+    }
+
+    ~OSOSnapshot() override {
+    }
+
+    Vbid getVBucket() const {
+        return vbucket;
+    }
+
+    bool isStart() const {
+        return start;
+    }
+
+    bool isEnd() const {
+        return !start;
+    }
+
+    uint32_t getMessageSize() const override {
+        return baseMsgBytes;
+    }
+
+    static const uint32_t baseMsgBytes;
+
+private:
+    Vbid vbucket;
+    bool start;
 };
