@@ -344,7 +344,7 @@ TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {
     setMany(keys, MutationStatus::WasClean);
 
     /* Set up a mock backfill by setting the range of the backfill */
-    auto range = mockEpheVB->registerFakeReadRange(2, numItems - 1);
+    auto range = mockEpheVB->registerFakeSharedRangeLock(2, numItems - 1);
 
     /* Update the first, middle and last item in the range read and 2 items
        that are outside (before and after) range read */
@@ -394,8 +394,8 @@ TEST_F(EphemeralVBucketTest, GetAndUpdateTtl) {
     /* There should be NO stale items */
     EXPECT_EQ(0, mockEpheVB->public_getNumStaleItems());
 
-    /* --- Repeat the above test with a similated ReadRange --- */
-    auto range = mockEpheVB->registerFakeReadRange(1, numItems);
+    /* --- Repeat the above test with a simulated ReadRange --- */
+    auto range = mockEpheVB->registerFakeSharedRangeLock(1, numItems);
     GetValue gv2 = public_getAndUpdateTtl(keys[1], 101).second;
 
     /* New seqno should have been used */
@@ -427,7 +427,7 @@ TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {
     setMany(keys, MutationStatus::WasClean);
 
     /* Set up a mock backfill by setting the range of the backfill */
-    auto range = mockEpheVB->registerFakeReadRange(2, numItems - 1);
+    auto range = mockEpheVB->registerFakeSharedRangeLock(2, numItems - 1);
 
     /* Update the first, middle and last item in the range read and 2 items
        that are outside (before and after) range read */
@@ -654,7 +654,7 @@ TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
     // be added for that key.
     auto& seqList = mockEpheVB->getLL()->getSeqList();
     {
-        auto range = mockEpheVB->registerFakeReadRange(1, 2);
+        auto range = mockEpheVB->registerFakeSharedRangeLock(1, 2);
         ASSERT_EQ(MutationStatus::WasClean, setOne(keys.at(1)));
 
         // Sanity check - our state is as expected:
@@ -677,9 +677,9 @@ TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
         EXPECT_EQ(4, seqList.size());
         EXPECT_EQ(0, vbucket->getPurgeSeqno());
 
-        // readrange released when `range` goes out of scope, retry the
-        // purge which should now succeed.
-    }
+        // range released at end of scope (so we can actually purge items) and
+        // retry the purge which should now succeed.
+    } // END range
 
     // Scan sequenceList for stale items.
     EXPECT_EQ(1, mockEpheVB->purgeStaleItems());

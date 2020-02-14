@@ -24,7 +24,7 @@
 
 #include "atomic.h"
 #include "monotonic.h"
-#include "range_read.h"
+#include "range_lock_manager.h"
 #include "seqlist.h"
 #include "stored-value.h"
 
@@ -146,7 +146,34 @@ public:
     boost::optional<SequenceList::RangeIterator> makeRangeIterator(
             bool isBackfill) override;
 
+    /**
+     * Exclusively locks a range of seqnos in the sequence list. Prevents any
+     * other range locks being acquired over an intersecting range.
+     * Stops front end ops updating and relocating items in the given seqno
+     * range, allowing them to be safely read, and safely modified/removed iff
+     * stale. See `ReadRangeManager::tryLockRange`.
+     *
+     * If an existing range lock intersects the requested range the lock attempt
+     * will fail (returning an invalid RangeGuard).
+     * If successfully acquired, the lock will prevent new range locks being
+     * acquired over any intersecting range until it is released.
+     */
     RangeGuard tryLockSeqnoRange(seqno_t start, seqno_t end);
+
+    /**
+     * Locks a range of seqnos in the sequence list. Prevents any *exclusive*
+     * range locks being acquired over an intersecting range while also stopping
+     * front end ops updating and relocating items in the given seqno range,
+     * allowing them to be safely read. See
+     * `ReadRangeManager::tryLockRangeShared`.
+     *
+     * The lock permits other shared range locks to intersect the covered range.
+     * * If an existing *exclusive* range lock intersects the requested range
+     * the lock attempt will fail (returning an invalid RangeGuard). If
+     * successfully acquired, the lock will prevent *exclusive* range locks
+     * being acquired over any intersecting range until it is released.
+     */
+    RangeGuard tryLockSeqnoRangeShared(seqno_t start, seqno_t end);
 
     void dump() const override;
 

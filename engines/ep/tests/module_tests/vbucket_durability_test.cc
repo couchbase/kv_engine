@@ -1171,7 +1171,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     {
         // take a range read to cause stale items
-        auto range = mockEphVb->registerFakeReadRange(1, 1000);
+        auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
 
         // Now do a commit on top of the existing commit (within the range read)
         auto pending = makePendingItem(key, "valueC"s);
@@ -1180,30 +1180,36 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
                 DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
         ASSERT_EQ(MutationStatus::WasClean,
                   public_processSet(*pending, 0, ctx));
+
+        // 1 stale prepare, 2 non-stale (commit + new prepare)
+        EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+        EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+
         // range read released at end of scope
     }
 
-    // 1 stale prepare, 2 non-stale (commit + new prepare)
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+    // range lock released - stale items can be purged
     EXPECT_EQ(1, mockEphVb->purgeStaleItems());
 
     // Prepare would exist outside the range read so we would not hit the append
     // case if we just committed now. Grab another range read to cover the
     // prepare so that we can test commit under range read.
     {
-        auto range = mockEphVb->registerFakeReadRange(1, 1000);
+        auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
         ASSERT_EQ(ENGINE_SUCCESS,
                   vbucket->commit(key, 4, {}, vbucket->lockCollections(key)));
+
+        // Check that we have the expected items in the seqList.
+        // 1 stale commit (because of the range read)
+        // 1 completed prepare
+        // 1 commit via prepare
+        EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+        EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+
         // range read released at end of scope
     }
 
-    // Check that we have the expected items in the seqList.
-    // 1 stale commit (because of the range read)
-    // 1 completed prepare
-    // 1 commit via prepare
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+    // range lock released - stale items can be purged
 
     // Do a purge of the stale items and check result
     EXPECT_EQ(1, mockEphVb->purgeStaleItems());
@@ -1347,20 +1353,22 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
 
     // Do the SyncDelete Commit in a range read
     {
-        auto range = mockEphVb->registerFakeReadRange(1, 1000);
+        auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
         ASSERT_EQ(ENGINE_SUCCESS,
                   vbucket->commit(key,
                                   4 /*prepareSeqno*/,
                                   {},
                                   vbucket->lockCollections(key)));
+
+        // Check that we have the expected items in the seqList.
+        // 1 stale value
+        // 1 completed prepare
+        // 1 value (committed)
+        EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
+        EXPECT_EQ(3, mockEphVb->public_getNumListItems());
     }
 
-    // Check that we have the expected items in the seqList.
-    // 1 stale value
-    // 1 completed prepare
-    // 1 value (committed)
-    EXPECT_EQ(1, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+    // range lock released - stale items can be purged
 
     // Do a purge of the stale items and check result. Can't remove everything
     // from the seqList
@@ -2816,15 +2824,17 @@ TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort_RangeRead) {
     // Register our range read
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     {
-        auto range = mockEphVb->registerFakeReadRange(1, 1000);
+        auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
 
         testCompleteSWInPassiveDM(vbucket_state_replica, Resolution::Abort);
+
+        // Check that we have the expected items in the seqList.
+        // 3 stale prepare. We append to the seqList because of the range read.
+        EXPECT_EQ(3, mockEphVb->public_getNumStaleItems());
+        EXPECT_EQ(6, mockEphVb->public_getNumListItems());
     }
 
-    // Check that we have the expected items in the seqList.
-    // 3 stale prepare. We append to the seqList because of the range read.
-    EXPECT_EQ(3, mockEphVb->public_getNumStaleItems());
-    EXPECT_EQ(6, mockEphVb->public_getNumListItems());
+    // range lock released - stale items can be purged
 
     // Do a purge of the stale items and check result. We always keep the last
     // item so it is not expected that we purge everything

@@ -69,12 +69,12 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
     auto range = rangeLockManager.getLockedRange();
 
     if (range.contains(v.getBySeqno())) {
-        /* Range read is in middle of a point-in-time snapshot, hence we cannot
+        /* OSV is in middle of a point-in-time snapshot, hence we cannot
            move the element to the end of the list. Return a temp failure */
         return UpdateStatus::Append;
     }
 
-    /* Since there is no other reads or writes happenning in this range, we can
+    /* Since there is no other reads or writes happening in this range, we can
        move the item to the end of the list */
     auto it = seqList.iterator_to(v);
     /* If the list is being updated at 'pausedPurgePoint', then we must save
@@ -100,7 +100,6 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         return std::make_tuple(ENGINE_ERANGE, std::vector<UniqueItemPtr>(), 0);
     }
 
-    /* Allows only 1 rangeRead for now */
     RangeGuard range;
 
     {
@@ -123,8 +122,8 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         end = std::min(end, static_cast<seqno_t>(highSeqno));
         end = std::max(end, static_cast<seqno_t>(highestDedupedSeqno));
 
-        // the range read will be released when the RangeGuard is destroyed.
-        range = tryLockSeqnoRange(1, end);
+        // the range lock will be released when the RangeGuard is destroyed.
+        range = tryLockSeqnoRangeShared(1, end);
         if (!range) {
             return std::make_tuple(
                     ENGINE_TMPFAIL, std::vector<UniqueItemPtr>(), 0);
@@ -426,6 +425,11 @@ RangeGuard BasicLinkedList::tryLockSeqnoRange(seqno_t start, seqno_t end) {
     return rangeLockManager.tryLockRange(start, end);
 }
 
+RangeGuard BasicLinkedList::tryLockSeqnoRangeShared(seqno_t start,
+                                                    seqno_t end) {
+    return rangeLockManager.tryLockRangeShared(start, end);
+}
+
 void BasicLinkedList::dump() const {
     std::cerr << *this << std::endl;
 }
@@ -513,8 +517,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
 
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */
-    rangeGuard = ll.tryLockSeqnoRange(currIt->getBySeqno(),
-                                      list.seqList.back().getBySeqno());
+    rangeGuard = ll.tryLockSeqnoRangeShared(currIt->getBySeqno(),
+                                            list.seqList.back().getBySeqno());
 
     if (!rangeGuard) {
         // another rangeRead is in progress, return.
@@ -549,7 +553,7 @@ BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
         EP_LOG_FMT(severity, "{} Releasing the range iterator", list.vbid);
     }
     /* As rangeGuard is destroyed, it will automatically release
-       the "locked" range read on the linked list */
+       the range lock on the linked list */
 }
 
 OrderedStoredValue& BasicLinkedList::RangeIteratorLL::operator*() const {
