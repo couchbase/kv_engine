@@ -1058,7 +1058,7 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
     // Create a docuement with a given value
     auto& connection = getConnection();
     Vbid vbid = Vbid(0);
-    if (std::tr1::get<2>(GetParam()) == ClientJSONSupport::Yes) {
+    if (std::get<2>(GetParam()) == ClientJSONSupport::Yes) {
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.value = R"({"Test":45})";
     } else {

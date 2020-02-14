@@ -777,7 +777,7 @@ INSTANTIATE_TEST_CASE_P(
         HashTableStatsTest,
         ::testing::Combine(::testing::Values(EvictionPolicy::Value,
                                              EvictionPolicy::Full),
-                           ::testing::Bool()), );
+                           ::testing::Bool()));
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup

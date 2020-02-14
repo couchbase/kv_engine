@@ -1157,4 +1157,4 @@ TEST_P(DCPLoopbackSnapshots, testSnapshots) {
 
 INSTANTIATE_TEST_CASE_P(DCPLoopbackSnapshot,
                         DCPLoopbackSnapshots,
-                        ::testing::Range(1, 10), );
+                        ::testing::Range(1, 10));

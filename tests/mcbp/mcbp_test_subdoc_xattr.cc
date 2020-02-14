@@ -162,7 +162,7 @@ INSTANTIATE_TEST_CASE_P(
                                   cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                                   cb::mcbp::ClientOpcode::SubdocCounter,
                                   cb::mcbp::ClientOpcode::SubdocGetCount),
-                ::testing::Bool()), );
+                ::testing::Bool()));
 
 TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";

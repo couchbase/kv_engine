@@ -3145,4 +3145,4 @@ INSTANTIATE_TEST_CASE_P(CompressionStreamTest,
 
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         ConnectionTest,
-                        STParameterizedBucketTest::allConfigValues(), );
+                        STParameterizedBucketTest::allConfigValues());

@@ -61,7 +61,7 @@ INSTANTIATE_TEST_CASE_P(
                 testing::Values(IncludeValue::Yes,
                                 IncludeValue::No,
                                 IncludeValue::NoWithUnderlyingDatatype),
-                testing::Values(IncludeXattrs::Yes, IncludeXattrs::No)), );
+                testing::Values(IncludeXattrs::Yes, IncludeXattrs::No)));
 
 class ItemTest : public ::testing::Test {
 public:

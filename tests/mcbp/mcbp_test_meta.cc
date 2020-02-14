@@ -101,6 +101,6 @@ INSTANTIATE_TEST_CASE_P(
                                   cb::mcbp::ClientOpcode::AddqWithMeta,
                                   cb::mcbp::ClientOpcode::DelWithMeta,
                                   cb::mcbp::ClientOpcode::DelqWithMeta),
-                ::testing::Bool()), );
+                ::testing::Bool()));
 } // namespace test
 } // namespace mcbp

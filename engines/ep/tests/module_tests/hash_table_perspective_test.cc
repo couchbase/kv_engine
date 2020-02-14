@@ -270,8 +270,8 @@ TEST_P(HashTablePerspectiveTest, ToItemPrepared) {
 
 INSTANTIATE_TEST_CASE_P(Persistent,
                         HashTablePerspectiveTest,
-                        ::testing::Values(false), );
+                        ::testing::Values(false));
 
 INSTANTIATE_TEST_CASE_P(Ephemeral,
                         HashTablePerspectiveTest,
-                        ::testing::Values(true), );
+                        ::testing::Values(true));

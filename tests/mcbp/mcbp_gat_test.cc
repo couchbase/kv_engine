@@ -83,6 +83,6 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Combine(::testing::Values(cb::mcbp::ClientOpcode::Gat,
                                              cb::mcbp::ClientOpcode::Gatq,
                                              cb::mcbp::ClientOpcode::Touch),
-                           ::testing::Bool()), );
+                           ::testing::Bool()));
 } // namespace test
 } // namespace mcbp

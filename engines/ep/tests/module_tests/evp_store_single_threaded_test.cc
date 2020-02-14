@@ -4337,12 +4337,12 @@ TEST_P(STParameterizedBucketTest, MB_34380) {
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
-                        ::testing::Bool(), );
+                        ::testing::Bool());
 
 INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
                         XattrCompressedTest,
                         ::testing::Combine(::testing::Bool(),
-                                           ::testing::Bool()), );
+                                           ::testing::Bool()));
 
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,

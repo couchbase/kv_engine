@@ -378,7 +378,7 @@ INSTANTIATE_TEST_CASE_P(
                                              cb::mcbp::ClientOpcode::Getkq,
                                              cb::mcbp::ClientOpcode::GetMeta,
                                              cb::mcbp::ClientOpcode::GetqMeta),
-                           ::testing::Bool()), );
+                           ::testing::Bool()));
 
 // Test ADD & ADDQ
 class AddValidatorTest : public ::testing::WithParamInterface<bool>,
@@ -1869,9 +1869,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Combine(::testing::Values(RefreshOpcodes::Isasl,
                                              RefreshOpcodes::Ssl,
                                              RefreshOpcodes::Rbac),
-                           ::testing::Bool()),
-
-);
+                           ::testing::Bool()));
 
 TEST_P(RefreshValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());

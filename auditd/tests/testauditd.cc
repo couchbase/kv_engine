@@ -435,9 +435,9 @@ static std::vector<bool> allFilteringOptions = {{true, false}};
 
 INSTANTIATE_TEST_CASE_P(bool,
                         AuditDaemonTest,
-                        ::testing::Values(std::make_tuple(true, true)), );
+                        ::testing::Values(std::make_tuple(true, true)));
 INSTANTIATE_TEST_CASE_P(
         bool,
         AuditDaemonFilteringTest,
         ::testing::Combine(::testing::ValuesIn(allFilteringOptions),
-                           ::testing::ValuesIn(allFilteringOptions)), );
+                           ::testing::ValuesIn(allFilteringOptions)));

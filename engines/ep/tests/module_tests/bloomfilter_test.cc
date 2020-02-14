@@ -89,4 +89,4 @@ INSTANTIATE_TEST_CASE_P(
         DocNamespace,
         BloomFilterDocKeyTest,
         ::testing::Combine(::testing::ValuesIn(allDocNamespaces),
-                           ::testing::ValuesIn(allDocNamespaces)), );
+                           ::testing::ValuesIn(allDocNamespaces)));

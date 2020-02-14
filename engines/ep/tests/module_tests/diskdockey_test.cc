@@ -113,7 +113,7 @@ INSTANTIATE_TEST_CASE_P(
         CollectionID,
         DiskDocKeyTestCombi,
         ::testing::Combine(::testing::ValuesIn(allDocNamespaces),
-                           ::testing::ValuesIn(allDocNamespaces)), );
+                           ::testing::ValuesIn(allDocNamespaces)));
 
 // Test params includes our labelled types that have 'special meaning' and
 // one normal collection ID (100)
@@ -121,4 +121,4 @@ INSTANTIATE_TEST_CASE_P(DocNamespace,
                         DiskDocKeyTest,
                         ::testing::Values(CollectionID::Default,
                                           CollectionID::System,
-                                          100), );
+                                          100));

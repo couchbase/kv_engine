@@ -385,9 +385,9 @@ static auto ephemeralTestConfigValues = ::testing::Values(
 
 INSTANTIATE_TEST_CASE_P(EvictionPersistent,
                         STHashTableEvictionTest,
-                        persistentTestConfigValues, );
+                        persistentTestConfigValues);
 INSTANTIATE_TEST_CASE_P(EvictionEphemeral,
                         STHashTableEvictionTest,
-                        ephemeralTestConfigValues, );
+                        ephemeralTestConfigValues);
 
 #endif
