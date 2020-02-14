@@ -2277,10 +2277,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
     mb_33773(mb_33773Mode::noMemoryAndClosed);
 }
 
-TEST_P(SingleThreadedPassiveStreamTest,
-       InitialDiskSnapshotFlagClearedOnStateTransition) {
-    // Test that a vbucket changing state away from replica clears the initial
-    // disk snapshot flag
+void SingleThreadedPassiveStreamTest::
+        testInitialDiskSnapshotFlagClearedOnTransitionToActive(
+                vbucket_state_t initialState) {
+    // Test that a vbucket changing state to active clears the initial disk
+    // snapshot flag
+    setVBucketStateAndRunPersistTask(vbid, initialState);
 
     // receive snapshot
     SnapshotMarker marker(0 /*opaque*/,
@@ -2311,6 +2313,18 @@ TEST_P(SingleThreadedPassiveStreamTest,
 
     // check that the initial disk snapshot flag was cleared
     EXPECT_FALSE(vb->isReceivingInitialDiskSnapshot());
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       InitialDiskSnapshotFlagClearedOnStateTransition_Pending) {
+    testInitialDiskSnapshotFlagClearedOnTransitionToActive(
+            vbucket_state_pending);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       InitialDiskSnapshotFlagClearedOnStateTransition_Replica) {
+    testInitialDiskSnapshotFlagClearedOnTransitionToActive(
+            vbucket_state_replica);
 }
 
 /**

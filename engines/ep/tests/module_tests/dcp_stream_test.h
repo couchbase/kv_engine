@@ -95,6 +95,13 @@ protected:
     };
     void mb_33773(mb_33773Mode mode);
 
+    /**
+     * Test that when we transition state to active we clear the
+     * initialDiskSnapshot flag to ensure that we can stream from this vBucket.
+     */
+    void testInitialDiskSnapshotFlagClearedOnTransitionToActive(
+            vbucket_state_t initialState);
+
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
     // SetUp()?
