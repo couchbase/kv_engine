@@ -149,17 +149,29 @@ public:
     cb::const_byte_buffer getFramingExtras() const {
         return reinterpret_cast<const Header*>(this)->getFramingExtras();
     }
+    cb::byte_buffer getFramingExtras() {
+        return reinterpret_cast<Header*>(this)->getFramingExtras();
+    }
 
     cb::const_byte_buffer getExtdata() const {
         return reinterpret_cast<const Header*>(this)->getExtdata();
+    }
+    cb::byte_buffer getExtdata() {
+        return reinterpret_cast<Header*>(this)->getExtdata();
     }
 
     cb::const_byte_buffer getKey() const {
         return reinterpret_cast<const Header*>(this)->getKey();
     }
+    cb::byte_buffer getKey() {
+        return reinterpret_cast<Header*>(this)->getKey();
+    }
 
     cb::const_byte_buffer getValue() const {
         return reinterpret_cast<const Header*>(this)->getValue();
+    }
+    cb::byte_buffer getValue() {
+        return reinterpret_cast<Header*>(this)->getValue();
     }
 
     cb::const_byte_buffer getFrame() const {

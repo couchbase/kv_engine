@@ -208,10 +208,10 @@ protected:
      * Move the rest of the packet to the new location and insert the
      * new value
      */
-    void moveAndInsert(cb::const_byte_buffer existing,
+    void moveAndInsert(cb::byte_buffer existing,
                        cb::const_byte_buffer value,
                        size_t size) {
-        auto* location = const_cast<uint8_t*>(existing.data());
+        auto* location = existing.data();
         if (size > 0 && existing.size() != value.size()) {
             // we need to move the data following this entry to a different
             // location.
@@ -232,12 +232,10 @@ protected:
  */
 class RequestBuilder : public FrameBuilder<Request> {
 public:
-    explicit RequestBuilder(cb::const_char_buffer backing,
-                            bool initialized = false)
-        : RequestBuilder({reinterpret_cast<uint8_t*>(
-                                  const_cast<char*>(backing.data())),
-                          backing.size()},
-                         initialized) {
+    explicit RequestBuilder(cb::char_buffer backing, bool initialized = false)
+        : RequestBuilder(
+                  {reinterpret_cast<uint8_t*>(backing.data()), backing.size()},
+                  initialized) {
     }
     explicit RequestBuilder(cb::byte_buffer backing, bool initialized = false)
         : FrameBuilder<Request>(backing, initialized) {
@@ -252,12 +250,10 @@ public:
  */
 class ResponseBuilder : public FrameBuilder<Response> {
 public:
-    explicit ResponseBuilder(cb::const_char_buffer backing,
-                             bool initialized = false)
-        : ResponseBuilder({reinterpret_cast<uint8_t*>(
-                                   const_cast<char*>(backing.data())),
-                           backing.size()},
-                          initialized) {
+    explicit ResponseBuilder(cb::char_buffer backing, bool initialized = false)
+        : ResponseBuilder(
+                  {reinterpret_cast<uint8_t*>(backing.data()), backing.size()},
+                  initialized) {
     }
     explicit ResponseBuilder(cb::byte_buffer backing, bool initialized = false)
         : FrameBuilder<Response>(backing, initialized) {

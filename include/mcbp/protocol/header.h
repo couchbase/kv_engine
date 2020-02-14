@@ -159,12 +159,22 @@ public:
         return {base + sizeof(*this), length};
     }
 
+    cb::byte_buffer getFramingExtras() {
+        auto cbb = const_cast<const Header&>(*this).getFramingExtras();
+        return {const_cast<uint8_t*>(cbb.data()), cbb.size()};
+    }
+
     /**
      * Get the byte buffer containing the extras
      */
     cb::const_byte_buffer getExtdata() const {
         auto loc = getFramingExtras();
-        return {loc.data() + loc.size(), getExtlen()};
+        return {loc.end(), getExtlen()};
+    }
+
+    cb::byte_buffer getExtdata() {
+        auto loc = getFramingExtras();
+        return {const_cast<uint8_t*>(loc.end()), getExtlen()};
     }
 
     /**
@@ -172,7 +182,12 @@ public:
      */
     cb::const_byte_buffer getKey() const {
         auto loc = getExtdata();
-        return {loc.data() + loc.size(), getKeylen()};
+        return {loc.end(), getKeylen()};
+    }
+
+    cb::byte_buffer getKey() {
+        auto cbb = const_cast<const Header&>(*this).getKey();
+        return {const_cast<uint8_t*>(cbb.data()), cbb.size()};
     }
 
     /**
@@ -183,8 +198,12 @@ public:
         auto fe = getFramingExtras();
         auto ex = getExtdata();
         auto key = getKey();
-        return {key.data() + key.size(),
-                getBodylen() - key.size() - ex.size() - fe.size()};
+        return {key.end(), getBodylen() - key.size() - ex.size() - fe.size()};
+    }
+
+    cb::byte_buffer getValue() {
+        auto cbb = const_cast<const Header&>(*this).getValue();
+        return {const_cast<uint8_t*>(cbb.data()), cbb.size()};
     }
 
     /**
