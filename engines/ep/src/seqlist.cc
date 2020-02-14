@@ -23,8 +23,12 @@ SequenceList::RangeIterator::RangeIterator(
     : rangeIterImpl(std::move(rangeIterImpl)) {
 }
 
-OrderedStoredValue& SequenceList::RangeIterator::operator*() const {
+const OrderedStoredValue& SequenceList::RangeIterator::operator*() const {
     return *(*rangeIterImpl);
+}
+
+const OrderedStoredValue* SequenceList::RangeIterator::operator->() const {
+    return &*(*rangeIterImpl);
 }
 
 SequenceList::RangeIterator& SequenceList::RangeIterator::operator++() {

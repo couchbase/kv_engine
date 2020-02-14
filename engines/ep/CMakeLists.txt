@@ -292,7 +292,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/progress_tracker.cc
             src/replicationthrottle.cc
             src/linked_list.cc
-            src/range_read.cc
+            src/range_lock_manager.cc
             src/rollback_result.cc
             src/server_document_iface_border_guard.cc
             src/server_document_iface_border_guard.h

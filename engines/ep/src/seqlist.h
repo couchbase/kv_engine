@@ -184,7 +184,9 @@ public:
         /**
          * Returns the stored item at iterator's position
          */
-        OrderedStoredValue& operator*() const;
+        const OrderedStoredValue& operator*() const;
+
+        const OrderedStoredValue* operator->() const;
 
         /**
          * Pre increment of the iterator position
@@ -432,7 +434,8 @@ public:
     virtual uint64_t getMaxVisibleSeqno() const = 0;
 
     /**
-     * Returns the current range read begin and end sequence numbers.
+     * Returns the current range lock begin and end sequence numbers,
+     * inclusive of both ends.
      */
     virtual std::pair<uint64_t, uint64_t> getRangeRead() const = 0;
 

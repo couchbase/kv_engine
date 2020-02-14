@@ -45,8 +45,13 @@ public:
         return allSeqnos;
     }
 
+    /* Register fake range lock for testing */
+    RangeGuard registerFakeSharedRangeLock(seqno_t start, seqno_t end) {
+        return tryLockSeqnoRangeShared(start, end);
+    }
+
     /* Register fake read range for testing */
-    RangeGuard registerFakeReadRange(seqno_t start, seqno_t end) {
+    RangeGuard registerFakeRangeLock(seqno_t start, seqno_t end) {
         return tryLockSeqnoRange(start, end);
     }
 };

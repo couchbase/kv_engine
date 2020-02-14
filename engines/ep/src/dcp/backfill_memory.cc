@@ -114,10 +114,12 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         if (rangeItrOptional) {
             rangeItr = std::move(*rangeItrOptional);
         } else {
+            // Multiple range iterators are permitted, so if one could not be
+            // created purgeTombstones must have acquired an exclusive range
             stream->log(spdlog::level::level_enum::debug,
                         "{}"
                         " Deferring backfill creation as another "
-                        "range iterator is already on the sequence list",
+                        "task needs exclusive access to a range of the seqlist",
                         getVBucketId());
             return backfill_snooze;
         }
