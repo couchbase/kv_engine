@@ -91,7 +91,7 @@ TEST_P(MutationWithMetaTest, InvalidDatatype) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         Opcodes,
         MutationWithMetaTest,
         ::testing::Combine(

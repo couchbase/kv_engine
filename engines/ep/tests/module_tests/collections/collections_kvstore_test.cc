@@ -296,9 +296,9 @@ TEST_P(CollectionsKVStoreTest, add_of_dropped) {
 
 static std::string kvstoreTestParams[] = {"couchdb"};
 
-INSTANTIATE_TEST_CASE_P(CollectionsKVStoreTests,
-                        CollectionsKVStoreTest,
-                        ::testing::ValuesIn(kvstoreTestParams),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
+                         CollectionsKVStoreTest,
+                         ::testing::ValuesIn(kvstoreTestParams),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });

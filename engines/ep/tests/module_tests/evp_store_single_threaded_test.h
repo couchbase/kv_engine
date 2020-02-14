@@ -221,7 +221,7 @@ protected:
  * for example a test which is applicable to all variants of a Persistent
  * bucket:
  *
- *     INSTANTIATE_TEST_CASE_P(
+ *     INSTANTIATE_TEST_SUITE_P(
  *         Persistent,
  *         MyTestSuite,
  *         STParameterizedBucketTest::persistentConfigValues(),
@@ -238,13 +238,13 @@ protected:
  *
  *   ... define some TEST_P() for each suite...
  *
- *     INSTANTIATE_TEST_CASE_P(
+ *     INSTANTIATE_TEST_SUITE_P(
  *         PersistentAndEphemeral,
  *         DcpActiveStreamTest,
  *         STParameterizedBucketTest::allConfigValues(),
  *         STParameterizedBucketTest::PrintToStringParamName);
  *
- *     INSTANTIATE_TEST_CASE_P(
+ *     INSTANTIATE_TEST_SUITE_P(
  *         Persistent,
  *         DcpActiveStreamTestPersistent,
  *         STParameterizedBucketTest::persistentAllBackendsConfigValues(),

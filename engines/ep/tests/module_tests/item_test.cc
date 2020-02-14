@@ -54,7 +54,7 @@ TEST_P(ItemNoValuePruneTest, testPrune) {
     EXPECT_EQ(0, item->getNBytes());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         PruneTestWithParameters,
         ItemNoValuePruneTest,
         ::testing::Combine(

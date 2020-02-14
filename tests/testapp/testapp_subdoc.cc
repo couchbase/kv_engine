@@ -2119,7 +2119,7 @@ TEST_P(SubdocTestappTest, SubdocDurabilityTimeout) {
                   cb::mcbp::Status::SyncWriteAmbiguous);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         Subdoc,
         SubdocTestappTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),

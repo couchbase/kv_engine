@@ -254,14 +254,14 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
 #endif
 
 #if defined(SKIP_UNCLEAN)
-INSTANTIATE_TEST_CASE_P(Clean,
-                        PersistToTest,
-                        ::testing::Values(ShutdownMode::Clean),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(Clean,
+                         PersistToTest,
+                         ::testing::Values(ShutdownMode::Clean),
+                         ::testing::PrintToStringParamName());
 #else
-INSTANTIATE_TEST_CASE_P(CleanOrUnclean,
-                        PersistToTest,
-                        ::testing::Values(ShutdownMode::Clean,
-                                          ShutdownMode::Unclean),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CleanOrUnclean,
+                         PersistToTest,
+                         ::testing::Values(ShutdownMode::Clean,
+                                           ShutdownMode::Unclean),
+                         ::testing::PrintToStringParamName());
 #endif

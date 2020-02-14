@@ -27,7 +27,7 @@ class ArithmeticTest : public TestappXattrClientTest {};
  */
 class ArithmeticXattrOnTest : public TestappXattrClientTest {};
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         ArithmeticTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
@@ -42,7 +42,7 @@ INSTANTIATE_TEST_CASE_P(
 
 // Tests which always need XATTR support (hence only instantiated with
 // XattrSupport::Yes).
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         ArithmeticXattrOnTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

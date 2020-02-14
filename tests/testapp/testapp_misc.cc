@@ -23,11 +23,11 @@
 // Test fixture for new MCBP miscellaneous commands
 class MiscTest : public TestappClientTest {};
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        MiscTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         MiscTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(MiscTest, GetFailoverLog) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetFailoverLog);

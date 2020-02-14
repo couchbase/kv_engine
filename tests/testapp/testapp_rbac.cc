@@ -29,11 +29,10 @@ class RbacTest : public TestappClientTest {
 public:
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        RbacTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
-
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         RbacTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 /**
  * Memcached supports authentication through external systems (like LDAP),
@@ -264,11 +263,10 @@ protected:
 
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        RbacRoleTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
-
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         RbacRoleTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 /**
  * An arithmetic operation requires read and write privilege as it returns

@@ -48,11 +48,11 @@ std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
     return cb::mcbp::sla::getSlowOpThreshold(*iter);
 }
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        TuneMcbpSla,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         TuneMcbpSla,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(TuneMcbpSla, NoAccess) {
     auto& connection = getConnection();

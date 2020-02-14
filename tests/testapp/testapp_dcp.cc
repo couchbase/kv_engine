@@ -30,11 +30,11 @@ class DcpTest : public TestappClientTest {
 
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        DcpTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         DcpTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
     auto& conn = getConnection();

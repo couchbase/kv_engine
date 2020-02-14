@@ -1452,28 +1452,28 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
 }
 
 // Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
-                        StreamTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
+                         StreamTest,
+                         ::testing::Values("persistent", "ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 // Ephemeral only
-INSTANTIATE_TEST_CASE_P(Ephemeral,
-                        EphemeralStreamTest,
-                        ::testing::Values("ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(Ephemeral,
+                         EphemeralStreamTest,
+                         ::testing::Values("ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 // Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
-                        CacheCallbackTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
+                         CacheCallbackTest,
+                         ::testing::Values("persistent", "ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 void SingleThreadedActiveStreamTest::SetUp() {
     STParameterizedBucketTest::SetUp();
@@ -2744,24 +2744,24 @@ TEST_P(SingleThreadedBackfillBufferTest, SingleItemBuffer) {
     testBackfill();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllBucketTypes,
         SingleThreadedActiveStreamTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllBucketTypes,
         SingleThreadedPassiveStreamTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        SingleThreadedBackfillScanBufferTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         SingleThreadedBackfillScanBufferTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        SingleThreadedBackfillBufferTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         SingleThreadedBackfillBufferTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

@@ -43,11 +43,11 @@ protected:
     void testGatAndTouch(const std::string& value);
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        TouchTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         TouchTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 size_t TouchTest::get_cmd_counter(const std::string& name,
                                   MemcachedConnection& conn) {

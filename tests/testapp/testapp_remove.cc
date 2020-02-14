@@ -67,7 +67,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
             << "MB-22553: doc with xattr is still accessible";
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         RemoveTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

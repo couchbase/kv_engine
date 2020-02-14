@@ -180,7 +180,7 @@ TEST_P(EPVBucketTest, EjectionResidentCount) {
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         FullAndValueEviction,
         EPVBucketTest,
         ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),

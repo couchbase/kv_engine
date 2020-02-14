@@ -41,19 +41,17 @@ protected:
 typedef testing::Types<TestStatsOps>
     WrappedOpsImplementation;
 
-INSTANTIATE_TYPED_TEST_CASE_P(CouchstoreOpsTest,
-    WrappedOpsTest,
-    WrappedOpsImplementation
-);
+INSTANTIATE_TYPED_TEST_SUITE_P(CouchstoreOpsTest,
+                               WrappedOpsTest,
+                               WrappedOpsImplementation);
 
-INSTANTIATE_TYPED_TEST_CASE_P(CouchstoreOpsTest,
-    UnbufferedWrappedOpsTest,
-    WrappedOpsImplementation
-);
+INSTANTIATE_TYPED_TEST_SUITE_P(CouchstoreOpsTest,
+                               UnbufferedWrappedOpsTest,
+                               WrappedOpsImplementation);
 
 /* NOOP to suppress compiler warning for an unused variable defined when
  * registering BufferedWrappedOpsTest in wrapped_fileops_test.h
  */
-INSTANTIATE_TYPED_TEST_CASE_P(CouchstoreOpsTest,
-                              BufferedWrappedOpsTest,
-                              testing::Types<>);
+INSTANTIATE_TYPED_TEST_SUITE_P(CouchstoreOpsTest,
+                               BufferedWrappedOpsTest,
+                               testing::Types<>);

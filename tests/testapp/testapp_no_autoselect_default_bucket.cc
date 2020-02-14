@@ -54,11 +54,11 @@ public:
     }
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        NoAutoselectDefaultBucketTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         NoAutoselectDefaultBucketTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
     auto& conn = getAdminConnection();

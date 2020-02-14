@@ -28,11 +28,11 @@
 
 class IPv6Test : public TestappClientTest {};
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        IPv6Test,
-                        ::testing::Values(TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpIpv6Ssl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         IPv6Test,
+                         ::testing::Values(TransportProtocols::McbpIpv6Plain,
+                                           TransportProtocols::McbpIpv6Ssl),
+                         ::testing::PrintToStringParamName());
 
 /**
  * The test just tries to authenticate as @admin on the memcached connection

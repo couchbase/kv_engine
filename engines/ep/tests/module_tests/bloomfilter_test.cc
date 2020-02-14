@@ -85,7 +85,7 @@ TEST_P(BloomFilterDocKeyTest, check_maybeKeyExist) {
 static std::vector<CollectionID> allDocNamespaces = {
         {CollectionID::Default, CollectionID::System, 100}};
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         DocNamespace,
         BloomFilterDocKeyTest,
         ::testing::Combine(::testing::ValuesIn(allDocNamespaces),

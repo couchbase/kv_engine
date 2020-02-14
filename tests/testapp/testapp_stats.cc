@@ -38,11 +38,11 @@ protected:
     }
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        StatsTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         StatsTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(StatsTest, TestDefaultStats) {
     MemcachedConnection& conn = getConnection();
@@ -608,8 +608,8 @@ TEST_P(NoBucketStatsTest, TestTopkeysNoBucket) {
     EXPECT_THROW(conn.stats("topkeys"), std::runtime_error);
 }
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        NoBucketStatsTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         NoBucketStatsTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());

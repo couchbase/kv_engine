@@ -5230,27 +5230,27 @@ void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
     EXPECT_EQ(numItems, itemsRemoved);
 }
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        DurabilityActiveStreamTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         DurabilityActiveStreamTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        DurabilityPassiveStreamTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         DurabilityPassiveStreamTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        DurabilityPassiveStreamDownlevelProducerTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         DurabilityPassiveStreamDownlevelProducerTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        DurabilityPromotionStreamTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         DurabilityPromotionStreamTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         Persistent,
         DurabilityPassiveStreamPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),

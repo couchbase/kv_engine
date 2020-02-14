@@ -114,10 +114,10 @@ protected:
     }
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        DurabilityTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         DurabilityTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 /**
  * Only ep-engine supports the Durability Specification
@@ -208,10 +208,10 @@ protected:
     }
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        SubdocDurabilityTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         SubdocDurabilityTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(SubdocDurabilityTest, SubdocDictAddMaybeSupported) {
     BinprotSubdocCommand cmd(

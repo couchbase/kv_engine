@@ -191,10 +191,10 @@ TEST_P(SetVBucketValidatorTest, MadHatterMessage) {
     // on.
 }
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SetVBucketValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SetVBucketValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
 } // namespace test
 } // namespace mcbp

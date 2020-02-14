@@ -83,7 +83,7 @@ protected:
     const char* testCasStr = "0xb33ff00dcafef00d";
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         WithMetaTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

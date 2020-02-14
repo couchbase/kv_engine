@@ -859,16 +859,16 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
 }
 
 // Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
-                        DcpStreamSyncReplTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
+                         DcpStreamSyncReplTest,
+                         ::testing::Values("persistent", "ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
-INSTANTIATE_TEST_CASE_P(Persistent,
-                        DcpStreamSyncReplPersistentTest,
-                        ::testing::Values("persistent"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         DcpStreamSyncReplPersistentTest,
+                         ::testing::Values("persistent"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });

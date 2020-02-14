@@ -745,7 +745,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 // Test cases which run for persistent and ephemeral, and for each of their
 // respective eviction policies (Value/Full for persistent, Auto-delete and
 // fail new data for Ephemeral).
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         VBucketTest,
         ::testing::Combine(
@@ -758,7 +758,7 @@ INSTANTIATE_TEST_CASE_P(
 // They run for persistent and ephemeral, and for each of their
 // respective eviction policies (Value/Full for persistent, Auto-delete and
 // fail new data for Ephemeral).
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         VBucketEvictionTest,
         ::testing::Combine(
@@ -768,7 +768,7 @@ INSTANTIATE_TEST_CASE_P(
         VBucketTest::PrintToStringParamName);
 
 // Test cases which run in for Persistent VBucket, Full Eviction only
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         FullEviction,
         VBucketFullEvictionTest,
         ::testing::Values(std::make_tuple(VBucketTestBase::VBType::Persistent,

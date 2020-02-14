@@ -268,10 +268,10 @@ TEST_P(HashTablePerspectiveTest, ToItemPrepared) {
     EXPECT_EQ(*prepared, *prepared2);
 }
 
-INSTANTIATE_TEST_CASE_P(Persistent,
-                        HashTablePerspectiveTest,
-                        ::testing::Values(false));
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         HashTablePerspectiveTest,
+                         ::testing::Values(false));
 
-INSTANTIATE_TEST_CASE_P(Ephemeral,
-                        HashTablePerspectiveTest,
-                        ::testing::Values(true));
+INSTANTIATE_TEST_SUITE_P(Ephemeral,
+                         HashTablePerspectiveTest,
+                         ::testing::Values(true));

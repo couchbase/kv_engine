@@ -79,7 +79,7 @@ protected:
 
 using ValueFactories =
         ::testing::Types<StoredValueFactory, OrderedStoredValueFactory>;
-TYPED_TEST_CASE(ValueTest, ValueFactories);
+TYPED_TEST_SUITE(ValueTest, ValueFactories);
 
 // Check that the size calculation methods return the expected sizes.
 
@@ -471,7 +471,7 @@ public:
 
 using ValueFactories =
         ::testing::Types<StoredValueFactory, OrderedStoredValueFactory>;
-TYPED_TEST_CASE(StoredValueProtectedTest, ValueFactories);
+TYPED_TEST_SUITE(StoredValueProtectedTest, ValueFactories);
 
 /**
  * Check that deleteSource does not get compared between two non-deleted values.

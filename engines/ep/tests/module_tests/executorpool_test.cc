@@ -310,10 +310,10 @@ std::vector<ThreadCountsParams> threadCountValues = {
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 64, 64, 64, 7, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 128, 64, 64, 8, 8}};
 
-INSTANTIATE_TEST_CASE_P(ThreadCountTest,
-                        ExecutorPoolTestWithParam,
-                        ::testing::ValuesIn(threadCountValues),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(ThreadCountTest,
+                         ExecutorPoolTestWithParam,
+                         ::testing::ValuesIn(threadCountValues),
+                         ::testing::PrintToStringParamName());
 
 TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
     EXPECT_EQ(2, pool->getNumWriters());

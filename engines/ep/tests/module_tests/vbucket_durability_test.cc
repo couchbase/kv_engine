@@ -323,7 +323,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
 }
 
 // Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         VBucketDurabilityTest,
         ::testing::Combine(
@@ -332,7 +332,7 @@ INSTANTIATE_TEST_CASE_P(
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         Ephemeral,
         EphemeralVBucketDurabilityTest,
         ::testing::Combine(
@@ -340,7 +340,7 @@ INSTANTIATE_TEST_CASE_P(
                 ::testing::Values(EvictionPolicy::Value)),
         VBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         FullAndValueEviction,
         EPVBucketDurabilityTest,
         ::testing::Combine(

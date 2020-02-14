@@ -2178,12 +2178,12 @@ auto allConfigValues =
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states
-INSTANTIATE_TEST_CASE_P(FullAndValueEvictionOnReplicaAndPending,
-                        RollbackTest,
-                        allConfigValues);
+INSTANTIATE_TEST_SUITE_P(FullAndValueEvictionOnReplicaAndPending,
+                         RollbackTest,
+                         allConfigValues);
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states
-INSTANTIATE_TEST_CASE_P(FullAndValueEvictionOnReplicaAndPending,
-                        RollbackDcpTest,
-                        allConfigValues);
+INSTANTIATE_TEST_SUITE_P(FullAndValueEvictionOnReplicaAndPending,
+                         RollbackDcpTest,
+                         allConfigValues);

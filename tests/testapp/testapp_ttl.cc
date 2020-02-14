@@ -65,10 +65,10 @@ protected:
     time_t ttl{0};
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        TtlTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         TtlTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 time_t TtlTest::getTtl(MemcachedConnection& connection, std::string key) {
     BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocGet,

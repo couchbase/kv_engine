@@ -23,10 +23,10 @@
 
 class InterfacesTest : public TestappClientTest {};
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        InterfacesTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         InterfacesTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(InterfacesTest, AddRemoveInterface) {
     size_t total = 0;

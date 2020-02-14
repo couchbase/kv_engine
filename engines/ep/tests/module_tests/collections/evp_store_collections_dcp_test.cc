@@ -1898,7 +1898,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 }
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_CASE_P(CollectionsDcpEphemeralOrPersistent,
-                        CollectionsDcpParameterizedTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
+                         CollectionsDcpParameterizedTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

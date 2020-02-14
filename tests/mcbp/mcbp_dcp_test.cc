@@ -924,61 +924,61 @@ TEST_P(DcpControlValidatorTest, InvalidBody) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpOpenValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpAddStreamValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpCloseStreamValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpGetFailoverLogValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpStreamReqValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpStreamEndValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpSnapshotMarkerValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpMutationValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpDeletionValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpExpirationValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpSetVbucketStateValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpNoopValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpBufferAckValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DcpControlValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpOpenValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpAddStreamValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpCloseStreamValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpGetFailoverLogValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpStreamReqValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpStreamEndValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpSnapshotMarkerValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpMutationValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpDeletionValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpExpirationValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpSetVbucketStateValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpNoopValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpBufferAckValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpControlValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 } // namespace test
 } // namespace mcbp

@@ -423,7 +423,7 @@ void GetSetSnappyOnOffTest::doTestCompressedJSON(std::string mode) {
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         GetSetTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
@@ -434,7 +434,7 @@ INSTANTIATE_TEST_CASE_P(
                            ::testing::Values(ClientSnappySupport::Yes)),
         PrintToStringCombinedName());
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         GetSetSnappyOnOffTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

@@ -399,8 +399,9 @@ TEST_P(DatatypeStatTest, MB23892) {
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_JSON, "jsonXattrDoc", "[1]");
 }
 
-INSTANTIATE_TEST_CASE_P(FullAndValueEviction, DatatypeStatTest,
-                        ::testing::Values("value_only", "full_eviction"), []
-                                (const ::testing::TestParamInfo<std::string>&
-                                info) {return info.param;});
-
+INSTANTIATE_TEST_SUITE_P(FullAndValueEviction,
+                         DatatypeStatTest,
+                         ::testing::Values("value_only", "full_eviction"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });

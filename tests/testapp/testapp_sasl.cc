@@ -130,11 +130,11 @@ protected:
     const std::string bucket3{"bucket-3"};
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        SaslTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         SaslTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(SaslTest, SinglePLAIN) {
     MemcachedConnection& conn = getConnection();

@@ -77,7 +77,7 @@ TEST_P(GATValidatorTest, InvalidCas) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         GATOpcodes,
         GATValidatorTest,
         ::testing::Combine(::testing::Values(cb::mcbp::ClientOpcode::Gat,

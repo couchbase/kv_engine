@@ -146,7 +146,7 @@ protected:
     mcbp::subdoc::doc_flag docFlags;
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         SubdocOpcodes,
         SubdocXattrSingleTest,
         ::testing::Combine(
@@ -452,14 +452,14 @@ TEST_P(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SubdocXattrMultiLookupTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SubdocXattrMultiMutationTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SubdocXattrMultiLookupTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SubdocXattrMultiMutationTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
 } // namespace test
 } // namespace mcbp

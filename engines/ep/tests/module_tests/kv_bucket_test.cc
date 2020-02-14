@@ -1639,14 +1639,14 @@ TEST_F(AbsoluteExpiryLimitTest, MB_37643) {
 }
 
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
-INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
-                        KVBucketParamTest,
-                        ::testing::Values("item_eviction_policy=value_only",
-                                          "item_eviction_policy=full_eviction",
-                                          "bucket_type=ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param.substr(info.param.find('=') + 1);
-                        });
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         KVBucketParamTest,
+                         ::testing::Values("item_eviction_policy=value_only",
+                                           "item_eviction_policy=full_eviction",
+                                           "bucket_type=ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param.substr(info.param.find('=') + 1);
+                         });
 
 const char KVBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
 

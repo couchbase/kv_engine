@@ -23,7 +23,7 @@
 
 // @todo add the other transport protocols
 // Note: We always need XattrSupport::Yes for these tests
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         XattrTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
@@ -34,7 +34,7 @@ INSTANTIATE_TEST_CASE_P(
         PrintToStringCombinedName());
 
 // Instantiation for tests which want XATTR support disabled.
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         XattrDisabledTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),

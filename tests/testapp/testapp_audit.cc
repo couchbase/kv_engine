@@ -113,10 +113,10 @@ protected:
     std::string org_descriptor_file;
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        AuditTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         AuditTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 std::vector<nlohmann::json> AuditTest::splitJsonData(const std::string& input) {
     std::vector<nlohmann::json> rval;

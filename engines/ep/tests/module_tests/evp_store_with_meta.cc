@@ -1524,40 +1524,40 @@ struct PrintSnappyOnOff {
     }
 };
 
-INSTANTIATE_TEST_CASE_P(DelWithMeta,
-                        DelWithMetaTest,
-                        ::testing::Combine(::testing::Bool(),
-                                           deleteOpcodeValues),
-                        PrintToStringCombinedName());
+INSTANTIATE_TEST_SUITE_P(DelWithMeta,
+                         DelWithMetaTest,
+                         ::testing::Combine(::testing::Bool(),
+                                            deleteOpcodeValues),
+                         PrintToStringCombinedName());
 
-INSTANTIATE_TEST_CASE_P(DelWithMetaLww,
-                        DelWithMetaLwwTest,
-                        ::testing::Combine(::testing::Bool(),
-                                           deleteOpcodeValues),
-                        PrintToStringCombinedName());
+INSTANTIATE_TEST_SUITE_P(DelWithMetaLww,
+                         DelWithMetaLwwTest,
+                         ::testing::Combine(::testing::Bool(),
+                                            deleteOpcodeValues),
+                         PrintToStringCombinedName());
 
-INSTANTIATE_TEST_CASE_P(AddSetWithMeta,
-                        AddSetWithMetaTest,
-                        addSetOpcodeValues,
-                        PrintOpcode());
+INSTANTIATE_TEST_SUITE_P(AddSetWithMeta,
+                         AddSetWithMetaTest,
+                         addSetOpcodeValues,
+                         PrintOpcode());
 
-INSTANTIATE_TEST_CASE_P(AddSetWithMetaLww,
-                        AddSetWithMetaLwwTest,
-                        addSetOpcodeValues,
-                        PrintOpcode());
+INSTANTIATE_TEST_SUITE_P(AddSetWithMetaLww,
+                         AddSetWithMetaLwwTest,
+                         addSetOpcodeValues,
+                         PrintOpcode());
 
-INSTANTIATE_TEST_CASE_P(AddSetDelMeta,
-                        AllWithMetaTest,
-                        opcodeValues,
-                        PrintOpcode());
+INSTANTIATE_TEST_SUITE_P(AddSetDelMeta,
+                         AllWithMetaTest,
+                         opcodeValues,
+                         PrintOpcode());
 
-INSTANTIATE_TEST_CASE_P(SnappyWithMetaTest,
-                        SnappyWithMetaTest,
-                        ::testing::Bool(),
-                        PrintSnappyOnOff());
+INSTANTIATE_TEST_SUITE_P(SnappyWithMetaTest,
+                         SnappyWithMetaTest,
+                         ::testing::Bool(),
+                         PrintSnappyOnOff());
 
-INSTANTIATE_TEST_CASE_P(AddSetDelXattrMeta,
-                        XattrWithMetaTest,
-                        // Bool for snappy on/off
-                        ::testing::Combine(::testing::Bool(), opcodeValues),
-                        PrintToStringCombinedNameSnappyOnOff());
+INSTANTIATE_TEST_SUITE_P(AddSetDelXattrMeta,
+                         XattrWithMetaTest,
+                         // Bool for snappy on/off
+                         ::testing::Combine(::testing::Bool(), opcodeValues),
+                         PrintToStringCombinedNameSnappyOnOff());

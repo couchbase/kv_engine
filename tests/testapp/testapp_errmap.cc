@@ -25,11 +25,11 @@ public:
     static bool validateJson(const nlohmann::json& json, size_t reqversion);
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        ErrmapTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         ErrmapTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 bool ErrmapTest::validateJson(const nlohmann::json& json, size_t reqversion) {
     // Validate the JSON

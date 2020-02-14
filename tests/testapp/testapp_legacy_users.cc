@@ -45,10 +45,10 @@ protected:
     const std::string new_password{"new"};
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-    LegacyUsersTest,
-    ::testing::Values(TransportProtocols::McbpPlain),
-    ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         LegacyUsersTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 /**
  * Verify that we can authenticate to the server by using the password

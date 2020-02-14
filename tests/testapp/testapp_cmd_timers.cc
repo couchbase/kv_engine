@@ -69,10 +69,10 @@ protected:
     }
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        CmdTimerTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         CmdTimerTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 /**
  * Test that we return the aggreate of all the buckets we've got access

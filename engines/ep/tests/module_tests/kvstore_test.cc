@@ -2677,12 +2677,12 @@ static std::string kvstoreTestParams[] = {
 #endif
         "couchdb"};
 
-INSTANTIATE_TEST_CASE_P(KVStoreParam,
-                        KVStoreParamTest,
-                        ::testing::ValuesIn(kvstoreTestParams),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(KVStoreParam,
+                         KVStoreParamTest,
+                         ::testing::ValuesIn(kvstoreTestParams),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 static std::string kvstoreTestParamsSkipMagma[] = {
 #ifdef EP_USE_ROCKSDB
@@ -2690,12 +2690,12 @@ static std::string kvstoreTestParamsSkipMagma[] = {
 #endif
         "couchdb"};
 
-INSTANTIATE_TEST_CASE_P(KVStoreParam,
-                        KVStoreParamTestSkipMagma,
-                        ::testing::ValuesIn(kvstoreTestParamsSkipMagma),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(KVStoreParam,
+                         KVStoreParamTestSkipMagma,
+                         ::testing::ValuesIn(kvstoreTestParamsSkipMagma),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 static std::string kvstoreTestParamsSkipRocks[] = {
 #ifdef EP_USE_MAGMA
@@ -2703,12 +2703,12 @@ static std::string kvstoreTestParamsSkipRocks[] = {
 #endif
         "couchdb"};
 
-INSTANTIATE_TEST_CASE_P(KVStoreParam,
-                        KVStoreParamTestSkipRocks,
-                        ::testing::ValuesIn(kvstoreTestParamsSkipRocks),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(KVStoreParam,
+                         KVStoreParamTestSkipRocks,
+                         ::testing::ValuesIn(kvstoreTestParamsSkipRocks),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 #ifdef EP_USE_ROCKSDB
 // Test fixture for tests which run only on RocksDB.

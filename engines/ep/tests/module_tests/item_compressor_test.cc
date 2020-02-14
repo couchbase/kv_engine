@@ -129,7 +129,7 @@ TEST_P(ItemCompressorTest, testStoreUncompressedInActiveMode) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, v->getDatatype());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         ItemCompressorTest,
         ::testing::Combine(

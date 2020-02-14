@@ -33,7 +33,7 @@ public:
 // Test both the Monotonic and AtomicMonotonic templates (with IgnorePolicy).
 using MonotonicTypes = ::testing::Types<Monotonic<int, IgnorePolicy>,
                                         AtomicMonotonic<int, IgnorePolicy>>;
-TYPED_TEST_CASE(MonotonicTest, MonotonicTypes);
+TYPED_TEST_SUITE(MonotonicTest, MonotonicTypes);
 
 TYPED_TEST(MonotonicTest, Increase) {
     this->mono = 2;
@@ -77,7 +77,7 @@ using MonotonicThrowingTypes =
         ::testing::Types<Monotonic<int, ThrowExceptionPolicy>,
                          AtomicMonotonic<int, ThrowExceptionPolicy>>;
 
-TYPED_TEST_CASE(ThrowingMonotonicTest, MonotonicThrowingTypes);
+TYPED_TEST_SUITE(ThrowingMonotonicTest, MonotonicThrowingTypes);
 
 TYPED_TEST(ThrowingMonotonicTest, Increase) {
     this->mono = 2;
@@ -121,7 +121,7 @@ using WeaklyMonotonicTypes =
                          WeaklyMonotonic<int, ThrowExceptionPolicy>,
                          AtomicWeaklyMonotonic<int, ThrowExceptionPolicy>>;
 
-TYPED_TEST_CASE(WeaklyMonotonicTest, WeaklyMonotonicTypes);
+TYPED_TEST_SUITE(WeaklyMonotonicTest, WeaklyMonotonicTypes);
 
 TYPED_TEST(WeaklyMonotonicTest, Identical) {
     EXPECT_NO_THROW(this->mono = 1);

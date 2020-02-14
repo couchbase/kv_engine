@@ -1017,18 +1017,18 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
                                      cb::mcbp::Status::SubdocInvalidCombo));
 }
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SubdocSingleTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SubdocMultiLookupTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SubdocMultiMutationTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SubdocSingleTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SubdocMultiLookupTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SubdocMultiMutationTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
 } // namespace test
 } // namespace mcbp

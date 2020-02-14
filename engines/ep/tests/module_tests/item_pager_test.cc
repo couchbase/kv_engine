@@ -1323,34 +1323,34 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
 // hence it is required currently.
 #if defined(HAVE_JEMALLOC)
 
-INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
-                        STItemPagerTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         STItemPagerTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
-                        STExpiryPagerTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         STExpiryPagerTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(ValueOnly,
-                        STValueEvictionExpiryPagerTest,
-                        STValueEvictionExpiryPagerTest::configValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(ValueOnly,
+                         STValueEvictionExpiryPagerTest,
+                         STValueEvictionExpiryPagerTest::configValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(Persistent,
-                        MB_32669,
-                        STValueEvictionExpiryPagerTest::configValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         MB_32669,
+                         STValueEvictionExpiryPagerTest::configValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(Ephemeral,
-                        STEphemeralItemPagerTest,
-                        STParameterizedBucketTest::ephConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(Ephemeral,
+                         STEphemeralItemPagerTest,
+                         STParameterizedBucketTest::ephConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(PersistentFullValue,
-                        MB_36087,
-                        STParameterizedBucketTest::persistentConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(PersistentFullValue,
+                         MB_36087,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 #endif

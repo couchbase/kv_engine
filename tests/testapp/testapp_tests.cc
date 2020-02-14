@@ -819,7 +819,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         Transport,
         McdTestappTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

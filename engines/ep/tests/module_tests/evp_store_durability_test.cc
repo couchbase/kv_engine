@@ -3749,32 +3749,32 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
 }
 
 // Test cases which run against couchstore
-INSTANTIATE_TEST_CASE_P(AllBackends,
-                        DurabilityCouchstoreBucketTest,
-                        STParameterizedBucketTest::persistentConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBackends,
+                         DurabilityCouchstoreBucketTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all persistent storage backends.
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllBackends,
         DurabilityEPBucketTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all ephemeral.
-INSTANTIATE_TEST_CASE_P(AllBackends,
-                        DurabilityEphemeralBucketTest,
-                        STParameterizedBucketTest::ephConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBackends,
+                         DurabilityEphemeralBucketTest,
+                         STParameterizedBucketTest::ephConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all configurations.
-INSTANTIATE_TEST_CASE_P(AllBackends,
-                        DurabilityBucketTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBackends,
+                         DurabilityBucketTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 // maxVisibleSeqno tests run against all persistent storage backends.
-INSTANTIATE_TEST_CASE_P(AllBackends,
-                        BackingStoreMaxVisibleSeqnoTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBackends,
+                         BackingStoreMaxVisibleSeqnoTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

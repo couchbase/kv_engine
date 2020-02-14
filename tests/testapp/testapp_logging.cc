@@ -65,4 +65,4 @@ TEST_P(LoggingTest, ChangeVerbosity) {
 }
 
 // Test with verbosity values 0, 1, 2
-INSTANTIATE_TEST_CASE_P(LoggingTests, LoggingTest, ::testing::Range(0, 3));
+INSTANTIATE_TEST_SUITE_P(LoggingTests, LoggingTest, ::testing::Range(0, 3));

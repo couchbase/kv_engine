@@ -1969,7 +1969,7 @@ TEST_P(DurabilityWarmupTest, promotedReplicaCompleteSnapshotHPS_Disk) {
     testPromotedReplicaCompleteSnapshotHPS(CheckpointType::Disk);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         FullOrValue,
         DurabilityWarmupTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
@@ -2096,7 +2096,7 @@ TEST_F(WarmupTest, MB_35326) {
     flush_vbucket_to_disk(vbid);
 }
 
-INSTANTIATE_TEST_CASE_P(FullOrValue,
-                        MB_34718_WarmupTest,
-                        STParameterizedBucketTest::persistentConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(FullOrValue,
+                         MB_34718_WarmupTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

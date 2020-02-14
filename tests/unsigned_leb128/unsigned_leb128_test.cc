@@ -25,7 +25,7 @@ template <class T>
 class UnsignedLeb128 : public ::testing::Test {};
 
 using MyTypes = ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t>;
-TYPED_TEST_CASE(UnsignedLeb128, MyTypes);
+TYPED_TEST_SUITE(UnsignedLeb128, MyTypes);
 
 TEST(UnsignedLeb128, MaxSize) {
     EXPECT_EQ(2, cb::mcbp::unsigned_leb128<uint8_t>::getMaxSize());

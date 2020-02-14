@@ -1155,6 +1155,6 @@ TEST_P(DCPLoopbackSnapshots, testSnapshots) {
     testSnapshots(GetParam());
 }
 
-INSTANTIATE_TEST_CASE_P(DCPLoopbackSnapshot,
-                        DCPLoopbackSnapshots,
-                        ::testing::Range(1, 10));
+INSTANTIATE_TEST_SUITE_P(DCPLoopbackSnapshot,
+                         DCPLoopbackSnapshots,
+                         ::testing::Range(1, 10));

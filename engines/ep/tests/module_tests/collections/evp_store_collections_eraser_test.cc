@@ -491,7 +491,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
 }
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_CASE_P(CollectionsEraserTests,
-                        CollectionsEraserTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
+                         CollectionsEraserTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

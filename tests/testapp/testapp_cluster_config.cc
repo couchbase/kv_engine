@@ -76,7 +76,7 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         ClusterConfigTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

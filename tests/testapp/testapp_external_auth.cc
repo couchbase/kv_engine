@@ -175,10 +175,10 @@ protected:
     std::unique_ptr<MemcachedConnection> provider;
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        ExternalAuthTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         ExternalAuthTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(ExternalAuthTest, OnlyPlainShouldBeAdvertised) {
     auto& conn = getConnection();

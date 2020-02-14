@@ -288,12 +288,12 @@ TEST_P(SetParamTest, DynamicConfigValuesModifiable) {
 }
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
-                        SetParamTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         SetParamTest,
+                         ::testing::Values("persistent", "ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 TEST_P(DurabilityTest, TimeoutTaskScheduled) {
     auto* executor = dynamic_cast<MockExecutorPool*>(ExecutorPool::get());
@@ -357,9 +357,9 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
     expectStatsForVB(vb);
 }
 
-INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
-                        DurabilityTest,
-                        ::testing::Values("persistent", "ephemeral"),
-                        [](const ::testing::TestParamInfo<std::string>& info) {
-                            return info.param;
-                        });
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         DurabilityTest,
+                         ::testing::Values("persistent", "ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });

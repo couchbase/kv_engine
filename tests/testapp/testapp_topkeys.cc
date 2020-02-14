@@ -248,7 +248,7 @@ TEST_P(McdTopkeysTest, test_topkeys) {
     test_delete_topkeys("key1");
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         Transport,
         McdTopkeysTest,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,

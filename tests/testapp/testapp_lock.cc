@@ -37,11 +37,11 @@ protected:
     Document document;
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        LockTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         LockTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(LockTest, LockNonexistingDocument) {
     auto& conn = getConnection();

@@ -967,80 +967,80 @@ TEST_P(CompactDbValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        DropPrivilegeValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DropPrivilegeValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        GetClusterConfigValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         GetClusterConfigValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SetClusterConfigValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SetClusterConfigValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        StartStopPersistenceValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         StartStopPersistenceValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        EnableDisableTrafficValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         EnableDisableTrafficValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        ScrubValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         ScrubValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        GetKeysValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         GetKeysValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SetParamValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SetParamValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        GetReplicaValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         GetReplicaValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        ReturnMetaValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         ReturnMetaValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        SeqnoPersistenceValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SeqnoPersistenceValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        LastClosedCheckpointValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         LastClosedCheckpointValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        CreateCheckpointValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         CreateCheckpointValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        CheckpointPersistenceValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         CheckpointPersistenceValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
-INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
-                        CompactDbValidatorTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         CompactDbValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
 } // namespace test
 } // namespace mcbp

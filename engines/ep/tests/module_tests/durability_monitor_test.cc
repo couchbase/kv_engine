@@ -3453,34 +3453,34 @@ TEST_P(NoTopologyActiveDurabilityMonitorTest, SeqnoAckReceivedBeforeTopology) {
     EXPECT_EQ(1, adm.getNodeAckSeqno(replica1));
 }
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        ActiveDurabilityMonitorTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         ActiveDurabilityMonitorTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllBucketTypes,
         ActiveDurabilityMonitorAbortTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllBucketTypes,
         ActiveDurabilityMonitorPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        NoTopologyActiveDurabilityMonitorTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         NoTopologyActiveDurabilityMonitorTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(AllBucketTypes,
-                        PassiveDurabilityMonitorTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         PassiveDurabilityMonitorTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllBucketTypes,
         PassiveDurabilityMonitorPersistentTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),

@@ -2403,7 +2403,7 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
     EXPECT_EQ(2, regRes.cursor.lock()->getId());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,
         ::testing::Combine(

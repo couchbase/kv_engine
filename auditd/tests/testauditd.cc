@@ -433,10 +433,10 @@ int main(int argc, char** argv) {
 
 static std::vector<bool> allFilteringOptions = {{true, false}};
 
-INSTANTIATE_TEST_CASE_P(bool,
-                        AuditDaemonTest,
-                        ::testing::Values(std::make_tuple(true, true)));
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(bool,
+                         AuditDaemonTest,
+                         ::testing::Values(std::make_tuple(true, true)));
+INSTANTIATE_TEST_SUITE_P(
         bool,
         AuditDaemonFilteringTest,
         ::testing::Combine(::testing::ValuesIn(allFilteringOptions),

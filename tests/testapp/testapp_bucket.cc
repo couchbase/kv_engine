@@ -29,11 +29,11 @@
 
 class BucketTest : public TestappClientTest {};
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        BucketTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         BucketTest,
+                         ::testing::Values(TransportProtocols::McbpPlain,
+                                           TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(BucketTest, TestNameTooLong) {
     auto& connection = getAdminConnection();

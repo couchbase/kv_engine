@@ -293,7 +293,7 @@ TEST_P(StoredDocKeyTest, getObjectSize) {
 static std::vector<CollectionID> allDocNamespaces = {
         {CollectionID::Default, CollectionID::System, 100}};
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         CollectionID,
         StoredDocKeyTestCombi,
         ::testing::Combine(::testing::ValuesIn(allDocNamespaces),
@@ -301,14 +301,14 @@ INSTANTIATE_TEST_CASE_P(
 
 // Test params includes our labelled types that have 'special meaning' and
 // one normal collection ID (100)
-INSTANTIATE_TEST_CASE_P(DocNamespace,
-                        StoredDocKeyTest,
-                        ::testing::Values(CollectionID::Default,
-                                          CollectionID::System,
-                                          100));
+INSTANTIATE_TEST_SUITE_P(DocNamespace,
+                         StoredDocKeyTest,
+                         ::testing::Values(CollectionID::Default,
+                                           CollectionID::System,
+                                           100));
 
-INSTANTIATE_TEST_CASE_P(DocNamespace,
-                        SerialisedDocKeyTest,
-                        ::testing::Values(CollectionID::Default,
-                                          CollectionID::System,
-                                          100));
+INSTANTIATE_TEST_SUITE_P(DocNamespace,
+                         SerialisedDocKeyTest,
+                         ::testing::Values(CollectionID::Default,
+                                           CollectionID::System,
+                                           100));

@@ -25,10 +25,10 @@
 
 class RegressionTest : public TestappClientTest {};
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        RegressionTest,
-                        ::testing::Values(TransportProtocols::McbpPlain),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         RegressionTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
 
 /**
  * MB-26196: A client without xerror may still receive extended error

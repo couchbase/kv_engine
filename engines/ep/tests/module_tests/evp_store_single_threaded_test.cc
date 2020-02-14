@@ -4335,17 +4335,17 @@ TEST_P(STParameterizedBucketTest, MB_34380) {
     EXPECT_NO_THROW(vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid));
 }
 
-INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
-                        XattrSystemUserTest,
-                        ::testing::Bool());
+INSTANTIATE_TEST_SUITE_P(XattrSystemUserTest,
+                         XattrSystemUserTest,
+                         ::testing::Bool());
 
-INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
-                        XattrCompressedTest,
-                        ::testing::Combine(::testing::Bool(),
-                                           ::testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(XattrCompressedTest,
+                         XattrCompressedTest,
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Bool()));
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
-                        STParameterizedBucketTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         STParameterizedBucketTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

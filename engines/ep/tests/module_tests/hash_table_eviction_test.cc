@@ -383,11 +383,11 @@ static auto persistentTestConfigValues = ::testing::Values(
 static auto ephemeralTestConfigValues = ::testing::Values(
         std::tuple_cat(std::make_tuple(std::string("ephemeral")), parameters));
 
-INSTANTIATE_TEST_CASE_P(EvictionPersistent,
-                        STHashTableEvictionTest,
-                        persistentTestConfigValues);
-INSTANTIATE_TEST_CASE_P(EvictionEphemeral,
-                        STHashTableEvictionTest,
-                        ephemeralTestConfigValues);
+INSTANTIATE_TEST_SUITE_P(EvictionPersistent,
+                         STHashTableEvictionTest,
+                         persistentTestConfigValues);
+INSTANTIATE_TEST_SUITE_P(EvictionEphemeral,
+                         STHashTableEvictionTest,
+                         ephemeralTestConfigValues);
 
 #endif

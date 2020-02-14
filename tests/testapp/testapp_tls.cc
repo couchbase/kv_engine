@@ -74,10 +74,10 @@ protected:
     std::unique_ptr<MemcachedConnection> connection;
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        TlsTests,
-                        ::testing::Values(TransportProtocols::McbpSsl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         TlsTests,
+                         ::testing::Values(TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
 
 TEST_P(TlsTests, Minimum_Tls1) {
     setTlsMinimumSpec("tlsv1");

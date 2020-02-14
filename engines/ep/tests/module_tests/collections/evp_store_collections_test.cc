@@ -1533,13 +1533,13 @@ TEST_P(CollectionsParameterizedTest, item_counting) {
     EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
 }
 
-INSTANTIATE_TEST_CASE_P(CollectionsExpiryLimitTests,
-                        CollectionsExpiryLimitTest,
-                        ::testing::Bool(),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
+                         CollectionsExpiryLimitTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_CASE_P(CollectionsEphemeralOrPersistent,
-                        CollectionsParameterizedTest,
-                        STParameterizedBucketTest::allConfigValues(),
-                        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
+                         CollectionsParameterizedTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

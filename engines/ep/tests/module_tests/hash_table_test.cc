@@ -772,7 +772,7 @@ TEST_P(HashTableStatsTest, PreparedSyncDelete) {
     EXPECT_TRUE(del(ht, key));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         ValueAndFullEviction,
         HashTableStatsTest,
         ::testing::Combine(::testing::Values(EvictionPolicy::Value,

@@ -3136,13 +3136,13 @@ struct PrintToStringCombinedNameXattrOnOff {
 };
 
 // Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(CompressionStreamTest,
-                        CompressionStreamTest,
-                        ::testing::Combine(::testing::Values("persistent",
-                                                             "ephemeral"),
-                                           ::testing::Bool()),
-                        PrintToStringCombinedNameXattrOnOff());
+INSTANTIATE_TEST_SUITE_P(CompressionStreamTest,
+                         CompressionStreamTest,
+                         ::testing::Combine(::testing::Values("persistent",
+                                                              "ephemeral"),
+                                            ::testing::Bool()),
+                         PrintToStringCombinedNameXattrOnOff());
 
-INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
-                        ConnectionTest,
-                        STParameterizedBucketTest::allConfigValues());
+INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
+                         ConnectionTest,
+                         STParameterizedBucketTest::allConfigValues());

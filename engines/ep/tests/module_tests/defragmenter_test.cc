@@ -386,7 +386,7 @@ TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
     EXPECT_EQ(14336, DefragmenterTask::getMaxValueSize());
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         FullAndValueEviction,
         DefragmenterTest,
         ::testing::Combine(::testing::Values(EvictionPolicy::Value,
