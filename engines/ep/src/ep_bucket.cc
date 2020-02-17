@@ -269,8 +269,8 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
 
     retainErroneousTombstones = config.isRetainErroneousTombstones();
     config.addValueChangedListener(
-           "retain_erroneous_tombstones",
-           std::make_unique<ValueChangedListener>(*this));
+            "retain_erroneous_tombstones",
+            std::make_unique<ValueChangedListener>(*this));
 
     initializeWarmupTask();
 }
@@ -689,9 +689,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     }
 
     // Persist the flush-batch if not empty.
+    // The result of the flush is defaulted to true to comply the current logic
+    // that considers flush-success/no-flush equivalent.
+    auto flushSuccessOrNoFlush = true;
     if (items_flushed > 0) {
         Expects(commitData.is_initialized());
-        commit(vbid, *rwUnderlying, *commitData);
+        flushSuccessOrNoFlush = commit(vbid, *rwUnderlying, *commitData);
     } else if (mustCheckpointVBState) {
         Expects(commitData.is_initialized());
         if (!rwUnderlying->snapshotVBucket(vbid, commitData->proposedVBState)) {
@@ -703,7 +706,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         }
     }
 
-    if (vb->rejectQueue.empty()) {
+    if (flushSuccessOrNoFlush) {
+        Expects(vb->rejectQueue.empty());
+
         // only update the snapshot range if items were flushed, i.e.
         // don't appear to be in a snapshot when you have no data for it
         if (range) {
@@ -791,13 +796,18 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // just after getItemsToPersist(). See above for details.
 
     // Handle HighPriority requests
-    if (vb->rejectQueue.empty()) {
+    if (flushSuccessOrNoFlush) {
+        Expects(vb->rejectQueue.empty());
+
         handleCheckpointPersistence();
         vb->notifyHighPriorityRequests(
                 engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
 
         return {toFlush.moreAvailable, items_flushed};
     }
+
+    // Flush has failed
+    Expects(!vb->rejectQueue.empty());
 
     // Reject queue not empty
     return {true, items_flushed};
@@ -807,11 +817,12 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     flusherBatchSplitTrigger = limit;
 }
 
-void EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
+bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
-    if (kvstore.commit(commitData)) {
+    const auto res = kvstore.commit(commitData);
+    if (res) {
         ++stats.flusherCommits;
         // Update in-memory vbstate
         kvstore.setVBucketState(vbid, commitData.proposedVBState);
@@ -826,6 +837,8 @@ void EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
                                .count();
     stats.commit_time.store(commit_time);
     stats.cumulativeCommitTime.fetch_add(commit_time);
+
+    return res;
 }
 
 void EPBucket::startFlusher() {

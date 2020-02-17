@@ -55,7 +55,15 @@ public:
      */
     void setFlusherBatchSplitTrigger(size_t limit);
 
-    void commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData);
+    /**
+     * Persist whatever flush-batch previously queued into KVStore.
+     *
+     * @param vbid
+     * @param kvstore
+     * @param [out] commitData
+     * @return true if flush succeeds, false otherwise
+     */
+    bool commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData);
 
     /// Start the Flusher for all shards in this bucket.
     void startFlusher();
