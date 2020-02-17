@@ -93,7 +93,7 @@ public:
      * @param buffer an existing buffer to use
      * @param compressed the buffer contains snappy compressed data
      */
-    Blob& assign(cb::char_buffer buffer, bool compressed);
+    Blob& assign(cb::const_char_buffer buffer, bool compressed);
 
     /**
      * Get the value for a given key located in the blob
@@ -130,8 +130,8 @@ public:
      *
      * @return the encoded blob
      */
-    cb::char_buffer finalize() {
-        return blob;
+    cb::const_char_buffer finalize() {
+        return cb::const_char_buffer(blob.data(), blob.size());
     }
 
     /**
@@ -224,8 +224,7 @@ protected:
      * @param key The key to append
      * @param value The value to store with the key
      */
-    void append_kvpair(const cb::const_char_buffer& key,
-                       const cb::const_char_buffer& value);
+    void append_kvpair(cb::const_char_buffer key, cb::const_char_buffer value);
 
     /**
      * Write a kv-paid at the given offset
@@ -235,8 +234,8 @@ protected:
      * @param value The value to insert
      */
     void write_kvpair(size_t offset,
-                      const cb::const_char_buffer& key,
-                      const cb::const_char_buffer& value);
+                      cb::const_char_buffer key,
+                      cb::const_char_buffer value);
 
     /**
      * Get the length stored at the given offset

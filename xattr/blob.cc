@@ -49,7 +49,7 @@ Blob::Blob(cb::char_buffer buffer,
     assign({buffer.data(), buffer.size()}, compressed);
 }
 
-Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
+Blob& Blob::assign(cb::const_char_buffer buffer, bool compressed) {
     if (compressed && !buffer.empty()) {
         // inflate and attach blob to the compression::buffer
         if (!cb::compression::inflate(
@@ -76,7 +76,8 @@ Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
         blob = {decompressed.data(), decompressed.size()};
     } else if (!buffer.empty()) {
         // incoming data is not compressed, just get the size and attach
-        blob = {buffer.data(), cb::xattr::get_body_offset(buffer)};
+        blob = {const_cast<char*>(buffer.data()),
+                cb::xattr::get_body_offset(buffer)};
     } else {
         // empty blob
         blob = {};
@@ -206,22 +207,22 @@ void Blob::grow_buffer(uint32_t size) {
 }
 
 void Blob::write_kvpair(size_t offset,
-                        const cb::const_char_buffer& key,
-                        const cb::const_char_buffer& value) {
+                        cb::const_char_buffer key,
+                        cb::const_char_buffer value) {
     // offset points to where we want to inject the value
     write_length(offset, uint32_t(key.size() + 1 + value.size() + 1));
     offset += 4;
-    std::copy(key.data(), key.data() + key.size(), blob.data() + offset);
+    std::copy(key.begin(), key.end(), blob.data() + offset);
     offset += key.size();
     blob[offset++] = '\0';
-    std::copy(value.data(), value.data() + value.size(), blob.data() + offset);
+    std::copy(value.begin(), value.end(), blob.data() + offset);
     offset += value.size();
     blob[offset++] = '\0';
     write_length(0, uint32_t(blob.size() - 4));
 }
 
-void Blob::append_kvpair(const cb::const_char_buffer& key,
-                         const cb::const_char_buffer& value) {
+void Blob::append_kvpair(cb::const_char_buffer key,
+                         cb::const_char_buffer value) {
     auto offset = blob.size();
     if (offset == 0) {
         offset += 4;

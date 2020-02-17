@@ -189,7 +189,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
     last_byseqno = by_seqno;
     last_revseqno = rev_seqno;
     last_locktime = lock_time;
-    last_meta = to_string(meta);
+    last_meta = meta;
     last_value.assign(item->getData(), item->getNBytes());
     last_nru = nru;
 

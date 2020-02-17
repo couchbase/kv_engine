@@ -44,37 +44,43 @@
 
 TEST_P(CollectionsParameterizedTest, uid_increment) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+              cb::engine_errc::success);
     cm.add(CollectionEntry::vegetable);
-    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+              cb::engine_errc::success);
 }
 
 TEST_P(CollectionsParameterizedTest, uid_decrement) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+              cb::engine_errc::success);
     CollectionsManifest newCm{};
-    EXPECT_EQ(store->setCollections({newCm}).code(),
+    EXPECT_EQ(store->setCollections(std::string{newCm}).code(),
               cb::engine_errc::out_of_range);
 }
 
 TEST_P(CollectionsParameterizedTest, uid_equal) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+              cb::engine_errc::success);
 
     // An equal manifest is tolerated (and ignored)
-    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+              cb::engine_errc::success);
 }
 
 TEST_P(CollectionsParameterizedTest, manifest_uid_equal_with_differences) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+              cb::engine_errc::success);
 
     auto uid = cm.getUid();
     cm.add(CollectionEntry::fruit);
     // force the uid back
     cm.updateUid(uid);
     // manifest is equal, but contains an extra collection, unexpected diversion
-    EXPECT_EQ(store->setCollections({cm}).code(),
+    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
               cb::engine_errc::cannot_apply_collections_manifest);
 }
 
@@ -92,7 +98,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flush_vbucket_to_disk(vbid, 2);
 
@@ -126,7 +132,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
 
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -186,7 +192,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -311,7 +317,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -513,7 +519,7 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -569,7 +575,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -590,7 +596,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
 
     // Add the meat collection
     cm.add(CollectionEntry::meat);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(std::string{cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -1222,7 +1228,7 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     resetEngineAndEnableWarmup();
 
     CollectionsManifest cm(CollectionEntry::fruit);
-    store->setCollections({cm});
+    store->setCollections(std::string{cm});
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
@@ -1246,7 +1252,7 @@ TEST_P(CollectionsParameterizedTest, basic) {
     }
 
     CollectionsManifest cm(CollectionEntry::meat);
-    store->setCollections({cm});
+    store->setCollections(std::string{cm});
 
     // Check all vbuckets got the collections
     for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
@@ -1275,7 +1281,7 @@ TEST_P(CollectionsParameterizedTest, basic2) {
     }
 
     CollectionsManifest cm(CollectionEntry::meat);
-    store->setCollections({cm});
+    store->setCollections(std::string{cm});
 
     // Check all vbuckets got the collections
     for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
@@ -1607,7 +1613,7 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
     const auto addStat = [&actual](cb::const_char_buffer key,
                                    cb::const_char_buffer value,
                                    gsl::not_null<const void*> cookie) {
-        actual[to_string(key)] = to_string(value);
+        actual[std::string(key)] = value;
     };
 
     auto cookie = create_mock_cookie();

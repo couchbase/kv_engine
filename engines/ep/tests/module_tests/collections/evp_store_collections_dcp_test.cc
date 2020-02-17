@@ -1184,8 +1184,7 @@ TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest) {
     // Get the manager through KVBucketTest so we can get a non-const
     // version and update it to include fruit. This should update the active
     // but NOT the replica.
-    KVBucketTest::getCollectionsManager().update(*store,
-                                                 cb::const_char_buffer(cm));
+    KVBucketTest::getCollectionsManager().update(*store, std::string{cm});
     auto active = store->getVBucket(vbid);
     ASSERT_TRUE(active->lockCollections().exists(CollectionEntry::fruit));
     auto replica = store->getVBucket(replicaVB);
@@ -1243,9 +1242,10 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Perform a create of meat/dairy via the bucket level and a delete of
     // _default (see MB-32131)
     CollectionsManifest cm;
-    store->setCollections({cm.add(CollectionEntry::meat)
-                                   .add(CollectionEntry::dairy)
-                                   .remove(CollectionEntry::defaultC)});
+    store->setCollections(
+            std::string{cm.add(CollectionEntry::meat)
+                                .add(CollectionEntry::dairy)
+                                .remove(CollectionEntry::defaultC)});
 
     // Setup filtered DCP for CID 12/0xc (dairy)
     createDcpObjects({{R"({"collections":["c"]})"}});
@@ -1316,10 +1316,10 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
 
     // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat)
-                     .add(ScopeEntry::shop1)
-                     .add(CollectionEntry::dairy, ScopeEntry::shop1)});
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat)
+                    .add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)});
     // Setup filtered DCP for SID 8 (shop1)
     createDcpObjects({{R"({"scope":"8"})"}});
     notifyAndStepToCheckpoint();
@@ -1414,7 +1414,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
 
     // Create the scope but don't add any collections to it
     CollectionsManifest cm;
-    store->setCollections({cm.add(ScopeEntry::shop1)});
+    store->setCollections(std::string{cm.add(ScopeEntry::shop1)});
     // Setup filtered DCP for SID 8 (shop1)
     try {
         createDcpObjects({{R"({"scope":"8"})"}});
@@ -1426,7 +1426,8 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     ASSERT_NE(nullptr, vb0Stream.get());
 
     // Now lets add a collection to the shop1 scope
-    store->setCollections({cm.add(CollectionEntry::dairy, ScopeEntry::shop1)});
+    store->setCollections(
+            std::string{cm.add(CollectionEntry::dairy, ScopeEntry::shop1)});
 
     notifyAndStepToCheckpoint();
 
@@ -1487,10 +1488,10 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
 
     // Perform a create of meat/dairy(shop1) via the bucket level
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat)
-                     .add(ScopeEntry::shop1)
-                     .add(CollectionEntry::dairy, ScopeEntry::shop1)});
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat)
+                    .add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)});
     // Setup filtered DCP for SID 8 (shop1)
     createDcpObjects({{R"({"scope":"8"})"}});
     notifyAndStepToCheckpoint();
@@ -1511,7 +1512,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
 
     // Add a new collection to the scope that we are filtering
     store->setCollections(
-            {cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)});
+            std::string{cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)});
     notifyAndStepToCheckpoint();
 
     // Check we got the system event
@@ -1575,11 +1576,11 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
     // level
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat)
-                     .add(ScopeEntry::shop1)
-                     .add(CollectionEntry::dairy, ScopeEntry::shop1)
-                     .add(CollectionEntry::vegetable, ScopeEntry::shop1)});
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat)
+                    .add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                    .add(CollectionEntry::vegetable, ScopeEntry::shop1)});
     // Setup filtered DCP for SID 8 (shop1)
     createDcpObjects({{R"({"scope":"8"})"}});
     notifyAndStepToCheckpoint();
@@ -1645,7 +1646,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
 
     // Now delete the dairy collection
     store->setCollections(
-            {cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
+            std::string{cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
     notifyAndStepToCheckpoint();
 
     // Check we got the system event
@@ -1693,18 +1694,18 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
     // level
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat)
-                     .add(ScopeEntry::shop1)
-                     .add(CollectionEntry::dairy, ScopeEntry::shop1)
-                     .add(CollectionEntry::vegetable, ScopeEntry::shop1)});
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat)
+                    .add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                    .add(CollectionEntry::vegetable, ScopeEntry::shop1)});
 
     store_item(vbid, StoredDocKey{"dairy1", CollectionEntry::dairy}, "value");
     store_item(vbid, StoredDocKey{"dairy2", CollectionEntry::dairy}, "value");
 
     // Now delete the dairy collection
     store->setCollections(
-            {cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
+            std::string{cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
 
     // Flush it all out
     flush_vbucket_to_disk(vbid, 6);
@@ -1746,8 +1747,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_24572) {
 
     // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
     // Setup filtered DCP
     createDcpObjects({{R"({"collections":["c"]})"}});
 
@@ -1782,8 +1783,8 @@ TEST_P(CollectionsDcpParameterizedTest, default_only) {
 
     // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
 
     // Setup DCP
     createDcpObjects({/*no collections*/});
@@ -1818,7 +1819,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
 
     // Perform a create of meat via the bucket level
     CollectionsManifest cm;
-    store->setCollections({cm.add(CollectionEntry::meat)});
+    store->setCollections(std::string{cm.add(CollectionEntry::meat)});
 
     // Setup filtered DCP
     createDcpObjects({{R"({"collections":["8"]})"}});
@@ -1838,7 +1839,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Perform a delete of meat via the bucket level
-    store->setCollections({cm.remove(CollectionEntry::meat)});
+    store->setCollections(std::string{cm.remove(CollectionEntry::meat)});
 
     notifyAndStepToCheckpoint();
 
@@ -1862,7 +1863,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
-    store->setCollections({cm});
+    store->setCollections(std::string{cm});
 
     // Setup filtered DCP
     createDcpObjects({{R"({"scope":"8"})"}});
@@ -1900,7 +1901,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Remove the scope
-    store->setCollections({cm.remove(ScopeEntry::shop1)});
+    store->setCollections(std::string{cm.remove(ScopeEntry::shop1)});
 
     notifyAndStepToCheckpoint();
 
@@ -1946,13 +1947,13 @@ TEST_P(CollectionsDcpParameterizedTest, empty_filter_stream_closes) {
 
     // Perform a create of meat via the bucket level
     CollectionsManifest cm;
-    store->setCollections({cm.add(CollectionEntry::meat)});
+    store->setCollections(std::string{cm.add(CollectionEntry::meat)});
 
     producer = createDcpProducer(cookieP, IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat
-    store->setCollections({cm.remove(CollectionEntry::meat)});
+    store->setCollections(std::string{cm.remove(CollectionEntry::meat)});
 
     uint64_t rollbackSeqno;
     try {
@@ -1979,7 +1980,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 
     // Perform a create of meat via the bucket level
     CollectionsManifest cm;
-    store->setCollections({cm.add(CollectionEntry::meat)});
+    store->setCollections(std::string{cm.add(CollectionEntry::meat)});
 
     // Make cookie look like a non-collection client
     mock_set_collections_support(cookieP, false);
@@ -1998,7 +1999,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Perform a delete of $default
-    store->setCollections({cm.remove(CollectionEntry::defaultC)});
+    store->setCollections(std::string{cm.remove(CollectionEntry::defaultC)});
 
     // Expect a stream end marker
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);

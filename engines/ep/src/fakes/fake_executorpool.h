@@ -191,7 +191,7 @@ public:
     }
 
     void runCurrentTask(cb::const_char_buffer expectedTask) {
-        EXPECT_EQ(to_string(expectedTask), getTaskName());
+        EXPECT_EQ(expectedTask, getTaskName());
         run();
     }
 

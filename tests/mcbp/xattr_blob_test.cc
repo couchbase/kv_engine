@@ -22,11 +22,6 @@
 
 #include "utilities/string_utilities.h"
 
-void validate(cb::char_buffer buffer) {
-    EXPECT_TRUE(cb::xattr::validate(
-            {static_cast<const char*>(buffer.data()), buffer.size()}));
-}
-
 TEST(XattrBlob, TestBlob) {
     cb::xattr::Blob blob;
 
@@ -40,7 +35,7 @@ TEST(XattrBlob, TestBlob) {
     blob.set("meta", "{\"content-type\":\"text\"}");
 
     // Validate the the blob is correctly built
-    validate(blob.finalize());
+    EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
 
     // Try to fetch all of the values
     EXPECT_EQ(std::string{"{\"cas\":\"0xdeadbeefcafefeed\"}"},
@@ -53,7 +48,7 @@ TEST(XattrBlob, TestBlob) {
     // Change the order of some bytes (that should just do an in-place
     // replacement)
     blob.set("_sync", "{\"cas\":\"0xcafefeeddeadbeef\"}");
-    validate(blob.finalize());
+    EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
 
     // Try to fetch all of the values
     EXPECT_EQ(std::string{"{\"cas\":\"0xcafefeeddeadbeef\"}"},
@@ -65,7 +60,7 @@ TEST(XattrBlob, TestBlob) {
 
     // Remove one
     blob.remove("meta");
-    validate(blob.finalize());
+    EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
     value = to_string(blob.get("meta"));
     EXPECT_TRUE(value.empty());
 
@@ -151,7 +146,8 @@ TEST(XattrBlob, MB_22691) {
     blob.set(std::string("integer_extra"), std::string("1"));
 
     // Validate the the blob is correctly built
-    validate(blob.finalize());
+    cb::const_char_buffer buffer = blob.finalize();
+    EXPECT_TRUE(cb::xattr::validate(buffer));
 
     auto value = blob.get("integer");
     EXPECT_EQ(0, value.size());
@@ -207,8 +203,8 @@ TEST(XattrBlob, iterator_simple_checks) {
     iterations = 0;
     for (auto kv : blob) {
         iterations++;
-        EXPECT_EQ(*kItr, to_string(kv.first));
-        EXPECT_EQ(*kItr + ".value", to_string(kv.second));
+        EXPECT_EQ(*kItr, kv.first);
+        EXPECT_EQ(*kItr + ".value", kv.second);
         kItr++;
     }
 }
@@ -222,15 +218,15 @@ TEST(XattrBlob, iterator_insert) {
 
     auto kItr = keys.begin();
     for (auto itr = blob.begin(); itr != blob.end(); itr++) {
-        if (to_string((*itr).first) == "key2") {
+        if ((*itr).first == "key2") {
             blob.set("inserted", "inserted.value");
         }
 
         if (kItr != keys.end()) {
-            EXPECT_EQ(*kItr, to_string((*itr).first));
+            EXPECT_EQ(*kItr, (*itr).first);
             kItr++;
         } else {
-            EXPECT_EQ("inserted", to_string((*itr).first));
+            EXPECT_EQ("inserted", (*itr).first);
         }
     }
 }

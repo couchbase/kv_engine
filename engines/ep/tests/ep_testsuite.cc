@@ -6061,9 +6061,7 @@ static enum test_result test_eviction_with_xattr(EngineIface* h) {
     const char key[] = "test_eviction_with_xattr";
     cb::xattr::Blob builder;
     builder.set("_ep", "{\foo\":\"bar\"}");
-    auto blob = builder.finalize();
-    std::string data;
-    std::copy(blob.data(), blob.data() + blob.size(), std::back_inserter(data));
+    std::string data{builder.finalize()};
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,

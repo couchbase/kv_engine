@@ -199,7 +199,7 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
             if (payload.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
             } else {
-                paddedMacros.emplace_back(macro.name.data(), candidate);
+                paddedMacros.emplace_back(macro.name, candidate);
             }
         }
     }
@@ -308,7 +308,7 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
             if (xtocSemantics == XtocSemantics::All ||
                 (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||
                 (!isSystemXattr && (xtocSemantics == XtocSemantics::User))) {
-                arr.push_back(to_string(kvPair.first));
+                arr.push_back(kvPair.first);
             }
         }
 

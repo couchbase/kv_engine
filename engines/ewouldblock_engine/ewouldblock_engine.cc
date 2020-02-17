@@ -1376,7 +1376,7 @@ ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
                                    uint32_t flags,
                                    cb::const_char_buffer name,
                                    cb::const_char_buffer value) {
-    std::string nm = cb::to_string(name);
+    std::string nm{name};
     if (nm.find("ewb_internal") == 0) {
         // Yeah, this is a request for the internal "magic" DCP stream
         // The user could specify the iteration count by adding a colon

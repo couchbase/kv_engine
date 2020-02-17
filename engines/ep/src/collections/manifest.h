@@ -145,8 +145,7 @@ public:
      */
     collectionContainer::const_iterator findCollection(
             const std::string& collectionName,
-            const std::string& scopeName =
-                    cb::to_string(DefaultScopeIdentifier)) const {
+            cb::const_char_buffer scopeName = DefaultScopeIdentifier) const {
         for (auto& scope : scopes) {
             if (scope.second.name == scopeName) {
                 for (auto& scopeCollection : scope.second.collections) {
@@ -191,7 +190,7 @@ public:
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
     boost::optional<CollectionID> getCollectionID(
-            ScopeID scope, const std::string& path) const;
+            ScopeID scope, cb::const_char_buffer path) const;
 
     /**
      * Attempt to lookup the scope-id of the "path", note that this method
@@ -207,7 +206,7 @@ public:
      * @return optional ScopeID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
-    boost::optional<ScopeID> getScopeID(const std::string& path) const;
+    boost::optional<ScopeID> getScopeID(cb::const_char_buffer path) const;
 
     /**
      * Attempt to lookup the scope-id of the "key" (using the collection-ID)
@@ -248,9 +247,9 @@ private:
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
      *
-     * @param name a std::string representing a collection or scope name.
+     * @param name a collection or scope name.
      */
-    static bool validName(const std::string& name);
+    static bool validName(cb::const_char_buffer name);
 
     /**
      * Check if the CollectionID is invalid for a Manifest

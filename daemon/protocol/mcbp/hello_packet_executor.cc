@@ -204,10 +204,9 @@ void process_hello_packet_executor(Cookie& cookie) {
     if (!key.empty()) {
         if (key.front() == '{') {
             // This may be JSON
-            const auto data = to_string(key);
             nlohmann::json json;
             try {
-                json = nlohmann::json::parse(data);
+                json = nlohmann::json::parse(key);
                 auto obj = json.find("i");
                 if (obj != json.end() && (*obj).is_string()) {
                     try {

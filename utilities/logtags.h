@@ -62,7 +62,7 @@ public:
 
     // Retrieve tagged user data as a string
     std::string getSanitizedValue() const {
-        return userdataStartTag + to_string(data) + userdataEndTag;
+        return userdataStartTag + std::string(data) + userdataEndTag;
     }
 
     // Retrieve untagged user data as a const_char_buffer

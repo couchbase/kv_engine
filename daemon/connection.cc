@@ -1596,7 +1596,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::char_buffer value{root, info.value[0].iov_len};
+    cb::const_char_buffer value{root, info.value[0].iov_len};
 
     auto key = info.key;
     // The client doesn't support collections, so must not send an encoded key
@@ -1722,7 +1722,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
         key = info.key.makeDocKeyWithoutCollectionID();
     }
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::char_buffer value{root, info.value[0].iov_len};
+    cb::const_char_buffer value{root, info.value[0].iov_len};
 
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     cb::mcbp::request::DcpDeletionV1Payload extdata(by_seqno, rev_seqno);
@@ -1810,7 +1810,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::char_buffer value{root, info.value[0].iov_len};
+    cb::const_char_buffer value{root, info.value[0].iov_len};
 
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -1894,7 +1894,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::char_buffer value{root, info.value[0].iov_len};
+    cb::const_char_buffer value{root, info.value[0].iov_len};
 
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -2078,7 +2078,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::char_buffer buffer{root, info.value[0].iov_len};
+    cb::const_char_buffer buffer{root, info.value[0].iov_len};
 
     auto key = info.key;
 

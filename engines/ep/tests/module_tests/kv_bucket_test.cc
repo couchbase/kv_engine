@@ -432,7 +432,7 @@ unique_request_ptr KVBucketTest::createObserveRequest(
                         {/* cas */},
                         {/* extras */},
                         {/* key */},
-                        {valueStr});
+                        valueStr);
 }
 
 // getKeyStats tests //////////////////////////////////////////////////////////

@@ -83,7 +83,7 @@ Manifest::Manifest(cb::const_char_buffer json,
     } catch (const nlohmann::json::exception& e) {
         throw std::invalid_argument(
                 "Manifest::Manifest nlohmann cannot parse json:" +
-                cb::to_string(json) + ", e:" + e.what());
+                std::string(json) + ", e:" + e.what());
     }
 
     // Read the Manifest UID e.g. "uid" : "5fa1"
@@ -251,7 +251,7 @@ void Manifest::enableDefaultCollection(CollectionID identifier) {
     }
 }
 
-bool Manifest::validName(const std::string& name) {
+bool Manifest::validName(cb::const_char_buffer name) {
     // $ prefix is currently reserved for future use
     // Name cannot be empty
     if (name.empty() || name.size() > MaxCollectionNameSize || name[0] == '$') {
@@ -390,19 +390,19 @@ void Manifest::addScopeStats(const void* cookie,
 }
 
 boost::optional<CollectionID> Manifest::getCollectionID(
-        ScopeID scope, const std::string& path) const {
+        ScopeID scope, cb::const_char_buffer path) const {
     int pos = path.find_first_of('.');
-    std::string collection = path.substr(pos + 1);
+    auto collection = path.substr(pos + 1);
 
     // Empty collection part of the path means default collection.
     if (collection.empty()) {
-        collection = cb::to_string(DefaultCollectionIdentifier);
+        collection = DefaultCollectionIdentifier;
     }
 
     if (!validName(collection)) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Manifest::getCollectionID invalid collection:" + collection);
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Manifest::getCollectionID invalid collection:" +
+                                       std::string(collection));
     }
 
     auto scopeItr = scopes.find(scope);
@@ -423,18 +423,20 @@ boost::optional<CollectionID> Manifest::getCollectionID(
     return {};
 }
 
-boost::optional<ScopeID> Manifest::getScopeID(const std::string& path) const {
+boost::optional<ScopeID> Manifest::getScopeID(
+        cb::const_char_buffer path) const {
     int pos = path.find_first_of('.');
-    std::string scope = path.substr(0, pos);
+    auto scope = path.substr(0, pos);
 
     // Empty scope part of the path means default scope.
     if (scope.empty()) {
-        scope = cb::to_string(DefaultScopeIdentifier);
+        scope = DefaultScopeIdentifier;
     }
 
     if (!(validName(scope))) {
-        throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Manifest::getScopeID invalid scope:" + scope);
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Manifest::getScopeID invalid scope:" + std::string(scope));
     }
 
     for (const auto& s : scopes) {

@@ -471,7 +471,7 @@ void BinprotSaslAuthCommand::setMechanism(const std::string& mech_) {
     setKey(mech_);
 }
 void BinprotSaslAuthCommand::setChallenge(cb::const_char_buffer data) {
-    challenge.assign(data.begin(), data.size());
+    challenge = data;
 }
 
 void BinprotSaslStepCommand::encode(std::vector<uint8_t>& buf) const {
@@ -490,7 +490,7 @@ void BinprotSaslStepCommand::setMechanism(const std::string& mech) {
     setKey(mech);
 }
 void BinprotSaslStepCommand::setChallenge(cb::const_char_buffer data) {
-    challenge.assign(data.begin(), data.size());
+    challenge = data;
 }
 
 void BinprotCreateBucketCommand::setConfig(const std::string& module,

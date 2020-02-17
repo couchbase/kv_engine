@@ -125,7 +125,7 @@ static void create_single_path_context(SubdocCmdContext& context,
                                 valbuf.size()};
     // Path is the first thing in the value; remainder is the operation
     // value.
-    cb::const_char_buffer path = {value.data(), pathlen};
+    auto path = value.substr(0, pathlen);
 
     const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
     const SubdocCmdContext::Phase phase = xattr ?
@@ -158,8 +158,7 @@ static void create_single_path_context(SubdocCmdContext& context,
     // Decode as single path; add a single operation to the context.
     if (traits.request_has_value) {
         // Adjust value to move past the path.
-        value.buf += pathlen;
-        value.len -= pathlen;
+        value.remove_prefix(pathlen);
 
         ops.emplace_back(
                 SubdocCmdContext::OperationSpec{traits,
@@ -925,7 +924,7 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
  * @param bodyoffset The offset in to the body of the xattr section
  * @param bodysize The size of the body (excludes xattrs)
  */
-static inline void replace_xattrs(const cb::char_buffer& new_xattr,
+static inline void replace_xattrs(cb::const_char_buffer new_xattr,
                                   SubdocCmdContext& context,
                                   const size_t bodyoffset,
                                   const size_t bodysize) {
@@ -1129,14 +1128,12 @@ static bool do_body_phase(SubdocCmdContext& context) {
     }
 
     size_t xattrsize = 0;
-    cb::const_char_buffer document{context.in_doc.data(),
-                                   context.in_doc.size()};
+    cb::const_char_buffer document{context.in_doc};
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
         // We shouldn't have any documents like that!
         xattrsize = cb::xattr::get_body_offset(document);
-        document.buf += xattrsize;
-        document.len -= xattrsize;
+        document.remove_prefix(xattrsize);
     }
 
     std::unique_ptr<char[]> temp_doc;

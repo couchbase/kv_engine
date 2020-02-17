@@ -459,8 +459,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
                                   cookie,
                                   0,
                                   key,
-                                  {reinterpret_cast<char*>(deletedValue.data()),
-                                   deletedValue.size()},
+                                  deletedValue,
                                   cb::mcbp::Datatype::Xattr),
                 "delete_with_value() failed");
 

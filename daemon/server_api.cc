@@ -344,7 +344,7 @@ struct ServerCookieApi : public ServerCookieIface {
 
     void set_error_context(gsl::not_null<void*> cookie,
                            cb::const_char_buffer message) override {
-        getCookie(cookie).setErrorContext(to_string(message));
+        getCookie(cookie).setErrorContext(std::string{message});
     }
 
     void set_error_json_extras(gsl::not_null<void*> cookie,

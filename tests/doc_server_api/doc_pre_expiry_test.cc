@@ -42,7 +42,7 @@ TEST(PreExpiry, DocumentWithUserXAttrOnly) {
     blob.set("user", "1");
     auto body = blob.finalize();
     item_info info{};
-    info.value[0].iov_base = static_cast<void*>(body.data());
+    info.value[0].iov_base = const_cast<char*>(body.data());
     info.value[0].iov_len = body.size();
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -55,7 +55,7 @@ TEST(PreExpiry, DocumentWithSystemXattrOnly) {
     blob.set("_system", "1");
     auto body = blob.finalize();
     item_info info{};
-    info.value[0].iov_base = static_cast<void*>(body.data());
+    info.value[0].iov_base = const_cast<char*>(body.data());
     info.value[0].iov_len = body.size();
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -69,7 +69,7 @@ TEST(PreExpiry, DocumentWithUserAndSystemXattr) {
     blob.set("user", "1");
     auto body = blob.finalize();
     item_info info{};
-    info.value[0].iov_base = static_cast<void*>(body.data());
+    info.value[0].iov_base = const_cast<char*>(body.data());
     info.value[0].iov_len = body.size();
     info.nbytes = gsl::narrow<uint32_t>(body.size());
     info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;

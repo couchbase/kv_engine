@@ -5559,7 +5559,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                          false);
                     blob.prune_user_keys();
                     auto system = blob.finalize();
-                    value = {reinterpret_cast<uint8_t*>(system.data()),
+                    value = {reinterpret_cast<const uint8_t*>(system.data()),
                              system.size()};
                 } else {
                     // Strip of a potential value
@@ -6173,7 +6173,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         cb::const_char_buffer value) {
     (void) opaque;
     (void) seqno;
-    std::string connName = cb::to_string(stream_name);
+    std::string connName{stream_name};
 
     if (getEngineSpecific(cookie) != nullptr) {
         EP_LOG_WARN(

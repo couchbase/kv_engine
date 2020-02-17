@@ -191,7 +191,7 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
     // Found the existing item (with it's XATTRs) - create a read-only
     // view on them. Note in the case the existing item is compressed;
     // we'll decompress as part of creating the Blob.
-    cb::char_buffer existingValue{
+    cb::const_char_buffer existingValue{
             static_cast<char*>(existing_info.value[0].iov_base),
             existing_info.value[0].iov_len};
     existingXattrs.assign(existingValue,

@@ -79,7 +79,7 @@ void Filter::constructFromJson(cb::const_char_buffer json,
         throw cb::engine_error(
                 cb::engine_errc::invalid_arguments,
                 "Filter::constructFromJson cannot parse jsonFilter:" +
-                        cb::to_string(json) + " json::exception:" + e.what());
+                        std::string{json} + " json::exception:" + e.what());
     }
 
     const auto streamIdObject = parsed.find(StreamIdKey);
@@ -90,7 +90,7 @@ void Filter::constructFromJson(cb::const_char_buffer json,
         if (streamId == cb::mcbp::DcpStreamId(0)) {
             throw cb::engine_error(cb::engine_errc::dcp_streamid_invalid,
                                    "Filter::constructFromJson illegal sid:0:" +
-                                           cb::to_string(json));
+                                           std::string(json));
         }
     }
 

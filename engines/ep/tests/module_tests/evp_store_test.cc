@@ -595,8 +595,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
     builder.set("_meta", "{\"rev\":10}");
     builder.set("foo", "{\"blob\":true}");
 
-    auto blob = builder.finalize();
-    auto blob_data = to_string(blob);
+    std::string blob_data{builder.finalize()};
     auto itm = store_item(vbid,
                           makeStoredDocKey("key"),
                           blob_data,

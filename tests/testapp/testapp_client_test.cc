@@ -53,8 +53,7 @@ void TestappXattrClientTest::setBodyAndXattr(
         ASSERT_TRUE(cb::xattr::validate(encoded)) << "Invalid xattr encoding";
         document.info.cas = 10; // withMeta requires a non-zero CAS.
         document.info.datatype = cb::mcbp::Datatype::Xattr;
-        document.value = {reinterpret_cast<char*>(encoded.data()),
-                          encoded.size()};
+        document.value = encoded;
         document.value.append(startValue);
         if (compressValue) {
             // Compress the complete body.
@@ -251,8 +250,8 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedRawSnappyDatatype() const {
     if (actualDatatype == cb::mcbp::Datatype::JSON) {
         if (!isJSON(value)) {
             return ::testing::AssertionFailure()
-                   << "JSON validation failed for response data:'"
-                   << to_string(value) << "''";
+                   << "JSON validation failed for response data:'" << value
+                   << "''";
         }
     }
     return ::testing::AssertionSuccess();

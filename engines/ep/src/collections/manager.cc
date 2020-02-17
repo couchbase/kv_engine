@@ -54,7 +54,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
         return cb::engine_error(
                 cb::engine_errc::invalid_arguments,
                 "Collections::Manager::update manifest json invalid:" +
-                        cb::to_string(manifest));
+                        std::string(manifest));
     }
 
     // If the new manifest has a non zero uid, try to apply it
@@ -67,7 +67,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                     "UID < current manifest UID. Current UID:{}, New "
                     "Manifest:{}",
                     current->getUid(),
-                    cb::to_string(manifest));
+                    std::string(manifest));
             return cb::engine_error(
                     cb::engine_errc::out_of_range,
                     "Collections::Manager::update new UID cannot "
@@ -80,7 +80,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                     cb::engine_errc::cannot_apply_collections_manifest,
                     "Collections::Manager::update aborted on " +
                             updated->to_string() +
-                            ", cannot apply:" + cb::to_string(manifest));
+                            ", cannot apply:" + std::string(manifest));
         }
 
         // Now switch to write locking and change the manifest. The lock is
@@ -94,7 +94,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                 "Collections::Manager::update error. The new manifest does not "
                 "match and we think it should. current:{}, new:{}",
                 current->toJson(),
-                cb::to_string(manifest));
+                std::string(manifest));
         return cb::engine_error(
                 cb::engine_errc::cannot_apply_collections_manifest,
                 "Collections::Manager::update failed. Manifest mismatch");
@@ -143,29 +143,27 @@ std::pair<cb::mcbp::Status, std::string> Collections::Manager::getManifest()
 }
 
 bool Collections::Manager::validateGetCollectionIDPath(
-        const std::string& path) {
+        cb::const_char_buffer path) {
     return std::count(path.begin(), path.end(), '.') == 1;
 }
 
-bool Collections::Manager::validateGetScopeIDPath(const std::string& path) {
+bool Collections::Manager::validateGetScopeIDPath(cb::const_char_buffer path) {
     return std::count(path.begin(), path.end(), '.') <= 1;
 }
 
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         cb::const_char_buffer path) const {
-    auto sPath = cb::to_string(path);
-
-    if (!validateGetCollectionIDPath(sPath)) {
+    if (!validateGetCollectionIDPath(path)) {
         return {cb::engine_errc::invalid_arguments, 0, 0};
     }
 
     auto current = currentManifest.rlock();
-    auto scope = current->getScopeID(sPath);
+    auto scope = current->getScopeID(path);
     if (!scope) {
         return {cb::engine_errc::unknown_scope, current->getUid(), 0};
     }
 
-    auto collection = current->getCollectionID(scope.get(), sPath);
+    auto collection = current->getCollectionID(scope.get(), path);
     if (!collection) {
         return {cb::engine_errc::unknown_collection, current->getUid(), 0};
     }
@@ -175,13 +173,12 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         cb::const_char_buffer path) const {
-    auto sPath = cb::to_string(path);
-    if (!validateGetScopeIDPath(sPath)) {
+    if (!validateGetScopeIDPath(path)) {
         return {cb::engine_errc::invalid_arguments, 0, 0};
     }
 
     auto current = currentManifest.rlock();
-    auto scope = current->getScopeID(sPath);
+    auto scope = current->getScopeID(path);
     if (!scope) {
         return {cb::engine_errc::unknown_scope, current->getUid(), 0};
     }

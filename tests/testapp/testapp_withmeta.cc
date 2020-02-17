@@ -62,15 +62,8 @@ public:
 
         // append body to the xattrs and store in data
         std::string body = "document_body";
-        document.value.clear();
-        std::copy_n(xattrValue.data(),
-                    xattrValue.size(),
-                    std::back_inserter(document.value));
-        std::copy_n(
-                body.c_str(), body.size(), std::back_inserter(document.value));
-        cb::const_char_buffer xattr{(char*)document.value.data(),
-                                    document.value.size()};
-
+        document.value = xattrValue;
+        document.value += body;
         document.info.datatype = cb::mcbp::Datatype::Xattr;
 
         if (hasSnappySupport() == ClientSnappySupport::Yes) {

@@ -140,12 +140,8 @@ std::string createXattrValue(const std::string& body,
     auto xattr_value = blob.finalize();
 
     // append body to the xattrs and store in data
-    std::string data;
-    std::copy(xattr_value.data(),
-              xattr_value.data() + xattr_value.size(),
-              std::back_inserter(data));
-    std::copy(
-            body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
+    std::string data{xattr_value};
+    data += body;
 
     if (makeItSnappy) {
         cb::compression::Buffer output;

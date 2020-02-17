@@ -154,7 +154,7 @@ private:
      * scope/collection components.
      * @returns true if path is correctly formed, false is not
      */
-    static bool validateGetCollectionIDPath(const std::string& path);
+    static bool validateGetCollectionIDPath(cb::const_char_buffer path);
 
     /**
      * validate the path is correctly formed for get_scope_id.
@@ -165,7 +165,7 @@ private:
      * scope/collection components
      * @returns true if path is correctly formed, false is not
      */
-    static bool validateGetScopeIDPath(const std::string& path);
+    static bool validateGetScopeIDPath(cb::const_char_buffer path);
 
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 

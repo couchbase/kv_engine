@@ -57,7 +57,7 @@ uint32_t get_body_offset(const cb::const_char_buffer& payload);
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the body blob
  */
-cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
+cb::const_char_buffer get_body(cb::const_char_buffer payload);
 
 /**
  * Check to see if the provided attribute represents a system
@@ -83,9 +83,9 @@ struct macro {
     cb::const_char_buffer name;
     size_t expandedSize;
 };
-static macro CAS = {"\"${Mutation.CAS}\"", 8};
-static macro SEQNO = {"\"${Mutation.seqno}\"", 8};
-static macro VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"", 4};
+static constexpr macro CAS = {"\"${Mutation.CAS}\"", 8};
+static constexpr macro SEQNO = {"\"${Mutation.seqno}\"", 8};
+static constexpr macro VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"", 4};
 }
 
 namespace vattrs {

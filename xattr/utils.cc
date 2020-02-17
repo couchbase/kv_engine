@@ -36,12 +36,12 @@ namespace xattr {
  * @throws std::underflow_error if there isn't a '\0' in the buffer
  */
 static cb::const_char_buffer trim_string(cb::const_char_buffer blob) {
-    const auto* end = (const char*)std::memchr(blob.data(), '\0', blob.size());
-    if (end == nullptr) {
+    auto n = blob.find_first_of('\0');
+    if (n == std::string_view::npos) {
         throw std::out_of_range("trim_string: no '\\0' in the input buffer");
     }
 
-    return {blob.data(), size_t(end - blob.data())};
+    return blob.substr(0, n);
 }
 
 bool validate(const cb::const_char_buffer& blob) {
@@ -93,7 +93,7 @@ bool validate(const cb::const_char_buffer& blob) {
             offset += keybuf.size() + 1; // swallow the '\0'
 
             // Validate the key
-            if (!is_valid_xattr_key({keybuf.data(), keybuf.size()})) {
+            if (!is_valid_xattr_key(keybuf)) {
                 return false;
             }
 
@@ -103,7 +103,7 @@ bool validate(const cb::const_char_buffer& blob) {
             offset += valuebuf.size() + 1; // swallow '\0'
 
             // Validate the value (must be legal json)
-            if (!validator.validate(valuebuf.data())) {
+            if (!validator.validate(valuebuf)) {
                 // Failed to parse the JSON
                 return false;
             }
@@ -112,8 +112,7 @@ bool validate(const cb::const_char_buffer& blob) {
                 return false;
             }
 
-            if (!keys.insert(std::string{keybuf.data(), keybuf.size()})
-                         .second) {
+            if (!keys.insert(std::string{keybuf}).second) {
                 return false;
             }
         }
@@ -148,9 +147,10 @@ uint32_t get_body_offset(const cb::char_buffer& payload) {
     return len + sizeof(uint32_t);
 }
 
-const_char_buffer get_body(const cb::const_char_buffer& payload) {
+const_char_buffer get_body(cb::const_char_buffer payload) {
     auto offset = get_body_offset(payload);
-    return {payload.data() + offset, payload.size() - offset};
+    payload.remove_prefix(offset);
+    return payload;
 }
 
 size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) {
