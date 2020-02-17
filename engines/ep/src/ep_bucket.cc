@@ -631,54 +631,50 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         }
     }
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_active) {
-            if (maxSeqno) {
-                range = snapshot_range_t(maxSeqno, maxSeqno);
-            }
+    if (vbstate.transition.state == vbucket_state_active) {
+        if (maxSeqno) {
+            range = snapshot_range_t(maxSeqno, maxSeqno);
         }
-        // @todo: I think that the vbstateLock can be safely released here
-
-        // Update VBstate based on the changes we have just made,
-        // then tell the rwUnderlying the 'new' state
-        // (which will persisted as part of the commit() below).
-
-        // only update the snapshot range if items were flushed, i.e.
-        // don't appear to be in a snapshot when you have no data for it
-        // We also update the checkpointType here as this should only
-        // change with snapshots.
-        if (range) {
-            proposedVBState.lastSnapStart = range->getStart();
-            proposedVBState.lastSnapEnd = range->getEnd();
-            proposedVBState.checkpointType = toFlush.checkpointType;
-        }
-
-        // Track the lowest seqno written in spock and record it as
-        // the HLC epoch, a seqno which we can be sure the value has a
-        // HLC CAS.
-        proposedVBState.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
-        if (proposedVBState.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
-            minSeqno != std::numeric_limits<uint64_t>::max()) {
-            proposedVBState.hlcCasEpochSeqno = minSeqno;
-
-            // @todo MB-37692: Defer this call at flush-success only or reset
-            //  the value if flush fails.
-            vb->setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
-        }
-
-        if (hcs) {
-            Expects(hcs > proposedVBState.persistedCompletedSeqno);
-            proposedVBState.persistedCompletedSeqno = *hcs;
-        }
-
-        if (hps) {
-            Expects(hps > proposedVBState.persistedPreparedSeqno);
-            proposedVBState.persistedPreparedSeqno = *hps;
-        }
-
-        proposedVBState.maxVisibleSeqno = maxVisibleSeqno;
     }
+
+    // Update VBstate based on the changes we have just made,
+    // then tell the rwUnderlying the 'new' state
+    // (which will persisted as part of the commit() below).
+
+    // only update the snapshot range if items were flushed, i.e.
+    // don't appear to be in a snapshot when you have no data for it
+    // We also update the checkpointType here as this should only
+    // change with snapshots.
+    if (range) {
+        proposedVBState.lastSnapStart = range->getStart();
+        proposedVBState.lastSnapEnd = range->getEnd();
+        proposedVBState.checkpointType = toFlush.checkpointType;
+    }
+
+    // Track the lowest seqno written in spock and record it as
+    // the HLC epoch, a seqno which we can be sure the value has a
+    // HLC CAS.
+    proposedVBState.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+    if (proposedVBState.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
+        minSeqno != std::numeric_limits<uint64_t>::max()) {
+        proposedVBState.hlcCasEpochSeqno = minSeqno;
+
+        // @todo MB-37692: Defer this call at flush-success only or reset
+        //  the value if flush fails.
+        vb->setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
+    }
+
+    if (hcs) {
+        Expects(hcs > proposedVBState.persistedCompletedSeqno);
+        proposedVBState.persistedCompletedSeqno = *hcs;
+    }
+
+    if (hps) {
+        Expects(hps > proposedVBState.persistedPreparedSeqno);
+        proposedVBState.persistedPreparedSeqno = *hps;
+    }
+
+    proposedVBState.maxVisibleSeqno = maxVisibleSeqno;
 
     // Release the memory allocated for vectors in toFlush before we call
     // into KVStore::commit. This reduces memory peaks (every queued_item in
