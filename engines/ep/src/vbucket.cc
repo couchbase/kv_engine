@@ -3002,13 +3002,7 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
             collection.second.resetPersistedHighSeqno(stats->highSeqno);
             collection.second.resetHighSeqno(
                     collection.second.getPersistedHighSeqno());
-        } else {
-            // Rollback has just loaded the manifest from disk, we expect to
-            // find stats for all collections in the persisted manifest
-            throw std::logic_error(
-                    "VBucket::collectionsRolledBack failed to find:" +
-                    collection.first.to_string());
-        }
+        } // else collection was never written so has no further state to load
     }
 }
 

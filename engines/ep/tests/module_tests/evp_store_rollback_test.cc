@@ -396,8 +396,10 @@ protected:
 
         auto vb = store->getVBucket(vbid);
         CollectionsManifest cm;
-        // the roll back function will rewind disk to this collection state
-        vb->updateFromManifest({cm.add(CollectionEntry::dairy)});
+        // the roll back function will rewind disk to this collection state.
+        // note: we add 'meat' and keep it empty, this reproduces MB-37940
+        vb->updateFromManifest(
+                {cm.add(CollectionEntry::dairy).add(CollectionEntry::meat)});
 
         nlohmann::json htState;
         if (rollbackCollectionCreate && !flush_before_rollback) {
@@ -417,7 +419,7 @@ protected:
             htState = getHtState();
         }
 
-        ASSERT_EQ(std::make_pair(false, size_t(2)),
+        ASSERT_EQ(std::make_pair(false, size_t(3)),
                   getEPBucket().flushVBucket(vbid));
 
         // every key past this point will be lost from disk in a mid-point.
