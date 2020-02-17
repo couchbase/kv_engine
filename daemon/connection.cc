@@ -250,22 +250,21 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
             privilegeContext = cb::rbac::createContext(user, "");
             LOG_INFO(
                     "{}: RBAC: Connection::refreshPrivilegeContext() {} No "
-                    "access "
-                    "to bucket [{}]. new privilege set: {}",
+                    "access to bucket [{}]. new privilege set: {}",
                     getId(),
                     getDescription(),
                     getBucket().name,
                     privilegeContext.to_string());
-
-        } catch (const cb::rbac::Exception& error) {
+        } catch (const cb::rbac::NoSuchUserException&) {
+            // Remove all access to the bucket
             privilegeContext = cb::rbac::PrivilegeContext{user.domain};
-            LOG_WARNING(
-                    "{}: RBAC: Connection::refreshPrivilegeContext() {}: An "
-                    "exception occurred. bucket:[{}] message: {}",
-                    getId(),
-                    getDescription(),
-                    getBucket().name,
-                    error.what());
+            if (isAuthenticated()) {
+                LOG_INFO(
+                        "{}: RBAC: Connection::refreshPrivilegeContext() {} No "
+                        "RBAC definition for the user.",
+                        getId(),
+                        getDescription());
+            }
         }
     }
 
