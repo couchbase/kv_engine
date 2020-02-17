@@ -743,14 +743,8 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         // all the items from the disk queue again.
         toFlush.flushHandle->markFlushFailed();
 
-        Expects(!vb->rejectQueue.empty());
-        Expects(vb->rejectQueue.size() == flushBatchSize);
-
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
-
-    // Flush succeeded, no item in the reject queue
-    Expects(vb->rejectQueue.empty());
 
     // Note: We want to update the snap-range only if we have flushed at least
     // one item. I.e. don't appear to be in a snap when you have no data for it

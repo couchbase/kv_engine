@@ -1711,7 +1711,6 @@ public:
      */
     uint64_t getMaxVisibleSeqno() const;
 
-    std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;

@@ -158,6 +158,5 @@ void PersistenceCallback::redirty(EPStats& stats,
     }
     ++stats.flushFailed;
     vbucket.markDirty(queuedItem->getKey());
-    vbucket.rejectQueue.push(queuedItem);
     ++vbucket.opsReject;
 }

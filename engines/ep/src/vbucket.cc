@@ -388,43 +388,31 @@ size_t VBucket::size() {
 }
 
 VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
-    // Fetch up to approxLimit items from rejectQueue, backfill items and
-    // checkpointManager (in that order); then check if we obtained everything
-    // which is available.
     ItemsToFlush result;
 
-    // First add any items from the rejectQueue.
-    while (result.items.size() < approxLimit && !rejectQueue.empty()) {
-        // @todo: For now just discard items from the rejectQueue as all items
-        //  will be retrieved again from the CM, we will process out-of-order
-        //  and duplicate items otherwise.
-        //  I will completely remove the rejectQueue in a follow-up.
-        // result.items.push_back(rejectQueue.front());
-        rejectQueue.pop();
+    if (approxLimit == 0) {
+        result.moreAvailable =
+                (checkpointManager->getNumItemsForPersistence() > 0);
+        return result;
     }
 
-    // Append up to approxLimit checkpoint items outstanding for the persistence
-    // cursor, if we haven't yet hit the limit.
-    // Note that it is only valid to queue a complete checkpoint - this is where
-    // the "approx" in the limit comes from.
-    const auto ckptMgrLimit = approxLimit - result.items.size();
-    bool ckptItemsAvailable = true;
-    if (ckptMgrLimit > 0) {
-        auto _begin_ = std::chrono::steady_clock::now();
-        auto ckptItems = checkpointManager->getItemsForPersistence(
-                result.items, ckptMgrLimit);
-        result.ranges = std::move(ckptItems.ranges);
-        result.maxDeletedRevSeqno = ckptItems.maxDeletedRevSeqno;
-        result.checkpointType = ckptItems.checkpointType;
-        result.flushHandle = std::move(ckptItems.flushHandle);
-        ckptItemsAvailable = ckptItems.moreAvailable;
-        stats.persistenceCursorGetItemsHisto.add(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - _begin_));
-    } // else result.ranges is empty, all items from rejectQueue
+    // Get up to approxLimit checkpoint items outstanding for the persistence
+    // cursor. Note that it is only valid to queue a complete checkpoint, this
+    // is where the "approx" in the limit comes from.
 
-    // Check if there's any more items remaining.
-    result.moreAvailable = !rejectQueue.empty() || ckptItemsAvailable;
+    const auto begin = std::chrono::steady_clock::now();
+
+    auto rangeInfo = checkpointManager->getItemsForPersistence(result.items,
+                                                               approxLimit);
+    result.ranges = std::move(rangeInfo.ranges);
+    result.maxDeletedRevSeqno = rangeInfo.maxDeletedRevSeqno;
+    result.checkpointType = rangeInfo.checkpointType;
+    result.flushHandle = std::move(rangeInfo.flushHandle);
+    result.moreAvailable = rangeInfo.moreAvailable;
+
+    stats.persistenceCursorGetItemsHisto.add(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - begin));
 
     return result;
 }
