@@ -342,6 +342,46 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         return {false /*moreAvailable*/, 0 /*itemsFlushed*/};
     }
 
+    // Obtain the set of items to flush, up to the maximum allowed for
+    // a single flush.
+    auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
+
+    // getItemsToPersist() may move the persistence cursor to a new checkpoint
+    // regardless of whether we have something to flush or not, so we do this
+    // check unconditionally here.
+    if (vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
+        wakeUpCheckpointRemover();
+    }
+
+    // @todo MB-37858: legacy from TAP, remove.
+    //   Probably used only by ns_server in the old days of TAP, should be the
+    //   TAP-equivalent of the current DCP SeqnoPersistence. Must be confirmed.
+    //   It uses the CM::pCursorPreCheckpointId for inferring what is the last
+    //   complete checkpoint persisted.
+    //   Note that currently CM::pCursorPreCheckpointId is used only by
+    //   CheckpointPersistence and some checkpoint-removal logic that does not
+    //   need it strictly, so we can remove that too when we resolve MB-37858.
+    const auto handleCheckpointPersistence = [this, &vb]() -> void {
+        vb->checkpointManager->itemsPersisted(); // update pCursorPreCkptId
+        vb->notifyHighPriorityRequests(
+                engine,
+                vb->checkpointManager->getPersistenceCursorPreChkId(),
+                HighPriorityVBNotify::ChkPersistence);
+    };
+
+    if (toFlush.items.empty()) {
+        // getItemsToPersist() may move the persistence cursor to a new
+        // checkpoint, so some pending CheckpointPersistence request could be
+        // satisfied now.
+        //
+        // Note: We do not need to notify SeqnoPersistence request here, as
+        //   there is definitely nothing new to notify if we do not flush any
+        //   mutation.
+        handleCheckpointPersistence();
+
+        return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
+    }
+
     // The range becomes initialised only when an item is flushed
     boost::optional<snapshot_range_t> range;
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
@@ -349,290 +389,287 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
     bool mustCheckpointVBState = false;
 
-    // Obtain the set of items to flush, up to the maximum allowed for
-    // a single flush.
-    auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
-    auto& items = toFlush.items;
+    while (!rwUnderlying->begin(
+            std::make_unique<EPTransactionContext>(stats, *vb))) {
+        ++stats.beginFailed;
+        EP_LOG_WARN(
+                "Failed to start a transaction!!! "
+                "Retry in 1 sec ...");
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
-    if (!items.empty()) {
-        while (!rwUnderlying->begin(
-                std::make_unique<EPTransactionContext>(stats, *vb))) {
-            ++stats.beginFailed;
-            EP_LOG_WARN(
-                    "Failed to start a transaction!!! "
-                    "Retry in 1 sec ...");
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+    rwUnderlying->optimizeWrites(toFlush.items);
+
+    Item* prev = nullptr;
+
+    // Read the vbucket_state from disk as many values from the
+    // in-memory vbucket_state may be ahead of what we are flushing.
+    const auto* persistedVbState = rwUnderlying->getVBucketState(vb->getId());
+
+    // The first flush we do populates the cachedVBStates of the KVStore
+    // so we may not (if this is the first flush) have a state returned
+    // from the KVStore.
+    vbucket_state vbstate;
+    if (persistedVbState) {
+        vbstate = *persistedVbState;
+    }
+    commitData.emplace(vb->getManifest(), vbstate);
+    vbucket_state& proposedVBState = commitData->proposedVBState;
+    // We need to set a few values from the in-memory state.
+    uint64_t maxSeqno = 0;
+    uint64_t maxVbStateOpCas = 0;
+
+    auto minSeqno = std::numeric_limits<uint64_t>::max();
+
+    Collections::VB::Flush collectionFlush(vb->getManifest());
+
+    // HCS is optional because we have to update it on disk only if some
+    // Commit/Abort SyncWrite is found in the flush-batch. If we're
+    // flushing Disk checkpoints then the toFlush value may be
+    // supplied. In this case, this should be the HCS received from the
+    // Active node and should be greater than or equal to the HCS for
+    // any other item in this flush batch. This is required because we
+    // send mutations instead of a commits and would not otherwise
+    // update the HCS on disk.
+    boost::optional<uint64_t> hcs = boost::make_optional(false, uint64_t());
+
+    // HPS is optional because we have to update it on disk only if a
+    // prepare is found in the flush-batch
+    // This value is read at warmup to determine what seqno to stop
+    // loading prepares at (there will not be any prepares after this
+    // point) but cannot be used to initialise a PassiveDM after warmup
+    // as this value will advance into snapshots immediately, without
+    // the entire snapshot needing to be persisted.
+    boost::optional<uint64_t> hps = boost::make_optional(false, uint64_t());
+
+    // We always maintain the maxVisibleSeqno at the current value
+    // and only change it to a higher-seqno when a flush of a visible
+    // item is seen. This value must be tracked to provide a correct
+    // snapshot range for non-sync write aware consumers during backfill
+    // (the snapshot should not end on a prepare or an abort, as these
+    // items will not be sent). This value is also used at warmup so
+    // that vbuckets can resume with the same visible seqno as before
+    // the restart.
+    Monotonic<uint64_t> maxVisibleSeqno{proposedVBState.maxVisibleSeqno};
+
+    if (toFlush.maxDeletedRevSeqno) {
+        proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
+    }
+
+    // Iterate through items, checking if we (a) can skip persisting,
+    // (b) can de-duplicate as the previous key was the same, or (c)
+    // actually need to persist.
+    // Note: This assumes items have been sorted by key and then by
+    // seqno (see optimizeWrites() above) such that duplicate keys are
+    // adjacent but with the highest seqno first.
+    // Note(2): The de-duplication here is an optimization to save
+    // creating and enqueuing multiple set() operations on the
+    // underlying KVStore - however the KVStore itself only stores a
+    // single value per key, and so even if we don't de-dupe here the
+    // KVStore will eventually - just potentialy after unnecessary work.
+    for (const auto& item : toFlush.items) {
+        if (!item->shouldPersist()) {
+            continue;
         }
-        rwUnderlying->optimizeWrites(items);
 
-        Item* prev = nullptr;
-
-        // Read the vbucket_state from disk as many values from the
-        // in-memory vbucket_state may be ahead of what we are flushing.
-        const auto* persistedVbState =
-                rwUnderlying->getVBucketState(vb->getId());
-
-        // The first flush we do populates the cachedVBStates of the KVStore
-        // so we may not (if this is the first flush) have a state returned
-        // from the KVStore.
-        vbucket_state vbstate;
-        if (persistedVbState) {
-            vbstate = *persistedVbState;
-        }
-        commitData.emplace(vb->getManifest(), vbstate);
-        vbucket_state& proposedVBState = commitData->proposedVBState;
-        // We need to set a few values from the in-memory state.
-        uint64_t maxSeqno = 0;
-        uint64_t maxVbStateOpCas = 0;
-
-        auto minSeqno = std::numeric_limits<uint64_t>::max();
-
-        Collections::VB::Flush collectionFlush(vb->getManifest());
-
-        // HCS is optional because we have to update it on disk only if some
-        // Commit/Abort SyncWrite is found in the flush-batch. If we're
-        // flushing Disk checkpoints then the toFlush value may be
-        // supplied. In this case, this should be the HCS received from the
-        // Active node and should be greater than or equal to the HCS for
-        // any other item in this flush batch. This is required because we
-        // send mutations instead of a commits and would not otherwise
-        // update the HCS on disk.
-        boost::optional<uint64_t> hcs = boost::make_optional(false, uint64_t());
-
-        // HPS is optional because we have to update it on disk only if a
-        // prepare is found in the flush-batch
-        // This value is read at warmup to determine what seqno to stop
-        // loading prepares at (there will not be any prepares after this
-        // point) but cannot be used to initialise a PassiveDM after warmup
-        // as this value will advance into snapshots immediately, without
-        // the entire snapshot needing to be persisted.
-        boost::optional<uint64_t> hps = boost::make_optional(false, uint64_t());
-
-        // We always maintain the maxVisibleSeqno at the current value
-        // and only change it to a higher-seqno when a flush of a visible
-        // item is seen. This value must be tracked to provide a correct
-        // snapshot range for non-sync write aware consumers during backfill
-        // (the snapshot should not end on a prepare or an abort, as these
-        // items will not be sent). This value is also used at warmup so
-        // that vbuckets can resume with the same visible seqno as before
-        // the restart.
-        Monotonic<uint64_t> maxVisibleSeqno{proposedVBState.maxVisibleSeqno};
-
-        if (toFlush.maxDeletedRevSeqno) {
-            proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
+        const auto op = item->getOperation();
+        if ((op == queue_op::commit_sync_write ||
+             op == queue_op::abort_sync_write) &&
+            toFlush.checkpointType != CheckpointType::Disk) {
+            // If we are receiving a disk snapshot then we want to skip
+            // the HCS update as we will persist a correct one when we
+            // flush the last item. If we were to persist an incorrect
+            // HCS then we would have to backtrack the start seqno of
+            // our warmup to ensure that we do warmup prepares that may
+            // not have been completed if they were completed out of
+            // order.
+            hcs = std::max(hcs.value_or(0), item->getPrepareSeqno());
         }
 
-        // Iterate through items, checking if we (a) can skip persisting,
-        // (b) can de-duplicate as the previous key was the same, or (c)
-        // actually need to persist.
-        // Note: This assumes items have been sorted by key and then by
-        // seqno (see optimizeWrites() above) such that duplicate keys are
-        // adjacent but with the highest seqno first.
-        // Note(2): The de-duplication here is an optimization to save
-        // creating and enqueuing multiple set() operations on the
-        // underlying KVStore - however the KVStore itself only stores a
-        // single value per key, and so even if we don't de-dupe here the
-        // KVStore will eventually - just potentialy after unnecessary work.
-        for (const auto& item : items) {
-            if (!item->shouldPersist()) {
-                continue;
-            }
+        if (item->isVisible() &&
+            static_cast<uint64_t>(item->getBySeqno()) > maxVisibleSeqno) {
+            maxVisibleSeqno = static_cast<uint64_t>(item->getBySeqno());
+        }
 
-            const auto op = item->getOperation();
-            if ((op == queue_op::commit_sync_write ||
-                 op == queue_op::abort_sync_write) &&
-                toFlush.checkpointType != CheckpointType::Disk) {
-                // If we are receiving a disk snapshot then we want to skip
-                // the HCS update as we will persist a correct one when we
-                // flush the last item. If we were to persist an incorrect
-                // HCS then we would have to backtrack the start seqno of
-                // our warmup to ensure that we do warmup prepares that may
-                // not have been completed if they were completed out of
-                // order.
-                hcs = std::max(hcs.value_or(0), item->getPrepareSeqno());
-            }
+        if (op == queue_op::pending_sync_write) {
+            Expects(item->getBySeqno() > 0);
+            hps = std::max(hps.value_or(0),
+                           static_cast<uint64_t>(item->getBySeqno()));
+        }
 
-            if (item->isVisible() &&
-                static_cast<uint64_t>(item->getBySeqno()) > maxVisibleSeqno) {
-                maxVisibleSeqno = static_cast<uint64_t>(item->getBySeqno());
-            }
-
-            if (op == queue_op::pending_sync_write) {
-                Expects(item->getBySeqno() > 0);
-                hps = std::max(hps.value_or(0),
-                               static_cast<uint64_t>(item->getBySeqno()));
-            }
-
-            if (op == queue_op::set_vbucket_state) {
-                // Only process vbstate if it's sequenced higher (by cas).
-                // We use the cas instead of the seqno here because a
-                // set_vbucket_state does not increment the lastBySeqno in
-                // the CheckpointManager when it is created. This means that
-                // it is possible to have two set_vbucket_state items that
-                // follow one another with the same seqno. The cas will be
-                // bumped for every item so it can be used to distinguish
-                // which item is the latest and should be flushed.
-                if (item->getCas() > maxVbStateOpCas) {
-                    // Should only bump the stat once for the latest state
-                    // change that we want to flush
-                    if (maxVbStateOpCas == 0) {
-                        // There is at least a commit to be done, so
-                        // increase todo
-                        ++stats.flusher_todo;
-                    }
-
-                    maxVbStateOpCas = item->getCas();
-
-                    // It could be the case that the set_vbucket_state is
-                    // alone, i.e. no mutations are being flushed, we must
-                    // trigger an update of the vbstate, which will always
-                    // happen when we set this.
-                    mustCheckpointVBState = true;
-
-                    // Process the Item's value into the transition struct
-                    proposedVBState.transition.fromItem(*item);
-                }
-                // Update queuing stats now this item has logically been
-                // processed.
-                --stats.diskQueueSize;
-                vb->doStatsForFlushing(*item, item->size());
-
-            } else if (!canDeDuplicate(prev, *item)) {
-                // This is an item we must persist.
-                prev = item.get();
-                ++items_flushed;
-
-                if (mcbp::datatype::is_xattr(item->getDataType())) {
-                    proposedVBState.mightContainXattrs = true;
-                }
-
-                flushOneDelOrSet(item, vb.getVB());
-
-                maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
-
-                // Track the lowest seqno, so we can set the HLC epoch
-                minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
-                proposedVBState.maxCas =
-                        std::max(proposedVBState.maxCas, item->getCas());
-
-                // Track number of items we have yet to flush. If we are
-                // flushing items from the reject queue then we should not
-                // increment flusher_todo as it will have already been
-                // incremented by the initial flush. We need to track the
-                // number of items from the reject queue though our flush
-                // batch may contain items from both the reject queue and
-                // the CheckpointManager
-                if (toFlush.itemsToRetry != 0) {
-                    toFlush.itemsToRetry--;
-                } else {
+        if (op == queue_op::set_vbucket_state) {
+            // Only process vbstate if it's sequenced higher (by cas).
+            // We use the cas instead of the seqno here because a
+            // set_vbucket_state does not increment the lastBySeqno in
+            // the CheckpointManager when it is created. This means that
+            // it is possible to have two set_vbucket_state items that
+            // follow one another with the same seqno. The cas will be
+            // bumped for every item so it can be used to distinguish
+            // which item is the latest and should be flushed.
+            if (item->getCas() > maxVbStateOpCas) {
+                // Should only bump the stat once for the latest state
+                // change that we want to flush
+                if (maxVbStateOpCas == 0) {
+                    // There is at least a commit to be done, so
+                    // increase todo
                     ++stats.flusher_todo;
                 }
 
-                if (!range.is_initialized()) {
-                    range = snapshot_range_t{
-                            proposedVBState.lastSnapStart,
-                            toFlush.ranges.empty()
-                                    ? proposedVBState.lastSnapEnd
-                                    : toFlush.ranges.back().getEnd()};
-                }
+                maxVbStateOpCas = item->getCas();
 
-                // Is the item the end item of one of the ranges we're
-                // flushing? Note all the work here only affects replica VBs
-                auto itr =
-                        std::find_if(toFlush.ranges.begin(),
-                                     toFlush.ranges.end(),
-                                     [&item](auto& range) {
-                                         return uint64_t(item->getBySeqno()) ==
-                                                range.getEnd();
-                                     });
+                // It could be the case that the set_vbucket_state is
+                // alone, i.e. no mutations are being flushed, we must
+                // trigger an update of the vbstate, which will always
+                // happen when we set this.
+                mustCheckpointVBState = true;
 
-                // If this is the end item, we can adjust the start of our
-                // flushed range, which would be used for failure purposes.
-                // Primarily by bringing the start to be a consistent point
-                // allows for promotion to active to set the fail-over table
-                // to a consistent point.
-                if (itr != toFlush.ranges.end()) {
-                    // Use std::max as the flusher is not visiting in seqno
-                    // order.
-                    range->setStart(
-                            std::max(range->getStart(), itr->range.getEnd()));
-                    // HCS may be weakly monotonic when received via a disk
-                    // snapshot so we special case this for the disk
-                    // snapshot instead of relaxing the general constraint.
-                    if (toFlush.checkpointType == CheckpointType::Disk &&
-                        itr->highCompletedSeqno !=
-                                proposedVBState.persistedCompletedSeqno) {
-                        hcs = itr->highCompletedSeqno;
-                    }
+                // Process the Item's value into the transition struct
+                proposedVBState.transition.fromItem(*item);
+            }
+            // Update queuing stats now this item has logically been
+            // processed.
+            --stats.diskQueueSize;
+            vb->doStatsForFlushing(*item, item->size());
 
-                    // Now that the end of a snapshot has been reached,
-                    // store the hps tracked by the checkpoint to disk
-                    if (itr->highPreparedSeqno) {
-                        auto newHps =
-                                toFlush.checkpointType == CheckpointType::Memory
-                                        ? *(itr->highPreparedSeqno)
-                                        : itr->getEnd();
-                        proposedVBState.highPreparedSeqno = std::max(
-                                proposedVBState.highPreparedSeqno, newHps);
-                    }
-                }
+        } else if (!canDeDuplicate(prev, *item)) {
+            // This is an item we must persist.
+            prev = item.get();
+            ++items_flushed;
+
+            if (mcbp::datatype::is_xattr(item->getDataType())) {
+                proposedVBState.mightContainXattrs = true;
+            }
+
+            flushOneDelOrSet(item, vb.getVB());
+
+            maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
+
+            // Track the lowest seqno, so we can set the HLC epoch
+            minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
+            proposedVBState.maxCas =
+                    std::max(proposedVBState.maxCas, item->getCas());
+
+            // Track number of items we have yet to flush. If we are
+            // flushing items from the reject queue then we should not
+            // increment flusher_todo as it will have already been
+            // incremented by the initial flush. We need to track the
+            // number of items from the reject queue though our flush
+            // batch may contain items from both the reject queue and
+            // the CheckpointManager
+            if (toFlush.itemsToRetry != 0) {
+                toFlush.itemsToRetry--;
             } else {
-                // Item is the same key as the previous[1] one - don't need
-                // to flush to disk.
-                // [1] Previous here really means 'next' - optimizeWrites()
-                //     above has actually re-ordered items such that items
-                //     with the same key are ordered from high->low seqno.
-                //     This means we only write the highest (i.e. newest)
-                //     item for a given key, and discard any duplicate,
-                //     older items.
-                --stats.diskQueueSize;
-                vb->doStatsForFlushing(*item, item->size());
+                ++stats.flusher_todo;
             }
-        }
 
-        {
-            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-            if (vb->getState() == vbucket_state_active) {
-                if (maxSeqno) {
-                    range = snapshot_range_t(maxSeqno, maxSeqno);
+            if (!range.is_initialized()) {
+                range = snapshot_range_t{
+                        proposedVBState.lastSnapStart,
+                        toFlush.ranges.empty()
+                                ? proposedVBState.lastSnapEnd
+                                : toFlush.ranges.back().getEnd()};
+            }
+
+            // Is the item the end item of one of the ranges we're
+            // flushing? Note all the work here only affects replica VBs
+            auto itr = std::find_if(toFlush.ranges.begin(),
+                                    toFlush.ranges.end(),
+                                    [&item](auto& range) {
+                                        return uint64_t(item->getBySeqno()) ==
+                                               range.getEnd();
+                                    });
+
+            // If this is the end item, we can adjust the start of our
+            // flushed range, which would be used for failure purposes.
+            // Primarily by bringing the start to be a consistent point
+            // allows for promotion to active to set the fail-over table
+            // to a consistent point.
+            if (itr != toFlush.ranges.end()) {
+                // Use std::max as the flusher is not visiting in seqno
+                // order.
+                range->setStart(
+                        std::max(range->getStart(), itr->range.getEnd()));
+                // HCS may be weakly monotonic when received via a disk
+                // snapshot so we special case this for the disk
+                // snapshot instead of relaxing the general constraint.
+                if (toFlush.checkpointType == CheckpointType::Disk &&
+                    itr->highCompletedSeqno !=
+                            proposedVBState.persistedCompletedSeqno) {
+                    hcs = itr->highCompletedSeqno;
+                }
+
+                // Now that the end of a snapshot has been reached,
+                // store the hps tracked by the checkpoint to disk
+                if (itr->highPreparedSeqno) {
+                    auto newHps =
+                            toFlush.checkpointType == CheckpointType::Memory
+                                    ? *(itr->highPreparedSeqno)
+                                    : itr->getEnd();
+                    proposedVBState.highPreparedSeqno =
+                            std::max(proposedVBState.highPreparedSeqno, newHps);
                 }
             }
-
-            // Update VBstate based on the changes we have just made,
-            // then tell the rwUnderlying the 'new' state
-            // (which will persisted as part of the commit() below).
-
-            // only update the snapshot range if items were flushed, i.e.
-            // don't appear to be in a snapshot when you have no data for it
-            // We also update the checkpointType here as this should only
-            // change with snapshots.
-            if (range) {
-                proposedVBState.lastSnapStart = range->getStart();
-                proposedVBState.lastSnapEnd = range->getEnd();
-                proposedVBState.checkpointType = toFlush.checkpointType;
-            }
-            // Track the lowest seqno written in spock and record it as
-            // the HLC epoch, a seqno which we can be sure the value has a
-            // HLC CAS.
-            proposedVBState.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
-            if (proposedVBState.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
-                minSeqno != std::numeric_limits<uint64_t>::max()) {
-                proposedVBState.hlcCasEpochSeqno = minSeqno;
-                vb->setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
-            }
-
-            if (hcs) {
-                Expects(hcs > proposedVBState.persistedCompletedSeqno);
-                proposedVBState.persistedCompletedSeqno = *hcs;
-            }
-
-            if (hps) {
-                Expects(hps > proposedVBState.persistedPreparedSeqno);
-                proposedVBState.persistedPreparedSeqno = *hps;
-            }
-
-            proposedVBState.maxVisibleSeqno = maxVisibleSeqno;
+        } else {
+            // Item is the same key as the previous[1] one - don't need
+            // to flush to disk.
+            // [1] Previous here really means 'next' - optimizeWrites()
+            //     above has actually re-ordered items such that items
+            //     with the same key are ordered from high->low seqno.
+            //     This means we only write the highest (i.e. newest)
+            //     item for a given key, and discard any duplicate,
+            //     older items.
+            --stats.diskQueueSize;
+            vb->doStatsForFlushing(*item, item->size());
         }
+    }
+
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_active) {
+            if (maxSeqno) {
+                range = snapshot_range_t(maxSeqno, maxSeqno);
+            }
+        }
+        // @todo: I think that the vbstateLock can be safely released here
+
+        // Update VBstate based on the changes we have just made,
+        // then tell the rwUnderlying the 'new' state
+        // (which will persisted as part of the commit() below).
+
+        // only update the snapshot range if items were flushed, i.e.
+        // don't appear to be in a snapshot when you have no data for it
+        // We also update the checkpointType here as this should only
+        // change with snapshots.
+        if (range) {
+            proposedVBState.lastSnapStart = range->getStart();
+            proposedVBState.lastSnapEnd = range->getEnd();
+            proposedVBState.checkpointType = toFlush.checkpointType;
+        }
+
+        // Track the lowest seqno written in spock and record it as
+        // the HLC epoch, a seqno which we can be sure the value has a
+        // HLC CAS.
+        proposedVBState.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+        if (proposedVBState.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
+            minSeqno != std::numeric_limits<uint64_t>::max()) {
+            proposedVBState.hlcCasEpochSeqno = minSeqno;
+
+            // @todo MB-37692: Defer this call at flush-success only or reset
+            //  the value if flush fails.
+            vb->setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
+        }
+
+        if (hcs) {
+            Expects(hcs > proposedVBState.persistedCompletedSeqno);
+            proposedVBState.persistedCompletedSeqno = *hcs;
+        }
+
+        if (hps) {
+            Expects(hps > proposedVBState.persistedPreparedSeqno);
+            proposedVBState.persistedPreparedSeqno = *hps;
+        }
+
+        proposedVBState.maxVisibleSeqno = maxVisibleSeqno;
     }
 
     // Release the memory allocated for vectors in toFlush before we call
@@ -647,14 +684,11 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     //    non-binding request to reduce capacity() to size(), it depends on
     //    the implementation whether the request is fulfilled.
     {
-        const auto itemsToRelease = std::move(items);
+        const auto itemsToRelease = std::move(toFlush.items);
         const auto rangesToRelease = std::move(toFlush.ranges);
     }
 
-    /* Perform an explicit commit to disk if the commit
-     * interval reaches zero and if there is a non-zero number
-     * of items to flush.
-     */
+    // Persist the flush-batch if not empty.
     if (items_flushed > 0) {
         Expects(commitData.is_initialized());
         commit(vbid, *rwUnderlying, *commitData);
@@ -742,20 +776,26 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         commitData->collections.checkAndTriggerPurge(vb->getId(), *this);
     }
 
+    // Note: this is the end of old if(!toFlush.items.empty()) block that
+    // contained all the code above.
+    // So, the few next steps are the only ones that (before removing the block
+    // and early-returning if toFlush.items is empty) were executed and now are
+    // not executed anymore. A small comment on each.
+
+    // By definition, this function is called after persisting a batch of data,
+    // so it can be safely skipped if toFlush.items is empty.
     rwUnderlying->pendingTasks();
 
-    if (vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
-        wakeUpCheckpointRemover();
-    }
+    // Here: before early-returning if toFlush.items is empty, we used to check
+    // and possibly waking up the CheckpointRemover. Step safely moved above,
+    // just after getItemsToPersist(). See above for details.
 
+    // Handle HighPriority requests
     if (vb->rejectQueue.empty()) {
-        vb->checkpointManager->itemsPersisted();
-        uint64_t seqno = vb->getPersistenceSeqno();
-        uint64_t chkid = vb->checkpointManager->getPersistenceCursorPreChkId();
+        handleCheckpointPersistence();
         vb->notifyHighPriorityRequests(
-                engine, seqno, HighPriorityVBNotify::Seqno);
-        vb->notifyHighPriorityRequests(
-                engine, chkid, HighPriorityVBNotify::ChkPersistence);
+                engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
+
         return {toFlush.moreAvailable, items_flushed};
     }
 
