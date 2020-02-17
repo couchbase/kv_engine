@@ -329,7 +329,6 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
 }
 
 std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
-    int items_flushed = 0;
     const auto flush_start = std::chrono::steady_clock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
@@ -387,8 +386,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
     boost::optional<VB::Commit> commitData;
 
-    bool mustCheckpointVBState = false;
-
     while (!rwUnderlying->begin(
             std::make_unique<EPTransactionContext>(stats, *vb))) {
         ++stats.beginFailed;
@@ -420,6 +417,17 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     uint64_t maxVbStateOpCas = 0;
 
     auto minSeqno = std::numeric_limits<uint64_t>::max();
+
+    // Stores the number of items added to the flush-batch in KVStore.
+    // Note:
+    //  - Does not carry any information on whether the flush-batch is
+    //    successfully persisted or not
+    //  - Does not account set-vbstate items
+    size_t flushBatchSize = 0;
+
+    // Set if we process at least one set-vbstate, which means that we have to
+    // flush at least a new vbstate.
+    bool mustCheckpointVBState = false;
 
     Collections::VB::Flush collectionFlush(vb->getManifest());
 
@@ -534,7 +542,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         } else if (!canDeDuplicate(prev, *item)) {
             // This is an item we must persist.
             prev = item.get();
-            ++items_flushed;
+            ++flushBatchSize;
 
             if (mcbp::datatype::is_xattr(item->getDataType())) {
                 proposedVBState.mightContainXattrs = true;
@@ -692,7 +700,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // The result of the flush is defaulted to true to comply the current logic
     // that considers flush-success/no-flush equivalent.
     auto flushSuccessOrNoFlush = true;
-    if (items_flushed > 0) {
+    if (flushBatchSize > 0) {
         Expects(commitData.is_initialized());
         flushSuccessOrNoFlush = commit(vbid, *rwUnderlying, *commitData);
     } else if (mustCheckpointVBState) {
@@ -757,21 +765,27 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         if (vb->setBucketCreation(false)) {
             EP_LOG_DEBUG("{} created", vbid);
         }
-    } else {
-        // Flush failed
-        items_flushed = 0;
     }
 
+    // @todo: We update the flush stats regardless of whether we flush or not
+    //   and regardless of whether the flush succeeds or fails.
+    //   While that may be ok for flush-time stats, it is definitely wrong for
+    //   EPStats::totalPersistVBState.
     auto flush_end = std::chrono::steady_clock::now();
-    uint64_t trans_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  flush_end - flush_start)
-                                  .count();
+    uint64_t transTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 flush_end - flush_start)
+                                 .count();
 
-    lastTransTimePerItem.store(
-            (items_flushed == 0) ? 0
-                                 : static_cast<double>(trans_time) /
-                                           static_cast<double>(items_flushed));
-    stats.cumulativeFlushTime.fetch_add(trans_time);
+    size_t transTimePerItem = 0;
+    if (flushSuccessOrNoFlush) {
+        transTimePerItem =
+                flushBatchSize ? static_cast<double>(transTime) / flushBatchSize
+                               : 0;
+    } else {
+        transTimePerItem = 0;
+    }
+    lastTransTimePerItem.store(transTimePerItem);
+    stats.cumulativeFlushTime.fetch_add(transTime);
 
     // Decrement flusher_todo for all successful flushes
     stats.flusher_todo.store(vb->rejectQueue.size());
@@ -803,14 +817,14 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         vb->notifyHighPriorityRequests(
                 engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
 
-        return {toFlush.moreAvailable, items_flushed};
+        return {toFlush.moreAvailable, flushBatchSize /*itemsFlushed*/};
     }
 
     // Flush has failed
     Expects(!vb->rejectQueue.empty());
+    Expects(vb->rejectQueue.size() == flushBatchSize);
 
-    // Reject queue not empty
-    return {true, items_flushed};
+    return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
 }
 
 void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
