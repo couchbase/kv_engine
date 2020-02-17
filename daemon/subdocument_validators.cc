@@ -56,7 +56,7 @@ static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
     return !(hasAdd(a) && hasMkdoc(a));
 }
 
-static bool validate_macro(const cb::const_char_buffer& value) {
+static bool validate_macro(std::string_view value) {
     return ((value == cb::xattr::macros::CAS.name) ||
             (value == cb::xattr::macros::SEQNO.name) ||
             (value == cb::xattr::macros::VALUE_CRC32C.name));
@@ -83,9 +83,9 @@ static inline cb::mcbp::Status validate_xattr_section(
         Cookie& cookie,
         bool mutator,
         protocol_binary_subdoc_flag flags,
-        cb::const_char_buffer path,
-        cb::const_char_buffer value,
-        cb::const_char_buffer& xattr_key) {
+        std::string_view path,
+        std::string_view value,
+        std::string_view& xattr_key) {
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
         if ((flags & SUBDOC_FLAG_EXPAND_MACROS)) {
@@ -163,8 +163,8 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         return cb::mcbp::Status::Einval;
     }
 
-    cb::const_char_buffer path = {reinterpret_cast<const char*>(value.data()),
-                                  pathlen};
+    std::string_view path = {reinterpret_cast<const char*>(value.data()),
+                             pathlen};
     value = {value.data() + pathlen, value.size() - pathlen};
 
     // Now command-trait specific stuff:
@@ -206,9 +206,9 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
                 "Request must not contain both add and mkdoc flags");
         return cb::mcbp::Status::Einval;
     }
-    cb::const_char_buffer macro = {reinterpret_cast<const char*>(value.data()),
-                                   value.size()};
-    cb::const_char_buffer xattr_key;
+    std::string_view macro = {reinterpret_cast<const char*>(value.data()),
+                              value.size()};
+    std::string_view xattr_key;
 
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
@@ -332,7 +332,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         const SubdocMultiCmdTraits traits,
         size_t& spec_len,
         bool& xattr,
-        cb::const_char_buffer& xattr_key,
+        std::string_view& xattr_key,
         mcbp::subdoc::doc_flag doc_flags,
         bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
@@ -403,9 +403,9 @@ static cb::mcbp::Status is_valid_multipath_spec(
         return cb::mcbp::Status::Einval;
     }
 
-    cb::const_char_buffer path{ptr + headerlen, pathlen};
+    std::string_view path{ptr + headerlen, pathlen};
 
-    cb::const_char_buffer macro{ptr + headerlen + pathlen, valuelen};
+    std::string_view macro{ptr + headerlen + pathlen, valuelen};
 
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
@@ -500,7 +500,7 @@ static cb::mcbp::Status subdoc_multi_validator(
     size_t body_validated = 0;
     unsigned int path_index;
 
-    cb::const_char_buffer xattr_key;
+    std::string_view xattr_key;
 
     bool body_commands_allowed = true;
 

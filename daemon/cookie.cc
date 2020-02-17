@@ -277,9 +277,9 @@ void Cookie::sendResponse(cb::engine_errc code) {
 }
 
 void Cookie::sendResponse(cb::mcbp::Status status,
-                          cb::const_char_buffer extras,
-                          cb::const_char_buffer key,
-                          cb::const_char_buffer value,
+                          std::string_view extras,
+                          std::string_view key,
+                          std::string_view value,
                           cb::mcbp::Datatype datatype,
                           uint64_t cas) {
     if (status == cb::mcbp::Status::NotMyVbucket) {
@@ -571,7 +571,7 @@ void Cookie::collectTimings() {
     }
 }
 
-cb::const_char_buffer Cookie::getInflatedInputPayload() const {
+std::string_view Cookie::getInflatedInputPayload() const {
     if (!inflated_input_payload.empty()) {
         return inflated_input_payload;
     }

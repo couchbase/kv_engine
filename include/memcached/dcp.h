@@ -255,8 +255,8 @@ struct dcp_message_producers {
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE control(uint32_t opaque,
-                                      cb::const_char_buffer key,
-                                      cb::const_char_buffer value) = 0;
+                                      std::string_view key,
+                                      std::string_view value) = 0;
 
     /**
      * Send a system event message to the other end
@@ -411,8 +411,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                    uint32_t opaque,
                                    uint32_t seqno,
                                    uint32_t flags,
-                                   cb::const_char_buffer name,
-                                   cb::const_char_buffer value = {}) = 0;
+                                   std::string_view name,
+                                   std::string_view value = {}) = 0;
 
     /**
      * Called from the memcached core to add a vBucket stream to the set of
@@ -465,7 +465,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
             uint64_t snap_end_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<cb::const_char_buffer> json) = 0;
+            boost::optional<std::string_view> json) = 0;
 
     /**
      * Callback to the engine that a get failover log message was received
@@ -658,8 +658,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      cb::const_char_buffer key,
-                                      cb::const_char_buffer value) = 0;
+                                      std::string_view key,
+                                      std::string_view value) = 0;
 
     /**
      * Callback to the engine that a response message has been received.

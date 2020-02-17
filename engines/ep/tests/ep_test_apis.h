@@ -40,16 +40,16 @@
 
 void abort_msg(const char* expr, const char* msg, const char* file, int line);
 
-bool add_response(cb::const_char_buffer key,
-                  cb::const_char_buffer extras,
-                  cb::const_char_buffer body,
+bool add_response(std::string_view key,
+                  std::string_view extras,
+                  std::string_view body,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
                   const void* cookie);
 
-void add_stats(cb::const_char_buffer key,
-               cb::const_char_buffer value,
+void add_stats(std::string_view key,
+               std::string_view value,
                gsl::not_null<const void*> cookie);
 
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
@@ -194,7 +194,7 @@ ENGINE_ERROR_CODE delete_with_value(
         const void* cookie,
         uint64_t cas,
         const char* key,
-        cb::const_char_buffer value,
+        std::string_view value,
         cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
 void disable_traffic(EngineIface* h);
@@ -384,8 +384,8 @@ bool get_bool_stat(EngineIface* h,
                    const char* statkey = nullptr);
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
-                            cb::const_char_buffer key,
-                            cb::const_char_buffer value,
+                            std::string_view key,
+                            std::string_view value,
                             const AddStatFn& callback);
 
 /* This is used to get stat info specified by 'histo_info' from histogram of

@@ -336,14 +336,14 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     void set_error_context(gsl::not_null<void*> cookie,
-                           cb::const_char_buffer message) override {
+                           std::string_view message) override {
     }
 
     void set_error_json_extras(gsl::not_null<void*> cookie,
                                const nlohmann::json& json) override {
     }
 
-    cb::const_char_buffer get_inflated_payload(
+    std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) override {
         if (!mcbp::datatype::is_snappy(uint8_t(request.getDatatype()))) {

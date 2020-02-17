@@ -17,8 +17,6 @@
 #include <folly/portability/GTest.h>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
-#include <platform/sized_buffer.h>
-
 TEST(ParserTest, GdbOutput) {
     const auto file =
             cb::io::sanitizePath(SOURCE_ROOT "/protocol/mcbp/gdb_output.txt");

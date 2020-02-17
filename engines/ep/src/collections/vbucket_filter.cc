@@ -30,7 +30,7 @@ namespace Collections {
 
 namespace VB {
 
-Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
+Filter::Filter(boost::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest) {
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support _default
@@ -70,7 +70,7 @@ Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
     }
 }
 
-void Filter::constructFromJson(cb::const_char_buffer json,
+void Filter::constructFromJson(std::string_view json,
                                const Collections::VB::Manifest& manifest) {
     nlohmann::json parsed;
     try {

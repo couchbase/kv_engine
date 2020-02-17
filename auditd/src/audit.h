@@ -35,7 +35,7 @@
 class AuditImpl : public cb::audit::Audit {
 public:
     // Implementation of the public API
-    bool put_event(uint32_t event_id, cb::const_char_buffer payload) override;
+    bool put_event(uint32_t event_id, std::string_view payload) override;
     void add_event_state_listener(
             cb::audit::EventStateListener listener) override;
     void notify_all_event_states() override;

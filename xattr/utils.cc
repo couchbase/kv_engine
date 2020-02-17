@@ -35,7 +35,7 @@ namespace xattr {
  * @return the trimmed string
  * @throws std::underflow_error if there isn't a '\0' in the buffer
  */
-static cb::const_char_buffer trim_string(cb::const_char_buffer blob) {
+static std::string_view trim_string(std::string_view blob) {
     auto n = blob.find_first_of('\0');
     if (n == std::string_view::npos) {
         throw std::out_of_range("trim_string: no '\\0' in the input buffer");
@@ -44,7 +44,7 @@ static cb::const_char_buffer trim_string(cb::const_char_buffer blob) {
     return blob.substr(0, n);
 }
 
-bool validate(const cb::const_char_buffer& blob) {
+bool validate(std::string_view blob) {
     if (blob.size() < 4) {
         // we must have room for the length field
         return false;
@@ -133,7 +133,7 @@ static void check_len(uint32_t len, size_t size) {
     }
 }
 
-uint32_t get_body_offset(const cb::const_char_buffer& payload) {
+uint32_t get_body_offset(std::string_view payload) {
     const auto* lenptr = reinterpret_cast<const uint32_t*>(payload.data());
     auto len = ntohl(*lenptr);
     check_len(len, payload.size());
@@ -147,13 +147,13 @@ uint32_t get_body_offset(const cb::char_buffer& payload) {
     return len + sizeof(uint32_t);
 }
 
-const_char_buffer get_body(cb::const_char_buffer payload) {
+std::string_view get_body(std::string_view payload) {
     auto offset = get_body_offset(payload);
     payload.remove_prefix(offset);
     return payload;
 }
 
-size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) {
+size_t get_system_xattr_size(uint8_t datatype, std::string_view doc) {
     if (!::mcbp::datatype::is_xattr(datatype)) {
         return 0;
     }
@@ -163,8 +163,8 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) 
     return blob.get_system_size();
 }
 
-std::pair<size_t, size_t> get_size_and_system_xattr_size(
-        uint8_t datatype, const cb::const_char_buffer doc) {
+std::pair<size_t, size_t> get_size_and_system_xattr_size(uint8_t datatype,
+                                                         std::string_view doc) {
     if (!::mcbp::datatype::is_xattr(datatype)) {
         return {0, 0};
     }

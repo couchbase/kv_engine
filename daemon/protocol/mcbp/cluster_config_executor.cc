@@ -90,7 +90,7 @@ void set_cluster_config_executor(Cookie& cookie) {
     int revision;
     int bucketIndex = -1;
     auto payload = req.getValue();
-    cb::const_char_buffer clustermap = {
+    std::string_view clustermap = {
             reinterpret_cast<const char*>(payload.data()), payload.size()};
 
     // Is this a new or an old-style message

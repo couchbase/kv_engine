@@ -21,7 +21,6 @@
 #include "task_type.h"
 
 #include <platform/processclock.h>
-#include <platform/sized_buffer.h>
 #include <array>
 
 enum task_state_t {

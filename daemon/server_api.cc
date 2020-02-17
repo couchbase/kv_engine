@@ -343,7 +343,7 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     void set_error_context(gsl::not_null<void*> cookie,
-                           cb::const_char_buffer message) override {
+                           std::string_view message) override {
         getCookie(cookie).setErrorContext(std::string{message});
     }
 
@@ -352,9 +352,8 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).setErrorJsonExtras(json);
     }
 
-    cb::const_char_buffer get_inflated_payload(
-            gsl::not_null<const void*> cookie,
-            const cb::mcbp::Request&) override {
+    std::string_view get_inflated_payload(gsl::not_null<const void*> cookie,
+                                          const cb::mcbp::Request&) override {
         return getCookie(cookie).getInflatedInputPayload();
     }
 };

@@ -172,7 +172,7 @@ public:
      *
      * @param deflated the input buffer holding compressed data
      */
-    void storeCompressedBuffer(cb::const_char_buffer deflated);
+    void storeCompressedBuffer(std::string_view deflated);
 
     // Custom deleter for StoredValue objects.
     struct Deleter {

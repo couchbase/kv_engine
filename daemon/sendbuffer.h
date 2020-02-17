@@ -18,8 +18,6 @@
 
 #include <memcached/engine.h>
 #include <platform/compression/buffer.h>
-#include <platform/sized_buffer.h>
-
 class Bucket;
 
 /**
@@ -38,15 +36,15 @@ public:
     /// A sendbuffer should not be used unless the payload is >4k
     constexpr static std::size_t MinimumDataSize = 4096;
 
-    explicit SendBuffer(cb::const_char_buffer view) : payload(view) {
+    explicit SendBuffer(std::string_view view) : payload(view) {
     }
     virtual ~SendBuffer() = default;
-    virtual cb::const_char_buffer getPayload() {
+    virtual std::string_view getPayload() {
         return payload;
     }
 
 protected:
-    const cb::const_char_buffer payload;
+    std::string_view payload;
 };
 
 /**
@@ -63,7 +61,7 @@ public:
      * @param bucket The bucket the item belongs to
      */
     ItemSendBuffer(cb::unique_item_ptr itm,
-                   cb::const_char_buffer view,
+                   std::string_view view,
                    Bucket& bucket);
 
     ~ItemSendBuffer() override;
@@ -80,7 +78,7 @@ protected:
 class CompressionSendBuffer : public SendBuffer {
 public:
     CompressionSendBuffer(cb::compression::Buffer& buffer,
-                          cb::const_char_buffer view)
+                          std::string_view view)
         : SendBuffer(view),
           allocator(buffer.allocator),
           data(buffer.release()) {

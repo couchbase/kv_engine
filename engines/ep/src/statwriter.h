@@ -22,53 +22,38 @@
 #include <boost/optional.hpp>
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
-#include <platform/sized_buffer.h>
-
 #include <atomic>
-#include <cstring>
 #include <sstream>
-#include <tuple>
+#include <string>
+#include <string_view>
+
+using namespace std::string_view_literals;
 
 class EventuallyPersistentEngine;
 
-inline void add_casted_stat(const char* k,
-                            const char* v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_stat(k, v, cookie);
-}
-
 template <typename T>
-void add_casted_stat(const char* k,
+void add_casted_stat(std::string_view k,
                      const T& v,
                      const AddStatFn& add_stat,
                      const void* cookie) {
     std::stringstream vals;
     vals << v;
-    add_casted_stat(k, vals.str().c_str(), add_stat, cookie);
+    add_stat(k, vals.str(), cookie);
 }
 
-inline void add_casted_stat(const char* k,
+inline void add_casted_stat(std::string_view k,
                             const bool v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_stat(k, v ? "true" : "false", add_stat, cookie);
+    add_stat(k, v ? "true"sv : "false"sv, cookie);
 }
 
 template <typename T>
-void add_casted_stat(const char* k,
+void add_casted_stat(std::string_view k,
                      const std::atomic<T>& v,
                      const AddStatFn& add_stat,
                      const void* cookie) {
     add_casted_stat(k, v.load(), add_stat, cookie);
-}
-
-template <>
-inline void add_casted_stat(const char* k,
-                            const cb::const_char_buffer& v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_stat(k, v, cookie);
 }
 
 template <typename T>

@@ -192,9 +192,9 @@ void decayingSleep(useconds_t *sleepTime) {
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
 }
 
-bool add_response(cb::const_char_buffer key,
-                  cb::const_char_buffer extras,
-                  cb::const_char_buffer body,
+bool add_response(std::string_view key,
+                  std::string_view extras,
+                  std::string_view body,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
@@ -211,9 +211,9 @@ bool add_response(cb::const_char_buffer key,
     return true;
 }
 
-bool add_response_set_del_meta(cb::const_char_buffer key,
-                               cb::const_char_buffer extras,
-                               cb::const_char_buffer body,
+bool add_response_set_del_meta(std::string_view key,
+                               std::string_view extras,
+                               std::string_view body,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t cas,
@@ -231,9 +231,9 @@ bool add_response_set_del_meta(cb::const_char_buffer key,
     return add_response(key, extras, body, datatype, status, cas, cookie);
 }
 
-bool add_response_ret_meta(cb::const_char_buffer key,
-                           cb::const_char_buffer extras,
-                           cb::const_char_buffer body,
+bool add_response_ret_meta(std::string_view key,
+                           std::string_view extras,
+                           std::string_view body,
                            uint8_t datatype,
                            cb::mcbp::Status status,
                            uint64_t cas,
@@ -251,8 +251,8 @@ bool add_response_ret_meta(cb::const_char_buffer key,
     return add_response(key, extras, body, datatype, status, cas, cookie);
 }
 
-void add_stats(cb::const_char_buffer key,
-               cb::const_char_buffer value,
+void add_stats(std::string_view key,
+               std::string_view value,
                gsl::not_null<const void*>) {
     std::string k(key.data(), key.size());
     std::string v(value.data(), value.size());
@@ -269,8 +269,8 @@ void add_stats(cb::const_char_buffer key,
  * friends to lookup a specific stat. If `key` matches the requested key name,
  * then record its value in actual_stat_value.
  */
-void add_individual_stat(cb::const_char_buffer key,
-                         cb::const_char_buffer value,
+void add_individual_stat(std::string_view key,
+                         std::string_view value,
                          gsl::not_null<const void*>) {
     if (get_stat_context.actual_stat_value.empty() &&
         get_stat_context.requested_stat_name.compare(
@@ -283,8 +283,8 @@ void add_individual_stat(cb::const_char_buffer key,
     }
 }
 
-void add_individual_histo_stat(cb::const_char_buffer key,
-                               cb::const_char_buffer value,
+void add_individual_histo_stat(std::string_view key,
+                               std::string_view value,
                                gsl::not_null<const void*> cookie) {
     /* Convert key to string */
     std::string key_str(key.data(), key.size());
@@ -400,7 +400,7 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                                     const void* cookie,
                                     uint64_t cas,
                                     const char* key,
-                                    cb::const_char_buffer value,
+                                    std::string_view value,
                                     cb::mcbp::Datatype datatype) {
     auto ret = storeCasVb11(h,
                             cookie,
@@ -1942,8 +1942,8 @@ void reset_stats(gsl::not_null<EngineIface*> h) {
 }
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
-                            cb::const_char_buffer key,
-                            cb::const_char_buffer value,
+                            std::string_view key,
+                            std::string_view value,
                             const AddStatFn& callback) {
     const auto* cookie = testHarness->create_cookie(h);
     auto ret = h->get_stats(cookie, key, value, callback);

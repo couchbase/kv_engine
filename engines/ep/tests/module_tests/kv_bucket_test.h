@@ -186,9 +186,9 @@ public:
             const std::vector<char>& emd = {},
             int options = 0);
 
-    static bool addResponse(cb::const_char_buffer key,
-                            cb::const_char_buffer extras,
-                            cb::const_char_buffer body,
+    static bool addResponse(std::string_view key,
+                            std::string_view extras,
+                            std::string_view body,
                             uint8_t datatype,
                             cb::mcbp::Status status,
                             uint64_t pcas,

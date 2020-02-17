@@ -150,14 +150,14 @@ public:
         return wrapped->get_connected_port(cookie);
     }
     void set_error_context(gsl::not_null<void*> cookie,
-                           cb::const_char_buffer message) override {
+                           std::string_view message) override {
         wrapped->set_error_context(cookie, message);
     }
     void set_error_json_extras(gsl::not_null<void*> cookie,
                                const nlohmann::json& json) override {
         wrapped->set_error_json_extras(cookie, json);
     }
-    cb::const_char_buffer get_inflated_payload(
+    std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) override {
         throw std::runtime_error("get_inflated_payload not implemented");
@@ -371,8 +371,8 @@ TEST_F(DCPTest, MB30189_addStats) {
     class MockStats {
     } mockStats;
     producer->addStats(
-            [](cb::const_char_buffer key,
-               cb::const_char_buffer val,
+            [](std::string_view key,
+               std::string_view val,
                gsl::not_null<const void*> cookie) {
                 // do nothing
             },
@@ -401,8 +401,8 @@ TEST_F(DCPTest, MB34280) {
     // Verify that the normal DCP producer stats don't exceed the max dcp stat
     // name
     producer->addStats(
-            [&name, validator](cb::const_char_buffer key,
-                               cb::const_char_buffer value,
+            [&name, validator](std::string_view key,
+                               std::string_view value,
                                gsl::not_null<const void*> cookie) {
                 validator(name, std::string{key.data(), key.size()});
             },
@@ -415,8 +415,8 @@ TEST_F(DCPTest, MB34280) {
             *engine, cookie, consumer_name, consumer_name);
     consumer->addStats(
             [name = consumer_name, validator](
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer value,
+                    std::string_view key,
+                    std::string_view value,
                     gsl::not_null<const void*> cookie) {
                 validator(name, std::string{key.data(), key.size()});
             },
@@ -431,8 +431,8 @@ TEST_F(DCPTest, MB34280) {
                       {"consumer_name", "test_consumer"}});
 
     stream->addStats(
-            [&name, &max](cb::const_char_buffer key,
-                          cb::const_char_buffer value,
+            [&name, &max](std::string_view key,
+                          std::string_view value,
                           gsl::not_null<const void*> cookie) {
                 std::string k{key.data(), key.size()};
                 auto idx = k.find(name);
@@ -1483,8 +1483,8 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.disconnect(cookie);
 
     // Try to read stats. Shouldn't crash.
-    producer->addStats([](cb::const_char_buffer key,
-                          cb::const_char_buffer value,
+    producer->addStats([](std::string_view key,
+                          std::string_view value,
                           gsl::not_null<const void*> cookie) {},
                        // Cookie is not being used in the callback, but the
                        // API requires it. Pass in the producer as cookie

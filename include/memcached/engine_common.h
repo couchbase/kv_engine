@@ -2,7 +2,6 @@
 #pragma once
 
 #include <mcbp/protocol/status.h>
-#include <platform/sized_buffer.h>
 #include <cstdint>
 #include <functional>
 #include <gsl/gsl>
@@ -16,8 +15,8 @@ struct EngineIface;
  * @param value the stat's value in an ascii form (e.g. text form of a number)
  * @param cookie magic callback cookie
  */
-using AddStatFn = std::function<void(cb::const_char_buffer key,
-                                     cb::const_char_buffer value,
+using AddStatFn = std::function<void(std::string_view key,
+                                     std::string_view value,
                                      gsl::not_null<const void*> cookie)>;
 
 /**
@@ -33,9 +32,9 @@ using AddStatFn = std::function<void(cb::const_char_buffer key,
  * @return true if return message was successfully created, false if an
  *              error occured that prevented the message from being sent
  */
-using AddResponseFn = std::function<bool(cb::const_char_buffer key,
-                                         cb::const_char_buffer extras,
-                                         cb::const_char_buffer body,
+using AddResponseFn = std::function<bool(std::string_view key,
+                                         std::string_view extras,
+                                         std::string_view body,
                                          uint8_t datatype,
                                          cb::mcbp::Status status,
                                          uint64_t cas,

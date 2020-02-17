@@ -18,7 +18,6 @@
 
 #include <memcached/engine.h>
 #include <nlohmann/json_fwd.hpp>
-#include <platform/sized_buffer.h>
 #include <array>
 
 #include <folly/CachelinePadded.h>
@@ -137,7 +136,7 @@ private:
         // updated.
         // On success returns true, If insufficient memory to create a
         // new item, returns false.
-        bool updateKey(const cb::const_char_buffer& key,
+        bool updateKey(std::string_view key,
                        size_t key_hash,
                        rel_time_t operation_time);
 
@@ -156,7 +155,7 @@ private:
 
         // Searches for the given key. If found returns a pointer to the
         // topkey_t, else returns NULL.
-        topkey_t* searchForKey(size_t hash, const cb::const_char_buffer& key);
+        topkey_t* searchForKey(size_t hash, std::string_view key);
 
         // Maximum numbers of keys to be tracked per shard.
         size_t max_keys;

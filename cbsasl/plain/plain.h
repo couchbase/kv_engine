@@ -29,10 +29,8 @@ public:
     explicit ServerBackend(server::ServerContext& ctx)
         : MechanismBackend(ctx){};
 
-    std::pair<Error, const_char_buffer> start(
-            cb::const_char_buffer input) override;
-    std::pair<Error, const_char_buffer> step(
-            cb::const_char_buffer input) override {
+    std::pair<Error, std::string_view> start(std::string_view input) override;
+    std::pair<Error, std::string_view> step(std::string_view input) override {
         throw std::logic_error(
                 "cb::sasl::mechanism::plain::ServerBackend::step(): Plain auth "
                 "should not call step");
@@ -57,10 +55,9 @@ public:
         return "PLAIN";
     }
 
-    std::pair<Error, const_char_buffer> start() override;
+    std::pair<Error, std::string_view> start() override;
 
-    std::pair<Error, const_char_buffer> step(
-            cb::const_char_buffer input) override {
+    std::pair<Error, std::string_view> step(std::string_view input) override {
         throw std::logic_error(
                 "cb::sasl::mechanism::plain::ClientBackend::step(): Plain auth "
                 "should not call step");

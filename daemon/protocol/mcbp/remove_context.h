@@ -147,7 +147,7 @@ private:
     mutation_descr_t mutation_descr;
 
     // The xattr segment to keep around
-    cb::const_char_buffer xattr;
+    std::string_view xattr;
 
     // Backing store for the modified xattrs
     std::unique_ptr<char[]> xattr_buffer;

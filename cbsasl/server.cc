@@ -54,12 +54,12 @@ std::string listmech() {
     return ret;
 }
 
-std::pair<cb::sasl::Error, cb::const_char_buffer> ServerContext::start(
+std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
         const std::string& mech,
         const std::string& available,
-        cb::const_char_buffer input) {
+        std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<cb::sasl::Error, cb::const_char_buffer>(
+        return std::make_pair<cb::sasl::Error, std::string_view>(
                 Error::BAD_PARAM, {});
     }
 

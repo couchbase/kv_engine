@@ -927,7 +927,7 @@ bool Connection::dcpUseWriteBuffer(size_t size) const {
     return isSslEnabled() && size < thread.scratch_buffer.size();
 }
 
-void Connection::copyToOutputStream(cb::const_char_buffer data) {
+void Connection::copyToOutputStream(std::string_view data) {
     if (data.empty()) {
         return;
     }
@@ -1043,13 +1043,13 @@ Connection::~Connection() {
     --stats.conn_structs;
 }
 
-void Connection::setAgentName(cb::const_char_buffer name) {
+void Connection::setAgentName(std::string_view name) {
     auto size = std::min(name.size(), agentName.size() - 1);
     std::copy(name.begin(), name.begin() + size, agentName.begin());
     agentName[size] = '\0';
 }
 
-void Connection::setConnectionId(cb::const_char_buffer uuid) {
+void Connection::setConnectionId(std::string_view uuid) {
     auto size = std::min(uuid.size(), connectionId.size() - 1);
     std::copy(uuid.begin(), uuid.begin() + size, connectionId.begin());
     // the uuid string shall always be zero terminated
@@ -1292,8 +1292,8 @@ size_t Connection::getSendQueueSize() const {
 
 void Connection::sendResponseHeaders(Cookie& cookie,
                                      cb::mcbp::Status status,
-                                     cb::const_char_buffer extras,
-                                     cb::const_char_buffer key,
+                                     std::string_view extras,
+                                     std::string_view key,
                                      std::size_t value_len,
                                      uint8_t datatype) {
     static_assert(sizeof(FrontEndThread::scratch_buffer) >
@@ -1382,9 +1382,9 @@ void Connection::sendResponseHeaders(Cookie& cookie,
 
 void Connection::sendResponse(Cookie& cookie,
                               cb::mcbp::Status status,
-                              cb::const_char_buffer extras,
-                              cb::const_char_buffer key,
-                              cb::const_char_buffer value,
+                              std::string_view extras,
+                              std::string_view key,
+                              std::string_view value,
                               uint8_t datatype,
                               std::unique_ptr<SendBuffer> sendbuffer) {
     sendResponseHeaders(cookie, status, extras, key, value.size(), datatype);
@@ -1596,7 +1596,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::const_char_buffer value{root, info.value[0].iov_len};
+    std::string_view value{root, info.value[0].iov_len};
 
     auto key = info.key;
     // The client doesn't support collections, so must not send an encoded key
@@ -1722,7 +1722,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
         key = info.key.makeDocKeyWithoutCollectionID();
     }
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::const_char_buffer value{root, info.value[0].iov_len};
+    std::string_view value{root, info.value[0].iov_len};
 
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     cb::mcbp::request::DcpDeletionV1Payload extdata(by_seqno, rev_seqno);
@@ -1810,7 +1810,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::const_char_buffer value{root, info.value[0].iov_len};
+    std::string_view value{root, info.value[0].iov_len};
 
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -1894,7 +1894,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::const_char_buffer value{root, info.value[0].iov_len};
+    std::string_view value{root, info.value[0].iov_len};
 
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -2002,8 +2002,8 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
-                                      cb::const_char_buffer key,
-                                      cb::const_char_buffer value) {
+                                      std::string_view key,
+                                      std::string_view value) {
     std::vector<uint8_t> buffer;
     buffer.resize(sizeof(cb::mcbp::Request) + key.size() + value.size());
     cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
@@ -2078,7 +2078,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    cb::const_char_buffer buffer{root, info.value[0].iov_len};
+    std::string_view buffer{root, info.value[0].iov_len};
 
     auto key = info.key;
 
@@ -2192,7 +2192,7 @@ ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
-    builder.setKey(cb::const_char_buffer(key));
+    builder.setKey(std::string_view(key));
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
@@ -2216,7 +2216,7 @@ ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
     builder.setExtras(extras.getBuffer());
-    builder.setKey(cb::const_char_buffer(key));
+    builder.setKey(std::string_view(key));
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 

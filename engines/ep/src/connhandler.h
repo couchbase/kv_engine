@@ -178,7 +178,7 @@ public:
             uint64_t snapEndSeqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<cb::const_char_buffer> json);
+            boost::optional<std::string_view> json);
 
     virtual ENGINE_ERROR_CODE noop(uint32_t opaque);
 
@@ -187,8 +187,8 @@ public:
                                                     uint32_t buffer_bytes);
 
     virtual ENGINE_ERROR_CODE control(uint32_t opaque,
-                                      cb::const_char_buffer key,
-                                      cb::const_char_buffer value);
+                                      std::string_view key,
+                                      std::string_view value);
 
     virtual ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
 

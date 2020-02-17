@@ -422,7 +422,7 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
         decompressValue();
 
         auto root = reinterpret_cast<const char*>(value->getData());
-        const cb::const_char_buffer buffer{root, value->valueSize()};
+        std::string_view buffer{root, value->valueSize()};
 
         if (includeXattrs == IncludeXattrs::Yes) {
             if (mcbp::datatype::is_xattr(getDataType())) {

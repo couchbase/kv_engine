@@ -20,7 +20,6 @@
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/response.h>
 #include <nlohmann/json.hpp>
-#include <platform/sized_buffer.h>
 #include <unordered_set>
 
 class FrameInfo;
@@ -246,7 +245,7 @@ public:
      * Get a pointer to the key returned in the packet, if a key is present.
      * Use #getKeyLen() to determine this.
      */
-    cb::const_char_buffer getKey() const;
+    std::string_view getKey() const;
 
     std::string getKeyString() const;
 
@@ -483,7 +482,7 @@ class BinprotSaslAuthCommand
 public:
     void setMechanism(const std::string& mech_);
 
-    void setChallenge(cb::const_char_buffer data);
+    void setChallenge(std::string_view data);
 
     void encode(std::vector<uint8_t>&) const override;
 
@@ -497,7 +496,7 @@ class BinprotSaslStepCommand
 public:
     void setMechanism(const std::string& mech);
 
-    void setChallenge(cb::const_char_buffer data);
+    void setChallenge(std::string_view data);
 
     void encode(std::vector<uint8_t>&) const override;
 

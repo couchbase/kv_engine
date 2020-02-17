@@ -176,8 +176,8 @@ public:
     using EngineIface::flush;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                cb::const_char_buffer key,
-                                cb::const_char_buffer value,
+                                std::string_view key,
+                                std::string_view value,
                                 const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
@@ -194,21 +194,18 @@ public:
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
-    cb::engine_errc set_collection_manifest(
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer json) override;
+    cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
+                                            std::string_view json) override;
 
     cb::engine_errc get_collection_manifest(
             gsl::not_null<const void*> cookie,
             const AddResponseFn& response) override;
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path) override;
+            gsl::not_null<const void*> cookie, std::string_view path) override;
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path) override;
+            gsl::not_null<const void*> cookie, std::string_view path) override;
 
     std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
@@ -238,8 +235,8 @@ public:
                            uint32_t opaque,
                            uint32_t seqno,
                            uint32_t flags,
-                           cb::const_char_buffer name,
-                           cb::const_char_buffer value = {}) override;
+                           std::string_view name,
+                           std::string_view value = {}) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -263,7 +260,7 @@ public:
             uint64_t snap_end_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<cb::const_char_buffer> json) override;
+            boost::optional<std::string_view> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -352,8 +349,8 @@ public:
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                               uint32_t opaque,
-                              cb::const_char_buffer key,
-                              cb::const_char_buffer value) override;
+                              std::string_view key,
+                              std::string_view value) override;
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
@@ -475,8 +472,8 @@ public:
     }
 
     ENGINE_ERROR_CODE getStats(const void* cookie,
-                               cb::const_char_buffer key,
-                               cb::const_char_buffer value,
+                               std::string_view key,
+                               std::string_view value,
                                const AddStatFn& add_stat);
 
     void resetStats();
@@ -498,8 +495,8 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              cb::const_char_buffer stream_name,
-                              cb::const_char_buffer value);
+                              std::string_view stream_name,
+                              std::string_view value);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
                                    uint32_t opaque,
@@ -554,7 +551,7 @@ public:
 
     void decrementSessionCtr();
 
-    void setErrorContext(const void* cookie, cb::const_char_buffer message);
+    void setErrorContext(const void* cookie, std::string_view message);
 
     void setErrorJsonExtras(const void* cookie, const nlohmann::json& json);
 
@@ -881,24 +878,24 @@ protected:
                                   const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doHashDump(const void* cookie,
                                  const AddStatFn& addStat,
-                                 cb::const_char_buffer keyArgs);
+                                 std::string_view keyArgs);
     ENGINE_ERROR_CODE doCheckpointStats(const void* cookie,
                                         const AddStatFn& add_stat,
                                         const char* stat_key,
                                         int nkey);
     ENGINE_ERROR_CODE doCheckpointDump(const void* cookie,
                                        const AddStatFn& addStat,
-                                       cb::const_char_buffer keyArgs);
+                                       std::string_view keyArgs);
     ENGINE_ERROR_CODE doDurabilityMonitorStats(const void* cookie,
                                                const AddStatFn& add_stat,
                                                const char* stat_key,
                                                int nkey);
     ENGINE_ERROR_CODE doDurabilityMonitorDump(const void* cookie,
                                               const AddStatFn& addStat,
-                                              cb::const_char_buffer keyArgs);
+                                              std::string_view keyArgs);
     ENGINE_ERROR_CODE doDcpStats(const void* cookie,
                                  const AddStatFn& add_stat,
-                                 cb::const_char_buffer value);
+                                 std::string_view value);
     ENGINE_ERROR_CODE doEvictionStats(const void* cookie,
                                       const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doConnAggStats(const void* cookie,
@@ -950,27 +947,27 @@ protected:
 
     ENGINE_ERROR_CODE doKeyStats(const void* cookie,
                                  const AddStatFn& add_stat,
-                                 cb::const_char_buffer statKey);
+                                 std::string_view statKey);
 
     ENGINE_ERROR_CODE doVKeyStats(const void* cookie,
                                   const AddStatFn& add_stat,
-                                  cb::const_char_buffer statKey);
+                                  std::string_view statKey);
 
     ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void* cookie,
                                            const AddStatFn& add_stat,
-                                           cb::const_char_buffer statKey);
+                                           std::string_view statKey);
 
     ENGINE_ERROR_CODE doFailoversStats(const void* cookie,
                                        const AddStatFn& add_stat,
-                                       cb::const_char_buffer statKey);
+                                       std::string_view statKey);
 
     ENGINE_ERROR_CODE doDiskinfoStats(const void* cookie,
                                       const AddStatFn& add_stat,
-                                      cb::const_char_buffer statKey);
+                                      std::string_view statKey);
 
     ENGINE_ERROR_CODE doPrivilegedStats(const void* cookie,
                                         const AddStatFn& add_stat,
-                                        cb::const_char_buffer statKey);
+                                        std::string_view statKey);
 
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 
@@ -985,7 +982,7 @@ protected:
      * Helper method for stats calls - validates the specified vbucket number
      * and returns a VBucketPtr (if valid).
      */
-    StatusAndVBPtr getValidVBucketFromString(cb::const_char_buffer vbNum);
+    StatusAndVBPtr getValidVBucketFromString(std::string_view vbNum);
 
     /**
      * Private helper method for decoding the options on set/del_with_meta.
@@ -1075,7 +1072,7 @@ protected:
     protocol_binary_datatype_t checkForDatatypeJson(
             const void* cookie,
             protocol_binary_datatype_t datatype,
-            cb::const_char_buffer body);
+            std::string_view body);
 
     /**
      * Process the set_with_meta with the given buffers/values.

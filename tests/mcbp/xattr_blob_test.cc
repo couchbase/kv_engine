@@ -107,7 +107,7 @@ TEST(XattrBlob, TestPruneUser) {
     // Now prune off the user keys (we should have a system xattr first and
     // and last)
     blob.prune_user_keys();
-    cb::const_char_buffer buffer1 = blob.finalize();
+    auto buffer1 = blob.finalize();
     EXPECT_TRUE(cb::xattr::validate(buffer1));
 
     // And we should be back at the size we had before adding all of the
@@ -146,7 +146,7 @@ TEST(XattrBlob, MB_22691) {
     blob.set(std::string("integer_extra"), std::string("1"));
 
     // Validate the the blob is correctly built
-    cb::const_char_buffer buffer = blob.finalize();
+    auto buffer = blob.finalize();
     EXPECT_TRUE(cb::xattr::validate(buffer));
 
     auto value = blob.get("integer");

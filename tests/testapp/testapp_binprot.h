@@ -27,7 +27,7 @@
 #include <memcached/protocol_binary.h>
 
 std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
-                                             cb::const_char_buffer key,
+                                             std::string_view key,
                                              uint64_t delta,
                                              uint64_t initial,
                                              uint32_t exp);
@@ -42,8 +42,8 @@ std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
  * @param exp the expiry time
  */
 std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
-                                          cb::const_char_buffer key,
-                                          cb::const_char_buffer value,
+                                          std::string_view key,
+                                          std::string_view value,
                                           uint32_t flags,
                                           uint32_t exp);
 

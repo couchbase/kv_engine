@@ -24,11 +24,11 @@ void RequestDeleter::operator()(cb::mcbp::Request* request) {
 unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
                                 Vbid vbid,
                                 uint64_t cas,
-                                cb::const_char_buffer ext,
-                                cb::const_char_buffer key,
-                                cb::const_char_buffer val,
+                                std::string_view ext,
+                                std::string_view key,
+                                std::string_view val,
                                 uint8_t datatype,
-                                cb::const_char_buffer meta) {
+                                std::string_view meta) {
     using namespace cb::mcbp;
 
     const auto total = sizeof(cb::mcbp::Request) + ext.size() + key.size() +

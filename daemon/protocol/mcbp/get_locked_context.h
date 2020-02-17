@@ -128,7 +128,7 @@ private:
     cb::unique_item_ptr it;
     item_info info;
 
-    cb::const_char_buffer payload;
+    std::string_view payload;
     cb::compression::Buffer buffer;
     State state;
 };

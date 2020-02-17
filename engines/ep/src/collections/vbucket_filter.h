@@ -23,8 +23,6 @@
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
 #include <nlohmann/json_fwd.hpp>
-#include <platform/sized_buffer.h>
-
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -93,7 +91,7 @@ public:
      * @param manifest The vbucket's collection manifest.
      * @throws cb::engine_error
      */
-    Filter(boost::optional<cb::const_char_buffer> jsonFilter,
+    Filter(boost::optional<std::string_view> jsonFilter,
            const ::Collections::VB::Manifest& manifest);
 
     /**
@@ -184,7 +182,7 @@ protected:
     /**
      * Constructor helper method for parsing the JSON
      */
-    void constructFromJson(cb::const_char_buffer json,
+    void constructFromJson(std::string_view json,
                            const Collections::VB::Manifest& manifest);
 
     /**

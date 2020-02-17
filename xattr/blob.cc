@@ -49,7 +49,7 @@ Blob::Blob(cb::char_buffer buffer,
     assign({buffer.data(), buffer.size()}, compressed);
 }
 
-Blob& Blob::assign(cb::const_char_buffer buffer, bool compressed) {
+Blob& Blob::assign(std::string_view buffer, bool compressed) {
     if (compressed && !buffer.empty()) {
         // inflate and attach blob to the compression::buffer
         if (!cb::compression::inflate(
@@ -85,7 +85,7 @@ Blob& Blob::assign(cb::const_char_buffer buffer, bool compressed) {
     return *this;
 }
 
-cb::char_buffer Blob::get(const cb::const_char_buffer& key) const {
+cb::char_buffer Blob::get(std::string_view key) const {
     try {
         size_t current = 4;
         while (current < blob.size()) {
@@ -133,7 +133,7 @@ void Blob::prune_user_keys() {
     }
 }
 
-void Blob::remove(const cb::const_char_buffer& key) {
+void Blob::remove(std::string_view key) {
     // Locate the old value
     const auto old = get(key);
     if (old.empty()) {
@@ -148,8 +148,7 @@ void Blob::remove(const cb::const_char_buffer& key) {
     remove_segment(offset, size);
 }
 
-void Blob::set(const cb::const_char_buffer& key,
-               const cb::const_char_buffer& value) {
+void Blob::set(std::string_view key, std::string_view value) {
     if (value.empty()) {
         remove(key);
         return;
@@ -207,8 +206,8 @@ void Blob::grow_buffer(uint32_t size) {
 }
 
 void Blob::write_kvpair(size_t offset,
-                        cb::const_char_buffer key,
-                        cb::const_char_buffer value) {
+                        std::string_view key,
+                        std::string_view value) {
     // offset points to where we want to inject the value
     write_length(offset, uint32_t(key.size() + 1 + value.size() + 1));
     offset += 4;
@@ -221,8 +220,7 @@ void Blob::write_kvpair(size_t offset,
     write_length(0, uint32_t(blob.size() - 4));
 }
 
-void Blob::append_kvpair(cb::const_char_buffer key,
-                         cb::const_char_buffer value) {
+void Blob::append_kvpair(std::string_view key, std::string_view value) {
     auto offset = blob.size();
     if (offset == 0) {
         offset += 4;

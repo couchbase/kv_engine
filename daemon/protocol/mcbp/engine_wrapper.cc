@@ -305,7 +305,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
         LOG_TRACE(
                 "bucket_allocate_ex() key:{} nbytes:{} flags:{} exptime:{} "
                 "datatype:{} vbucket:{}",
-                cb::UserDataView(cb::const_char_buffer(key)),
+                cb::UserDataView(std::string_view(key)),
                 nbytes,
                 flags,
                 exptime,
@@ -342,7 +342,7 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
 }
 
 ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
-                                   cb::const_char_buffer key,
+                                   std::string_view key,
                                    cb::const_byte_buffer value,
                                    const AddStatFn& add_stat) {
     auto& c = cookie.getConnection();
@@ -407,8 +407,8 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
                              uint32_t opaque,
-                             cb::const_char_buffer key,
-                             cb::const_char_buffer val) {
+                             std::string_view key,
+                             std::string_view val) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->control(&cookie, opaque, key, val);
@@ -587,8 +587,8 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           uint32_t opaque,
                           uint32_t seqno,
                           uint32_t flags,
-                          cb::const_char_buffer name,
-                          cb::const_char_buffer value) {
+                          std::string_view name,
+                          std::string_view value) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->open(&cookie, opaque, seqno, flags, name, value);
@@ -668,7 +668,7 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                uint64_t snapEndSeqno,
                                uint64_t* rollbackSeqno,
                                dcp_add_failover_log callback,
-                               boost::optional<cb::const_char_buffer> json) {
+                               boost::optional<std::string_view> json) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->stream_req(&cookie,

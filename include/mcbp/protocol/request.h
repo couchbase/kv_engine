@@ -24,8 +24,6 @@
 #include <mcbp/protocol/opcode.h>
 #include <memcached/rbac/privilege_database.h>
 #include <memcached/vbucket.h>
-#include <platform/sized_buffer.h>
-
 #ifndef WIN32
 #include <arpa/inet.h>
 #endif

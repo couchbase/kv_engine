@@ -21,7 +21,6 @@
 #include <memcached/engine_error.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
-#include <platform/sized_buffer.h>
 #include <utility>
 
 namespace cb {
@@ -81,6 +80,6 @@ protected:
                                                    const std::string& challenge,
                                                    bool authOnly);
 
-    std::pair<cb::mcbp::Status, std::string> plain_auth(
-            cb::const_char_buffer input, bool authOnly);
+    std::pair<cb::mcbp::Status, std::string> plain_auth(std::string_view input,
+                                                        bool authOnly);
 };

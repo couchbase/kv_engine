@@ -25,8 +25,8 @@ void collections_set_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& req = cookie.getRequest();
     auto val = req.getValue();
-    cb::const_char_buffer jsonBuffer{reinterpret_cast<const char*>(val.data()),
-                                     val.size()};
+    std::string_view jsonBuffer{reinterpret_cast<const char*>(val.data()),
+                                val.size()};
     auto ret = connection.getBucketEngine().set_collection_manifest(&cookie,
                                                                     jsonBuffer);
 

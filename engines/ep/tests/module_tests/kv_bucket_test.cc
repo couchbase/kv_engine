@@ -357,9 +357,9 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
     return packet;
 }
 
-bool KVBucketTest::addResponse(cb::const_char_buffer key,
-                               cb::const_char_buffer extras,
-                               cb::const_char_buffer body,
+bool KVBucketTest::addResponse(std::string_view key,
+                               std::string_view extras,
+                               std::string_view body,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t pcas,
@@ -901,8 +901,8 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->schedule(task);
 
     // nop callback to serve as add_stat
-    auto dummy_cb = [](cb::const_char_buffer key,
-                       cb::const_char_buffer value,
+    auto dummy_cb = [](std::string_view key,
+                       std::string_view value,
                        gsl::not_null<const void*> cookie) {};
 
     for (uint64_t i = 0; i < 10; ++i) {
@@ -1529,8 +1529,8 @@ TEST_P(KVBucketParamTest, MB_34346) {
 // Regression test for MB-35560.
 TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
     // Shouldn't see any stats calls if the vBucket doesn't exist.
-    auto mockStatFn = [](cb::const_char_buffer key,
-                         cb::const_char_buffer value,
+    auto mockStatFn = [](std::string_view key,
+                         std::string_view value,
                          gsl::not_null<const void*> cookie) { ADD_FAILURE(); };
 
     auto expected = (GetParam() == "bucket_type=ephemeral") ? ENGINE_KEY_ENOENT

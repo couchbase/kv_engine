@@ -31,7 +31,7 @@ Collections::Manager::Manager() {
 }
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,
-                                              cb::const_char_buffer manifest) {
+                                              std::string_view manifest) {
     // Get upgrade access to the manifest for the initial part of the update
     // This gives shared access (other readers allowed) but would block other
     // attempts to get upgrade access.
@@ -142,17 +142,16 @@ std::pair<cb::mcbp::Status, std::string> Collections::Manager::getManifest()
     return {cb::mcbp::Status::Success, currentManifest.rlock()->toJson()};
 }
 
-bool Collections::Manager::validateGetCollectionIDPath(
-        cb::const_char_buffer path) {
+bool Collections::Manager::validateGetCollectionIDPath(std::string_view path) {
     return std::count(path.begin(), path.end(), '.') == 1;
 }
 
-bool Collections::Manager::validateGetScopeIDPath(cb::const_char_buffer path) {
+bool Collections::Manager::validateGetScopeIDPath(std::string_view path) {
     return std::count(path.begin(), path.end(), '.') <= 1;
 }
 
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
-        cb::const_char_buffer path) const {
+        std::string_view path) const {
     if (!validateGetCollectionIDPath(path)) {
         return {cb::engine_errc::invalid_arguments, 0, 0};
     }
@@ -172,11 +171,10 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
 }
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
-        cb::const_char_buffer path) const {
+        std::string_view path) const {
     if (!validateGetScopeIDPath(path)) {
         return {cb::engine_errc::invalid_arguments, 0, 0};
     }
-
     auto current = currentManifest.rlock();
     auto scope = current->getScopeID(path);
     if (!scope) {

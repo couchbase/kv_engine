@@ -85,6 +85,7 @@
 #include <vector>
 
 using cb::tracing::Code;
+using namespace std::string_view_literals;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -380,8 +381,8 @@ auto makeExitBorderGuard = [](auto&& wrapped) {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
         gsl::not_null<const void*> cookie,
-        cb::const_char_buffer key,
-        cb::const_char_buffer value,
+        std::string_view key,
+        std::string_view value,
         const AddStatFn& add_stat) {
     // The AddStatFn callback may allocate memory (temporary buffers for
     // stat data) which will be de-allocated inside the server, after the
@@ -1312,8 +1313,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
-        cb::const_char_buffer name,
-        cb::const_char_buffer value) {
+        std::string_view name,
+        std::string_view value) {
     return acquireEngine(this)->dcpOpen(
             cookie, opaque, seqno, flags, name, value);
 }
@@ -1351,7 +1352,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
         uint64_t snapEndSeqno,
         uint64_t* rollbackSeqno,
         dcp_add_failover_log callback,
-        boost::optional<cb::const_char_buffer> json) {
+        boost::optional<std::string_view> json) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1610,8 +1611,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::buffer_acknowledgement(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::control(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        cb::const_char_buffer key,
-        cb::const_char_buffer value) {
+        std::string_view key,
+        std::string_view value) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1787,7 +1788,7 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+        gsl::not_null<const void*> cookie, std::string_view json) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->setCollections(json);
 
@@ -1817,7 +1818,7 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
 
 cb::EngineErrorGetCollectionIDResult
 EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
-                                              cb::const_char_buffer path) {
+                                              std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollectionID(path);
     if (rv.result == cb::engine_errc::unknown_collection ||
@@ -1831,7 +1832,7 @@ EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
 }
 
 cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
     if (rv.result == cb::engine_errc::unknown_scope) {
@@ -1955,8 +1956,8 @@ void EventuallyPersistentEngine::decrementSessionCtr(void) {
     serverApi->cookie->decrement_session_ctr();
 }
 
-void EventuallyPersistentEngine::setErrorContext(
-        const void* cookie, cb::const_char_buffer message) {
+void EventuallyPersistentEngine::setErrorContext(const void* cookie,
+                                                 std::string_view message) {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_error_context(const_cast<void*>(cookie), message);
 }
@@ -3446,7 +3447,7 @@ private:
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
         const void* cookie,
         const AddStatFn& addStat,
-        cb::const_char_buffer keyArgs) {
+        std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
     if (result.status != ENGINE_SUCCESS) {
         return result.status;
@@ -3461,7 +3462,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
         const void* cookie,
         const AddStatFn& addStat,
-        cb::const_char_buffer keyArgs) {
+        std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
     if (result.status != ENGINE_SUCCESS) {
         return result.status;
@@ -3476,7 +3477,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorDump(
         const void* cookie,
         const AddStatFn& addStat,
-        cb::const_char_buffer keyArgs) {
+        std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
     if (result.status != ENGINE_SUCCESS) {
         return result.status;
@@ -3637,7 +3638,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorStats(
 
 class DcpStatsFilter {
 public:
-    explicit DcpStatsFilter(cb::const_char_buffer value) {
+    explicit DcpStatsFilter(std::string_view value) {
         if (!value.empty()) {
             try {
                 auto attributes = nlohmann::json::parse(value);
@@ -3844,9 +3845,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(
-        const void* cookie,
-        const AddStatFn& add_stat,
-        cb::const_char_buffer value) {
+        const void* cookie, const AddStatFn& add_stat, std::string_view value) {
     ConnCounter aggregator;
     ConnStatBuilder dcpVisitor(
             cookie, add_stat, DcpStatsFilter{value}, aggregator);
@@ -4276,8 +4275,7 @@ bool EventuallyPersistentEngine::fetchLookupResult(const void* cookie,
 }
 
 EventuallyPersistentEngine::StatusAndVBPtr
-EventuallyPersistentEngine::getValidVBucketFromString(
-        cb::const_char_buffer vbNum) {
+EventuallyPersistentEngine::getValidVBucketFromString(std::string_view vbNum) {
     if (vbNum.empty()) {
         // Must specify a vbucket.
         return {ENGINE_EINVAL, {}};
@@ -4370,7 +4368,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
         const void* cookie,
         const AddStatFn& add_stat,
-        cb::const_char_buffer statKey) {
+        std::string_view statKey) {
     std::string key;
     std::string vbid;
     std::string s_key(statKey.data() + 4, statKey.size() - 4);
@@ -4393,7 +4391,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVKeyStats(
         const void* cookie,
         const AddStatFn& add_stat,
-        cb::const_char_buffer statKey) {
+        std::string_view statKey) {
     std::string key;
     std::string vbid;
     std::string s_key(statKey.data() + 5, statKey.size() - 5);
@@ -4417,7 +4415,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVKeyStats(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpVbTakeoverStats(
         const void* cookie,
         const AddStatFn& add_stat,
-        cb::const_char_buffer statKey) {
+        std::string_view statKey) {
     std::string tStream;
     std::string vbid;
     std::string buffer(statKey.data() + 15, statKey.size() - 15);
@@ -4431,9 +4429,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpVbTakeoverStats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doFailoversStats(
-        const void* cookie,
-        const AddStatFn& add_stat,
-        cb::const_char_buffer key) {
+        const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 9) {
         return doAllFailoverLogStats(cookie, add_stat);
@@ -4456,9 +4452,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doFailoversStats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
-        const void* cookie,
-        const AddStatFn& add_stat,
-        cb::const_char_buffer key) {
+        const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 8) {
         return kvBucket->getFileStats(cookie, add_stat);
@@ -4474,9 +4468,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
-        const void* cookie,
-        const AddStatFn& add_stat,
-        cb::const_char_buffer key) {
+        const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
     switch (getServerApi()->cookie->check_privilege(
             cookie, cb::rbac::Privilege::Stats, {}, {})) {
@@ -4486,22 +4478,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
     case cb::rbac::PrivilegeAccess::Ok:
         if (cb_isPrefix(key, "_checkpoint-dump")) {
             const size_t keyLen = strlen("_checkpoint-dump");
-            cb::const_char_buffer keyArgs(key.data() + keyLen,
-                                          key.size() - keyLen);
+            std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doCheckpointDump(cookie, add_stat, keyArgs);
         }
 
         if (cb_isPrefix(key, "_hash-dump")) {
             const size_t keyLen = strlen("_hash-dump");
-            cb::const_char_buffer keyArgs(key.data() + keyLen,
-                                          key.size() - keyLen);
+            std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doHashDump(cookie, add_stat, keyArgs);
         }
 
         if (cb_isPrefix(key, "_durability-dump")) {
             const size_t keyLen = strlen("_durability-dump");
-            cb::const_char_buffer keyArgs(key.data() + keyLen,
-                                          key.size() - keyLen);
+            std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doDurabilityMonitorDump(cookie, add_stat, keyArgs);
         }
 
@@ -4514,8 +4503,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         const void* cookie,
-        cb::const_char_buffer key,
-        cb::const_char_buffer value,
+        std::string_view key,
+        std::string_view value,
         const AddStatFn& add_stat) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats.getStatsCmdHisto),
@@ -4533,23 +4522,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
         return doConnAggStats(cookie, add_stat, key.data() + 7, key.size() - 7);
     }
-    if (key == "dcp"_ccb) {
+    if (key == "dcp"sv) {
         return doDcpStats(cookie, add_stat, value);
     }
-    if (key == "eviction"_ccb) {
+    if (key == "eviction"sv) {
         return doEvictionStats(cookie, add_stat);
     }
-    if (key == "hash"_ccb) {
+    if (key == "hash"sv) {
         return doHashStats(cookie, add_stat);
     }
-    if (key == "vbucket"_ccb) {
+    if (key == "vbucket"sv) {
         return doVBucketStats(cookie,
                               add_stat,
                               key.data(),
                               key.size(),
                               VBucketStatsDetailLevel::State);
     }
-    if (key == "prev-vbucket"_ccb) {
+    if (key == "prev-vbucket"sv) {
         return doVBucketStats(cookie,
                               add_stat,
                               key.data(),
@@ -4580,25 +4569,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return doDurabilityMonitorStats(
                 cookie, add_stat, key.data(), key.size());
     }
-    if (key == "timings"_ccb) {
+    if (key == "timings"sv) {
         return doTimingStats(cookie, add_stat);
     }
-    if (key == "dispatcher"_ccb) {
+    if (key == "dispatcher"sv) {
         return doDispatcherStats(cookie, add_stat);
     }
-    if (key == "tasks"_ccb) {
+    if (key == "tasks"sv) {
         return doTasksStats(cookie, add_stat);
     }
-    if (key == "scheduler"_ccb) {
+    if (key == "scheduler"sv) {
         return doSchedulerStats(cookie, add_stat);
     }
-    if (key == "runtimes"_ccb) {
+    if (key == "runtimes"sv) {
         return doRunTimeStats(cookie, add_stat);
     }
-    if (key == "memory"_ccb) {
+    if (key == "memory"sv) {
         return doMemoryStats(cookie, add_stat);
     }
-    if (key == "uuid"_ccb) {
+    if (key == "uuid"sv) {
         add_casted_stat("uuid", configuration.getUuid(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
@@ -4608,7 +4597,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     if (key.size() > 5 && cb_isPrefix(key, "vkey ")) {
         return doVKeyStats(cookie, add_stat, key);
     }
-    if (key == "kvtimings"_ccb) {
+    if (key == "kvtimings"sv) {
         getKVBucket()->addKVStoreTimingStats(add_stat, cookie);
         return ENGINE_SUCCESS;
     }
@@ -4617,7 +4606,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         getKVBucket()->addKVStoreStats(add_stat, cookie, args);
         return ENGINE_SUCCESS;
     }
-    if (key == "warmup"_ccb) {
+    if (key == "warmup"sv) {
         const auto* warmup = getKVBucket()->getWarmup();
         if (warmup != nullptr) {
             warmup->addStats(add_stat, cookie);
@@ -4625,18 +4614,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         }
         return ENGINE_KEY_ENOENT;
     }
-    if (key == "info"_ccb) {
+    if (key == "info"sv) {
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
-    if (key == "config"_ccb) {
+    if (key == "config"sv) {
         configuration.addStats(add_stat, cookie);
         return ENGINE_SUCCESS;
     }
     if (key.size() > 15 && cb_isPrefix(key, "dcp-vbtakeover")) {
         return doDcpVbTakeoverStats(cookie, add_stat, key);
     }
-    if (key == "workload"_ccb) {
+    if (key == "workload"sv) {
         return doWorkloadStats(cookie, add_stat);
     }
     if (cb_isPrefix(key, "failovers")) {
@@ -5208,7 +5197,7 @@ void extractNmetaFromExtras(cb::const_byte_buffer& emd,
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         const void* cookie,
         protocol_binary_datatype_t datatype,
-        cb::const_char_buffer body) {
+        std::string_view body) {
     if (!isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_JSON)) {
         // JSON check the body if xattr's are enabled
         if (mcbp::datatype::is_xattr(datatype)) {
@@ -5385,8 +5374,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         return ENGINE_EINVAL;
     }
 
-    cb::const_char_buffer payload(reinterpret_cast<const char*>(value.data()),
-                                  value.size());
+    std::string_view payload(reinterpret_cast<const char*>(value.data()),
+                             value.size());
 
     cb::const_byte_buffer finalValue = value;
     protocol_binary_datatype_t finalDatatype = datatype;
@@ -5417,7 +5406,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     size_t system_xattr_size = 0;
     if (mcbp::datatype::is_xattr(datatype)) {
         // the validator ensured that the xattr was valid
-        cb::const_char_buffer xattr;
+        std::string_view xattr;
         xattr = {reinterpret_cast<const char*>(inflatedValue.data()),
                  inflatedValue.size()};
         system_xattr_size =
@@ -6161,8 +6150,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
-        cb::const_char_buffer stream_name,
-        cb::const_char_buffer value) {
+        std::string_view stream_name,
+        std::string_view value) {
     (void) opaque;
     (void) seqno;
     std::string connName{stream_name};

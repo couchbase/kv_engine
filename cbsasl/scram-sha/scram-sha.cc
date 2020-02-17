@@ -302,15 +302,14 @@ ServerBackend::ServerBackend(server::ServerContext& ctx,
     serverNonce = hex_encode_nonce(nonce);
 }
 
-std::pair<Error, const_char_buffer> ServerBackend::start(
-        cb::const_char_buffer input) {
+std::pair<Error, std::string_view> ServerBackend::start(
+        std::string_view input) {
     if (input.empty()) {
         logging::log(&context,
                      logging::Level::Error,
                      "Invalid arguments provided to "
                      "ScramShaServerBackend::start");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     // the "client-first-message" message should contain a gs2-header
@@ -325,8 +324,7 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: client should not try to ask for channel binding");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     // next up is an optional authzid which we completely ignore...
@@ -335,8 +333,7 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: Format error on client-first-message");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     client_first_message_bare = client_first_message.substr(idx + 1);
@@ -346,8 +343,7 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: Failed to decode client-first-message-bare");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     for (const auto& attribute : attributes) {
@@ -371,8 +367,8 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
             logging::log(&context,
                          logging::Level::Error,
                          "Unsupported key supplied");
-            return std::make_pair<Error, cb::const_char_buffer>(
-                    Error::BAD_PARAM, {});
+            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
+                                                           {});
         }
     }
 
@@ -380,8 +376,7 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
         // mandatory fields!!!
         logging::log(
                 &context, logging::Level::Error, "Unsupported key supplied");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     try {
@@ -390,8 +385,7 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "Invalid character in username detected");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     if (!find_user(username, user)) {
@@ -413,15 +407,13 @@ std::pair<Error, const_char_buffer> ServerBackend::start(
     addAttribute(out, 'i', passwordMeta.getIterationCount(), false);
     server_first_message = out.str();
 
-    return std::make_pair<Error, cb::const_char_buffer>(Error::CONTINUE,
-                                                        server_first_message);
+    return std::make_pair<Error, std::string_view>(Error::CONTINUE,
+                                                   server_first_message);
 }
 
-std::pair<Error, const_char_buffer> ServerBackend::step(
-        cb::const_char_buffer input) {
+std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     std::string client_final_message(input.data(), input.size());
@@ -430,8 +422,7 @@ std::pair<Error, const_char_buffer> ServerBackend::step(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: Failed to decode client_final_message");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     auto iter = attributes.find('p');
@@ -440,8 +431,7 @@ std::pair<Error, const_char_buffer> ServerBackend::step(
                 &context,
                 logging::Level::Error,
                 "SCRAM: client_final_message does not contain client proof");
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     auto idx = client_final_message.find(",p=");
@@ -469,20 +459,20 @@ std::pair<Error, const_char_buffer> ServerBackend::step(
             logging::log(&context,
                          logging::Level::Fail,
                          "No such user [" + username + "]");
-            return std::make_pair<Error, cb::const_char_buffer>(
+            return std::make_pair<Error, std::string_view>(
                     Error::NO_USER, server_final_message);
         } else {
             logging::log(&context,
                          logging::Level::Fail,
                          "Authentication fail for [" + username + "]");
-            return std::make_pair<Error, cb::const_char_buffer>(
+            return std::make_pair<Error, std::string_view>(
                     Error::PASSWORD_ERROR, server_final_message);
         }
     }
 
     logging::log(&context, logging::Level::Trace, server_final_message);
-    return std::make_pair<Error, cb::const_char_buffer>(Error::OK,
-                                                        server_final_message);
+    return std::make_pair<Error, std::string_view>(Error::OK,
+                                                   server_final_message);
 }
 
 /********************************************************************
@@ -508,7 +498,7 @@ ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
     clientNonce = hex_encode_nonce(nonce);
 }
 
-std::pair<Error, const_char_buffer> ClientBackend::start() {
+std::pair<Error, std::string_view> ClientBackend::start() {
     std::stringstream out;
     out << "n,,";
     addAttribute(out, 'n', usernameCallback(), true);
@@ -517,15 +507,13 @@ std::pair<Error, const_char_buffer> ClientBackend::start() {
     client_first_message = out.str();
     client_first_message_bare = client_first_message.substr(3); // skip n,,
 
-    return std::make_pair<Error, cb::const_char_buffer>(Error::OK,
-                                                        client_first_message);
+    return std::make_pair<Error, std::string_view>(Error::OK,
+                                                   client_first_message);
 }
 
-std::pair<Error, const_char_buffer> ClientBackend::step(
-        cb::const_char_buffer input) {
+std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
-                                                            {});
+        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
     }
 
     if (server_first_message.empty()) {
@@ -533,8 +521,8 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
 
         AttributeMap attributes;
         if (!decodeAttributeList(context, server_first_message, attributes)) {
-            return std::make_pair<Error, cb::const_char_buffer>(
-                    Error::BAD_PARAM, {});
+            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
+                                                           {});
         }
 
         for (const auto& attribute : attributes) {
@@ -549,13 +537,13 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
                 try {
                     iterationCount = (unsigned int)std::stoul(attribute.second);
                 } catch (...) {
-                    return std::make_pair<Error, cb::const_char_buffer>(
+                    return std::make_pair<Error, std::string_view>(
                             Error::BAD_PARAM, {});
                 }
                 break;
             default:
-                return std::make_pair<Error, cb::const_char_buffer>(
-                        Error::BAD_PARAM, {});
+                return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
+                                                               {});
             }
         }
 
@@ -565,8 +553,8 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
             logging::log(&context,
                          logging::Level::Error,
                          "Missing r/s/i in server message");
-            return std::make_pair<Error, cb::const_char_buffer>(
-                    Error::BAD_PARAM, {});
+            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
+                                                           {});
         }
 
         // I've got the SALT, lets generate the salted password
@@ -574,8 +562,7 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
             logging::log(&context,
                          logging::Level::Error,
                          "Failed to generate salted passwod");
-            return std::make_pair<Error, cb::const_char_buffer>(Error::FAIL,
-                                                                {});
+            return std::make_pair<Error, std::string_view>(Error::FAIL, {});
         }
 
         // Ok so we have salted hased password :D
@@ -590,8 +577,8 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
 
         client_final_message = out.str();
 
-        return std::make_pair<Error, cb::const_char_buffer>(
-                Error::CONTINUE, client_final_message);
+        return std::make_pair<Error, std::string_view>(Error::CONTINUE,
+                                                       client_final_message);
     } else {
         server_final_message.assign(input.data(), input.size());
 
@@ -600,24 +587,23 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
             logging::log(&context,
                          logging::Level::Error,
                          "SCRAM: Failed to decode server-final-message");
-            return std::make_pair<Error, cb::const_char_buffer>(
-                    Error::BAD_PARAM, {});
+            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
+                                                           {});
         }
 
         if (attributes.find('e') != attributes.end()) {
             logging::log(&context,
                          logging::Level::Fail,
                          "Failed to authenticate: " + attributes['e']);
-            return std::make_pair<Error, cb::const_char_buffer>(Error::FAIL,
-                                                                {});
+            return std::make_pair<Error, std::string_view>(Error::FAIL, {});
         }
 
         if (attributes.find('v') == attributes.end()) {
             logging::log(&context,
                          logging::Level::Trace,
                          "Syntax error server final message is missing 'v'");
-            return std::make_pair<Error, cb::const_char_buffer>(
-                    Error::BAD_PARAM, {});
+            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
+                                                           {});
         }
 
         auto encoded = Couchbase::Base64::encode(getServerSignature());
@@ -625,11 +611,10 @@ std::pair<Error, const_char_buffer> ClientBackend::step(
             logging::log(&context,
                          logging::Level::Trace,
                          "Incorrect ServerKey received");
-            return std::make_pair<Error, cb::const_char_buffer>(Error::FAIL,
-                                                                {});
+            return std::make_pair<Error, std::string_view>(Error::FAIL, {});
         }
 
-        return std::make_pair<Error, cb::const_char_buffer>(Error::OK, {});
+        return std::make_pair<Error, std::string_view>(Error::OK, {});
     }
 }
 

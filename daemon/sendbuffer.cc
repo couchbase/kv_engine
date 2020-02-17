@@ -19,7 +19,7 @@
 #include "buckets.h"
 
 ItemSendBuffer::ItemSendBuffer(cb::unique_item_ptr itm,
-                               cb::const_char_buffer view,
+                               std::string_view view,
                                Bucket& bucket)
     : SendBuffer(view), item(std::move(itm)), bucket(bucket) {
     // We need to bump a reference to the bucket, because if we try to tear
