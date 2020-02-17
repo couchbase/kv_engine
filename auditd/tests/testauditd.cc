@@ -122,14 +122,14 @@ public:
         throw std::runtime_error("Not implemented");
     }
     void set_error_context(gsl::not_null<void*> cookie,
-                           cb::const_char_buffer message) override {
+                           std::string_view message) override {
         throw std::runtime_error("Not implemented");
     }
     void set_error_json_extras(gsl::not_null<void*> cookie,
                                const nlohmann::json& json) override {
         throw std::runtime_error("set_error_json_extras not implemented");
     }
-    cb::const_char_buffer get_inflated_payload(
+    std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) override {
         throw std::runtime_error("get_inflated_payload not implemented");

@@ -193,7 +193,7 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(
         uint64_t snapEndSeqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
-        boost::optional<cb::const_char_buffer> json) {
+        boost::optional<std::string_view> json) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream request API");
@@ -217,8 +217,8 @@ ENGINE_ERROR_CODE ConnHandler::bufferAcknowledgement(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque,
-                                       cb::const_char_buffer key,
-                                       cb::const_char_buffer value) {
+                                       std::string_view key,
+                                       std::string_view value) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the control API");

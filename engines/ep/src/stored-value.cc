@@ -385,7 +385,7 @@ bool StoredValue::compressValue() {
     return true;
 }
 
-void StoredValue::storeCompressedBuffer(cb::const_char_buffer deflated) {
+void StoredValue::storeCompressedBuffer(std::string_view deflated) {
     std::unique_ptr<Blob> data(Blob::New(deflated.data(), deflated.size()));
     datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     replaceValue(std::move(data));

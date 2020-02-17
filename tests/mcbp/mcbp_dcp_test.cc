@@ -24,6 +24,8 @@
 #include <xattr/blob.h>
 #include <memory>
 
+using namespace std::string_view_literals;
+
 namespace mcbp {
 namespace test {
 
@@ -524,12 +526,12 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
     for (auto valid : datatypes) {
         header.setDatatype(Datatype(valid));
 
-        cb::const_char_buffer value = "My value"_ccb;
+        std::string_view value = "My value"sv;
         cb::xattr::Blob blob;
         cb::compression::Buffer deflated;
 
         if (mcbp::datatype::is_xattr(valid)) {
-            blob.set("_foo"_ccb, R"({"bar":5})"_ccb);
+            blob.set("_foo"sv, R"({"bar":5})"sv);
             value = blob.finalize();
         }
 
@@ -555,7 +557,7 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
     for (auto invalid : datatypes) {
         header.setDatatype(Datatype(invalid));
 
-        cb::const_char_buffer value = R"({"foo":"bar"})"_ccb;
+        std::string_view value = R"({"foo":"bar"})"sv;
         cb::compression::Buffer deflated;
 
         if (mcbp::datatype::is_snappy(invalid)) {

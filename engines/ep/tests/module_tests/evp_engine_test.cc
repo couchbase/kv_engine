@@ -318,8 +318,8 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
         EXPECT_NE(stats.end(), stats.find("vb_" + std::to_string(vb)));
     };
 
-    auto dummyAddStats = [&stats](cb::const_char_buffer key,
-                                  cb::const_char_buffer value,
+    auto dummyAddStats = [&stats](std::string_view key,
+                                  std::string_view value,
                                   gsl::not_null<const void*> cookie) {
         stats[std::string(key.data(), key.size())] =
                 std::string(value.data(), value.size());

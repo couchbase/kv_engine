@@ -306,8 +306,8 @@ ENGINE_ERROR_CODE MockEngine::unlock(gsl::not_null<const void*> cookie,
 }
 
 ENGINE_ERROR_CODE MockEngine::get_stats(gsl::not_null<const void*> cookie,
-                                        cb::const_char_buffer key,
-                                        cb::const_char_buffer value,
+                                        std::string_view key,
+                                        std::string_view value,
                                         const AddStatFn& add_stat) {
     auto engine_fn = std::bind(&EngineIface::get_stats,
                                the_engine.get(),
@@ -408,7 +408,7 @@ bool MockEngine::get_item_info(gsl::not_null<const item*> item,
 }
 
 cb::engine_errc MockEngine::set_collection_manifest(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+        gsl::not_null<const void*> cookie, std::string_view json) {
     return the_engine->set_collection_manifest(cookie, json);
 }
 cb::engine_errc MockEngine::get_collection_manifest(
@@ -417,12 +417,12 @@ cb::engine_errc MockEngine::get_collection_manifest(
 }
 
 cb::EngineErrorGetCollectionIDResult MockEngine::get_collection_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     return the_engine->get_collection_id(cookie, path);
 }
 
 cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     return the_engine->get_scope_id(cookie, path);
 }
 
@@ -441,8 +441,8 @@ ENGINE_ERROR_CODE MockEngine::open(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
                                    uint32_t seqno,
                                    uint32_t flags,
-                                   cb::const_char_buffer name,
-                                   cb::const_char_buffer value) {
+                                   std::string_view name,
+                                   std::string_view value) {
     return the_engine_dcp->open(cookie, opaque, seqno, flags, name, value);
 }
 
@@ -480,7 +480,7 @@ ENGINE_ERROR_CODE MockEngine::stream_req(
         uint64_t snap_end_seqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
-        boost::optional<cb::const_char_buffer> json) {
+        boost::optional<std::string_view> json) {
     return the_engine_dcp->stream_req(cookie,
                                       flags,
                                       opaque,
@@ -638,8 +638,8 @@ ENGINE_ERROR_CODE MockEngine::noop(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE MockEngine::control(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      cb::const_char_buffer key,
-                                      cb::const_char_buffer value) {
+                                      std::string_view key,
+                                      std::string_view value) {
     return the_engine_dcp->control(cookie, opaque, key, value);
 }
 

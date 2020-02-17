@@ -57,7 +57,7 @@ Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
 }
 
 void CollectionsDcpTest::createDcpStream(
-        boost::optional<cb::const_char_buffer> collections,
+        boost::optional<std::string_view> collections,
         Vbid id,
         cb::engine_errc expectedError) {
     uint64_t rollbackSeqno;
@@ -97,7 +97,7 @@ void CollectionsDcpTest::createDcpConsumer() {
 }
 
 void CollectionsDcpTest::createDcpObjects(
-        boost::optional<cb::const_char_buffer> collections,
+        boost::optional<std::string_view> collections,
         bool enableOutOfOrderSnapshots) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(

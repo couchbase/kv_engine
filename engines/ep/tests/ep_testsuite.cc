@@ -75,6 +75,7 @@
 #endif
 
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 // ptr_fun don't like the extern "C" thing for unlock cookie.. cast it
 // away ;)
@@ -1994,17 +1995,17 @@ static enum test_result test_stats_seqno(EngineIface* h) {
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            get_stats(h, "vbucket-seqno 2"_ccb, {}, add_stats),
+            get_stats(h, "vbucket-seqno 2"sv, {}, add_stats),
             "Expected not my vbucket");
 
     // Check bad vbucket parameter (not numeric)
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "vbucket-seqno tt2"_ccb, {}, add_stats),
+            get_stats(h, "vbucket-seqno tt2"sv, {}, add_stats),
             "Expected invalid");
 
     // Check extra spaces at the end
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "vbucket-seqno    "_ccb, {}, add_stats),
+            get_stats(h, "vbucket-seqno    "sv, {}, add_stats),
             "Expected invalid");
 
     return SUCCESS;
@@ -2040,15 +2041,15 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
           "VB 1 data size should be greater than 0");
 
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "diskinfo "_ccb, {}, add_stats),
+            get_stats(h, "diskinfo "sv, {}, add_stats),
             "Expected invalid");
 
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "diskinfo detai"_ccb, {}, add_stats),
+            get_stats(h, "diskinfo detai"sv, {}, add_stats),
             "Expected invalid");
 
     checkeq(ENGINE_EINVAL,
-            get_stats(h, "diskinfo detaillll"_ccb, {}, add_stats),
+            get_stats(h, "diskinfo detaillll"sv, {}, add_stats),
             "Expected invalid");
 
     return SUCCESS;
@@ -2057,10 +2058,11 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
 static enum test_result test_uuid_stats(EngineIface* h) {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, "uuid"_ccb, {}, add_stats),
+            get_stats(h, "uuid"sv, {}, add_stats),
             "Failed to get stats.");
-    checkeq(cb::const_char_buffer("foobar"),
-            static_cast<cb::const_char_buffer>(vals["uuid"]), "Incorrect uuid");
+    checkeq(std::string_view("foobar"),
+            static_cast<std::string_view>(vals["uuid"]),
+            "Incorrect uuid");
     return SUCCESS;
 }
 
@@ -2489,7 +2491,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
                 return cb::rbac::PrivilegeAccess::Fail;
             });
 
-    const auto ret = h->get_stats(cookie, "key k1 0"_ccb, {}, add_stats);
+    const auto ret = h->get_stats(cookie, "key k1 0"sv, {}, add_stats);
     // Reset priv check function
     mock_set_privilege_check_function({});
     checkeq(ENGINE_EACCESS, ret, "Expected stats key to return no access");
@@ -3717,7 +3719,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 static enum test_result test_workload_stats(EngineIface* h) {
     const void* cookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, "workload"_ccb, {}, add_stats),
+            h->get_stats(cookie, "workload"sv, {}, add_stats),
             "Falied to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3754,7 +3756,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 static enum test_result test_max_workload_stats(EngineIface* h) {
     const void* cookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, "workload"_ccb, {}, add_stats),
+            h->get_stats(cookie, "workload"sv, {}, add_stats),
             "Failed to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3789,7 +3791,7 @@ static enum test_result test_max_workload_stats(EngineIface* h) {
 
 static enum test_result test_worker_stats(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, "dispatcher"_ccb, {}, add_stats),
+            get_stats(h, "dispatcher"sv, {}, add_stats),
             "Failed to get worker stats");
 
     std::set<std::string> tasklist;
@@ -4765,7 +4767,8 @@ static enum test_result test_observe_single_key(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     checkeq(uint16_t{3}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key", 3), cb::const_char_buffer(key, 3),
+    checkeq(std::string_view("key", 3),
+            std::string_view(key, 3),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
     checkeq(uint8_t{OBS_STATE_NOT_PERSISTED},
@@ -4826,7 +4829,8 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
 
     checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     checkeq(uint16_t{3}, ntohs(keylen), "Wrong keylen in result");
-    checkeq(cb::const_char_buffer("key", 3), cb::const_char_buffer(key, 3),
+    checkeq(std::string_view("key", 3),
+            std::string_view(key, 3),
             "Wrong key in result");
     if (isPersistentBucket(h)) {
         checkeq(OBS_STATE_NOT_FOUND,
@@ -4915,7 +4919,8 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key1", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
@@ -4927,7 +4932,8 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key2", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
@@ -4939,7 +4945,8 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key3", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
@@ -5002,7 +5009,8 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key1", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
@@ -5021,7 +5029,8 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key2", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
@@ -5096,7 +5105,8 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key1", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
@@ -5106,7 +5116,8 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key2", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     checkeq(OBS_STATE_NOT_FOUND, int(persisted), "Expected key_not_found key status");
@@ -5116,7 +5127,8 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key3", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     checkeq(OBS_STATE_LOGICAL_DEL, int(persisted), "Expected persisted in result");
@@ -5241,7 +5253,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     // Check that an evicted key still returns valid
     evict_key(h, "key", Vbid(0), "Ejected.");
     checkeq(ENGINE_SUCCESS,
-            h->get_stats(cookie, "vkey key 0"_ccb, {}, add_stats),
+            h->get_stats(cookie, "vkey key 0"sv, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
 
@@ -5928,7 +5940,8 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key1", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(uint8_t{OBS_STATE_PERSISTED},
@@ -5942,7 +5955,8 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key2", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     checkeq(uint8_t{OBS_STATE_PERSISTED},
@@ -5956,7 +5970,8 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
     checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
+    checkeq(std::string_view("key3", 4),
+            std::string_view(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     checkeq(uint8_t{OBS_STATE_PERSISTED},

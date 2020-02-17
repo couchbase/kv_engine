@@ -280,7 +280,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         uint64_t snap_end_seqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
-        boost::optional<cb::const_char_buffer> json) {
+        boost::optional<std::string_view> json) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -878,8 +878,8 @@ ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
 }
 
 ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
-                                       cb::const_char_buffer key,
-                                       cb::const_char_buffer value) {
+                                       std::string_view key,
+                                       std::string_view value) {
     lastReceiveTime = ep_current_time();
     const char* param = key.data();
     std::string keyStr(key.data(), key.size());

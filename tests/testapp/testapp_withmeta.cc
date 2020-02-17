@@ -143,7 +143,7 @@ TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
     ASSERT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
                                          {blob.data(), blob.size()},
                                          deflated));
-    cb::const_char_buffer doc = deflated;
+    std::string_view doc = deflated;
     document.value.clear();
     std::copy(doc.begin(), doc.end(), std::back_inserter(document.value));
     document.info.datatype = cb::mcbp::Datatype::Snappy;

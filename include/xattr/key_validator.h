@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <platform/sized_buffer.h>
+#include <string_view>
 
 /**
  * Validate that a key is legal according to the XATTR spec
@@ -43,10 +43,10 @@
  * @param key_length The length of the key component (out)
  * @return true if the key part of the provided path meets the spec
  */
-bool is_valid_xattr_key(cb::const_char_buffer path, size_t& key_length);
+bool is_valid_xattr_key(std::string_view path, size_t& key_length);
 
 // Wrapper function if you couldn't care less about the key length
-inline bool is_valid_xattr_key(cb::const_char_buffer path) {
+inline bool is_valid_xattr_key(std::string_view path) {
     size_t len;
     return is_valid_xattr_key(path, len);
 }

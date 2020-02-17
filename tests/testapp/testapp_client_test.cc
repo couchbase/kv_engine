@@ -237,7 +237,7 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedRawSnappyDatatype() const {
 ::testing::AssertionResult TestappXattrClientTest::hasCorrectDatatype(
         cb::mcbp::Datatype expectedType,
         cb::mcbp::Datatype actualDatatype,
-        cb::const_char_buffer value) {
+        std::string_view value) {
     using namespace mcbp::datatype;
     if (actualDatatype != expectedType) {
         return ::testing::AssertionFailure()

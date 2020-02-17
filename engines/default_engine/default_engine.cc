@@ -1,12 +1,13 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
 #include <ctype.h>
-#include <unistd.h>
-#include <stddef.h>
+#include <errno.h>
 #include <inttypes.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <string_view>
 
 #include "default_engine_internal.h"
 #include "default_engine_public.h"
@@ -27,6 +28,8 @@
 // vbucket uuid to network byte order it is nice to have a value
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
+
+using namespace std::string_view_literals;
 
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
@@ -481,52 +484,47 @@ ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
 }
 
 ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
-                                            cb::const_char_buffer key,
-                                            cb::const_char_buffer value,
+                                            std::string_view key,
+                                            std::string_view value,
                                             const AddStatFn& add_stat) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {
-        add_stat("evictions"_ccb,
-                 std::to_string(stats.evictions.load()),
-                 cookie);
-        add_stat("curr_items"_ccb,
+        add_stat("evictions"sv, std::to_string(stats.evictions.load()), cookie);
+        add_stat("curr_items"sv,
                  std::to_string(stats.curr_items.load()),
                  cookie);
-        add_stat("total_items"_ccb,
+        add_stat("total_items"sv,
                  std::to_string(stats.total_items.load()),
                  cookie);
-        add_stat("bytes"_ccb, std::to_string(stats.curr_bytes.load()), cookie);
-        add_stat("reclaimed"_ccb,
-                 std::to_string(stats.reclaimed.load()),
-                 cookie);
-        add_stat(
-                "engine_maxbytes"_ccb, std::to_string(config.maxbytes), cookie);
-    } else if (key == "slabs"_ccb) {
+        add_stat("bytes"sv, std::to_string(stats.curr_bytes.load()), cookie);
+        add_stat("reclaimed"sv, std::to_string(stats.reclaimed.load()), cookie);
+        add_stat("engine_maxbytes"sv, std::to_string(config.maxbytes), cookie);
+    } else if (key == "slabs"sv) {
         slabs_stats(this, add_stat, cookie);
-    } else if (key == "items"_ccb) {
+    } else if (key == "items"sv) {
         item_stats(this, add_stat, cookie);
-    } else if (key == "sizes"_ccb) {
+    } else if (key == "sizes"sv) {
         item_stats_sizes(this, add_stat, cookie);
-    } else if (key == "uuid"_ccb) {
-        add_stat("uuid"_ccb, config.uuid, cookie);
-    } else if (key == "scrub"_ccb) {
+    } else if (key == "uuid"sv) {
+        add_stat("uuid"sv, config.uuid, cookie);
+    } else if (key == "scrub"sv) {
         std::lock_guard<std::mutex> guard(scrubber.lock);
         if (scrubber.running) {
-            add_stat("scrubber:status"_ccb, "running"_ccb, cookie);
+            add_stat("scrubber:status"sv, "running"sv, cookie);
         } else {
-            add_stat("scrubber:status"_ccb, "stopped"_ccb, cookie);
+            add_stat("scrubber:status"sv, "stopped"sv, cookie);
         }
 
         if (scrubber.started != 0) {
             if (scrubber.stopped != 0) {
                 time_t diff = scrubber.started - scrubber.stopped;
-                add_stat("scrubber:last_run"_ccb, std::to_string(diff), cookie);
+                add_stat("scrubber:last_run"sv, std::to_string(diff), cookie);
             }
-            add_stat("scrubber:visited"_ccb,
+            add_stat("scrubber:visited"sv,
                      std::to_string(scrubber.visited),
                      cookie);
-            add_stat("scrubber:cleaned"_ccb,
+            add_stat("scrubber:cleaned"sv,
                      std::to_string(scrubber.cleaned),
                      cookie);
         }
@@ -791,10 +789,9 @@ static bool set_param(struct default_engine* e,
         auto k = request.getKey();
         auto v = request.getValue();
 
-        cb::const_char_buffer key{reinterpret_cast<const char*>(k.data()),
-                                  k.size()};
-        cb::const_char_buffer value{reinterpret_cast<const char*>(v.data()),
-                                    v.size()};
+        std::string_view key{reinterpret_cast<const char*>(k.data()), k.size()};
+        std::string_view value{reinterpret_cast<const char*>(v.data()),
+                               v.size()};
 
         if (key == "xattr_enabled") {
             if (value == "true") {
@@ -975,7 +972,7 @@ size_t default_engine::getMaxItemSize() {
 
 // Cannot set the manifest on the default engine
 cb::engine_errc default_engine::set_collection_manifest(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+        gsl::not_null<const void*> cookie, std::string_view json) {
     return cb::engine_errc::not_supported;
 }
 
@@ -996,11 +993,11 @@ cb::engine_errc default_engine::get_collection_manifest(
     return ok ? cb::engine_errc::success : cb::engine_errc::failed;
 }
 
-static cb::const_char_buffer default_scope_path{"_default."};
+static std::string_view default_scope_path{"_default."};
 
 // permit lookup of the default collection only
 cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     if (std::count(path.begin(), path.end(), '.') == 1) {
         cb::engine_errc error = cb::engine_errc::unknown_scope;
         if (path == "_default._default" || path == "._default" || path == "." ||
@@ -1018,11 +1015,11 @@ cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
 
 // permit lookup of the default scope only
 cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     auto dotCount = std::count(path.begin(), path.end(), '.');
     if (dotCount <= 1) {
         // only care about everything before .
-        static cb::const_char_buffer dot{"."};
+        static std::string_view dot{"."};
         auto scope = dotCount ? path.substr(0, path.find(dot)) : path;
 
         if (scope.empty() || path == "_default") {

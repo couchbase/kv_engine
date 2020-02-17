@@ -20,8 +20,6 @@
 #include <locale>
 
 #include "daemon/subdocument_validators.h"
-#include <platform/sized_buffer.h>
-
 /**
  * Ensure that we don't accept empty keys
  */

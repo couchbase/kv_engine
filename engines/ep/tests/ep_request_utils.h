@@ -30,8 +30,8 @@ using unique_request_ptr = std::unique_ptr<cb::mcbp::Request, RequestDeleter>;
 unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
                                 Vbid vbid = Vbid(0),
                                 uint64_t cas = 0,
-                                cb::const_char_buffer ext = {},
-                                cb::const_char_buffer key = {},
-                                cb::const_char_buffer val = {},
+                                std::string_view ext = {},
+                                std::string_view key = {},
+                                std::string_view val = {},
                                 uint8_t datatype = 0x00,
-                                cb::const_char_buffer meta = {});
+                                std::string_view meta = {});

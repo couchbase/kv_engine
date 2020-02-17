@@ -98,7 +98,7 @@ public:
     /*
      * Cancel all tasks with a matching name
      */
-    void cancelByName(cb::const_char_buffer name) {
+    void cancelByName(std::string_view name) {
         LockHolder lh(tMutex);
         for (auto& it : taskLocator) {
             if (name == it.second.first->getDescription().c_str()) {
@@ -112,11 +112,11 @@ public:
     /*
      * Check if task with given name exists
      */
-    bool isTaskScheduled(task_type_t queueType, cb::const_char_buffer name) {
+    bool isTaskScheduled(task_type_t queueType, std::string_view name) {
         LockHolder lh(tMutex);
         for (auto& it : taskLocator) {
             auto description = it.second.first->getDescription();
-            if (name != cb::const_char_buffer(description.c_str())) {
+            if (name != std::string_view(description.c_str())) {
                 continue;
             }
             if (it.second.second->getQueueType() != queueType) {
@@ -190,7 +190,7 @@ public:
         }
     }
 
-    void runCurrentTask(cb::const_char_buffer expectedTask) {
+    void runCurrentTask(std::string_view expectedTask) {
         EXPECT_EQ(expectedTask, getTaskName());
         run();
     }

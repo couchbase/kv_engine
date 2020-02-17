@@ -31,7 +31,7 @@ protected:
 TEST_F(DocKeyTest, invalid) {
     std::array<uint8_t, 4> data1 = {{0, 'k', 'e', 'y'}};
     std::array<char, 4> data2 = {{0, 'k', 'e', 'y'}};
-    cb::const_char_buffer buf{data2.data(), 0};
+    std::string_view buf{data2.data(), 0};
 
     std::unique_ptr<DocKey> ptr;
     EXPECT_THROW(ptr = std::make_unique<DocKey>(

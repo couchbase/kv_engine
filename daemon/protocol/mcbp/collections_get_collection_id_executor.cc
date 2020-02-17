@@ -24,8 +24,8 @@ void collections_get_collection_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& req = cookie.getRequest();
     auto key = req.getKey();
-    cb::const_char_buffer path{reinterpret_cast<const char*>(key.data()),
-                               key.size()};
+    std::string_view path{reinterpret_cast<const char*>(key.data()),
+                          key.size()};
     auto rv = connection.getBucketEngine().get_collection_id(&cookie, path);
 
     auto remapErr = connection.remapErrorCode(rv.result);

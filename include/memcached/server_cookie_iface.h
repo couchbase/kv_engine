@@ -248,7 +248,7 @@ struct ServerCookieIface {
      * @param message the message string to be set as the error context
      */
     virtual void set_error_context(gsl::not_null<void*> cookie,
-                                   cb::const_char_buffer message) = 0;
+                                   std::string_view message) = 0;
 
     /**
      * Set a JSON object to be included in an error response (along side
@@ -276,7 +276,7 @@ struct ServerCookieIface {
      *               to inflate on the fly)
      * @return the inflated payload
      */
-    virtual cb::const_char_buffer get_inflated_payload(
+    virtual std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) = 0;
 };

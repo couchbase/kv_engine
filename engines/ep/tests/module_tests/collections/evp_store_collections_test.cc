@@ -1375,9 +1375,9 @@ TEST_P(CollectionsParameterizedTest,
 // will track any allocations against "non-bucket"
 TEST_P(CollectionsParameterizedTest,
        GetCollectionManifestResponseCBAllocsUnderNonBucket) {
-    auto addResponseFn = [](cb::const_char_buffer key,
-                            cb::const_char_buffer extras,
-                            cb::const_char_buffer body,
+    auto addResponseFn = [](std::string_view key,
+                            std::string_view extras,
+                            std::string_view body,
                             uint8_t datatype,
                             cb::mcbp::Status status,
                             uint64_t cas,
@@ -1617,8 +1617,8 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
             makeStatPair(ScopeEntry::shop2, CollectionEntry::fruit)};
 
     std::map<std::string, std::string> actual;
-    const auto addStat = [&actual](cb::const_char_buffer key,
-                                   cb::const_char_buffer value,
+    const auto addStat = [&actual](std::string_view key,
+                                   std::string_view value,
                                    gsl::not_null<const void*> cookie) {
         actual[std::string(key)] = value;
     };

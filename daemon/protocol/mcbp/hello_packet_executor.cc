@@ -154,8 +154,8 @@ void process_hello_packet_executor(Cookie& cookie) {
     log_buffer.append("HELO ");
 
     auto keybuf = req.getKey();
-    const cb::const_char_buffer key{
-            reinterpret_cast<const char*>(keybuf.data()), keybuf.size()};
+    std::string_view key{reinterpret_cast<const char*>(keybuf.data()),
+                         keybuf.size()};
     auto valuebuf = req.getValue();
     const cb::sized_buffer<const uint16_t> input{
             reinterpret_cast<const uint16_t*>(valuebuf.data()),

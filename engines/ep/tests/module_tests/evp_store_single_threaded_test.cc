@@ -1752,8 +1752,8 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
 
     // [[3]] Ok, let's see if we can get DCP takeover stats.
     // Dummy callback to pass into the stats function below.
-    auto dummy_cb = [](cb::const_char_buffer key,
-                       cb::const_char_buffer value,
+    auto dummy_cb = [](std::string_view key,
+                       std::string_view value,
                        gsl::not_null<const void*> cookie) {};
     std::string key{"MB19815_doDCPVbTakeoverStats"};
 

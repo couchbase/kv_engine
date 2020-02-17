@@ -68,14 +68,14 @@ public:
      * @param maxNumberOfCollections an upper limit on the number of collections
      *        allowed, defaults to 1000.
      */
-    Manifest(cb::const_char_buffer json,
+    Manifest(std::string_view json,
              size_t maxNumberOfScopes = 100,
              size_t maxNumberOfCollections = 1000);
 
     Manifest(const std::string& json,
              size_t maxNumberOfScopes = 100,
              size_t maxNumberOfCollections = 1000)
-        : Manifest(cb::const_char_buffer{json},
+        : Manifest(std::string_view{json},
                    maxNumberOfScopes,
                    maxNumberOfCollections) {
     }
@@ -145,7 +145,7 @@ public:
      */
     collectionContainer::const_iterator findCollection(
             const std::string& collectionName,
-            cb::const_char_buffer scopeName = DefaultScopeIdentifier) const {
+            std::string_view scopeName = DefaultScopeIdentifier) const {
         for (auto& scope : scopes) {
             if (scope.second.name == scopeName) {
                 for (auto& scopeCollection : scope.second.collections) {
@@ -189,8 +189,8 @@ public:
      * @return optional CollectionID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
-    boost::optional<CollectionID> getCollectionID(
-            ScopeID scope, cb::const_char_buffer path) const;
+    boost::optional<CollectionID> getCollectionID(ScopeID scope,
+                                                  std::string_view path) const;
 
     /**
      * Attempt to lookup the scope-id of the "path", note that this method
@@ -206,7 +206,7 @@ public:
      * @return optional ScopeID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
-    boost::optional<ScopeID> getScopeID(cb::const_char_buffer path) const;
+    boost::optional<ScopeID> getScopeID(std::string_view path) const;
 
     /**
      * Attempt to lookup the scope-id of the "key" (using the collection-ID)
@@ -249,7 +249,7 @@ private:
      *
      * @param name a collection or scope name.
      */
-    static bool validName(cb::const_char_buffer name);
+    static bool validName(std::string_view name);
 
     /**
      * Check if the CollectionID is invalid for a Manifest

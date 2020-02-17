@@ -203,7 +203,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
         mutation_descr.vbucket_uuid = htonll(mutation_descr.vbucket_uuid);
         mutation_descr.seqno = htonll(mutation_descr.seqno);
 
-        cb::const_char_buffer extras = {
+        std::string_view extras = {
                 reinterpret_cast<const char*>(&mutation_descr),
                 sizeof(mutation_descr_t)};
 

@@ -39,8 +39,8 @@ struct HeapAllocDeleter {
 
 using uniqueHeapPtr = std::unique_ptr<BYTE, HeapAllocDeleter>;
 
-static inline std::string hash(cb::const_char_buffer key,
-                               cb::const_char_buffer data,
+static inline std::string hash(std::string_view key,
+                               std::string_view data,
                                LPCWSTR algorithm,
                                int flags) {
     BCRYPT_ALG_HANDLE hAlg;
@@ -134,30 +134,26 @@ static inline std::string hash(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_MD5(cb::const_char_buffer key,
-                            cb::const_char_buffer data) {
+static std::string HMAC_MD5(std::string_view key, std::string_view data) {
     return hash(key, data, BCRYPT_MD5_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static std::string HMAC_SHA1(cb::const_char_buffer key,
-                             cb::const_char_buffer data) {
+static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
     return hash(key, data, BCRYPT_SHA1_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static std::string HMAC_SHA256(cb::const_char_buffer key,
-                               cb::const_char_buffer data) {
+static std::string HMAC_SHA256(std::string_view key, std::string_view data) {
     return hash(
             key, data, BCRYPT_SHA256_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
-static std::string HMAC_SHA512(cb::const_char_buffer key,
-                               cb::const_char_buffer data) {
+static std::string HMAC_SHA512(std::string_view key, std::string_view data) {
     return hash(
             key, data, BCRYPT_SHA512_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
 }
 
 static inline std::string PBKDF2(const std::string& pass,
-                                 cb::const_char_buffer salt,
+                                 std::string_view salt,
                                  unsigned int iterationCount,
                                  LPCWSTR algorithm) {
     // open an algorithm handle
@@ -214,43 +210,43 @@ static inline std::string PBKDF2(const std::string& pass,
 }
 
 static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
-                                    cb::const_char_buffer salt,
+                                    std::string_view salt,
                                     unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA1_ALGORITHM);
 }
 
 static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
-                                      cb::const_char_buffer salt,
+                                      std::string_view salt,
                                       unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA256_ALGORITHM);
 }
 
 static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
-                                      cb::const_char_buffer salt,
+                                      std::string_view salt,
                                       unsigned int iterationCount) {
     return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA512_ALGORITHM);
 }
 
-static std::string digest_md5(cb::const_char_buffer data) {
+static std::string digest_md5(std::string_view data) {
     return hash({}, data, BCRYPT_MD5_ALGORITHM, 0);
 }
 
-static std::string digest_sha1(cb::const_char_buffer data) {
+static std::string digest_sha1(std::string_view data) {
     return hash({}, data, BCRYPT_SHA1_ALGORITHM, 0);
 }
 
-static std::string digest_sha256(cb::const_char_buffer data) {
+static std::string digest_sha256(std::string_view data) {
     return hash({}, data, BCRYPT_SHA256_ALGORITHM, 0);
 }
 
-static std::string digest_sha512(cb::const_char_buffer data) {
+static std::string digest_sha512(std::string_view data) {
     return hash({}, data, BCRYPT_SHA512_ALGORITHM, 0);
 }
 
 std::string AES_256_cbc(bool encrypt,
-                        cb::const_char_buffer key,
-                        cb::const_char_buffer iv,
-                        cb::const_char_buffer data) {
+                        std::string_view key,
+                        std::string_view iv,
+                        std::string_view data) {
     BCRYPT_ALG_HANDLE hAlg;
     NTSTATUS status = BCryptOpenAlgorithmProvider(
             &hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0);
@@ -359,16 +355,16 @@ std::string AES_256_cbc(bool encrypt,
 }
 
 std::string encrypt(const cb::crypto::Cipher cipher,
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer iv,
-                    cb::const_char_buffer data) {
+                    std::string_view key,
+                    std::string_view iv,
+                    std::string_view data) {
     return AES_256_cbc(true, key, iv, data);
 }
 
 std::string decrypt(const cb::crypto::Cipher cipher,
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer iv,
-                    cb::const_char_buffer data) {
+                    std::string_view key,
+                    std::string_view iv,
+                    std::string_view data) {
     return AES_256_cbc(false, key, iv, data);
 }
 
@@ -379,8 +375,7 @@ std::string decrypt(const cb::crypto::Cipher cipher,
 #include <CommonCrypto/CommonHMAC.h>
 #include <CommonCrypto/CommonKeyDerivation.h>
 
-static std::string HMAC_MD5(cb::const_char_buffer key,
-                            cb::const_char_buffer data) {
+static std::string HMAC_MD5(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::MD5_DIGEST_SIZE);
     CCHmac(kCCHmacAlgMD5,
@@ -392,8 +387,7 @@ static std::string HMAC_MD5(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_SHA1(cb::const_char_buffer key,
-                             cb::const_char_buffer data) {
+static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
     CCHmac(kCCHmacAlgSHA1,
@@ -405,8 +399,7 @@ static std::string HMAC_SHA1(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_SHA256(cb::const_char_buffer key,
-                               cb::const_char_buffer data) {
+static std::string HMAC_SHA256(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
     CCHmac(kCCHmacAlgSHA256,
@@ -418,8 +411,7 @@ static std::string HMAC_SHA256(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_SHA512(cb::const_char_buffer key,
-                               cb::const_char_buffer data) {
+static std::string HMAC_SHA512(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
     CCHmac(kCCHmacAlgSHA512,
@@ -432,7 +424,7 @@ static std::string HMAC_SHA512(cb::const_char_buffer key,
 }
 
 static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
-                                    cb::const_char_buffer salt,
+                                    std::string_view salt,
                                     unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
@@ -456,7 +448,7 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
 }
 
 static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
-                                      cb::const_char_buffer salt,
+                                      std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
@@ -480,7 +472,7 @@ static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
 }
 
 static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
-                                      cb::const_char_buffer salt,
+                                      std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
@@ -503,7 +495,7 @@ static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
     return ret;
 }
 
-static std::string digest_md5(cb::const_char_buffer data) {
+static std::string digest_md5(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::MD5_DIGEST_SIZE);
     CC_MD5(data.data(),
@@ -512,7 +504,7 @@ static std::string digest_md5(cb::const_char_buffer data) {
     return ret;
 }
 
-static std::string digest_sha1(cb::const_char_buffer data) {
+static std::string digest_sha1(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
     CC_SHA1(data.data(),
@@ -521,7 +513,7 @@ static std::string digest_sha1(cb::const_char_buffer data) {
     return ret;
 }
 
-static std::string digest_sha256(cb::const_char_buffer data) {
+static std::string digest_sha256(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
     CC_SHA256(data.data(),
@@ -530,7 +522,7 @@ static std::string digest_sha256(cb::const_char_buffer data) {
     return ret;
 }
 
-static std::string digest_sha512(cb::const_char_buffer data) {
+static std::string digest_sha512(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
     CC_SHA512(data.data(),
@@ -546,8 +538,8 @@ static std::string digest_sha512(cb::const_char_buffer data) {
  * Currently only AES_256_cbc is supported
  */
 static void validateEncryptionCipher(const cb::crypto::Cipher cipher,
-                                     cb::const_char_buffer key,
-                                     cb::const_char_buffer iv) {
+                                     std::string_view key,
+                                     std::string_view iv) {
     switch (cipher) {
     case cb::crypto::Cipher::AES_256_cbc:
         if (key.size() != kCCKeySizeAES256) {
@@ -575,9 +567,9 @@ static void validateEncryptionCipher(const cb::crypto::Cipher cipher,
 }
 
 std::string encrypt(const cb::crypto::Cipher cipher,
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer iv,
-                    cb::const_char_buffer data) {
+                    std::string_view key,
+                    std::string_view iv,
+                    std::string_view data) {
     TRACE_EVENT2(
             "cbcrypto", "encrypt", "cipher", int(cipher), "size", data.size());
     size_t outputsize = 0;
@@ -609,9 +601,9 @@ std::string encrypt(const cb::crypto::Cipher cipher,
 }
 
 std::string decrypt(const cb::crypto::Cipher cipher,
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer iv,
-                    cb::const_char_buffer data) {
+                    std::string_view key,
+                    std::string_view iv,
+                    std::string_view data) {
     TRACE_EVENT2(
             "cbcrypto", "decrypt", "cipher", int(cipher), "size", data.size());
     size_t outputsize = 0;
@@ -651,8 +643,7 @@ std::string decrypt(const cb::crypto::Cipher cipher,
 
 // OpenSSL
 
-static std::string HMAC_MD5(cb::const_char_buffer key,
-                            cb::const_char_buffer data) {
+static std::string HMAC_MD5(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::MD5_DIGEST_SIZE);
     if (HMAC(EVP_md5(),
@@ -667,8 +658,7 @@ static std::string HMAC_MD5(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_SHA1(cb::const_char_buffer key,
-                             cb::const_char_buffer data) {
+static std::string HMAC_SHA1(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
     if (HMAC(EVP_sha1(),
@@ -683,8 +673,7 @@ static std::string HMAC_SHA1(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_SHA256(cb::const_char_buffer key,
-                               cb::const_char_buffer data) {
+static std::string HMAC_SHA256(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
     if (HMAC(EVP_sha256(),
@@ -699,8 +688,7 @@ static std::string HMAC_SHA256(cb::const_char_buffer key,
     return ret;
 }
 
-static std::string HMAC_SHA512(cb::const_char_buffer key,
-                               cb::const_char_buffer data) {
+static std::string HMAC_SHA512(std::string_view key, std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
     if (HMAC(EVP_sha512(),
@@ -716,7 +704,7 @@ static std::string HMAC_SHA512(cb::const_char_buffer key,
 }
 
 static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
-                                    cb::const_char_buffer salt,
+                                    std::string_view salt,
                                     unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
@@ -741,7 +729,7 @@ static std::string PBKDF2_HMAC_SHA1(const std::string& pass,
 }
 
 static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
-                                      cb::const_char_buffer salt,
+                                      std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
@@ -764,7 +752,7 @@ static std::string PBKDF2_HMAC_SHA256(const std::string& pass,
 }
 
 static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
-                                      cb::const_char_buffer salt,
+                                      std::string_view salt,
                                       unsigned int iterationCount) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
@@ -786,7 +774,7 @@ static std::string PBKDF2_HMAC_SHA512(const std::string& pass,
     return ret;
 }
 
-static std::string digest_md5(cb::const_char_buffer data) {
+static std::string digest_md5(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::MD5_DIGEST_SIZE);
     MD5(reinterpret_cast<const uint8_t*>(data.data()),
@@ -795,7 +783,7 @@ static std::string digest_md5(cb::const_char_buffer data) {
     return ret;
 }
 
-static std::string digest_sha1(cb::const_char_buffer data) {
+static std::string digest_sha1(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA1_DIGEST_SIZE);
     SHA1(reinterpret_cast<const uint8_t*>(data.data()),
@@ -804,7 +792,7 @@ static std::string digest_sha1(cb::const_char_buffer data) {
     return ret;
 }
 
-static std::string digest_sha256(cb::const_char_buffer data) {
+static std::string digest_sha256(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA256_DIGEST_SIZE);
     SHA256(reinterpret_cast<const uint8_t*>(data.data()),
@@ -813,7 +801,7 @@ static std::string digest_sha256(cb::const_char_buffer data) {
     return ret;
 }
 
-static std::string digest_sha512(cb::const_char_buffer data) {
+static std::string digest_sha512(std::string_view data) {
     std::string ret;
     ret.resize(cb::crypto::SHA512_DIGEST_SIZE);
     SHA512(reinterpret_cast<const uint8_t*>(data.data()),
@@ -838,8 +826,8 @@ using unique_EVP_CIPHER_CTX_ptr =
  * the input key and iv sizes
  */
 static const EVP_CIPHER* getCipher(const cb::crypto::Cipher cipher,
-                                   cb::const_char_buffer key,
-                                   cb::const_char_buffer iv) {
+                                   std::string_view key,
+                                   std::string_view iv) {
     const EVP_CIPHER* cip = nullptr;
 
     switch (cipher) {
@@ -873,9 +861,9 @@ static const EVP_CIPHER* getCipher(const cb::crypto::Cipher cipher,
 }
 
 std::string encrypt(const cb::crypto::Cipher cipher,
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer iv,
-                    cb::const_char_buffer data) {
+                    std::string_view key,
+                    std::string_view iv,
+                    std::string_view data) {
     TRACE_EVENT2(
             "cbcrypto", "encrypt", "cipher", int(cipher), "size", data.size());
     unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
@@ -920,9 +908,9 @@ std::string encrypt(const cb::crypto::Cipher cipher,
 }
 
 std::string decrypt(const cb::crypto::Cipher cipher,
-                    cb::const_char_buffer key,
-                    cb::const_char_buffer iv,
-                    cb::const_char_buffer data) {
+                    std::string_view key,
+                    std::string_view iv,
+                    std::string_view data) {
     TRACE_EVENT2(
             "cbcrypto", "decrypt", "cipher", int(cipher), "size", data.size());
     unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
@@ -971,8 +959,8 @@ std::string decrypt(const cb::crypto::Cipher cipher,
 } // namespace internal
 
 std::string cb::crypto::HMAC(const Algorithm algorithm,
-                             cb::const_char_buffer key,
-                             cb::const_char_buffer data) {
+                             std::string_view key,
+                             std::string_view data) {
     TRACE_EVENT1("cbcrypto", "HMAC", "algorithm", int(algorithm));
     switch (algorithm) {
     case Algorithm::MD5:
@@ -991,7 +979,7 @@ std::string cb::crypto::HMAC(const Algorithm algorithm,
 
 std::string cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
                                     const std::string& pass,
-                                    cb::const_char_buffer salt,
+                                    std::string_view salt,
                                     unsigned int iterationCount) {
     TRACE_EVENT2("cbcrypto",
                  "PBKDF2_HMAC",
@@ -1033,7 +1021,7 @@ bool cb::crypto::isSupported(const Algorithm algorithm) {
 }
 
 std::string cb::crypto::digest(const Algorithm algorithm,
-                               cb::const_char_buffer data) {
+                               std::string_view data) {
     TRACE_EVENT1("cbcrypto", "digest", "algorithm", int(algorithm));
     switch (algorithm) {
     case Algorithm::MD5:
@@ -1085,9 +1073,9 @@ static void decodeJsonMeta(const nlohmann::json& json,
 }
 
 std::string cb::crypto::encrypt(const Cipher cipher,
-                                cb::const_char_buffer key,
-                                cb::const_char_buffer iv,
-                                cb::const_char_buffer data) {
+                                std::string_view key,
+                                std::string_view iv,
+                                std::string_view data) {
     // We only support a single encryption scheme right now.
     // Verify the input parameters (no need of calling the internal library
     // functions in order to fetch these details)
@@ -1112,7 +1100,7 @@ std::string cb::crypto::encrypt(const Cipher cipher,
 }
 
 std::string cb::crypto::encrypt(const nlohmann::json& json,
-                                cb::const_char_buffer data) {
+                                std::string_view data) {
     Cipher cipher;
     std::string key;
     std::string iv;
@@ -1123,9 +1111,9 @@ std::string cb::crypto::encrypt(const nlohmann::json& json,
 }
 
 std::string cb::crypto::decrypt(const Cipher cipher,
-                                cb::const_char_buffer key,
-                                cb::const_char_buffer iv,
-                                cb::const_char_buffer data) {
+                                std::string_view key,
+                                std::string_view iv,
+                                std::string_view data) {
     // We only support a single decryption scheme right now.
     // Verify the input parameters (no need of calling the internal library
     // functions in order to fetch these details)
@@ -1150,7 +1138,7 @@ std::string cb::crypto::decrypt(const Cipher cipher,
 }
 
 std::string cb::crypto::decrypt(const nlohmann::json& json,
-                                cb::const_char_buffer data) {
+                                std::string_view data) {
     Cipher cipher;
     std::string key;
     std::string iv;

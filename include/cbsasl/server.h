@@ -21,7 +21,6 @@
 #include <cbsasl/domain.h>
 #include <cbsasl/error.h>
 
-#include <platform/sized_buffer.h>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -75,10 +74,10 @@ public:
         : context(ctx), domain(Domain::Local) {
     }
     virtual ~MechanismBackend() = default;
-    virtual std::pair<cb::sasl::Error, cb::const_char_buffer> start(
-            cb::const_char_buffer input) = 0;
-    virtual std::pair<cb::sasl::Error, cb::const_char_buffer> step(
-            cb::const_char_buffer input) = 0;
+    virtual std::pair<cb::sasl::Error, std::string_view> start(
+            std::string_view input) = 0;
+    virtual std::pair<cb::sasl::Error, std::string_view> step(
+            std::string_view input) = 0;
     virtual std::string getName() const = 0;
 
     void setUsername(std::string username) {
@@ -125,13 +124,12 @@ public:
         return backend.get() != nullptr;
     }
 
-    std::pair<cb::sasl::Error, cb::const_char_buffer> start(
+    std::pair<cb::sasl::Error, std::string_view> start(
             const std::string& mech,
             const std::string& available,
-            cb::const_char_buffer input);
+            std::string_view input);
 
-    std::pair<cb::sasl::Error, cb::const_char_buffer> step(
-            cb::const_char_buffer input) {
+    std::pair<cb::sasl::Error, std::string_view> step(std::string_view input) {
         return backend->step(input);
     }
 

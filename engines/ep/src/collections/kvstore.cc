@@ -126,7 +126,7 @@ flatbuffers::DetachedBuffer encodeManifestUid(
     auto toWrite = Collections::KVStore::CreateCommittedManifest(
             builder, meta.manifestUid);
     builder.Finish(toWrite);
-    cb::const_char_buffer buffer{
+    std::string_view buffer{
             reinterpret_cast<const char*>(builder.GetBufferPointer()),
             builder.GetSize()};
     return builder.Release();

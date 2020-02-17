@@ -474,8 +474,8 @@ public:
     }
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                cb::const_char_buffer key,
-                                cb::const_char_buffer value,
+                                std::string_view key,
+                                std::string_view value,
                                 const AddStatFn& add_stat) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::GET_STATS, cookie, err)) {
@@ -665,18 +665,15 @@ public:
         }
     }
 
-    cb::engine_errc set_collection_manifest(
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer json) override;
+    cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
+                                            std::string_view json) override;
     cb::engine_errc get_collection_manifest(
             gsl::not_null<const void*> cookie,
             const AddResponseFn& response) override;
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path) override;
+            gsl::not_null<const void*> cookie, std::string_view path) override;
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie,
-            cb::const_char_buffer path) override;
+            gsl::not_null<const void*> cookie, std::string_view path) override;
     std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
             const DocKey& key) const override;
@@ -719,8 +716,8 @@ public:
                            uint32_t opaque,
                            uint32_t seqno,
                            uint32_t flags,
-                           cb::const_char_buffer name,
-                           cb::const_char_buffer value) override;
+                           std::string_view name,
+                           std::string_view value) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -744,7 +741,7 @@ public:
             uint64_t snap_end_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<cb::const_char_buffer> json) override;
+            boost::optional<std::string_view> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -833,8 +830,8 @@ public:
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                               uint32_t opaque,
-                              cb::const_char_buffer key,
-                              cb::const_char_buffer value) override;
+                              std::string_view key,
+                              std::string_view value) override;
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
@@ -1374,8 +1371,8 @@ ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
                                    uint32_t seqno,
                                    uint32_t flags,
-                                   cb::const_char_buffer name,
-                                   cb::const_char_buffer value) {
+                                   std::string_view name,
+                                   std::string_view value) {
     std::string nm{name};
     if (nm.find("ewb_internal") == 0) {
         // Yeah, this is a request for the internal "magic" DCP stream
@@ -1412,7 +1409,7 @@ ENGINE_ERROR_CODE EWB_Engine::stream_req(
         uint64_t snap_end_seqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
-        boost::optional<cb::const_char_buffer> json) {
+        boost::optional<std::string_view> json) {
     auto stream = dcp_stream.find(cookie.get());
     if (stream != dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
@@ -1669,8 +1666,8 @@ ENGINE_ERROR_CODE EWB_Engine::buffer_acknowledgement(
 
 ENGINE_ERROR_CODE EWB_Engine::control(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      cb::const_char_buffer key,
-                                      cb::const_char_buffer value) {
+                                      std::string_view key,
+                                      std::string_view value) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
@@ -1994,7 +1991,7 @@ ENGINE_ERROR_CODE EWB_Engine::checkLogLevels(const void* cookie,
 }
 
 cb::engine_errc EWB_Engine::set_collection_manifest(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+        gsl::not_null<const void*> cookie, std::string_view json) {
     return real_engine->set_collection_manifest(cookie, json);
 }
 
@@ -2004,12 +2001,12 @@ cb::engine_errc EWB_Engine::get_collection_manifest(
 }
 
 cb::EngineErrorGetCollectionIDResult EWB_Engine::get_collection_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     return real_engine->get_collection_id(cookie, path);
 }
 
 cb::EngineErrorGetScopeIDResult EWB_Engine::get_scope_id(
-        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+        gsl::not_null<const void*> cookie, std::string_view path) {
     return real_engine->get_scope_id(cookie, path);
 }
 

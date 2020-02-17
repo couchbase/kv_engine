@@ -19,8 +19,6 @@
 #include "steppable_command_context.h"
 
 #include <daemon/cookie.h>
-#include <platform/sized_buffer.h>
-
 class Task;
 
 /**

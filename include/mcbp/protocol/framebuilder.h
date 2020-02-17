@@ -139,7 +139,7 @@ public:
         moveAndInsert(existing, val, move_size);
         req->setExtlen(gsl::narrow<uint8_t>(val.size()));
     }
-    void setExtras(cb::const_char_buffer val) {
+    void setExtras(std::string_view val) {
         setExtras({reinterpret_cast<const uint8_t*>(val.data()), val.size()});
     }
 
@@ -155,7 +155,7 @@ public:
         req->setKeylen(gsl::narrow<uint16_t>(val.size()));
     }
 
-    void setKey(cb::const_char_buffer val) {
+    void setKey(std::string_view val) {
         setKey({reinterpret_cast<const uint8_t*>(val.data()), val.size()});
     }
 
@@ -169,7 +169,7 @@ public:
         moveAndInsert(existing, val, 0);
     }
 
-    void setValue(cb::const_char_buffer val) {
+    void setValue(std::string_view val) {
         setValue({reinterpret_cast<const uint8_t*>(val.data()), val.size()});
     }
 

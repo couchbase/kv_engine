@@ -290,7 +290,7 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
                                 2, // snap_end_seqno,
                                 &rollbackSeqno,
                                 &CollectionsDcpTest::dcpAddFailoverLog,
-                                cb::const_char_buffer(uidFilter));
+                                std::string_view(uidFilter));
         FAIL() << "Expected stream creation to throw";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::collections_manifest_is_ahead, e.code());

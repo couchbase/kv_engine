@@ -24,7 +24,6 @@
 #include <memcached/rbac.h>
 #include <memcached/types.h>
 #include <platform/dynamic.h>
-#include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
 #include <nlohmann/json_fwd.hpp>

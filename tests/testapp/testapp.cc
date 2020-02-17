@@ -248,7 +248,7 @@ cb::mcbp::Status TestappTest::sasl_auth(const char* username,
     while (response->getStatus() == cb::mcbp::Status::AuthContinue) {
         stepped = true;
         auto challenge = response->getValue();
-        client_data = client.step(cb::const_char_buffer{
+        client_data = client.step(std::string_view{
                 reinterpret_cast<const char*>(challenge.data()),
                 challenge.size()});
         EXPECT_EQ(cb::sasl::Error::CONTINUE, client_data.first);
@@ -277,10 +277,9 @@ cb::mcbp::Status TestappTest::sasl_auth(const char* username,
     return response->getStatus();
 }
 
-bool TestappTest::isJSON(cb::const_char_buffer value) {
+bool TestappTest::isJSON(std::string_view value) {
     JSON_checker::Validator validator;
-    const auto* ptr = reinterpret_cast<const uint8_t*>(value.data());
-    return validator.validate(ptr, value.size());
+    return validator.validate(value);
 }
 
 // per test setup function.
@@ -853,7 +852,7 @@ void TestappTest::start_memcached_server() {
 }
 
 void store_object_w_datatype(const std::string& key,
-                             cb::const_char_buffer value,
+                             std::string_view value,
                              uint32_t flags,
                              uint32_t expiration,
                              cb::mcbp::Datatype datatype) {

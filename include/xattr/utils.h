@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include <platform/sized_buffer.h>
-
 #include <string>
 
 namespace cb {
@@ -40,7 +38,7 @@ namespace xattr {
  *              that it is safe to use the rest of the methods in
  *              cb::xattr to access them
  */
-bool validate(const cb::const_char_buffer& blob);
+bool validate(std::string_view blob);
 
 /**
  * Get the offset of the body into the specified payload
@@ -49,15 +47,14 @@ bool validate(const cb::const_char_buffer& blob);
  * @return The number of bytes into the payload where the body lives
  *         (the body size == payload.size() - the returned value)
  */
-uint32_t get_body_offset(const cb::const_char_buffer& payload);
-
+uint32_t get_body_offset(std::string_view payload);
 /**
  * Get the segment where the actual body lives
  *
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the body blob
  */
-cb::const_char_buffer get_body(cb::const_char_buffer payload);
+std::string_view get_body(std::string_view payload);
 
 /**
  * Check to see if the provided attribute represents a system
@@ -65,7 +62,7 @@ cb::const_char_buffer get_body(cb::const_char_buffer payload);
  *
  * @param attr the attribute to check (CAN'T BE EMPTY!)
  */
-static inline bool is_system_xattr(cb::const_char_buffer& attr) {
+static inline bool is_system_xattr(std::string_view attr) {
     return *attr.data() == '_';
 }
 
@@ -74,13 +71,13 @@ static inline bool is_system_xattr(cb::const_char_buffer& attr) {
  *
  * @param attr the attribute to check
  */
-static inline bool is_vattr(cb::const_char_buffer attr) {
+static inline bool is_vattr(std::string_view attr) {
     return !attr.empty() && *attr.data() == '$';
 }
 
 namespace macros {
 struct macro {
-    cb::const_char_buffer name;
+    std::string_view name;
     size_t expandedSize;
 };
 static constexpr macro CAS = {"\"${Mutation.CAS}\"", 8};
@@ -89,9 +86,9 @@ static constexpr macro VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"", 4};
 }
 
 namespace vattrs {
-static constexpr cb::const_char_buffer DOCUMENT = {"$document", 9};
-static constexpr cb::const_char_buffer VBUCKET = {"$vbucket", 8};
-static constexpr cb::const_char_buffer XTOC = {"$XTOC", 5};
+static std::string_view DOCUMENT = {"$document", 9};
+static std::string_view VBUCKET = {"$vbucket", 8};
+static std::string_view XTOC = {"$XTOC", 5};
 }
 
 /**
@@ -102,7 +99,7 @@ static constexpr cb::const_char_buffer XTOC = {"$XTOC", 5};
  * @param doc the document to inspect
  * @return the number of bytes of system xattrs
  */
-size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
+size_t get_system_xattr_size(uint8_t datatype, std::string_view doc);
 
 /**
  * Get both the total size (body_offset) and the number of bytes the system
@@ -113,7 +110,7 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
  * @param doc the document to inspect
  * @return pair of size, first is the total, second is the system size
  */
-std::pair<size_t, size_t> get_size_and_system_xattr_size(
-        uint8_t datatype, const cb::const_char_buffer doc);
+std::pair<size_t, size_t> get_size_and_system_xattr_size(uint8_t datatype,
+                                                         std::string_view doc);
 }
 }

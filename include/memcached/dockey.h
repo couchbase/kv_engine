@@ -306,9 +306,9 @@ struct DocKey : DocKeyInterface<DocKey> {
     }
 
     /**
-     * const_char_buffer constructor, views the data()/size() of the key
+     * std::string_view constructor, views the data()/size() of the key
      */
-    DocKey(const cb::const_char_buffer& key, DocKeyEncodesCollectionId encoding)
+    DocKey(std::string_view key, DocKeyEncodesCollectionId encoding)
         : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
                  key.size(),
                  encoding) {
@@ -321,9 +321,8 @@ struct DocKey : DocKeyInterface<DocKey> {
     DocKey(const std::string&& key,
            DocKeyEncodesCollectionId encoding) = delete;
 
-    explicit operator cb::const_char_buffer() const {
-        return cb::const_char_buffer(reinterpret_cast<const char*>(data()),
-                                     size());
+    explicit operator std::string_view() const {
+        return std::string_view(reinterpret_cast<const char*>(data()), size());
     }
 
     const uint8_t* data() const {

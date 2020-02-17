@@ -32,8 +32,8 @@ protected:
     std::unique_ptr<TopKeys> topkeys;
 };
 
-static void dump_key(cb::const_char_buffer,
-                     cb::const_char_buffer,
+static void dump_key(std::string_view,
+                     std::string_view,
                      gsl::not_null<const void*> cookie) {
     auto* count = static_cast<size_t*>(const_cast<void*>(cookie.get()));
     (*count)++;

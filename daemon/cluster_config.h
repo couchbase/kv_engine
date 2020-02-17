@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include <platform/sized_buffer.h>
-
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -37,9 +35,9 @@ public:
         : config(std::make_shared<std::string>()), revision(NoConfiguration) {
     }
 
-    void setConfiguration(cb::const_char_buffer buffer, int rev);
+    void setConfiguration(std::string_view buffer, int rev);
 
-    void setConfiguration(cb::const_char_buffer buffer);
+    void setConfiguration(std::string_view buffer);
 
     /**
      * Get the current configuration.
@@ -58,7 +56,7 @@ public:
      * @param buffer The cluster configuration provided by ns_server
      * @return the revision number for the cluster configuration
      */
-    static int getRevisionNumber(cb::const_char_buffer buffer);
+    static int getRevisionNumber(std::string_view buffer);
 
     /**
      * Reset the ClusterConfig object to represent that no configuration

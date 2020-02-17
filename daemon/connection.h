@@ -30,7 +30,6 @@
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
-#include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
 #include <array>
@@ -370,7 +369,7 @@ public:
      * @throws std::bad_alloc if we failed to insert the data into the output
      *                        stream.
      */
-    void copyToOutputStream(cb::const_char_buffer data);
+    void copyToOutputStream(std::string_view data);
 
     /// Wrapper function to deal with byte buffers during the transition over
     /// to only use char buffers
@@ -548,7 +547,7 @@ public:
     /**
      * Set the name of the connected agent
      */
-    void setAgentName(cb::const_char_buffer name);
+    void setAgentName(std::string_view name);
 
     /**
      * Get the Identifier specified for this connection.
@@ -565,7 +564,7 @@ public:
      *
      * @param uuid the uuid to use
      */
-    void setConnectionId(cb::const_char_buffer uuid);
+    void setConnectionId(std::string_view uuid);
 
     /**
      * Add a header, extras and key to the output socket
@@ -580,8 +579,8 @@ public:
      */
     void sendResponseHeaders(Cookie& cookie,
                              cb::mcbp::Status status,
-                             cb::const_char_buffer extras,
-                             cb::const_char_buffer key,
+                             std::string_view extras,
+                             std::string_view key,
                              std::size_t value_length,
                              uint8_t datatype);
 
@@ -601,9 +600,9 @@ public:
      */
     void sendResponse(Cookie& cookie,
                       cb::mcbp::Status status,
-                      cb::const_char_buffer extras,
-                      cb::const_char_buffer key,
-                      cb::const_char_buffer value,
+                      std::string_view extras,
+                      std::string_view key,
+                      std::string_view value,
                       uint8_t datatype,
                       std::unique_ptr<SendBuffer> sendbuffer);
 
@@ -697,8 +696,8 @@ public:
                                              Vbid vbucket,
                                              uint32_t buffer_bytes) override;
     ENGINE_ERROR_CODE control(uint32_t opaque,
-                              cb::const_char_buffer key,
-                              cb::const_char_buffer value) override;
+                              std::string_view key,
+                              std::string_view value) override;
 
     ENGINE_ERROR_CODE get_error_map(uint32_t opaque, uint16_t version) override;
 

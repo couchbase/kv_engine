@@ -31,6 +31,7 @@
 #include <thread>
 
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -1338,7 +1339,7 @@ static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h) {
     const auto est = get_int_stat(h, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            get_stats(h, "dcp-vbtakeover 1"_ccb, {}, add_stats),
+            get_stats(h, "dcp-vbtakeover 1"sv, {}, add_stats),
             "Expected not my vbucket");
 
     return SUCCESS;
@@ -4858,7 +4859,7 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
     testHarness->destroy_cookie(cookie);
 
     checkeq(ENGINE_SUCCESS,
-            get_stats(h, "failovers"_ccb, {}, add_stats),
+            get_stats(h, "failovers"sv, {}, add_stats),
             "Failed to get stats.");
 
     size_t i = 0;
@@ -7519,8 +7520,8 @@ static enum test_result test_mb19153(EngineIface* h) {
     return SUCCESS;
 }
 
-static void mb19982_add_stat(cb::const_char_buffer key,
-                             cb::const_char_buffer value,
+static void mb19982_add_stat(std::string_view key,
+                             std::string_view value,
                              gsl::not_null<const void*> cookie) {
     // do nothing
 }
@@ -7562,7 +7563,7 @@ static enum test_result test_mb19982(EngineIface* h) {
     std::thread thread([h, iterations]() {
         for (int ii = 0; ii < iterations; ii++) {
             checkeq(ENGINE_SUCCESS,
-                    get_stats(h, "dcp"_ccb, {}, &mb19982_add_stat),
+                    get_stats(h, "dcp"sv, {}, &mb19982_add_stat),
                     "failed get_stats(dcp)");
         }
     });

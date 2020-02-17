@@ -402,7 +402,7 @@ protocol_binary_datatype_t BinprotResponse::getDatatype() const {
     return protocol_binary_datatype_t(getResponse().getDatatype());
 }
 
-cb::const_char_buffer BinprotResponse::getKey() const {
+std::string_view BinprotResponse::getKey() const {
     const auto buf = getResponse().getKey();
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
@@ -470,7 +470,7 @@ void BinprotSaslAuthCommand::encode(std::vector<uint8_t>& buf) const {
 void BinprotSaslAuthCommand::setMechanism(const std::string& mech_) {
     setKey(mech_);
 }
-void BinprotSaslAuthCommand::setChallenge(cb::const_char_buffer data) {
+void BinprotSaslAuthCommand::setChallenge(std::string_view data) {
     challenge = data;
 }
 
@@ -489,7 +489,7 @@ void BinprotSaslStepCommand::encode(std::vector<uint8_t>& buf) const {
 void BinprotSaslStepCommand::setMechanism(const std::string& mech) {
     setKey(mech);
 }
-void BinprotSaslStepCommand::setChallenge(cb::const_char_buffer data) {
+void BinprotSaslStepCommand::setChallenge(std::string_view data) {
     challenge = data;
 }
 

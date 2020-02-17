@@ -73,7 +73,7 @@ static void throwIfWrongType(const std::string& errorKey,
                              const nlohmann::json& object,
                              nlohmann::json::value_t expectedType);
 
-Manifest::Manifest(cb::const_char_buffer json,
+Manifest::Manifest(std::string_view json,
                    size_t maxNumberOfScopes,
                    size_t maxNumberOfCollections)
     : defaultCollectionExists(false), scopes(), collections(), uid(0) {
@@ -251,7 +251,7 @@ void Manifest::enableDefaultCollection(CollectionID identifier) {
     }
 }
 
-bool Manifest::validName(cb::const_char_buffer name) {
+bool Manifest::validName(std::string_view name) {
     // $ prefix is currently reserved for future use
     // Name cannot be empty
     if (name.empty() || name.size() > MaxCollectionNameSize || name[0] == '$') {
@@ -389,7 +389,7 @@ void Manifest::addScopeStats(const void* cookie,
 }
 
 boost::optional<CollectionID> Manifest::getCollectionID(
-        ScopeID scope, cb::const_char_buffer path) const {
+        ScopeID scope, std::string_view path) const {
     int pos = path.find_first_of('.');
     auto collection = path.substr(pos + 1);
 
@@ -422,8 +422,7 @@ boost::optional<CollectionID> Manifest::getCollectionID(
     return {};
 }
 
-boost::optional<ScopeID> Manifest::getScopeID(
-        cb::const_char_buffer path) const {
+boost::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
     int pos = path.find_first_of('.');
     auto scope = path.substr(0, pos);
 
