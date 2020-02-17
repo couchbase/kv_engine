@@ -440,7 +440,7 @@ ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
     }
 
     auto msg =
-            std::make_unique<MutationConsumerMessage>(item,
+            std::make_unique<MutationConsumerMessage>(std::move(item),
                                                       opaque,
                                                       IncludeValue::Yes,
                                                       IncludeXattrs::Yes,
@@ -487,7 +487,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
     return processMutationOrPrepare(vbucket,
                                     opaque,
                                     key,
-                                    item,
+                                    std::move(item),
                                     meta,
                                     MutationResponse::mutationBaseMsgBytes +
                                             key.size() + meta.size() +
@@ -1673,7 +1673,8 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
 
     const auto msgBytes =
             MutationResponse::prepareBaseMsgBytes + key.size() + value.size();
-    return processMutationOrPrepare(vbucket, opaque, key, item, {}, msgBytes);
+    return processMutationOrPrepare(
+            vbucket, opaque, key, std::move(item), {}, msgBytes);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(

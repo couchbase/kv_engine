@@ -41,7 +41,7 @@ public:
     static void insert_into_map(TestMap& map, size_t n, size_t offset) {
         for (unsigned int ii = 0; ii < n; ii++) {
             TestMap::mapped_type val{new DummyValue(ii * 10)};
-            map.insert({offset + ii, val});
+            map.insert({offset + ii, std::move(val)});
         }
     }
 

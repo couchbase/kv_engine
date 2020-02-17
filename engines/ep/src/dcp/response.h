@@ -26,6 +26,7 @@
 #include <memcached/dcp_stream_id.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
+#include <utility>
 
 class DcpResponse {
 public:
@@ -555,7 +556,7 @@ public:
                             DocKeyEncodesCollectionId includeCollectionID,
                             ExtendedMetaData* e,
                             cb::mcbp::DcpStreamId sid)
-        : MutationResponse(item,
+        : MutationResponse(std::move(item),
                            opaque,
                            includeVal,
                            includeXattrs,

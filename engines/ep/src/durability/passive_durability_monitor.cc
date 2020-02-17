@@ -196,7 +196,7 @@ void PassiveDurabilityMonitor::addSyncWrite(
     // as this is likely expensive.
     auto itr = std::find_if(s->trackedWrites.begin(),
                             s->trackedWrites.end(),
-                            [item](const SyncWrite& write) {
+                            [&item](const SyncWrite& write) {
                                 // Skip any completed SyncWrites
                                 return !write.isCompleted() &&
                                        write.getKey() == item->getKey();

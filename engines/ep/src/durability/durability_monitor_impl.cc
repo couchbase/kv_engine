@@ -17,8 +17,8 @@
 
 #include "durability_monitor_impl.h"
 #include <folly/lang/Assume.h>
-#include <gsl.h>
 #include <utilities/logtags.h>
+#include <utility>
 
 /// Helper function to determine the expiry time for a SyncWrite from the
 /// durability requirements.
@@ -37,7 +37,7 @@ expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
 }
 
 DurabilityMonitor::SyncWrite::SyncWrite(queued_item item)
-    : item(item), startTime(std::chrono::steady_clock::now()) {
+    : item(std::move(item)), startTime(std::chrono::steady_clock::now()) {
 }
 
 const StoredDocKey& DurabilityMonitor::SyncWrite::getKey() const {
@@ -59,10 +59,9 @@ DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
         std::chrono::milliseconds defaultTimeout,
         const ActiveDurabilityMonitor::ReplicationChain* firstChain,
         const ActiveDurabilityMonitor::ReplicationChain* secondChain)
-    : SyncWrite(item),
+    : SyncWrite(std::move(item)),
       cookie(cookie),
-      expiryTime(expiryFromDurabiltyReqs(item->getDurabilityReqs(),
-                                         defaultTimeout)) {
+      expiryTime(expiryFromDurabiltyReqs(getDurabilityReqs(), defaultTimeout)) {
     initialiseChains(firstChain, secondChain);
 }
 
@@ -72,7 +71,7 @@ DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
         const ActiveDurabilityMonitor::ReplicationChain* firstChain,
         const ActiveDurabilityMonitor::ReplicationChain* secondChain,
         InfiniteTimeout)
-    : SyncWrite(item), cookie(cookie) {
+    : SyncWrite(std::move(item)), cookie(cookie) {
     Expects(getDurabilityReqs().getLevel() != cb::durability::Level::None);
     // If creating a SyncWrite with Infinite timeout then we could be
     // re-creating SyncWrites from warmup - in which case durability may not

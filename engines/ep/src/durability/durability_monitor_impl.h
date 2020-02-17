@@ -68,7 +68,7 @@ std::string to_string(SyncWriteStatus status);
  */
 class DurabilityMonitor::SyncWrite {
 public:
-    SyncWrite(queued_item item);
+    explicit SyncWrite(queued_item item);
 
     const StoredDocKey& getKey() const;
 
