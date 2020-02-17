@@ -1115,7 +1115,22 @@ compaction_ctx EPBucket::makeCompactionContext(CompactionConfig& config,
                                  std::placeholders::_1,
                                  std::placeholders::_2);
 
+    ctx.completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
+                                        this,
+                                        std::placeholders::_1);
+
     return ctx;
+}
+
+void EPBucket::compactionCompletionCallback(compaction_ctx& ctx) {
+    auto vb = getVBucket(ctx.compactConfig.db_file_id);
+    if (!vb) {
+        return;
+    }
+
+    vb->setPurgeSeqno(ctx.max_purged_seq);
+    vb->setNumTotalItems(vb->getNumTotalItems() -
+                         ctx.stats.collectionsItemsPurged);
 }
 
 void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
@@ -1125,12 +1140,6 @@ void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
     KVStore* store = shard->getRWUnderlying();
     bool result = store->compactDB(&ctx);
 
-    /* Iterate over all the vbucket ids set in max_purged_seq map. If there is
-     * an entry
-     * in the map for a vbucket id, then it was involved in compaction and thus
-     * can
-     * be used to update the associated bloom filters and purge sequence numbers
-     */
     VBucketPtr vb = getVBucket(config.db_file_id);
     if (vb) {
         if (getEPEngine().getConfiguration().isBfilterEnabled() && result) {
@@ -1138,9 +1147,6 @@ void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
         } else {
             vb->clearFilter();
         }
-        vb->setPurgeSeqno(ctx.max_purged_seq);
-        vb->setNumTotalItems(vb->getNumTotalItems() -
-                             ctx.stats.collectionsItemsPurged);
     }
 
     EP_LOG_INFO(

@@ -134,6 +134,12 @@ struct compaction_ctx {
     std::unique_ptr<Collections::VB::EraserContext> eraserContext;
     Collections::KVStore::DroppedCb droppedKeyCb;
 
+    /**
+     * A function to call on completion of compaction (before we swap our files)
+     * to correctly set in memory state such as the purge seqno.
+     */
+    std::function<void(compaction_ctx&)> completionCallback;
+
     /// The SyncRepl HCS, can purge any prepares before the HCS.
     uint64_t highCompletedSeqno = 0;
 };

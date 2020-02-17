@@ -2059,6 +2059,15 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
         vbs = *cachedVBStates[vbid.get()].get();
         minfo.reset(*cachedMagmaInfo[vbid.get()].get());
     }
+
+    // Make our completion callback before writing the new file. We should
+    // update our in memory state before we finalize on disk state so that we
+    // don't have to worry about race conditions with things like the purge
+    // seqno.
+    if (ctx->completionCallback) {
+        ctx->completionCallback(*ctx);
+    }
+
     writeVBStateToDisk(vbid, *(batch.get()), vbs, minfo);
 
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {

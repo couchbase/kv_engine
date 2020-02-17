@@ -1245,6 +1245,14 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
                  new_file,
                  new_rev);
 
+    // Make our completion callback before writing the new file. We should
+    // update our in memory state before we finalize on disk state so that we
+    // don't have to worry about race conditions with things like the purge
+    // seqno.
+    if (hook_ctx->completionCallback) {
+        hook_ctx->completionCallback(*hook_ctx);
+    }
+
     // Update the global VBucket file map so all operations use the new file
     updateDbFileMap(vbid, new_rev);
 

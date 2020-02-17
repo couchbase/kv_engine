@@ -222,6 +222,12 @@ protected:
     void compactInternal(CompactionConfig& config, uint64_t purgeSeqno);
 
     /**
+     * Callback to be called on completion of the compaction (just before the
+     * atomic switch of the files)
+     */
+    void compactionCompletionCallback(compaction_ctx& ctx);
+
+    /**
      * Remove completed compaction tasks or wake snoozed tasks
      *
      * @param db_file_id vbucket id for couchstore
