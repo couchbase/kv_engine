@@ -928,19 +928,6 @@ protected:
      */
     virtual void prepareToCreateImpl(Vbid vbid) = 0;
 
-    /* all stats */
-    KVStoreStats st;
-    KVStoreConfig& configuration;
-    bool readOnly;
-    std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
-    /* non-deleted docs in each file, indexed by vBucket.
-       RelaxedAtomic to allow stats access without lock. */
-    std::vector<cb::RelaxedAtomic<size_t>> cachedDocCount;
-    cb::RelaxedAtomic<uint16_t> cachedValidVBCount;
-
-    /// Metadata that the underlying implementation must persist
-    Collections::KVStore::CommitMetaData collectionsMeta;
-
     void createDataDir(const std::string& dbname);
 
     /**
@@ -959,6 +946,19 @@ protected:
      * @param vbid the vbucket id to call reset on
      */
     void resetCachedVBState(Vbid vbid);
+
+    /* all stats */
+    KVStoreStats st;
+    KVStoreConfig& configuration;
+    bool readOnly;
+    std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
+    /* non-deleted docs in each file, indexed by vBucket.
+       RelaxedAtomic to allow stats access without lock. */
+    std::vector<cb::RelaxedAtomic<size_t>> cachedDocCount;
+    cb::RelaxedAtomic<uint16_t> cachedValidVBCount;
+
+    /// Metadata that the underlying implementation must persist
+    Collections::KVStore::CommitMetaData collectionsMeta;
 };
 
 std::string to_string(KVStore::MutationStatus status);
