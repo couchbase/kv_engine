@@ -157,6 +157,12 @@ public:
                                    uint32_t flags,
                                    cb::mcbp::DcpStreamId sid) override;
 
+    ENGINE_ERROR_CODE
+    seqno_advanced(uint32_t opaque,
+                   Vbid vbucket,
+                   uint64_t seqno,
+                   cb::mcbp::DcpStreamId sid) override;
+
 private:
     /// The DCP message producers we are guarding.
     dcp_message_producers& guarded;

@@ -33,7 +33,7 @@ namespace test {
 
 class ValidatorTest : public ::testing::Test {
 public:
-    ValidatorTest(bool collectionsEnabled);
+    explicit ValidatorTest(bool collectionsEnabled);
     void SetUp() override;
 
 protected:

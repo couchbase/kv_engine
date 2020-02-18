@@ -1228,6 +1228,25 @@ protected:
 };
 static_assert(sizeof(DcpOsoSnapshotPayload) == 4, "Unexpected struct size");
 
+class DcpSeqnoAdvancedPayload {
+public:
+    explicit DcpSeqnoAdvancedPayload(uint64_t seqno) : by_seqno(htonll(seqno)) {
+    }
+    [[nodiscard]] uint64_t getSeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setSeqno(uint64_t seqno) {
+        DcpSeqnoAdvancedPayload::by_seqno = htonll(seqno);
+    }
+    [[nodiscard]] cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t by_seqno = 0;
+};
+static_assert(sizeof(DcpSeqnoAdvancedPayload) == 8, "Unexpected struct size");
+
 #pragma pack()
 } // namespace request
 } // namespace mcbp

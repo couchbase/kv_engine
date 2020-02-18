@@ -359,6 +359,11 @@ struct dcp_message_producers {
                                            Vbid vbucket,
                                            uint32_t flags,
                                            cb::mcbp::DcpStreamId sid) = 0;
+
+    virtual ENGINE_ERROR_CODE seqno_advanced(uint32_t opaque,
+                                             Vbid vbucket,
+                                             uint64_t seqno,
+                                             cb::mcbp::DcpStreamId sid) = 0;
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(

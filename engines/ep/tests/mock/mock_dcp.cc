@@ -447,6 +447,19 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::oso_snapshot(
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_advanced(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t seqno,
+        cb::mcbp::DcpStreamId sid) {
+    last_op = cb::mcbp::ClientOpcode::DcpSeqnoAdvanced;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_byseqno = seqno;
+    last_stream_id = sid;
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                          uint16_t version) {
     clear_dcp_data();

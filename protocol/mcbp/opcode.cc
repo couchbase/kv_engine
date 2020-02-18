@@ -115,6 +115,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpSeqnoAdvanced:
     case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
@@ -310,6 +311,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpSeqnoAdvanced:
     case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
@@ -480,6 +482,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpSeqnoAdvanced:
     case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
@@ -680,6 +683,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::DcpControl:
     case ClientOpcode::DcpSystemEvent:
     case ClientOpcode::DcpSeqnoAcknowledged:
+    case ClientOpcode::DcpSeqnoAdvanced:
     case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
@@ -837,6 +841,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpCommit:
     case ClientOpcode::DcpAbort:
+    case ClientOpcode::DcpSeqnoAdvanced:
     case ClientOpcode::DcpOsoSnapshot:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
@@ -1093,6 +1098,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DCP_COMMIT";
     case ClientOpcode::DcpAbort:
         return "DCP_ABORT";
+    case ClientOpcode::DcpSeqnoAdvanced:
+        return "DCP_SEQNO_ADVANCED";
     case ClientOpcode::DcpOsoSnapshot:
         return "DCP_OSO_SNAPSHOT";
     case ClientOpcode::StopPersistence:

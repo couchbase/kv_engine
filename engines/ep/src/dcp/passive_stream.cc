@@ -374,6 +374,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
             case DcpResponse::Event::AddStream:
             case DcpResponse::Event::SeqnoAcknowledgement:
             case DcpResponse::Event::OSOSnapshot:
+            case DcpResponse::Event::SeqnoAdvanced:
                 // These are invalid events for this path, they are handled by
                 // the DcpConsumer class
                 throw std::invalid_argument(
@@ -491,6 +492,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
         case DcpResponse::Event::AddStream:
         case DcpResponse::Event::SeqnoAcknowledgement:
         case DcpResponse::Event::OSOSnapshot:
+        case DcpResponse::Event::SeqnoAdvanced:
             // These are invalid events for this path, they are handled by the
             // DcpConsumer class
             throw std::invalid_argument(

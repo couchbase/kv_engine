@@ -2241,6 +2241,29 @@ ENGINE_ERROR_CODE Connection::oso_snapshot(uint32_t opaque,
     }
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
+
+ENGINE_ERROR_CODE Connection::seqno_advanced(uint32_t opaque,
+                                             Vbid vbucket,
+                                             uint64_t seqno,
+                                             cb::mcbp::DcpStreamId sid) {
+    cb::mcbp::request::DcpSeqnoAdvancedPayload extras(seqno);
+    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
+                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    std::vector<uint8_t> buffer(totalBytes);
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                         : cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    builder.setOpaque(opaque);
+    builder.setVbucket(vbucket);
+    builder.setExtras(extras.getBuffer());
+    if (sid) {
+        cb::mcbp::DcpStreamIdFrameInfo frameSid(sid);
+        builder.setFramingExtras(frameSid.getBuf());
+    }
+
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+}
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //               End DCP Message producer interface                       //

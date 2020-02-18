@@ -156,6 +156,12 @@ public:
                                    uint32_t flags,
                                    cb::mcbp::DcpStreamId sid) override;
 
+    ENGINE_ERROR_CODE
+    seqno_advanced(uint32_t opaque,
+                   Vbid vbucket,
+                   uint64_t seqno,
+                   cb::mcbp::DcpStreamId sid) override;
+
     void clear_dcp_data();
 
     cb::mcbp::ClientOpcode last_op;

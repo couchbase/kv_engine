@@ -24,4 +24,4 @@ The typical scenario begins with the client requesting a stream. Upon success th
 * [**No-Op**](commands/no-op.md)
 * [**Buffer Acknowledgement**](commands/buffer-ack.md)
 * [**Control**](commands/control.md)
-
+* [**Seqno Advanced**](commands/seqno-advanced.md)

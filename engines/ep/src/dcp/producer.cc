@@ -822,6 +822,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::Mutation:
         case DcpResponse::Event::Prepare:
         case DcpResponse::Event::SystemEvent:
+        case DcpResponse::Event::SeqnoAdvanced:
             itemsSent++;
             break;
         case DcpResponse::Event::AddStream:

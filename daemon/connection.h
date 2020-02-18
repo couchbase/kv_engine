@@ -742,6 +742,12 @@ public:
                                    uint32_t flags,
                                    cb::mcbp::DcpStreamId sid) override;
 
+    ENGINE_ERROR_CODE
+    seqno_advanced(uint32_t opaque,
+                   Vbid vbucket,
+                   uint64_t seqno,
+                   cb::mcbp::DcpStreamId sid) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

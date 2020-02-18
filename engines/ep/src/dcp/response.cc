@@ -34,6 +34,7 @@ const uint32_t StreamEndResponse::baseMsgBytes = 28;
 const uint32_t SetVBucketState::baseMsgBytes = 25;
 const uint32_t SnapshotMarker::baseMsgBytes = 24;
 const uint32_t OSOSnapshot::baseMsgBytes = 28;
+const uint32_t SeqnoAdvanced::baseMsgBytes = 32;
 
 const char* DcpResponse::to_string() const {
     switch (event_) {
@@ -65,6 +66,8 @@ const char* DcpResponse::to_string() const {
         return "seqno acknowledgement";
     case Event::OSOSnapshot:
         return "OSO snapshot";
+    case Event::SeqnoAdvanced:
+        return "Seqno Advanced";
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));

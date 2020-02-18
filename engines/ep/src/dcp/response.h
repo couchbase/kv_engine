@@ -44,7 +44,8 @@ public:
         AddStream,
         SystemEvent,
         SeqnoAcknowledgement,
-        OSOSnapshot
+        OSOSnapshot,
+        SeqnoAdvanced
     };
 
     DcpResponse(Event event, uint32_t opaque, cb::mcbp::DcpStreamId sid)
@@ -95,6 +96,7 @@ public:
         case Event::SystemEvent:
         case Event::SeqnoAcknowledgement:
         case Event::OSOSnapshot:
+        case Event::SeqnoAdvanced:
             return true;
         }
         throw std::invalid_argument(
@@ -1201,4 +1203,36 @@ public:
 private:
     Vbid vbucket;
     bool start;
+};
+
+class SeqnoAdvanced : public DcpResponse {
+public:
+    SeqnoAdvanced(uint32_t opaque,
+                  Vbid vbucket,
+                  cb::mcbp::DcpStreamId sid,
+                  uint64_t seqno)
+        : DcpResponse(Event::SeqnoAdvanced, opaque, sid),
+          vbucket(vbucket),
+          advancedSeqno(seqno) {
+    }
+
+    ~SeqnoAdvanced() override = default;
+
+    [[nodiscard]] Vbid getVBucket() const {
+        return vbucket;
+    }
+
+    [[nodiscard]] uint64_t getAdvancedSeqno() const {
+        return advancedSeqno;
+    }
+
+    [[nodiscard]] uint32_t getMessageSize() const override {
+        return baseMsgBytes;
+    }
+
+    static const uint32_t baseMsgBytes;
+
+private:
+    Vbid vbucket;
+    uint64_t advancedSeqno;
 };

@@ -493,7 +493,8 @@ information about a given command.
 | 0x61 | DcpSeqnoAcknowledged |
 | 0x62 | DcpCommit |
 | 0x63 | DcpAbort |
-| 0x65 | [Dcp Out of Sequence Order snapshot](docs/dcp/documentation/commands/oso_snapshot.md) |
+| 0x64 | [DcpSeqnoAdvanced](dcp/documentation/commands/seqno-advanced.md) |
+| 0x65 | [Dcp Out of Sequence Order snapshot](dcp/documentation/commands/oso_snapshot.md) |
 | 0x80 | Stop persistence |
 | 0x81 | Start persistence |
 | 0x82 | Set param |

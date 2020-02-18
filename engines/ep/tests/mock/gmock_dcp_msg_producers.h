@@ -172,6 +172,12 @@ public:
                                    uint32_t flags,
                                    cb::mcbp::DcpStreamId sid));
 
+    MOCK_METHOD4(seqno_advanced,
+                 ENGINE_ERROR_CODE(uint32_t opaque,
+                                   Vbid vbucket,
+                                   uint64_t prepared_seqno,
+                                   cb::mcbp::DcpStreamId sid));
+
     // Current version of GMock doesn't support move-only types (e.g.
     // std::unique_ptr) for mocked function arguments. Workaround directly
     // implementing the affected methods (without GMock) and have them delegate
