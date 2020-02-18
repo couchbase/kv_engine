@@ -69,7 +69,7 @@ void ConnStoreTest::addVbConn(Vbid vb, std::shared_ptr<ConnHandler> conn) {
 
     ASSERT_NO_THROW(connStore->addVBConnByVbid(vb, conn));
 
-    itr = connStore->getVBToConnsItr(vbid, *conn);
+    itr = connStore->getVBToConnsItr(vb, *conn);
     ASSERT_NE(itr, list.end());
     ASSERT_EQ(refCount + 1, itr->refCount);
 
