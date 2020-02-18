@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <JSON_checker.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
@@ -64,6 +65,8 @@ bool validate(const cb::const_char_buffer& blob) {
     // these "magic" values.
     size_t offset = 4;
     try {
+        JSON_checker::Validator validator;
+
         // Iterate over all of the KV pairs
         while (offset < size) {
             // The next pair _must_ at least have:
@@ -96,9 +99,7 @@ bool validate(const cb::const_char_buffer& blob) {
             offset += valuebuf.len + 1; // swallow '\0'
 
             // Validate the value (must be legal json)
-            try {
-                auto payload = nlohmann::json::parse(valuebuf.buf);
-            } catch (const nlohmann::json::exception&) {
+            if (!validator.validate(valuebuf.buf)) {
                 // Failed to parse the JSON
                 return false;
             }
