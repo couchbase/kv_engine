@@ -21,6 +21,7 @@
 #include "stored-value.h"
 #include "storeddockey.h"
 
+#include <platform/corestore.h>
 #include <platform/non_negative_counter.h>
 
 #include <array>
@@ -163,8 +164,14 @@ public:
      * Datatype counts; one element for each combination of datatypes
      * (e.g. JSON, JSON+XATTR, JSON+Snappy, etc...)
      */
-    using DatatypeCombo = std::array<cb::NonNegativeCounter<size_t>,
+    using DatatypeCombo = std::array<ssize_t,
                                      mcbp::datatype::highest + 1>;
+    // Logically could be an array of NonNegativeCounters, but this type
+    // is used in a LastLevelCacheStore; the copy for one core _may_ go
+    // negative, even though the sum across cores for each entry will be
+    // non-negative.
+    using AtomicDatatypeCombo = std::array<std::atomic<ssize_t>,
+            mcbp::datatype::highest + 1>;
 
     /**
      * Represents a position within the hashtable.
@@ -221,8 +228,7 @@ public:
      */
     class Statistics {
     public:
-        Statistics(EPStats& epStats) : epStats(epStats) {
-        }
+        Statistics(EPStats& epStats);
 
         /**
          * Set of properties on a StoredValue which are considerd by statistics
@@ -289,91 +295,32 @@ public:
         /// Reset the values of all statistics to zero.
         void reset();
 
-        size_t getNumItems() const {
-            return numItems;
-        }
+        size_t getNumItems() const;
 
-        size_t getNumNonResidentItems() const {
-            return numNonResidentItems;
-        }
+        size_t getNumNonResidentItems() const;
 
-        size_t getNumDeletedItems() const {
-            return numDeletedItems;
-        }
+        size_t getNumDeletedItems() const;
 
-        size_t getNumTempItems() const {
-            return numTempItems;
-        }
+        size_t getNumTempItems() const;
 
-        size_t getNumSystemItems() const {
-            return numSystemItems;
-        }
+        size_t getNumSystemItems() const;
 
-        size_t getNumPreparedSyncWrites() const {
-            return numPreparedSyncWrites;
-        }
+        size_t getNumPreparedSyncWrites() const;
 
-        DatatypeCombo getDatatypeCounts() const {
-            return datatypeCounts;
-        }
+        DatatypeCombo getDatatypeCounts() const;
 
-        size_t getCacheSize() const {
-            return cacheSize;
-        }
+        size_t getCacheSize() const;
 
-        size_t getMetaDataMemory() const {
-            return metaDataMemory;
-        }
+        size_t getMetaDataMemory() const;
 
-        size_t getMemSize() const {
-            return memSize;
-        }
+        size_t getMemSize() const;
 
-        size_t getUncompressedMemSize() const {
-            return uncompressedMemSize;
-        }
+        size_t getUncompressedMemSize() const;
 
     private:
-        /// Count of alive & deleted, in-memory non-resident and resident items.
-        /// Excludes temporary and prepared items.
-        cb::NonNegativeCounter<size_t> numItems;
+        struct CacheLocalStatistics;
 
-        /// Count of alive, non-resident items.
-        cb::NonNegativeCounter<size_t> numNonResidentItems;
-
-        /// Count of deleted items.
-        cb::NonNegativeCounter<size_t> numDeletedItems;
-
-        /// Count of items where StoredValue::isTempItem() is true.
-        cb::NonNegativeCounter<size_t> numTempItems;
-
-        /// Count of items where StoredValue resides in system namespace
-        cb::NonNegativeCounter<size_t> numSystemItems;
-
-        /// Count of items where StoredValue is a prepared SyncWrite.
-        cb::NonNegativeCounter<size_t> numPreparedSyncWrites;
-
-        /**
-         * Number of documents of a given datatype. Includes alive
-         * (non-deleted), committed documents in the HashTable.
-         * (Prepared documents are not counted).
-         * For value eviction includes resident & non-resident items (as the
-         * datatype is part of the metadata), for full-eviction will only
-         * include resident items.
-         */
-        DatatypeCombo datatypeCounts = {};
-
-        //! Cache size (fixed-length fields in StoredValue + keylen + valuelen).
-        std::atomic<size_t> cacheSize = {};
-
-        //! Meta-data size (fixed-length fields in StoredValue + keylen).
-        std::atomic<size_t> metaDataMemory = {};
-
-        //! Memory consumed by items in this hashtable.
-        std::atomic<size_t> memSize = {};
-
-        /// Memory consumed if the items were uncompressed.
-        std::atomic<size_t> uncompressedMemSize = {};
+        LastLevelCacheStore<CacheLocalStatistics> llcLocal;
 
         EPStats& epStats;
     };

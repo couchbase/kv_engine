@@ -450,6 +450,148 @@ HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
     return StoredValueProperties(v);
 }
 
+struct HashTable::Statistics::CacheLocalStatistics {
+    // Many of these stats should logically be NonNegativeCounters,
+    // but as they are used inside a LastLevelCacheStore there are
+    // multiple copies of each stat; one copy _may_ go negative
+    // even though the sum across cores remains non-negative.
+
+    /// Count of alive & deleted, in-memory non-resident and resident
+    /// items. Excludes temporary and prepared items.
+    std::atomic<ssize_t> numItems;
+
+    /// Count of alive, non-resident items.
+    std::atomic<ssize_t> numNonResidentItems;
+
+    /// Count of deleted items.
+    std::atomic<ssize_t> numDeletedItems;
+
+    /// Count of items where StoredValue::isTempItem() is true.
+    std::atomic<ssize_t> numTempItems;
+
+    /// Count of items where StoredValue resides in system namespace
+    std::atomic<ssize_t> numSystemItems;
+
+    /// Count of items where StoredValue is a prepared SyncWrite.
+    std::atomic<ssize_t> numPreparedSyncWrites;
+
+    /**
+     * Number of documents of a given datatype. Includes alive
+     * (non-deleted), committed documents in the HashTable.
+     * (Prepared documents are not counted).
+     * For value eviction includes resident & non-resident items (as the
+     * datatype is part of the metadata), for full-eviction will only
+     * include resident items.
+     */
+    AtomicDatatypeCombo datatypeCounts = {};
+
+    //! Cache size (fixed-length fields in StoredValue + keylen +
+    //! valuelen).
+    std::atomic<ssize_t> cacheSize = {};
+
+    //! Meta-data size (fixed-length fields in StoredValue + keylen).
+    std::atomic<ssize_t> metaDataMemory = {};
+
+    //! Memory consumed by items in this hashtable.
+    std::atomic<ssize_t> memSize = {};
+
+    /// Memory consumed if the items were uncompressed.
+    std::atomic<ssize_t> uncompressedMemSize = {};
+};
+
+HashTable::Statistics::Statistics(EPStats& epStats) : epStats(epStats) {
+}
+
+size_t HashTable::Statistics::getNumItems() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.numItems;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getNumNonResidentItems() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.numNonResidentItems;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getNumDeletedItems() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.numDeletedItems;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getNumTempItems() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.numTempItems;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getNumSystemItems() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.numSystemItems;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getNumPreparedSyncWrites() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.numPreparedSyncWrites;
+    }
+    return result;
+}
+
+HashTable::DatatypeCombo HashTable::Statistics::getDatatypeCounts() const {
+    DatatypeCombo result{{0}};
+    for (const auto& stripe : llcLocal) {
+        for (size_t i = 0; i < stripe.datatypeCounts.size(); ++i) {
+            result[i] += stripe.datatypeCounts[i];
+        }
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getCacheSize() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.cacheSize;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getMetaDataMemory() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.metaDataMemory;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getMemSize() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.memSize;
+    }
+    return result;
+}
+
+size_t HashTable::Statistics::getUncompressedMemSize() const {
+    size_t result = 0;
+    for (const auto& stripe : llcLocal) {
+        result += stripe.uncompressedMemSize;
+    }
+    return result;
+}
+
 void HashTable::Statistics::epilogue(StoredValueProperties pre,
                                      const StoredValue* v) {
     // After performing updates to sv; compare with the previous properties and
@@ -457,19 +599,21 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
 
     const auto post = StoredValueProperties(v);
 
+    auto& local = llcLocal.get();
+
     // Update size, metadataSize & uncompressed size if pre/post differ.
     if (pre.size != post.size) {
-        cacheSize.fetch_add(post.size - pre.size);
-        memSize.fetch_add(post.size - pre.size);
+        local.cacheSize.fetch_add(post.size - pre.size);
+        local.memSize.fetch_add(post.size - pre.size);
     }
     if (pre.metaDataSize != post.metaDataSize) {
-        metaDataMemory.fetch_add(post.metaDataSize - pre.metaDataSize);
+        local.metaDataMemory.fetch_add(post.metaDataSize - pre.metaDataSize);
         epStats.coreLocal.get()->currentSize.fetch_add(post.metaDataSize -
                                                        pre.metaDataSize);
     }
     if (pre.uncompressedSize != post.uncompressedSize) {
-        uncompressedMemSize.fetch_add(post.uncompressedSize -
-                                      pre.uncompressedSize);
+        local.uncompressedMemSize.fetch_add(post.uncompressedSize -
+                                            pre.uncompressedSize);
     }
 
     // Determine if valid, non resident; and update numNonResidentItems if
@@ -480,29 +624,29 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
             post.isValid &&
             (!post.isResident && !post.isDeleted && !post.isTempItem);
     if (preNonResident != postNonResident) {
-        numNonResidentItems.fetch_add(postNonResident - preNonResident);
+        local.numNonResidentItems.fetch_add(postNonResident - preNonResident);
     }
 
     if (pre.isTempItem != post.isTempItem) {
-        numTempItems.fetch_add(post.isTempItem - pre.isTempItem);
+        local.numTempItems.fetch_add(post.isTempItem - pre.isTempItem);
     }
 
     // nonItems only considers valid; non-temporary items:
     bool preNonTemp = pre.isValid && !pre.isTempItem;
     bool postNonTemp = post.isValid && !post.isTempItem;
     if (preNonTemp != postNonTemp) {
-        numItems.fetch_add(postNonTemp - preNonTemp);
+        local.numItems.fetch_add(postNonTemp - preNonTemp);
     }
 
     if (pre.isSystemItem != post.isSystemItem) {
-        numSystemItems.fetch_add(post.isSystemItem - pre.isSystemItem);
+        local.numSystemItems.fetch_add(post.isSystemItem - pre.isSystemItem);
     }
 
     // numPreparedItems counts valid, prepared (not yet committed) items.
     const bool prePrepared = pre.isValid && pre.isPreparedSyncWrite;
     const bool postPrepared = post.isValid && post.isPreparedSyncWrite;
     if (prePrepared != postPrepared) {
-        numPreparedSyncWrites.fetch_add(postPrepared - prePrepared);
+        local.numPreparedSyncWrites.fetch_add(postPrepared - prePrepared);
     }
 
     // Don't include system items in the deleted count, numSystemItems will
@@ -514,27 +658,31 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
     const bool postDeleted =
             post.isDeleted && !post.isSystemItem && !post.isPreparedSyncWrite;
     if (preDeleted != postDeleted) {
-        numDeletedItems.fetch_add(postDeleted - preDeleted);
+        local.numDeletedItems.fetch_add(postDeleted - preDeleted);
     }
 
     // Update datatypes. These are only tracked for non-temp, non-deleted,
     // committed items.
     if (preNonTemp && !pre.isDeleted && !pre.isPreparedSyncWrite) {
-        --datatypeCounts[pre.datatype];
+        --local.datatypeCounts[pre.datatype];
     }
     if (postNonTemp && !post.isDeleted && !post.isPreparedSyncWrite) {
-        ++datatypeCounts[post.datatype];
+        ++local.datatypeCounts[post.datatype];
     }
 }
 
 void HashTable::Statistics::reset() {
-    datatypeCounts.fill(0);
-    numItems.store(0);
-    numTempItems.store(0);
-    numNonResidentItems.store(0);
-    memSize.store(0);
-    cacheSize.store(0);
-    uncompressedMemSize.store(0);
+    for (auto& core : llcLocal) {
+        for (auto& entry: core.datatypeCounts) {
+            entry = 0;
+        }
+        core.numItems.store(0);
+        core.numTempItems.store(0);
+        core.numNonResidentItems.store(0);
+        core.memSize.store(0);
+        core.cacheSize.store(0);
+        core.uncompressedMemSize.store(0);
+    }
 }
 
 std::pair<StoredValue*, StoredValue::UniquePtr>
