@@ -141,8 +141,8 @@ std::string createXattrValue(const std::string& body,
 
     // append body to the xattrs and store in data
     std::string data;
-    std::copy(xattr_value.buf,
-              xattr_value.buf + xattr_value.len,
+    std::copy(xattr_value.data(),
+              xattr_value.data() + xattr_value.size(),
               std::back_inserter(data));
     std::copy(
             body.c_str(), body.c_str() + body.size(), std::back_inserter(data));

@@ -83,7 +83,7 @@ TEST(XattrBlob, TestBlob) {
 
     // An empty buffer should be finalized to size 0
     const auto last = blob.finalize();
-    EXPECT_EQ(0, last.len);
+    EXPECT_EQ(0, last.size());
 }
 
 TEST(XattrBlob, TestPruneUser) {
@@ -93,7 +93,7 @@ TEST(XattrBlob, TestPruneUser) {
     blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
     blob.set("_rbac", "{\"foo\":\"bar\"}");
 
-    const auto systemsize = blob.finalize().len;
+    const auto systemsize = blob.finalize().size();
     EXPECT_NE(0, systemsize);
 
     // Add a couple of user xattrs
@@ -106,17 +106,18 @@ TEST(XattrBlob, TestPruneUser) {
     blob.set("_rbac", "{\"auth\":\"needed\"}");
     // and then set it back so that the size should be the same..
     blob.set("_rbac", "{\"foo\":\"bar\"}");
-    validate(blob.finalize());
-    EXPECT_LT(systemsize, blob.finalize().len);
+    EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
+    EXPECT_LT(systemsize, blob.finalize().size());
 
     // Now prune off the user keys (we should have a system xattr first and
     // and last)
     blob.prune_user_keys();
-    validate(blob.finalize());
+    cb::const_char_buffer buffer1 = blob.finalize();
+    EXPECT_TRUE(cb::xattr::validate(buffer1));
 
     // And we should be back at the size we had before adding all of the
     // user xattr
-    EXPECT_EQ(systemsize, blob.finalize().len);
+    EXPECT_EQ(systemsize, blob.finalize().size());
     EXPECT_EQ(systemsize, blob.get_system_size());
 
     // and we should be able to get the system xattr's
@@ -153,7 +154,7 @@ TEST(XattrBlob, MB_22691) {
     validate(blob.finalize());
 
     auto value = blob.get("integer");
-    EXPECT_EQ(0, value.len);
+    EXPECT_EQ(0, value.size());
 
     const std::vector<std::string> keys = {"start", "integer", "in", "int",
                                            "double", "for", "try", "as",

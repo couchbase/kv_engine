@@ -125,8 +125,7 @@ static void create_single_path_context(SubdocCmdContext& context,
                                 valbuf.size()};
     // Path is the first thing in the value; remainder is the operation
     // value.
-    auto path = value;
-    path.len = pathlen;
+    cb::const_char_buffer path = {value.data(), pathlen};
 
     const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
     const SubdocCmdContext::Phase phase = xattr ?
@@ -174,7 +173,7 @@ static void create_single_path_context(SubdocCmdContext& context,
 
     if (impliesMkdir_p(doc_flags)) {
         context.jroot_type = Subdoc::Util::get_root_type(
-                traits.subdocCommand, path.buf, path.len);
+                traits.subdocCommand, path.data(), path.size());
     }
 
     if (Settings::instance().getVerbose() > 1) {
@@ -186,10 +185,10 @@ static void create_single_path_context(SubdocCmdContext& context,
                              request.getClientOpcode(),
                              key,
                              keylen,
-                             path.buf,
-                             path.len,
-                             value.buf,
-                             value.len);
+                             path.data(),
+                             path.size(),
+                             value.data(),
+                             value.size());
     }
 }
 
@@ -205,31 +204,31 @@ static void create_multi_path_context(SubdocCmdContext& context,
 
     context.setMutationSemantics(doc_flags);
     size_t offset = 0;
-    while (offset < value.len) {
+    while (offset < value.size()) {
         cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
         protocol_binary_subdoc_flag flags;
         size_t headerlen;
         cb::const_char_buffer path;
         cb::const_char_buffer spec_value;
         if (traits.is_mutator) {
-            auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
-                (value.buf + offset);
+            auto* spec = reinterpret_cast<
+                    const protocol_binary_subdoc_multi_mutation_spec*>(
+                    value.data() + offset);
             headerlen = sizeof(*spec);
             binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
             flags = protocol_binary_subdoc_flag(spec->flags);
-            path = {value.buf + offset + headerlen,
-                    htons(spec->pathlen)};
-            spec_value = {value.buf + offset + headerlen + path.len,
+            path = {value.data() + offset + headerlen, htons(spec->pathlen)};
+            spec_value = {value.data() + offset + headerlen + path.size(),
                           htonl(spec->valuelen)};
 
         } else {
-            auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
-                (value.buf + offset);
+            auto* spec = reinterpret_cast<
+                    const protocol_binary_subdoc_multi_lookup_spec*>(
+                    value.data() + offset);
             headerlen = sizeof(*spec);
             binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
             flags = protocol_binary_subdoc_flag(spec->flags);
-            path = {value.buf + offset + headerlen,
-                    htons(spec->pathlen)};
+            path = {value.data() + offset + headerlen, htons(spec->pathlen)};
             spec_value = {nullptr, 0};
         }
 
@@ -238,7 +237,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
             context.jroot_type == 0) {
             // Determine the root type
             context.jroot_type = Subdoc::Util::get_root_type(
-                    traits.subdocCommand, path.buf, path.len);
+                    traits.subdocCommand, path.data(), path.size());
         }
 
         if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -277,7 +276,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
                 flags,
                 {path.data(), path.size()},
                 {spec_value.data(), spec_value.size()}});
-        offset += headerlen + path.len + spec_value.len;
+        offset += headerlen + path.size() + spec_value.size();
     }
 
     if (Settings::instance().getVerbose() > 1) {
@@ -292,8 +291,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
                              keylen,
                              path,
                              strlen(path),
-                             value.buf,
-                             value.len);
+                             value.data(),
+                             value.size());
     }
 }
 
@@ -455,7 +454,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
             SLAB_INCR(&cookie.getConnection(), cmd_set);
         } else {
             thread_stats->cmd_subdoc_lookup++;
-            thread_stats->bytes_subdoc_lookup_total += context->in_doc.len;
+            thread_stats->bytes_subdoc_lookup_total += context->in_doc.size();
             thread_stats->bytes_subdoc_lookup_extracted += context->response_val_len;
 
             STATS_HIT(&cookie.getConnection(), get);
@@ -554,7 +553,7 @@ static bool subdoc_fetch(Cookie& cookie,
         }
     }
 
-    if (ctx.in_doc.buf == nullptr) {
+    if (ctx.in_doc.data() == nullptr) {
         // Retrieve the item_info the engine, and if necessary
         // uncompress it so subjson can parse it.
         auto status = ctx.get_document_for_searching(cas);
@@ -583,11 +582,11 @@ static cb::mcbp::Status subdoc_operate_one_path(
     op.clear();
     op.set_result_buf(&spec.result);
     op.set_code(spec.traits.subdocCommand);
-    op.set_doc(in_doc.buf, in_doc.len);
+    op.set_doc(in_doc.data(), in_doc.size());
 
     if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
         auto padded_macro = context.get_padded_macro(spec.value);
-        op.set_value(padded_macro.buf, padded_macro.len);
+        op.set_value(padded_macro.data(), padded_macro.size());
     } else {
         op.set_value(spec.value.data(), spec.value.size());
     }
@@ -671,7 +670,7 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
             // Size of zero indicates the document body ("path") doesn't exist.
             return cb::mcbp::Status::SubdocPathEnoent;
         }
-        spec.result.set_matchloc({doc.buf, doc.len});
+        spec.result.set_matchloc({doc.data(), doc.size()});
         return cb::mcbp::Status::Success;
 
     case cb::mcbp::ClientOpcode::Set:
@@ -762,8 +761,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 // (even if it was the source of some of the newdoc
                 // iovecs).
                 temp_buffer.swap(temp);
-                doc.buf = temp_buffer.get();
-                doc.len = new_doc_len;
+                doc = {temp_buffer.get(), new_doc_len};
 
                 if (op->traits.scope == CommandScope::WholeDoc) {
                     // the entire document has been replaced as part of a
@@ -818,7 +816,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
 static ENGINE_ERROR_CODE validate_vattr_privilege(
         SubdocCmdContext& context, const cb::const_char_buffer key) {
     // The $document vattr doesn't require any xattr permissions.
-    if (key.buf[1] == 'X') {
+    if (key[1] == 'X') {
         // In the xtoc case we want to see which privileges the connection has
         // to determine which XATTRs we tell the user about
 
@@ -915,14 +913,13 @@ static inline void replace_xattrs(const cb::char_buffer& new_xattr,
                                   SubdocCmdContext& context,
                                   const size_t bodyoffset,
                                   const size_t bodysize) {
-    auto total = new_xattr.len + bodysize;
+    auto total = new_xattr.size() + bodysize;
 
     std::unique_ptr<char[]> full_document(new char[total]);
-    std::copy(
-            new_xattr.buf, new_xattr.buf + new_xattr.len, full_document.get());
-    std::copy(context.in_doc.buf + bodyoffset,
-              context.in_doc.buf + bodyoffset + bodysize,
-              full_document.get() + new_xattr.len);
+    std::copy(new_xattr.begin(), new_xattr.end(), full_document.get());
+    std::copy(context.in_doc.data() + bodyoffset,
+              context.in_doc.data() + bodyoffset + bodysize,
+              full_document.get() + new_xattr.size());
 
     context.temp_doc.swap(full_document);
     context.in_doc = {context.temp_doc.get(), total};
@@ -951,9 +948,10 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
     // We need to remove the user keys from the Xattrs and rebuild the document
 
     const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc);
-    const auto bodysize = context.in_doc.len - bodyoffset;
+    const auto bodysize = context.in_doc.size() - bodyoffset;
 
-    cb::char_buffer blob_buffer{(char*)context.in_doc.buf, (size_t)bodyoffset};
+    cb::char_buffer blob_buffer{(char*)context.in_doc.data(),
+                                (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(
             blob_buffer, mcbp::datatype::is_snappy(context.in_datatype));
@@ -1015,7 +1013,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         throw std::logic_error("do_xattr_phase: unknown SubdocPath");
     }
 
-    auto bodysize = context.in_doc.len;
+    auto bodysize = context.in_doc.size();
     auto bodyoffset = 0;
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
@@ -1023,14 +1021,15 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         bodysize -= bodyoffset;
     }
 
-    cb::char_buffer blob_buffer{(char*)context.in_doc.buf, (size_t)bodyoffset};
+    cb::char_buffer blob_buffer{(char*)context.in_doc.data(),
+                                (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(
             blob_buffer, mcbp::datatype::is_snappy(context.in_datatype));
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 
-    if (value_buf.len == 0) {
+    if (value_buf.size() == 0) {
         context.xattr_buffer.reset(new char[2]);
         context.xattr_buffer[0] = '{';
         context.xattr_buffer[1] = '}';
@@ -1038,23 +1037,23 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     } else {
         // To allow the subjson do it's thing with the full xattrs
         // create a full json doc looking like: {\"xattr_key\":\"value\"};
-        size_t total = 5 + key.len + value_buf.len;
+        size_t total = 5 + key.size() + value_buf.size();
         context.xattr_buffer.reset(new char[total]);
         char* ptr = context.xattr_buffer.get();
         memcpy(ptr, "{\"", 2);
         ptr += 2;
-        memcpy(ptr, key.buf, key.len);
-        ptr += key.len;
+        memcpy(ptr, key.data(), key.size());
+        ptr += key.size();
         memcpy(ptr, "\":", 2);
         ptr += 2;
-        memcpy(ptr, value_buf.buf, value_buf.len);
-        ptr += value_buf.len;
+        memcpy(ptr, value_buf.data(), value_buf.size());
+        ptr += value_buf.size();
         *ptr = '}';
         value_buf = { context.xattr_buffer.get(), total};
     }
 
     std::unique_ptr<char[]> temp_doc;
-    cb::const_char_buffer document{value_buf.buf, value_buf.len};
+    cb::const_char_buffer document{value_buf.data(), value_buf.size()};
 
     context.generate_macro_padding(document, cb::xattr::macros::CAS);
     context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
@@ -1086,9 +1085,9 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     // document.. create a copy we can use for replace.
     cb::xattr::Blob copy(xattr_blob);
 
-    if (document.len > key.len) {
-        const char* start = strchr(document.buf, ':') + 1;
-        const char* end = document.buf + document.len - 1;
+    if (document.size() > key.size()) {
+        const char* start = strchr(document.data(), ':') + 1;
+        const char* end = document.data() + document.size() - 1;
 
         copy.set(key, {start, size_t(end - start)});
     } else {
@@ -1114,8 +1113,8 @@ static bool do_body_phase(SubdocCmdContext& context) {
     }
 
     size_t xattrsize = 0;
-    cb::const_char_buffer document {context.in_doc.buf,
-                                    context.in_doc.len};
+    cb::const_char_buffer document{context.in_doc.data(),
+                                   context.in_doc.size()};
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
         // We shouldn't have any documents like that!
@@ -1142,16 +1141,16 @@ static bool do_body_phase(SubdocCmdContext& context) {
     // buffer we've already created.
     if (xattrsize == 0) {
         context.temp_doc.swap(temp_doc);
-        context.in_doc = { context.temp_doc.get(), document.len };
+        context.in_doc = {context.temp_doc.get(), document.size()};
         return true;
     }
 
     // Time to rebuild the full document.
-    auto total = xattrsize + document.len;
+    auto total = xattrsize + document.size();
     std::unique_ptr<char[]> full_document(new char[total]);;
 
-    memcpy(full_document.get(), context.in_doc.buf, xattrsize);
-    memcpy(full_document.get() + xattrsize, document.buf, document.len);
+    memcpy(full_document.get(), context.in_doc.data(), xattrsize);
+    memcpy(full_document.get() + xattrsize, document.data(), document.size());
 
     context.temp_doc.swap(full_document);
     context.in_doc = { context.temp_doc.get(), total };
@@ -1225,7 +1224,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         !(context.no_sys_xattrs && context.do_delete_doc)) {
 
         if (ret == ENGINE_SUCCESS) {
-            context.out_doc_len = context.in_doc.len;
+            context.out_doc_len = context.in_doc.size();
             auto allocate_key = cookie.getConnection().makeDocKey(key);
             const size_t priv_bytes =
                 cb::xattr::get_system_xattr_size(context.in_datatype,
@@ -1286,7 +1285,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        std::memcpy(write_ptr, context.in_doc.buf, context.in_doc.len);
+        std::memcpy(write_ptr, context.in_doc.data(), context.in_doc.size());
     }
 
     // And finally, store the new document.

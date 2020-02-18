@@ -60,8 +60,8 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
 
         // Set the cas value (will be copied to the response message)
         cookie.setCas(info.cas);
-        payload.buf = static_cast<const char*>(info.value[0].iov_base);
-        payload.len = info.value[0].iov_len;
+        payload = {static_cast<const char*>(info.value[0].iov_base),
+                   info.value[0].iov_len};
 
         bool need_inflate = false;
         if (mcbp::datatype::is_snappy(info.datatype) &&

@@ -57,29 +57,14 @@ static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
 }
 
 static bool validate_macro(const cb::const_char_buffer& value) {
-    return ((value.len == cb::xattr::macros::CAS.name.len) &&
-            std::memcmp(value.buf,
-                        cb::xattr::macros::CAS.name.buf,
-                        cb::xattr::macros::CAS.name.len) == 0) ||
-           ((value.len == cb::xattr::macros::SEQNO.name.len) &&
-            std::memcmp(value.buf,
-                        cb::xattr::macros::SEQNO.name.buf,
-                        cb::xattr::macros::SEQNO.name.len) == 0) ||
-           ((value.len == cb::xattr::macros::VALUE_CRC32C.name.len) &&
-            std::memcmp(value.buf,
-                        cb::xattr::macros::VALUE_CRC32C.name.buf,
-                        cb::xattr::macros::VALUE_CRC32C.name.len) == 0);
+    return ((value == cb::xattr::macros::CAS.name) ||
+            (value == cb::xattr::macros::SEQNO.name) ||
+            (value == cb::xattr::macros::VALUE_CRC32C.name));
 }
 
 static bool is_valid_virtual_xattr(cb::const_char_buffer value) {
-    return (((value.len == cb::xattr::vattrs::DOCUMENT.size()) &&
-             std::memcmp(value.data(),
-                         cb::xattr::vattrs::DOCUMENT.data(),
-                         cb::xattr::vattrs::DOCUMENT.size()) == 0)) ||
-           (((value.len == cb::xattr::vattrs::XTOC.size()) &&
-             std::memcmp(value.data(),
-                         cb::xattr::vattrs::XTOC.data(),
-                         cb::xattr::vattrs::XTOC.size()) == 0));
+    return ((value == cb::xattr::vattrs::DOCUMENT) ||
+            (value == cb::xattr::vattrs::XTOC));
 }
 
 /**
@@ -94,7 +79,7 @@ static bool is_valid_virtual_xattr(cb::const_char_buffer value) {
  * @param flags The flag section provided
  * @param path The full path (including the key)
  * @param value The value passed (if it is a macro this must be a legal macro)
- * @param xattr_key The xattr key in use (if xattr_key.len != 0) otherwise it
+ * @param xattr_key The xattr key in use (if xattr_key.size() != 0) otherwise it
  *                  the current key is stored so that we can check that the
  *                  next key refers the same key..
  * @return cb::mcbp::Status::Success if everything is correct
@@ -141,11 +126,11 @@ static inline cb::mcbp::Status validate_xattr_section(
             return cb::mcbp::Status::SubdocXattrCantModifyVattr;
         }
     } else {
-        if (xattr_key.len == 0) {
-            xattr_key.buf = path.buf;
-            xattr_key.len = key_length;
-        } else if (xattr_key.len != key_length ||
-                   std::memcmp(xattr_key.buf, path.buf, key_length) != 0) {
+        if (xattr_key.size() == 0) {
+            xattr_key = {path.data(), key_length};
+        } else if (xattr_key.size() != key_length ||
+                   std::memcmp(xattr_key.data(), path.data(), key_length) !=
+                           0) {
             return cb::mcbp::Status::SubdocXattrInvalidKeyCombo;
         }
     }

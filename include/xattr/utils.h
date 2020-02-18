@@ -49,7 +49,7 @@ bool validate(const cb::const_char_buffer& blob);
  *
  * @param payload the payload to check
  * @return The number of bytes into the payload where the body lives
- *         (the body size == payload.len - the returned value)
+ *         (the body size == payload.size() - the returned value)
  */
 XATTR_PUBLIC_API
 uint32_t get_body_offset(const cb::const_char_buffer& payload);

@@ -80,7 +80,7 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    mcbp::datatype::is_snappy(info.datatype));
         auto value = xattr_blob.get(xattr_key);
-        if (value.len == 0) {
+        if (value.empty()) {
             // The segment is no longer there (we may have had another
             // subdoc command which rewrote the segment where we injected
             // the macro.
@@ -125,8 +125,8 @@ void SubdocCmdContext::substituteMacro(cb::const_char_buffer macroName,
                                        cb::char_buffer& value) {
     // Do an in-place substitution of the real macro value where we
     // wrote the padded macro string.
-    char* root = value.buf;
-    char* end = value.buf + value.len;
+    char* root = value.begin();
+    char* end = value.end();
     auto& macro = std::find_if(std::begin(paddedMacros),
                                std::end(paddedMacros),
                                [macroName](const MacroPair& m) {
@@ -197,7 +197,7 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
             if (payload.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
             } else {
-                paddedMacros.emplace_back(macro.name.buf, candidate);
+                paddedMacros.emplace_back(macro.name.data(), candidate);
             }
         }
     }
@@ -330,8 +330,8 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
 
     in_flags = info.flags;
     in_cas = client_cas ? client_cas : info.cas;
-    in_doc.buf = static_cast<char*>(info.value[0].iov_base);
-    in_doc.len = info.value[0].iov_len;
+    in_doc = {static_cast<char*>(info.value[0].iov_base),
+              info.value[0].iov_len};
     in_datatype = info.datatype;
     in_document_state = info.document_state;
 

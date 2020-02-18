@@ -47,7 +47,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     // at VBucket creation (8 bytes for UUID + 8 bytes for SEQNO)
     EXPECT_EQ(0x10, header.getBodylen());
     EXPECT_EQ(0, header.getCas());
-    EXPECT_EQ(response.getData().len, 0x10);
+    EXPECT_EQ(response.getData().size(), 0x10);
 
     // Test non-existing VBucket
     response = connection.getFailoverLog(Vbid(1));

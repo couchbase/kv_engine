@@ -117,7 +117,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
     }
 
     if (!xattr.empty()) {
-        std::memcpy(pair.second.value[0].iov_base, xattr.buf, xattr.size());
+        std::memcpy(pair.second.value[0].iov_base, xattr.data(), xattr.size());
     }
 
     state = State::StoreItem;

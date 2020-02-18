@@ -1233,7 +1233,7 @@ private:
             builder.set("_ewb", "{\"internal\":true}");
             builder.set("meta", "{\"author\":\"jack\"}");
             const auto blob = builder.finalize();
-            std::copy(blob.buf, blob.buf + blob.len, std::back_inserter(value));
+            std::copy(blob.begin(), blob.end(), std::back_inserter(value));
             // MB24971 - the body is large as it increases the probability of
             // transit returning TransmitResult::SoftError
             const std::string body(1000, 'x');

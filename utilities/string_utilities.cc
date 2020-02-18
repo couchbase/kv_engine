@@ -101,9 +101,9 @@ cb::const_byte_buffer to_const_byte_buffer(const char* key) {
 }
 
 std::string to_string(cb::byte_buffer buf) {
-    return std::string(reinterpret_cast<const char*>(buf.buf), buf.len);
+    return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
 }
 
 std::string to_string(cb::const_byte_buffer buf) {
-    return std::string(reinterpret_cast<const char*>(buf.buf), buf.len);
+    return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
 }

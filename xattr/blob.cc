@@ -46,7 +46,7 @@ Blob::Blob(cb::char_buffer buffer,
            bool compressed,
            size_t size)
     : blob(buffer), allocator(allocator_), alloc_size(size) {
-    assign(buffer, compressed);
+    assign({buffer.data(), buffer.size()}, compressed);
 }
 
 Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
@@ -87,16 +87,18 @@ Blob& Blob::assign(cb::char_buffer buffer, bool compressed) {
 cb::char_buffer Blob::get(const cb::const_char_buffer& key) const {
     try {
         size_t current = 4;
-        while (current < blob.len) {
+        while (current < blob.size()) {
             // Get the length of the next kv-pair
             const auto size = read_length(current);
             current += 4;
-            if (size > key.len) {
+            if (size > key.size()) {
                 // This may be the next key
-                if (blob.buf[current + key.len] == '\0' &&
-                    std::memcmp(blob.buf + current, key.buf, key.len) == 0) {
+                if (blob[current + key.size()] == '\0' &&
+                    std::memcmp(blob.data() + current,
+                                key.data(),
+                                key.size()) == 0) {
                     // Yay this is the key!!!
-                    auto* value = blob.buf + current + key.len + 1;
+                    auto* value = blob.buf + current + key.size() + 1;
                     return {value, strlen(value)};
                 } else {
                     // jump to the next key!!
@@ -116,11 +118,11 @@ cb::char_buffer Blob::get(const cb::const_char_buffer& key) const {
 void Blob::prune_user_keys() {
     try {
         size_t current = 4;
-        while (current < blob.len) {
+        while (current < blob.size()) {
             // Get the length of the next kv-pair
             const auto size = read_length(current);
 
-            if (blob.buf[current + 4] != '_') {
+            if (blob[current + 4] != '_') {
                 remove_segment(current, size + 4);
             } else {
                 current += 4 + size;
@@ -133,40 +135,40 @@ void Blob::prune_user_keys() {
 void Blob::remove(const cb::const_char_buffer& key) {
     // Locate the old value
     const auto old = get(key);
-    if (old.len == 0) {
+    if (old.empty()) {
         // it's not there
         return;
     }
 
     // there is no need to reallocate as we can just pack the buffer
-    const auto offset = old.buf - blob.buf - 1 - key.len - 4;
-    const auto size = 4 + key.len + 1 + old.len + 1;
+    const auto offset = old.data() - blob.data() - 1 - key.size() - 4;
+    const auto size = 4 + key.size() + 1 + old.size() + 1;
 
     remove_segment(offset, size);
 }
 
 void Blob::set(const cb::const_char_buffer& key,
                const cb::const_char_buffer& value) {
-    if (value.len == 0) {
+    if (value.empty()) {
         remove(key);
         return;
     }
 
     // Locate the old value
     const auto old = get(key);
-    if (old.len == value.len) {
+    if (old.size() == value.size()) {
         // lets do an in-place replacement
-        std::copy(value.buf, value.buf + value.len, old.buf);
+        std::copy(value.begin(), value.end(), old.buf);
         return;
-    } else if (old.len == 0) {
+    } else if (old.size() == 0) {
         // The old one didn't exist
         append_kvpair(key, value);
     } else {
         // we need to reorganize the buffer. Determine the size of
         // the resulting document
-        const size_t newsize = blob.len + value.len - old.len;
-        const auto old_offset = old.buf - blob.buf - 1 - key.len - 4;
-        const auto old_kv_size = 4 + key.len + 1 + old.len + 1;
+        const size_t newsize = blob.size() + value.size() - old.size();
+        const auto old_offset = old.data() - blob.data() - 1 - key.size() - 4;
+        const auto old_kv_size = 4 + key.size() + 1 + old.size() + 1;
 
         if (newsize < alloc_size) {
             // we can do an in-place removement
@@ -174,12 +176,14 @@ void Blob::set(const cb::const_char_buffer& key,
         } else {
             std::unique_ptr<char[]> temp(new char[newsize]);
             // copy everything up to the old one
-            std::copy(blob.buf, blob.buf + old_offset, temp.get());
+            std::copy(blob.data(), blob.data() + old_offset, temp.get());
             // Skip the old value and copy the rest
-            std::copy(blob.buf + old_offset + old_kv_size,
-                      blob.buf + blob.len, temp.get() + old_offset);
+            std::copy(blob.data() + old_offset + old_kv_size,
+                      blob.data() + blob.size(),
+                      temp.get() + old_offset);
             allocator.swap(temp);
-            blob = {allocator.get(), newsize - 4 - key.len - 1 - value.len - 1};
+            blob = {allocator.get(),
+                    newsize - 4 - key.size() - 1 - value.size() - 1};
             alloc_size = newsize;
         }
 
@@ -188,10 +192,10 @@ void Blob::set(const cb::const_char_buffer& key,
 }
 
 void Blob::grow_buffer(uint32_t size) {
-    if (blob.len < size) {
+    if (blob.size() < size) {
         if (alloc_size < size) {
             std::unique_ptr<char[]> temp(new char[size]);
-            std::copy(blob.buf, blob.buf + blob.len, temp.get());
+            std::copy(blob.data(), blob.data() + blob.size(), temp.get());
             allocator.swap(temp);
             blob = {allocator.get(), size};
             alloc_size = size;
@@ -205,81 +209,81 @@ void Blob::write_kvpair(size_t offset,
                         const cb::const_char_buffer& key,
                         const cb::const_char_buffer& value) {
     // offset points to where we want to inject the value
-    write_length(offset, uint32_t(key.len + 1 + value.len + 1));
+    write_length(offset, uint32_t(key.size() + 1 + value.size() + 1));
     offset += 4;
-    std::copy(key.buf, key.buf + key.len, blob.buf + offset);
-    offset += key.len;
-    blob.buf[offset++] = '\0';
-    std::copy(value.buf, value.buf + value.len, blob.buf + offset);
-    offset += value.len;
-    blob.buf[offset++] = '\0';
-    write_length(0, uint32_t(blob.len - 4));
+    std::copy(key.data(), key.data() + key.size(), blob.data() + offset);
+    offset += key.size();
+    blob[offset++] = '\0';
+    std::copy(value.data(), value.data() + value.size(), blob.data() + offset);
+    offset += value.size();
+    blob[offset++] = '\0';
+    write_length(0, uint32_t(blob.size() - 4));
 }
 
 void Blob::append_kvpair(const cb::const_char_buffer& key,
                          const cb::const_char_buffer& value) {
-    auto offset = blob.len;
+    auto offset = blob.size();
     if (offset == 0) {
         offset += 4;
     }
 
-    const auto needed = offset +
-                        4 + // length byte
-                        key.len + 1 + // zero terminated key
-                        value.len + 1; // zero terminated value
+    const auto needed = offset + 4 + // length byte
+                        key.size() + 1 + // zero terminated key
+                        value.size() + 1; // zero terminated value
 
     grow_buffer(gsl::narrow<uint32_t>(needed));
     write_kvpair(offset, key, value);
 }
 
 void Blob::remove_segment(const size_t offset, const size_t size) {
-    if (offset + size == blob.len) {
+    if (offset + size == blob.size()) {
         // No need to do anyting as this was the last thing in our blob..
         // just change the length
         blob.len = offset;
 
-        if (blob.len == 4) {
+        if (blob.size() == 4) {
             // the last xattr removed... we could just nuke it..
             blob.len = 0;
         }
     } else {
-        std::memmove(blob.buf + offset, blob.buf + offset + size,
-                     blob.len - offset - size);
+        std::memmove(blob.data() + offset,
+                     blob.data() + offset + size,
+                     blob.size() - offset - size);
         blob.len -= size;
     }
 
-    if (blob.len > 0) {
-        write_length(0, gsl::narrow<uint32_t>(blob.len) - 4);
+    if (blob.size() > 0) {
+        write_length(0, gsl::narrow<uint32_t>(blob.size()) - 4);
     }
 }
 
 void Blob::write_length(size_t offset, uint32_t value) {
-    if (offset + 4 > blob.len) {
+    if (offset + 4 > blob.size()) {
         throw std::out_of_range("Blob::write_length: Access to " +
                                 std::to_string(offset) +
                                 " is outside the legal range of [0, " +
-                                std::to_string(blob.len - 1) + "]");
+                                std::to_string(blob.size() - 1) + "]");
     }
 
-    auto* ptr = reinterpret_cast<uint32_t*>(blob.buf + offset);
+    auto* ptr = reinterpret_cast<uint32_t*>(blob.data() + offset);
     *ptr = htonl(value);
 }
 
 uint32_t Blob::read_length(size_t offset) const {
-    if (offset + 4 > blob.len) {
+    if (offset + 4 > blob.size()) {
         throw std::out_of_range("Blob::read_length: Access to " +
                                 std::to_string(offset) +
                                 " is outside the legal range of [0, " +
-                                std::to_string(blob.len - 1) + "]");
+                                std::to_string(blob.size() - 1) + "]");
     }
 
-    const auto* ptr = reinterpret_cast<const uint32_t*>(blob.buf + offset);
+    const auto* ptr = reinterpret_cast<const uint32_t*>(blob.data() + offset);
     return ntohl(*ptr);
 }
 
 size_t Blob::get_system_size() const {
     // special case.. there are no xattr's
-    if (blob.len == 0) {
+    if (blob.size() == 0) {
         return 0;
     }
 
@@ -288,10 +292,10 @@ size_t Blob::get_system_size() const {
     size_t ret = 4;
     try {
         size_t current = 4;
-        while (current < blob.len) {
+        while (current < blob.size()) {
             // Get the length of the next kv-pair
             const auto size = read_length(current);
-            if (blob.buf[current + 4] == '_') {
+            if (blob[current + 4] == '_') {
                 ret += size + 4;
             }
             current += 4 + size;
@@ -307,7 +311,7 @@ nlohmann::json Blob::to_json() const {
 
     try {
         size_t current = 4;
-        while (current < blob.len) {
+        while (current < blob.size()) {
             // Get the length of the next kv-pair
             const auto size = read_length(current);
             current += 4;

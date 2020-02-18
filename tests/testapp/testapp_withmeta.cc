@@ -63,8 +63,8 @@ public:
         // append body to the xattrs and store in data
         std::string body = "document_body";
         document.value.clear();
-        std::copy_n(xattrValue.buf,
-                    xattrValue.len,
+        std::copy_n(xattrValue.data(),
+                    xattrValue.size(),
                     std::back_inserter(document.value));
         std::copy_n(
                 body.c_str(), body.size(), std::back_inserter(document.value));

@@ -149,7 +149,8 @@ TopKeys::topkey_t* TopKeys::Shard::searchForKey(
         if (topkey.first.hash == key_hash) {
             // Double-check with full compare
             if (topkey.first.key.compare(
-                        0, topkey.first.key.size(), key.buf, key.len) == 0) {
+                        0, topkey.first.key.size(), key.data(), key.size()) ==
+                0) {
                 // Match found.
                 return &topkey;
             }
@@ -172,7 +173,7 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
                 // Re-use the lowest keys' storage.
                 found_key = list.back();
                 found_key->first.hash = key_hash;
-                found_key->first.key.assign(key.buf, key.len);
+                found_key->first.key.assign(key.data(), key.size());
                 found_key->second = topkey_item_t(ct);
 
                 // Move back element to the front, shuffling down the
@@ -183,7 +184,7 @@ bool TopKeys::Shard::updateKey(const cb::const_char_buffer& key,
                 // add a new element to the storage array.
 
                 storage.emplace_back(std::make_pair(
-                        KeyId{key_hash, std::string(key.buf, key.len)},
+                        KeyId{key_hash, std::string(key.data(), key.size())},
                         topkey_item_t(ct)));
                 found_key = &storage.back();
 

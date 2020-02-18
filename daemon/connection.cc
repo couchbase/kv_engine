@@ -1373,10 +1373,10 @@ void Connection::sendResponseHeaders(Cookie& cookie,
         wbuf = {wbuf.data(), wbuf.size() + extras.size()};
         std::copy(key.begin(), key.end(), wbuf.end());
         wbuf = {wbuf.data(), wbuf.size() + key.size()};
-        copyToOutputStream(wbuf);
+        copyToOutputStream({wbuf.data(), wbuf.size()});
     } else {
         // Copy the data to the output stream
-        copyToOutputStream(wbuf);
+        copyToOutputStream({wbuf.data(), wbuf.size()});
         copyToOutputStream(extras);
         copyToOutputStream(key);
     }

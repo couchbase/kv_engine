@@ -588,7 +588,7 @@ void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
 void cb::mcbp::dumpStream(cb::const_byte_buffer buffer, std::ostream& out) {
     size_t offset = 0;
 
-    while ((offset + sizeof(Header)) <= buffer.len) {
+    while ((offset + sizeof(Header)) <= buffer.size()) {
         // Check to see if we've got the entire next packet available
         auto* header = reinterpret_cast<const Header*>(buffer.data() + offset);
         if (!header->isValid()) {
@@ -608,7 +608,7 @@ void cb::mcbp::dumpStream(cb::const_byte_buffer buffer, std::ostream& out) {
             throw std::invalid_argument(ss.str());
         }
         offset += sizeof(*header) + header->getBodylen();
-        if (offset > buffer.len) {
+        if (offset > buffer.size()) {
             out << "Last frame truncated..." << std::endl;
             return;
         }

@@ -466,7 +466,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
     auto root = const_cast<char*>(item->getData());
     cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset(
-            {reinterpret_cast<char*>(buffer.buf), buffer.len});
+            {reinterpret_cast<char*>(buffer.data()), buffer.size()});
     auto keyAndValueMessageSize =
             MutationResponse::mutationBaseMsgBytes +
             item->getKey().makeDocKeyWithoutCollectionID().size() +
@@ -524,7 +524,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
     auto root = const_cast<char*>(item->getData());
     cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset(
-            {reinterpret_cast<char*>(buffer.buf), buffer.len});
+            {reinterpret_cast<char*>(buffer.data()), buffer.size()});
     auto keyAndValueMessageSize =
             MutationResponse::mutationBaseMsgBytes +
             item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
@@ -555,7 +555,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueWithDatatype) {
     auto root = const_cast<char*>(item->getData());
     cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset(
-            {reinterpret_cast<char*>(buffer.buf), buffer.len});
+            {reinterpret_cast<char*>(buffer.data()), buffer.size()});
     auto keyAndValueMessageSize =
             MutationResponse::mutationBaseMsgBytes +
             item->getKey().makeDocKeyWithoutCollectionID().size() + sz;

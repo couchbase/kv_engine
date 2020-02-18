@@ -204,8 +204,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     }
 
     // copy the xattr over;
-    memcpy(body.buf, src, xattrsize);
-    memcpy(body.buf + xattrsize, value.data(), value.size());
+    memcpy(body.data(), src, xattrsize);
+    memcpy(body.data() + xattrsize, value.data(), value.size());
     bucket_item_set_cas(connection, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;

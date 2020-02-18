@@ -1242,8 +1242,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
-    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
-                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync").data());
 
     auto itm = result.item.get();
     EXPECT_TRUE(itm->isDeleted()) << "Not deleted " << *itm;

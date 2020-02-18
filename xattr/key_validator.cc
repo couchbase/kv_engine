@@ -84,21 +84,21 @@ int get_utf8_char_width(const char* ptr, size_t avail) {
 
 bool is_valid_xattr_key(cb::const_char_buffer path, size_t& key_length) {
     // Check for the random list of reserved leading characters.
-    size_t dot = path.len;
+    size_t dot = path.size();
     bool system = false;
 
     try {
-        const auto length = path.len;
+        const auto length = path.size();
         size_t offset = 0;
-        const char* ptr = path.buf;
+        const char* ptr = path.data();
 
         while (offset < length) {
             auto width = get_utf8_char_width(ptr, length - offset);
             if (width == 1) {
                 if (offset == 0) {
-                    if (std::ispunct(path.buf[0], loc) ||
-                        std::iscntrl(path.buf[0], loc)) {
-                        if (path.buf[0] == '_' || path.buf[0] == '$') {
+                    if (std::ispunct(path[0], loc) ||
+                        std::iscntrl(path[0], loc)) {
+                        if (path[0] == '_' || path[0] == '$') {
                             system = true;
                         } else {
                             return false;

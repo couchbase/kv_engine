@@ -36,16 +36,16 @@ namespace xattr {
  * @throws std::underflow_error if there isn't a '\0' in the buffer
  */
 static cb::const_char_buffer trim_string(cb::const_char_buffer blob) {
-    const auto* end = (const char*)std::memchr(blob.buf, '\0', blob.len);
+    const auto* end = (const char*)std::memchr(blob.data(), '\0', blob.size());
     if (end == nullptr) {
         throw std::out_of_range("trim_string: no '\\0' in the input buffer");
     }
 
-    return {blob.buf, size_t(end - blob.buf)};
+    return {blob.data(), size_t(end - blob.data())};
 }
 
 bool validate(const cb::const_char_buffer& blob) {
-    if (blob.len < 4) {
+    if (blob.size() < 4) {
         // we must have room for the length field
         return false;
     }
@@ -61,7 +61,7 @@ bool validate(const cb::const_char_buffer& blob) {
         // Check that the offset of the body is within the blob (note that it
         // may be the same size as the blob if the actual data payload is empty
         size = get_body_offset(blob);
-        if (size > blob.len) {
+        if (size > blob.size()) {
             return false;
         }
 
@@ -80,7 +80,7 @@ bool validate(const cb::const_char_buffer& blob) {
             }
 
             const auto kvsize = ntohl(
-                *reinterpret_cast<const uint32_t*>(blob.buf + offset));
+                    *reinterpret_cast<const uint32_t*>(blob.data() + offset));
             offset += 4;
             if (offset + kvsize > size) {
                 // The kvsize exceeds the blob size
@@ -88,29 +88,32 @@ bool validate(const cb::const_char_buffer& blob) {
             }
 
             // pick out the key
-            const auto keybuf = trim_string({blob.buf + offset, size - offset});
-            offset += keybuf.len + 1; // swallow the '\0'
+            const auto keybuf =
+                    trim_string({blob.data() + offset, size - offset});
+            offset += keybuf.size() + 1; // swallow the '\0'
 
             // Validate the key
-            if (!is_valid_xattr_key({keybuf.buf, keybuf.len})) {
+            if (!is_valid_xattr_key({keybuf.data(), keybuf.size()})) {
                 return false;
             }
 
             // pick out the value
-            const auto valuebuf = trim_string({blob.buf + offset, size - offset});
-            offset += valuebuf.len + 1; // swallow '\0'
+            const auto valuebuf =
+                    trim_string({blob.data() + offset, size - offset});
+            offset += valuebuf.size() + 1; // swallow '\0'
 
             // Validate the value (must be legal json)
-            if (!validator.validate(valuebuf.buf)) {
+            if (!validator.validate(valuebuf.data())) {
                 // Failed to parse the JSON
                 return false;
             }
 
-            if (kvsize != (keybuf.len + valuebuf.len + 2)) {
+            if (kvsize != (keybuf.size() + valuebuf.size() + 2)) {
                 return false;
             }
 
-            if (!keys.insert(std::string{keybuf.buf, keybuf.len}).second) {
+            if (!keys.insert(std::string{keybuf.data(), keybuf.size()})
+                         .second) {
                 return false;
             }
         }
@@ -132,14 +135,14 @@ static void check_len(uint32_t len, size_t size) {
 }
 
 uint32_t get_body_offset(const cb::const_char_buffer& payload) {
-    const auto* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
+    const auto* lenptr = reinterpret_cast<const uint32_t*>(payload.data());
     auto len = ntohl(*lenptr);
     check_len(len, payload.size());
     return len + sizeof(uint32_t);
 }
 
 uint32_t get_body_offset(const cb::char_buffer& payload) {
-    const auto* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
+    const auto* lenptr = reinterpret_cast<const uint32_t*>(payload.data());
     auto len = ntohl(*lenptr);
     check_len(len, payload.size());
     return len + sizeof(uint32_t);
@@ -147,12 +150,7 @@ uint32_t get_body_offset(const cb::char_buffer& payload) {
 
 const_char_buffer get_body(const cb::const_char_buffer& payload) {
     auto offset = get_body_offset(payload);
-    return {payload.buf + offset, payload.len - offset};
-}
-
-char_buffer get_body(const cb::char_buffer& payload) {
-    auto offset = get_body_offset(payload);
-    return {payload.buf + offset, payload.len - offset};
+    return {payload.data() + offset, payload.size() - offset};
 }
 
 size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc) {

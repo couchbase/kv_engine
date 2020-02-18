@@ -734,8 +734,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     //Now, append user data to the xattrs and store the data
     std::string value_data("test_expiry_value");
     std::vector<char> data;
-    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
-              std::back_inserter(data));
+    std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
     std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
               std::back_inserter(data));
 
@@ -798,7 +797,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     /* Only system extended attributes need to be present at this point.
      * Thus, check the blob length with the system size.
      */
-    const auto systemsize = new_blob.finalize().len;
+    const auto systemsize = new_blob.finalize().size();
 
     checkeq(systemsize, new_blob.get_system_size(),
             "The size of the blob doesn't match the size of system attributes");
@@ -969,7 +968,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
 
     auto blob = builder.finalize();
     std::string data;
-    std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
+    std::copy(blob.begin(), blob.end(), std::back_inserter(data));
     for (int i = 0; i < 12; i++) {
         std::stringstream ss;
         ss << "xattr_key" << i;
@@ -6030,7 +6029,7 @@ static enum test_result test_eviction_with_xattr(EngineIface* h) {
     builder.set("_ep", "{\foo\":\"bar\"}");
     auto blob = builder.finalize();
     std::string data;
-    std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
+    std::copy(blob.data(), blob.data() + blob.size(), std::back_inserter(data));
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,

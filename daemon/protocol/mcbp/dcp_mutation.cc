@@ -39,8 +39,8 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
 
     uint32_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(datatype)) {
-        const char* payload = reinterpret_cast<const char*>(value.buf);
-        cb::xattr::Blob blob({const_cast<char*>(payload), value.len},
+        const char* payload = reinterpret_cast<const char*>(value.data());
+        cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
                              mcbp::datatype::is_snappy(datatype));
         priv_bytes = uint32_t(blob.get_system_size());
         if (priv_bytes > cb::limits::PrivilegedBytes) {

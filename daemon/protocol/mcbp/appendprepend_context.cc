@@ -159,21 +159,22 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
     // copy the data over..
     if (mode == Mode::Append) {
-        memcpy(body.buf, old.buf, old.len);
-        memcpy(body.buf + old.len, value.buf, value.len);
+        memcpy(body.data(), old.data(), old.size());
+        memcpy(body.data() + old.size(), value.data(), value.size());
     } else {
         // The xattrs should go first (body_offset == 0 if the object
         // don't have any xattrs)
-        memcpy(body.buf, old.buf, body_offset);
-        memcpy(body.buf + body_offset, value.buf, value.len);
-        memcpy(body.buf + body_offset + value.len, old.buf + body_offset,
-               old.len - body_offset);
+        memcpy(body.data(), old.data(), body_offset);
+        memcpy(body.data() + body_offset, value.data(), value.size());
+        memcpy(body.data() + body_offset + value.size(),
+               old.data() + body_offset,
+               old.size() - body_offset);
     }
     // If the resulting document's data is valid JSON, set the datatype flag
     // to reflect this.
     cb::const_byte_buffer buf{
-            reinterpret_cast<const uint8_t*>(body.buf + body_offset),
-            old.len + value.len};
+            reinterpret_cast<const uint8_t*>(body.data() + body_offset),
+            old.size() + value.size()};
     // Update the documents's datatype and CAS values
     setDatatypeJSONFromValue(buf, datatype);
     bucket_item_set_datatype(connection, newitem.get(), datatype);

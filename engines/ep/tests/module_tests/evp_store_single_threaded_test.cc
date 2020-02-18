@@ -2597,9 +2597,7 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     auto xattr_value = blob.finalize();
 
     std::string data;
-    std::copy(xattr_value.buf,
-              xattr_value.buf + xattr_value.len,
-              std::back_inserter(data));
+    std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
     std::copy(
             body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
 

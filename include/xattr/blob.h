@@ -168,7 +168,7 @@ public:
 
         iterator& operator++() {
             // Don't increment past the end
-            if (current == blob.blob.len) {
+            if (current == blob.blob.size()) {
                 return *this;
             }
 
@@ -177,8 +177,8 @@ public:
             current += 4;
 
             // We're past the end, make this iterator match end()
-            if (current > blob.blob.len) {
-                current = blob.blob.len;
+            if (current > blob.blob.size()) {
+                current = blob.blob.size();
             }
             return *this;
         }
@@ -191,7 +191,7 @@ public:
 
         std::pair<cb::const_char_buffer, cb::const_char_buffer> operator*()
                 const {
-            auto* ptr = blob.blob.buf + current + 4;
+            auto* ptr = blob.blob.data() + current + 4;
             const auto keylen = strlen(ptr);
             cb::const_char_buffer key{ptr, keylen};
             ptr += (keylen + 1);
@@ -207,14 +207,14 @@ public:
     };
 
     iterator begin() const {
-        if (blob.len == 0) {
+        if (blob.empty()) {
             return end();
         }
         return iterator(*this, 4);
     }
 
     iterator end() const {
-        return iterator(*this, blob.len);
+        return iterator(*this, blob.size());
     }
 
 protected:
