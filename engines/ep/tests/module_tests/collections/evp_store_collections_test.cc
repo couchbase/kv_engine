@@ -401,6 +401,12 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     EXPECT_EQ(CollectionEntry::defaultC.getId(),
               rv.extras.data.collectionId.to_host());
 
+    rv = store->getCollectionID("_default._default");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(CollectionEntry::defaultC.getId(),
+              rv.extras.data.collectionId.to_host());
+
     rv = store->getCollectionID(".dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));

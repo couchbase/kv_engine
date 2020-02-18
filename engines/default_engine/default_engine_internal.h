@@ -200,25 +200,48 @@ struct default_engine : public EngineIface {
 
     float getMinCompressionRatio() override;
 
-   SERVER_HANDLE_V1 server;
-   GET_SERVER_API get_server_api;
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
 
-   /**
-    * Is the engine initalized or not
-    */
-   bool initialized;
+    cb::engine_errc get_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            const AddResponseFn& response) override;
 
-   struct slabs slabs;
-   struct items items;
+    cb::EngineErrorGetCollectionIDResult get_collection_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
-   struct config config;
-   struct engine_stats stats;
-   struct engine_scrubber scrubber;
+    cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
-   char vbucket_infos[NUM_VBUCKETS];
+    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key) const override;
 
-   /* a unique bucket index, note this is not cluster wide and dies with the process */
-   bucket_id_t bucket_id;
+    void generate_unknown_collection_response(const void* cookie) const;
+
+    SERVER_HANDLE_V1 server;
+    GET_SERVER_API get_server_api;
+
+    /**
+     * Is the engine initalized or not
+     */
+    bool initialized;
+
+    struct slabs slabs;
+    struct items items;
+
+    struct config config;
+    struct engine_stats stats;
+    struct engine_scrubber scrubber;
+
+    char vbucket_infos[NUM_VBUCKETS];
+
+    /* a unique bucket index, note this is not cluster wide and dies with the
+     * process */
+    bucket_id_t bucket_id;
 };
 
 char* item_get_data(const hash_item* item);

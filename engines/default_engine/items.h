@@ -158,20 +158,21 @@ struct items {
    std::mutex lock;
 };
 
-
 /**
  * Allocate and initialize a new item structure
  * @param engine handle to the storage engine
- * @param key the key for the new item
- * @param nkey the number of bytes in the key
+ * @param key the DocKey for the new item
  * @param flags the flags in the new item
  * @param exptime when the object should expire
  * @param nbytes the number of bytes in the body for the item
  * @return a pointer to an item on success NULL otherwise
  */
-hash_item *item_alloc(struct default_engine *engine,
-                      const void *key, const size_t nkey, int flags,
-                      rel_time_t exptime, int nbytes, const void *cookie,
+hash_item* item_alloc(struct default_engine* engine,
+                      const DocKey& key,
+                      int flags,
+                      rel_time_t exptime,
+                      int nbytes,
+                      const void* cookie,
                       uint8_t datatype);
 
 /**
@@ -179,15 +180,13 @@ hash_item *item_alloc(struct default_engine *engine,
  *
  * @param engine handle to the storage engine
  * @param cookie connection cookie
- * @param key the key for the item to get
- * @param nkey the number of bytes in the key
+ * @param key the DocKey for the item to get
  * @param state Only return documents in this state
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item* item_get(struct default_engine* engine,
                     const void* cookie,
-                    const void* key,
-                    const size_t nkey,
+                    const DocKey& key,
                     const DocStateFilter state);
 
 /**
@@ -210,16 +209,14 @@ hash_item* item_get(struct default_engine* engine,
  * @param engine handle to the storage engine
  * @param cookie connection cookie
  * @param where to return the item (if found)
- * @param key the key for the item to get
- * @param nkey the number of bytes in the key
+ * @param key the DocKey for the item to get
  * @param locktime when the item expire
  * @return ENGINE_SUCCESS for success
  */
 ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
                                   const void* cookie,
                                   hash_item** it,
-                                  const void* key,
-                                  const size_t nkey,
+                                  const DocKey& key,
                                   rel_time_t locktime);
 
 /**
@@ -228,33 +225,28 @@ ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
  * @param engine handle to the storage engine
  * @param cookie connection cookie
  * @param where to return the item (if found)
- * @param key the key for the item to get
- * @param nkey the number of bytes in the key
+ * @param key the DocKey for the item to get
  * @param exptime The new expiry time
  * @return ENGINE_SUCCESS for success
  */
 ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
                                      const void* cookie,
                                      hash_item** it,
-                                     const void* key,
-                                     const size_t nkey,
+                                     const DocKey& key,
                                      rel_time_t exptime);
-
 
 /**
  * Unlock an item in the cache
  *
  * @param engine handle to the storage engine
  * @param cookie connection cookie
- * @param key the key for the item to unlock
- * @param nkey the number of bytes in the key
+ * @param key the DocKey for the item to unlock
  * @param cas value for the locked value
  * @return ENGINE_SUCCESS for success
  */
 ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
                               const void* cookie,
-                              const void* key,
-                              const size_t nkey,
+                              const DocKey& key,
                               uint64_t cas);
 
 /**

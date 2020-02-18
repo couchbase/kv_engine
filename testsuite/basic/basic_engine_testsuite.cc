@@ -21,6 +21,7 @@
 #include <folly/portability/GTest.h>
 #include <logger/logger.h>
 #include <memcached/durability_spec.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_engine.h>
@@ -594,4 +595,299 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
                                     false));
         }
     }
+}
+
+// Only the default collection is supported on memcache buckets
+class CollectionsTest : public BasicEngineTestsuite {
+public:
+    void SetUp() override {
+        BasicEngineTestsuite::SetUp();
+    }
+
+    void storeTest(const DocKey& a, const DocKey& b);
+
+    void removeTest(const DocKey& a, const DocKey& b);
+
+protected:
+    std::array<uint8_t, 3> k1 = {{'k', 'e', 'y'}};
+    std::array<uint8_t, 4> k2 = {{0, 'k', 'e', 'y'}};
+    std::array<uint8_t, 4> k3 = {{8, 'k', 'e', 'y'}};
+    // key1 and key2 are logically the same, both 'key' in default collection
+    DocKey key1{k1.data(), k1.size(), DocKeyEncodesCollectionId::No};
+    DocKey key2{k2.data(), k2.size(), DocKeyEncodesCollectionId::Yes};
+    // key 3 is in collection 8
+    DocKey key3{k3.data(), k3.size(), DocKeyEncodesCollectionId::Yes};
+};
+
+// Test that allocate allows default (key1/key2) but errors on key3, this will
+// mean most store paths will not work because we cannot allocate an item to
+// store/replace
+TEST_F(CollectionsTest, Allocate) {
+    auto ret = engine->allocate(
+            cookie.get(), key1, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
+    EXPECT_EQ(cb::engine_errc::success, ret.first);
+    EXPECT_TRUE(ret.second);
+
+    ret = engine->allocate(
+            cookie.get(), key2, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
+    EXPECT_EQ(cb::engine_errc::success, ret.first);
+    EXPECT_TRUE(ret.second);
+
+    ret = engine->allocate(
+            cookie.get(), key3, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
+    EXPECT_EQ(cb::engine_errc::unknown_collection, ret.first);
+    EXPECT_FALSE(ret.second);
+}
+
+// Store using a and get with b
+void CollectionsTest::storeTest(const DocKey& keyA, const DocKey& keyB) {
+    // Test only makes sense if the keys are logically the same
+    ASSERT_EQ(keyA.hash(), keyB.hash());
+
+    auto ret = engine->allocate(cookie.get(),
+                                keyA,
+                                32,
+                                0xcafef00d,
+                                0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                Vbid(0));
+    EXPECT_EQ(cb::engine_errc::success, ret.first);
+    EXPECT_TRUE(ret.second);
+
+    uint64_t cas = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->store(cookie.get(),
+                            ret.second.get(),
+                            cas,
+                            OPERATION_SET,
+                            {},
+                            DocumentState::Alive,
+                            false));
+
+    ret = engine->get(cookie.get(), keyB, Vbid(0), DocStateFilter::Alive);
+    ASSERT_EQ(cb::engine_errc::success, ret.first);
+
+    item_info item_info;
+    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &item_info));
+    EXPECT_EQ(0xcafef00d, item_info.flags);
+}
+
+TEST_F(CollectionsTest, Store1) {
+    // Expect store(key1) get(key2) to work
+    storeTest(key1, key2);
+}
+
+TEST_F(CollectionsTest, Store2) {
+    // Expect store(key2) get(key1) to work
+    storeTest(key2, key1);
+}
+
+TEST_F(CollectionsTest, Store3) {
+    // Expect store(key2) get(key1) to work
+    storeTest(key2, key1);
+    // and be told to go away if a get with key3 was attempted
+    auto ret = engine->get(cookie.get(), key3, Vbid(0), DocStateFilter::Alive);
+    ASSERT_EQ(cb::engine_errc::unknown_collection, ret.first);
+}
+
+// Store using a and remove with b
+void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
+    // Test only makes sense if the keys are logically the same
+    ASSERT_EQ(keyA.hash(), keyB.hash());
+
+    auto allocRes = engine->allocate(cookie.get(),
+                                     keyA,
+                                     32,
+                                     0xcafef00d,
+                                     0,
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     Vbid(0));
+    EXPECT_EQ(cb::engine_errc::success, allocRes.first);
+    EXPECT_TRUE(allocRes.second);
+
+    uint64_t cas = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->store(cookie.get(),
+                            allocRes.second.get(),
+                            cas,
+                            OPERATION_SET,
+                            {},
+                            DocumentState::Alive,
+                            false));
+
+    mutation_descr_t mut_info;
+    cas = 0;
+    auto ret = engine->remove(cookie.get(), keyB, cas, Vbid(0), {}, mut_info);
+    ASSERT_EQ(ENGINE_SUCCESS, ret);
+
+    // It's gone
+    auto getResult =
+            engine->get(cookie.get(), keyA, Vbid(0), DocStateFilter::Alive);
+    ASSERT_EQ(cb::engine_errc::no_such_key, getResult.first);
+
+    // It's still gone
+    getResult = engine->get(cookie.get(), keyB, Vbid(0), DocStateFilter::Alive);
+    ASSERT_EQ(cb::engine_errc::no_such_key, getResult.first);
+}
+
+TEST_F(CollectionsTest, RemoveSuccess1) {
+    removeTest(key1, key2);
+}
+
+TEST_F(CollectionsTest, RemoveSuccess2) {
+    removeTest(key2, key1);
+}
+
+TEST_F(CollectionsTest, RemoveError) {
+    storeTest(key1, key2);
+
+    // key3 denied
+    uint64_t cas = 0;
+    mutation_descr_t mut_info;
+    auto ret = engine->remove(cookie.get(), key3, cas, Vbid(0), {}, mut_info);
+    ASSERT_EQ(ENGINE_UNKNOWN_COLLECTION, ret);
+
+    // Still here
+    auto getResult =
+            engine->get(cookie.get(), key1, Vbid(0), DocStateFilter::Alive);
+    ASSERT_EQ(cb::engine_errc::success, getResult.first);
+}
+
+TEST_F(CollectionsTest, GetFromUnknownCollection) {
+    auto getVal = engine->get_if(cookie.get(), key3, Vbid(0), {});
+    EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
+    getVal = engine->get_and_touch(cookie.get(), key3, Vbid(0), 0, {});
+    EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
+    getVal = engine->get_locked(cookie.get(), key3, Vbid(0), 0);
+    EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
+    auto getMetaVal = engine->get_meta(cookie.get(), key3, Vbid(0));
+    EXPECT_EQ(cb::engine_errc::unknown_collection, getMetaVal.first);
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->unlock(cookie.get(), key3, Vbid(0), 0));
+}
+
+// Can only ever get to the default collection
+TEST_F(CollectionsTest, CollectionIDLookup) {
+    auto rv = engine->get_collection_id(cookie.get(), ".");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
+
+    rv = engine->get_collection_id(cookie.get(), "_default.");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
+
+    rv = engine->get_collection_id(cookie.get(), "._default");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
+
+    rv = engine->get_collection_id(cookie.get(), "_default._default");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
+
+    rv = engine->get_collection_id(cookie.get(), "..");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = engine->get_collection_id(cookie.get(), "_default.._default");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+
+    rv = engine->get_collection_id(cookie.get(), "unknown.");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+}
+
+// Can only ever get to the default scope
+TEST_F(CollectionsTest, ScopeIDLookup) {
+    auto rv = engine->get_scope_id(cookie.get(), "");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+
+    rv = engine->get_scope_id(cookie.get(), ".");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+
+    rv = engine->get_scope_id(cookie.get(), "_default");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+
+    rv = engine->get_scope_id(cookie.get(), "blah");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+
+    rv = engine->get_scope_id(cookie.get(), "blah.");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+
+    rv = engine->get_scope_id(cookie.get(), "blah..");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+
+    rv = engine->get_scope_id(cookie.get(), "..");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+}
+
+// Can only ever get to the default scope (DocKey lookup)
+TEST_F(CollectionsTest, ScopeIDLookup2) {
+    auto rv = engine->get_scope_id(cookie.get(), key1);
+    EXPECT_EQ(0, rv.first);
+    EXPECT_TRUE(rv.second);
+    EXPECT_EQ(ScopeID::Default, rv.second.get());
+
+    rv = engine->get_scope_id(cookie.get(), key2);
+    EXPECT_EQ(0, rv.first);
+    EXPECT_TRUE(rv.second);
+    EXPECT_EQ(ScopeID::Default, rv.second.get());
+
+    rv = engine->get_scope_id(cookie.get(), key3);
+    EXPECT_EQ(0, rv.first);
+    EXPECT_FALSE(rv.second);
+}
+
+// Cannot change collections
+TEST_F(CollectionsTest, SetGetCollections) {
+    EXPECT_EQ(cb::engine_errc::not_supported,
+              engine->set_collection_manifest(cookie.get(), "{}"));
+
+    std::string returnedData;
+    cb::mcbp::Status returnedStatus;
+
+    AddResponseFn addResponseFunc = [&returnedData, &returnedStatus](
+                                            cb::const_char_buffer key,
+                                            cb::const_char_buffer extras,
+                                            cb::const_char_buffer body,
+                                            uint8_t datatype,
+                                            cb::mcbp::Status status,
+                                            uint64_t cas,
+                                            const void* cookie) -> bool {
+        std::copy(body.begin(), body.end(), std::back_inserter(returnedData));
+        returnedStatus = status;
+        return true;
+    };
+
+    std::string defaultManifest = R"(
+        {
+          "uid": "0",
+          "scopes": [
+            {
+              "name": "_default",
+              "uid": "0",
+              "collections": [
+                {
+                  "name": "_default",
+                  "uid": "0"
+                }
+              ]
+            }
+          ]
+        })";
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->get_collection_manifest(cookie.get(), addResponseFunc));
+    auto defaultManifestJson = nlohmann::json::parse(defaultManifest);
+    auto returnedJson = nlohmann::json::parse(returnedData);
+    EXPECT_EQ(defaultManifestJson, returnedJson);
 }

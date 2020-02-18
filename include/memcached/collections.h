@@ -38,6 +38,10 @@ struct EngineErrorGetCollectionIDResult {
         return htonll(extras.data.manifestId);
     }
 
+    CollectionID getCollectionId() const {
+        return extras.data.collectionId.to_host();
+    }
+
     engine_errc result;
     union _extras {
         _extras(uint64_t manifestId, CollectionID collectionId)
@@ -63,6 +67,10 @@ struct EngineErrorGetScopeIDResult {
 
     uint64_t getManifestId() const {
         return htonll(extras.data.manifestId);
+    }
+
+    ScopeID getScopeId() const {
+        return extras.data.scopeId.to_host();
     }
 
     engine_errc result;

@@ -135,14 +135,13 @@ bool Collections::Manager::validateGetScopeIDPath(const std::string& path) {
 
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         cb::const_char_buffer path) const {
-    auto current = currentManifest.rlock();
-
     auto sPath = cb::to_string(path);
 
     if (!validateGetCollectionIDPath(sPath)) {
-        return {cb::engine_errc::invalid_arguments, current->getUid(), 0};
+        return {cb::engine_errc::invalid_arguments, 0, 0};
     }
 
+    auto current = currentManifest.rlock();
     auto scope = current->getScopeID(sPath);
     if (!scope) {
         return {cb::engine_errc::unknown_scope, current->getUid(), 0};
@@ -158,14 +157,13 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         cb::const_char_buffer path) const {
-    auto current = currentManifest.rlock();
-
     auto sPath = cb::to_string(path);
     if (!validateGetScopeIDPath(sPath)) {
-        return {cb::engine_errc::invalid_arguments, current->getUid(), 0};
+        return {cb::engine_errc::invalid_arguments, 0, 0};
     }
 
-    auto scope = current->getScopeID(cb::to_string(sPath));
+    auto current = currentManifest.rlock();
+    auto scope = current->getScopeID(sPath);
     if (!scope) {
         return {cb::engine_errc::unknown_scope, current->getUid(), 0};
     }

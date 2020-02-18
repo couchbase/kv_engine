@@ -120,6 +120,22 @@ struct MockEngine : public EngineIface, public DcpIface {
             gsl::not_null<const void*> cookie,
             cb::const_char_buffer json) override;
 
+    cb::engine_errc get_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            const AddResponseFn& response) override;
+
+    cb::EngineErrorGetCollectionIDResult get_collection_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
+
+    cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
+
+    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key) const override;
+
     bool isXattrEnabled() override {
         return the_engine->isXattrEnabled();
     }

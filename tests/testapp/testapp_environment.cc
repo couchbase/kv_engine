@@ -169,7 +169,7 @@ public:
     }
 
     bool supportsCollections() const override {
-        return false;
+        return true;
     }
 };
 

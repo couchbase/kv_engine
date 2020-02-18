@@ -44,8 +44,7 @@ static int do_item_replace(struct default_engine* engine,
 static void item_free(struct default_engine *engine, hash_item *it);
 
 static bool hash_key_create(hash_key* hkey,
-                            const void* key,
-                            const size_t nkey,
+                            const DocKey& key,
                             struct default_engine* engine);
 
 static void hash_key_destroy(hash_key* hkey);
@@ -634,13 +633,16 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
 /*
  * Allocates a new item.
  */
-hash_item *item_alloc(struct default_engine *engine,
-                      const void *key, size_t nkey, int flags,
-                      rel_time_t exptime, int nbytes, const void *cookie,
+hash_item* item_alloc(struct default_engine* engine,
+                      const DocKey& key,
+                      int flags,
+                      rel_time_t exptime,
+                      int nbytes,
+                      const void* cookie,
                       uint8_t datatype) {
     hash_item *it;
     hash_key hkey;
-    if (!hash_key_create(&hkey, key, nkey, engine)) {
+    if (!hash_key_create(&hkey, key, engine)) {
         return nullptr;
     }
 
@@ -659,12 +661,11 @@ hash_item *item_alloc(struct default_engine *engine,
  */
 hash_item* item_get(struct default_engine* engine,
                     const void* cookie,
-                    const void* key,
-                    const size_t nkey,
+                    const DocKey& key,
                     DocStateFilter document_state) {
     hash_item *it;
     hash_key hkey;
-    if (!hash_key_create(&hkey, key, nkey, engine)) {
+    if (!hash_key_create(&hkey, key, engine)) {
         return nullptr;
     }
     it = item_get(engine, cookie, hkey, document_state);
@@ -832,12 +833,11 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
 ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
                                   const void* cookie,
                                   hash_item** it,
-                                  const void* key,
-                                  const size_t nkey,
+                                  const DocKey& key,
                                   rel_time_t locktime) {
     hash_key hkey;
 
-    if (!hash_key_create(&hkey, key, nkey, engine)) {
+    if (!hash_key_create(&hkey, key, engine)) {
         return ENGINE_TMPFAIL;
     }
 
@@ -902,12 +902,11 @@ static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
 
 ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
                               const void* cookie,
-                              const void* key,
-                              const size_t nkey,
+                              const DocKey& key,
                               uint64_t cas) {
     hash_key hkey;
 
-    if (!hash_key_create(&hkey, key, nkey, engine)) {
+    if (!hash_key_create(&hkey, key, engine)) {
         return ENGINE_TMPFAIL;
     }
 
@@ -980,12 +979,11 @@ ENGINE_ERROR_CODE do_item_get_and_touch(struct default_engine* engine,
 ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
                                      const void* cookie,
                                      hash_item** it,
-                                     const void* key,
-                                     const size_t nkey,
+                                     const DocKey& key,
                                      rel_time_t exptime) {
     hash_key hkey;
 
-    if (!hash_key_create(&hkey, key, nkey, engine)) {
+    if (!hash_key_create(&hkey, key, engine)) {
         return ENGINE_TMPFAIL;
     }
 
@@ -1194,11 +1192,15 @@ bool item_start_scrub(struct default_engine *engine)
 }
 
 static bool hash_key_create(hash_key* hkey,
-                            const void* key,
-                            const size_t nkey,
+                            const DocKey& key,
                             struct default_engine* engine) {
-    auto hash_key_len = gsl::narrow<uint16_t>(sizeof(bucket_id_t) + nkey);
-    if (nkey > sizeof(hkey->key_storage.client_key)) {
+    // Drop the collection-prefix if it exists, this call will create a view
+    // on the logical key allowing [0][key] and [key] to be equal, here we will
+    // end up hashing [key] for both [0][key] or [key] as input
+    auto keyToHash = key.makeDocKeyWithoutCollectionID();
+    auto hash_key_len =
+            gsl::narrow<uint16_t>(sizeof(bucket_id_t) + keyToHash.size());
+    if (keyToHash.size() > sizeof(hkey->key_storage.client_key)) {
         hkey->header.full_key =
             static_cast<hash_key_data*>(cb_malloc(hash_key_len));
         if (hkey->header.full_key == nullptr) {
@@ -1209,7 +1211,7 @@ static bool hash_key_create(hash_key* hkey,
     }
     hash_key_set_len(hkey, hash_key_len);
     hash_key_set_bucket_index(hkey, engine->bucket_id);
-    hash_key_set_client_key(hkey, key, nkey);
+    hash_key_set_client_key(hkey, keyToHash.data(), keyToHash.size());
     return true;
 }
 

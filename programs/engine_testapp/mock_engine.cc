@@ -358,6 +358,25 @@ cb::engine_errc MockEngine::set_collection_manifest(
         gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
     return the_engine->set_collection_manifest(cookie, json);
 }
+cb::engine_errc MockEngine::get_collection_manifest(
+        gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+    return the_engine->get_collection_manifest(cookie, response);
+}
+
+cb::EngineErrorGetCollectionIDResult MockEngine::get_collection_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    return the_engine->get_collection_id(cookie, path);
+}
+
+cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    return the_engine->get_scope_id(cookie, path);
+}
+
+std::pair<uint64_t, boost::optional<ScopeID>> MockEngine::get_scope_id(
+        gsl::not_null<const void*> cookie, const DocKey& key) const {
+    return the_engine->get_scope_id(cookie, key);
+}
 
 ENGINE_ERROR_CODE MockEngine::step(
         gsl::not_null<const void*> cookie,

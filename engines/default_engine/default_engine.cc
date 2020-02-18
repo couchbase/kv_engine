@@ -17,7 +17,9 @@
 
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
+#include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 
 // The default engine don't really use vbucket uuids, but in order
@@ -191,6 +193,14 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
                                "default_item_allocate_ex");
     }
 
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        generate_unknown_collection_response(cookie);
+        throw cb::engine_error(cb::engine_errc::unknown_collection,
+                               "default_item_allocate_ex: only default "
+                               "collection is supported");
+    }
+
     size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
     id = slabs_clsid(this, ntotal);
     if (id == 0) {
@@ -204,8 +214,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
     }
 
     it = item_alloc(this,
-                    key.data(),
-                    key.size(),
+                    key,
                     flags,
                     server.core->realtime(exptime),
                     (uint32_t)nbytes,
@@ -240,6 +249,10 @@ ENGINE_ERROR_CODE default_engine::remove(
     if (durability) {
         return ENGINE_ENOTSUP;
     }
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        return ENGINE_UNKNOWN_COLLECTION;
+    }
 
     hash_item* it;
     uint64_t cas_in = cas;
@@ -247,8 +260,7 @@ ENGINE_ERROR_CODE default_engine::remove(
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     do {
-        it = item_get(
-                this, cookie, key.data(), key.size(), DocStateFilter::Alive);
+        it = item_get(this, cookie, key, DocStateFilter::Alive);
         if (it == nullptr) {
             return ENGINE_KEY_ENOENT;
         }
@@ -262,8 +274,7 @@ ENGINE_ERROR_CODE default_engine::remove(
         }
 
         auto* deleted = item_alloc(this,
-                                   key.data(),
-                                   key.size(),
+                                   key,
                                    it->flags,
                                    it->exptime,
                                    0,
@@ -323,9 +334,13 @@ cb::EngineErrorItemPair default_engine::get(
                 cb::engine_errc::not_my_vbucket,
                 cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
     }
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        generate_unknown_collection_response(cookie);
+        return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
+    }
 
-    item* it =
-            item_get(this, cookie, key.data(), key.size(), documentStateFilter);
+    item* it = item_get(this, cookie, key, documentStateFilter);
     if (it != nullptr) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::success, it, this);
     } else {
@@ -341,12 +356,13 @@ cb::EngineErrorItemPair default_engine::get_if(
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        generate_unknown_collection_response(cookie);
+        return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
+    }
 
-    cb::unique_item_ptr ret(item_get(this,
-                                     cookie,
-                                     key.data(),
-                                     key.size(),
-                                     DocStateFilter::Alive),
+    cb::unique_item_ptr ret(item_get(this, cookie, key, DocStateFilter::Alive),
                             cb::ItemDeleter{this});
     if (!ret) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
@@ -375,18 +391,19 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
     if (durability) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
     }
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        generate_unknown_collection_response(cookie);
+        return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
+    }
 
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
 
     hash_item* it = nullptr;
-    auto ret = item_get_and_touch(this,
-                                  cookie,
-                                  &it,
-                                  key.data(),
-                                  key.size(),
-                                  server.core->realtime(expiry_time));
+    auto ret = item_get_and_touch(
+            this, cookie, &it, key, server.core->realtime(expiry_time));
 
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), reinterpret_cast<item*>(it), this);
@@ -399,6 +416,11 @@ cb::EngineErrorItemPair default_engine::get_locked(
         uint32_t lock_timeout) {
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
+    }
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        generate_unknown_collection_response(cookie);
+        return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
     }
 
     // memcached buckets don't offer any way for the user to configure
@@ -414,8 +436,7 @@ cb::EngineErrorItemPair default_engine::get_locked(
     lock_timeout += server.core->get_current_time();
 
     hash_item* it = nullptr;
-    auto ret = item_get_locked(
-            this, cookie, &it, key.data(), key.size(), lock_timeout);
+    auto ret = item_get_locked(this, cookie, &it, key, lock_timeout);
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, this);
 }
 
@@ -424,13 +445,15 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
     if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(cb::engine_errc::not_my_vbucket, item_info());
     }
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        generate_unknown_collection_response(cookie);
+        return std::make_pair(cb::engine_errc::unknown_collection, item_info());
+    }
 
-    cb::unique_item_ptr item{item_get(this,
-                                      cookie,
-                                      key.data(),
-                                      key.size(),
-                                      DocStateFilter::AliveOrDeleted),
-                             cb::ItemDeleter(this)};
+    cb::unique_item_ptr item{
+            item_get(this, cookie, key, DocStateFilter::AliveOrDeleted),
+            cb::ItemDeleter(this)};
 
     if (!item) {
         return std::make_pair(cb::engine_errc::no_such_key, item_info());
@@ -450,7 +473,11 @@ ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
                                          Vbid vbucket,
                                          uint64_t cas) {
     VBUCKET_GUARD(this, vbucket);
-    return item_unlock(this, cookie, key.data(), key.size(), cas);
+    // MB-35696: Only the default collection is permitted
+    if (!key.getCollectionID().isDefaultCollection()) {
+        return ENGINE_UNKNOWN_COLLECTION;
+    }
+    return item_unlock(this, cookie, key, cas);
 }
 
 ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
@@ -921,7 +948,9 @@ bool default_engine::get_item_info(gsl::not_null<const item*> item,
 }
 
 cb::engine::FeatureSet default_engine::getFeatures() {
-    return cb::engine::FeatureSet();
+    cb::engine::FeatureSet features;
+    features.emplace(cb::engine::Feature::Collections);
+    return features;
 }
 
 bool default_engine::isXattrEnabled() {
@@ -938,4 +967,85 @@ float default_engine::getMinCompressionRatio() {
 
 size_t default_engine::getMaxItemSize() {
     return config.item_size_max;
+}
+
+// Cannot set the manifest on the default engine
+cb::engine_errc default_engine::set_collection_manifest(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
+    return cb::engine_errc::not_supported;
+}
+
+// always return the "epoch" manifest, default collection/scope only
+cb::engine_errc default_engine::get_collection_manifest(
+        gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+    static std::string default_manifest =
+            R"({"uid" : "0",
+        "scopes" : [{"name":"_default", "uid":"0",
+        "collections" : [{"name":"_default","uid":"0"}]}]})";
+    auto ok = response({},
+                       {},
+                       {default_manifest.data(), default_manifest.size()},
+                       PROTOCOL_BINARY_DATATYPE_JSON,
+                       cb::mcbp::Status::Success,
+                       0,
+                       cookie);
+    return ok ? cb::engine_errc::success : cb::engine_errc::failed;
+}
+
+static cb::const_char_buffer default_scope_path{"_default."};
+
+// permit lookup of the default collection only
+cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    if (std::count(path.begin(), path.end(), '.') == 1) {
+        cb::engine_errc error = cb::engine_errc::unknown_scope;
+        if (path == "_default._default" || path == "._default" || path == "." ||
+            path == "_default.") {
+            return {cb::engine_errc::success, 0, CollectionID::Default};
+        } else if (path.find(default_scope_path) == 0) {
+            // path starts with "_default." so collection part is unknown
+            error = cb::engine_errc::unknown_collection;
+        }
+        generate_unknown_collection_response(cookie);
+        return {error, 0, {}};
+    }
+    return {cb::engine_errc::invalid_arguments, {}, {}};
+}
+
+// permit lookup of the default scope only
+cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
+        gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
+    auto dotCount = std::count(path.begin(), path.end(), '.');
+    if (dotCount <= 1) {
+        // only care about everything before .
+        static cb::const_char_buffer dot{"."};
+        auto scope = dotCount ? path.substr(0, path.find(dot)) : path;
+
+        if (scope.empty() || path == "_default") {
+            return {cb::engine_errc::success, 0, ScopeID::Default};
+        }
+        generate_unknown_collection_response(cookie);
+        return {cb::engine_errc::unknown_scope, 0, {}};
+    }
+    return {cb::engine_errc::invalid_arguments, {}, {}};
+}
+
+// permit lookup of the default scope only
+std::pair<uint64_t, boost::optional<ScopeID>> default_engine::get_scope_id(
+        gsl::not_null<const void*> cookie, const DocKey& key) const {
+    if (key.getCollectionID().isDefaultCollection()) {
+        return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+                0, ScopeID{ScopeID::Default});
+    }
+    return std::make_pair<uint64_t, boost::optional<ScopeID>>(0, {});
+}
+
+void default_engine::generate_unknown_collection_response(
+        const void* cookie) const {
+    using nlohmann::json;
+    // Default engine does not support collection changes, so is always
+    // reporting 'unknown collection' against the epoch manifest (uid 0)
+    static const auto error_context = R"({"manifest_uid":"0"})"_json;
+    server.cookie->set_error_json_extras(const_cast<void*>(cookie),
+                                         error_context);
 }

@@ -23,7 +23,9 @@
 class CollectionsTest : public TestappClientTest {
     void SetUp() override {
         TestappClientTest::SetUp();
-        if (!mcd_env->getTestBucket().supportsCollections()) {
+        // Default engine does not support changing the collection configuration
+        if (!mcd_env->getTestBucket().supportsCollections() ||
+            mcd_env->getTestBucket().getName() == "default_engine") {
             return;
         }
         auto& conn = getAdminConnection();
@@ -51,8 +53,12 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 // Check that an unknown scope/collection error returns the expected JSON
 TEST_P(CollectionsTest, ManifestUidInResponse) {
+    std::string expectedUid = "7f";
     if (!mcd_env->getTestBucket().supportsCollections()) {
         return;
+    }
+    if (mcd_env->getTestBucket().getName() == "default_engine") {
+        expectedUid = "0";
     }
 
     auto& conn = getConnection();
@@ -72,5 +78,5 @@ TEST_P(CollectionsTest, ManifestUidInResponse) {
 
     auto itr = parsed.find("manifest_uid");
     EXPECT_NE(parsed.end(), itr);
-    EXPECT_EQ("7f", itr->get<std::string>());
+    EXPECT_EQ(expectedUid, itr->get<std::string>());
 }
