@@ -333,7 +333,6 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     compactionConfig.drop_deletes = 0;
     compactionConfig.db_file_id = Vbid(0);
     compaction_ctx cctx(compactionConfig, 0);
-    cctx.curr_time = 0;
 
     EXPECT_TRUE(kvstore->compactDB(&cctx));
     // Check statistics are correct.
@@ -943,7 +942,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     config.drop_deletes = 0;
     config.db_file_id = Vbid(0);
     compaction_ctx cctx(config, 0);
-    cctx.curr_time = 0;
 
     {
         /* Establish Logger expectation */
@@ -1313,7 +1311,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
 
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
-    cctx.curr_time = 0;
 
     {
         /* Establish FileOps expectation */
@@ -1844,7 +1841,6 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
 
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
-    cctx.curr_time = 0;
     cctx.expiryCallback = std::make_shared<ExpiryCallback>();
     EXPECT_TRUE(kvstore->compactDB(&cctx));
 
@@ -1896,7 +1892,6 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
 
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
-    cctx.curr_time = 0;
 
     cctx.expiryCallback = std::make_shared<ExpiryCallback>();
     EXPECT_TRUE(kvstore->compactDB(&cctx));
@@ -2492,7 +2487,6 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         config.drop_deletes = 0;
         config.db_file_id = Vbid(0);
         compaction_ctx cctx(config, 0);
-        cctx.curr_time = 0;
         for (int i = 0; i < 10; i++) {
             EXPECT_TRUE(kvstore->compactDB(&cctx));
         }

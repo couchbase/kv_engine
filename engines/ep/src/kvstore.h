@@ -127,7 +127,6 @@ struct compaction_ctx {
     CompactionConfig compactConfig;
     uint64_t max_purged_seq;
     const KVStoreConfig* config;
-    uint32_t curr_time;
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;

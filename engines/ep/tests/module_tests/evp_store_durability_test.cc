@@ -2475,7 +2475,6 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
 
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
-    cctx.curr_time = 0; // not used??
 
     cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
