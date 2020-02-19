@@ -912,8 +912,6 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
         return err;
     }
 
-    uint64_t max_purge_seq = ctx->max_purged_seq;
-
     if (info->rev_meta.size >= MetaData::getMetaDataSize(MetaData::Version::V0)) {
         auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
         uint32_t exptime = metadata->getExptime();
@@ -948,7 +946,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
             if (info->db_seq != infoDb.last_sequence) {
                 if (ctx->compactConfig.drop_deletes) { // all deleted items must
                                                        // be dropped ...
-                    if (max_purge_seq < info->db_seq) {
+                    if (ctx->max_purged_seq < info->db_seq) {
                         ctx->max_purged_seq =
                                 info->db_seq; // track max_purged_seq
                     }
@@ -971,7 +969,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     (exptime || !ctx->compactConfig.retain_erroneous_tombstones) &&
                      (!ctx->compactConfig.purge_before_seq ||
                       info->db_seq <= ctx->compactConfig.purge_before_seq)) {
-                    if (max_purge_seq < info->db_seq) {
+                    if (ctx->max_purged_seq < info->db_seq) {
                         ctx->max_purged_seq = info->db_seq;
                     }
                     ctx->stats.tombstonesPurged++;
