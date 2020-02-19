@@ -743,11 +743,33 @@ bool set_param(EngineIface* h,
     return last_status == cb::mcbp::Status::Success;
 }
 
-bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
-    char ext[4];
-    encodeExt(ext, static_cast<uint32_t>(state));
-    auto request =
-            createPacket(cb::mcbp::ClientOpcode::SetVbucket, vb, 0, {ext, 4});
+bool set_vbucket_state(EngineIface* h,
+                       Vbid vb,
+                       vbucket_state_t state,
+                       cb::const_char_buffer meta) {
+    uint8_t datatype = 0x0;
+    std::unique_ptr<char[]> extras;
+    uint8_t extSize = 0;
+    if (!meta.empty()) {
+        // mad-hatter encoding
+        datatype = 0x1;
+        extSize = 1;
+        extras = std::make_unique<char[]>(extSize);
+        *extras.get() = static_cast<char>(state);
+    } else {
+        // pre mad-hatter encoding
+        extSize = 4;
+        extras = std::make_unique<char[]>(extSize);
+        encodeExt(extras.get(), static_cast<int32_t>(state));
+    }
+
+    auto request = createPacket(cb::mcbp::ClientOpcode::SetVbucket,
+                                vb,
+                                0 /*cas*/,
+                                {extras.get(), extSize},
+                                {} /*key*/,
+                                meta /*value*/,
+                                datatype);
 
     if (h->unknown_command(nullptr, *request, add_response) != ENGINE_SUCCESS) {
         return false;
@@ -1094,17 +1116,19 @@ void stop_persistence(EngineIface* h) {
             "Error stopping persistence.");
 }
 
-ENGINE_ERROR_CODE store(EngineIface* h,
-                        const void* cookie,
-                        ENGINE_STORE_OPERATION op,
-                        const char* key,
-                        const char* value,
-                        item** outitem,
-                        uint64_t casIn,
-                        Vbid vb,
-                        uint32_t exp,
-                        uint8_t datatype,
-                        DocumentState docState) {
+ENGINE_ERROR_CODE store(
+        EngineIface* h,
+        const void* cookie,
+        ENGINE_STORE_OPERATION op,
+        const char* key,
+        const char* value,
+        item** outitem,
+        uint64_t casIn,
+        Vbid vb,
+        uint32_t exp,
+        uint8_t datatype,
+        DocumentState docState,
+        const boost::optional<cb::durability::Requirements>& durReqs) {
     auto ret = storeCasVb11(h,
                             cookie,
                             op,
@@ -1116,7 +1140,8 @@ ENGINE_ERROR_CODE store(EngineIface* h,
                             vb,
                             exp,
                             datatype,
-                            docState);
+                            docState,
+                            durReqs);
     if (outitem) {
         *outitem = ret.second.release();
     }
@@ -1153,18 +1178,20 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
     return res;
 }
 
-cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
-                                     const void* cookie,
-                                     ENGINE_STORE_OPERATION op,
-                                     const char* key,
-                                     const char* value,
-                                     size_t vlen,
-                                     uint32_t flags,
-                                     uint64_t casIn,
-                                     Vbid vb,
-                                     uint32_t exp,
-                                     uint8_t datatype,
-                                     DocumentState docState) {
+cb::EngineErrorItemPair storeCasVb11(
+        EngineIface* h,
+        const void* cookie,
+        ENGINE_STORE_OPERATION op,
+        const char* key,
+        const char* value,
+        size_t vlen,
+        uint32_t flags,
+        uint64_t casIn,
+        Vbid vb,
+        uint32_t exp,
+        uint8_t datatype,
+        DocumentState docState,
+        const boost::optional<cb::durability::Requirements>& durReqs) {
     uint64_t cas = 0;
 
     auto rv = allocate(h, cookie, key, vlen, flags, exp, datatype, vb);
@@ -1186,13 +1213,62 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
         create_cookie = true;
     }
 
-    auto storeRet = h->store(cookie, rv.second.get(), cas, op, {}, docState);
+    auto storeRet =
+            h->store(cookie, rv.second.get(), cas, op, durReqs, docState);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
     }
 
     return {cb::engine_errc(storeRet), std::move(rv.second)};
+}
+
+ENGINE_ERROR_CODE replace(EngineIface* h,
+                          const void* cookie,
+                          const char* key,
+                          const char* value,
+                          uint32_t flags,
+                          Vbid vb) {
+    Expects(cookie);
+
+    const auto allocRes = allocate(h,
+                                   cookie,
+                                   key,
+                                   strlen(value),
+                                   flags,
+                                   0 /*expiry*/,
+                                   0 /*datatype*/,
+                                   vb);
+    if (allocRes.first != cb::engine_errc::success) {
+        return ENGINE_ERROR_CODE(allocRes.first);
+    }
+
+    const auto& item = allocRes.second;
+    item_info info;
+    if (!h->get_item_info(item.get(), &info)) {
+        abort();
+    }
+    h->item_set_cas(allocRes.second.get(), 0);
+
+    // A predicate that allows the replace.
+    // This simulates the behaviour of replace when the doc being updated does
+    // not contain any xattr, and the vbucket that owns the doc has surely never
+    // seen a doc with xattr. Which means that we do not need any pre-fetch for
+    // preserving xattrs, the replace can just proceed.
+    const cb::StoreIfPredicate predicate = [](const boost::optional<item_info>&,
+                                              cb::vbucket_info) {
+        return cb::StoreIfStatus::Continue;
+    };
+
+    auto res = h->store_if(cookie,
+                           item.get(),
+                           0 /*cas*/,
+                           ENGINE_STORE_OPERATION::OPERATION_REPLACE,
+                           predicate,
+                           {} /*durReqs*/,
+                           DocumentState::Alive);
+
+    return ENGINE_ERROR_CODE(res.status);
 }
 
 ENGINE_ERROR_CODE touch(EngineIface* h,

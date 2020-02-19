@@ -100,6 +100,15 @@ struct mock_engine : public EngineIface, public DcpIface {
             const boost::optional<cb::durability::Requirements>& durability,
             DocumentState document_state) override;
 
+    cb::EngineErrorCasPair store_if(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t cas,
+            ENGINE_STORE_OPERATION operation,
+            const cb::StoreIfPredicate& predicate,
+            const boost::optional<cb::durability::Requirements>& durability,
+            DocumentState document_state) override;
+
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
@@ -413,6 +422,36 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
+/*
+ * @todo: We can avoid duplicating this code by turning cb::EngineErrorCasPair
+ *  from a named structure into a real std::pair<engine_errc, uint64_t>.
+ *  Not doing here as it requires touching a bit around.
+ */
+static cb::EngineErrorCasPair call_engine_and_handle_EWOULDBLOCK(
+        MockCookie* c,
+        const std::function<cb::EngineErrorCasPair()>& engine_function) {
+    c->nblocks = 0;
+    std::unique_lock<std::mutex> lock(c->mutex);
+
+    auto ret = engine_function();
+    while (ret.status == cb::engine_errc::would_block &&
+           c->handle_ewouldblock) {
+        ++c->nblocks;
+        c->cond.wait(lock, [&c] {
+            return c->num_processed_notifications != c->num_io_notifications;
+        });
+        c->num_processed_notifications = c->num_io_notifications;
+
+        if (c->status == ENGINE_SUCCESS) {
+            ret = engine_function();
+        } else {
+            return {cb::engine_errc(c->status), 0};
+        }
+    }
+
+    return ret;
+}
+
 cb::EngineErrorItemPair mock_engine::allocate(gsl::not_null<const void*> cookie,
                                               const DocKey& key,
                                               const size_t nbytes,
@@ -603,6 +642,27 @@ ENGINE_ERROR_CODE mock_engine::store(
 
     auto* construct = to_mock_connstruct(cookie.get());
 
+    return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
+}
+
+cb::EngineErrorCasPair mock_engine::store_if(
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<item*> item,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        const cb::StoreIfPredicate& predicate,
+        const boost::optional<cb::durability::Requirements>& durability,
+        DocumentState document_state) {
+    auto engine_fn = std::bind(&EngineIface::store_if,
+                               the_engine,
+                               cookie,
+                               item,
+                               cas,
+                               operation,
+                               predicate,
+                               durability,
+                               document_state);
+    auto* construct = to_mock_connstruct(cookie.get());
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
