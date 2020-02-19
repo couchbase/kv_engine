@@ -1037,7 +1037,7 @@ void MagmaKVStore::del(queued_item item) {
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
     std::unique_lock<std::shared_timed_mutex> lock(
             magmaKVHandles[vbid.get()].second);
-    if (!magmaKVHandles[vbid.get()].first.unique()) {
+    if (magmaKVHandles[vbid.get()].first.use_count() != 1) {
         logger->warn(
                 "MagmaKVStore::delVBucket {} Can't get exclusive"
                 " access so adding to pending list.",
@@ -1854,7 +1854,7 @@ std::unique_lock<std::shared_timed_mutex> MagmaKVStore::getExclusiveKVHandle(
         Vbid vbid) {
     std::unique_lock<std::shared_timed_mutex> lock(
             magmaKVHandles[vbid.get()].second);
-    while (!magmaKVHandles[vbid.get()].first.unique()) {
+    while (magmaKVHandles[vbid.get()].first.use_count() != 1) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
     return lock;
