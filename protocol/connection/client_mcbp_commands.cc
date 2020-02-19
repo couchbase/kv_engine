@@ -1253,7 +1253,7 @@ void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
             timings = nlohmann::json::parse(getDataString());
         } catch(nlohmann::json::exception& e) {
             std::string msg("BinprotGetCmdTimerResponse::assign: Invalid payload returned");
-            msg + " Reason: " + e.what();
+            msg += (std::string(" Reason: ") + e.what());
             throw std::runtime_error(msg);
         }
     }
