@@ -278,9 +278,21 @@ struct DocKeyInterface {
 struct DocKey : DocKeyInterface<DocKey> {
     /**
      * Standard constructor - creates a view onto key/nkey
+     *
+     * @param key The data pointer, which can be null if nkey is 0
+     * @param nkey The length of the data, which can be 0 if encoding is No
+     * @param encoding Does the data include/encode a collection-ID
      */
     DocKey(const uint8_t* key, size_t nkey, DocKeyEncodesCollectionId encoding)
         : buffer(key, nkey), encoding(encoding) {
+        if (encoding == DocKeyEncodesCollectionId::Yes && nkey == 0) {
+            throw std::invalid_argument("DocKey: invalid nkey:" +
+                                        std::to_string(nkey));
+        }
+        if (key == nullptr && nkey > 0) {
+            throw std::invalid_argument("DocKey: invalid key/nkey:" +
+                                        std::to_string(nkey));
+        }
     }
 
     /**

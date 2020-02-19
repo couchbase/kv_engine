@@ -88,12 +88,14 @@ template <class T>
 typename std::enable_if<std::is_unsigned<T>::value,
                         std::pair<T, cb::const_byte_buffer>>::type
 decode_unsigned_leb128(cb::const_byte_buffer buf) {
-    auto rv = decode_unsigned_leb128<T>(buf, Leb128NoThrow());
-    // We should of stopped for a stop byte, not the end of the buffer
-    if (!rv.second.data()) {
-        throw std::invalid_argument("decode_unsigned_leb128: no stop byte");
+    if (buf.size() > 0) {
+        auto rv = decode_unsigned_leb128<T>(buf, Leb128NoThrow());
+        if (rv.second.data()) {
+            return rv;
+        }
     }
-    return rv;
+    throw std::invalid_argument("decode_unsigned_leb128: invalid buf size:" +
+                                std::to_string(buf.size()));
 }
 
 /**
