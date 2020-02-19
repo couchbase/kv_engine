@@ -574,10 +574,11 @@ static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
-    /**
-     * Is this a privileged stat or may it be requested by anyone
-     */
+    /// Is this a privileged stat or may it be requested by anyone
     bool privileged;
+
+    /// Is this a bucket related stat?
+    bool bucket;
 
     /**
      * The callback function to handle the stat request
@@ -591,18 +592,20 @@ struct command_stat_handler {
  */
 static std::unordered_map<std::string, struct command_stat_handler>
         stat_handlers = {
-                {"", {false, stat_all_stats}},
-                {"reset", {true, stat_reset_executor}},
-                {"worker_thread_info", {false, stat_sched_executor}},
-                {"audit", {true, stat_audit_executor}},
-                {"bucket_details", {true, stat_bucket_details_executor}},
-                {"aggregate", {false, stat_aggregate_executor}},
-                {"connections", {false, stat_connections_executor}},
-                {"topkeys", {false, stat_topkeys_executor}},
-                {"topkeys_json", {false, stat_topkeys_json_executor}},
-                {"subdoc_execute", {false, stat_subdoc_execute_executor}},
-                {"responses", {false, stat_responses_json_executor}},
-                {"tracing", {true, stat_tracing_executor}}};
+                {"", {false, true, stat_all_stats}},
+                {"reset", {true, true, stat_reset_executor}},
+                {"worker_thread_info", {true, false, stat_sched_executor}},
+                {"audit", {true, false, stat_audit_executor}},
+                {"bucket_details", {true, false, stat_bucket_details_executor}},
+                {"aggregate", {false, true, stat_aggregate_executor}},
+                // MB-37995 "connections" stats group should be a privileged
+                //          global stat
+                {"connections", {false, true, stat_connections_executor}},
+                {"topkeys", {false, true, stat_topkeys_executor}},
+                {"topkeys_json", {false, true, stat_topkeys_json_executor}},
+                {"subdoc_execute", {false, true, stat_subdoc_execute_executor}},
+                {"responses", {false, true, stat_responses_json_executor}},
+                {"tracing", {true, false, stat_tracing_executor}}};
 
 /**
  * For a given key, try and return the handler for it
@@ -614,7 +617,8 @@ static std::pair<command_stat_handler, bool> getStatHandler(
         const std::string& key) {
     auto iter = stat_handlers.find(key);
     if (iter == stat_handlers.end()) {
-        return std::make_pair(command_stat_handler{false, stat_bucket_stats}, false);
+        return std::make_pair(
+                command_stat_handler{false, true, stat_bucket_stats}, false);
     } else {
         return std::make_pair(iter->second, true);
     }
@@ -684,17 +688,20 @@ ENGINE_ERROR_CODE StatsCommandContext::checkPrivilege() {
 
     if (handler.privileged) {
         ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            state = State::DoStats;
-            break;
-        default:
-            command_exit_code = ret;
-            state = State::CommandComplete;
-            break;
-        }
-    } else {
+    }
+
+    if (ret == ENGINE_SUCCESS && handler.bucket) {
+        ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::SimpleStats);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
         state = State::DoStats;
+        break;
+    default:
+        command_exit_code = ret;
+        state = State::CommandComplete;
+        break;
     }
 
     return ENGINE_SUCCESS;

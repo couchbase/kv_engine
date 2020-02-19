@@ -105,7 +105,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::Flushq, require<Privilege::BucketManagement>);
     setup(cb::mcbp::ClientOpcode::Noop, empty);
     setup(cb::mcbp::ClientOpcode::Version, empty);
-    setup(cb::mcbp::ClientOpcode::Stat, require<Privilege::SimpleStats>);
+    setup(cb::mcbp::ClientOpcode::Stat, empty);
     setup(cb::mcbp::ClientOpcode::Verbosity,
           require<Privilege::NodeManagement>);
     setup(cb::mcbp::ClientOpcode::Touch, require<Privilege::Upsert>);

@@ -376,19 +376,19 @@ TEST_P(StatsTest, TestBucketDetails) {
 }
 
 TEST_P(StatsTest, TestSchedulerInfo) {
-    auto stats = getConnection().stats("worker_thread_info");
+    auto stats = getAdminConnection().stats("worker_thread_info");
     // We should at least have an entry for the first thread
     EXPECT_NE(stats.end(), stats.find("0"));
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
-    auto stats = getConnection().stats("worker_thread_info aggregate");
+    auto stats = getAdminConnection().stats("worker_thread_info aggregate");
     EXPECT_NE(stats.end(), stats.find("aggregate"));
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
     try {
-        getConnection().stats("worker_thread_info foo");
+        getAdminConnection().stats("worker_thread_info foo");
         FAIL() << "Invalid subcommand";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments());
