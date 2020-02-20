@@ -100,7 +100,7 @@ public:
      * return true if the compaction needs to be rescheduled and false
      *             otherwise
      */
-    bool doCompact(const CompactionConfig& config,
+    bool doCompact(CompactionConfig& config,
                    uint64_t purgeSeq,
                    const void* cookie);
 
@@ -198,6 +198,9 @@ public:
 
     void warmupCompleted();
 
+    compaction_ctx makeCompactionContext(CompactionConfig& config,
+                                         uint64_t purgeSeqno);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -213,7 +216,7 @@ protected:
      *
      * @param config the configuration to use for running compaction
      */
-    void compactInternal(const CompactionConfig& config, uint64_t purgeSeqno);
+    void compactInternal(CompactionConfig& config, uint64_t purgeSeqno);
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks

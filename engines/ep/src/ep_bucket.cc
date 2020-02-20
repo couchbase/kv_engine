@@ -1081,9 +1081,12 @@ void EPBucket::dropKey(Vbid vbid, const DiskDocKey& diskKey, int64_t bySeqno) {
     }
 }
 
-void EPBucket::compactInternal(const CompactionConfig& config,
-                               uint64_t purgeSeqno) {
-    compaction_ctx ctx(config, purgeSeqno);
+compaction_ctx EPBucket::makeCompactionContext(CompactionConfig& config,
+                                               uint64_t purgeSeqno) {
+    // @TODO When we have compaction metadata purge interval in the engine we
+    // may need to manually set purge_before_ts in config
+
+    auto ctx = compaction_ctx(config, purgeSeqno);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx.bloomFilterCallback = filter;
@@ -1096,6 +1099,12 @@ void EPBucket::compactInternal(const CompactionConfig& config,
                                  config.db_file_id,
                                  std::placeholders::_1,
                                  std::placeholders::_2);
+
+    return ctx;
+}
+
+void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
+    auto ctx = makeCompactionContext(config, purgeSeqno);
 
     KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();
@@ -1141,7 +1150,7 @@ void EPBucket::compactInternal(const CompactionConfig& config,
             ctx.stats.post.purgeSeqno);
 }
 
-bool EPBucket::doCompact(const CompactionConfig& config,
+bool EPBucket::doCompact(CompactionConfig& config,
                          uint64_t purgeSeqno,
                          const void* cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
