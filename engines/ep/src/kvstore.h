@@ -138,6 +138,9 @@ struct compaction_ctx {
     uint64_t highCompletedSeqno = 0;
 };
 
+using MakeCompactionContextCallback =
+        std::function<compaction_ctx(CompactionConfig&, uint64_t)>;
+
 struct kvstats_ctx {
     kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
     }
@@ -905,6 +908,10 @@ public:
     virtual std::vector<Collections::KVStore::DroppedCollection>
     getDroppedCollections(Vbid vbid) = 0;
 
+    void setMakeCompactionContextCallback(MakeCompactionContextCallback cb) {
+        makeCompactionContextCallback = cb;
+    }
+
 protected:
     /// Get a string to use as the prefix for the stats. This is typically
     /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the
@@ -959,6 +966,8 @@ protected:
 
     /// Metadata that the underlying implementation must persist
     Collections::KVStore::CommitMetaData collectionsMeta;
+
+    MakeCompactionContextCallback makeCompactionContextCallback;
 };
 
 std::string to_string(KVStore::MutationStatus status);

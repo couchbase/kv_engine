@@ -2448,3 +2448,23 @@ void MagmaKVStore::pendingTasks() {
         delVBucket(vbid, vb_version);
     }
 }
+
+compaction_ctx MagmaKVStore::makeCompactionContext(Vbid vbid) {
+    if (!makeCompactionContextCallback) {
+        throw std::runtime_error(
+                "MagmaKVStore::makeCompactionContext: Have not set "
+                "makeCompactionContextCallback to create a compaction_ctx");
+    }
+
+    CompactionConfig config{};
+    config.db_file_id = vbid;
+    auto ctx = makeCompactionContextCallback(config, 0 /*purgeSeqno*/);
+
+    ctx.eraserContext = std::make_unique<Collections::VB::EraserContext>(
+            getDroppedCollections(vbid));
+
+    auto* vbState = getVBucketState(vbid);
+    ctx.highCompletedSeqno = vbState->persistedCompletedSeqno;
+
+    return ctx;
+}

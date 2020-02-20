@@ -458,6 +458,12 @@ public:
                   const void* c,
                   const std::string& args) override;
 
+    /**
+     * Construct a compaction context for use with implicit compactions. Calls
+     * back up to the bucket to do so as we need certain callbacks and config.
+     */
+    compaction_ctx makeCompactionContext(Vbid vbid);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

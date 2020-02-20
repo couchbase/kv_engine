@@ -161,6 +161,16 @@ public:
             const nlohmann::json& meta,
             folly::SharedMutex::WriteHolder& vbStateLock);
 
+    /**
+     * Call the function p and supply each shard as a parameter.
+     */
+    template <class Predicate>
+    void forEachShard(Predicate p) {
+        for (auto& shard : shards) {
+            p(*shard.get());
+        }
+    }
+
 private:
 
     std::vector<std::unique_ptr<KVShard>> shards;
