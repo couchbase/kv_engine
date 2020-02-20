@@ -750,7 +750,7 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"audit", {true, stat_audit_executor}},
                 {"bucket_details", {true, stat_bucket_details_executor}},
                 {"aggregate", {false, stat_aggregate_executor}},
-                {"connections", {false, stat_connections_executor}},
+                {"connections", {true, stat_connections_executor}},
                 {"topkeys", {false, stat_topkeys_executor}},
                 {"topkeys_json", {false, stat_topkeys_json_executor}},
                 {"subdoc_execute", {false, stat_subdoc_execute_executor}},

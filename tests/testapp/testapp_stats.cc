@@ -375,7 +375,7 @@ TEST_P(StatsTest, TestAggregate) {
 }
 
 TEST_P(StatsTest, TestConnections) {
-    MemcachedConnection& conn = getConnection();
+    MemcachedConnection& conn = getAdminConnection();
     conn.hello("TestConnections", "1.0", "test connections test");
 
     auto stats = conn.stats("connections");
@@ -411,8 +411,18 @@ TEST_P(StatsTest, TestConnections) {
     EXPECT_EQ(sock, stats.front()["socket"].get<size_t>());
 }
 
-TEST_P(StatsTest, TestConnectionsInvalidNumber) {
+TEST_P(StatsTest, TestConnections_MB37995) {
     MemcachedConnection& conn = getConnection();
+    try {
+        auto stats = conn.stats("connections");
+        FAIL() << "MB-37995: stats connection require extra privileges";
+    } catch (const ConnectionError& err) {
+        ASSERT_TRUE(err.isAccessDenied());
+    }
+}
+
+TEST_P(StatsTest, TestConnectionsInvalidNumber) {
+    MemcachedConnection& conn = getAdminConnection();
     try {
         auto stats = conn.stats("connections xxx");
         FAIL() << "Did not detect incorrect connection number";
