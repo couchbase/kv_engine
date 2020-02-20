@@ -425,9 +425,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     //  - Does not account set-vbstate items
     size_t flushBatchSize = 0;
 
-    // Set if we process at least one set-vbstate, which means that we have to
-    // flush at least a new vbstate.
-    bool mustCheckpointVBState = false;
+    // Set if we process an explicit set-vbstate item, which requires a flush
+    // to disk regardless of whether we have any other item to flush or not
+    bool mustPersistVBState = false;
 
     Collections::VB::Flush collectionFlush(vb->getManifest());
 
@@ -529,7 +529,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 // alone, i.e. no mutations are being flushed, we must
                 // trigger an update of the vbstate, which will always
                 // happen when we set this.
-                mustCheckpointVBState = true;
+                mustPersistVBState = true;
 
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
@@ -631,6 +631,15 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         }
     }
 
+    // Just return if nothing to flush
+    if (!mustPersistVBState && flushBatchSize == 0) {
+        // The persistence cursor may have moved to a new checkpoint, which may
+        // satisfy pending checkpoint-persistence requests
+        handleCheckpointPersistence();
+
+        return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
+    }
+
     if (vbstate.transition.state == vbucket_state_active) {
         if (maxSeqno) {
             range = snapshot_range_t(maxSeqno, maxSeqno);
@@ -699,11 +708,22 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     if (flushBatchSize > 0) {
         Expects(commitData.is_initialized());
         flushSuccessOrNoFlush = commit(vbid, *rwUnderlying, *commitData);
-    } else if (mustCheckpointVBState) {
+    } else if (mustPersistVBState) {
         Expects(commitData.is_initialized());
+
+        // @todo MB-37920: This call potentially does 2 things:
+        //   1) update the cached vbstate
+        //   2) persisted the new vbstate
+        // The function returns false if the operation fails. But, (1) may
+        // succeed and (2) may fail, which makes function to return false.
+        // In that case we do not rollback the cached vbstate, which exposes
+        // a wrong on-disk state at that point.
+        // Also, when we re-attempt to flush a set-vbstate item we may fail
+        // again because of the optimization at
+        // vbucket_state::needsToBePersisted().
         if (!rwUnderlying->snapshotVBucket(vbid, commitData->proposedVBState)) {
             // @todo: MB-36773, vbstate update is not retried
-            return {true, 0};
+            return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
         } else {
             // Update in-memory vbstate
             rwUnderlying->setVBucketState(vbid, commitData->proposedVBState);
@@ -788,6 +808,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     stats.totalPersistVBState++;
 
     if (commitData) {
+        // By definition, does not need to be called if no flush performed.
         commitData->collections.checkAndTriggerPurge(vb->getId(), *this);
     }
 
@@ -796,6 +817,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // So, the few next steps are the only ones that (before removing the block
     // and early-returning if toFlush.items is empty) were executed and now are
     // not executed anymore. A small comment on each.
+    //
+    // Note: The next steps now are skipped also if toFlush.items does not
+    //   contain any item to persist.
 
     // By definition, this function is called after persisting a batch of data,
     // so it can be safely skipped if toFlush.items is empty.
