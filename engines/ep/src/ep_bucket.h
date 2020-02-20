@@ -38,15 +38,31 @@ public:
 
     void deinitialize() override;
 
+    enum class MoreAvailable : uint8_t { No = 0, Yes };
+    enum class WakeCkptRemover : uint8_t { No = 0, Yes };
+
+    struct FlushResult {
+        FlushResult(MoreAvailable m, size_t n, WakeCkptRemover w)
+            : moreAvailable(m), numFlushed(n), wakeupCkptRemover(w) {
+        }
+
+        bool operator==(const FlushResult& other) const {
+            return (moreAvailable == other.moreAvailable &&
+                    numFlushed == other.numFlushed &&
+                    wakeupCkptRemover == other.wakeupCkptRemover);
+        }
+
+        MoreAvailable moreAvailable = MoreAvailable::No;
+        size_t numFlushed = 0;
+        WakeCkptRemover wakeupCkptRemover = WakeCkptRemover::No;
+    };
+
     /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush
-     * @return A pair of {moreToFlush, flushCount}:
-     *         moreToFlush - true if there are still items remaining for this
-     *         vBucket.
-     *         flushCount - the number of items flushed.
+     * @return an instance of FlushResult
      */
-    std::pair<bool, size_t> flushVBucket(Vbid vbid);
+    FlushResult flushVBucket(Vbid vbid);
 
     /**
      * Set the number of flusher items which can be included in a

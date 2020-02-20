@@ -20,6 +20,7 @@
  */
 
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
@@ -45,6 +46,10 @@
 
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/server_cookie_iface.h>
+
+using FlushResult = EPBucket::FlushResult;
+using MoreAvailable = EPBucket::MoreAvailable;
+using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Test fixture for rollback tests. Parameterized on:
@@ -72,8 +77,10 @@ class RollbackTest : public SingleThreadedEPBucketTest,
         const auto dummy_elements = size_t{1};
         auto res = store_item(vbid, makeStoredDocKey("dummy1"), "dummy");
         ASSERT_EQ(1, res.getBySeqno());
-        ASSERT_EQ(std::make_pair(false, dummy_elements),
-                  getEPBucket().flushVBucket(vbid));
+        ASSERT_EQ(
+                FlushResult(
+                        MoreAvailable::No, dummy_elements, WakeCkptRemover::No),
+                getEPBucket().flushVBucket(vbid));
         initial_seqno = dummy_elements;
     }
 
@@ -123,7 +130,7 @@ public:
         }
         auto item_v1 = store_item(vbid, a, "1", expiryTime);
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-        ASSERT_EQ(std::make_pair(false, size_t(1)),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
         // Save the pre-rollback HashTable state for later comparison
         auto htState = getHtState();
@@ -147,7 +154,14 @@ public:
                                         mutation_descr));
         }
         if (flush_before_rollback) {
-            ASSERT_EQ(std::make_pair(false, size_t(1)),
+            const auto& vb = *store->getVBucket(vbid);
+            const auto& ckptList =
+                    CheckpointManagerTestIntrospector::public_getCheckpointList(
+                            *vb.checkpointManager);
+            const auto expectedWakeCktpRem =
+                    (ckptList.size() > 1 ? WakeCkptRemover::Yes
+                                         : WakeCkptRemover::No);
+            ASSERT_EQ(FlushResult(MoreAvailable::No, 1, expectedWakeCktpRem),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -184,7 +198,7 @@ public:
                 << "Fetched item after rollback should match item_v1";
 
         if (!flush_before_rollback) {
-            EXPECT_EQ(std::make_pair(false, size_t(0)),
+            EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
                       getEPBucket().flushVBucket(vbid));
         }
     }
@@ -196,7 +210,7 @@ public:
         StoredDocKey a = makeStoredDocKey("a");
         auto item_v1 = store_item(vbid, a, "old");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-        ASSERT_EQ(std::make_pair(false, size_t(1)),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
 
         // Save the pre-rollback HashTable state for later comparison
@@ -209,7 +223,7 @@ public:
         store_item(vbid, key, "meh");
 
         if (flush_before_rollback) {
-            EXPECT_EQ(std::make_pair(false, size_t(2)),
+            EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -240,7 +254,7 @@ public:
 
         if (!flush_before_rollback) {
             // The rollback should of wiped out any keys waiting for persistence
-            EXPECT_EQ(std::make_pair(false, size_t(0)),
+            EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
                       getEPBucket().flushVBucket(vbid));
         }
     }
@@ -264,39 +278,35 @@ protected:
 
         // Setup
         StoredDocKey a = makeStoredDocKey("a");
+        EPBucket::FlushResult res =
+                FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No);
         if (deleteLast) {
             store_item(vbid, a, "new");
             if (!flushOnce) {
-                ASSERT_EQ(std::make_pair(false, size_t(1)),
-                          getEPBucket().flushVBucket(vbid));
+                ASSERT_EQ(res, getEPBucket().flushVBucket(vbid));
             }
             delete_item(vbid, a);
             if (!flushOnce) {
-                ASSERT_EQ(std::make_pair(false, size_t(1)),
-                          getEPBucket().flushVBucket(vbid));
+                ASSERT_EQ(res, getEPBucket().flushVBucket(vbid));
             }
         } else {
             // Make sure we have something to delete
             store_item(vbid, a, "new");
             if (!flushOnce) {
-                ASSERT_EQ(std::make_pair(false, size_t(1)),
-                          getEPBucket().flushVBucket(vbid));
+                ASSERT_EQ(res, getEPBucket().flushVBucket(vbid));
             }
             delete_item(vbid, a);
             if (!flushOnce) {
-                ASSERT_EQ(std::make_pair(false, size_t(1)),
-                          getEPBucket().flushVBucket(vbid));
+                ASSERT_EQ(res, getEPBucket().flushVBucket(vbid));
             }
             store_item(vbid, a, "new");
             if (!flushOnce) {
-                ASSERT_EQ(std::make_pair(false, size_t(1)),
-                          getEPBucket().flushVBucket(vbid));
+                ASSERT_EQ(res, getEPBucket().flushVBucket(vbid));
             }
         }
 
         if (flushOnce) {
-            ASSERT_EQ(std::make_pair(false, size_t(1)),
-                      getEPBucket().flushVBucket(vbid));
+            ASSERT_EQ(res, getEPBucket().flushVBucket(vbid));
         }
 
         // Test - rollback to seqno before this test
@@ -417,7 +427,7 @@ protected:
             htState = getHtState();
         }
 
-        ASSERT_EQ(std::make_pair(false, size_t(2)),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
 
         // every key past this point will be lost from disk in a mid-point.
@@ -429,7 +439,7 @@ protected:
         auto rollback = rollbackCollectionCreate
                                 ? rollback_item.getBySeqno() - 1
                                 : item_v2.getBySeqno();
-        ASSERT_EQ(std::make_pair(false, size_t(3)),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
 
         cm.remove(CollectionEntry::dairy);
@@ -449,7 +459,7 @@ protected:
         }
 
         if (flush_before_rollback) {
-            ASSERT_EQ(std::make_pair(false, size_t(3)),
+            ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::Yes),
                       getEPBucket().flushVBucket(vbid));
         }
 
@@ -519,8 +529,9 @@ protected:
                                "dummy");
             ASSERT_EQ(ii, res.getBySeqno());
         }
-        ASSERT_EQ(std::make_pair(false,
-                                 size_t(minItemsToRollbackTo - vbHighSeqno)),
+        ASSERT_EQ(FlushResult(MoreAvailable::No,
+                              minItemsToRollbackTo - vbHighSeqno,
+                              WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
 
         // Trigger a rollback to zero by rolling back to a seqno just before the
@@ -686,7 +697,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     // Save the pre-rollback HashTable state for later comparison
     auto htState = getHtState();
 
-    ASSERT_EQ(std::make_pair(false, numItems + 1),
+    ASSERT_EQ(FlushResult(MoreAvailable::No, numItems + 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     /* Keys to be lost in rollback */
@@ -2088,7 +2099,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
      * */
     store_item(vbid, makeStoredDocKey("key"), "value");
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     auto& ckpt_mgr =

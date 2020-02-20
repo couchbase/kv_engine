@@ -208,11 +208,8 @@ void CollectionsDcpTest::testDcpCreateDelete(
     // Flush everything. If we don't then we can't compare persisted manifests.
     // Don't know how much we will have to flush as the flusher will de-dupe
     // creates and deletes of collections in the same batch
-    bool more;
-    size_t size;
-    std::tie(more, size) =
-            dynamic_cast<EPBucket&>(*store).flushVBucket(replicaVB);
-    EXPECT_FALSE(more);
+    const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(replicaVB);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
 
     // Finally check that the active and replica have the same manifest, our
     // BeginDeleteCollection should of contained enough information to form

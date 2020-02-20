@@ -2625,22 +2625,20 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
     EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
 
     // Flush prepare, expect fail, then success on retry
-    bool moreAvailable;
-    size_t flushedCount{0};
-    std::tie(moreAvailable, flushedCount) =
-            dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-    EXPECT_TRUE(moreAvailable);
-    EXPECT_EQ(0, flushedCount);
+    auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::Yes, res.moreAvailable);
+    EXPECT_EQ(0, res.numFlushed);
+    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(1, engine->getEpStats().commitFailed);
     EXPECT_EQ(0, engine->getEpStats().flusherCommits);
     EXPECT_EQ(vbs, *store->getRWUnderlying(vbid)->getVBucketState(vbid));
 
-    std::tie(moreAvailable, flushedCount) =
-            dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-    EXPECT_FALSE(moreAvailable);
+    res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, res.numFlushed);
+    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(1, engine->getEpStats().commitFailed);
     EXPECT_EQ(1, engine->getEpStats().flusherCommits);
-    EXPECT_EQ(1, flushedCount);
 
     // Now expect that the vbucket state has been mutated by the flush
     vbucket_state newState =
