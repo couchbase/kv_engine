@@ -540,7 +540,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaMaxCommitPoints();
     auto commitPointInterval = configuration.getMagmaCommitPointInterval();
     configuration.magmaCfg.CommitPointInterval =
-            commitPointInterval * std::chrono::milliseconds{1min};
+            commitPointInterval * std::chrono::milliseconds{1s};
     configuration.magmaCfg.MinValueSize =
             configuration.getMagmaValueSeparationSize();
     configuration.magmaCfg.MaxWriteCacheSize =

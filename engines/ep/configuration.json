@@ -995,9 +995,9 @@
             "type": "size_t"
         },
         "magma_commit_point_interval": {
-            "default": "1",
+            "default": "60",
             "dynamic": false,
-            "descr": "Frequency of commit point interval; in minutes. A commit point interval provides a rollback point to which the data store can rollback to in the event of a failure.",
+            "descr": "Frequency of commit point interval; in seconds. A commit point interval provides a rollback point to which the data store can rollback to in the event of a failure.",
             "type": "size_t"
         },
         "magma_value_separation_size": {
