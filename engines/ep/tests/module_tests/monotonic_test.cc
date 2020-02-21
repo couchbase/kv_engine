@@ -22,12 +22,16 @@
 template <typename T>
 class MonotonicTest : public ::testing::Test {
 public:
-    MonotonicTest()
-        : initialValue(1),
-          mono(1) {}
+    MonotonicTest() : initialValue(1), mono(1), large(100) {
+    }
+
+    void assign(T a) {
+        mono = a;
+    }
 
     const T initialValue;
     T mono;
+    T large;
 };
 
 // Test both the Monotonic and AtomicMonotonic templates (with IgnorePolicy).
@@ -71,15 +75,15 @@ TYPED_TEST(MonotonicTest, PostIncrement) {
 
 // Similar, except with ThrowExceptionPolicy.
 template <typename T>
-class ThrowingMonotonicTest : public MonotonicTest<T> {};
+class ThrowingAllMonotonicTest : public MonotonicTest<T> {};
 
-using MonotonicThrowingTypes =
+using AllMonotonicThrowingTypes =
         ::testing::Types<Monotonic<int, ThrowExceptionPolicy>,
                          AtomicMonotonic<int, ThrowExceptionPolicy>>;
 
-TYPED_TEST_SUITE(ThrowingMonotonicTest, MonotonicThrowingTypes);
+TYPED_TEST_SUITE(ThrowingAllMonotonicTest, AllMonotonicThrowingTypes);
 
-TYPED_TEST(ThrowingMonotonicTest, Increase) {
+TYPED_TEST(ThrowingAllMonotonicTest, Increase) {
     this->mono = 2;
     EXPECT_EQ(2, this->mono);
 
@@ -87,28 +91,47 @@ TYPED_TEST(ThrowingMonotonicTest, Increase) {
     EXPECT_EQ(20, this->mono);
 }
 
-TYPED_TEST(ThrowingMonotonicTest, Identical) {
+TYPED_TEST(ThrowingAllMonotonicTest, Identical) {
     EXPECT_THROW(this->mono = 1, std::logic_error);
 }
 
-TYPED_TEST(ThrowingMonotonicTest, Decrease) {
+TYPED_TEST(ThrowingAllMonotonicTest, Decrease) {
     EXPECT_THROW(this->mono = 0, std::logic_error);
 }
 
-TYPED_TEST(ThrowingMonotonicTest, Reset) {
+TYPED_TEST(ThrowingAllMonotonicTest, Reset) {
     this->mono = 10;
     ASSERT_EQ(10, this->mono);
     this->mono.reset(5);
     EXPECT_EQ(5, this->mono);
 }
 
-TYPED_TEST(ThrowingMonotonicTest, PreIncrement) {
+TYPED_TEST(ThrowingAllMonotonicTest, PreIncrement) {
     EXPECT_EQ(2, ++this->mono);
 }
 
-TYPED_TEST(ThrowingMonotonicTest, PostIncrement) {
+TYPED_TEST(ThrowingAllMonotonicTest, PostIncrement) {
     EXPECT_EQ(1, this->mono++);
     EXPECT_EQ(2, this->mono);
+}
+
+// AtomicMonotonic deletes assignment, so this test is for Monotonic only
+template <typename T>
+class ThrowingMonotonicTest : public MonotonicTest<T> {};
+
+using MonotonicThrowingTypes =
+        ::testing::Types<Monotonic<int, ThrowExceptionPolicy>>;
+
+TYPED_TEST_SUITE(ThrowingMonotonicTest, MonotonicThrowingTypes);
+
+TYPED_TEST(ThrowingMonotonicTest, Identical) {
+    EXPECT_THROW(this->mono = 1, std::logic_error);
+    EXPECT_THROW(this->mono = this->mono, std::logic_error);
+}
+
+TYPED_TEST(ThrowingMonotonicTest, Decrease) {
+    EXPECT_THROW(this->mono = 0, std::logic_error);
+    EXPECT_THROW(this->large = this->mono, std::logic_error);
 }
 
 // Similar but testing WeaklyMonotonic (i.e. Identical is allowed).
@@ -126,4 +149,17 @@ TYPED_TEST_SUITE(WeaklyMonotonicTest, WeaklyMonotonicTypes);
 TYPED_TEST(WeaklyMonotonicTest, Identical) {
     EXPECT_NO_THROW(this->mono = 1);
     EXPECT_EQ(1, this->mono);
+}
+
+template <typename T>
+class WeaklyMonotonicThrowTest : public MonotonicTest<T> {};
+
+using WeaklyMonotonicThrowTypes =
+        ::testing::Types<WeaklyMonotonic<int, ThrowExceptionPolicy>>;
+
+TYPED_TEST_SUITE(WeaklyMonotonicThrowTest, WeaklyMonotonicThrowTypes);
+
+TYPED_TEST(WeaklyMonotonicThrowTest, Decrease) {
+    EXPECT_THROW(this->large = this->mono, std::logic_error);
+    EXPECT_THROW(this->large = 0, std::logic_error);
 }

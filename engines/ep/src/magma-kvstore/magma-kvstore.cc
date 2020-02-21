@@ -2053,7 +2053,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
         cachedMagmaInfo[vbid.get()]->docCount -=
                 ctx->stats.collectionsItemsPurged + ctx->stats.preparesPurged;
         vbs = *cachedVBStates[vbid.get()].get();
-        minfo = *cachedMagmaInfo[vbid.get()].get();
+        minfo.reset(*cachedMagmaInfo[vbid.get()].get());
     }
     writeVBStateToDisk(vbid, *(batch.get()), vbs, minfo);
 

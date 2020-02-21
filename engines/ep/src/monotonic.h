@@ -125,8 +125,17 @@ public:
     Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
     }
 
-    Monotonic(const Monotonic<T>& other)
+    Monotonic(const Monotonic& other)
         : OrderReversedPolicy<T>(other), val(other.val) {
+    }
+
+    Monotonic& operator=(const Monotonic& other) {
+        if (Invariant<T>()(other.val, val)) {
+            val = other.val;
+        } else {
+            OrderReversedPolicy<T>::nonMonotonic(val, other.val);
+        }
+        return *this;
     }
 
     Monotonic& operator=(const T& v) {

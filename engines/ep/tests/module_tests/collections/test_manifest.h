@@ -179,6 +179,8 @@ public:
         this->uid = uid;
     }
 
+    void updateUid(Collections::ManifestUid uid);
+
     void setUid(const std::string& uid);
 
     /// Most interfaces require std::string manifest

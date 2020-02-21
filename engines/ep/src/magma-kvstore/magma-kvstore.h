@@ -61,6 +61,15 @@ public:
         docCount = 0;
         persistedDeletes = 0;
     }
+
+    // This method exists as a way to assign to this without violating the
+    // kvstore monotonic property (it will be reset).
+    void reset(const MagmaInfo& other) {
+        docCount = other.docCount;
+        persistedDeletes = other.persistedDeletes;
+        kvstoreRev.reset(other.kvstoreRev);
+    }
+
     cb::NonNegativeCounter<uint64_t> docCount{0};
     cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
     Monotonic<uint64_t> kvstoreRev{1};

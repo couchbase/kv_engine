@@ -212,7 +212,8 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     VBucketPtr active = store->getVBucket(vbid);
 
     CollectionsManifest cm(CollectionEntry::meat);
-    active->updateFromManifest({cm.add(CollectionEntry::fruit)});
+    // Update the bucket::manifest (which will apply changes to the active VB)
+    store->setCollections(std::string{cm.add(CollectionEntry::fruit)});
 
     notifyAndStepToCheckpoint();
 
@@ -240,7 +241,12 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     oldManifest.add(CollectionEntry::fruit);
 
     // Drop one collection on the active but don't replicate the drop
+    // Directly do this against the vb, so the bucket::manifest is behind, i.e.
+    // the bucket::manifest still thinks fruit exists. This is done so that
+    // the promotion to active/replica makes no further changes to the
+    // collection state.
     active->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+
     notifyAndStepToCheckpoint();
 
     // Kill the producer, then set up a consumer from the active to the
@@ -249,7 +255,6 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     producer->cancelCheckpointCreatorTask();
     consumer->closeAllStreams();
     consumer->cancelTask();
-
     store->setVBucketState(vbid, vbucket_state_replica, {});
     store->setVBucketState(replicaVB, vbucket_state_active, {});
 
@@ -271,6 +276,9 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
             cookieC, IncludeDeleteTime::No);
     uint64_t rollbackSeqno;
     try {
+        // The replicaVB (vb:1 which is now active) is at manifest:4
+        // The uid filter we generated from vb:0 is ahead because of the extra
+        // drop it processed.
         producer->streamRequest(0, // flags
                                 1, // opaque
                                 replicaVB,
@@ -806,6 +814,8 @@ TEST_F(CollectionsDcpTest, MB_26455) {
 
     {
         auto vb = store->getVBucket(vbid);
+        CollectionsManifest cm;
+        vb->updateFromManifest({cm});
 
         CollectionsManifest cm;
         vb->updateFromManifest({cm});

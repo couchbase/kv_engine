@@ -139,6 +139,14 @@ void CollectionsManifest::updateUid() {
     json["uid"] = ss.str();
 }
 
+void CollectionsManifest::updateUid(Collections::ManifestUid uid) {
+    this->uid = uid;
+
+    std::stringstream ss;
+    ss << std::hex << uid;
+    json["uid"] = ss.str();
+}
+
 std::string CollectionsManifest::toJson() const {
     return json.dump();
 }
