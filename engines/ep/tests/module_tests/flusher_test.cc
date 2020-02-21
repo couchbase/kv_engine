@@ -98,7 +98,11 @@ TEST_F(FlusherTest, MissingWakeupBeforeSnooze) {
  */
 TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     const auto hpVbid = vbid0;
-    const auto lpVbid = Vbid(1);
+    // We might have our vBuckets split across shards and we need two on the
+    // same shard. The distribution algorithm is a simple modulus so we can just
+    // pick the vBucket with id == number of shards and vBucket 0.
+    auto shards = engine->getKVBucket()->getVBuckets().getNumShards();
+    const auto lpVbid = Vbid(shards);
 
     auto kvBucket = engine->getKVBucket();
     ASSERT_TRUE(kvBucket);

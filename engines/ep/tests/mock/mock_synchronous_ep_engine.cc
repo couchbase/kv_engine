@@ -59,7 +59,8 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     // workload is needed by EPStore's constructor (to construct the
     // VBucketMap).
-    workload = new WorkLoadPolicy(/*workers*/ 1, /*shards*/ 1);
+    auto shards = configuration.getMaxNumShards();
+    workload = new WorkLoadPolicy(/*workers*/ 1, shards);
 
     // dcpConnMap_ is needed by EPStore's constructor.
     dcpConnMap_ = std::make_unique<MockDcpConnMap>(*this);
