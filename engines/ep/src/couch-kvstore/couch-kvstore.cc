@@ -2073,52 +2073,49 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     }
     auto newKey = makeDiskDocKey(newInfo->id);
 
-    // Update keyStats for overall (not per-collection) stats
+    // Update keyWasOnDisk for overall (not per-collection) stats
     if (oldInfo) {
         // Replacing a document
         if (!oldInfo->deleted) {
-            cbCtx->keyStats.insert(newKey);
+            cbCtx->keyWasOnDisk.insert(newKey);
         }
     }
 
-    int itemCountDelta = 0;
+    enum class DocMutationType { Insert, Update, Delete };
+    DocMutationType onDiskMutationType = DocMutationType::Update;
     if (oldInfo) {
         if (!oldInfo->deleted) {
             if (newInfo->deleted) {
                 // New is deleted, so decrement count
-                itemCountDelta = -1;
+                onDiskMutationType = DocMutationType::Delete;
             }
         } else if (!newInfo->deleted) {
             // Adding an item
-            itemCountDelta = 1;
+            onDiskMutationType = DocMutationType::Insert;
         }
     } else if (!newInfo->deleted) {
         // Adding an item
-        itemCountDelta = 1;
+        onDiskMutationType = DocMutationType::Insert;
     }
 
     auto docKey = newKey.getDocKey();
-    switch (itemCountDelta) {
-    case -1:
+    switch (onDiskMutationType) {
+    case DocMutationType::Delete:
         if (newKey.isCommitted()) {
             cbCtx->commitData.collections.decrementDiskCount(docKey);
         } else {
             cbCtx->onDiskPrepareDelta--;
         }
         break;
-    case 1:
+    case DocMutationType::Insert:
         if (newKey.isCommitted()) {
             cbCtx->commitData.collections.incrementDiskCount(docKey);
         } else {
             cbCtx->onDiskPrepareDelta++;
         }
         break;
-    case 0:
+    case DocMutationType::Update:
         break;
-    default:
-        throw std::logic_error(
-                "CouchKVStore::saveDocsCallback: invalid delta {}" +
-                std::to_string(itemCountDelta));
     }
 
     // Do not need to update high seqno if we are calling this for a prepare and
@@ -2306,7 +2303,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
             auto mutationStatus = getMutationStatus(errCode);
             if (mutationStatus != MutationStatus::Failed) {
                 const auto& key = committed.getKey();
-                if (kvctx.keyStats.find(key) != kvctx.keyStats.end()) {
+                if (kvctx.keyWasOnDisk.find(key) != kvctx.keyWasOnDisk.end()) {
                     mutationStatus =
                             MutationStatus::Success; // Deletion is for an
                                                      // existing item on
@@ -2327,7 +2324,8 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
         } else {
             auto mutationStatus = getMutationStatus(errCode);
             const auto& key = committed.getKey();
-            bool insertion = kvctx.keyStats.find(key) == kvctx.keyStats.end();
+            bool insertion =
+                    kvctx.keyWasOnDisk.find(key) == kvctx.keyWasOnDisk.end();
             if (errCode) {
                 ++st.numSetFailure;
             } else {

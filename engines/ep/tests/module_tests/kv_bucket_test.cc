@@ -449,8 +449,8 @@ TEST_P(KVBucketParamTest, GetKeyStatsResident) {
     EXPECT_FALSE(kstats.logically_deleted);
 }
 
-// Create then delete an item, checking we get keyStats reporting the item as
-// deleted.
+// Create then delete an item, checking we get keyWasOnDisk reporting the item
+// as deleted.
 TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;

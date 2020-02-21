@@ -1347,7 +1347,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData,
         if (req.oldItemExists()) {
             if (!req.oldItemIsDelete()) {
                 // If we are replacing the item...
-                kvctx.keyStats.insert(diskDocKey);
+                kvctx.keyWasOnDisk.insert(diskDocKey);
             }
         }
 
