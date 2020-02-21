@@ -414,11 +414,7 @@ void Collections::Manager::dump() const {
 
 std::ostream& Collections::operator<<(std::ostream& os,
                                       const Collections::Manager& manager) {
-    std::lock_guard<std::mutex> lg(manager.lock);
-    if (manager.current) {
-        os << "Collections::Manager current:" << *manager.current << "\n";
-    } else {
-        os << "Collections::Manager current:nullptr\n";
-    }
+    os << "Collections::Manager current:" << *manager.currentManifest.rlock()
+       << "\n";
     return os;
 }

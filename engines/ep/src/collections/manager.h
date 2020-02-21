@@ -169,11 +169,7 @@ private:
 
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 
-    mutable std::mutex lock;
-
     /// Store the most recent (current) manifest received
-    std::unique_ptr<Manifest> current;
-
     folly::Synchronized<Manifest> currentManifest;
 };
 
