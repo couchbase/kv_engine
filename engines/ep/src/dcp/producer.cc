@@ -1049,11 +1049,11 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                 " but we don't have a StreamContainer for that vb");
     }
 
-    ActiveStream* stream = nullptr;
+    std::shared_ptr<ActiveStream> stream;
     for (auto itr = rv->second->rlock(); !itr.end(); itr.next()) {
-        auto* s = itr.get().get();
+        auto s = itr.get();
         if (s->getOpaque() == opaque) {
-            stream = dynamic_cast<ActiveStream*>(s);
+            stream = dynamic_pointer_cast<ActiveStream>(s);
             break;
         }
     }
@@ -1064,6 +1064,10 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
         // not yet aware and we have received a seqno ack. Just return
         // success and ignore the ack.
         return ENGINE_SUCCESS;
+    }
+
+    if (seqnoAckHook) {
+        seqnoAckHook();
     }
 
     return stream->seqnoAck(consumerName, prepared_seqno);

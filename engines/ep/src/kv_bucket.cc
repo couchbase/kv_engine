@@ -931,11 +931,10 @@ void KVBucket::setVBucketState_UNLOCKED(
         ExecutorPool::get()->schedule(notifyTask);
     }
 
-    if (oldstate == vbucket_state_replica && to != vbucket_state_replica) {
-        // MB-35723: The vbucket is moving away from being a replica
-        // and can therefore no longer be receiving an initial disk
-        // snapshot. If the vbucket ever reached vbucket_state_active with
-        // this flag still set it would never accept a streamRequest
+    if (oldstate != vbucket_state_active && to == vbucket_state_active) {
+        // MB-37917: The vBucket is becoming an active and can no longer be
+        // receiving an initial disk snapshot. It is now the source of truth so
+        // we should not prevent any Consumer from streaming from it.
         vb->setReceivingInitialDiskSnapshot(false);
     }
 
