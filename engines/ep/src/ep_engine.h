@@ -816,6 +816,13 @@ public:
 protected:
     friend class EpEngineValueChangeListener;
 
+    /**
+     * Check the access for the given privilege for the given key
+     */
+    ENGINE_ERROR_CODE checkPrivilege(const void* cookie,
+                                     cb::rbac::Privilege priv,
+                                     DocKey key);
+
     void setMaxItemSize(size_t value) {
         maxItemSize = value;
     }

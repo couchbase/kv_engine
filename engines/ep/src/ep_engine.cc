@@ -4669,6 +4669,35 @@ void EventuallyPersistentEngine::resetStats() {
     }
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::checkPrivilege(
+        const void* cookie, cb::rbac::Privilege priv, DocKey key) {
+    try {
+        ScopeID sid;
+        if (key.getCollectionID().isDefaultCollection()) {
+            sid = ScopeID{ScopeID::Default};
+        } else {
+            auto res = get_scope_id(cookie, key);
+            if (!res.second) {
+                return ENGINE_UNKNOWN_COLLECTION;
+            }
+            sid = res.second.get();
+        }
+
+        const auto acc = serverApi->cookie->check_privilege(
+                cookie, cb::rbac::Privilege::Read, sid, key.getCollectionID());
+        return acc == cb::rbac::PrivilegeAccess::Ok ? ENGINE_SUCCESS
+                                                    : ENGINE_EACCESS;
+
+    } catch (const std::exception& e) {
+        EP_LOG_ERR(
+                "EPE::checkPrivilege: received exception while checking "
+                "privilege for key {}: {}",
+                cb::UserDataView(key.to_string()),
+                e.what());
+        return ENGINE_FAILED;
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         const void* cookie,
         const cb::mcbp::Request& req,
@@ -4712,10 +4741,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                      cb::UserDataView(key.to_string()),
                      vb_id);
 
+        auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
+        if (rv != ENGINE_SUCCESS) {
+            return rv;
+        }
+
         // Get key stats
         uint16_t keystatus = 0;
         struct key_stats kstats = {};
-        ENGINE_ERROR_CODE rv = kvBucket->getKeyStats(
+        rv = kvBucket->getKeyStats(
                 key, vb_id, cookie, kstats, WantsDeleted::Yes);
         if (rv == ENGINE_SUCCESS) {
             if (kstats.logically_deleted) {
