@@ -584,7 +584,6 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::Gat:
     case ClientOpcode::Gatq:
     case ClientOpcode::GetReplica:
-    case ClientOpcode::Observe:
     case ClientOpcode::EvictKey:
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
@@ -619,6 +618,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::DcpAbort:
         return true;
 
+    case ClientOpcode::Observe:
     case ClientOpcode::Quit:
     case ClientOpcode::Flush:
     case ClientOpcode::Noop:

@@ -344,7 +344,6 @@ TEST(ClientOpcode, is_collection_command) {
                      ClientOpcode::Gat,
                      ClientOpcode::Gatq,
                      ClientOpcode::GetReplica,
-                     ClientOpcode::Observe,
                      ClientOpcode::EvictKey,
                      ClientOpcode::GetLocked,
                      ClientOpcode::UnlockKey,
