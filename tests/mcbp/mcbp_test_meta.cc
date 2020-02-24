@@ -59,11 +59,6 @@ TEST_P(MutationWithMetaTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(MutationWithMetaTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(MutationWithMetaTest, InvalidExtlen) {
     for (int ii = 0; ii < 256; ++ii) {
         request.message.header.request.setExtlen(ii);

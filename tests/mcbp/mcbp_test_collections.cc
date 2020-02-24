@@ -47,11 +47,6 @@ TEST_F(SetCollectionsValidator, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_F(SetCollectionsValidator, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_F(SetCollectionsValidator, InvalidKeylen) {
     request.message.header.request.setKeylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());

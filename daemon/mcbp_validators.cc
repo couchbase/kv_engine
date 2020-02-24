@@ -103,6 +103,9 @@ using ExpectedCas = McbpValidator::ExpectedCas;
 /**
  * Verify the header meets basic sanity checks and fields length
  * match the provided expected lengths.
+ *
+ * NOTE: the packet framing is already verified _before_ this method
+ *       is called (in Connection::isPacketAvailable())
  */
 Status McbpValidator::verify_header(Cookie& cookie,
                                     uint8_t expected_extlen,
@@ -112,11 +115,6 @@ Status McbpValidator::verify_header(Cookie& cookie,
                                     uint8_t expected_datatype_mask) {
     const auto& header = cookie.getHeader();
     auto& connection = cookie.getConnection();
-
-    if (!header.isValid()) {
-        cookie.setErrorContext("Request header invalid");
-        return Status::Einval;
-    }
 
     if (!mcbp::datatype::is_valid(header.getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");

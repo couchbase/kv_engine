@@ -82,16 +82,6 @@ TEST_P(SubdocSingleTest, Get_InvalidBody) {
               validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Invalid extras section",
               validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
-
-    // Make sure we detect if it won't fit in the packet (extlen + key + path
-    // is bigger than in the full packet
-    request.message.header.request.setExtlen(7);
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(10 + 5);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::SubdocGet));
-    EXPECT_EQ("Request header invalid",
-              validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 }
 
 TEST_P(SubdocSingleTest, Get_InvalidPath) {
@@ -191,14 +181,6 @@ TEST_P(SubdocMultiLookupTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
-}
-
-TEST_P(SubdocMultiLookupTest, InvalidMagic) {
-    std::vector<uint8_t> payload;
-    request.encode(payload);
-    payload[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
-    EXPECT_EQ("Request header invalid", validate_error_context(payload));
 }
 
 TEST_P(SubdocMultiLookupTest, InvalidDatatype) {
@@ -448,14 +430,6 @@ TEST_P(SubdocMultiMutationTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
-}
-
-TEST_P(SubdocMultiMutationTest, InvalidMagic) {
-    std::vector<uint8_t> payload;
-    request.encode(payload);
-    payload[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
-    EXPECT_EQ("Request header invalid", validate_error_context(payload));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidDatatype) {

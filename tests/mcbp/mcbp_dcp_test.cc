@@ -55,11 +55,6 @@ TEST_P(DcpOpenValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
-TEST_P(DcpOpenValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpOpenValidatorTest, InvalidExtlen) {
     request.setExtlen(9);
     request.setBodylen(11);
@@ -111,11 +106,6 @@ TEST_P(DcpAddStreamValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
-TEST_P(DcpAddStreamValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpAddStreamValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(5);
     request.message.header.request.setBodylen(5);
@@ -153,11 +143,6 @@ protected:
 
 TEST_P(DcpCloseStreamValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpCloseStreamValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidExtlen) {
@@ -199,11 +184,6 @@ protected:
 
 TEST_P(DcpGetFailoverLogValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpGetFailoverLogValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidExtlen) {
@@ -251,11 +231,6 @@ protected:
 
 TEST_P(DcpStreamReqValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpStreamReqValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidExtlen) {
@@ -306,11 +281,6 @@ protected:
 
 TEST_P(DcpStreamEndValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpStreamEndValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidExtlen) {
@@ -379,11 +349,6 @@ TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
             cb::mcbp::request::DcpSnapshotMarkerV2xVersion::Zero};
     builder.setExtras(extras.getBuffer());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpSnapshotMarkerValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidExtlen) {
@@ -464,11 +429,6 @@ protected:
 TEST_P(DcpMutationValidatorTest, CorrectMessage) {
     EXPECT_EQ("Attached bucket does not support DCP",
               validate_error_context(cb::mcbp::Status::NotSupported));
-}
-
-TEST_P(DcpMutationValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ("Request header invalid", validate_error_context());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
@@ -552,11 +512,6 @@ protected:
 
 TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
@@ -678,11 +633,6 @@ TEST_P(DcpExpirationValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
-TEST_P(DcpExpirationValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpExpirationValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(5);
     request.message.header.request.setBodylen(7);
@@ -743,11 +693,6 @@ TEST_P(DcpSetVbucketStateValidatorTest, LegalValues) {
     }
 }
 
-TEST_P(DcpSetVbucketStateValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(5);
     request.message.header.request.setBodylen(5);
@@ -798,11 +743,6 @@ TEST_P(DcpNoopValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
-TEST_P(DcpNoopValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpNoopValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(5);
     request.message.header.request.setBodylen(5);
@@ -848,11 +788,6 @@ TEST_P(DcpBufferAckValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
-TEST_P(DcpBufferAckValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(DcpBufferAckValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(5);
     request.message.header.request.setBodylen(5);
@@ -895,11 +830,6 @@ protected:
 
 TEST_P(DcpControlValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
-}
-
-TEST_P(DcpControlValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidExtlen) {

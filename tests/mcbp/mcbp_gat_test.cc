@@ -52,11 +52,6 @@ TEST_P(GATValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(GATValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(GATValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());

@@ -145,11 +145,6 @@ TEST_P(GetValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(GetValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(GetValidatorTest, ExtendedExtlenV1) {
     switch (getGetOpcode()) {
         // Extended extlen is only supported for *Meta
@@ -417,12 +412,6 @@ TEST_P(AddValidatorTest, NoValue) {
               validate(cb::mcbp::ClientOpcode::Addq));
 }
 
-TEST_P(AddValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Addq));
-}
-
 TEST_P(AddValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(9);
     request.message.header.request.setKeylen(10);
@@ -517,16 +506,6 @@ TEST_P(SetReplaceValidatorTest, Cas) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               validate(cb::mcbp::ClientOpcode::Replace));
     EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(cb::mcbp::ClientOpcode::Replaceq));
-}
-
-TEST_P(SetReplaceValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Set));
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Setq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Replace));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Replaceq));
 }
 
@@ -636,18 +615,6 @@ TEST_P(AppendPrependValidatorTest, Cas) {
               validate(cb::mcbp::ClientOpcode::Prependq));
 }
 
-TEST_P(AppendPrependValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Append));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Appendq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Prepend));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Prependq));
-}
-
 TEST_P(AppendPrependValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(21);
     request.message.header.request.setKeylen(10);
@@ -742,14 +709,6 @@ TEST_P(DeleteValidatorTest, WithValue) {
               validate(cb::mcbp::ClientOpcode::Deleteq));
 }
 
-TEST_P(DeleteValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Delete));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Deleteq));
-}
-
 TEST_P(DeleteValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(21);
     request.message.header.request.setBodylen(21 + 10);
@@ -812,18 +771,6 @@ TEST_P(IncrementDecrementValidatorTest, CorrectMessage) {
 
 TEST_P(IncrementDecrementValidatorTest, Cas) {
     request.message.header.request.setCas(1);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Increment));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Incrementq));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Decrement));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Decrementq));
-}
-
-TEST_P(IncrementDecrementValidatorTest, InvalidMagic) {
-    blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::Increment));
     EXPECT_EQ(cb::mcbp::Status::Einval,
@@ -926,13 +873,6 @@ TEST_P(QuitValidatorTest, CorrectMessage) {
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
-TEST_P(QuitValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Quit));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Quitq));
-}
-
 TEST_P(QuitValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(21);
     request.message.header.request.setBodylen(21);
@@ -1009,14 +949,6 @@ TEST_P(FlushValidatorTest, CorrectMessageWithUnsupportedTime) {
               validate(cb::mcbp::ClientOpcode::Flushq));
 }
 
-TEST_P(FlushValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
 TEST_P(FlushValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(21);
     request.message.header.request.setBodylen(21);
@@ -1077,11 +1009,6 @@ TEST_P(NoopValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(NoopValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(NoopValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(21);
     request.message.header.request.setBodylen(21);
@@ -1125,11 +1052,6 @@ protected:
 
 TEST_P(VersionValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(VersionValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VersionValidatorTest, InvalidExtlen) {
@@ -1187,11 +1109,6 @@ TEST_P(StatValidatorTest, WithKey) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(StatValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(StatValidatorTest, InvalidExtlen) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
     builder.setExtras({reinterpret_cast<const uint8_t*>("foo"), 3});
@@ -1243,11 +1160,6 @@ protected:
 
 TEST_P(VerbosityValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(VerbosityValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(VerbosityValidatorTest, InvalidExtlen) {
@@ -1310,11 +1222,6 @@ TEST_P(HelloValidatorTest, WithKey) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(HelloValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(HelloValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(2);
@@ -1352,11 +1259,6 @@ protected:
 
 TEST_P(SaslListMechValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SaslListMechValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SaslListMechValidatorTest, InvalidExtlen) {
@@ -1419,14 +1321,6 @@ TEST_P(SaslAuthValidatorTest, WithChallenge) {
               validate(cb::mcbp::ClientOpcode::SaslStep));
 }
 
-TEST_P(SaslAuthValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::SaslAuth));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::SaslStep));
-}
-
 TEST_P(SaslAuthValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(2);
@@ -1479,11 +1373,6 @@ TEST_P(GetErrmapValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(GetErrmapValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(GetErrmapValidatorTest, MissingBody) {
     request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
@@ -1513,11 +1402,6 @@ protected:
 
 TEST_P(IoctlGetValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(IoctlGetValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlGetValidatorTest, InvalidExtlen) {
@@ -1575,11 +1459,6 @@ protected:
 
 TEST_P(IoctlSetValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(IoctlSetValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(IoctlSetValidatorTest, InvalidExtlen) {
@@ -1640,11 +1519,6 @@ TEST_P(AuditPutValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(AuditPutValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(AuditPutValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(12);
@@ -1690,11 +1564,6 @@ protected:
 
 TEST_P(AuditConfigReloadValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(AuditConfigReloadValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(AuditConfigReloadValidatorTest, InvalidExtlen) {
@@ -1746,11 +1615,6 @@ TEST_P(ShutdownValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(ShutdownValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(ShutdownValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(2);
@@ -1798,11 +1662,6 @@ protected:
 
 TEST_P(ObserveSeqnoValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(ObserveSeqnoValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(ObserveSeqnoValidatorTest, InvalidExtlen) {
@@ -1875,11 +1734,6 @@ TEST_P(RefreshValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(RefreshValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(RefreshValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(2);
@@ -1930,10 +1784,6 @@ TEST_P(CmdTimerValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(CmdTimerValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
 
 TEST_P(CmdTimerValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
@@ -1978,11 +1828,6 @@ protected:
 
 TEST_P(GetCtrlTokenValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(GetCtrlTokenValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetCtrlTokenValidatorTest, InvalidExtlen) {
@@ -2046,11 +1891,6 @@ TEST_P(SetCtrlTokenValidatorTest, CorrectMessage) {
 TEST_P(SetCtrlTokenValidatorTest, Cas) {
     request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SetCtrlTokenValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidExtlen) {
@@ -2124,11 +1964,6 @@ TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithCollectionID) {
     request.message.body.state = static_cast<RequestedVBState>(htonl(1));
     request.message.body.cid = static_cast<CollectionIDType>(htonl(8));
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(GetAllVbSeqnoValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidExtlen) {
@@ -2211,11 +2046,6 @@ TEST_P(GetLockedValidatorTest, CorrectMessageExplicitTimeout) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(GetLockedValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(GetLockedValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(12);
@@ -2272,11 +2102,6 @@ TEST_P(UnlockValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(UnlockValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(UnlockValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(12);
@@ -2328,10 +2153,6 @@ TEST_P(ConfigReloadValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(ConfigReloadValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
 
 TEST_P(ConfigReloadValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
@@ -2382,11 +2203,6 @@ protected:
 
 TEST_P(EvictKeyValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(EvictKeyValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(EvictKeyValidatorTest, InvalidExtlen) {
@@ -2445,11 +2261,6 @@ TEST_P(RevokeUserPermissionsValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(RevokeUserPermissionsValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(RevokeUserPermissionsValidatorTest, InvalidExtlen) {
     request.message.header.request.setExtlen(2);
     request.message.header.request.setBodylen(12);
@@ -2493,21 +2304,6 @@ TEST_P(ErrorContextTest, ValidHeader) {
     EXPECT_EQ("",
               validate_error_context(cb::mcbp::ClientOpcode::Noop,
                                      cb::mcbp::Status::Success));
-}
-
-TEST_P(ErrorContextTest, InvalidHeader) {
-    // Magic invalid
-    blob[0] = 0;
-    EXPECT_EQ("Request header invalid",
-              validate_error_context(cb::mcbp::ClientOpcode::Noop));
-
-    // Extlen + Keylen > Bodylen
-    request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    request.message.header.request.setExtlen(8);
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(12);
-    EXPECT_EQ("Request header invalid",
-              validate_error_context(cb::mcbp::ClientOpcode::Add));
 }
 
 TEST_P(ErrorContextTest, InvalidDatatype) {
@@ -3129,11 +2925,6 @@ TEST_P(GetRandomKeyValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(GetRandomKeyValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 TEST_P(GetRandomKeyValidatorTest, InvalidExtlen) {
     req.setExtlen(2);
     req.setBodylen(2);
@@ -3178,11 +2969,6 @@ protected:
 
 TEST_P(DelVBucketValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(DelVBucketValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DelVBucketValidatorTest, InvalidExtlen) {
@@ -3234,11 +3020,6 @@ protected:
 
 TEST_P(GetVBucketValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(GetVBucketValidatorTest, InvalidMagic) {
-    blob[0] = 0;
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GetVBucketValidatorTest, InvalidExtlen) {

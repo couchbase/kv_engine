@@ -556,10 +556,6 @@ void Connection::executeCommandPipeline() {
             const auto status = cookie->validate();
             if (status != cb::mcbp::Status::Success) {
                 cookie->sendResponse(status);
-                if (status != cb::mcbp::Status::UnknownCommand) {
-                    state = State::closing;
-                    return;
-                }
             } else {
                 // We may only start execute the packet if:
                 //  * We don't have any ongoing commands
