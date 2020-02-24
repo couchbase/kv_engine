@@ -94,6 +94,41 @@ TEST_F(BasicClusterTest, MultiGet) {
     EXPECT_EQ(5, nfound);
 }
 
+/// Store a key on one node, and wait until its replicated all over
+TEST_F(BasicClusterTest, Observe) {
+    auto bucket = cluster->getBucket("default");
+    auto replica = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
+
+    BinprotObserveCommand observe({{Vbid{0}, "BasicClusterTest_Observe"}});
+    // check that it don't exist on the replica
+    auto rsp = BinprotObserveResponse{replica->execute(observe)};
+    ASSERT_TRUE(rsp.isSuccess());
+    auto keys = rsp.getResults();
+    ASSERT_EQ(1, keys.size());
+    EXPECT_EQ(OBS_STATE_NOT_FOUND, keys.front().status);
+
+    // store it on the primary
+    {
+        auto conn = bucket->getConnection(Vbid(0));
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(bucket->getName());
+        conn->store("BasicClusterTest_Observe", Vbid{0}, "value");
+    }
+
+    // loop and wait for it to hit the replica
+    bool found = false;
+    do {
+        rsp = BinprotObserveResponse{replica->execute(observe)};
+        ASSERT_TRUE(rsp.isSuccess());
+        keys = rsp.getResults();
+        ASSERT_EQ(1, keys.size());
+        if (keys.front().status != OBS_STATE_NOT_FOUND) {
+            found = true;
+            ASSERT_NE(0, keys.front().cas);
+        }
+    } while (!found);
+}
+
 char isasl_env_var[1024];
 int main(int argc, char** argv) {
     setupWindowsDebugCRTAssertHandling();

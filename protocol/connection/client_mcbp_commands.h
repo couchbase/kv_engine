@@ -994,6 +994,40 @@ protected:
     void decode();
 };
 
+class BinprotObserveCommand : public BinprotGenericCommand {
+public:
+    BinprotObserveCommand(std::vector<std::pair<Vbid, std::string>> keys)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::Observe),
+          keys(std::move(keys)) {
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    std::vector<std::pair<Vbid, std::string>> keys;
+};
+
+class BinprotObserveResponse : public BinprotResponse {
+public:
+    BinprotObserveResponse() = default;
+    explicit BinprotObserveResponse(BinprotResponse&& other)
+        : BinprotResponse(other) {
+    }
+
+    void assign(std::vector<uint8_t>&& buf) override {
+        BinprotResponse::assign(std::move(buf));
+    }
+
+    struct Result {
+        Vbid vbid = {};
+        uint8_t status{};
+        std::string key;
+        uint64_t cas{};
+    };
+
+    std::vector<Result> getResults();
+};
+
 class BinprotUpdateUserPermissionsCommand : public BinprotGenericCommand {
 public:
     BinprotUpdateUserPermissionsCommand(std::string payload);

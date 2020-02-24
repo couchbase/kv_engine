@@ -1719,3 +1719,67 @@ void BinprotDelWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), doc.value.begin(), doc.value.end());
 }
+
+void BinprotObserveCommand::encode(std::vector<uint8_t>& buf) const {
+    BinprotGenericCommand::encode(buf);
+
+    size_t total = 0;
+    for (const auto& k : keys) {
+        // 2 byte vbid
+        // 2 byte klen
+        total += 4 + k.second.size();
+    }
+
+    writeHeader(buf, total, 0);
+    for (const auto& k : keys) {
+        append(buf, k.first.get());
+        append(buf, uint16_t(k.second.size()));
+        buf.insert(buf.end(), k.second.begin(), k.second.end());
+    }
+}
+
+std::vector<BinprotObserveResponse::Result>
+BinprotObserveResponse::getResults() {
+    if (!isSuccess()) {
+        throw std::logic_error(
+                "BinprotObserveResponse::getResults: not a success");
+    }
+
+    std::vector<Result> ret;
+    auto value = getData();
+    auto* ptr = value.begin();
+
+    do {
+        Result r;
+
+        if (ptr + 2 > value.end()) {
+            throw std::runtime_error("No vbid present");
+        }
+        r.vbid = Vbid{ntohs(*reinterpret_cast<const uint16_t*>(ptr))};
+        ptr += 2;
+
+        if (ptr + 2 > value.end()) {
+            throw std::runtime_error("No keylen present");
+        }
+        uint16_t klen = ntohs(*reinterpret_cast<const uint16_t*>(ptr));
+        ptr += 2;
+        if (ptr + klen > value.end()) {
+            throw std::runtime_error("no key present");
+        }
+        r.key.assign(reinterpret_cast<const char*>(ptr), klen);
+        ptr += klen;
+        if (ptr + 1 > value.end()) {
+            throw std::runtime_error("no status present");
+        }
+        r.status = *ptr;
+        ++ptr;
+        if (ptr + sizeof(uint64_t) > value.end()) {
+            throw std::runtime_error("no cas present");
+        }
+        r.cas = ntohll(*reinterpret_cast<const uint64_t*>(ptr));
+        ptr += sizeof(uint64_t);
+        ret.emplace_back(r);
+    } while (ptr < value.end());
+
+    return ret;
+}
