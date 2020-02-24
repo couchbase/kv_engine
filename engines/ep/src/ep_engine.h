@@ -723,7 +723,14 @@ public:
         minCompressionRatio = minCompressRatio;
     }
 
-    ConnHandler* getConnHandler(const void *cookie);
+    /**
+     * Get the connection handler for the provided cookie
+     *
+     * @param cookie the cookie to look up
+     * @param logNonExistent Should we log if we don't find a connection handler
+     * @return the pointer to the connection handler if found, nullptr otherwise
+     */
+    ConnHandler* getConnHandler(const void* cookie, bool logNonExistent = true);
 
     void addLookupAllKeys(const void *cookie, ENGINE_ERROR_CODE err);
 

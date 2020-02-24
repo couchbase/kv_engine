@@ -65,6 +65,7 @@
 #include <platform/compress.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
+#include <platform/string_hex.h>
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 #include <xattr/blob.h>
@@ -6204,11 +6205,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
     return errCode;
 }
 
-ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
+ConnHandler* EventuallyPersistentEngine::getConnHandler(const void* cookie,
+                                                        bool logNonExistent) {
     void* specific = getEngineSpecific(cookie);
     auto* handler = reinterpret_cast<ConnHandler*>(specific);
-    if (!handler) {
-        EP_LOG_WARN("Invalid streaming connection");
+    if (!handler && logNonExistent) {
+        auto li = serverApi->cookie->get_log_info(cookie);
+        EP_LOG_WARN("{}: Invalid streaming connection: cookie:{}",
+                    li.first,
+                    cb::to_hex(uint64_t(cookie)));
     }
     return handler;
 }
@@ -6391,8 +6396,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         reqCollection = CollectionID::Default;
     }
 
-    bool supportsSyncWrites = getConnHandler(cookie) &&
-                              getConnHandler(cookie)->isSyncWritesEnabled();
+    auto* connhandler = getConnHandler(cookie, false);
+    bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
     std::vector<uint8_t> payload;
     auto vbuckets = kvBucket->getVBuckets().getBuckets();
