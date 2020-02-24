@@ -814,8 +814,6 @@ TEST_F(CollectionsDcpTest, MB_26455) {
 
     {
         auto vb = store->getVBucket(vbid);
-        CollectionsManifest cm;
-        vb->updateFromManifest({cm});
 
         CollectionsManifest cm;
         vb->updateFromManifest({cm});
