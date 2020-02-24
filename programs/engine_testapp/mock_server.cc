@@ -198,6 +198,11 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     }
 };
 
+static CheckPrivilegeFunction checkPrivilegeFunction;
+void mock_set_privilege_check_function(CheckPrivilegeFunction function) {
+    checkPrivilegeFunction = std::move(function);
+}
+
 struct MockServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
@@ -296,7 +301,10 @@ struct MockServerCookieApi : public ServerCookieIface {
                                               cb::rbac::Privilege privilege,
                                               ScopeID sid,
                                               CollectionID cid) override {
-        // @todo allow for mocking privilege access
+        if (checkPrivilegeFunction) {
+            return checkPrivilegeFunction(cookie, privilege, sid, cid);
+        }
+
         return cb::rbac::PrivilegeAccess::Ok;
     }
 

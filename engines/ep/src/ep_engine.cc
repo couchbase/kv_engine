@@ -3907,7 +3907,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
         Vbid vbid,
         const DocKey& key,
         bool validate) {
-    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
+    auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
+    if (rv != ENGINE_SUCCESS) {
+        return rv;
+    }
 
     std::unique_ptr<Item> it;
     struct key_stats kstats;
