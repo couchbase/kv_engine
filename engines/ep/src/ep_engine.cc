@@ -2105,13 +2105,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     auto numShards = configuration.getMaxNumShards();
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(), numShards);
-    if ((unsigned int)workload->getNumShards() >
-                                              configuration.getMaxVbuckets()) {
-        EP_LOG_WARN(
-                "Invalid configuration: Shards must be "
-                "equal or less than max number of vbuckets");
-        return ENGINE_FAILED;
-    }
 
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
