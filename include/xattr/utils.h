@@ -17,7 +17,6 @@
 #pragma once
 
 #include <platform/sized_buffer.h>
-#include <xattr/visibility.h>
 
 #include <string>
 
@@ -41,7 +40,6 @@ namespace xattr {
  *              that it is safe to use the rest of the methods in
  *              cb::xattr to access them
  */
-XATTR_PUBLIC_API
 bool validate(const cb::const_char_buffer& blob);
 
 /**
@@ -51,15 +49,14 @@ bool validate(const cb::const_char_buffer& blob);
  * @return The number of bytes into the payload where the body lives
  *         (the body size == payload.size() - the returned value)
  */
-XATTR_PUBLIC_API
 uint32_t get_body_offset(const cb::const_char_buffer& payload);
+
 /**
  * Get the segment where the actual body lives
  *
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the body blob
  */
-XATTR_PUBLIC_API
 cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
 
 /**
@@ -104,7 +101,6 @@ static cb::const_char_buffer XTOC = {"$XTOC", 5};
  * @param doc the document to inspect
  * @return the number of bytes of system xattrs
  */
-XATTR_PUBLIC_API
 size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
 
 /**
@@ -116,7 +112,6 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
  * @param doc the document to inspect
  * @return pair of size, first is the total, second is the system size
  */
-XATTR_PUBLIC_API
 std::pair<size_t, size_t> get_size_and_system_xattr_size(
         uint8_t datatype, const cb::const_char_buffer doc);
 }
