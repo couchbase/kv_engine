@@ -51,7 +51,7 @@ public:
      *
      * @param item Item to be persisted
      */
-    CouchRequest(queued_item item);
+    explicit CouchRequest(queued_item item);
 
     ~CouchRequest();
 
@@ -74,7 +74,7 @@ public:
      *
      * @return pointer to the couchstore DocInfo instance of a document
      */
-    DocInfo *getDbDocInfo(void) {
+    DocInfo* getDbDocInfo() {
         return &dbDocInfo;
     }
 
@@ -101,7 +101,7 @@ public:
      *
      * @param config    Configuration information
      */
-    CouchKVStore(KVStoreConfig& config);
+    explicit CouchKVStore(KVStoreConfig& config);
 
     /**
      * Alternate constructor for injecting base FileOps
@@ -114,7 +114,7 @@ public:
     /**
      * Deconstructor
      */
-    ~CouchKVStore();
+    ~CouchKVStore() override;
 
     /**
      * A read only CouchKVStore can only be created by a RW store. They should
@@ -163,7 +163,7 @@ public:
     /**
      * Rollback a transaction (unless not currently in one).
      */
-    void rollback(void) override {
+    void rollback() override {
         if (isReadOnly()) {
             throw std::logic_error("CouchKVStore::rollback: Not valid on a "
                     "read-only object.");
@@ -179,7 +179,7 @@ public:
      *
      * @return properties of the underlying storage system
      */
-    StorageProperties getStorageProperties(void) override;
+    StorageProperties getStorageProperties() override;
 
     void set(queued_item item) override;
 
@@ -230,7 +230,7 @@ public:
      * @return vbucket state vector instance where key is vbucket id and
      * value is vbucket state
      */
-   std::vector<vbucket_state *>  listPersistedVbuckets(void) override;
+    std::vector<vbucket_state*> listPersistedVbuckets() override;
 
     /**
      * Retrieve ths list of persisted engine stats
@@ -320,7 +320,7 @@ public:
     bool getStat(const char* name, size_t& value) override;
 
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
-    static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
+
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
 
     couchstore_error_t fetchDoc(Db* db,
@@ -329,8 +329,6 @@ public:
                                 Vbid vbId,
                                 GetMetaOnly metaOnly);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
-
-    uint64_t getLastPersistedSeqno(Vbid vbid);
 
     /**
      * Get all_docs API, to return the list of all keys in the store
@@ -390,7 +388,8 @@ protected:
      */
     class DbHolder {
     public:
-        DbHolder(CouchKVStore& kvs) : kvstore(kvs), db(nullptr), fileRev(0) {
+        explicit DbHolder(CouchKVStore& kvs)
+            : kvstore(kvs), db(nullptr), fileRev(0) {
         }
 
         DbHolder(const DbHolder&) = delete;
@@ -460,11 +459,12 @@ protected:
         LocalDocHolder(const LocalDocHolder&) = delete;
         LocalDocHolder& operator=(const LocalDocHolder&) = delete;
 
-        LocalDocHolder(LocalDocHolder&& other) : localDoc(other.localDoc) {
+        LocalDocHolder(LocalDocHolder&& other) noexcept {
+            localDoc = other.localDoc;
             other.localDoc = nullptr;
         }
 
-        LocalDocHolder& operator=(LocalDocHolder&& other) {
+        LocalDocHolder& operator=(LocalDocHolder&& other) noexcept {
             localDoc = other.localDoc;
             other.localDoc = nullptr;
             return *this;
@@ -503,15 +503,6 @@ protected:
     DbInfo getDbInfo(Vbid vbid);
 
     bool writeVBucketState(Vbid vbucketId, const vbucket_state& vbstate);
-
-    template <typename T>
-    void addStat(const std::string& prefix,
-                 const char* nm,
-                 T& val,
-                 const AddStatFn& add_stat,
-                 const void* c);
-
-    void operator=(const CouchKVStore &from);
 
     void close();
     bool commit2couchstore(VB::Commit& commitData);
@@ -682,7 +673,6 @@ protected:
      */
     size_t getDroppedCollectionCount(Db& db);
 
-    void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
 
     /**
@@ -724,7 +714,7 @@ protected:
      * Result of the readVBState function
      */
     struct ReadVBStateResult {
-        ReadVBStateStatus status;
+        ReadVBStateStatus status{ReadVBStateStatus::Success};
 
         // Only valid if status == ReadVBStateStatus::Success
         vbucket_state state;
@@ -851,11 +841,10 @@ private:
 
     class CouchKVFileHandle : public ::KVFileHandle {
     public:
-        CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
+        explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
         }
 
-        ~CouchKVFileHandle() override {
-        }
+        ~CouchKVFileHandle() override = default;
 
         DbHolder& getDbHolder() {
             return db;
