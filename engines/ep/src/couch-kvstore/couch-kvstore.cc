@@ -1358,7 +1358,8 @@ StorageProperties CouchKVStore::getStorageProperties() {
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::Yes,
                          StorageProperties::EfficientGet::Yes,
-                         StorageProperties::ConcurrentWriteCompact::No);
+                         StorageProperties::ConcurrentWriteCompact::No,
+                         StorageProperties::ByIdScan::Yes);
     return rv;
 }
 

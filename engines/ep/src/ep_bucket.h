@@ -201,6 +201,9 @@ public:
     compaction_ctx makeCompactionContext(CompactionConfig& config,
                                          uint64_t purgeSeqno);
 
+    // implemented by querying StorageProperties for the buckets KVStore
+    bool isByIdScanSupported() const override;
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

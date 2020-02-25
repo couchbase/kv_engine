@@ -779,7 +779,8 @@ StorageProperties MagmaKVStore::getStorageProperties() {
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,
                          StorageProperties::EfficientGet::Yes,
-                         StorageProperties::ConcurrentWriteCompact::No);
+                         StorageProperties::ConcurrentWriteCompact::No,
+                         StorageProperties::ByIdScan::No);
     return rv;
 }
 

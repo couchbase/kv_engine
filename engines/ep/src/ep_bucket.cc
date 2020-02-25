@@ -1952,3 +1952,7 @@ void EPBucket::stopWarmup(void) {
         warmupTask->stop();
     }
 }
+
+bool EPBucket::isByIdScanSupported() const {
+    return getStorageProperties().hasByIdScan();
+}

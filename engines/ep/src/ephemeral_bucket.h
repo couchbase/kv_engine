@@ -128,6 +128,10 @@ public:
         return false;
     }
 
+    bool isByIdScanSupported() const override {
+        return false;
+    }
+
     // Static methods /////////////////////////////////////////////////////////
 
     /** Apply necessary modifications to the Configuration for an Ephemeral

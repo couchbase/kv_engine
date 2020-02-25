@@ -415,37 +415,31 @@ typedef std::map<Vbid, vbucket_state> vbucket_map_t;
  */
 class StorageProperties {
 public:
+    enum class EfficientVBDump : bool { Yes, No };
 
-    enum class EfficientVBDump {
-        Yes,
-        No
-    };
+    enum class EfficientVBDeletion : bool { Yes, No };
 
-    enum class EfficientVBDeletion {
-        Yes,
-        No
-    };
+    enum class PersistedDeletion : bool { Yes, No };
 
-    enum class PersistedDeletion {
-        Yes,
-        No
-    };
+    enum class EfficientGet : bool { Yes, No };
 
-    enum class EfficientGet {
-        Yes,
-        No
-    };
+    enum class ConcurrentWriteCompact : bool { Yes, No };
 
-    enum class ConcurrentWriteCompact {
-        Yes,
-        No
-    };
+    enum class ByIdScan : bool { Yes, No };
 
-    StorageProperties(EfficientVBDump evb, EfficientVBDeletion evd, PersistedDeletion pd,
-                      EfficientGet eget, ConcurrentWriteCompact cwc)
-        : efficientVBDump(evb), efficientVBDeletion(evd),
-          persistedDeletions(pd), efficientGet(eget),
-          concWriteCompact(cwc) {}
+    StorageProperties(EfficientVBDump evb,
+                      EfficientVBDeletion evd,
+                      PersistedDeletion pd,
+                      EfficientGet eget,
+                      ConcurrentWriteCompact cwc,
+                      ByIdScan byIdScan)
+        : efficientVBDump(evb),
+          efficientVBDeletion(evd),
+          persistedDeletions(pd),
+          efficientGet(eget),
+          concWriteCompact(cwc),
+          byIdScan(byIdScan) {
+    }
 
     /* True if we can efficiently dump a single vbucket */
     bool hasEfficientVBDump() const {
@@ -473,12 +467,17 @@ public:
         return (concWriteCompact == ConcurrentWriteCompact::Yes);
     }
 
+    bool hasByIdScan() const {
+        return byIdScan == ByIdScan::Yes;
+    }
+
 private:
     EfficientVBDump efficientVBDump;
     EfficientVBDeletion efficientVBDeletion;
     PersistedDeletion persistedDeletions;
     EfficientGet efficientGet;
     ConcurrentWriteCompact concWriteCompact;
+    ByIdScan byIdScan;
 };
 
 

@@ -805,6 +805,11 @@ public:
     virtual bool isGetAllKeysSupported() const = 0;
 
     /**
+     * @return true if the bucket supports by-id scans
+     */
+    virtual bool isByIdScanSupported() const = 0;
+
+    /**
      * Result of the loadPreparedSyncWrites function
      */
     struct LoadPreparedSyncWritesResult {
