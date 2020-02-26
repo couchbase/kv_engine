@@ -689,12 +689,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
 
-    // @todo MB-37693: The call to snapshotVBucket() may not perform any
-    //   flush to disk depending on Options. Defer this to flush-success.
-    if (vb->setBucketCreation(false)) {
-        EP_LOG_DEBUG("{} created", vbid);
-    }
-
     // We have already flushed the new vbstate if it was the only thing to
     // flush. All done.
     if (persistVBStateOnly) {
@@ -725,12 +719,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // Persist the flush-batch.
     const auto flushSuccess =
             commit(vb->getId(), *rwUnderlying, collectionFlush);
-
-    // @todo MB-37693: Commit may fail, clear this flag only at success.
-    // Now the commit is complete, vBucket file must exist.
-    if (vb->setBucketCreation(false)) {
-        EP_LOG_DEBUG("{} created", vbid);
-    }
 
     if (!flushSuccess) {
         // Flusher failed to commit the batch, rollback vbstate
@@ -814,6 +802,11 @@ void EPBucket::flushSuccessEpilogue(
         size_t itemsFlushed,
         const VBucket::AggregatedFlushStats& aggStats,
         const Collections::VB::Flush& collectionFlush) {
+    // Clear the flag if set (ie, only at vbucket creation)
+    if (vb.setBucketCreation(false)) {
+        EP_LOG_DEBUG("EPBucket::flushSuccessEpilogue: {} created", vb.getId());
+    }
+
     // Update flush stats
     const auto flushEnd = std::chrono::steady_clock::now();
     const auto transTime =
