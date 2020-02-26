@@ -307,7 +307,7 @@ static void recalculate_max_connections() {
                 "file descriptors available. Reduce max_connections to: {}",
                 newmax);
 
-        if (newmax > Settings::instance().getSystemConnections()) {
+        if (Settings::instance().getSystemConnections() > newmax) {
             LOG_WARNING(
                     "system_connections:{} > max_connections:{}. Reduce "
                     "system_connections to {}",

@@ -1001,7 +1001,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.system_connections) {
         if (other.system_connections != system_connections) {
-            LOG_INFO(R"(Change max connections from {} to {})",
+            LOG_INFO(R"(Change system connections from {} to {})",
                      system_connections,
                      other.system_connections);
             setSystemConnections(other.system_connections);
