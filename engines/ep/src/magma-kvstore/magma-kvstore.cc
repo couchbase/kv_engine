@@ -583,6 +583,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.SetupThreadContext = [currEngine]() {
         ObjectRegistry::onSwitchThread(currEngine, false);
     };
+    configuration.magmaCfg.ResetThreadContext = []() {
+        ObjectRegistry::onSwitchThread(nullptr);
+    };
 
     // Populate the magmaKVHandles
     magmaKVHandles =
