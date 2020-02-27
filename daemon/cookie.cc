@@ -27,7 +27,6 @@
 #include "mcbp_executors.h"
 #include "memcached.h"
 #include "opentracing.h"
-#include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "settings.h"
 
 #include <logger/logger.h>
@@ -40,6 +39,7 @@
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
+#include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
 #include <chrono>
 

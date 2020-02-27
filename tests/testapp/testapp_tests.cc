@@ -37,7 +37,6 @@
 #include "testapp_subdoc_common.h"
 
 #include "memcached/openssl.h"
-#include "utilities.h"
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/config_parser.h>
 #include <memcached/util.h>

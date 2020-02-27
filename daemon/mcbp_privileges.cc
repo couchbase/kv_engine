@@ -20,7 +20,8 @@
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 
-using namespace cb::rbac;
+using cb::rbac::Privilege;
+using cb::rbac::PrivilegeAccess;
 
 void McbpPrivilegeChains::setup(cb::mcbp::ClientOpcode command,
                                 cb::rbac::PrivilegeAccess (*f)(Cookie&)) {

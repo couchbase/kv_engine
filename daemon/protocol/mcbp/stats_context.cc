@@ -14,10 +14,10 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "engine_errc_2_mcbp.h"
+#include "stats_context.h"
+
 #include "engine_wrapper.h"
 #include "logger/logger.h"
-#include "stats_context.h"
 #include "utilities.h"
 
 #include <daemon/buckets.h>
@@ -37,9 +37,10 @@
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
 #include <platform/checked_snprintf.h>
-#include <cinttypes>
-
+#include <utilities/engine_errc_2_mcbp.h>
 #include <gsl/gsl>
+
+#include <cinttypes>
 
 /*************************** ADD STAT CALLBACKS ***************************/
 

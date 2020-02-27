@@ -17,7 +17,6 @@
 
 #include "mock_server.h"
 #include "daemon/doc_pre_expiry.h"
-#include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
 #include "mock_cookie.h"
 #include <logger/logger.h>
 #include <memcached/engine.h>
@@ -28,6 +27,7 @@
 #include <memcached/server_log_iface.h>
 #include <platform/cbassert.h>
 #include <platform/platform_time.h>
+#include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -56,7 +56,7 @@ spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 /**
  * Session cas elements
  */
-uint64_t session_cas;
+static uint64_t session_cas;
 uint8_t session_ctr;
 static std::mutex session_mutex;
 

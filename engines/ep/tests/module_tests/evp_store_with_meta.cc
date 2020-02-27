@@ -26,9 +26,9 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 
-#include <daemon/protocol/mcbp/engine_errc_2_mcbp.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <string_utilities.h>
+#include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

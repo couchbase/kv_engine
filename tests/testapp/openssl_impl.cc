@@ -17,7 +17,6 @@
 
 #include "ssl_impl.h"
 #include "testapp.h"
-#include "utilities.h"
 
 #include <folly/portability/GTest.h>
 #include <platform/platform_thread.h>

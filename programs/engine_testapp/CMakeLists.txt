@@ -7,13 +7,7 @@ add_library(mock_server STATIC
             mock_engine.h
             mock_server.cc
             mock_server.h
-            ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
-            ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.h
-            ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-            ${Memcached_SOURCE_DIR}/daemon/enginemap.cc
-            ${Memcached_SOURCE_DIR}/daemon/enginemap.h
-            ${Memcached_SOURCE_DIR}/daemon/bucket_type.cc
-            ${Memcached_SOURCE_DIR}/daemon/bucket_type.h)
+)
 set_property(TARGET mock_server PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(mock_server INTERFACE
                       memcached_logger
@@ -24,7 +18,13 @@ target_link_libraries(mock_server INTERFACE
                       xattr
                       ${MALLOC_LIBRARIES})
 
-add_library(engine_testapp OBJECT engine_testapp.cc)
+add_library(engine_testapp OBJECT engine_testapp.cc
+        ${Memcached_SOURCE_DIR}/daemon/bucket_type.cc
+        ${Memcached_SOURCE_DIR}/daemon/bucket_type.h
+        ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
+        ${Memcached_SOURCE_DIR}/daemon/enginemap.cc
+        ${Memcached_SOURCE_DIR}/daemon/enginemap.h
+)
 
 # An object library will not propagate dependencies
 # https://gitlab.kitware.com/cmake/cmake/issues/18090

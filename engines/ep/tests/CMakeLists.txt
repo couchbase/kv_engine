@@ -99,6 +99,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         $<TARGET_OBJECTS:ep_mocks>
         $<TARGET_OBJECTS:couchstore_test_fileops>
         $<TARGET_OBJECTS:couchfile_upgrade_objects>
+        ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests

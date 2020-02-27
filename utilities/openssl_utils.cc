@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2020 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,16 +14,15 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "memcached_openssl.h"
 
-#include <memcached/openssl.h>
+#include "openssl_utils.h"
+
 #include <openssl/conf.h>
 #include <openssl/engine.h>
-#include <platform/platform_thread.h>
+#include <openssl/ssl.h>
 
 void initialize_openssl() {
     OPENSSL_init_ssl(0, nullptr);
-
     SSL_load_error_strings();
     ERR_load_BIO_strings();
     OpenSSL_add_all_algorithms();

@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "engine_errc_2_mcbp.h"
 #include "executors.h"
 
 #include <daemon/buckets.h>
@@ -23,6 +22,7 @@
 #include <daemon/memcached.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
+#include <utilities/engine_errc_2_mcbp.h>
 
 ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto& connection = cookie.getConnection();

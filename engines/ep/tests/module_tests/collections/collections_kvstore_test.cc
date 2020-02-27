@@ -27,16 +27,6 @@
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/kvstore_test.h"
 
-/// Dummy callback to replace the flusher callback so we can create VBuckets
-class DummyCB : public Callback<Vbid> {
-public:
-    DummyCB() {
-    }
-
-    void callback(Vbid& dummy) {
-    }
-};
-
 struct WriteCallback {
     void operator()(TransactionContext&, KVStore::MutationSetResultState) {
     }
@@ -49,6 +39,16 @@ struct DeleteCallback {
 
 class CollectionsKVStoreTest : public KVStoreParamTest {
 public:
+    /// Dummy callback to replace the flusher callback so we can create VBuckets
+    class DummyCB : public Callback<Vbid> {
+    public:
+        DummyCB() {
+        }
+
+        void callback(Vbid& dummy) override {
+        }
+    };
+
     CollectionsKVStoreTest()
         : vbucket(Vbid(0),
                   vbucket_state_active,

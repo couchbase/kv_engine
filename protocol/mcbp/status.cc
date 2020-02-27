@@ -97,7 +97,7 @@ public:
     }
 
     std::string message(int code) const override {
-        return to_string(cb::mcbp::Status(code));
+        return ::to_string(cb::mcbp::Status(code));
     }
 
     std::error_condition default_error_condition(

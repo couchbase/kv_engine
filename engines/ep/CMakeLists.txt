@@ -397,7 +397,6 @@ if (NOT EP_BYPASS_TESTS)
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-                   ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
                    ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE

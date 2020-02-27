@@ -40,14 +40,10 @@ static constexpr char const* ScopesKey = "scopes";
 static constexpr nlohmann::json::value_t ScopesType =
         nlohmann::json::value_t::array;
 static constexpr char const* CollectionsKey = "collections";
-static constexpr nlohmann::json::value_t CollectionsType =
-        nlohmann::json::value_t::array;
 static constexpr char const* NameKey = "name";
 static constexpr nlohmann::json::value_t NameType =
         nlohmann::json::value_t::string;
 static constexpr char const* UidKey = "uid";
-static constexpr nlohmann::json::value_t UidType =
-        nlohmann::json::value_t::string;
 static constexpr char const* MaxTtlKey = "maxTTL";
 static constexpr nlohmann::json::value_t MaxTtlType =
         nlohmann::json::value_t::number_unsigned;

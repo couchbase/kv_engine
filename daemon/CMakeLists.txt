@@ -81,8 +81,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             mcbp_validators.h
             mcbpdestroybuckettask.h
             memcached.cc
-            memcached_openssl.cc
-            memcached_openssl.h
             network_interface.cc
             network_interface.h
             opentracing.cc
@@ -133,8 +131,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_system_event_executor.cc
             protocol/mcbp/dcp_system_event_executor.h
             protocol/mcbp/drop_privilege_executor.cc
-            protocol/mcbp/engine_errc_2_mcbp.cc
-            protocol/mcbp/engine_errc_2_mcbp.h
             protocol/mcbp/engine_wrapper.cc
             protocol/mcbp/engine_wrapper.h
             protocol/mcbp/executors.h

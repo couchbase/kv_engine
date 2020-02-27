@@ -76,10 +76,6 @@ set(memcached_testapp_SOURCES
     testapp_withmeta.cc
     testapp_xattr.cc
     testapp_xattr.h
-    utilities.cc
-    utilities.h
-    ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
-    ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
     ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
 add_executable(memcached_testapp ${memcached_testapp_SOURCES})

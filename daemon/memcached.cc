@@ -34,11 +34,9 @@
 #include "mcbp_topkeys.h"
 #include "mcbp_validators.h"
 #include "mcbpdestroybuckettask.h"
-#include "memcached_openssl.h"
 #include "network_interface.h"
 #include "opentracing.h"
 #include "parent_monitor.h"
-#include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "server_socket.h"
@@ -62,6 +60,8 @@
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
 #include <utilities/breakpad.h>
+#include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/openssl_utils.h>
 #include <gsl/gsl>
 
 #include <cerrno>

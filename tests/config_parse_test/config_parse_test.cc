@@ -15,14 +15,14 @@
  *   limitations under the License.
  */
 
-#include <daemon/ssl_utils.h>
 #include <daemon/settings.h>
+#include <daemon/ssl_utils.h>
 #include <folly/portability/GTest.h>
 #include <getopt.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 #include <openssl/ssl.h>
+#include <platform/dirutils.h>
 
 class SettingsTest : public ::testing::Test {
 public:

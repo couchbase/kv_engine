@@ -22,7 +22,6 @@
 #include "debug_helpers.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
-#include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
 #include "subdoc/util.h"
@@ -40,6 +39,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>
+#include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 #include <gsl/gsl>
 

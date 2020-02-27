@@ -22,12 +22,16 @@ add_library(mcd_util STATIC
             dcp_stream_id.cc
             dockey.cc
             durability_spec.cc
+            engine_errc_2_mcbp.cc
+            engine_errc_2_mcbp.h
             hdrhistogram.cc
             hdrhistogram.h
             json_utilities.cc
             json_utilities.h
             logtags.cc
             logtags.h
+            openssl_utils.cc
+            openssl_utils.h
             string_utilities.cc
             string_utilities.h
             terminate_handler.cc
@@ -41,7 +45,7 @@ if (BREAKPAD_FOUND)
   target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
 endif()
 target_link_libraries(mcd_util memcached_logger engine_utilities
-                      hdr_histogram_static platform ${BREAKPAD_LIBRARIES})
+                      hdr_histogram_static platform ${BREAKPAD_LIBRARIES} ${OPENSSL_LIBRARIES})
 add_sanitizers(mcd_util)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)

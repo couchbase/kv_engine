@@ -14,14 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <protocol/connection/client_connection.h>
-#include <protocol/connection/client_mcbp_commands.h>
-#include "memcached_audit_events.h"
 #include "testapp_environment.h"
-#include "utilities.h"
-
+#include "memcached_audit_events.h"
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/openssl_utils.h>
 #include <fstream>
 #include <memory>
 

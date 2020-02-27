@@ -34,7 +34,6 @@
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/dcp_system_event_executor.h"
-#include "protocol/mcbp/engine_errc_2_mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/flush_command_context.h"
@@ -57,6 +56,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
+#include <utilities/engine_errc_2_mcbp.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 
