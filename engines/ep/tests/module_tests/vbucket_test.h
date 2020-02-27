@@ -26,9 +26,7 @@
 
 #include <folly/portability/GTest.h>
 
-class BgFetcher;
 class VBucket;
-class VBucketBGFetchItem;
 
 /**
  * Dummy callback to replace the flusher callback.

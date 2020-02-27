@@ -52,7 +52,7 @@ class ItemMetaData;
 class PassiveDurabilityMonitor;
 class PreLinkDocumentContext;
 class RollbackResult;
-class VBucketBGFetchItem;
+class FrontEndBGFetchItem;
 struct VBQueueItemCtx;
 struct vbucket_transition_state;
 struct vb_bgfetch_item_ctx_t;
@@ -1015,7 +1015,7 @@ public:
      */
     virtual ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DiskDocKey& key,
-            const VBucketBGFetchItem& fetched_item,
+            const FrontEndBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) = 0;
 
     /**

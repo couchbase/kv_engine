@@ -98,7 +98,7 @@ EPVBucket::~EPVBucket() {
 
 ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         const DiskDocKey& key,
-        const VBucketBGFetchItem& fetched_item,
+        const FrontEndBGFetchItem& fetched_item,
         const std::chrono::steady_clock::time_point startTime) {
     ENGINE_ERROR_CODE status = fetched_item.value->getStatus();
     Item* fetchedValue = fetched_item.value->item.get();
@@ -114,7 +114,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                 getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
                                                     : ForGetReplicaOp::No);
         auto* v = res.storedValue;
-        if (fetched_item.metaDataOnly) {
+        if (fetched_item.metaDataOnly()) {
             if (status == ENGINE_SUCCESS) {
                 if (v && v->isTempInitialItem()) {
                     ht.unlocked_restoreMeta(
@@ -193,7 +193,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         }
     } // locked scope ends
 
-    if (fetched_item.metaDataOnly) {
+    if (fetched_item.metaDataOnly()) {
         ++stats.bg_meta_fetched;
     } else {
         ++stats.bg_fetched;
@@ -267,8 +267,7 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
         for (auto& bgf : pendingBGFetches) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
             for (auto& bgitem : bg_itm_ctx.bgfetched_list) {
-                toNotify[bgitem->cookie] = ENGINE_NOT_MY_VBUCKET;
-                e.storeEngineSpecific(bgitem->cookie, nullptr);
+                bgitem->abort(e, ENGINE_NOT_MY_VBUCKET, toNotify);
                 ++num_of_deleted_pending_fetches;
             }
         }
@@ -511,7 +510,7 @@ bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
 }
 
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,
-                                   std::unique_ptr<VBucketBGFetchItem> fetch,
+                                   std::unique_ptr<BGFetchItem> fetch,
                                    BgFetcher* bgFetcher) {
     // While a DiskDocKey supports both the committed and prepared namespaces,
     // ep-engine doesn't support evicting prepared SyncWrites and as such
@@ -525,7 +524,7 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
         bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::Yes;
     }
 
-    if (!fetch->metaDataOnly) {
+    if (!fetch->metaDataOnly()) {
         bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::No;
     }
 
@@ -667,7 +666,7 @@ void EPVBucket::bgFetch(const DocKey& key,
     // vbucket
     size_t bgfetch_size = queueBGFetchItem(
             key,
-            std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
+            std::make_unique<FrontEndBGFetchItem>(cookie, isMeta),
             getShard()->getBgFetcher());
     if (getShard()) {
         getShard()->getBgFetcher()->notifyBGEvent();

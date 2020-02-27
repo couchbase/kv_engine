@@ -58,7 +58,7 @@ public:
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DiskDocKey& key,
-            const VBucketBGFetchItem& fetched_item,
+            const FrontEndBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) override;
 
     vb_bgfetch_queue_t getBGFetchItems() override;
@@ -233,7 +233,7 @@ protected:
      * adding the specified item.
      */
     size_t queueBGFetchItem(const DocKey& key,
-                            std::unique_ptr<VBucketBGFetchItem> fetch,
+                            std::unique_ptr<BGFetchItem> fetch,
                             BgFetcher* bgFetcher);
 
 private:

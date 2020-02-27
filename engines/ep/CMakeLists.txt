@@ -337,6 +337,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/vb_count_visitor.cc
             src/vb_visitors.cc
             src/vbucket.cc
+            src/vbucket_bgfetch_item.cc
             src/vbucket_state.cc
             src/vbucketmap.cc
             src/vbucketdeletiontask.cc

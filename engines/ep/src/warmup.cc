@@ -561,7 +561,7 @@ static bool batchWarmupCallback(Vbid vbId,
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[diskKey];
             bg_itm_ctx.isMetaOnly = GetMetaOnly::No;
             bg_itm_ctx.bgfetched_list.emplace_back(
-                    std::make_unique<VBucketBGFetchItem>(nullptr, false));
+                    std::make_unique<FrontEndBGFetchItem>(nullptr, false));
             bg_itm_ctx.bgfetched_list.back()->value = &bg_itm_ctx.value;
         }
 
@@ -575,7 +575,7 @@ static bool batchWarmupCallback(Vbid vbId,
         bool applyItem = true;
         for (auto& items : items2fetch) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items.second;
-            std::unique_ptr<VBucketBGFetchItem> fetchedItem(
+            std::unique_ptr<BGFetchItem> fetchedItem(
                     std::move(bg_itm_ctx.bgfetched_list.back()));
             if (applyItem) {
                 GetValue& val = *fetchedItem->value;

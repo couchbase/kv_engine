@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2020 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,50 +19,131 @@
 
 #include "callbacks.h"
 #include "diskdockey.h"
+#include "item.h"
 #include "objectregistry.h"
 #include "trace_helpers.h"
+#include "vbucket_fwd.h"
 
 #include <list>
 #include <unordered_map>
 
 enum class GetMetaOnly;
 
-class VBucketBGFetchItem {
+/**
+ * Base BGFetch context class
+ */
+class BGFetchItem {
 public:
-    VBucketBGFetchItem(const void* c, bool meta_only)
-        : VBucketBGFetchItem(
-                  nullptr, c, std::chrono::steady_clock::now(), meta_only) {
+    BGFetchItem(GetValue* value, std::chrono::steady_clock::time_point initTime)
+        : value(value), initTime(initTime) {
     }
 
-    VBucketBGFetchItem(GetValue* value_,
-                       const void* c,
-                       std::chrono::steady_clock::time_point init_time,
-                       bool meta_only)
-        : value(value_),
-          cookie(c),
-          initTime(init_time),
-          metaDataOnly(meta_only) {
-        auto* traceable = cookie2traceable(c);
-        if (traceable && traceable->isTracingEnabled()) {
-            NonBucketAllocationGuard guard;
-            traceSpanId = traceable->getTracer().begin(
-                    cb::tracing::Code::BackgroundWait, init_time);
-        }
-    }
+    virtual ~BGFetchItem() = default;
+
+    /**
+     * Complete the BG Fetch.
+     *
+     * @param engine EPEngine instance
+     * @param vb VBucket pointer
+     * @param startTime Time at which we started the BG Fetch
+     * @param key Key of the item
+     */
+    virtual void complete(EventuallyPersistentEngine& engine,
+                          VBucketPtr& vb,
+                          std::chrono::steady_clock::time_point startTime,
+                          const DiskDocKey& key) const = 0;
+
+    /**
+     * Abort the BG Fetch and add it to the toNotify map.
+     *
+     * @param engine EPEngine instance
+     * @param status Status code of abort
+     * @param [out]toNotify Map to add cookie and status code to
+     */
+    virtual void abort(
+            EventuallyPersistentEngine& engine,
+            ENGINE_ERROR_CODE status,
+            std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const = 0;
+
+    /**
+     * @return Should we BGFetch just the metadata?
+     */
+    virtual bool metaDataOnly() const = 0;
 
     GetValue* value;
-    const void* cookie;
     const std::chrono::steady_clock::time_point initTime;
-    bool metaDataOnly;
+};
+
+/**
+ * BGFetch context class for a front end driven BG Fetch (i.e. for a Get or
+ * SetWithMeta etc.).
+ */
+class FrontEndBGFetchItem : public BGFetchItem {
+public:
+    FrontEndBGFetchItem(const void* cookie, bool metaOnly)
+        : FrontEndBGFetchItem(
+                  nullptr, std::chrono::steady_clock::now(), metaOnly, cookie) {
+    }
+
+    FrontEndBGFetchItem(GetValue* value,
+                        std::chrono::steady_clock::time_point initTime,
+                        bool metaOnly,
+                        const void* cookie);
+
+    void complete(EventuallyPersistentEngine& engine,
+                  VBucketPtr& vb,
+                  std::chrono::steady_clock::time_point startTime,
+                  const DiskDocKey& key) const override;
+
+    void abort(
+            EventuallyPersistentEngine& engine,
+            ENGINE_ERROR_CODE status,
+            std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const override;
+
+    bool metaDataOnly() const override {
+        return metaOnly;
+    }
+
+    const void* cookie;
     cb::tracing::SpanId traceSpanId;
+    bool metaOnly;
+};
+
+/**
+ * BGFetch context class for a compaction driven BG Fetch (for if we need to
+ * pull a non-resident item into memory to see if we should expire it).
+ */
+class CompactionBGFetchItem : public BGFetchItem {
+public:
+    CompactionBGFetchItem(const Item& item)
+        : BGFetchItem(nullptr /*GetValue*/, std::chrono::steady_clock::now()),
+          compactionItem(item) {
+    }
+
+    void complete(EventuallyPersistentEngine& engine,
+                  VBucketPtr& vb,
+                  std::chrono::steady_clock::time_point startTime,
+                  const DiskDocKey& key) const override;
+
+    void abort(
+            EventuallyPersistentEngine& engine,
+            ENGINE_ERROR_CODE status,
+            std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const override;
+
+    bool metaDataOnly() const override {
+        // Don't care about values here
+        return true;
+    }
+
+    /**
+     * We copy the entire Item here because if we need to expire (delete) the
+     * Item then we need the value as well to keep the xattrs.
+     */
+    Item compactionItem;
 };
 
 struct vb_bgfetch_item_ctx_t {
-    std::list<std::unique_ptr<VBucketBGFetchItem>> bgfetched_list;
+    std::list<std::unique_ptr<BGFetchItem>> bgfetched_list;
     GetMetaOnly isMetaOnly;
     GetValue value;
 };
-
-using vb_bgfetch_queue_t =
-        std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
-using bgfetched_item_t = std::pair<DiskDocKey, const VBucketBGFetchItem*>;

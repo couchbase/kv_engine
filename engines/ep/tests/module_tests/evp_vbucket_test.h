@@ -19,6 +19,8 @@
 #include "evp_store_single_threaded_test.h"
 #include "vbucket_test.h"
 
+class BgFetcher;
+class BGFetchItem;
 class DiskDocKey;
 
 /**
@@ -34,8 +36,7 @@ public:
 
     void SetUp() override;
     void TearDown() override;
-    size_t public_queueBGFetchItem(
-            const DocKey& key,
-            std::unique_ptr<VBucketBGFetchItem> fetchItem,
-            BgFetcher* bgFetcher);
+    size_t public_queueBGFetchItem(const DocKey& key,
+                                   std::unique_ptr<BGFetchItem> fetchItem,
+                                   BgFetcher* bgFetcher);
 };

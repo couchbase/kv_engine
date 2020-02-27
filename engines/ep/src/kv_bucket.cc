@@ -1400,10 +1400,7 @@ void KVBucket::completeBGFetchMulti(
     if (vb) {
         for (const auto& item : fetchedItems) {
             auto& key = item.first;
-            auto* fetched_item = item.second;
-            ENGINE_ERROR_CODE status = vb->completeBGFetchForSingleItem(
-                    key, *fetched_item, startTime);
-            engine.notifyIOComplete(fetched_item->cookie, status);
+            item.second->complete(engine, vb, startTime, key);
         }
         EP_LOG_DEBUG(
                 "EP Store completes {} of batched background fetch "
@@ -1414,9 +1411,12 @@ void KVBucket::completeBGFetchMulti(
                         std::chrono::steady_clock::now().time_since_epoch())
                         .count());
     } else {
+        std::map<const void*, ENGINE_ERROR_CODE> toNotify;
         for (const auto& item : fetchedItems) {
-            engine.notifyIOComplete(item.second->cookie,
-                                    ENGINE_NOT_MY_VBUCKET);
+            item.second->abort(engine, ENGINE_NOT_MY_VBUCKET, toNotify);
+        }
+        for (auto& notify : toNotify) {
+            engine.notifyIOComplete(notify.first, notify.second);
         }
         EP_LOG_WARN(
                 "EP Store completes {} of batched background fetch for "

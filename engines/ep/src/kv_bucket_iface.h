@@ -44,7 +44,8 @@ namespace Collections {
 class Manager;
 }
 
-using bgfetched_item_t = std::pair<DiskDocKey, const VBucketBGFetchItem*>;
+class BGFetchItem;
+using bgfetched_item_t = std::pair<DiskDocKey, const BGFetchItem*>;
 
 /**
  * This is the abstract base class that manages the bucket behavior in
