@@ -157,8 +157,9 @@ struct test_harness {
      * @param cfg the configuration to use
      * @param init it initialize should be called or not
      * @param force should the old one be shut down with force or not
+     * @return true if the reload was a success
      */
-    virtual void reload_engine(EngineIface** h,
+    virtual bool reload_engine(EngineIface** h,
                                const char* engine,
                                const char* cfg,
                                bool init,

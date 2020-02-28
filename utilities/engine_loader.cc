@@ -102,7 +102,14 @@ bool create_engine_instance(engine_reference* engine_ref,
 }
 
 bool init_engine_instance(EngineIface* engine, const char* config_str) {
-    const auto error = engine->initialize(config_str);
+    ENGINE_ERROR_CODE error;
+    try {
+        error = engine->initialize(config_str);
+    } catch (const std::exception& e) {
+        LOG_WARNING("init_engine_instance: exception caught from initialize {}",
+                    e.what());
+        error = ENGINE_FAILED;
+    }
     if (error != ENGINE_SUCCESS) {
         engine->destroy(false);
         cb::engine_error err{cb::engine_errc(error),

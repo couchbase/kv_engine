@@ -399,12 +399,13 @@ void CouchKVStore::initialize() {
     for (auto id : vbids) {
         DbHolder db(*this);
         errorCode = openDB(id, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+        bool abort = false;
         if (errorCode == COUCHSTORE_SUCCESS) {
             auto readStatus = readVBStateAndUpdateCache(db, id).status;
             if (readStatus == ReadVBStateStatus::Success) {
                 /* update stat */
                 ++st.numLoadedVb;
-            } else {
+            } else if (readStatus != ReadVBStateStatus::CorruptSnapshot) {
                 logger.warn(
                         "CouchKVStore::initialize: readVBState"
                         " readVBState:{}, name:{}/{}.couch.{}",
@@ -412,7 +413,7 @@ void CouchKVStore::initialize() {
                         dbname,
                         id.get(),
                         db.getFileRev());
-                cachedVBStates[id.get()] = NULL;
+                abort = true;
             }
         } else {
             logger.warn(
@@ -422,7 +423,19 @@ void CouchKVStore::initialize() {
                     dbname,
                     id.get(),
                     db.getFileRev());
-            cachedVBStates[id.get()] = NULL;
+            abort = true;
+        }
+
+        // Abort couch-kvstore initialisation for two cases:
+        // 1) open fails
+        // 2) readVBState returns !Success and !CorruptSnapshot. Note the error
+        // CorruptSnapshot is generated for replica/pending vbuckets only and
+        // we want to continue as if the vbucket does not exist so it gets
+        // rebuilt from the active.
+        if (abort) {
+            throw std::runtime_error(
+                    "CouchKVStore::initialize: no vbstate for " +
+                    id.to_string());
         }
 
         // Setup cachedDocCount

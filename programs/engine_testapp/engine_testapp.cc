@@ -1198,17 +1198,19 @@ public:
         delete handle;
     }
 
-    void reload_engine(EngineIface** h,
+    bool reload_engine(EngineIface** h,
                        const char* engine,
                        const char* cfg,
                        bool init,
                        bool force) override {
         disconnect_all_mock_connections();
+        currentEngineHandle = nullptr;
         destroy_bucket(*h, force);
         destroy_mock_event_callbacks();
         stop_your_engine();
         start_your_engine(engine);
         currentEngineHandle = *h = create_bucket(init, cfg);
+        return currentEngineHandle != nullptr;
     }
 
     void notify_io_complete(const void* cookie,
