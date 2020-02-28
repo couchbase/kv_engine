@@ -593,16 +593,28 @@ static cb::mcbp::Status subdoc_operate_one_path(
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
         cb::xattr::is_vattr(spec.path)) {
-        if (spec.path[1] == 'd') {
-            // This is a call to the "$document" (the validator stopped all of
-            // the other ones), so replace the document with
-            // the document virtual one..
-            auto doc = context.get_document_vattr();
-            op.set_doc(doc.data(), doc.size());
-        } else if (spec.path[1] == 'X') {
-            auto doc = context.get_xtoc_vattr();
-            op.set_doc(doc.data(), doc.size());
+        // path potentially contains elements with in the VATTR, e.g.
+        // $document.cas. Need to extract the actual VATTR name prefix.
+        auto vattr_key = spec.path;
+        auto key_end = spec.path.find_first_of(".[");
+        if (key_end != std::string::npos) {
+            vattr_key.resize(key_end);
         }
+
+        // Check which VATTR is being accessed:
+        cb::const_char_buffer doc;
+        if (cb::const_char_buffer{vattr_key.data(), vattr_key.size()} ==
+            cb::xattr::vattrs::DOCUMENT) {
+            // This is a call to the "$document" VATTR, so replace the document
+            // with the document virtual one..
+            doc = context.get_document_vattr();
+        } else if (cb::const_char_buffer{vattr_key.data(), vattr_key.size()} ==
+                   cb::xattr::vattrs::XTOC) {
+            doc = context.get_xtoc_vattr();
+        } else {
+            return cb::mcbp::Status::SubdocXattrUnknownVattr;
+        }
+        op.set_doc(doc.data(), doc.size());
     }
 
     // ... and execute it.
