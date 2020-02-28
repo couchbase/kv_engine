@@ -582,8 +582,28 @@ def stats_collections_details(mc, vb=-1):
         print('Specified vbucket \"%s\" is not valid' % str(vb))
 
 @cmd
-def stats_scopes(mc):
-    stats_formatter(stats_perform(mc, 'scopes'))
+def stats_scopes(mc, *args):
+    if not args:
+        cmd = 'scopes'
+    else:
+        if len(args) == 1:
+            # assume single argument is scope name
+            cmd = "scopes %s" % args[0]
+        elif args[0] == "id":
+            sidStr = args[1].lower()
+            base = 16 if sidStr.startswith("0x") else 10
+            try:
+                sid = int(sidStr, base)
+            except ValueError:
+                print('Specified scope ID "%s" is not valid decimal or '
+                      '"0x" prefixed hex.' % sidStr)
+                return
+            cmd = "scopes-byid %s" % ("0x{:x}".format(sid))
+        else:
+            print('Specified scope "%s" is not valid' % " ".join(args))
+            return
+
+    stats_formatter(stats_perform(mc, cmd))
 
 @cmd
 def stats_scopes_details(mc, vb=-1):
@@ -930,7 +950,7 @@ def main():
     c.addCommand('collections', stats_collections, 'collections [scope.collection | id collectionID]')
     c.addCommand('collections-details', stats_collections_details,
                  'collections-details [vbid]')
-    c.addCommand('scopes', stats_scopes, 'scopes')
+    c.addCommand('scopes', stats_scopes, 'scopes [scope | id scopeID]')
     c.addCommand('scopes-details', stats_scopes_details,
                  'scopes-details [vbid]')
     c.addFlag('-j', 'json', 'output the results in json format')

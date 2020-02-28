@@ -4375,8 +4375,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    return Collections::Manager::doScopeStats(
+    auto res = Collections::Manager::doScopeStats(
             *kvBucket, cookie, add_stat, statKey);
+    if (res.result == cb::engine_errc::unknown_scope) {
+        setErrorJsonExtras(cookie,
+                           Collections::getUnknownCollectionErrorContext(
+                                   res.getManifestId()));
+    }
+    return ENGINE_ERROR_CODE(res.result);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(

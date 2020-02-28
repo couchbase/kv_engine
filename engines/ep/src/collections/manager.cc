@@ -447,7 +447,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
 // scopes
 //   - return top level stats (manager/manifest)
 //   - return number of collections from all active VBs
-ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
+cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
         KVBucket& bucket,
         const void* cookie,
         const AddStatFn& add_stat,
@@ -469,25 +469,16 @@ ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
                         "Collections::Manager::doScopeStats invalid "
                         "vbid:{}, exception:{}",
                         *arg, e.what());
-                return ENGINE_EINVAL;
+                return {cb::engine_errc::invalid_arguments, 0, 0};
             }
 
             Vbid vbid = Vbid(id);
             VBucketPtr vb = bucket.getVBucket(vbid);
             if (!vb) {
-                return ENGINE_NOT_MY_VBUCKET;
+                return {cb::engine_errc::not_my_vbucket, 0, 0};
             }
-            try {
-                success = vb->lockCollections().addScopeStats(
-                        vbid, cookie, add_stat);
-            } catch (const std::exception& e) {
-                EP_LOG_WARN(
-                        "Collections::Manager::doScopeStats failed to "
-                        "build stats for {} exception:{}",
-                        *arg,
-                        e.what());
-                return ENGINE_EINVAL;
-            }
+            success =
+                    vb->lockCollections().addScopeStats(vbid, cookie, add_stat);
         } else {
             bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
             ScopeDetailedVBucketVisitor visitor(cookie, add_stat);
@@ -495,11 +486,73 @@ ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
             success = visitor.getSuccess();
         }
     } else {
-        // Do the high level stats (includes number of collections)
-        bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+        auto cachedStats = getPerCollectionStats(bucket);
+        // if an argument was provided, look up the scope
+        if (arg) {
+            ScopeIDType scopeID;
+            if (cb_isPrefix(statKey, "scopes-byid")) {
+                // provided argument should be a hex scope ID N, 0xN or 0XN
+                try {
+                    scopeID = std::stoi(*arg, nullptr, 16);
+                } catch (const std::logic_error& e) {
+                    EP_LOG_WARN(
+                            "Collections::Manager::doScopeStats invalid "
+                            "scope id:{}, exception:{}",
+                            *arg,
+                            e.what());
+                    return {cb::engine_errc::invalid_arguments, 0, 0};
+                }
+            } else {
+                // provided argument should be a scope name
+                auto res = bucket.getCollectionsManager().getScopeID(*arg);
+                if (res.result != cb::engine_errc::success) {
+                    EP_LOG_WARN(
+                            "Collections::Manager::doScopeStats unknown "
+                            "scope name:{} error:{}",
+                            *arg,
+                            res.result);
+                    return res;
+                }
+                scopeID = res.getScopeId();
+            }
+            auto current =
+                    bucket.getCollectionsManager().currentManifest.rlock();
+            auto scopeItr = current->findScope(scopeID);
+
+            if (scopeItr == current->endScopes()) {
+                EP_LOG_WARN(
+                        "Collections::Manager::doScopeStats unknown "
+                        "scope id:{}",
+                        *arg);
+                return {cb::engine_errc::unknown_scope, current->getUid(), 0};
+            }
+
+            const auto& scope = scopeItr->second;
+            cachedStats.addStatsForScope(scopeID, scope, add_stat, cookie);
+            // add stats for each collection in the scope
+            for (const auto& entry : scope.collections) {
+                auto itr = current->findCollection(entry.id);
+                Expects(itr != current->end());
+                const auto& [cid, collection] = *itr;
+                cachedStats.addStatsForCollection(
+                        scope, cid, collection, add_stat, cookie);
+            }
+        } else {
+            // no scope ID given, add stats for all scopes
+
+            // Do the high level stats (includes number of collections)
+            bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+            auto current =
+                    bucket.getCollectionsManager().currentManifest.rlock();
+            for (auto itr = current->beginScopes(); itr != current->endScopes();
+                 ++itr) {
+                cachedStats.addStatsForScope(
+                        itr->first, itr->second, add_stat, cookie);
+            }
+        }
     }
 
-    return success ? ENGINE_SUCCESS : ENGINE_FAILED;
+    return {success ? cb::engine_errc::success : cb::engine_errc::failed, 0, 0};
 }
 
 void Collections::Manager::dump() const {
@@ -544,6 +597,25 @@ void Collections::CachedStats::addStatsForCollection(
     buf.resize(0);
     format_to(buf, "{}:{}:id", scope.name, collection.name);
     add_stat({buf.data(), buf.size()}, cid.to_string(), cookie);
+}
+
+void Collections::CachedStats::addStatsForScope(const ScopeID& sid,
+                                                const Scope& scope,
+                                                const AddStatFn& add_stat,
+                                                const void* cookie) {
+    std::vector<CollectionID> collections;
+    collections.reserve(scope.collections.size());
+
+    // get the CollectionIDs - extract the keys from the map
+    for (const auto& entry : scope.collections) {
+        collections.push_back(entry.id);
+    }
+    addAggregatedCollectionStats(collections, scope.name, add_stat, cookie);
+
+    // add scope id
+    fmt::memory_buffer buf;
+    format_to(buf, "{}:id", scope.name);
+    add_stat({buf.data(), buf.size()}, sid.to_string(), cookie);
 }
 
 void Collections::CachedStats::addAggregatedCollectionStats(

@@ -54,6 +54,19 @@ public:
                                const AddStatFn& add_stat,
                                const void* cookie);
 
+    /**
+     * Add stats for a single scope, by aggregating over all collections in the
+     * scope.
+     * @param cid
+     * @param collection
+     * @param add_stat memcached callback which will be called with each stat
+     * @param cookie
+     */
+    void addStatsForScope(const ScopeID& sid,
+                          const Scope& scope,
+                          const AddStatFn& add_stat,
+                          const void* cookie);
+
 private:
     void addAggregatedCollectionStats(const std::vector<CollectionID>& cids,
                                       std::string_view prefix,
@@ -163,10 +176,11 @@ public:
     /**
      * Perform the gathering of scope stats for the bucket.
      */
-    static ENGINE_ERROR_CODE doScopeStats(KVBucket& bucket,
-                                          const void* cookie,
-                                          const AddStatFn& add_stat,
-                                          const std::string& statKey);
+    static cb::EngineErrorGetScopeIDResult doScopeStats(
+            KVBucket& bucket,
+            const void* cookie,
+            const AddStatFn& add_stat,
+            const std::string& statKey);
 
 private:
     /**
