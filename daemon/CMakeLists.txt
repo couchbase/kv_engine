@@ -1,21 +1,3 @@
-
-CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
-SET(WITH_NUMA True CACHE BOOL "Explicitly set NUMA memory allocation policy")
-IF (HAVE_NUMA_H AND WITH_NUMA)
-    CMAKE_PUSH_CHECK_STATE(RESET)
-    SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} numa)
-    CHECK_C_SOURCE_COMPILES("
-         #include <numa.h>
-         int main() {
-            numa_available();
-         }" HAVE_LIBNUMA)
-    CMAKE_POP_CHECK_STATE()
-ENDIF ()
-IF (HAVE_LIBNUMA)
-    SET(NUMA_LIBRARIES numa)
-    add_definitions(-DHAVE_LIBNUMA=1)
-ENDIF ()
-
 ADD_LIBRARY(memcached_daemon STATIC
             bucket_threads.h
             bucket_type.cc
@@ -216,6 +198,12 @@ if (KV_USE_OPENTRACING)
    list(APPEND MEMCACHED_EXTRA_LIBS ${OPENTRACING_LIBRARIES})
 endif()
 
+if (NUMA_FOUND)
+    target_include_directories(memcached_daemon
+                               SYSTEM PRIVATE ${NUMA_INCLUDE_DIR})
+    target_link_libraries(memcached_daemon ${NUMA_LIBRARIES})
+endif()
+
 target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
@@ -248,7 +236,6 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       ${LIBEVENT_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
                       ${COUCHBASE_NETWORK_LIBS}
-                      ${NUMA_LIBRARIES}
                       ${MEMCACHED_EXTRA_LIBS})
 add_sanitizers(memcached_daemon)
 
