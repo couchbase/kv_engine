@@ -61,6 +61,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "OpenTracing";
     case cb::mcbp::Feature::PreserveTtl:
         return "PreserveTtl";
+    case cb::mcbp::Feature::VAttr:
+        return "VAttr";
     }
 
     throw std::invalid_argument(

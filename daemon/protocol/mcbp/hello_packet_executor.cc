@@ -81,6 +81,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::Tracing:
         case cb::mcbp::Feature::AltRequestSupport:
         case cb::mcbp::Feature::SyncReplication:
+        case cb::mcbp::Feature::VAttr:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -132,6 +133,13 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
             if (!containsFeature(requested, cb::mcbp::Feature::Duplex)) {
                 throw std::invalid_argument(to_string(feature) +
                                             " needs Duplex");
+            }
+            break;
+        case cb::mcbp::Feature::VAttr:
+            // Needs XATTR
+            if (!containsFeature(requested, cb::mcbp::Feature::XATTR)) {
+                throw std::invalid_argument(to_string(feature) +
+                                            " needs XATTR");
             }
             break;
         }
@@ -335,6 +343,12 @@ void process_hello_packet_executor(Cookie& cookie) {
                          connection.getId(),
                          connection.getDescription());
             }
+            break;
+
+        case cb::mcbp::Feature::VAttr:
+            // VAttr is only informative
+            added = true;
+            break;
         } // end switch
 
         if (added) {

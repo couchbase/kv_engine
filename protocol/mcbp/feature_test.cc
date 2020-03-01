@@ -18,29 +18,29 @@
 #include <mcbp/protocol/feature.h>
 #include <stdexcept>
 
-const std::map<cb::mcbp::Feature, std::string> blueprint = {{
-        {cb::mcbp::Feature::Invalid, "Invalid"},
-        {cb::mcbp::Feature::Invalid2, "Invalid2"},
-        {cb::mcbp::Feature::TLS, "TLS"},
-        {cb::mcbp::Feature::TCPNODELAY, "TCP nodelay"},
-        {cb::mcbp::Feature::MUTATION_SEQNO, "Mutation seqno"},
-        {cb::mcbp::Feature::TCPDELAY, "TCP delay"},
-        {cb::mcbp::Feature::XATTR, "XATTR"},
-        {cb::mcbp::Feature::XERROR, "XERROR"},
-        {cb::mcbp::Feature::SELECT_BUCKET, "Select bucket"},
-        {cb::mcbp::Feature::Collections, "Collections"},
-        {cb::mcbp::Feature::SNAPPY, "Snappy"},
-        {cb::mcbp::Feature::JSON, "JSON"},
-        {cb::mcbp::Feature::Duplex, "Duplex"},
-        {cb::mcbp::Feature::ClustermapChangeNotification,
-         "Clustermap change notification"},
-        {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"},
-        {cb::mcbp::Feature::Tracing, "Tracing"},
-        {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"},
-        {cb::mcbp::Feature::SyncReplication, "SyncReplication"},
-        {cb::mcbp::Feature::OpenTracing, "OpenTracing"},
-        {cb::mcbp::Feature::PreserveTtl, "PreserveTtl"},
-}};
+const std::map<cb::mcbp::Feature, std::string> blueprint = {
+        {{cb::mcbp::Feature::Invalid, "Invalid"},
+         {cb::mcbp::Feature::Invalid2, "Invalid2"},
+         {cb::mcbp::Feature::TLS, "TLS"},
+         {cb::mcbp::Feature::TCPNODELAY, "TCP nodelay"},
+         {cb::mcbp::Feature::MUTATION_SEQNO, "Mutation seqno"},
+         {cb::mcbp::Feature::TCPDELAY, "TCP delay"},
+         {cb::mcbp::Feature::XATTR, "XATTR"},
+         {cb::mcbp::Feature::XERROR, "XERROR"},
+         {cb::mcbp::Feature::SELECT_BUCKET, "Select bucket"},
+         {cb::mcbp::Feature::Collections, "Collections"},
+         {cb::mcbp::Feature::SNAPPY, "Snappy"},
+         {cb::mcbp::Feature::JSON, "JSON"},
+         {cb::mcbp::Feature::Duplex, "Duplex"},
+         {cb::mcbp::Feature::ClustermapChangeNotification,
+          "Clustermap change notification"},
+         {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"},
+         {cb::mcbp::Feature::Tracing, "Tracing"},
+         {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"},
+         {cb::mcbp::Feature::SyncReplication, "SyncReplication"},
+         {cb::mcbp::Feature::OpenTracing, "OpenTracing"},
+         {cb::mcbp::Feature::PreserveTtl, "PreserveTtl"},
+         {cb::mcbp::Feature::VAttr, "VAttr"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {

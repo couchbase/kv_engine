@@ -71,6 +71,12 @@ enum class Feature : uint16_t {
 
     /// Do the server support preserving document expiry time
     PreserveTtl = 0x14,
+
+    /// Does the server support the $vbucket in addition to the original
+    /// $document and $XTOC VATTRs?
+    /// Additionally, is non-existence of a VATTR flagged with
+    /// SubdocXattrUnknownVattr instead of disconnecting the client?
+    VAttr = 0x15,
 };
 
 } // namespace mcbp

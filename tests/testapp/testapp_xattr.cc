@@ -973,9 +973,11 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
     auto& conn = getConnection();
     conn.sendCommand(cmd);
 
-    BinprotSubdocMultiMutationResponse multiResp;
+    BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownVattr, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownVattr,
+              multiResp.getResults()[0].status);
 }
 
 TEST_P(XattrTest, MB_25786_XTOC_VattrAndBody) {

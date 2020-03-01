@@ -62,11 +62,6 @@ static bool validate_macro(const cb::const_char_buffer& value) {
             (value == cb::xattr::macros::VALUE_CRC32C.name));
 }
 
-static bool is_valid_virtual_xattr(cb::const_char_buffer value) {
-    return ((value == cb::xattr::vattrs::DOCUMENT) ||
-            (value == cb::xattr::vattrs::XTOC));
-}
-
 /**
  * Validate the xattr related settings that may be passed to the command.
  *
@@ -116,10 +111,7 @@ static inline cb::mcbp::Status validate_xattr_section(
 
     if (path.data()[0] == '$') {
         // One may use the virtual xattrs in combination with all of the
-        // other attributes
-        if (!is_valid_virtual_xattr({path.data(), key_length})) {
-            return cb::mcbp::Status::SubdocXattrUnknownVattr;
-        }
+        // other attributes - so skip key check.
 
         // One can't modify a virtual attribute
         if (mutator) {

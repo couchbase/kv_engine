@@ -45,7 +45,8 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::AltRequestSupport:
     case cb::mcbp::Feature::SyncReplication:
     case cb::mcbp::Feature::PreserveTtl:
-        throw std::invalid_argument("DatatypeFilter::enable invalid feature:" +
+    case cb::mcbp::Feature::VAttr:
+        throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }
 }
