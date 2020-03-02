@@ -473,22 +473,27 @@ information about a given command.
 | 0x46 | TAP Checkout Start - TAP removed in 5.0                |
 | 0x47 | TAP Checkpoint End - TAP removed in 5.0                |
 | 0x48 | Get all vb seqnos |
-| 0x50 | [Dcp Open](dcp/commands/open-connection.md) |
-| 0x51 | [Dcp add stream](dcp/commands/add-stream.md) |
-| 0x52 | [Dcp close stream](dcp/commands/close-stream.md) |
-| 0x53 | [Dcp stream req](dcp/commands/stream-request.md) |
-| 0x54 | [Dcp get failover log](dcp/commands/failover-log.md) |
-| 0x55 | [Dcp stream end](dcp/commands/stream-end.md) |
-| 0x56 | [Dcp snapshot marker](dcp/commands/snapshot-marker.md) |
-| 0x57 | [Dcp mutation](dcp/commands/mutation.md) |
-| 0x58 | [Dcp deletion](dcp/commands/deletion.md) |
-| 0x59 | [Dcp expiration](dcp/commands/expiration.md) |
-| 0x5a | [UNUSED (was Dcp flush)](dcp/commands/flush.md) |
-| 0x5b | [Dcp set vbucket state](dcp/commands/set-vbucket-state.md) |
-| 0x5c | [Dcp noop](dcp/commands/no-op.md) |
-| 0x5d | [Dcp buffer acknowledgement](dcp/commands/buffer-ack.md) |
-| 0x5e | [Dcp control](dcp/commands/control.md) |
-| 0x5f | [Dcp system event](dcp/commands/system_event.md) |
+| 0x50 | [Dcp Open](dcp/documentation/commands/open-connection.md) |
+| 0x51 | [Dcp add stream](dcp/documentation/commands/add-stream.md) |
+| 0x52 | [Dcp close stream](dcp/documentation/commands/close-stream.md) |
+| 0x53 | [Dcp stream req](dcp/documentation/commands/stream-request.md) |
+| 0x54 | [Dcp get failover log](dcp/documentation/commands/failover-log.md) |
+| 0x55 | [Dcp stream end](dcp/documentation/commands/stream-end.md) |
+| 0x56 | [Dcp snapshot marker](dcp/documentation/commands/snapshot-marker.md) |
+| 0x57 | [Dcp mutation](dcp/documentation/commands/mutation.md) |
+| 0x58 | [Dcp deletion](dcp/documentation/commands/deletion.md) |
+| 0x59 | [Dcp expiration](dcp/documentation/commands/expiration.md) |
+| 0x5a | [UNUSED (was Dcp flush)](dcp/documentation/commands/flush.md) |
+| 0x5b | [Dcp set vbucket state](dcp/documentation/commands/set-vbucket-state.md) |
+| 0x5c | [Dcp noop](dcp/documentation/commands/no-op.md) |
+| 0x5d | [Dcp buffer acknowledgement](dcp/documentation/commands/buffer-ack.md) |
+| 0x5e | [Dcp control](dcp/documentation/commands/control.md) |
+| 0x5f | [Dcp system event](dcp/documentation/commands/system_event.md) |
+| 0x60 | DcpPrepare |
+| 0x61 | DcpSeqnoAcknowledged |
+| 0x62 | DcpCommit |
+| 0x63 | DcpAbort |
+| 0x65 | [Dcp Out of Sequence Order snapshot](docs/dcp/documentation/commands/oso_snapshot.md) |
 | 0x80 | Stop persistence |
 | 0x81 | Start persistence |
 | 0x82 | Set param |
