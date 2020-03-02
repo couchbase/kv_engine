@@ -23,14 +23,71 @@
 
 #pragma once
 
+#include "evp_store_single_threaded_test.h"
 #include "kv_bucket_test.h"
 
-class EPBucket;
+/**
+ * Persistent bucket only tests
+ */
+class EPBucketTest : public STParameterizedBucketTest {
+protected:
+    void SetUp() override;
+
+    EPBucket& getEPBucket();
+};
+
+// Full eviction only tests
+class EPBucketFullEvictionTest : public EPBucketTest {};
+
+// Full eviction only tests that run with bloom filters off
+class EPBucketFullEvictionNoBloomFilterTest : public EPBucketFullEvictionTest {
+protected:
+    void SetUp() override;
+};
 
 /**
- * Test fixture for EPBucket unit tests.
+ * Tests which we wish to parameterize based on eviction policy and bloom
+ * filter configuration. Ideally we would just inherit from
+ * STParameterizedBucketTest and add an additional bloom filter on/off config
+ * parameter but that's not possible with the current GTest and my attempts to
+ * hackily 'make it so' were not fruitful. Hopefully in the future they make it
+ * easy to add parameters to already parameterized test suites. then we can rip
+ * out this extra code.
  */
-class EPBucketTest : public KVBucketTest {
+class EPBucketBloomFilterParameterizedTest
+    : public SingleThreadedKVBucketTest,
+      public ::testing::WithParamInterface<
+              ::testing::tuple<std::string, std::string, bool>> {
+public:
+    static auto allConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_ROCKSDB
+                std::make_tuple("persistentRocksdb"s, "value_only"s, false),
+                std::make_tuple("persistentRocksdb"s, "value_only"s, true),
+                std::make_tuple("persistentRocksdb"s, "full_eviction"s, false),
+                std::make_tuple("persistentRocksdb"s, "full_eviction"s, true),
+#endif
+#ifdef EP_USE_MAGMA
+                std::make_tuple("persistentMagma"s, "value_only"s, false),
+                std::make_tuple("persistentMagma"s, "value_only"s, true),
+                std::make_tuple("persistentMagma"s, "full_eviction"s, false),
+                std::make_tuple("persistentMagma"s, "full_eviction"s, true),
+#endif
+                std::make_tuple("persistent"s, "value_only"s, false),
+                std::make_tuple("persistent"s, "value_only"s, true),
+                std::make_tuple("persistent"s, "full_eviction"s, false),
+                std::make_tuple("persistent"s, "full_eviction"s, true));
+    }
+
 protected:
-    EPBucket& getEPBucket();
+    void SetUp() override;
+
+    bool fullEviction() const {
+        return std::get<1>(GetParam()) == "full_eviction";
+    }
+
+    bool bloomFiltersEnabled() const {
+        return std::get<2>(GetParam()) == true;
+    }
 };

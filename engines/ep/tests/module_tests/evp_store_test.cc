@@ -48,6 +48,47 @@
 
 #include <thread>
 
+void EPBucketTest::SetUp() {
+    STParameterizedBucketTest::SetUp();
+
+    // Have all the objects, activate vBucket zero so we can store data.
+    store->setVBucketState(vbid, vbucket_state_active);
+}
+
+EPBucket& EPBucketTest::getEPBucket() {
+    return dynamic_cast<EPBucket&>(*store);
+}
+
+void EPBucketFullEvictionNoBloomFilterTest::SetUp() {
+    config_string += "bfilter_enabled=false";
+    EPBucketFullEvictionTest::SetUp();
+}
+
+void EPBucketBloomFilterParameterizedTest::SetUp() {
+    auto bucketType = std::get<0>(GetParam());
+    if (bucketType == "persistentRocksdb") {
+        config_string += "bucket_type=persistent;backend=rocksdb";
+    } else if (bucketType == "persistentMagma") {
+        config_string += "bucket_type=persistent;backend=magma";
+    } else {
+        config_string += "bucket_type=" + bucketType;
+    }
+
+    config_string +=
+            std::string{";item_eviction_policy="} + std::get<1>(GetParam());
+
+    if (bloomFiltersEnabled()) {
+        config_string += ";bfilter_enabled=true";
+    } else {
+        config_string += ";bfilter_enabled=false";
+    }
+
+    SingleThreadedKVBucketTest::SetUp();
+
+    // Have all the objects, activate vBucket zero so we can store data.
+    store->setVBucketState(vbid, vbucket_state_active);
+}
+
 // Verify that when handling a bucket delete with open DCP
 // connections, we don't deadlock when notifying the front-end
 // connection.
@@ -61,8 +102,7 @@
 // during shutdownAllConnections.
 // This test requires ThreadSanitizer or similar to validate;
 // there's no guarantee we'll actually deadlock on any given run.
-TEST_F(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
-
+TEST_P(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
@@ -91,7 +131,7 @@ TEST_F(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
 /**
  * MB-30015: Test to check the config parameter "retain_erroneous_tombstones"
  */
-TEST_F(EPBucketTest, testRetainErroneousTombstonesConfig) {
+TEST_P(EPBucketTest, testRetainErroneousTombstonesConfig) {
     Configuration& config = engine->getConfiguration();
 
     config.setRetainErroneousTombstones(true);
@@ -113,22 +153,11 @@ TEST_F(EPBucketTest, testRetainErroneousTombstonesConfig) {
     EXPECT_FALSE(store.isRetainErroneousTombstones());
 }
 
-class EPStoreEvictionTest : public EPBucketTest,
-                             public ::testing::WithParamInterface<std::string> {
-    void SetUp() override {
-        config_string += std::string{"item_eviction_policy="} + GetParam();
-        EPBucketTest::SetUp();
-
-        // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active);
-    }
-};
-
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on ejected items. When ejected should return ewouldblock
 // until bgfetch completes.
-TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
+TEST_P(EPBucketTest, GetKeyStatsEjected) {
     key_stats kstats;
 
     // Store then eject an item. Note we cannot forcefully evict as we have
@@ -150,12 +179,11 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
                                   WantsDeleted::No);
     };
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         EXPECT_EQ(ENGINE_SUCCESS, do_getKeyStats())
             << "Expected to get key stats on evicted item";
 
-    } else if (GetParam() == "full_eviction") {
-
+    } else {
         // Try to get key stats. This should return EWOULDBLOCK (as the whole
         // item is no longer resident). As we arn't running the full EPEngine
         // task system, then no BGFetch task will be automatically run, we'll
@@ -175,17 +203,13 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 
         ASSERT_EQ(ENGINE_SUCCESS, do_getKeyStats())
             << "Expected to get key stats on evicted item after notify_IO_complete";
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
 // Replace tests //////////////////////////////////////////////////////////////
 
 // Test replace against an ejected key.
-TEST_P(EPStoreEvictionTest, ReplaceEExists) {
-
+TEST_P(EPBucketTest, ReplaceEExists) {
     // Store then eject an item.
     store_item(vbid, makeStoredDocKey("key"), "value");
     flush_vbucket_to_disk(vbid);
@@ -198,11 +222,11 @@ TEST_P(EPStoreEvictionTest, ReplaceEExists) {
         return store->replace(item, cookie);
     };
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         // Should be able to replace as still have metadata resident.
         EXPECT_EQ(ENGINE_SUCCESS, do_replace());
 
-    } else if (GetParam() == "full_eviction") {
+    } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
         EXPECT_EQ(ENGINE_EWOULDBLOCK, do_replace());
 
@@ -216,30 +240,26 @@ TEST_P(EPStoreEvictionTest, ReplaceEExists) {
 
         EXPECT_EQ(ENGINE_SUCCESS, do_replace())
             << "Expected to replace on evicted item after notify_IO_complete";
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
 // Set tests //////////////////////////////////////////////////////////////////
 
 // Test set against an ejected key.
-TEST_P(EPStoreEvictionTest, SetEExists) {
-
+TEST_P(EPBucketTest, SetEExists) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         // Should be able to set (with same cas as previously)
         // as still have metadata resident.
         ASSERT_NE(0, item.getCas());
         EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
 
-    } else if (GetParam() == "full_eviction") {
+    } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
         EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
 
@@ -253,15 +273,12 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
 
         EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie))
             << "Expected to set on evicted item after notify_IO_complete";
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
 // Check performing a mutation to an existing document does not reset the
 // frequency count
-TEST_P(EPStoreEvictionTest, FreqCountTest) {
+TEST_P(EPBucketTest, FreqCountTest) {
     const uint8_t initialFreqCount = Item::initialFreqCount;
     StoredDocKey a = makeStoredDocKey("a");
     auto item_v1 = store_item(vbid, a, "old");
@@ -282,7 +299,7 @@ TEST_P(EPStoreEvictionTest, FreqCountTest) {
 }
 
 // Check that performing mutations increases an item's frequency count
-TEST_P(EPStoreEvictionTest, FreqCountOnlyMutationsTest) {
+TEST_P(EPBucketTest, FreqCountOnlyMutationsTest) {
     StoredDocKey k = makeStoredDocKey("key");
     auto freqCount = Item::initialFreqCount;
     GetValue result;
@@ -323,8 +340,7 @@ TEST_P(EPStoreEvictionTest, FreqCountOnlyMutationsTest) {
 // Add tests //////////////////////////////////////////////////////////////////
 
 // Test add against an ejected key.
-TEST_P(EPStoreEvictionTest, AddEExists) {
-
+TEST_P(EPBucketTest, AddEExists) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
@@ -338,11 +354,11 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
         return store->add(item, cookie);
     };
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         // Should immediately return NOT_STORED (as metadata is still resident).
         EXPECT_EQ(ENGINE_NOT_STORED, do_add());
 
-    } else if (GetParam() == "full_eviction") {
+    } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
         EXPECT_EQ(ENGINE_EWOULDBLOCK, do_add());
 
@@ -356,16 +372,13 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
 
         EXPECT_EQ(ENGINE_NOT_STORED, do_add())
             << "Expected to fail to add on evicted item after notify_IO_complete";
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
 // SetWithMeta tests //////////////////////////////////////////////////////////
 
 // Test setWithMeta replacing an existing, non-resident item
-TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
+TEST_P(EPBucketTest, SetWithMeta_ReplaceNonResident) {
     // Store an item, then evict it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
@@ -388,11 +401,11 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
                                   /*allowExisting*/ true);
     };
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         // Should succeed as the metadata is still resident.
         EXPECT_EQ(ENGINE_SUCCESS, do_setWithMeta());
 
-    } else if (GetParam() == "full_eviction") {
+    } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
         EXPECT_EQ(ENGINE_EWOULDBLOCK, do_setWithMeta());
 
@@ -406,15 +419,12 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
 
         ASSERT_EQ(ENGINE_SUCCESS, do_setWithMeta())
             << "Expected to setWithMeta on evicted item after notify_IO_complete";
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
 // Deleted-with-Value Tests ///////////////////////////////////////////////////
 
-TEST_P(EPStoreEvictionTest, DeletedValue) {
+TEST_P(EPBucketTest, DeletedValue) {
     // Create a deleted item which has a value, then evict it.
     auto key = makeStoredDocKey("key");
     auto item = make_item(vbid, key, "deleted value");
@@ -456,7 +466,7 @@ TEST_P(EPStoreEvictionTest, DeletedValue) {
 
 // Test to ensure all pendingBGfetches are deleted when the
 // VBucketMemoryDeletionTask is run
-TEST_P(EPStoreEvictionTest, MB_21976) {
+TEST_P(EPBucketTest, MB_21976) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
@@ -482,10 +492,11 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     const void* deleteCookie = create_mock_cookie(engine.get());
 
     // lock the cookie, waitfor will release and enter the internal cond-var
-    lock_mock_cookie(deleteCookie);
-    store->deleteVBucket(vbid, deleteCookie);
-    waitfor_mock_cookie(deleteCookie);
-    unlock_mock_cookie(deleteCookie);
+    // lock_mock_cookie(deleteCookie);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->deleteVBucket(vbid, deleteCookie));
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
     // Check the status of the cookie to see if the cookie status has changed
     // to ENGINE_NOT_MY_VBUCKET, which means the notify was sent
@@ -494,7 +505,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     destroy_mock_cookie(deleteCookie);
 }
 
-TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
+TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
     const DocKey dockey("key", DocKeyEncodesCollectionId::No);
     const int numTouchCmds = 2;
     auto expiryTime = time(nullptr) + 1000;
@@ -529,7 +540,7 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
               store->getVBucket(vbid)->getHighSeqno());
 }
 
-TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
+TEST_P(EPBucketTest, checkIfResidentAfterBgFetch) {
     const DocKey dockey("key", DocKeyEncodesCollectionId::No);
 
     //Store an item
@@ -577,11 +588,7 @@ TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
     EXPECT_TRUE(result.storedValue->isResident());
 }
 
-TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
-    if (GetParam() == "value_only") {
-        return;
-    }
-
+TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
     cb::xattr::Blob builder;
 
     //Add a few values
@@ -639,7 +646,7 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
  * the filter, and not the complete document.
  * Negative case where filter doesn't match.
 **/
-TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
+TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterNegative) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
@@ -659,15 +666,14 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
     ASSERT_EQ(0, stats.bg_fetched);
     ASSERT_EQ(0, stats.bg_meta_fetched);
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         // Value-only should reject (via filter) on first attempt (no need to
         // go to disk).
         auto res = do_getIf();
         EXPECT_EQ(cb::engine_errc::success, res.first);
         EXPECT_EQ(nullptr, res.second.get());
 
-    } else if (GetParam() == "full_eviction") {
-
+    } else {
         // First attempt should return EWOULDBLOCK (as the item has been evicted
         // and we need to fetch).
         auto res = do_getIf();
@@ -683,9 +689,6 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
         res = do_getIf();
         EXPECT_EQ(cb::engine_errc::success, res.first);
         EXPECT_EQ(nullptr, res.second.get());
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
@@ -694,7 +697,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
  * the filter, and not the complete document.
  * Positive case where filter does match.
 **/
-TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
+TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterPositive) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
@@ -714,7 +717,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
     ASSERT_EQ(0, stats.bg_fetched);
     ASSERT_EQ(0, stats.bg_meta_fetched);
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         // Value-only should match filter on first attempt, and then return
         // bgfetch to get the body.
         auto res = do_getIf();
@@ -733,8 +736,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
         ASSERT_NE(nullptr, epItem->getValue().get().get());
         EXPECT_EQ("value", epItem->getValue()->to_s());
 
-    } else if (GetParam() == "full_eviction") {
-
+    } else {
         // First attempt should return would_block (as the item has been evicted
         // and we need to fetch).
         auto res = do_getIf();
@@ -762,9 +764,6 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
         Item* epItem = static_cast<Item*>(res.second.get());
         ASSERT_NE(nullptr, epItem->getValue().get().get());
         EXPECT_EQ("value", epItem->getValue()->to_s());
-
-    } else {
-        FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
 }
 
@@ -772,7 +771,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
  * Verify that a get of a deleted item with no value successfully
  * returns an item
  */
-TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
+TEST_P(EPBucketTest, getDeletedItemWithNoValue) {
     const DocKey dockey("key", DocKeyEncodesCollectionId::No);
 
     // Store an item
@@ -823,7 +822,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
  * Verify that a get of a deleted item with value successfully
  * returns an item
  */
-TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
+TEST_P(EPBucketTest, getDeletedItemWithValue) {
     const DocKey dockey("key", DocKeyEncodesCollectionId::No);
 
     // Store an item
@@ -863,7 +862,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
 
 //Test to verify the behavior in the condition where
 //memOverhead is greater than the bucket quota
-TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
+TEST_P(EPBucketTest, memOverheadMemoryCondition) {
     //Limit the bucket quota to 200K
     Configuration& config = engine->getConfiguration();
     config.setMaxSize(204800);
@@ -890,7 +889,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
                 dummyCookie.get(), item, cas, OPERATION_SET, false);
     }
 
-    if (GetParam() == "value_only") {
+    if (!fullEviction()) {
         ASSERT_EQ(ENGINE_ENOMEM, result);
     } else {
         ASSERT_EQ(ENGINE_TMPFAIL, result);
@@ -899,7 +898,7 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
 
 // MB-26907: Test that the item count is properly updated upon an expiry for
 //           both value and full eviction.
-TEST_P(EPStoreEvictionTest, expiredItemCount) {
+TEST_P(EPBucketTest, expiredItemCount) {
     // Create a item with an expiry time
     auto expiryTime = time(nullptr) + 290;
     auto key = makeStoredDocKey("key");
@@ -917,33 +916,18 @@ TEST_P(EPStoreEvictionTest, expiredItemCount) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     flush_vbucket_to_disk(vbid);
-    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+
+    // @TODO RDB: Fix when correcting item count. Counts correct for value
+    // eviction as they are done in memory
+    if (!fullEviction() || !isRocksDB()) {
+        EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+    } else {
+        EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
+    }
     EXPECT_EQ(1, store->getVBucket(vbid)->numExpiredItems);
 }
 
-class EPStoreEvictionBloomOnOffTest
-        : public EPBucketTest,
-          public ::testing::WithParamInterface<
-                  ::testing::tuple<std::string, bool>> {
-public:
-    void SetUp() override {
-        config_string += std::string{"item_eviction_policy="} +
-                         ::testing::get<0>(GetParam());
-
-        if (::testing::get<1>(GetParam())) {
-            config_string += ";bfilter_enabled=true";
-        } else {
-            config_string += ";bfilter_enabled=false";
-        }
-
-        EPBucketTest::SetUp();
-
-        // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active);
-    }
-};
-
-TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
+TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
     // You can't keep returning GetItemInfo
     cb::StoreIfPredicate predicate = [](
             const boost::optional<item_info>& existing,
@@ -958,7 +942,7 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
     flush_vbucket_to_disk(vbid);
     evict_key(vbid, key);
 
-    if (::testing::get<0>(GetParam()) == "full_eviction") {
+    if (fullEviction()) {
         EXPECT_NO_THROW(engine->storeIfInner(
                 cookie, item, 0 /*cas*/, OPERATION_SET, predicate, false));
         runBGFetcherTask();
@@ -971,7 +955,7 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
             std::logic_error);
 }
 
-TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
+TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
     struct TestData {
         StoredDocKey key;
         cb::StoreIfPredicate predicate;
@@ -1043,19 +1027,16 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
     }
 
     for (size_t i = 0; i < testData.size(); i++) {
-        if (::testing::get<0>(GetParam()) == "value_only") {
+        if (!fullEviction()) {
             EXPECT_EQ(testData[i].expectedVEStatus, testData[i].actualStatus)
                     << "Failed value_only iteration " + std::to_string(i);
-        } else if (::testing::get<0>(GetParam()) == "full_eviction") {
+        } else {
             EXPECT_EQ(testData[i].expectedFEStatus, testData[i].actualStatus)
                     << "Failed full_eviction iteration " + std::to_string(i);
-        } else {
-            FAIL() << "Unhandled GetParam() value:"
-                   << ::testing::get<0>(GetParam());
         }
     }
 
-    if (::testing::get<0>(GetParam()) == "full_eviction") {
+    if (fullEviction()) {
         runBGFetcherTask();
         for (size_t i = 0; i < testData.size(); i++) {
             if (testData[i].actualStatus == cb::engine_errc::would_block) {
@@ -1073,8 +1054,8 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
     }
 }
 
-TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
-    if (::testing::get<0>(GetParam()) != "full_eviction") {
+TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
+    if (!fullEviction()) {
         return;
     }
 
@@ -1125,22 +1106,10 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
                       .status);
 }
 
-// Run in FE only with bloom filter off, so all gets turn into bgFetches
-class EPStoreFullEvictionNoBloomFIlterTest : public EPBucketTest {
-    void SetUp() override {
-        config_string += std::string{"item_eviction_policy=full_eviction;"
-                                     "bfilter_enabled=false"};
-        EPBucketTest::SetUp();
-
-        // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active);
-    }
-};
-
 // Demonstrate the couchstore issue affects get - if we have multiple gets in
 // one batch and the keys are crafted in such a way, we will skip out the get
 // of the one key which really does exist.
-TEST_F(EPStoreFullEvictionNoBloomFIlterTest, MB_29816) {
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_29816) {
     auto key = makeStoredDocKey("005");
     store_item(vbid, key, "value");
     flush_vbucket_to_disk(vbid);
@@ -1166,34 +1135,43 @@ TEST_F(EPStoreFullEvictionNoBloomFIlterTest, MB_29816) {
 }
 
 struct PrintToStringCombinedName {
-    std::string operator()(
-            const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
-                    info) const {
+    std::string
+    operator()(const ::testing::TestParamInfo<
+               ::testing::tuple<std::string, std::string, bool>>& info) const {
         std::string bfilter = "_bfilter_enabled";
-        if (!::testing::get<1>(info.param)) {
+        if (!std::get<2>(info.param)) {
             bfilter = "_bfilter_disabled";
         }
-        return ::testing::get<0>(info.param) + bfilter;
+        return std::get<0>(info.param) + "_" + std::get<1>(info.param) +
+               bfilter;
     }
 };
 
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_SUITE_P(
+        FullAndvalueEviction,
+        EPBucketTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
+// Test cases which run only for Full eviction
+INSTANTIATE_TEST_SUITE_P(
+        FullEviction,
+        EPBucketFullEvictionTest,
+        STParameterizedBucketTest::fullEvictionAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
+// Test cases which run only for Full eviction with bloom filters disabled
+INSTANTIATE_TEST_SUITE_P(
+        FullEviction,
+        EPBucketFullEvictionNoBloomFilterTest,
+        STParameterizedBucketTest::fullEvictionAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
 // Test cases which run in both Full and Value eviction, and with bloomfilter
 // on and off.
-INSTANTIATE_TEST_SUITE_P(FullAndValueEvictionBloomOnOff,
-                         EPStoreEvictionBloomOnOffTest,
-                         ::testing::Combine(::testing::Values("value_only",
-                                                              "full_eviction"),
-                                            ::testing::Bool()),
-                         PrintToStringCombinedName());
-
-// Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_SUITE_P(FullAndValueEviction,
-                         EPStoreEvictionTest,
-                         ::testing::Values("value_only", "full_eviction"),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
-
-EPBucket& EPBucketTest::getEPBucket() {
-    return dynamic_cast<EPBucket&>(*store);
-}
+INSTANTIATE_TEST_SUITE_P(
+        FullAndValueEvictionBloomOnOff,
+        EPBucketBloomFilterParameterizedTest,
+        EPBucketBloomFilterParameterizedTest::allConfigValues(),
+        PrintToStringCombinedName());

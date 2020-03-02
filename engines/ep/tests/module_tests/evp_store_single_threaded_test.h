@@ -290,6 +290,18 @@ public:
         );
     }
 
+    static auto fullEvictionAllBackendsConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_ROCKSDB
+                std::make_tuple("persistentRocksdb"s, "full_eviction"s),
+#endif
+#ifdef EP_USE_MAGMA
+                std::make_tuple("persistentMagma"s, "full_eviction"s),
+#endif
+                std::make_tuple("persistent"s, "full_eviction"s));
+    }
+
     bool persistent() const {
         return std::get<0>(GetParam()).find("persistent") != std::string::npos;
     }
@@ -318,6 +330,8 @@ protected:
         auto bucketType = std::get<0>(GetParam());
         if (bucketType == "persistentRocksdb") {
             config_string += "bucket_type=persistent;backend=rocksdb";
+        } else if (bucketType == "persistentMagma") {
+            config_string += "bucket_type=persistent;backend=magma";
         } else {
             config_string += "bucket_type=" + bucketType;
         }
