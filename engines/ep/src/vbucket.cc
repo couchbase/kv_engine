@@ -726,6 +726,24 @@ void VBucket::doStatsForFlushing(const Item& qi, size_t itemBytes) {
     decrDirtyQueuePendingWrites(itemBytes);
 }
 
+void VBucket::AggregatedFlushStats::accountItem(const Item& item) {
+    ++numItems;
+    totalBytes += item.size();
+    totalAgeInMicro += std::chrono::duration_cast<std::chrono::microseconds>(
+                               item.getQueuedTime().time_since_epoch())
+                               .count();
+}
+
+void VBucket::doAggregatedFlushStats(const AggregatedFlushStats& aggStats) {
+    const auto numItems = aggStats.getNumItems();
+    stats.diskQueueSize -= numItems;
+    dirtyQueueSize -= numItems;
+    decrDirtyQueueMem(sizeof(Item) * numItems);
+    dirtyQueueDrain += numItems;
+    decrDirtyQueueAge(aggStats.getTotalAgeInMicro());
+    decrDirtyQueuePendingWrites(aggStats.getTotalBytes());
+}
+
 void VBucket::incrMetaDataDisk(const Item& qi) {
     metaDataDisk.fetch_add(qi.getKey().size() + sizeof(ItemMetaData));
 }
@@ -3133,8 +3151,7 @@ void VBucket::decrDirtyQueueMem(size_t decrementBy)
     } while (!dirtyQueueMem.compare_exchange_strong(oldVal, newVal));
 }
 
-void VBucket::decrDirtyQueueAge(uint32_t decrementBy)
-{
+void VBucket::decrDirtyQueueAge(size_t decrementBy) {
     uint64_t oldVal, newVal;
     do {
         oldVal = dirtyQueueAge.load(std::memory_order_relaxed);

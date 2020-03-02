@@ -491,6 +491,42 @@ public:
 
     void doStatsForQueueing(const Item& item, size_t itemBytes);
     void doStatsForFlushing(const Item& item, size_t itemBytes);
+
+    /**
+     * Stores flush stats for deferrered update after flush-success.
+     * Note: currently used only for keeping track of set-vbstate items and
+     *  (non-flushed) deduplicated items.
+     */
+    class AggregatedFlushStats {
+    public:
+        void accountItem(const Item& item);
+
+        size_t getNumItems() const {
+            return numItems;
+        }
+
+        size_t getTotalBytes() const {
+            return totalBytes;
+        }
+
+        size_t getTotalAgeInMicro() const {
+            return totalAgeInMicro;
+        }
+
+    private:
+        size_t numItems = 0;
+        size_t totalBytes = 0;
+        size_t totalAgeInMicro = 0;
+    };
+
+    /**
+     * Update flush stats after a flush batch has been persisted.
+     * Args in input provide the necessary info about the flush batch.
+     *
+     * @param aggStats
+     */
+    void doAggregatedFlushStats(const AggregatedFlushStats& aggStats);
+
     void incrMetaDataDisk(const Item& qi);
     void decrMetaDataDisk(const Item& qi);
 
@@ -2107,7 +2143,7 @@ private:
 
     void decrDirtyQueueMem(size_t decrementBy);
 
-    void decrDirtyQueueAge(uint32_t decrementBy);
+    void decrDirtyQueueAge(size_t decrementBy);
 
     void decrDirtyQueuePendingWrites(size_t decrementBy);
 
