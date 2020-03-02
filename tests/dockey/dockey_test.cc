@@ -33,23 +33,28 @@ TEST_F(DocKeyTest, invalid) {
     std::array<char, 4> data2 = {{0, 'k', 'e', 'y'}};
     cb::const_char_buffer buf{data2.data(), 0};
 
-    EXPECT_THROW(std::make_unique<DocKey>(
+    std::unique_ptr<DocKey> ptr;
+    EXPECT_THROW(ptr = std::make_unique<DocKey>(
                          data1.data(), 0, DocKeyEncodesCollectionId::Yes),
                  std::invalid_argument);
 
-    EXPECT_THROW(std::make_unique<DocKey>(
+    EXPECT_THROW(ptr = std::make_unique<DocKey>(
                          nullptr, 4, DocKeyEncodesCollectionId::Yes),
                  std::invalid_argument);
 
-    EXPECT_THROW(std::make_unique<DocKey>(buf, DocKeyEncodesCollectionId::Yes),
-                 std::invalid_argument);
+    EXPECT_THROW(
+            ptr = std::make_unique<DocKey>(buf, DocKeyEncodesCollectionId::Yes),
+            std::invalid_argument);
 
-    EXPECT_NO_THROW(std::make_unique<DocKey>(
-            data1.data(), data1.size(), DocKeyEncodesCollectionId::No));
-    EXPECT_NO_THROW(std::make_unique<DocKey>(
-            data1.data(), data1.size(), DocKeyEncodesCollectionId::Yes));
-    EXPECT_NO_THROW(std::make_unique<DocKey>(
-            nullptr, 0, DocKeyEncodesCollectionId::No));
+    EXPECT_NO_THROW(
+            ptr = std::make_unique<DocKey>(
+                    data1.data(), data1.size(), DocKeyEncodesCollectionId::No));
+    EXPECT_NO_THROW(
+            ptr = std::make_unique<DocKey>(data1.data(),
+                                           data1.size(),
+                                           DocKeyEncodesCollectionId::Yes));
+    EXPECT_NO_THROW(ptr = std::make_unique<DocKey>(
+                            nullptr, 0, DocKeyEncodesCollectionId::No));
 }
 
 // A DocKey can view nothing (len:0) if it does no encode a collection
