@@ -2850,8 +2850,7 @@ protected:
     std::unique_ptr<KVStore> kvstore;
 };
 
-// MB-37951: Test has been seen to fail on windows
-TEST_F(MagmaKVStoreTest, DISABLED_Rollback) {
+TEST_F(MagmaKVStoreTest, Rollback) {
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {
@@ -2887,7 +2886,7 @@ TEST_F(MagmaKVStoreTest, DISABLED_Rollback) {
     ASSERT_EQ(size_t(5), kvstore->getItemCount(Vbid(0)));
 }
 
-TEST_F(MagmaKVStoreTest, DISABLED_RollbackNoValidCommitPoint) {
+TEST_F(MagmaKVStoreTest, RollbackNoValidCommitPoint) {
     uint64_t seqno = 1;
 
     auto cfg = reinterpret_cast<MagmaKVStoreConfig*>(kvstoreConfig.get());
