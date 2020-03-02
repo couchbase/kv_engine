@@ -219,7 +219,7 @@ nlohmann::json Bucket::to_json() const {
 PrivilegeAccess Bucket::check(Privilege privilege,
                               uint32_t scope,
                               uint32_t collection) const {
-    if (scopes.empty()) {
+    if (scopes.empty() || !is_collection_privilege(privilege)) {
         return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
                                                       : PrivilegeAccess::Fail;
     }
@@ -402,7 +402,8 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
     // Optimization.. Most requests will be for bucket privileges and not
     // the other privileges.. Check the bucket privileges first, then
     // the global privileges
-    if (bucket && bucket->check(privilege, sid, cid) == PrivilegeAccess::Ok) {
+    if (bucket && is_bucket_privilege(privilege) &&
+        bucket->check(privilege, sid, cid) == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     }
 

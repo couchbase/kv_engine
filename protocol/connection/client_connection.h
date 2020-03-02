@@ -354,7 +354,7 @@ public:
      */
     void authenticate(const std::string& username,
                       const std::string& password,
-                      const std::string& mech);
+                      const std::string& mech = "PLAIN");
 
     /**
      * Create a bucket
