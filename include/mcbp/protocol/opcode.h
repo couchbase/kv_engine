@@ -167,6 +167,13 @@ enum class ClientOpcode : uint8_t {
      * Return the last closed checkpoint Id for a given VBucket.
      */
     LastClosedCheckpoint = 0x97,
+
+    /**
+     * Close the TAP connection for the registered TAP client and
+     * remove the checkpoint cursors from its registered vbuckets.
+     */
+    DeregisterTapClient_Unsupported = 0x9e,
+
     /**
      * Reset the replication chain from the node that receives
      * this command. For example, given the replication chain,
@@ -174,12 +181,6 @@ enum class ClientOpcode : uint8_t {
      * replica vbuckets on B and C, which are replicated from A.
      */
     ResetReplicationChain_Unsupported = 0x9f,
-
-    /**
-     * Close the TAP connection for the registered TAP client and
-     * remove the checkpoint cursors from its registered vbuckets.
-     */
-    DeregisterTapClient_Unsupported = 0x9e,
 
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.

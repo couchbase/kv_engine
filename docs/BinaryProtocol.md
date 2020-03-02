@@ -448,19 +448,19 @@ information about a given command.
 | 0x27 | Audit put |
 | 0x28 | Audit config reload |
 | 0x29 | Shutdown |
-| 0x30 | RGet                                                    |
-| 0x31 | RSet                                                    |
-| 0x32 | RSetQ                                                   |
-| 0x33 | RAppend                                                 |
-| 0x34 | RAppendQ                                                |
-| 0x35 | RPrepend                                                |
-| 0x36 | RPrependQ                                               |
-| 0x37 | RDelete                                                 |
-| 0x38 | RDeleteQ                                                |
-| 0x39 | RIncr                                                   |
-| 0x3a | RIncrQ                                                  |
-| 0x3b | RDecr                                                   |
-| 0x3c | RDecrQ                                                  |
+| 0x30 | RGet (not supported) |
+| 0x31 | RSet (not supported) |
+| 0x32 | RSetQ (not supported) |
+| 0x33 | RAppend (not supported) |
+| 0x34 | RAppendQ (not supported) |
+| 0x35 | RPrepend (not supported) |
+| 0x36 | RPrependQ (not supported) |
+| 0x37 | RDelete (not supported) |
+| 0x38 | RDeleteQ (not supported) |
+| 0x39 | RIncr (not supported) |
+| 0x3a | RIncrQ (not supported) |
+| 0x3b | RDecr (not supported) |
+| 0x3c | RDecrQ (not supported) |
 | 0x3d | [Set VBucket](#0x3d-set-vbucket)                        |
 | 0x3e | [Get VBucket](#0x3e-get-vbucket)                        |
 | 0x3f | [Del VBucket](#0x3f-del-vbucket)                        |
@@ -483,7 +483,7 @@ information about a given command.
 | 0x57 | [Dcp mutation](dcp/documentation/commands/mutation.md) |
 | 0x58 | [Dcp deletion](dcp/documentation/commands/deletion.md) |
 | 0x59 | [Dcp expiration](dcp/documentation/commands/expiration.md) |
-| 0x5a | [UNUSED (was Dcp flush)](dcp/documentation/commands/flush.md) |
+| 0x5a | [Dcp flush](dcp/documentation/commands/flush.md) (obsolete) |
 | 0x5b | [Dcp set vbucket state](dcp/documentation/commands/set-vbucket-state.md) |
 | 0x5c | [Dcp noop](dcp/documentation/commands/no-op.md) |
 | 0x5d | [Dcp buffer acknowledgement](dcp/documentation/commands/buffer-ack.md) |
@@ -511,22 +511,22 @@ information about a given command.
 | 0x96 | Get Failover Log |
 | 0x97 | Last closed checkpoint |
 | 0x9e | Deregister tap client - TAP removed in 5.0 |
-| 0x9f | Reset replication chain |
+| 0x9f | Reset replication chain (obsolete) |
 | 0xa0 | Get meta |
 | 0xa1 | Getq meta |
 | 0xa2 | Set with meta |
 | 0xa3 | Setq with meta |
 | 0xa4 | Add with meta |
 | 0xa5 | Addq with meta |
-| 0xa6 | Snapshot vb states |
-| 0xa7 | Vbucket batch count |
+| 0xa6 | Snapshot vb states (obsolete) |
+| 0xa7 | Vbucket batch count (obsolete) |
 | 0xa8 | Del with meta |
 | 0xa9 | Delq with meta |
 | 0xaa | Create checkpoint |
-| 0xac | Notify vbucket update |
+| 0xac | Notify vbucket update (obsolete) |
 | 0xad | Enable traffic |
 | 0xae | Disable traffic |
-| 0xb0 | Change vb filter |
+| 0xb0 | Change vb filter (obsolete) |
 | 0xb1 | Checkpoint persistence |
 | 0xb2 | Return meta |
 | 0xb3 | Compact db |
@@ -539,8 +539,8 @@ information about a given command.
 | 0xba | [Collections: get manifest](Collections.md#0xba---Get-Collections-Manifest) |
 | 0xbb | [Collections: get collection id](Collections.md#0xbb---Get-Collections-ID) |
 | 0xbc | [Collections: get scope id](Collections.md#0xbc---Get-Scope-ID) |
-| 0xc1 | Set drift counter state |
-| 0xc2 | Get adjusted time |
+| 0xc1 | Set drift counter state (obsolete) |
+| 0xc2 | Get adjusted time (obsolete) |
 | 0xc5 | Subdoc get |
 | 0xc6 | Subdoc exists |
 | 0xc7 | Subdoc dict add |
