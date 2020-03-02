@@ -6292,7 +6292,10 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
  * Rewrite the persisted vbucket_state to the oldest version we support upgrade
  * to (v5.0 at time of writing).
  */
-static void force_vbstate_to_v5(std::string dbname, int vbucket) {
+static void force_vbstate_to_v5(std::string dbname,
+                                int vbucket,
+                                bool hlcEpoch = true,
+                                bool mightContainXattrs = true) {
     std::string filename = dbname + cb::io::DirectorySeparator +
                            std::to_string(vbucket) + ".couch.1";
     Db* handle;
@@ -6305,16 +6308,19 @@ static void force_vbstate_to_v5(std::string dbname, int vbucket) {
     // Create 5.0.0 _local/vbstate
     // Note: unconditionally adding namespaces_supported to keep this test
     // working.
-    const nlohmann::json vbstate5 = {
-            {"state", "active"},
-            {"checkpoint_id", "1"},
-            {"max_deleted_seqno", "0"},
-            {"snap_start", "0"},
-            {"snap_end", "1"},
-            {"max_cas", "123"},
-            {"hlc_epoch", std::to_string(HlcCasSeqnoUninitialised)},
-            {"might_contain_xattrs", false},
-            {"namespaces_supported", true}};
+    nlohmann::json vbstate5 = {{"state", "active"},
+                               {"checkpoint_id", "1"},
+                               {"max_deleted_seqno", "0"},
+                               {"snap_start", "0"},
+                               {"snap_end", "1"},
+                               {"max_cas", "123"},
+                               {"namespaces_supported", true}};
+    if (hlcEpoch) {
+        vbstate5["hlc_epoch"] = std::to_string(HlcCasSeqnoUninitialised);
+    }
+    if (mightContainXattrs) {
+        vbstate5["might_contain_xattrs"] = false;
+    }
     const auto vbStateStr = vbstate5.dump();
 
     LocalDoc vbstate;
@@ -6378,6 +6384,66 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
             get_ull_stat(h, "vb_0:max_visible_seqno", "vbucket-details"),
             "expected max-visible-seqno to be set to high_seqno");
 
+    return SUCCESS;
+}
+
+// Regression test for MB-38031
+// If upgrade from 4.x via a 5.x 'hop' some vbstate entries that 5.x creates
+// won't be present if 5.x is just a stepping stone with no flushes
+static enum test_result test_mb38031_upgrade_from_4x_via_5x_hop(
+        EngineIface* h) {
+    if (!isWarmupEnabled(h)) {
+        return SKIPPED;
+    }
+    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
+          "Failed to set vbucket state (vb 1).");
+    check(set_vbucket_state(h, Vbid(2), vbucket_state_active),
+          "Failed to set vbucket state (vb 2).");
+
+    int num_items = 10;
+    for (int vb = 0; vb < 3; ++vb) {
+        for (int j = 0; j < num_items; ++j) {
+            std::stringstream ss;
+            ss << "key_" << j;
+            checkeq(ENGINE_SUCCESS,
+                    store(h,
+                          nullptr,
+                          OPERATION_SET,
+                          ss.str().c_str(),
+                          "data",
+                          nullptr,
+                          0,
+                          Vbid(vb)),
+                    "Failed to store a value");
+        }
+    }
+
+    wait_for_flusher_to_settle(h);
+
+    std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
+
+    // Force vbstate on three vbuckets with each combination of hlc_epoch and
+    // might_contain_xattrs
+    force_vbstate_to_v5(dbname, 0, true, false);
+    force_vbstate_to_v5(dbname, 1, false, true);
+    force_vbstate_to_v5(dbname, 2, false, false);
+
+    // Now shutdown engine force and restart to warmup
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
+
+    wait_for_warmup_complete(h);
+
+    // Warmup success and all documents loaded
+    checkeq(num_items,
+            get_int_stat(h, "vb_0:num_items", "vbucket-details 0"),
+            "Expected vb:0 to have num_items");
+    checkeq(num_items,
+            get_int_stat(h, "vb_1:num_items", "vbucket-details 1"),
+            "Expected vb:1 to have num_items");
+    checkeq(num_items,
+            get_int_stat(h, "vb_2:num_items", "vbucket-details 2"),
+            "Expected vb:2 to have num_items");
     return SUCCESS;
 }
 
@@ -9153,6 +9219,15 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  // TODO magma: Need to add magma functionality similar
                  // to couchstore specific functionality used by test
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 cleanup),
+
+        TestCase("test_mb38031_upgrade_from_4x_via_5x_hop",
+                 test_mb38031_upgrade_from_4x_via_5x_hop,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 // couchstore only issue - so skip magma and rocks
                  prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
 

@@ -167,9 +167,6 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
     vbs.lastSnapStart = std::stoull(j.at("snap_start").get<std::string>());
     vbs.lastSnapEnd = std::stoull(j.at("snap_end").get<std::string>());
     vbs.maxCas = std::stoull(j.at("max_cas").get<std::string>());
-    vbs.hlcCasEpochSeqno = std::stoll(j.at("hlc_epoch").get<std::string>());
-    vbs.mightContainXattrs = j.at("might_contain_xattrs").get<bool>();
-    vbs.supportsNamespaces = j.at("namespaces_supported").get<bool>();
 
     // Now parse optional fields.
     auto version = j.find("version");
@@ -212,6 +209,30 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
         // If no maxVisible is present, then this is a pre-6.5, the max visible
         // is the high-seqno
         vbs.maxVisibleSeqno = vbs.highSeqno;
+    }
+
+    // Note: This field was added in 5.0 and exists only if data was written
+    auto hlcEpochSeqno = j.find("hlc_epoch");
+    if (hlcEpochSeqno != j.end()) {
+        vbs.hlcCasEpochSeqno = std::stoull((*hlcEpochSeqno).get<std::string>());
+    } else {
+        vbs.hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
+    }
+
+    // Note: This field was added in 5.0 and exists only if data was written
+    auto mightContainXattrs = j.find("might_contain_xattrs");
+    if (mightContainXattrs != j.end()) {
+        vbs.mightContainXattrs = (*mightContainXattrs).get<bool>();
+    } else {
+        vbs.mightContainXattrs = false;
+    }
+
+    // Note: This field was added in 6.5
+    auto supportsNamespaces = j.find("namespaces_supported");
+    if (supportsNamespaces != j.end()) {
+        vbs.supportsNamespaces = (*supportsNamespaces).get<bool>();
+    } else {
+        vbs.supportsNamespaces = false;
     }
 
     // Note: We don't track on disk prepares pre-6.5
