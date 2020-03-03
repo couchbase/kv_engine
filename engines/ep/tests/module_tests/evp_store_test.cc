@@ -36,6 +36,7 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
@@ -611,7 +612,8 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
 
     flush_vbucket_to_disk(vbid);
     evict_key(vbid, makeStoredDocKey("key"));
-    store->deleteExpiredItem(itm, time(NULL) + 121, ExpireBy::Compactor);
+    store->deleteExpiredItem(
+            *get_itm, time(nullptr) + 121, ExpireBy::Compactor);
 
     auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
@@ -621,8 +623,17 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
                                                        TRACK_STATISTICS |
                                                        GET_DELETED_VALUE);
 
+    // Magma compactions are not interlocked with writes so the expiration when
+    // driven by compaction will need to bg fetch the item from disk if it is
+    // not resident to ensure that we don't "expire" old versions of items.
+    if (store->getROUnderlying(vbid)
+                ->getStorageProperties()
+                .hasBackgroundCompaction()) {
+        runBGFetcherTask();
+    }
+
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     get_itm = std::move(gv.item);
     auto get_data = const_cast<char*>(get_itm->getData());
@@ -638,6 +649,207 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
     EXPECT_EQ(rev_str, meta_str) << "Unexpected system xattrs";
     EXPECT_TRUE(new_blob.get("foo").empty())
             << "The foo attribute should be gone";
+}
+
+TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // 1) Store Av1 and persist
+    auto key = makeStoredDocKey("a");
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Grab Av1 item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.isMetaOnly = GetMetaOnly::No;
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+
+    // 3) Evict Av1
+    evict_key(vbid, key);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // 4) Callback from the "compactor" with Av1
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    if (!store->getROUnderlying(vbid)
+                 ->getStorageProperties()
+                 .hasBackgroundCompaction()) {
+        EXPECT_EQ(1, vb->numExpiredItems);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        return;
+    }
+
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // We should not have deleted the item and should not flush anything
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // We should have queued a BGFetch for the item
+    EXPECT_EQ(1, vb->getNumItems());
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    runBGFetcherTask();
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+
+    // We should have expired the item
+    EXPECT_EQ(1, vb->numExpiredItems);
+
+    // But it still exists on disk until we flush
+    EXPECT_EQ(1, vb->getNumItems());
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
+/**
+ * This is a valid test case (for at least magma) where the following can
+ * happen:
+ *
+ * 1) Document "a" comes in and gets persisted (henceforth referred to as Av1)
+ * 2) Update of document a happens but is not yet persisted (henceforth referred
+ *    to as Av2)
+ * 3) (Magma) background compaction starts and finds Av1 and calls back up to
+ *    the engine to expire it but does not yet process it
+ * 4) Av2 is persisted and evicted by the ItemPager to reduce memory usage
+ * 5) Expiry callback (of Av1) continues and finds no document in the HashTable
+ *
+ * Given that we interlock flushing and compaction for couchstore buckets this
+ * should not be possible for them.
+ */
+TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // 1) Store Av1 and persist
+    auto key = makeStoredDocKey("a");
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Store Av2
+    store_item(vbid, key, "v2");
+
+    // 3) Grab Av1 item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.isMetaOnly = GetMetaOnly::No;
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+
+    // 4) Flush and evict Av2
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, key);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // 5) Callback from the "compactor" with Av1
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    // Early return for non-magma backends as they will just expire the item
+    // immediately because they interlock writes and compaction
+    if (!store->getROUnderlying(vbid)
+                 ->getStorageProperties()
+                 .hasBackgroundCompaction()) {
+        EXPECT_EQ(1, vb->numExpiredItems);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        return;
+    }
+
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // We should not have deleted the item and should not flush anything
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // We should have queued a BGFetch for the item
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    runBGFetcherTask();
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+
+    // BGFetch runs and does not expire the item as the item has been superseded
+    // by a newer version (Av2)
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // Nothing to flush
+    flushVBucketToDiskIfPersistent(vbid, 0);
+    EXPECT_EQ(1, vb->getNumItems());
+}
+
+TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // 1) Store Av1 and persist
+    auto key = makeStoredDocKey("a");
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Grab Av1 item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.isMetaOnly = GetMetaOnly::No;
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+
+    // 3) Evict Av1
+    evict_key(vbid, key);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // 4) Callback from the "compactor" with Av1
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    // Early return for non-magma backends as they will just expire the item
+    // immediately because they interlock writes and compaction
+    if (!store->getROUnderlying(vbid)
+                 ->getStorageProperties()
+                 .hasBackgroundCompaction()) {
+        EXPECT_EQ(1, vb->numExpiredItems);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        return;
+    }
+
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // We should not have deleted the item and should not flush anything
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    // We should have queued a BGFetch for the item
+    EXPECT_EQ(1, vb->getNumItems());
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+
+    // 5) Do another get that should BGFetch to ensure that we expire the item
+    // correctly
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    runBGFetcherTask();
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+
+    // We should have expired the item
+    EXPECT_EQ(1, vb->numExpiredItems);
+
+    // But it still exists on disk until we flush
+    EXPECT_EQ(1, vb->getNumItems());
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
 }
 
 /**

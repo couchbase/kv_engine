@@ -61,6 +61,15 @@ public:
             const FrontEndBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) override;
 
+    /**
+     * Expire an item found during compaction that required a BGFetch
+     *
+     * @param key - key of the item
+     * @param fetchedItem - The BGFetched item and the original
+     */
+    void completeCompactionExpiryBgFetch(
+            const DiskDocKey& key, const CompactionBGFetchItem& fetchedItem);
+
     vb_bgfetch_queue_t getBGFetchItems() override;
 
     bool hasPendingBGFetchItems() override;
@@ -284,6 +293,9 @@ private:
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
                           bool metadataOnly) override;
+
+    void bgFetchForCompactionExpiry(const DocKey& key,
+                                    const Item& item) override;
 
     /**
      * Helper function to update stats after completion of a background fetch

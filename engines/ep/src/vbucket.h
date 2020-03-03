@@ -42,6 +42,7 @@ class CheckpointManager;
 class CheckpointConfig;
 class ConflictResolution;
 class Configuration;
+class CompactionBGFetchItem;
 class DCPBackfill;
 class DiskDocKey;
 class DurabilityMonitor;
@@ -2162,6 +2163,31 @@ protected:
      */
     PassiveDurabilityMonitor& getPassiveDM();
 
+    /**
+     * Increase the expiration count global stats and in the vbucket stats
+     */
+    void incExpirationStat(ExpireBy source);
+
+    /**
+     * This function handles expiry related stuff before logically (soft)
+     * deleting an item in in-memory structures like HT, and checkpoint mgr.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param hbl Hash table bucket lock that must be held
+     * @param v Reference to the StoredValue to be soft deleted
+     * @param cHandle Collections readhandle (caching mode) for this key
+     *
+     * @return status of the operation.
+     *         pointer to the updated StoredValue. It can be same as that of
+     *         v or different value if a new StoredValue is created for the
+     *         update.
+     *         notification info.
+     */
+    std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
+            const HashTable::HashBucketLock& hbl,
+            StoredValue& v,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
@@ -2296,26 +2322,6 @@ private:
                                     int64_t abortSeqno) = 0;
 
     /**
-     * This function handles expiry related stuff before logically (soft)
-     * deleting an item in in-memory structures like HT, and checkpoint mgr.
-     * Assumes that HT bucket lock is grabbed.
-     *
-     * @param hbl Hash table bucket lock that must be held
-     * @param v Reference to the StoredValue to be soft deleted
-     * @param cHandle Collections readhandle (caching mode) for this key
-     *
-     * @return status of the operation.
-     *         pointer to the updated StoredValue. It can be same as that of
-     *         v or different value if a new StoredValue is created for the
-     *         update.
-     *         notification info.
-     */
-    std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
-            const HashTable::HashBucketLock& hbl,
-            StoredValue& v,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
-
-    /**
      * Add a temporary item in hash table and enqueue a background fetch for a
      * key.
      *
@@ -2350,6 +2356,15 @@ private:
                          bool isMeta = false) = 0;
 
     /**
+     * Enqueue a background fetch (due to compaction) to expire a key.
+     *
+     * @param key the key to be bg fetched
+     * @param item Reference to the item that is currnetly being compacted
+     */
+    virtual void bgFetchForCompactionExpiry(const DocKey& key,
+                                            const Item& item) = 0;
+
+    /**
      * Get metadata and value for a non-resident key
      *
      * @param key key for which metadata and value should be retrieved
@@ -2366,11 +2381,6 @@ private:
                                             EventuallyPersistentEngine& engine,
                                             QueueBgFetch queueBgFetch,
                                             const StoredValue& v) = 0;
-
-    /**
-     * Increase the expiration count global stats and in the vbucket stats
-     */
-    void incExpirationStat(ExpireBy source);
 
     void adjustCheckpointFlushTimeout(std::chrono::seconds wall_time);
 

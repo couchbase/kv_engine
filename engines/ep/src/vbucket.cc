@@ -32,6 +32,7 @@
 #include "failover-table.h"
 #include "hash_table.h"
 #include "hash_table_stat_visitor.h"
+#include "kvshard.h"
 #include "kvstore.h"
 #include "pre_link_document_context.h"
 #include "rollback_result.h"
@@ -2432,29 +2433,51 @@ void VBucket::deleteExpiredItem(const Item& it,
             notifyNewSeqno(notifyCtx);
             doCollectionsStats(cHandle, notifyCtx);
         }
-    } else {
-        if (eviction == EvictionPolicy::Full) {
-            // Create a temp item and delete and push it
-            // into the checkpoint queue, only if the bloomfilter
-            // predicts that the item may exist on disk.
-            if (maybeKeyExistsInFilter(key)) {
-                auto addTemp = addTempStoredValue(hbl, key);
-                if (addTemp.status == TempAddStatus::NoMem) {
-                    return;
-                }
-                v = addTemp.storedValue;
-                v->setTempDeleted();
-                v->setRevSeqno(it.getRevSeqno());
-                auto result = ht.unlocked_updateStoredValue(hbl, *v, it);
-                VBNotifyCtx notifyCtx;
-                std::tie(std::ignore, std::ignore, notifyCtx) =
-                        processExpiredItem(hbl, *result.storedValue, cHandle);
-                // we unlock ht lock here because we want to avoid potential
-                // lock inversions arising from notifyNewSeqno() call
-                hbl.getHTLock().unlock();
-                notifyNewSeqno(notifyCtx);
-                doCollectionsStats(cHandle, notifyCtx);
+    } else if (eviction == EvictionPolicy::Full) {
+        // If this expiration is from the compactor then we may need to perform
+        // a BGFetch to see if we need to expire the item depending on whether
+        // or not the backend supports
+        if (source == ExpireBy::Compactor &&
+            getShard()
+                    ->getROUnderlying()
+                    ->getStorageProperties()
+                    .hasBackgroundCompaction()) {
+            // Need to bg fetch the latest copy from disk and only expire if it
+            // is the same as this item (i.e. same cas). This is an issue as
+            // magma background compaction can run whilst writes are happening
+            // and call the expiry callback on an old item after we have already
+            // ejected the newer version of it. See MB-36373 for more details.
+            //
+            // There's no point in checking the bloom filter here. We're getting
+            // called back from compaction so we know that the Item currently
+            // exists on disk in some form.
+            bgFetchForCompactionExpiry(key, it);
+
+            // Early return, don't want to bump any expiration stats here as we
+            // need to bg fetch our item in first.
+            return;
+        }
+
+        if (maybeKeyExistsInFilter(key)) {
+            auto addTemp = addTempStoredValue(hbl, key);
+            if (addTemp.status == TempAddStatus::NoMem) {
+                return;
             }
+            v = addTemp.storedValue;
+            v->setTempDeleted();
+            v->setRevSeqno(it.getRevSeqno());
+
+            // @TODO perf: Investigate if it is necessary to add this to the
+            //  HashTable
+            auto result = ht.unlocked_updateStoredValue(hbl, *v, it);
+            VBNotifyCtx notifyCtx;
+            std::tie(std::ignore, std::ignore, notifyCtx) =
+                    processExpiredItem(hbl, *result.storedValue, cHandle);
+            // we unlock ht lock here because we want to avoid potential
+            // lock inversions arising from notifyNewSeqno() call
+            hbl.getHTLock().unlock();
+            notifyNewSeqno(notifyCtx);
+            doCollectionsStats(cHandle, notifyCtx);
         }
     }
     incExpirationStat(source);

@@ -216,6 +216,83 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     return status;
 }
 
+void EPVBucket::completeCompactionExpiryBgFetch(
+        const DiskDocKey& key, const CompactionBGFetchItem& fetchedItem) {
+    ENGINE_ERROR_CODE status = fetchedItem.value->getStatus();
+
+    // Status might be non-success if either:
+    //     a) BGFetch failed for some reason
+    //     b) Item does not exist on disk (KEY_ENOENT)
+    //
+    // In the case of a) we don't care about doing anything here, the next
+    // compaction will try to expire the item on disk anyway.
+    // In the case of b) we can simply skip trying to expire this item as it
+    // has been superseded (by a deletion).
+    if (status != ENGINE_SUCCESS) {
+        return;
+    }
+
+    Item* fetchedValue = fetchedItem.value->item.get();
+    { // locking scope
+        auto docKey = key.getDocKey();
+        folly::SharedMutex::ReadHolder rlh(getStateLock());
+        auto cHandle = lockCollections(docKey);
+        auto res = fetchValidValue(
+                WantsDeleted::Yes,
+                TrackReference::Yes,
+                cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
+                cHandle,
+                getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
+                                                    : ForGetReplicaOp::No);
+
+        // If we find a StoredValue then the item that we are trying to expire
+        // has been superseded by a new one (as we wouldn't have tried to
+        // BGFetch the item if it was there originally). In this case, we don't
+        // have to expire anything.
+        if (res.storedValue && !res.storedValue->isTempItem() &&
+            res.storedValue->getCas() != fetchedItem.compactionItem.getCas()) {
+            return;
+        }
+
+        // Check the cas of our BGFetched item against the cas of the item we
+        // originally saw during our compaction (stashed in the
+        // CompactionBGFetchItem object). If they are different then the item
+        // has been superseded by a new one and we don't need to do anything.
+        // Otherwise, expire the item.
+        if (fetchedValue->getCas() != fetchedItem.compactionItem.getCas()) {
+            return;
+        }
+
+        // Only add a new StoredValue if there is not an already existing
+        // Temp item. Otherwise, we should just re-use the existing one to
+        // prevent us from having multiple values for the same key.
+        auto* sVToUse = res.storedValue;
+        if (!res.storedValue) {
+            auto addTemp = addTempStoredValue(res.lock, key.getDocKey());
+            if (addTemp.status == TempAddStatus::NoMem) {
+                return;
+            }
+            sVToUse = addTemp.storedValue;
+            sVToUse->setTempDeleted();
+            sVToUse->setRevSeqno(fetchedItem.compactionItem.getRevSeqno());
+        }
+
+        // @TODO perf: Investigate if it is necessary to add this to the
+        //  HashTable
+        auto result = ht.unlocked_updateStoredValue(
+                res.lock, *sVToUse, fetchedItem.compactionItem);
+        VBNotifyCtx notifyCtx;
+        std::tie(std::ignore, std::ignore, notifyCtx) =
+                processExpiredItem(res.lock, *result.storedValue, cHandle);
+        // we unlock ht lock here because we want to avoid potential
+        // lock inversions arising from notifyNewSeqno() call
+        res.lock.getHTLock().unlock();
+        notifyNewSeqno(notifyCtx);
+        doCollectionsStats(cHandle, notifyCtx);
+        incExpirationStat(ExpireBy::Compactor);
+    }
+}
+
 vb_bgfetch_queue_t EPVBucket::getBGFetchItems() {
     vb_bgfetch_queue_t fetches;
     LockHolder lh(pendingBGFetchesLock);
@@ -692,6 +769,22 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
         return ENGINE_EWOULDBLOCK;
     }
     folly::assume_unreachable();
+}
+
+void EPVBucket::bgFetchForCompactionExpiry(const DocKey& key,
+                                           const Item& item) {
+    // schedule to the current batch of background fetch of the given
+    // vbucket
+    auto shard = getShard();
+    Expects(shard);
+    auto bgFetchSize =
+            queueBGFetchItem(key,
+                             std::make_unique<CompactionBGFetchItem>(item),
+                             shard->getBgFetcher());
+    shard->getBgFetcher()->notifyBGEvent();
+
+    EP_LOG_DEBUG("Queue a background fetch for compaction expiry, now at {}",
+                 bgFetchSize);
 }
 
 void EPVBucket::updateBGStats(

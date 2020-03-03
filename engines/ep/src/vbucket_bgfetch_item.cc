@@ -18,6 +18,7 @@
 #include "vbucket_bgfetch_item.h"
 
 #include "ep_engine.h"
+#include "ep_vb.h"
 #include "vbucket.h"
 #include "vbucket_fwd.h"
 
@@ -58,7 +59,9 @@ void CompactionBGFetchItem::complete(
         VBucketPtr& vb,
         std::chrono::steady_clock::time_point startTime,
         const DiskDocKey& key) const {
-    // @TODO implement
+    auto* epvb = dynamic_cast<EPVBucket*>(vb.get());
+    Expects(epvb);
+    epvb->completeCompactionExpiryBgFetch(key, *this);
 }
 
 void CompactionBGFetchItem::abort(

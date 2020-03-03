@@ -332,6 +332,9 @@ private:
                           EventuallyPersistentEngine& engine,
                           bool metadataOnly) override;
 
+    void bgFetchForCompactionExpiry(const DocKey& key,
+                                    const Item& item) override;
+
     GetValue getInternalNonResident(const DocKey& key,
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
