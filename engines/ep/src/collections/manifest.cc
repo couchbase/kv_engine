@@ -316,34 +316,31 @@ std::string Manifest::toJson() const {
 
 void Manifest::addCollectionStats(const void* cookie,
                                   const AddStatFn& add_stat) const {
+    const auto addStat = [&cookie, &add_stat](std::string_view key,
+                                              const auto& value) {
+        fmt::memory_buffer valueBuf;
+        format_to(valueBuf, "{}", value);
+        add_stat({key.data(), key.size()}, {valueBuf.data(), valueBuf.size()}, cookie);
+    };
+
     try {
-        const int bsize = 512;
-        char buffer[bsize];
-        checked_snprintf(buffer, bsize, "manifest:collections");
-        add_casted_stat(buffer, collections.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "manifest:default_exists");
-        add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
-        checked_snprintf(buffer, bsize, "manifest:uid");
-        add_casted_stat(buffer, uid, add_stat, cookie);
+        addStat("manifest:collections", collections.size());
+        addStat("manifest:default_exists", defaultCollectionExists);
+        addStat("manifest:uid", uid);
 
         for (const auto& scope : scopes) {
             for (const auto& entry : scope.second.collections) {
-                const auto id = entry.id;
-                const auto& name = collections.at(id).name;
-                checked_snprintf(buffer,
-                                 bsize,
-                                 "manifest:collection:%s:name",
-                                 id.to_string().c_str());
-                add_casted_stat(buffer, name.c_str(), add_stat, cookie);
+                const auto& name = collections.at(entry.id).name;
+                const auto cid = entry.id.to_string();
 
-                checked_snprintf(buffer,
-                                 bsize,
-                                 "manifest:collection:%s:scope",
-                                 id.to_string().c_str());
-                add_casted_stat(buffer,
-                                scope.first.to_string().c_str(),
-                                add_stat,
-                                cookie);
+                fmt::memory_buffer key;
+                format_to(key, "manifest:collection:{}:name", cid);
+                addStat({key.data(), key.size()}, name);
+
+
+                key.resize(0);
+                format_to(key, "manifest:collection:{}:scope", cid);
+                addStat({key.data(), key.size()}, scope.first.to_string());
             }
         }
     } catch (const std::exception& e) {
