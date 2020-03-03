@@ -341,6 +341,12 @@ void Manifest::addCollectionStats(const void* cookie,
                 key.resize(0);
                 format_to(key, "manifest:collection:{}:scope", cid);
                 addStat({key.data(), key.size()}, scope.first.to_string());
+
+                if (entry.maxTtl) {
+                    key.resize(0);
+                    format_to(key, "manifest:collection:{}:maxTTL", cid);
+                    addStat({key.data(), key.size()}, entry.maxTtl->count());
+                }
             }
         }
     } catch (const std::exception& e) {
