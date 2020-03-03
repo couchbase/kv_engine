@@ -20,6 +20,7 @@
 
 #include <platform/uuid.h>
 #include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <iostream>
 
 namespace cb {
@@ -81,6 +82,26 @@ std::unique_ptr<MemcachedConnection> Bucket::getConnection(
     }
 
     return cluster.getConnection(vbucketmap[vbucket.get()][replica_number + 1]);
+}
+
+void Bucket::setCollectionManifest(nlohmann::json next) {
+    const auto payload = next.dump(2);
+    for (size_t idx = 0; idx < cluster.size(); ++idx) {
+        auto conn = cluster.getConnection(idx);
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(name);
+        auto rsp = conn->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::CollectionsSetManifest, {}, payload});
+        if (!rsp.isSuccess()) {
+            throw ConnectionError(
+                    "Bucket::setCollectionManifest: Failed to set Collection "
+                    "manifest on n_" +
+                            std::to_string(idx),
+                    rsp);
+        }
+    }
+
+    manifest = std::move(next);
 }
 
 } // namespace test

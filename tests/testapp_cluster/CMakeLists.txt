@@ -16,6 +16,7 @@ target_link_libraries(cluster_framework PUBLIC
                       ${FOLLY_LIBRARIES})
 
 add_executable(cluster_test
+               collection_tests.cc
                durability_tests.cc
                durability_upgrade_tests.cc
                main.cc

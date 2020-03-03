@@ -19,6 +19,7 @@
 #include "dcp_packet_filter.h"
 
 #include <memcached/vbucket.h>
+#include <nlohmann/json.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -125,6 +126,15 @@ public:
 
     void shutdownReplication();
 
+    /// Set the connection manifest for the bucket (creates / deletes
+    /// scopes and collections.
+    void setCollectionManifest(nlohmann::json next);
+
+    /// Get the collection manifest currently being used
+    nlohmann::json getCollectionManifest() const {
+        return manifest;
+    }
+
 protected:
     const Cluster& cluster;
     const std::string name;
@@ -133,6 +143,8 @@ protected:
     std::vector<std::vector<int>> vbucketmap;
     std::unique_ptr<DcpReplicator> replicators;
     DcpPacketFilter packet_filter;
+
+    nlohmann::json manifest;
 };
 
 } // namespace test

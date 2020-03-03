@@ -16,6 +16,7 @@
 
 #include "clustertest.h"
 
+#include "bucket.h"
 #include "cluster.h"
 
 #include <nlohmann/json.hpp>
@@ -49,6 +50,29 @@ void cb::test::ClusterTest::createDefaultBucket() {
     if (!bucket) {
         throw std::runtime_error("Failed to create default bucket");
     }
+    bucket->setCollectionManifest(R"({
+  "uid": "1",
+  "scopes": [
+    {
+      "name": "_default",
+      "uid": "0",
+      "collections": [
+        {
+          "name": "_default",
+          "uid": "0"
+        },
+        {
+          "name": "fruit",
+          "uid": "8"
+        },
+        {
+          "name": "vegetable",
+          "uid": "9"
+        }
+      ]
+    }
+  ]
+})"_json);
 }
 
 void cb::test::ClusterTest::SetUp() {
