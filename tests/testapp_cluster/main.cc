@@ -16,6 +16,7 @@
 
 #include "clustertest.h"
 
+#include "auth_provider_service.h"
 #include "bucket.h"
 #include "cluster.h"
 #include <event2/thread.h>
@@ -129,6 +130,33 @@ TEST_F(BasicClusterTest, Observe) {
             ASSERT_NE(0, keys.front().cas);
         }
     } while (!found);
+}
+
+/// Add a test just to verify that the external auth service works (will
+/// be replaced with better tests at a later time)
+TEST_F(BasicClusterTest, UsingExternalAuth) {
+    cb::test::UserEntry ue;
+    ue.username = "extuser";
+    ue.password = "extpass";
+    ue.authz = R"({
+    "buckets": {
+      "*": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "domain": "external"
+  })"_json;
+    cluster->getAuthProviderService().upsertUser(ue);
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getConnection(Vbid(0));
+    conn->authenticate("extuser", "extpass", "PLAIN");
+    conn->selectBucket(bucket->getName());
+    conn->store("BasicClusterTest_Observe", Vbid{0}, "value");
+
+    cluster->getAuthProviderService().removeUser("extuser");
 }
 
 char isasl_env_var[1024];

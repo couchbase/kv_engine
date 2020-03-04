@@ -29,6 +29,7 @@ namespace test {
 
 class Node;
 class Bucket;
+class AuthProviderService;
 
 /**
  * The Cluster class represents a running cluster
@@ -94,6 +95,9 @@ public:
      * @return the number of nodes this cluster is built up of
      */
     virtual size_t size() const = 0;
+
+    /// Get the auth provider
+    virtual AuthProviderService& getAuthProviderService() = 0;
 
     /**
      * Factory method to create a cluster

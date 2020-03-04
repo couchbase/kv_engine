@@ -15,6 +15,7 @@
  */
 
 #include "cluster.h"
+#include "auth_provider_service.h"
 #include "bucket.h"
 #include "node.h"
 
@@ -33,7 +34,9 @@ public:
     ClusterImpl() = delete;
     ClusterImpl(const ClusterImpl&) = delete;
     ClusterImpl(std::vector<std::unique_ptr<Node>>& nodes, std::string dir)
-        : nodes(std::move(nodes)), directory(std::move(dir)) {
+        : nodes(std::move(nodes)),
+          directory(std::move(dir)),
+          authProviderService(*this) {
     }
 
     ~ClusterImpl() override;
@@ -66,10 +69,15 @@ public:
 
     size_t size() const override;
 
+    AuthProviderService& getAuthProviderService() override {
+        return authProviderService;
+    }
+
 protected:
     std::vector<std::unique_ptr<Node>> nodes;
     std::vector<std::shared_ptr<Bucket>> buckets;
     const std::string directory;
+    AuthProviderService authProviderService;
 };
 
 std::shared_ptr<Bucket> ClusterImpl::createBucket(

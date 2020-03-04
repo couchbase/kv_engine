@@ -1,4 +1,5 @@
 add_library(cluster_framework STATIC
+            auth_provider_service.cc auth_provider_service.h
             bucket.cc bucket.h
             cluster.cc cluster.h
             clustertest.cc clustertest.h
