@@ -142,45 +142,6 @@ TEST_F(DurabilityTest, Decrement) {
                                   GetMajorityDurabilityFrameInfoVector));
 }
 
-// MB-35548 blocks this
-TEST_F(DurabilityTest, DISABLED_Touch) {
-    auto conn = getConnection();
-    const auto info =
-            conn->store("Touch", Vbid{0}, "", cb::mcbp::Datatype::Raw);
-
-    BinprotTouchCommand cmd;
-    cmd.setKey("Touch");
-    cmd.setExpirytime(0x32);
-    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
-
-    auto rsp = conn->execute(cmd);
-    EXPECT_TRUE(rsp.isSuccess())
-            << "Status: " << to_string(rsp.getStatus()) << std::endl
-            << "Value: " << rsp.getDataString();
-    EXPECT_NE(info.cas, rsp.getCas());
-    EXPECT_NE(0, rsp.getCas());
-}
-
-// MB-35548 blocks this
-TEST_F(DurabilityTest, DISABLED_Gat) {
-    auto conn = getConnection();
-    const auto info =
-            conn->store("GetAndTouch", Vbid{0}, "foo", cb::mcbp::Datatype::Raw);
-
-    BinprotGetAndTouchCommand cmd;
-    cmd.setKey("GetAndTouch");
-    cmd.setExpirytime(0x32);
-    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
-
-    auto rsp = conn->execute(cmd);
-    EXPECT_TRUE(rsp.isSuccess())
-            << "Status: " << to_string(rsp.getStatus()) << std::endl
-            << "Value: " << rsp.getDataString();
-    EXPECT_NE(info.cas, rsp.getCas());
-    EXPECT_NE(0, rsp.getCas());
-    EXPECT_EQ("foo", rsp.getDataString());
-}
-
 TEST_F(DurabilityTest, SubdocDictAdd) {
     subdoc(*getConnection(),
            "SubdocDictAdd",
