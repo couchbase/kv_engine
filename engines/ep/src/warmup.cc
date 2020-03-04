@@ -1288,17 +1288,15 @@ void Warmup::scheduleKeyDump()
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    auto cb = std::make_unique<LoadStorageKVPairCallback>(
-            store, false, state.getState());
-    auto cl = std::make_unique<NoLookupCallback>();
-
     for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initScanContext(std::move(cb),
-                                            std::move(cl),
-                                            vbid,
-                                            0,
-                                            DocumentFilter::NO_DELETES,
-                                            ValueFilter::KEYS_ONLY);
+        auto ctx = kvstore->initScanContext(
+                std::make_unique<LoadStorageKVPairCallback>(
+                        store, false, state.getState()),
+                std::make_unique<NoLookupCallback>(),
+                vbid,
+                0,
+                DocumentFilter::NO_DELETES,
+                ValueFilter::KEYS_ONLY);
         if (ctx) {
             auto errorCode = kvstore->scan(*ctx);
             if (errorCode == scan_again) { // ENGINE_ENOMEM
@@ -1490,20 +1488,18 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     }
 
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    auto cb = std::make_unique<LoadStorageKVPairCallback>(
-            store, maybe_enable_traffic, state.getState());
-    auto cl =
-            std::make_unique<LoadValueCallback>(store.vbMap, state.getState());
-
     ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initScanContext(std::move(cb),
-                                            std::move(cl),
-                                            vbid,
-                                            0,
-                                            DocumentFilter::NO_DELETES,
-                                            valFilter);
+        auto ctx = kvstore->initScanContext(
+                std::make_unique<LoadStorageKVPairCallback>(
+                        store, maybe_enable_traffic, state.getState()),
+                std::make_unique<LoadValueCallback>(store.vbMap,
+                                                    state.getState()),
+                vbid,
+                0,
+                DocumentFilter::NO_DELETES,
+                valFilter);
         if (ctx) {
             errorCode = kvstore->scan(*ctx);
             if (errorCode == scan_again) { // ENGINE_ENOMEM
@@ -1534,20 +1530,18 @@ void Warmup::loadDataforShard(uint16_t shardId)
     scan_error_t errorCode = scan_success;
 
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    auto cb = std::make_unique<LoadStorageKVPairCallback>(
-            store, true, state.getState());
-    auto cl =
-            std::make_unique<LoadValueCallback>(store.vbMap, state.getState());
-
     ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
-        auto ctx = kvstore->initScanContext(std::move(cb),
-                                            std::move(cl),
-                                            vbid,
-                                            0,
-                                            DocumentFilter::NO_DELETES,
-                                            valFilter);
+        auto ctx = kvstore->initScanContext(
+                std::make_unique<LoadStorageKVPairCallback>(
+                        store, true, state.getState()),
+                std::make_unique<LoadValueCallback>(store.vbMap,
+                                                    state.getState()),
+                vbid,
+                0,
+                DocumentFilter::NO_DELETES,
+                valFilter);
         if (ctx) {
             errorCode = kvstore->scan(*ctx);
             if (errorCode == scan_again) { // ENGINE_ENOMEM
