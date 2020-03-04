@@ -240,6 +240,35 @@ protected:
     void dropKey(Vbid vbid, const DiskDocKey& key, int64_t bySeqno);
 
     /**
+     * @todo MB-37858: legacy from TAP, remove.
+     * Probably used only by ns_server in the old days of TAP, should be the
+     * TAP-equivalent of the current DCP SeqnoPersistence. Must be confirmed.
+     * It uses the CM::pCursorPreCheckpointId for inferring what is the last
+     * complete checkpoint persisted.
+     * Note that currently CM::pCursorPreCheckpointId is used only by
+     * CheckpointPersistence and some checkpoint-removal logic that does not
+     * need it strictly, so we can remove that too when we resolve MB-37858.
+     *
+     * @param vb
+     */
+    void handleCheckpointPersistence(VBucket& vb) const;
+
+    /**
+     * Performs operations that must be performed after flush succeeds,
+     * regardless of whether we flush non-meta items or a new vbstate only.
+     *
+     * @param vb
+     * @param flushStart Used for updating stats
+     * @param itemsFlushed Used for updating stats
+     * @param collectionFlush Used for performing collection-related operations
+     */
+    void flushSuccessEpilogue(
+            VBucket& vb,
+            const std::chrono::steady_clock::time_point& flushStart,
+            size_t itemsFlushed,
+            const Collections::VB::Flush& collectionFlush);
+
+    /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches.
      * Atomic as can be changed by ValueChangedListener on one thread and read

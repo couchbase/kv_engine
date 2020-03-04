@@ -344,7 +344,7 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
 }
 
 std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
-    const auto flush_start = std::chrono::steady_clock::now();
+    const auto flushStart = std::chrono::steady_clock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
@@ -367,22 +367,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         wakeUpCheckpointRemover();
     }
 
-    // @todo MB-37858: legacy from TAP, remove.
-    //   Probably used only by ns_server in the old days of TAP, should be the
-    //   TAP-equivalent of the current DCP SeqnoPersistence. Must be confirmed.
-    //   It uses the CM::pCursorPreCheckpointId for inferring what is the last
-    //   complete checkpoint persisted.
-    //   Note that currently CM::pCursorPreCheckpointId is used only by
-    //   CheckpointPersistence and some checkpoint-removal logic that does not
-    //   need it strictly, so we can remove that too when we resolve MB-37858.
-    const auto handleCheckpointPersistence = [this, &vb]() -> void {
-        vb->checkpointManager->itemsPersisted(); // update pCursorPreCkptId
-        vb->notifyHighPriorityRequests(
-                engine,
-                vb->checkpointManager->getPersistenceCursorPreChkId(),
-                HighPriorityVBNotify::ChkPersistence);
-    };
-
     if (toFlush.items.empty()) {
         // getItemsToPersist() may move the persistence cursor to a new
         // checkpoint, so some pending CheckpointPersistence request could be
@@ -391,7 +375,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         // Note: We do not need to notify SeqnoPersistence request here, as
         //   there is definitely nothing new to notify if we do not flush any
         //   mutation.
-        handleCheckpointPersistence();
+        handleCheckpointPersistence(*vb);
 
         return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
     }
@@ -399,7 +383,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // The range becomes initialised only when an item is flushed
     boost::optional<snapshot_range_t> range;
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
-    boost::optional<VB::Commit> commitData;
 
     while (!rwUnderlying->begin(
             std::make_unique<EPTransactionContext>(stats, *vb))) {
@@ -425,8 +408,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     if (persistedVbState) {
         vbstate = *persistedVbState;
     }
-    commitData.emplace(vb->getManifest(), vbstate);
-    vbucket_state& proposedVBState = commitData->proposedVBState;
+
+    VB::Commit commitData(vb->getManifest(), vbstate);
+    vbucket_state& proposedVBState = commitData.proposedVBState;
+
     // We need to set a few values from the in-memory state.
     uint64_t maxSeqno = 0;
     uint64_t maxVbStateOpCas = 0;
@@ -443,8 +428,6 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     // Set if we process an explicit set-vbstate item, which requires a flush
     // to disk regardless of whether we have any other item to flush or not
     bool mustPersistVBState = false;
-
-    Collections::VB::Flush collectionFlush(vb->getManifest());
 
     // HCS is optional because we have to update it on disk only if some
     // Commit/Abort SyncWrite is found in the flush-batch. If we're
@@ -650,7 +633,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     if (!mustPersistVBState && flushBatchSize == 0) {
         // The persistence cursor may have moved to a new checkpoint, which may
         // satisfy pending checkpoint-persistence requests
-        handleCheckpointPersistence();
+        handleCheckpointPersistence(*vb);
 
         return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
     }
@@ -700,6 +683,40 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
     proposedVBState.maxVisibleSeqno = maxVisibleSeqno;
 
+    // Are we flushing only a new vbstate?
+    if (mustPersistVBState && (flushBatchSize == 0)) {
+        // @todo MB-37920: This call potentially does 2 things:
+        //   1) update the cached vbstate
+        //   2) persisted the new vbstate
+        // The function returns false if the operation fails. But, (1) may
+        // succeed and (2) may fail, which makes function to return false.
+        // In that case we do not rollback the cached vbstate, which exposes
+        // a wrong on-disk state at that point.
+        // Also, when we re-attempt to flush a set-vbstate item we may fail
+        // again because of the optimization at
+        // vbucket_state::needsToBePersisted().
+        if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
+            // @todo: MB-36773, vbstate update is not retried
+            return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
+        }
+
+        // Update in-memory vbstate
+        rwUnderlying->setVBucketState(vbid, commitData.proposedVBState);
+
+        // Now the commit is complete, vBucket file must exist.
+        if (vb->setBucketCreation(false)) {
+            EP_LOG_DEBUG("{} created", vbid);
+        }
+
+        // The new vbstate was the only thing to flush. All done.
+        flushSuccessEpilogue(
+                *vb, flushStart, 0 /*itemsFlushed*/, commitData.collections);
+        return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
+    }
+
+    // The flush-batch must be non-empty by logic at this point.
+    Expects(flushBatchSize > 0);
+
     // Release the memory allocated for vectors in toFlush before we call
     // into KVStore::commit. This reduces memory peaks (every queued_item in
     // toFlush.items is a pointer (8 bytes); also, having a big
@@ -716,36 +733,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         const auto rangesToRelease = std::move(toFlush.ranges);
     }
 
-    // Persist the flush-batch if not empty.
-    // The result of the flush is defaulted to true to comply the current logic
-    // that considers flush-success/no-flush equivalent.
-    auto flushSuccessOrNoFlush = true;
-    if (flushBatchSize > 0) {
-        Expects(commitData.is_initialized());
-        flushSuccessOrNoFlush = commit(vbid, *rwUnderlying, *commitData);
-    } else if (mustPersistVBState) {
-        Expects(commitData.is_initialized());
+    // Persist the flush-batch.
+    const auto flushSuccess = commit(vbid, *rwUnderlying, commitData);
 
-        // @todo MB-37920: This call potentially does 2 things:
-        //   1) update the cached vbstate
-        //   2) persisted the new vbstate
-        // The function returns false if the operation fails. But, (1) may
-        // succeed and (2) may fail, which makes function to return false.
-        // In that case we do not rollback the cached vbstate, which exposes
-        // a wrong on-disk state at that point.
-        // Also, when we re-attempt to flush a set-vbstate item we may fail
-        // again because of the optimization at
-        // vbucket_state::needsToBePersisted().
-        if (!rwUnderlying->snapshotVBucket(vbid, commitData->proposedVBState)) {
-            // @todo: MB-36773, vbstate update is not retried
-            return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
-        } else {
-            // Update in-memory vbstate
-            rwUnderlying->setVBucketState(vbid, commitData->proposedVBState);
-        }
-    }
-
-    if (flushSuccessOrNoFlush) {
+    if (flushSuccess) {
         Expects(vb->rejectQueue.empty());
 
         // only update the snapshot range if items were flushed, i.e.
@@ -798,57 +789,17 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         }
     }
 
-    // @todo: We update the flush stats regardless of whether we flush or not
-    //   and regardless of whether the flush succeeds or fails.
-    //   While that may be ok for flush-time stats, it is definitely wrong for
-    //   EPStats::totalPersistVBState.
-    auto flush_end = std::chrono::steady_clock::now();
-    uint64_t transTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 flush_end - flush_start)
-                                 .count();
-
-    size_t transTimePerItem = 0;
-    if (flushSuccessOrNoFlush) {
-        transTimePerItem =
-                flushBatchSize ? static_cast<double>(transTime) / flushBatchSize
-                               : 0;
-    } else {
-        transTimePerItem = 0;
-    }
-    lastTransTimePerItem.store(transTimePerItem);
-    stats.cumulativeFlushTime.fetch_add(transTime);
-
-    // Decrement flusher_todo for all successful flushes
-    stats.flusher_todo.store(vb->rejectQueue.size());
-    stats.totalPersistVBState++;
-
-    if (commitData) {
-        // By definition, does not need to be called if no flush performed.
-        commitData->collections.checkAndTriggerPurge(vb->getId(), *this);
-    }
-
-    // Note: this is the end of old if(!toFlush.items.empty()) block that
-    // contained all the code above.
-    // So, the few next steps are the only ones that (before removing the block
-    // and early-returning if toFlush.items is empty) were executed and now are
-    // not executed anymore. A small comment on each.
-    //
-    // Note: The next steps now are skipped also if toFlush.items does not
-    //   contain any item to persist.
-
-    // By definition, this function is called after persisting a batch of data,
-    // so it can be safely skipped if toFlush.items is empty.
-    rwUnderlying->pendingTasks();
-
-    // Here: before early-returning if toFlush.items is empty, we used to check
-    // and possibly waking up the CheckpointRemover. Step safely moved above,
-    // just after getItemsToPersist(). See above for details.
+    // @todo: This call performs some steps that should not be executed if flush
+    //   fails. Deferring this improvement to a follow-up.
+    flushSuccessEpilogue(*vb,
+                         flushStart,
+                         flushBatchSize /*itemsFlushed*/,
+                         commitData.collections);
 
     // Handle HighPriority requests
-    if (flushSuccessOrNoFlush) {
+    if (flushSuccess) {
         Expects(vb->rejectQueue.empty());
 
-        handleCheckpointPersistence();
         vb->notifyHighPriorityRequests(
                 engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
 
@@ -860,6 +811,46 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     Expects(vb->rejectQueue.size() == flushBatchSize);
 
     return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
+}
+
+void EPBucket::handleCheckpointPersistence(VBucket& vb) const {
+    auto& manager = *vb.checkpointManager;
+    manager.itemsPersisted(); // update pCursorPreCkptId
+    vb.notifyHighPriorityRequests(engine,
+                                  manager.getPersistenceCursorPreChkId(),
+                                  HighPriorityVBNotify::ChkPersistence);
+}
+
+void EPBucket::flushSuccessEpilogue(
+        VBucket& vb,
+        const std::chrono::steady_clock::time_point& flushStart,
+        size_t itemsFlushed,
+        const Collections::VB::Flush& collectionFlush) {
+    // Update flush stats
+    const auto flushEnd = std::chrono::steady_clock::now();
+    const auto transTime =
+            std::chrono::duration_cast<std::chrono::milliseconds>(flushEnd -
+                                                                  flushStart)
+                    .count();
+    const auto transTimePerItem =
+            itemsFlushed ? static_cast<double>(transTime) / itemsFlushed : 0;
+    lastTransTimePerItem.store(transTimePerItem);
+    stats.cumulativeFlushTime.fetch_add(transTime);
+    stats.flusher_todo.store(0);
+    stats.totalPersistVBState++;
+
+    // By definition, does not need to be called if no flush performed or
+    // if flush failed.
+    collectionFlush.checkAndTriggerPurge(vb.getId(), *this);
+
+    // By definition, this function is called after persisting a batch of
+    // data, so it can be safely skipped if no flush performed or if flush
+    // failed.
+    getRWUnderlying(vb.getId())->pendingTasks();
+
+    // The persistence cursor may have moved to a new checkpoint, which may
+    // satisfy pending checkpoint-persistence requests
+    handleCheckpointPersistence(vb);
 }
 
 void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
