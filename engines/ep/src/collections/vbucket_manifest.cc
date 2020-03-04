@@ -127,70 +127,92 @@ boost::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
     return rv;
 }
 
-bool Manifest::update(const WriteHandle& wHandle,
-                      ::VBucket& vb,
-                      const Collections::Manifest& manifest) {
+Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
+                                        ::VBucket& vb,
+                                        const Collections::Manifest& manifest) {
+    auto status = canUpdate(manifest);
+    if (status != UpdateStatus::Success) {
+        return status;
+    }
+
     auto rv = processManifest(manifest);
-    if (!rv.is_initialized()) {
-        EP_LOG_WARN("VB::Manifest::update cannot update {}", vb.getId());
-        return false;
-    } else {
-        auto finalScopeCreate = applyScopeCreates(wHandle, vb, rv->scopesToAdd);
-        if (finalScopeCreate) {
-            auto uid = rv->collectionsToAdd.empty() &&
-                                       rv->collectionsToRemove.empty() &&
-                                       rv->scopesToRemove.empty()
-                               ? manifest.getUid()
-                               : manifestUid;
-            addScope(wHandle,
-                     vb,
-                     uid,
-                     finalScopeCreate.get().sid,
-                     finalScopeCreate.get().name,
-                     OptionalSeqno{/*no-seqno*/});
-        }
 
-        auto finalDeletion =
-                applyDeletions(wHandle, vb, rv->collectionsToRemove);
-        if (finalDeletion) {
-            auto uid =
-                    rv->collectionsToAdd.empty() && rv->scopesToRemove.empty()
-                            ? manifest.getUid()
-                            : manifestUid;
-            dropCollection(wHandle,
-                           vb,
-                           uid,
-                           *finalDeletion,
-                           OptionalSeqno{/*no-seqno*/});
-        }
-
-        auto finalAddition = applyCreates(wHandle, vb, rv->collectionsToAdd);
-
-        if (finalAddition) {
-            auto uid = rv->scopesToRemove.empty() ? manifest.getUid()
-                                                  : manifestUid;
-            addCollection(wHandle,
-                          vb,
-                          uid,
-                          finalAddition.get().identifiers,
-                          finalAddition.get().name,
-                          finalAddition.get().maxTtl,
-                          OptionalSeqno{/*no-seqno*/});
-        }
-
-        // This is done last so the scope deletion follows any collection
-        // deletions
-        auto finalScopeDrop = applyScopeDrops(wHandle, vb, rv->scopesToRemove);
-
-        if (finalScopeDrop) {
-            dropScope(wHandle,
-                      vb,
-                      manifest.getUid(),
-                      *finalScopeDrop,
-                      OptionalSeqno{/*no-seqno*/});
+    // If manifest was equal. expect no changes
+    if (manifest.getUid() == manifestUid) {
+        if (rv.empty()) {
+            return UpdateStatus::Success;
+        } else {
+            // Log verbosely for this case
+            EP_LOG_WARN(
+                    "Manifest::update with equal uid:{} but differences "
+                    "scopes+:{}, collections+:{}, scopes-:{}, collections-{}",
+                    manifestUid,
+                    rv.scopesToAdd.size(),
+                    rv.collectionsToAdd.size(),
+                    rv.scopesToRemove.size(),
+                    rv.collectionsToRemove.size());
+            return UpdateStatus::EqualUidWithDifferences;
         }
     }
-    return true;
+
+    auto finalScopeCreate = applyScopeCreates(wHandle, vb, rv.scopesToAdd);
+    if (finalScopeCreate) {
+        auto uid = rv.collectionsToAdd.empty() &&
+                                   rv.collectionsToRemove.empty() &&
+                                   rv.scopesToRemove.empty()
+                           ? manifest.getUid()
+                           : manifestUid;
+        addScope(wHandle,
+                 vb,
+                 uid,
+                 finalScopeCreate.get().sid,
+                 finalScopeCreate.get().name,
+                 OptionalSeqno{/*no-seqno*/});
+    }
+
+    auto finalDeletion = applyDeletions(wHandle, vb, rv.collectionsToRemove);
+    if (finalDeletion) {
+        auto uid = rv.collectionsToAdd.empty() && rv.scopesToRemove.empty()
+                           ? manifest.getUid()
+                           : manifestUid;
+        dropCollection(
+                wHandle, vb, uid, *finalDeletion, OptionalSeqno{/*no-seqno*/});
+    }
+
+    auto finalAddition = applyCreates(wHandle, vb, rv.collectionsToAdd);
+
+    if (finalAddition) {
+        auto uid = rv.scopesToRemove.empty() ? manifest.getUid() : manifestUid;
+        addCollection(wHandle,
+                      vb,
+                      uid,
+                      finalAddition.get().identifiers,
+                      finalAddition.get().name,
+                      finalAddition.get().maxTtl,
+                      OptionalSeqno{/*no-seqno*/});
+    }
+
+    // This is done last so the scope deletion follows any collection
+    // deletions
+    auto finalScopeDrop = applyScopeDrops(wHandle, vb, rv.scopesToRemove);
+
+    if (finalScopeDrop) {
+        dropScope(wHandle,
+                  vb,
+                  manifest.getUid(),
+                  *finalScopeDrop,
+                  OptionalSeqno{/*no-seqno*/});
+    }
+    return UpdateStatus::Success;
+}
+
+Manifest::UpdateStatus Manifest::canUpdate(
+        const Collections::Manifest& manifest) const {
+    // Cannot go backwards
+    if (manifest.getUid() < manifestUid) {
+        return UpdateStatus::Behind;
+    }
+    return UpdateStatus::Success;
 }
 
 void Manifest::addCollection(const WriteHandle& wHandle,
@@ -428,22 +450,22 @@ void Manifest::dropScope(const WriteHandle& wHandle,
             manifestUid);
 }
 
-Manifest::ProcessResult Manifest::processManifest(
+Manifest::ManifestChanges Manifest::processManifest(
         const Collections::Manifest& manifest) const {
-    ProcessResult rv = ManifestChanges();
+    ManifestChanges rv;
 
     for (const auto& entry : map) {
         // If the entry is not found in the new manifest it must be
         // deleted.
         if (manifest.findCollection(entry.first) == manifest.end()) {
-            rv->collectionsToRemove.push_back(entry.first);
+            rv.collectionsToRemove.push_back(entry.first);
         }
     }
 
     for (const auto scope : scopes) {
         // Remove the scopes that don't exist in the new manifest
         if (manifest.findScope(scope) == manifest.endScopes()) {
-            rv->scopesToRemove.push_back(scope);
+            rv.scopesToRemove.push_back(scope);
         }
     }
 
@@ -453,14 +475,14 @@ Manifest::ProcessResult Manifest::processManifest(
          scopeItr++) {
         if (std::find(scopes.begin(), scopes.end(), scopeItr->first) ==
             scopes.end()) {
-            rv->scopesToAdd.push_back({scopeItr->first, scopeItr->second.name});
+            rv.scopesToAdd.push_back({scopeItr->first, scopeItr->second.name});
         }
 
         for (const auto& m : scopeItr->second.collections) {
             auto mapItr = map.find(m.id);
 
             if (mapItr == map.end()) {
-                rv->collectionsToAdd.push_back(
+                rv.collectionsToAdd.push_back(
                         {std::make_pair(scopeItr->first, m.id),
                          manifest.findCollection(m.id)->second.name,
                          m.maxTtl});
@@ -933,6 +955,18 @@ std::ostream& operator<<(std::ostream& os,
     os << ", cid:" << readHandle.key.getCollectionID().to_string();
     os << ", manifest:" << *readHandle.manifest;
     return os;
+}
+
+std::string to_string(Manifest::UpdateStatus status) {
+    switch (status) {
+    case Manifest::UpdateStatus::Success:
+        return "Success";
+    case Manifest::UpdateStatus::Behind:
+        return "Behind";
+    case Manifest::UpdateStatus::EqualUidWithDifferences:
+        return "EqualUidWithDifferences";
+    }
+    return "Unknown " + std::to_string(int(status));
 }
 
 } // end namespace VB

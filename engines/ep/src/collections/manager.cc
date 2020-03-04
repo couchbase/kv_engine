@@ -60,7 +60,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     // If the new manifest has a non zero uid, try to apply it
     if (newManifest->getUid() != 0) {
         // However expect it to be increasing
-        if (newManifest->getUid() <= current->getUid()) {
+        if (newManifest->getUid() < current->getUid()) {
             // Bad - newManifest has a equal/lower UID
             EP_LOG_WARN(
                     "Collections::Manager::update the new manifest has "
@@ -76,12 +76,10 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 
         auto updated = updateAllVBuckets(bucket, *newManifest);
         if (updated.is_initialized()) {
-            auto rolledback = updateAllVBuckets(bucket, *current);
             return cb::engine_error(
                     cb::engine_errc::cannot_apply_collections_manifest,
                     "Collections::Manager::update aborted on " +
-                            updated->to_string() + " and rolled-back success:" +
-                            std::to_string(!rolledback.is_initialized()) +
+                            updated->to_string() +
                             ", cannot apply:" + cb::to_string(manifest));
         }
 
@@ -111,7 +109,27 @@ boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
         auto vb = bucket.getVBuckets().getBucket(Vbid(i));
 
         if (vb && vb->getState() == vbucket_state_active) {
-            if (!vb->updateFromManifest(newManifest)) {
+            bool abort = false;
+            auto status = vb->updateFromManifest(newManifest);
+            using namespace Collections;
+            switch (status) {
+            case VB::Manifest::UpdateStatus::EqualUidWithDifferences:
+                // This error is unexpected and the best action is not to
+                // continue applying it
+                abort = true;
+                [[fallthrough]];
+            case VB::Manifest::UpdateStatus::Behind:
+                // Applying a manifest which is 'behind' the vbucket is
+                // expected (certainly for newly promoted replica), however
+                // still log it for now.
+                EP_LOG_WARN(
+                        "Collections::Manager::updateAllVBuckets: error:{} {}",
+                        to_string(status),
+                        vb->getId());
+            case VB::Manifest::UpdateStatus::Success:
+                break;
+            }
+            if (abort) {
                 return vb->getId();
             }
         }
@@ -189,8 +207,15 @@ std::pair<uint64_t, boost::optional<ScopeID>> Collections::Manager::getScopeID(
 
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
-    currentManifest.withRLock(
-            [&vb](const auto& manifest) { vb.updateFromManifest(manifest); });
+    Collections::VB::Manifest::UpdateStatus status;
+    currentManifest.withRLock([&vb, &status](const auto& manifest) {
+        status = vb.updateFromManifest(manifest);
+    });
+    if (status != Collections::VB::Manifest::UpdateStatus::Success) {
+        EP_LOG_WARN("Collections::Manager::update error:{} {}",
+                    to_string(status),
+                    vb.getId());
+    }
 }
 
 // This method is really to aid development and allow the dumping of the VB

@@ -78,6 +78,8 @@ class Manifest {
 public:
     using container = ::std::unordered_map<CollectionID, ManifestEntry>;
 
+    enum class UpdateStatus { Success, Behind, EqualUidWithDifferences };
+
     /**
      * RAII read locking for access to the Manifest.
      */
@@ -524,9 +526,10 @@ public:
          *
          * @param vb The VBucket to update (queue data into).
          * @param manifest The incoming manifest to compare this object with.
-         * @return true if the update was applied
+         * @return UpdateStatus success or reason for failure
          */
-        bool update(::VBucket& vb, const Collections::Manifest& newManifest) {
+        UpdateStatus update(::VBucket& vb,
+                            const Collections::Manifest& newManifest) {
             return manifest.update(*this, vb, newManifest);
         }
 
@@ -793,9 +796,14 @@ protected:
      * @param manifest The incoming manifest to compare this object with.
      * @return true if the update was applied
      */
-    bool update(const WriteHandle& wHandle,
-                ::VBucket& vb,
-                const Collections::Manifest& manifest);
+    UpdateStatus update(const WriteHandle& wHandle,
+                        ::VBucket& vb,
+                        const Collections::Manifest& manifest);
+
+    /**
+     * @return an update status by testing if this can be updated to manifest
+     */
+    UpdateStatus canUpdate(const Collections::Manifest& manifest) const;
 
     /**
      * Sub-functions used by update
@@ -1161,9 +1169,12 @@ protected:
         std::vector<ScopeID> scopesToRemove;
         std::vector<CollectionAddition> collectionsToAdd;
         std::vector<CollectionID> collectionsToRemove;
-    };
 
-    using ProcessResult = boost::optional<ManifestChanges>;
+        bool empty() const {
+            return scopesToAdd.empty() && scopesToRemove.empty() &&
+                   collectionsToAdd.empty() && collectionsToRemove.empty();
+        }
+    };
 
     /**
      * Process a Collections::Manifest to determine if collections need adding
@@ -1176,7 +1187,8 @@ protected:
      *          be aborted. This is the case when we are attempting to add a
      *          deleting collection.
      */
-    ProcessResult processManifest(const Collections::Manifest& manifest) const;
+    ManifestChanges processManifest(
+            const Collections::Manifest& manifest) const;
 
     /**
      * Create an Item that carries a collection system event and queue it to the
@@ -1273,6 +1285,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 /// This is the locked version for printing the manifest
 std::ostream& operator<<(std::ostream& os,
                          const Manifest::ReadHandle& readHandle);
+
+std::string to_string(Manifest::UpdateStatus);
 
 } // end namespace VB
 } // end namespace Collections

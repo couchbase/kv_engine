@@ -61,9 +61,21 @@ TEST_P(CollectionsParameterizedTest, uid_equal) {
     CollectionsManifest cm{CollectionEntry::meat};
     EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
 
-    // Test we return out_of_range if manifest uid is same
+    // An equal manifest is tolerated (and ignored)
+    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+}
+
+TEST_P(CollectionsParameterizedTest, manifest_uid_equal_with_differences) {
+    CollectionsManifest cm{CollectionEntry::meat};
+    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+
+    auto uid = cm.getUid();
+    cm.add(CollectionEntry::fruit);
+    // force the uid back
+    cm.updateUid(uid);
+    // manifest is equal, but contains an extra collection, unexpected diversion
     EXPECT_EQ(store->setCollections({cm}).code(),
-              cb::engine_errc::out_of_range);
+              cb::engine_errc::cannot_apply_collections_manifest);
 }
 
 // This test stores a key which matches what collections internally uses, but

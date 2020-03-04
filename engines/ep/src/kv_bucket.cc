@@ -2554,7 +2554,13 @@ cb::engine_error KVBucket::setCollections(cb::const_char_buffer manifest) {
     // Inhibit VB state changes whilst updating the vbuckets
     LockHolder lh(vbsetMutex);
 
-    return collectionsManager->update(*this, manifest);
+    auto status = collectionsManager->update(*this, manifest);
+    if (status.code() != cb::engine_errc::success) {
+        EP_LOG_WARN("KVBucket::setCollections error:{} {}",
+                    status.code(),
+                    status.what());
+    }
+    return status;
 }
 
 std::pair<cb::mcbp::Status, std::string> KVBucket::getCollections() const {

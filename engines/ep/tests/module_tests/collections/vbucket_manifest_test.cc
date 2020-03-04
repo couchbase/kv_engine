@@ -598,7 +598,7 @@ TEST_F(VBucketManifestTest, updates3) {
 
     // Remove everything
     CollectionsManifest cm2(NoDefault{});
-    cm2.updateUid(cm.getUid());
+    cm2.updateUid(cm.getUid() + 1);
     EXPECT_TRUE(manifest.update(cm2));
     EXPECT_TRUE(manifest.checkSize(0));
     EXPECT_FALSE(manifest.exists(CollectionEntry::defaultC));

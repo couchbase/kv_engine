@@ -140,7 +140,7 @@ void CollectionsManifest::updateUid() {
 }
 
 void CollectionsManifest::updateUid(Collections::ManifestUid uid) {
-    this->uid = uid;
+    this->uid.reset(uid);
 
     std::stringstream ss;
     ss << std::hex << uid;

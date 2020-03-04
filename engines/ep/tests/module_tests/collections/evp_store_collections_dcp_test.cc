@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
@@ -292,6 +293,46 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::collections_manifest_is_ahead, e.code());
     }
+}
+
+// MB_38019 saw that if a replica gets ahead of the local node, and is
+// switched to active, we would effectively roll it back, however that would
+// trigger a monotonic exception
+TEST_F(CollectionsDcpTest, MB_38019) {
+    VBucketPtr active = store->getVBucket(vbid);
+
+    // setCollections will update active node
+    CollectionsManifest cm(CollectionEntry::fruit);
+    store->setCollections(std::string{cm});
+
+    VBucketPtr replica = store->getVBucket(replicaVB);
+
+    auto uid = cm.getUid();
+    // Drive the replica as if DCP was pushing changes, first a snapshot must
+    // be created, then create collections, first we will match the active
+    // node, then go ahead by two extra changes.
+    replica->checkpointManager->createSnapshot(
+            1, 3, 0, CheckpointType::Memory, 3);
+    replica->replicaAddCollection(
+            uid, {ScopeID::Default, CollectionEntry::fruit}, "fruit", {}, 1);
+    replica->replicaAddCollection(
+            ++uid, {ScopeID::Default, CollectionEntry::meat}, "meat", {}, 2);
+    replica->replicaAddCollection(
+            ++uid, {ScopeID::Default, CollectionEntry::dairy}, "dairy", {}, 3);
+
+    // Would of seen a monotonic exception
+    EXPECT_NO_THROW(
+            store->setVBucketState(replicaVB, vbucket_state_active, {}));
+
+    // Finally apply the changes the replica saw, but via setCollections, the
+    // replica should be ignoring the downlevel manifests
+    cm.add(CollectionEntry::meat);
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setCollections(std::string{cm}).code());
+
+    cm.add(CollectionEntry::dairy);
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setCollections(std::string{cm}).code());
 }
 
 /*

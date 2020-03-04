@@ -798,7 +798,8 @@ public:
      * @param m A Collections::Manifest to apply to the VB::Manifest
      * @param true if the update was successful
      */
-    bool updateFromManifest(const Collections::Manifest& m) {
+    Collections::VB::Manifest::UpdateStatus updateFromManifest(
+            const Collections::Manifest& m) {
         return manifest->wlock().update(*this, m);
     }
 
