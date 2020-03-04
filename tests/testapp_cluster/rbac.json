@@ -1,0 +1,13 @@
+{
+  "@admin": {
+    "buckets": {
+      "*": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "domain": "local"
+  }
+}

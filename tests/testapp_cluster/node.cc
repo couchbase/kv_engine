@@ -66,7 +66,7 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
     errmaps.append("/etc/couchbase/kv/error_maps");
     cb::io::sanitizePath(errmaps);
     std::string rbac(SOURCE_ROOT);
-    rbac.append("/tests/testapp/rbac.json");
+    rbac.append("/tests/testapp_cluster/rbac.json");
     cb::io::sanitizePath(rbac);
     std::string log_filename = NodeImpl::directory + "/memcached_log";
     cb::io::sanitizePath(log_filename);

@@ -98,11 +98,13 @@ TEST_F(BasicClusterTest, MultiGet) {
 TEST_F(BasicClusterTest, Observe) {
     auto bucket = cluster->getBucket("default");
     auto replica = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
+    replica->authenticate("@admin", "password", "PLAIN");
+    replica->selectBucket(bucket->getName());
 
     BinprotObserveCommand observe({{Vbid{0}, "BasicClusterTest_Observe"}});
     // check that it don't exist on the replica
     auto rsp = BinprotObserveResponse{replica->execute(observe)};
-    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
     auto keys = rsp.getResults();
     ASSERT_EQ(1, keys.size());
     EXPECT_EQ(OBS_STATE_NOT_FOUND, keys.front().status);
@@ -155,7 +157,7 @@ int main(int argc, char** argv) {
     putenv(envvar);
 
     std::string isasl_file_name = SOURCE_ROOT;
-    isasl_file_name.append("/tests/testapp/cbsaslpw.json");
+    isasl_file_name.append("/tests/testapp_cluster/cbsaslpw.json");
     cb::io::sanitizePath(isasl_file_name);
 
     // Add the file to the exec environment
