@@ -231,6 +231,9 @@ void Collections::Manager::warmupCompleted(KVBucket& bucket) const {
             if (vb->lockCollections().isDropInProgress()) {
                 Collections::VB::Flush::triggerPurge(vbid, bucket);
             }
+            if (vb->getState() == vbucket_state_active) {
+                update(*vb);
+            }
         }
     }
 }

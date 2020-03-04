@@ -1204,6 +1204,24 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 }
 
+// Set the manifest before warmup runs, without the fix, the manifest wouldn't
+// get applied to the active vbucket
+TEST_F(CollectionsWarmupTest, MB_38125) {
+    resetEngineAndEnableWarmup();
+
+    CollectionsManifest cm(CollectionEntry::fruit);
+    store->setCollections({cm});
+
+    // Now get the engine warmed up
+    runReadersUntilWarmedUp();
+
+    auto vb = store->getVBucket(vbid);
+
+    // Fruit is enabled
+    EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"grape", CollectionEntry::fruit}));
+}
+
 /**
  * Test checks that setCollections propagates the collection data to active
  * vbuckets.
