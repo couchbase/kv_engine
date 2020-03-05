@@ -94,12 +94,12 @@ protected:
     size_t flushAllItems(Vbid vbid) {
         size_t itemsFlushed = 0;
         auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
-        bool moreAvailable;
+        EPBucket::MoreAvailable moreAvailable;
         do {
-            size_t count;
-            std::tie(moreAvailable, count) = ep.flushVBucket(vbid);
-            itemsFlushed += count;
-        } while (moreAvailable);
+            const auto res = ep.flushVBucket(vbid);
+            moreAvailable = res.moreAvailable;
+            itemsFlushed += res.numFlushed;
+        } while (moreAvailable == EPBucket::MoreAvailable::Yes);
         return itemsFlushed;
     }
 

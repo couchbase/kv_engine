@@ -23,6 +23,7 @@
 #include "../mock/mock_paging_visitor.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
@@ -39,6 +40,10 @@
 #include <xattr/utils.h>
 
 using namespace std::string_literals;
+
+using FlushResult = EPBucket::FlushResult;
+using MoreAvailable = EPBucket::MoreAvailable;
+using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB
@@ -173,10 +178,10 @@ protected:
      * Directly flush the given vBucket (instead of calling a unit test
      * function) and test the output of the flush function.
      */
-    void flushDirectlyIfPersistent(Vbid vb, std::pair<bool, size_t> expected) {
+    void flushDirectlyIfPersistent(Vbid vb, const FlushResult& expected) {
         if (std::get<0>(GetParam()) == "persistent") {
-            auto& bucket = dynamic_cast<EPBucket&>(*store);
-            EXPECT_EQ(expected, bucket.flushVBucket(vb));
+            const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vb);
+            EXPECT_EQ(expected, res);
         }
     }
 
@@ -821,7 +826,8 @@ void STExpiryPagerTest::expiredItemsDeleted() {
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
     }
 
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 3));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 3, WakeCkptRemover::No});
 
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
@@ -836,7 +842,8 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     ASSERT_EQ(3, engine->getVBucket(vbid)->getNumItems());
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 1));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
 
     EXPECT_EQ(2, engine->getVBucket(vbid)->getNumItems())
         << "Should only have 2 items after running expiry pager";
@@ -871,7 +878,8 @@ void STExpiryPagerTest::expiredItemsDeleted() {
         << "Should still have 2 items after time-travelling";
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 1));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
 
     // Should only be 1 item remaining.
     EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
@@ -1068,7 +1076,8 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
 
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 1));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     const char* msg;
     EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
@@ -1079,7 +1088,8 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
     TimeTraveller docBrown(15);
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 1));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
 }
 
 // Test that expiring a non-resident item works (and item counts are correct).
@@ -1094,7 +1104,8 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     auto item = make_item(vbid, key, "value", expiry);
     ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
 
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 1));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
@@ -1114,7 +1125,8 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     ASSERT_EQ(1, engine->getVBucket(vbid)->getNumNonResidentItems());
 
     wakeUpExpiryPager();
-    flushDirectlyIfPersistent(vbid, std::make_pair(false, 1));
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
             << "Should have 0 items after running expiry pager";
@@ -1152,7 +1164,8 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
             make_item(vbid, key, value, expiry, PROTOCOL_BINARY_DATATYPE_XATTR);
     ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
 
-    flushDirectlyIfPersistent(vbid, {false, 1});
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     // Sanity check - should have not hit high watermark (otherwise the
     // item pager will run automatically and aggressively delete items).
@@ -1187,7 +1200,8 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
 
     wakeUpExpiryPager();
 
-    flushDirectlyIfPersistent(vbid, {false, 1});
+    flushDirectlyIfPersistent(vbid,
+                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
             << "Should have 0 items after running expiry pager";
@@ -1248,7 +1262,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
               engine->storeInner(cookie, item, cas, OPERATION_SET, false));
 
     auto& bucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(1, bucket.flushVBucket(vbid).second);
+    EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed);
 
     // 1) Store k1
     auto vb = store->getVBucket(vbid);

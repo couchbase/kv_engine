@@ -32,6 +32,10 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+using FlushResult = EPBucket::FlushResult;
+using MoreAvailable = EPBucket::MoreAvailable;
+using WakeCkptRemover = EPBucket::WakeCkptRemover;
+
 class WithMetaTest : public SingleThreadedEPBucketTest {
 public:
     void SetUp() override {
@@ -1211,7 +1215,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     itemMeta.revSeqno++; // make delete succeed
@@ -1220,7 +1224,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(cb::mcbp::ClientOpcode::DelWithMeta, dwm));
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
@@ -1277,7 +1281,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     itemMeta.revSeqno++; // make delete succeed
@@ -1286,7 +1290,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(cb::mcbp::ClientOpcode::DelWithMeta, dwm));
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
@@ -1333,7 +1337,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                   cb::mcbp::Status::Success,
                   withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     ItemMetaData metadata;
@@ -1368,7 +1372,7 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
                   cb::mcbp::Status::Success,
                   withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     ItemMetaData metadata;
@@ -1405,7 +1409,7 @@ TEST_P(DelWithMetaTest, MB_31141) {
                   withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK,
                   {0x01, 0x01, 0x00, 0x01, 0x01});
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
@@ -1439,7 +1443,7 @@ TEST_P(AddSetWithMetaTest, MB_31141) {
                   ENGINE_SUCCESS,
                   {0x01, 0x01, 0x00, 0x01, 0x01});
 
-    EXPECT_EQ(std::make_pair(false, size_t(1)),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
     auto options = get_options_t(QUEUE_BG_FETCH);

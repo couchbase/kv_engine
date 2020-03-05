@@ -168,18 +168,19 @@ void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
     // Need to retry as warmup may not have completed, or if the flush is
     // in multiple parts.
     bool flush_successful = false;
-    bool moreAvailable;
+    using MoreAvailable = EPBucket::MoreAvailable;
+    MoreAvailable moreAvailable;
     do {
-        size_t count;
-        std::tie(moreAvailable, count) =
-                dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
-        actualFlushed += count;
-        if (!moreAvailable) {
+        const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+        moreAvailable = res.moreAvailable;
+        actualFlushed += res.numFlushed;
+        if (moreAvailable == MoreAvailable::No) {
             flush_successful = true;
             break;
         }
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-    } while ((std::chrono::steady_clock::now() < deadline) && moreAvailable);
+    } while ((std::chrono::steady_clock::now() < deadline) &&
+             moreAvailable == MoreAvailable::Yes);
 
     ASSERT_TRUE(flush_successful)
             << "Hit timeout (" << time_limit.count()
