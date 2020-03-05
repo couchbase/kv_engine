@@ -35,14 +35,6 @@ protected:
         return conn;
     }
 
-    std::string createKey(CollectionIDType cid, std::string key) {
-        cb::mcbp::unsigned_leb128<CollectionIDType> leb(cid);
-        std::string ret;
-        std::copy(leb.begin(), leb.end(), std::back_inserter(ret));
-        ret.append(key);
-        return ret;
-    }
-
     static void mutate(MemcachedConnection& conn,
                        std::string id,
                        MutationType type) {
@@ -58,9 +50,15 @@ protected:
 // Verify that I can store documents within the collections
 TEST_F(CollectionsTests, TestBasicOperations) {
     auto conn = getConnection();
-    mutate(*conn, createKey(8, "TestBasicOperations"), MutationType::Add);
-    mutate(*conn, createKey(8, "TestBasicOperations"), MutationType::Set);
-    mutate(*conn, createKey(8, "TestBasicOperations"), MutationType::Replace);
+    mutate(*conn,
+           createKey(Collection::Fruit, "TestBasicOperations"),
+           MutationType::Add);
+    mutate(*conn,
+           createKey(Collection::Fruit, "TestBasicOperations"),
+           MutationType::Set);
+    mutate(*conn,
+           createKey(Collection::Fruit, "TestBasicOperations"),
+           MutationType::Replace);
 }
 
 TEST_F(CollectionsTests, TestUnknownScope) {

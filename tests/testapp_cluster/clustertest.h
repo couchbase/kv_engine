@@ -17,7 +17,8 @@
 #pragma once
 
 #include <folly/portability/GTest.h>
-#include <include/memcached/vbucket.h>
+#include <memcached/dockey.h>
+#include <memcached/vbucket.h>
 
 class MemcachedConnection;
 
@@ -54,6 +55,29 @@ protected:
     void getReplica(MemcachedConnection& conn,
                     Vbid vbid,
                     const std::string& key);
+
+    /**
+     * Create a collection enabled key
+     *
+     * @param cid The collection identifier
+     * @param key The key to encode
+     * @return a key which may be used on a collection enabled connection
+     */
+    static std::string createKey(CollectionIDType cid, const std::string& key);
+
+    /// An enum containing the various collections defined in the default
+    /// bucket by default by the test framework
+    enum class Collection : CollectionIDType {
+        Default = 0,
+        Fruit = 8,
+        Vegetable = 9
+    };
+
+    /// Wrapper method to allow us to use the names of the collections
+    /// rather the numeric values
+    static std::string createKey(Collection cid, const std::string& key) {
+        return createKey(CollectionIDType(cid), key);
+    }
 
     static std::unique_ptr<Cluster> cluster;
 };

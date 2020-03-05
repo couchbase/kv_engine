@@ -19,6 +19,7 @@
 #include "bucket.h"
 #include "cluster.h"
 
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -95,4 +96,13 @@ void cb::test::ClusterTest::getReplica(MemcachedConnection& conn,
         rsp = conn.execute(cmd);
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
     EXPECT_TRUE(rsp.isSuccess());
+}
+
+std::string cb::test::ClusterTest::createKey(CollectionIDType cid,
+                                             const std::string& key) {
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb(cid);
+    std::string ret;
+    std::copy(leb.begin(), leb.end(), std::back_inserter(ret));
+    ret.append(key);
+    return ret;
 }
