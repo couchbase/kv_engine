@@ -25,6 +25,7 @@
 #include "vb_visitors.h"
 #include "vbucket.h"
 
+#include <boost/optional.hpp>
 #include <spdlog/fmt/ostr.h>
 
 Collections::Manager::Manager() {
@@ -328,24 +329,39 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
         const AddStatFn& add_stat,
         const std::string& statKey) {
     bool success = true;
+    boost::optional<std::string> arg;
+
+    if (auto pos = statKey.find_first_of(' '); pos != std::string::npos) {
+        arg = statKey.substr(pos + 1);
+    }
     if (cb_isPrefix(statKey, "collections-details")) {
-        // VB maybe encoded in statKey
-        auto pos = statKey.find_first_of(" ");
-        if (pos != std::string::npos) {
+        if (arg) {
+            // VB may be encoded in statKey
+            uint16_t id;
             try {
-                Vbid vbid = Vbid(std::stoi(statKey.substr(pos)));
-                VBucketPtr vb = bucket.getVBucket(vbid);
-                if (vb) {
-                    success = vb->lockCollections().addCollectionStats(
-                            vbid, cookie, add_stat);
-                } else {
-                    return ENGINE_NOT_MY_VBUCKET;
-                }
+                id = std::stoi(*arg);
+            } catch (const std::logic_error& e) {
+                EP_LOG_WARN(
+                        "Collections::Manager::doCollectionStats invalid "
+                        "vbid:{}, exception:{}",
+                        *arg, e.what());
+                return ENGINE_EINVAL;
+            }
+
+            Vbid vbid = Vbid(id);
+            VBucketPtr vb = bucket.getVBucket(vbid);
+            if (!vb) {
+                return ENGINE_NOT_MY_VBUCKET;
+            }
+
+            try {
+                success = vb->lockCollections().addCollectionStats(
+                        vbid, cookie, add_stat);
             } catch (const std::exception& e) {
                 EP_LOG_WARN(
-                        "Collections::Manager::doStats failed to build "
-                        "stats for {} exception:{}",
-                        statKey.substr(pos),
+                        "Collections::Manager::doCollectionStats failed to "
+                        "build stats for {} exception:{}",
+                        *arg,
                         e.what());
                 return ENGINE_EINVAL;
             }
@@ -371,7 +387,8 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
                 add_casted_stat(buffer, entry.second, add_stat, cookie);
             } catch (const std::exception& e) {
                 EP_LOG_WARN(
-                        "Collections::Manager::doStats failed to build stats: "
+                        "Collections::Manager::doCollectionStats failed to "
+                        "build stats: "
                         "{}",
                         e.what());
                 success = false;
@@ -396,24 +413,38 @@ ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
         const AddStatFn& add_stat,
         const std::string& statKey) {
     bool success = true;
+    boost::optional<std::string> arg;
+
+    if (auto pos = statKey.find_first_of(' '); pos != std::string_view::npos) {
+        arg = statKey.substr(pos + 1);
+    }
     if (cb_isPrefix(statKey, "scopes-details")) {
-        // VB may be encoded in statKey
-        auto pos = statKey.find_first_of(" ");
-        if (pos != std::string::npos) {
+        if (arg) {
+            // VB may be encoded in statKey
+            uint16_t id;
             try {
-                Vbid vbid = Vbid(std::stoi(statKey.substr(pos)));
-                VBucketPtr vb = bucket.getVBucket(vbid);
-                if (vb) {
-                    success = vb->lockCollections().addScopeStats(
-                            vbid, cookie, add_stat);
-                } else {
-                    return ENGINE_NOT_MY_VBUCKET;
-                }
+                id = std::stoi(*arg);
+            } catch (const std::logic_error& e) {
+                EP_LOG_WARN(
+                        "Collections::Manager::doScopeStats invalid "
+                        "vbid:{}, exception:{}",
+                        *arg, e.what());
+                return ENGINE_EINVAL;
+            }
+
+            Vbid vbid = Vbid(id);
+            VBucketPtr vb = bucket.getVBucket(vbid);
+            if (!vb) {
+                return ENGINE_NOT_MY_VBUCKET;
+            }
+            try {
+                success = vb->lockCollections().addScopeStats(
+                        vbid, cookie, add_stat);
             } catch (const std::exception& e) {
                 EP_LOG_WARN(
                         "Collections::Manager::doScopeStats failed to "
                         "build stats for {} exception:{}",
-                        statKey.substr(pos),
+                        *arg,
                         e.what());
                 return ENGINE_EINVAL;
             }
