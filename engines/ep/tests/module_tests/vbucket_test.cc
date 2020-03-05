@@ -229,7 +229,8 @@ MutationStatus VBucketTestBase::public_processSet(Item& itm,
             .first;
 }
 
-AddStatus VBucketTestBase::public_processAdd(Item& itm) {
+AddStatus VBucketTestBase::public_processAdd(Item& itm,
+                                             const VBQueueItemCtx& ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(itm.getKey());
     auto htRes = vbucket->ht.findForUpdate(itm.getKey());
@@ -240,7 +241,7 @@ AddStatus VBucketTestBase::public_processAdd(Item& itm) {
                          v,
                          itm,
                          /*maybeKeyExists*/ true,
-                         VBQueueItemCtx{},
+                         ctx,
                          cHandle)
             .first;
 }

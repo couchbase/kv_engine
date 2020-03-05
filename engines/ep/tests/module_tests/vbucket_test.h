@@ -106,7 +106,7 @@ protected:
                                      const uint64_t cas,
                                      const VBQueueItemCtx& ctx = {});
 
-    AddStatus public_processAdd(Item& itm);
+    AddStatus public_processAdd(Item& itm, const VBQueueItemCtx& ctx = {});
 
     /// Public access to processSoftDelete() method.
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(

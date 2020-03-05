@@ -2974,8 +2974,12 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
          * be done to ensure that the item count is accurate in the case of full
          * eviction. We should only decrement the counter for committed (via
          * mutation or commit) items as we only increment for these.
+         * Note this is done irrespective of if a StoredValue was found in the
+         * HashTable - the SV may have already been replaced (e.g. with
+         * a pending SyncWrite). We "know" the delete happened on disk thus
+         * should decrement the total number of items.
          */
-        if (v && queuedItem.isCommitted()) {
+        if (queuedItem.isCommitted()) {
             decrNumTotalItems();
             ++opsDelete;
         }

@@ -22,6 +22,7 @@
 #include "checkpoint_utils.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
+#include "persistence_callback.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
 #include "vbucket_utils.h"
@@ -2830,4 +2831,70 @@ TEST_P(EphemeralVBucketDurabilityTest, Replica_Abort_RangeRead) {
     EXPECT_EQ(3, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(3, mockEphVb->public_getNumListItems());
+}
+
+// Test that the combination of:
+// 1) a Delete and a SyncAdd (which re-creates the key),
+// 2) where the Delete is persisted after the SyncAdd Prepare is added to the HT
+// Gets the correct vBucket item count.
+// This is a regression test for MB-38197, where the persistence callback for
+// the delete did not find a Committed item in the HashTable and hence did
+// not decrement the number of on-disk items.
+TEST_P(EPVBucketDurabilityTest,
+       MB_38197_ItemCountDeletePersistedAfterPendingSet) {
+    // Setup
+    // (1) Create a doc so we can delete it.
+    auto key = makeStoredDocKey("key");
+    setOne(key);
+
+    // (1.1) We need the persistence cursor to move through the current
+    // checkpoint and find items to run the persistence callback on.
+    // (we are essentially mocking the actual flusher).
+    std::vector<queued_item> items;
+    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    ASSERT_EQ(2, items.size()) << "Expected setVBState and SET.";
+
+    // (1.2) Mimic flusher by running the PCB for the store at (1)
+    EPTransactionContext txnCtx(global_stats, *vbucket);
+    PersistenceCallback persistCb;
+    persistCb(txnCtx, items.back(), KVStore::MutationSetResultState::Insert);
+    EXPECT_EQ(1, vbucket->getNumItems());
+
+    // (1.3) Delete key. StoredValue will still be present in HT as Dirty.
+    softDeleteOne(key, MutationStatus::WasClean);
+    if (std::get<1>(GetParam()) == EvictionPolicy::Full) {
+        EXPECT_EQ(1, vbucket->getNumItems()) << "With EvictionPolicy::Full";
+    } else {
+        EXPECT_EQ(0, vbucket->getNumItems()) << "With EvictionPolicy::Value";
+    }
+    EXPECT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // (2) Re-add k via a SyncWrite. This will replace the Committed, Deleted,
+    // Dirty SV with a Prepared, Dirty SV.
+    auto prepared = makePendingItem(key, "\"valueB\""s);
+    prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    ASSERT_EQ(AddStatus::UnDel, public_processAdd(*prepared, ctx));
+    ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
+
+    // Test
+    // Run persistence callback for Delete. This should not find a Committed
+    // item in the HashTable, but _should_ decrement the numTotalItems to zero.
+    items.clear();
+    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    ASSERT_EQ(2, items.size()) << "Expected Delete and Prepared SyncWrite";
+    persistCb(txnCtx, items.at(0), KVStore::MutationStatus::Success);
+
+    EXPECT_EQ(0, vbucket->getNumItems())
+            << "Should have zero items once delete persistence callback has "
+               "run.";
+
+    // Run persistence callback for prepared Add. Item count should be
+    // unaffected (still zero) given this is not yet a Committed item.
+    persistCb(txnCtx, items.at(1), KVStore::MutationSetResultState::Insert);
+
+    EXPECT_EQ(0, vbucket->getNumItems())
+            << "Should have zero items once set(pending) persistence callback "
+               "has run.";
 }
