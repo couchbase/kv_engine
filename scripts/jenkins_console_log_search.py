@@ -73,10 +73,11 @@ def search(logText, searchPattern, isRegex):
 argParser = argparse.ArgumentParser()
 argParser.add_argument('--job', '-j', type=str,
                        help='The cv job to query. '
-                            "Common jobs are: 'kv_engine-ASan-UBSan-master', "
+                            "Example jobs are: 'kv_engine.ASan-UBSan/job/master', "
                             "'kv_engine-clang_analyzer-master', "
-                            "'kv_engine-linux-master', "
-                            "'kv_engine-threadsanitizer-master', "
+                            "'kv_engine.linux/job/master', "
+                            "'kv_engine.linux/job/mad-hatter', "
+                            "'kv_engine.threadsanitizer/job/master', "
                             "'kv_engine-windows-master', "
                             "'kv_engine-clang_format', "
                             "'kv-engine-cv-perf'", required=True)
