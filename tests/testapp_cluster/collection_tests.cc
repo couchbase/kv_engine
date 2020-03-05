@@ -16,6 +16,7 @@
 
 #include "clustertest.h"
 
+#include "auth_provider_service.h"
 #include "bucket.h"
 #include "cluster.h"
 #include <include/mcbp/protocol/unsigned_leb128.h>
@@ -69,4 +70,80 @@ TEST_F(CollectionsTests, TestUnknownScope) {
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::UnknownCollection, e.getReason());
     }
+}
+
+TEST_F(CollectionsTests, TestBasicRbac) {
+    const std::string username{"TestBasicRbac"};
+    const std::string password{"TestBasicRbac"};
+    cluster->getAuthProviderService().upsertUser({username, password, R"({
+  "buckets": {
+    "default": {
+      "scopes": {
+        "0": {
+          "collections": {
+            "0": {
+              "privileges": [
+                "Read"
+              ]
+            },
+            "8": {
+              "privileges": [
+                "Read",
+                "Insert",
+                "Delete",
+                "Upsert"
+              ]
+            }
+          }
+        }
+      },
+      "privileges": [
+        "SimpleStats"
+      ]
+    }
+  },
+  "privileges": [],
+  "domain": "external"
+})"_json});
+
+    auto conn = getConnection();
+    mutate(*conn,
+           createKey(Collection::Default, "TestBasicRbac"),
+           MutationType::Add);
+    mutate(*conn,
+           createKey(Collection::Fruit, "TestBasicRbac"),
+           MutationType::Add);
+    mutate(*conn,
+           createKey(Collection::Vegetable, "TestBasicRbac"),
+           MutationType::Add);
+
+    // I'm allowed to read from the default collection and read and write
+    // to the fruit collection
+    conn->authenticate(username, password);
+    conn->selectBucket("default");
+
+    conn->get(createKey(Collection::Default, "TestBasicRbac"), Vbid{0});
+    conn->get(createKey(Collection::Fruit, "TestBasicRbac"), Vbid{0});
+    try {
+        conn->get(createKey(Collection::Vegetable, "TestBasicRbac"), Vbid{0});
+        FAIL() << "Should not be able to fetch in vegetable collection";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isAccessDenied());
+    }
+
+    // I'm only allowed to write in Fruit
+    mutate(*conn,
+           createKey(Collection::Fruit, "TestBasicRbac"),
+           MutationType::Set);
+    for (auto c : std::vector<Collection>{
+                 {Collection::Default, Collection::Vegetable}}) {
+        try {
+            mutate(*conn, createKey(c, "TestBasicRbac"), MutationType::Set);
+            FAIL() << "Should only be able to store in the fruit collection";
+        } catch (const ConnectionError& error) {
+            ASSERT_TRUE(error.isAccessDenied());
+        }
+    }
+
+    cluster->getAuthProviderService().removeUser(username);
 }
