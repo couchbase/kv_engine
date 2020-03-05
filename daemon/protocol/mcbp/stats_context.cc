@@ -397,6 +397,18 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
         }
     }
 
+    if (fd == -1 || fd != int64_t(cookie.getConnection().getId())) {
+        if (cookie.checkPrivilege(cb::rbac::Privilege::Stats) ==
+            cb::rbac::PrivilegeAccess::Fail) {
+            if (fd != -1) {
+                // The client asked for a given file descriptor.
+                return ENGINE_EACCESS;
+            }
+            // The client didn't specify a connection, so return "self"
+            fd = int64_t(cookie.getConnection().getId());
+        }
+    }
+
     std::shared_ptr<Task> task = std::make_shared<StatsTaskConnectionStats>(
             cookie.getConnection(), cookie, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
@@ -598,7 +610,7 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"audit", {true, false, stat_audit_executor}},
                 {"bucket_details", {true, false, stat_bucket_details_executor}},
                 {"aggregate", {false, true, stat_aggregate_executor}},
-                {"connections", {true, false, stat_connections_executor}},
+                {"connections", {false, false, stat_connections_executor}},
                 {"topkeys", {false, true, stat_topkeys_executor}},
                 {"topkeys_json", {false, true, stat_topkeys_json_executor}},
                 {"subdoc_execute", {false, true, stat_subdoc_execute_executor}},

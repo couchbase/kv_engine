@@ -403,7 +403,7 @@ TEST_P(StatsTest, TestAggregate) {
     EXPECT_NE(stats.end(), stats.find("uptime"));
 }
 
-TEST_P(StatsTest, TestConnections) {
+TEST_P(StatsTest, TestPrivilegedConnections) {
     MemcachedConnection& conn = getAdminConnection();
     conn.hello("TestConnections", "1.0", "test connections test");
 
@@ -440,14 +440,16 @@ TEST_P(StatsTest, TestConnections) {
     EXPECT_EQ(sock, stats.front()["socket"].get<size_t>());
 }
 
-TEST_P(StatsTest, TestConnections_MB37995) {
+TEST_P(StatsTest, TestUnprivilegedConnections) {
+    // Everyone should be allowed to see its own connection details
     MemcachedConnection& conn = getConnection();
-    try {
-        auto stats = conn.stats("connections");
-        FAIL() << "MB-37995: stats connection require extra privileges";
-    } catch (const ConnectionError& err) {
-        ASSERT_TRUE(err.isAccessDenied());
-    }
+    conn.hello("TestConnections", "1.0", "test connections test");
+    auto stats = conn.stats("connections");
+    ASSERT_LE(1, stats.size());
+    const auto me = stats.front()["socket"].get<size_t>();
+    stats = conn.stats("connections " + std::to_string(me));
+    ASSERT_EQ(1, stats.size());
+    EXPECT_EQ(me, stats.front()["socket"].get<size_t>());
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
