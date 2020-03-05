@@ -645,7 +645,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         return {moreAvailable, 0, wakeupCheckpointRemover};
     }
 
-    if (vbstate.transition.state == vbucket_state_active) {
+    if (proposedVBState.transition.state == vbucket_state_active) {
         if (maxSeqno) {
             range = snapshot_range_t(maxSeqno, maxSeqno);
         }
