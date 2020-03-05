@@ -287,9 +287,12 @@ bool NodeImpl::isRunning() const {
 std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() {
     auto ret = connectionMap.getConnection().clone();
     ret->setAutoRetryTmpfail(true);
-    ret->setFeature(cb::mcbp::Feature::XERROR, true);
-    ret->setFeature(cb::mcbp::Feature::JSON, true);
-    ret->setFeature(cb::mcbp::Feature::MUTATION_SEQNO, true);
+    std::vector<cb::mcbp::Feature> features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::JSON}};
+    ret->setFeatures("cluster_testapp", features);
     return ret;
 }
 
