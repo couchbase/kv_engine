@@ -262,12 +262,14 @@ protected:
      * @param vb
      * @param flushStart Used for updating stats
      * @param itemsFlushed Used for updating stats
+     * @param aggStats Used for updating stats
      * @param collectionFlush Used for performing collection-related operations
      */
     void flushSuccessEpilogue(
             VBucket& vb,
-            const std::chrono::steady_clock::time_point& flushStart,
+            const std::chrono::steady_clock::time_point flushStart,
             size_t itemsFlushed,
+            const VBucket::AggregatedFlushStats& aggStats,
             const Collections::VB::Flush& collectionFlush);
 
     /**

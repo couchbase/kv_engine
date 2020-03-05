@@ -462,6 +462,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
     }
 
+    VBucket::AggregatedFlushStats aggStats;
+
     // Iterate through items, checking if we (a) can skip persisting,
     // (b) can de-duplicate as the previous key was the same, or (c)
     // actually need to persist.
@@ -532,11 +534,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
             }
-            // Update queuing stats now this item has logically been
-            // processed.
-            --stats.diskQueueSize;
-            vb->doStatsForFlushing(*item, item->size());
 
+            // Register the item for deferred (flush success only) stats update.
+            aggStats.accountItem(*item);
         } else if (!canDeDuplicate(prev, *item)) {
             // This is an item we must persist.
             prev = item.get();
@@ -624,8 +624,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
             //     This means we only write the highest (i.e. newest)
             //     item for a given key, and discard any duplicate,
             //     older items.
-            --stats.diskQueueSize;
-            vb->doStatsForFlushing(*item, item->size());
+
+            // Register the item for deferred (flush success only) stats update.
+            aggStats.accountItem(*item);
         }
     }
 
@@ -707,10 +708,12 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         if (vb->setBucketCreation(false)) {
             EP_LOG_DEBUG("{} created", vbid);
         }
-
         // The new vbstate was the only thing to flush. All done.
-        flushSuccessEpilogue(
-                *vb, flushStart, 0 /*itemsFlushed*/, commitData.collections);
+        flushSuccessEpilogue(*vb,
+                             flushStart,
+                             0 /*itemsFlushed*/,
+                             aggStats,
+                             commitData.collections);
         return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
     }
 
@@ -795,11 +798,10 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         EP_LOG_DEBUG("{} created", vbid);
     }
 
-    // @todo: This call performs some steps that should not be executed if flush
-    //   fails. Deferring this improvement to a follow-up.
     flushSuccessEpilogue(*vb,
                          flushStart,
                          flushBatchSize /*itemsFlushed*/,
+                         aggStats,
                          commitData.collections);
 
     // Handle Seqno Persistence requests
@@ -819,8 +821,9 @@ void EPBucket::handleCheckpointPersistence(VBucket& vb) const {
 
 void EPBucket::flushSuccessEpilogue(
         VBucket& vb,
-        const std::chrono::steady_clock::time_point& flushStart,
+        const std::chrono::steady_clock::time_point flushStart,
         size_t itemsFlushed,
+        const VBucket::AggregatedFlushStats& aggStats,
         const Collections::VB::Flush& collectionFlush) {
     // Update flush stats
     const auto flushEnd = std::chrono::steady_clock::now();
@@ -834,6 +837,8 @@ void EPBucket::flushSuccessEpilogue(
     stats.cumulativeFlushTime.fetch_add(transTime);
     stats.flusher_todo.store(0);
     stats.totalPersistVBState++;
+
+    vb.doAggregatedFlushStats(aggStats);
 
     // By definition, does not need to be called if no flush performed or
     // if flush failed.
