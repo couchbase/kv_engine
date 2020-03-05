@@ -50,7 +50,7 @@ protected:
  * isn't json
  */
 TEST_F(HelloTest, AgentName) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     const std::string agentname{
             "AgentInformation - c21fee83af4e7943/c21fee83af4e7943"};
     BinprotHelloCommand cmd(agentname);
@@ -80,7 +80,7 @@ TEST_F(HelloTest, AgentName) {
  * Verify that we can set agent information via JSON
  */
 TEST_F(HelloTest, JsonAgentInformation) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     BinprotHelloCommand cmd(
             R"({"a":"AgentInformation","i":"c21fee83af4e7943/c21fee83af4e7943"})");
     const auto resp = BinprotHelloResponse(conn.execute(cmd));
@@ -114,7 +114,7 @@ TEST_F(HelloTest, JsonAgentInformation) {
  * the server correctly truncates the values if they're too long
  */
 TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     const std::string agentname =
             "AgentInformation which is longer than what we're going to save "
             "for it";

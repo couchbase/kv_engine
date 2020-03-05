@@ -598,9 +598,7 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"audit", {true, false, stat_audit_executor}},
                 {"bucket_details", {true, false, stat_bucket_details_executor}},
                 {"aggregate", {false, true, stat_aggregate_executor}},
-                // MB-37995 "connections" stats group should be a privileged
-                //          global stat
-                {"connections", {false, true, stat_connections_executor}},
+                {"connections", {true, false, stat_connections_executor}},
                 {"topkeys", {false, true, stat_topkeys_executor}},
                 {"topkeys_json", {false, true, stat_topkeys_json_executor}},
                 {"subdoc_execute", {false, true, stat_subdoc_execute_executor}},
