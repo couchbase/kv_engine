@@ -2918,6 +2918,78 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
     }
 }
 
+/**
+ * MB-37948: Flusher wrongly computes the new persisted snapshot by using the
+ * last persisted vbstate info.
+ */
+TEST_P(STPassiveStreamPersistentTest, MB_37948) {
+    // Set vbucket active on disk
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // VBucket state changes to replica.
+    // Note: The new state is not persisted yet.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_replica));
+
+    // Replica receives a partial Snap{1, 3, Memory}
+    uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  1 /*snapStart*/,
+                                  3 /*snapEnd*/,
+                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                  {} /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
+                                  {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+    // M:1
+    const std::string value("value");
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/, vbid, value, opaque)));
+    // M:2
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/, vbid, value, opaque)));
+    // Note: snap is partial, seqno:3 not received yet
+
+    auto& vb = *store->getVBucket(vbid);
+    const auto checkPersistedSnapshot = [&vb](uint64_t lastSnapStart,
+                                              uint64_t lastSnapEnd) {
+        const auto snap = vb.getPersistedSnapshot();
+        EXPECT_EQ(lastSnapStart, snap.getStart());
+        EXPECT_EQ(lastSnapEnd, snap.getEnd());
+    };
+
+    // We have not persisted any item yet
+    checkPersistedSnapshot(0, 0);
+
+    // Flush. The new state=replica is not persisted yet; this is where
+    // the flusher wrongly uses the state on disk (state=active) for computing
+    // the new snapshot range to be persisted.
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Before the fix this fails because we have persisted snapEnd=2
+    // Note: We have persisted a partial snapshot at replica, snapStart must
+    //  still be 0
+    checkPersistedSnapshot(0, 3);
+
+    // The core of the test has been already executed, just check that
+    // everything behaves as expected when the full snapshot is persisted.
+
+    // M:3 (snap-end mutation)
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque)));
+
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    checkPersistedSnapshot(3, 3);
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamPersistentTest,
                          STParameterizedBucketTest::persistentConfigValues(),
