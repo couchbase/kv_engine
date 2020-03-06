@@ -224,6 +224,21 @@ public:
     void destroy_bucket(EngineIface* handle, bool force) override {
         // destroy should delete the handle
         handle->destroy(force);
+
+        // If:
+        //  - a test calls reload_engine
+        //  - the call throws from create_bucket
+        //  - the throw is success condition for the test
+        // then:
+        //  - we return SUCCESS from the test
+        //  - execute_test tries to destroy_bucket again as
+        //    currentEngineHandle != nullptr
+        //
+        // @todo: It seems that currentEngineHandle is the only handle around
+        //  at every run, can we remove the handle arg from this function?
+        if (handle == currentEngineHandle) {
+            currentEngineHandle = nullptr;
+        }
     }
 
     void reload_engine(EngineIface** h,
