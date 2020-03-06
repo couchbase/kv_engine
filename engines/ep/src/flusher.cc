@@ -271,9 +271,17 @@ bool Flusher::flushVB() {
     if (!hpVbs.empty()) {
         Vbid vbid = hpVbs.front();
         hpVbs.pop();
-        if (store->flushVBucket(vbid).first) {
+
+        const auto res = store->flushVBucket(vbid);
+
+        if (res.moreAvailable == EPBucket::MoreAvailable::Yes) {
             // More items still available, add vbid back to pending set.
             hpVbs.push(vbid);
+        }
+
+        // Flushing may move the persistence cursor to a new checkpoint.
+        if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
+            store->wakeUpCheckpointRemover();
         }
 
         // Return false (don't re-wake) if the lpVbs is empty (i.e. nothing to
@@ -295,9 +303,16 @@ bool Flusher::flushVB() {
         return false;
     }
 
-    if (store->flushVBucket(vbid).first) {
+    const auto res = store->flushVBucket(vbid);
+
+    if (res.moreAvailable == EPBucket::MoreAvailable::Yes) {
         // More items still available, add vbid back to pending set.
         lpVbs.pushUnique(vbid);
+    }
+
+    // Flushing may move the persistence cursor to a new checkpoint.
+    if (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) {
+        store->wakeUpCheckpointRemover();
     }
 
     // Return more (as we may have low priority vBuckets to flush)

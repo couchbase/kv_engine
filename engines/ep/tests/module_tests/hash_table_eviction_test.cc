@@ -190,7 +190,7 @@ protected:
             for (int ii = 0; ii < noOfVBs; ii++) {
                 store->getVBucket(Vbid(ii))
                         ->checkpointManager->createNewCheckpoint();
-                while (getEPBucket().flushVBucket(Vbid(ii)).second != 0)
+                while (getEPBucket().flushVBucket(Vbid(ii)).numFlushed != 0)
                     ;
             }
         }
@@ -276,7 +276,7 @@ protected:
                 if (!isEphemeral) {
                     while (getEPBucket()
                                    .flushVBucket(Vbid(vbucketcount))
-                                   .second != 0)
+                                   .numFlushed != 0)
                         ;
                 }
                 vbucketcount++;

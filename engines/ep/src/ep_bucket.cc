@@ -343,29 +343,35 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
     return true;
 }
 
-std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
+EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     const auto flushStart = std::chrono::steady_clock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
         // Try another bucket if this one is locked to avoid blocking flusher.
-        return {true, 0};
+        return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
 
     if (!vb) {
-        return {false /*moreAvailable*/, 0 /*itemsFlushed*/};
+        return {MoreAvailable::No, 0, WakeCkptRemover::No};
     }
 
     // Obtain the set of items to flush, up to the maximum allowed for
     // a single flush.
     auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
 
-    // getItemsToPersist() may move the persistence cursor to a new checkpoint
-    // regardless of whether we have something to flush or not, so we do this
-    // check unconditionally here.
-    if (vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
-        wakeUpCheckpointRemover();
-    }
+    const auto moreAvailable =
+            toFlush.moreAvailable ? MoreAvailable::Yes : MoreAvailable::No;
+
+    // The Flusher task is responsible for waking up the CheckpointRemover if
+    // necessary.
+    //
+    // @todo: The condition currently used must be replaced when we introduced
+    //  the backup cursor, as the backup cursor may prevent checkpoint removal
+    const auto wakeupCheckpointRemover =
+            vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()
+                    ? WakeCkptRemover::Yes
+                    : WakeCkptRemover::No;
 
     if (toFlush.items.empty()) {
         // getItemsToPersist() may move the persistence cursor to a new
@@ -377,7 +383,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         //   mutation.
         handleCheckpointPersistence(*vb);
 
-        return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
+        return {moreAvailable, 0, wakeupCheckpointRemover};
     }
 
     // The range becomes initialised only when an item is flushed
@@ -636,7 +642,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         // satisfy pending checkpoint-persistence requests
         handleCheckpointPersistence(*vb);
 
-        return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
+        return {moreAvailable, 0, wakeupCheckpointRemover};
     }
 
     if (vbstate.transition.state == vbucket_state_active) {
@@ -698,7 +704,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         // vbucket_state::needsToBePersisted().
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
             // @todo: MB-36773, vbstate update is not retried
-            return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
+            return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
         }
 
         // Update in-memory vbstate
@@ -708,13 +714,15 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         if (vb->setBucketCreation(false)) {
             EP_LOG_DEBUG("{} created", vbid);
         }
+
         // The new vbstate was the only thing to flush. All done.
         flushSuccessEpilogue(*vb,
                              flushStart,
                              0 /*itemsFlushed*/,
                              aggStats,
                              commitData.collections);
-        return {toFlush.moreAvailable, 0 /*itemsFlushed*/};
+
+        return {moreAvailable, 0, wakeupCheckpointRemover};
     }
 
     // The flush-batch must be non-empty by logic at this point.
@@ -743,7 +751,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
         Expects(!vb->rejectQueue.empty());
         Expects(vb->rejectQueue.size() == flushBatchSize);
 
-        return {true /*moreAvailable*/, 0 /*itemsFlushed*/};
+        return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
 
     // Flush succeeded, no item in the reject queue
@@ -808,7 +816,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
     vb->notifyHighPriorityRequests(
             engine, vb->getPersistenceSeqno(), HighPriorityVBNotify::Seqno);
 
-    return {toFlush.moreAvailable, flushBatchSize /*itemsFlushed*/};
+    return {moreAvailable, flushBatchSize, wakeupCheckpointRemover};
 }
 
 void EPBucket::handleCheckpointPersistence(VBucket& vb) const {
