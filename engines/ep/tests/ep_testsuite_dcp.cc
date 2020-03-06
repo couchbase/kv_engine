@@ -8251,10 +8251,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "dcp_enable_noop=false",
                  prepare,
-                 cleanup,
-                 // MB-37948: Intermittently fails, disabling while problem
-                 // investigated.
-                 /*skip*/true),
+                 cleanup),
         TestCase("test rollback to zero on consumer",
                  test_rollback_to_zero,
                  test_setup,
