@@ -262,7 +262,27 @@ Note:  In version 2 the real_user_id has been changed from
   ever the client's ID is.
 
 Note: Similar to real_user_id the notation has changed from version 1 to
-version 2, to be {"domain" : "", "user" : ""}.
+version 2, to be `{"domain" : "", "user" : ""}`.
+
+#### Duration
+
+* The query team include durations in some audit events.  We want to
+  ensure that events across different modules use the same format. The
+  format follows that used by golang's Duration function.  See
+  https://golang.org/src/time/time.go?s=22752:22785#L659
+
+  This is a string representing the duration in the form "72h3m0.5s".
+  Leading zero units are omitted.  Durations less than one second
+  format use a smaller unit (milli-, micro-, or nanoseconds) to ensure
+  that the leading digit is non-zero. The zero duration format is 0s.
+  Example outputs are as follows:
+
+  - 4440h0m0.000000001s (precision of 9)
+  - 81.678396ms (precision of 6)
+  - 392.391µs (precision of 3)
+
+  As a duration is just a string a field such as elapsed_time can be
+  defined in an event as `"elapsed_time: ""`.
 
 ## How to define events
 
