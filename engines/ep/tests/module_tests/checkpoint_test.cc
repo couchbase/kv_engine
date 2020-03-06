@@ -621,6 +621,7 @@ TEST_P(CheckpointTest, ItemBasedCheckpointCreation) {
     EXPECT_EQ(1, this->manager->getNumOfCursors());
     std::vector<queued_item> items;
     auto result = manager->getNextItemsForCursor(cursor, items);
+    result.flushHandle.reset();
 
     EXPECT_EQ(2, result.ranges.size());
     EXPECT_EQ(0, result.ranges.at(0).getStart());
@@ -919,6 +920,7 @@ TEST_P(CheckpointTest, CursorMovement) {
     /* Get items for persistence cursor */
     std::vector<queued_item> items;
     auto result = manager->getNextItemsForCursor(cursor, items);
+    result.flushHandle.reset();
 
     /* We should have got (MIN_CHECKPOINT_ITEMS + op_ckpt_start) items. */
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
@@ -2401,6 +2403,221 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
     // checkpoint).
     auto regRes = cm.registerCursorBySeqno("Cursor", 2);
     EXPECT_EQ(2, regRes.cursor.lock()->getId());
+}
+
+TEST_P(CheckpointTest,
+       GetItemsForPersistenceCursor_ThrowIfBackupCursorAlreadyExists) {
+    if (!persistent()) {
+        return;
+    }
+
+    std::vector<queued_item> items;
+    auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+
+    try {
+        manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    } catch (const std::logic_error& e) {
+        EXPECT_TRUE(
+                std::string(e.what()).find("Backup cursor already exists") !=
+                std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+CheckpointManager::ItemsForCursor
+CheckpointTest::testGetItemsForPersistenceCursor() {
+    if (!persistent()) {
+        return {};
+    }
+
+    // Pre-condition: the test-cursor is at the begin of the single open
+    // checkpoint
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    const auto initialPos =
+            *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::empty, initialPos->getOperation());
+
+    // Enqueue 1 item
+    EXPECT_TRUE(queueNewItem("key"));
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
+
+    // Checkpoint shape now is (P/C stand for pCursor/pCursorCopy):
+    // [E    CS    M)
+    //  ^
+    //  P
+
+    // Pull it out from the CM without moving the cursor
+    std::vector<queued_item> items;
+    auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+
+    // Check that we get all the expected range-info + items
+    EXPECT_FALSE(res.moreAvailable);
+    EXPECT_EQ(1, res.ranges.size());
+    EXPECT_EQ(0, res.ranges[0].getStart());
+    EXPECT_EQ(1001, res.ranges[0].getEnd());
+    EXPECT_EQ(2, items.size()); // checkpoint_start + 1 item
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_EQ(1001, items.at(1)->getBySeqno());
+    EXPECT_EQ(1001, res.visibleSeqno);
+    EXPECT_FALSE(res.highCompletedSeqno);
+
+    // This is the expected CM state
+    // [E    CS    M:1)
+    //  ^          ^
+    //  C          P
+
+    // Check that the pCursor has moved
+    auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::mutation, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
+
+    // Check that we have created a copy of the persistence cursor.
+    // The peristence cursor will be reset to that copy if necessary (ie,
+    // KVStore::commit failure).
+    EXPECT_EQ(2, manager->getNumOfCursors());
+    const auto backupPCursor = manager->getBackupPersistenceCursor();
+    pos = *CheckpointCursorIntrospector::getCurrentPos(*backupPCursor);
+    EXPECT_EQ(initialPos, pos);
+    EXPECT_EQ(queue_op::empty, pos->getOperation());
+
+    return res;
+}
+
+TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushSuccessScenario) {
+    if (!persistent()) {
+        return;
+    }
+
+    // This step tests preconditions and leaves the CM as:
+    // [E    CS    M:1)
+    //  ^          ^
+    //  C          P
+    testGetItemsForPersistenceCursor();
+
+    // Note: The previous step simulates the KVStore::commit successful path at
+    // persistence
+    ASSERT_EQ(1, manager->getNumOfCursors());
+    ASSERT_TRUE(manager->getPersistenceCursor());
+    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    ASSERT_EQ(queue_op::mutation, pos->getOperation());
+    ASSERT_EQ(1001, pos->getBySeqno());
+
+    // [E    CS    M:1)
+    //             ^
+    //             P
+
+    // Now try to pull items out again and expect no items for pcursor as
+    // the flush has succeded
+    std::vector<queued_item> items;
+    const auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    EXPECT_FALSE(res.moreAvailable);
+    ASSERT_EQ(0, res.ranges.size());
+    ASSERT_EQ(0, items.size());
+}
+
+TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushFailureScenario) {
+    if (!persistent()) {
+        return;
+    }
+
+    // This step tests preconditions and leaves the CM as:
+    // [E    CS    M:1)
+    //  ^          ^
+    //  C          P
+    auto res = testGetItemsForPersistenceCursor();
+
+    // This step simulates the KVStore::commit failure path at persistence
+    res.flushHandle->markFlushFailed();
+    res.flushHandle.reset();
+
+    // The previous step re-initializes pcursor, need to reset the test cursor
+    ASSERT_EQ(1, manager->getNumOfCursors());
+    cursor = manager->getPersistenceCursor();
+    ASSERT_TRUE(cursor);
+
+    // pcursor must be reset at the expected position
+    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    ASSERT_EQ(queue_op::empty, pos->getOperation());
+
+    // [E    CS    M:1)
+    //  ^
+    //  P
+
+    // Now try to pull items out again and expect to retrieve all the items
+    // + snap-range info.
+    std::vector<queued_item> items;
+    res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+
+    EXPECT_FALSE(res.moreAvailable);
+    ASSERT_EQ(1, res.ranges.size());
+    EXPECT_EQ(0, res.ranges[0].getStart());
+    EXPECT_EQ(1001, res.ranges[0].getEnd());
+    ASSERT_EQ(2, items.size()); // checkpoint_start + 1 item
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_EQ(1001, items.at(1)->getBySeqno());
+    EXPECT_EQ(1001, res.visibleSeqno);
+    EXPECT_FALSE(res.highCompletedSeqno);
+}
+
+TEST_P(CheckpointTest, NeverDropBackupPCursor) {
+    if (!persistent()) {
+        return;
+    }
+
+    // This step tests preconditions and leaves the CM as:
+    // [E    CS    M:1)
+    //             ^
+    //             P
+    testGetItemsForPersistenceCursor();
+
+    // Now I want to get to:
+    // [E:1    CS:1    M:1    M:2    CE:3]    [E:3    CS:3)
+    //                 ^                              ^
+    //                 C                              P
+
+    // Step necessary to avoid pcursor to be moved to the new checkpoint at
+    // CM::createNewCheckpoint below. This would invalidate the test as we need
+    // the backupPCursor in a closed checkppoint.
+    // @todo: we can remove this step when MB-37846 is resolved
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_TRUE(queueNewItem("another-key"));
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
+
+    manager->createNewCheckpoint();
+    ASSERT_EQ(2, manager->getNumCheckpoints());
+
+    // Create backup-pcursor (and move pcursor)
+    std::vector<queued_item> items;
+    const auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+
+    ASSERT_EQ(3, items.size());
+    ASSERT_EQ(queue_op::mutation, items.at(0)->getOperation());
+    ASSERT_EQ(1002, items.at(0)->getBySeqno());
+    ASSERT_EQ(queue_op::checkpoint_end, items.at(1)->getOperation());
+    ASSERT_EQ(1003, items.at(1)->getBySeqno());
+    ASSERT_EQ(queue_op::checkpoint_start, items.at(2)->getOperation());
+    ASSERT_EQ(1003, items.at(2)->getBySeqno());
+
+    // Check expected position for pcursor
+    const auto pPos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    ASSERT_EQ(queue_op::checkpoint_start, pPos->getOperation());
+    ASSERT_EQ(1003, pPos->getBySeqno());
+
+    // Check expected position for backup-pcursor.
+    const auto bPos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager->getBackupPersistenceCursor());
+    ASSERT_EQ(queue_op::mutation, bPos->getOperation());
+    ASSERT_EQ(1001, bPos->getBySeqno());
+
+    // We never drop pcursor and backup-pcursor.
+    // Note: backup-pcursor is in a closed checkpoint, so it would be eligible
+    //   for dropping if treated as a DCP cursor
+    EXPECT_EQ(0, manager->getListOfCursorsToDrop().size());
 }
 
 INSTANTIATE_TEST_SUITE_P(

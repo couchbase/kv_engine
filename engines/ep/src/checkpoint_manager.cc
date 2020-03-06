@@ -31,6 +31,9 @@
 #include <boost/optional/optional_io.hpp>
 #include <gsl.h>
 
+constexpr const char* CheckpointManager::pCursorName;
+constexpr const char* CheckpointManager::backupPCursorName;
+
 CheckpointManager::CheckpointManager(EPStats& st,
                                      Vbid vbucket,
                                      CheckpointConfig& config,
@@ -353,9 +356,57 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     return result;
 }
 
+void CheckpointManager::registerBackupPersistenceCursor(const LockHolder& lh) {
+    // Preconditions: pCursor exists and copy does not
+    Expects(persistenceCursor);
+    if (cursors.find(backupPCursorName) != cursors.end()) {
+        throw std::logic_error(
+                "CheckpointManager::registerBackupPCursor: Backup cursor "
+                "already exists");
+    }
+
+    // Note: We want to make an exact copy, only the name differs
+    const auto pCursorCopy = std::make_shared<CheckpointCursor>(
+            *persistenceCursor, backupPCursorName);
+    cursors[backupPCursorName] = std::move(pCursorCopy);
+}
+
 bool CheckpointManager::removeCursor(CheckpointCursor* cursor) {
     LockHolder lh(queueLock);
     return removeCursor_UNLOCKED(cursor);
+}
+
+void CheckpointManager::removeBackupPersistenceCursor() {
+    LockHolder lh(queueLock);
+    const auto res = removeCursor_UNLOCKED(cursors.at(backupPCursorName).get());
+    Expects(res);
+}
+
+void CheckpointManager::resetPersistenceCursor() {
+    LockHolder lh(queueLock);
+
+    // Note: the logic here relies on the existing cursor copy-ctor and
+    //  CM::removeCursor function for getting the checkpoint num-cursors
+    //  computation right
+
+    // 1) Remove the existing pcursor
+    auto remResult = removeCursor_UNLOCKED(persistenceCursor);
+    Expects(remResult);
+    pCursor = Cursor();
+    persistenceCursor = nullptr;
+
+    // 2) Make the new pcursor from the backup copy, assign the correct name
+    // and register it
+    auto* backup = cursors.at(backupPCursorName).get();
+    const auto newPCursor =
+            std::make_shared<CheckpointCursor>(*backup, pCursorName);
+    cursors[pCursorName] = newPCursor;
+    pCursor.setCursor(newPCursor);
+    persistenceCursor = pCursor.lock().get();
+
+    // 3) Remove old backup
+    remResult = removeCursor_UNLOCKED(backup);
+    Expects(remResult);
 }
 
 bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
@@ -664,14 +715,23 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
             (persistenceCursor == nullptr)
                     ? nullptr
                     : persistenceCursor->currentCheckpoint->get();
+
+    const auto backupExists = cursors.find(backupPCursorName) != cursors.end();
+    const auto* backupCheckpoint =
+            backupExists
+                    ? cursors.at(backupPCursorName)->currentCheckpoint->get()
+                    : nullptr;
+
     /*
      * Iterate through the list of checkpoints and add the checkpoint to
      * a set of valid checkpoints until we reach either an open checkpoint
-     * or a checkpoint that contains the persistence cursor.
+     * or a checkpoint that contains the persistence cursor or the
+     * backup-pcursor.
      */
     std::unordered_set<Checkpoint*> validChkpts;
     for (const auto& chkpt : checkpointList) {
         if (persistentCheckpoint == chkpt.get() ||
+            backupCheckpoint == chkpt.get() ||
             chkpt->getState() == CHECKPOINT_OPEN) {
             break;
         } else {
@@ -709,6 +769,43 @@ bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
     const auto& oldestCkpt = checkpointList.front();
     return (oldestCkpt->getState() == CHECKPOINT_CLOSED) &&
            (oldestCkpt->isNoCursorsInCheckpoint());
+}
+
+bool CheckpointManager::isEligibleForCheckpointRemovalAfterPersistence() const {
+    LockHolder lh(queueLock);
+
+    const auto& oldestCkpt = checkpointList.front();
+
+    // Just 1 (open) checkpoint in CM
+    if (oldestCkpt->getState() == CHECKPOINT_OPEN) {
+        Expects(checkpointList.size() == 1);
+        return false;
+    }
+    Expects(checkpointList.size() > 1);
+
+    // Is the oldest checkpoint closed and unreferenced?
+    const auto numCursors = oldestCkpt->getNumCursorsInCheckpoint();
+    if (numCursors == 0) {
+        return true;
+    }
+
+    // Some cursors in oldest checkpoint
+
+    // If more than 1 cursor, then no checkpoint is eligible for removal
+    if (numCursors > 1) {
+        return false;
+    }
+
+    // Just 1 cursor in oldest checkpoint, is it the backup pcursor?
+    const auto backupIt = cursors.find(backupPCursorName);
+    if (backupIt != cursors.end() &&
+        backupIt->second->currentCheckpoint->get() == oldestCkpt.get()) {
+        // Backup cursor in oldest checkpoint, checkpoint(s) will be eligible
+        // for removal after backup cursor has gone
+        return true;
+    }
+    // No backup cursor in CM, some other cursor is in oldest checkpoint
+    return false;
 }
 
 void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(
@@ -903,6 +1000,14 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     bool hardLimit = (*cursor.currentCheckpoint)->getCheckpointType() ==
                              CheckpointType::Disk &&
                      cursor.name == pCursorName;
+
+    // For persistence, we register a backup pcursor for resetting the pcursor
+    // to the backup position if persistence fails.
+    if (cursorPtr == persistenceCursor) {
+        registerBackupPersistenceCursor(lh);
+        result.flushHandle = std::make_unique<FlushHandle>(*this);
+    }
+
     size_t itemCount = 0;
     bool enteredNewCp = true;
     while ((!hardLimit || itemCount < approxLimit) &&
@@ -1033,6 +1138,13 @@ int64_t CheckpointManager::getHighSeqno() const {
 uint64_t CheckpointManager::getMaxVisibleSeqno() const {
     LockHolder lh(queueLock);
     return maxVisibleSeqno;
+}
+
+std::shared_ptr<CheckpointCursor>
+CheckpointManager::getBackupPersistenceCursor() {
+    LockHolder lh(queueLock);
+    const auto exists = cursors.find(backupPCursorName) != cursors.end();
+    return exists ? cursors[backupPCursorName] : nullptr;
 }
 
 void CheckpointManager::dump() const {
@@ -1525,4 +1637,13 @@ std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     }
     os << "    ]" << std::endl;
     return os;
+}
+
+FlushHandle::~FlushHandle() {
+    if (failed) {
+        manager.resetPersistenceCursor();
+        return;
+    }
+    // Flush-success path
+    manager.removeBackupPersistenceCursor();
 }

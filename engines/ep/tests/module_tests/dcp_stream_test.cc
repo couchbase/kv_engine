@@ -18,12 +18,14 @@
 #include "dcp_stream_test.h"
 
 #include "checkpoint_manager.h"
+#include "couch-kvstore/couch-kvstore-config.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/backfill_memory.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
 #include "executorpool.h"
@@ -31,7 +33,11 @@
 #include "kv_bucket.h"
 #include "replicationthrottle.h"
 #include "test_helpers.h"
+#include "tests/test_fileops.h"
 #include "thread_gate.h"
+#include "vbucket_state.h"
+
+#include "../couchstore/src/internal.h"
 
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
@@ -46,7 +52,14 @@
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>
+
+#include <folly/portability/GMock.h>
+
 #include <thread>
+
+using FlushResult = EPBucket::FlushResult;
+using MoreAvailable = EPBucket::MoreAvailable;
+using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 void StreamTest::SetUp() {
     bucketType = GetParam();
@@ -2778,4 +2791,134 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedBackfillBufferTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+void STPassiveStreamPersistentTest::SetUp() {
+    // Test class is not specific for SyncRepl, but some tests check SR
+    // quantities too.
+    enableSyncReplication = true;
+    SingleThreadedPassiveStreamTest::SetUp();
+    ASSERT_TRUE(consumer->isSyncReplicationEnabled());
+}
+
+/**
+ * The test checks that we do not lose any SnapRange information when at Replica
+ * we re-attempt the flush of Disk Snapshot after a storage failure.
+ */
+TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
+    // Gmock helps us with simulating a flush failure.
+    // In the test we want that the first attempt to flush fails, while the
+    // second attempts succeeds. The purpose of the test is to check that
+    // we have stored all the SnapRange info (together with items) when the
+    // second flush succeeds.
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    // Replica receives Snap{{1, 3, Disk}, {PRE:1, M:2, D:3}}
+    // Note that the shape of the snapshot is just functional to testing
+    // that we write to disk all the required vbstate entries at flush
+
+    // snapshot-marker [1, 3]
+    uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  1 /*snapStart*/,
+                                  3 /*snapEnd*/,
+                                  dcp_marker_flag_t::MARKER_FLAG_DISK,
+                                  boost::optional<uint64_t>(1) /*HCS*/,
+                                  {} /*maxVisibleSeqno*/,
+                                  {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+
+    // PRE:1
+    const std::string value("value");
+    using namespace cb::durability;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      Requirements(Level::Majority, Timeout::Infinity()))));
+
+    // M:2 - Logic Commit for PRE:1
+    // Note: implicit revSeqno=1
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/, vbid, value, opaque)));
+
+    // D:3
+    ASSERT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(
+                      makeMutationConsumerMessage(3 /*seqno*/,
+                                                  vbid,
+                                                  value,
+                                                  opaque,
+                                                  {} /*DurReqs*/,
+                                                  true /*deletion*/,
+                                                  2 /*revSeqno*/)));
+
+    KVStore& kvStore = *store->getRWUnderlying(vbid);
+    auto& vbs = *kvStore.getVBucketState(vbid);
+    // Check the vbstate entries that are set by SnapRange info
+    const auto checkVBState = [&vbs](uint64_t lastSnapStart,
+                                     uint64_t lastSnapEnd,
+                                     CheckpointType type,
+                                     uint64_t hps,
+                                     uint64_t hcs,
+                                     uint64_t maxDelRevSeqno) {
+        EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+        EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+        EXPECT_EQ(type, vbs.checkpointType);
+        EXPECT_EQ(hps, vbs.highPreparedSeqno);
+        EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+        EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+    };
+
+    auto& vb = *store->getVBucket(vbid);
+    EXPECT_EQ(3, vb.dirtyQueueSize);
+
+    // This flush fails, we have not written HCS to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(3, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkVBState(0 /*lastSnapStart*/,
+                     0 /*lastSnapEnd*/,
+                     CheckpointType::Memory,
+                     0 /*HPS*/,
+                     0 /*HCS*/,
+                     0 /*maxDelRevSeqno*/);
+    }
+
+    // This flush succeeds, we must write all the expected SnapRange info in
+    // vbstate on disk
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        // Notes:
+        //   1) expected (snapStart = snapEnd) for complete snap flushed
+        //   2) expected (HPS = snapEnd) for complete Disk snap flushed
+        checkVBState(3 /*lastSnapStart*/,
+                     3 /*lastSnapEnd*/,
+                     CheckpointType::Disk,
+                     3 /*HPS*/,
+                     1 /*HCS*/,
+                     2 /*maxDelRevSeqno*/);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         STPassiveStreamPersistentTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

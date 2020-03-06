@@ -56,4 +56,6 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         Vbid vbid,
         const std::string& value,
         uint64_t opaque,
-        boost::optional<cb::durability::Requirements> reqs = {});
+        boost::optional<cb::durability::Requirements> reqs = {},
+        bool deletion = false,
+        uint64_t revSeqno = 1);

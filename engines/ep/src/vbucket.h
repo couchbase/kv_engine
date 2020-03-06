@@ -18,6 +18,7 @@
 #pragma once
 
 #include "bloomfilter.h"
+#include "checkpoint_types.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/dcp-types.h"
 #include "hash_table.h"
@@ -567,17 +568,25 @@ public:
 
     size_t size();
 
+    // @todo: Remove this structure and use CM::ItemsForCursor, they are almost
+    //  identical. That can be easily done after we have removed the reject
+    //  queue, so we may want to do that within the reject queue removal.
+    //  Doing as part of MB-37280 otherwise.
     struct ItemsToFlush {
         std::vector<queued_item> items;
         std::vector<CheckpointSnapshotRange> ranges;
         bool moreAvailable = false;
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
         CheckpointType checkpointType = CheckpointType::Memory;
+
         /**
          * Number of items that were in the reject queue and need to be flushed.
          * Used to correct flusher_todo.
          */
         cb::NonNegativeCounter<size_t> itemsToRetry = 0;
+
+        // See CM::ItemsForCursor for details.
+        UniqueFlushHandle flushHandle;
     };
 
     /**

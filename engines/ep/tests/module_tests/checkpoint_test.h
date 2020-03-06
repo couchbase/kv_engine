@@ -19,6 +19,7 @@
 
 #include "callbacks.h"
 #include "checkpoint_config.h"
+#include "checkpoint_manager.h"
 #include "configuration.h"
 #include "evp_store_single_threaded_test.h"
 #include "stats.h"
@@ -49,6 +50,14 @@ protected:
     void createManager(int64_t lastSeqno = 1000);
 
     void resetManager();
+
+    /**
+     * Tests that CM::getItemsForCursor(pcursor) creates a backup pcursor at the
+     * pcursor original position. Used as baseline step for other tests.
+     *
+     * @return the items for pcursor
+     */
+    CheckpointManager::ItemsForCursor testGetItemsForPersistenceCursor();
 
     // Owned by VBucket
     MockCheckpointManager* manager;

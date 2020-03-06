@@ -111,3 +111,11 @@ protected:
     // Owned by the engine
     MockPassiveStream* stream;
 };
+
+/**
+ * The persistent-only version of SingleThreadedPassiveStreamTest.
+ */
+class STPassiveStreamPersistentTest : public SingleThreadedPassiveStreamTest {
+public:
+    void SetUp() override;
+};
