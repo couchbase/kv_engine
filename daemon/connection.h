@@ -24,7 +24,7 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
-#include <event.h>
+#include <libevent/utilities.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dcp.h>
 #include <memcached/openssl.h>
@@ -961,12 +961,8 @@ protected:
      */
     int numEvents = 0;
 
-    // Members related to libevent
-    struct EventDeleter {
-        void operator()(bufferevent* ev);
-    };
-
-    std::unique_ptr<bufferevent, EventDeleter> bev;
+    /// The bufferevent structure for the object
+    cb::libevent::unique_bufferevent_ptr bev;
 
     /**
      * If the client enabled the mutation seqno feature each mutation

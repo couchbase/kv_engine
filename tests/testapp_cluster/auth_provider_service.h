@@ -18,14 +18,13 @@
 
 #include <event2/event.h>
 #include <folly/Synchronized.h>
-#include <include/mcbp/protocol/status.h>
+#include <libevent/utilities.h>
+#include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
-
-struct bufferevent;
 
 namespace cb {
 namespace mcbp {
@@ -82,10 +81,7 @@ protected:
     Cluster& cluster;
     folly::Synchronized<std::vector<UserEntry>> users;
     std::thread thread;
-    struct EventBaseDeletor {
-        void operator()(event_base* ev);
-    };
-    std::unique_ptr<event_base, EventBaseDeletor> base;
+    cb::libevent::unique_event_base_ptr base;
 };
 
 } // namespace test

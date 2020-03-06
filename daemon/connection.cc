@@ -1038,10 +1038,6 @@ Connection::~Connection() {
     --stats.conn_structs;
 }
 
-void Connection::EventDeleter::operator()(bufferevent* ev) {
-    bufferevent_free(ev);
-}
-
 void Connection::setAgentName(cb::const_char_buffer name) {
     auto size = std::min(name.size(), agentName.size() - 1);
     std::copy(name.begin(), name.begin() + size, agentName.begin());

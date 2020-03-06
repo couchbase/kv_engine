@@ -21,6 +21,7 @@
 #include "memcached.h"
 #include "network_interface.h"
 #include "settings.h"
+#include "stats.h"
 
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
@@ -158,10 +159,6 @@ nlohmann::json ServerSocket::toJson() const {
     ret["tag"] = interface->tag;
 
     return ret;
-}
-
-void ServerSocket::EventDeleter::operator()(struct event* e) {
-    event_free(e);
 }
 
 void ServerSocket::updateSSL(const std::string& key, const std::string& cert) {

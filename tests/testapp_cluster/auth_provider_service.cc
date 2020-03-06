@@ -350,10 +350,5 @@ void AuthProviderService::sendResponse(bufferevent* bev,
                 "response");
     }
 }
-
-void AuthProviderService::EventBaseDeletor::operator()(event_base* ev) {
-    event_base_free(ev);
-}
-
 } // namespace test
 } // namespace cb

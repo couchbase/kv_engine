@@ -193,6 +193,8 @@ struct stats {
     cb::RelaxedAtomic<uint64_t> rejected_conns;
 };
 
+extern stats stats;
+
 class Connection;
 struct thread_stats* get_thread_stats(Connection* c);
 

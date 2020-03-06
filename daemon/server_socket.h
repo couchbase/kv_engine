@@ -16,9 +16,9 @@
  */
 #pragma once
 
-#include "connection.h"
-
+#include <libevent/utilities.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/socket.h>
 #include <memory>
 
 class ListeningPort;
@@ -79,10 +79,6 @@ protected:
     /// The backlog to specify to bind
     const int backlog = 1024;
 
-    struct EventDeleter {
-        void operator()(struct event* e);
-    };
-
     /// The libevent object we're using
-    std::unique_ptr<struct event, EventDeleter> ev;
+    cb::libevent::unique_event_ptr ev;
 };
