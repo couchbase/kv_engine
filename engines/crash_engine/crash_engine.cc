@@ -118,6 +118,8 @@ public:
                        gsl::not_null<item_info*> item_info) override;
 
     cb::engine::FeatureSet getFeatures() override;
+
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -294,6 +296,10 @@ bool CrashEngine::get_item_info(gsl::not_null<const item*> item,
 
 cb::engine::FeatureSet CrashEngine::getFeatures() {
     return cb::engine::FeatureSet();
+}
+
+cb::HlcTime CrashEngine::getVBucketHlcNow(Vbid vbucket) {
+    return cb::HlcTime();
 }
 
 unique_engine_ptr create_crash_engine_instance() {

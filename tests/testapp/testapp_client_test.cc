@@ -72,7 +72,8 @@ void TestappXattrClientTest::setBodyAndXattr(
                                        Vbid(0),
                                        mcbp::cas::Wildcard,
                                        /*seqno*/ 1,
-                                       FORCE_WITH_META_OP);
+                                       FORCE_WITH_META_OP | REGENERATE_CAS |
+                                               SKIP_CONFLICT_RESOLUTION_FLAG);
     } else {
         // No SetWithMeta support, must construct the
         // document+XATTR with primitives (and cannot compress

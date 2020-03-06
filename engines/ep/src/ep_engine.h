@@ -813,6 +813,8 @@ public:
         return arena;
     }
 
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
+
 protected:
     friend class EpEngineValueChangeListener;
 

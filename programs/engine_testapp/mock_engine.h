@@ -140,6 +140,10 @@ struct MockEngine : public EngineIface, public DcpIface {
         return the_engine->isXattrEnabled();
     }
 
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override {
+        return the_engine->getVBucketHlcNow(vbucket);
+    }
+
     BucketCompressionMode getCompressionMode() override {
         return the_engine->getCompressionMode();
     }

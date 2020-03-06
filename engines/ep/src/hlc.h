@@ -21,6 +21,7 @@
 
 #include "atomic.h"
 
+#include <memcached/engine.h>
 #include <memcached/engine_common.h>
 #include <platform/checked_snprintf.h>
 
@@ -73,6 +74,16 @@ public:
         setDriftBehindThreshold(behindThreshold);
     }
 
+    /**
+     * Returns what the next HLC value _would_ be if it was requested to
+     * advance at this time, without actually advancing it; alongside
+     * the current mode.
+     */
+    cb::HlcTime peekHLC() const;
+
+    /**
+     * Advance the HLC, returning the new time.
+     */
     uint64_t nextHLC() {
         // Create a monotonic timestamp using part of the HLC algorithm by.
         // a) Reading system time

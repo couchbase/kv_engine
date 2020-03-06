@@ -23,6 +23,25 @@
 
 #include <cinttypes>
 
+cb::HlcTime HLC::peekHLC() const {
+    // Create a monotonic timestamp using part of the HLC algorithm by.
+    // a) Reading system time
+    // b) dropping 16-bits (done by nowHLC)
+    // c) comparing it with the last known time (max_cas)
+    // d) returning either now or max_cas + 1
+    uint64_t timeNow = getMasked48(getTime());
+    uint64_t l = maxHLC.load();
+
+    using namespace std::chrono;
+    if (timeNow > l) {
+        nanoseconds ns(timeNow);
+        return {duration_cast<seconds>(ns), cb::HlcTime::Mode::Real};
+    } else {
+        nanoseconds ns(l + 1);
+        return {duration_cast<seconds>(ns), cb::HlcTime::Mode::Logical};
+    }
+}
+
 void HLC::addStats(const std::string& prefix,
                    const AddStatFn& add_stat,
                    const void* c) const {

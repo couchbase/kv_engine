@@ -89,8 +89,9 @@ static macro VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"", 4};
 }
 
 namespace vattrs {
-static cb::const_char_buffer DOCUMENT = {"$document", 9};
-static cb::const_char_buffer XTOC = {"$XTOC", 5};
+static constexpr cb::const_char_buffer DOCUMENT = {"$document", 9};
+static constexpr cb::const_char_buffer VBUCKET = {"$vbucket", 8};
+static constexpr cb::const_char_buffer XTOC = {"$XTOC", 5};
 }
 
 /**
