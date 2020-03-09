@@ -18,6 +18,7 @@
 
 #include "durability_monitor.h"
 #include "ep_types.h"
+#include "storeddockey_fwd.h"
 
 #include <boost/optional.hpp>
 #include <folly/SynchronizedPtr.h>
@@ -28,7 +29,6 @@ class ActiveDurabilityMonitor;
 class RollbackResult;
 struct vbucket_state;
 class VBucket;
-class StoredDocKey;
 
 /*
  * The DurabilityMonitor for Replica VBuckets.

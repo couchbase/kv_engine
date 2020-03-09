@@ -103,12 +103,17 @@ struct index_entry {
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
-using checkpoint_index = std::unordered_map<
-        StoredDocKey,
-        index_entry,
-        std::hash<StoredDocKey>,
-        std::equal_to<StoredDocKey>,
-        MemoryTrackingAllocator<std::pair<const StoredDocKey, index_entry>>>;
+
+using CheckpointIndexKeyType = StoredDocKeyT<MemoryTrackingAllocator>;
+using CheckpointIndexValueType =
+        std::pair<const CheckpointIndexKeyType, index_entry>;
+
+using checkpoint_index =
+        std::unordered_map<CheckpointIndexKeyType,
+                           index_entry,
+                           std::hash<CheckpointIndexKeyType>,
+                           std::equal_to<>,
+                           MemoryTrackingAllocator<CheckpointIndexValueType>>;
 
 class Checkpoint;
 class CheckpointManager;
@@ -603,7 +608,8 @@ public:
         // one will include the others.
         return sizeof(Checkpoint) +
                *(committedKeyIndex.get_allocator().getBytesAllocated()) +
-               *(toWrite.get_allocator().getBytesAllocated());
+               *(toWrite.get_allocator().getBytesAllocated()) +
+               *(keyIndexKeyTrackingAllocator).getBytesAllocated();
     }
 
     /**
@@ -654,6 +660,12 @@ public:
 
 private:
     /**
+     * Make a CheckpointIndexKey for inserting items into or finding items in
+     * the key index(es).
+     */
+    CheckpointIndexKeyType makeIndexKey(const queued_item& item) const;
+
+    /**
      * When checking if the existing item has already been processed by the
      * persistence cursor we use the mutation_id field in the index_entry (the
      * value that we map to in keyIndex and metaKeyIndex) to determine if we
@@ -689,6 +701,11 @@ private:
     MemoryTrackingAllocator<queued_item> trackingAllocator;
     // Allocator used for tracking memory used by keyIndex and metaKeyIndex
     checkpoint_index::allocator_type keyIndexTrackingAllocator;
+
+    // Allocator used for tracking memory that we allocate for the keys of the
+    // key and metaKey keyIndexes
+    checkpoint_index::key_type::allocator_type keyIndexKeyTrackingAllocator;
+
     CheckpointQueue toWrite;
 
     /**

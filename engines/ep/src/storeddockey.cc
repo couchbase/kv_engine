@@ -16,9 +16,18 @@
 
 #include "storeddockey.h"
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memory_tracking_allocator.h>
 #include <iomanip>
 
-StoredDocKey::StoredDocKey(const DocKey& key) {
+std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
+    return os << key.to_string();
+}
+
+template <template <class> class Allocator>
+StoredDocKeyT<Allocator>::StoredDocKeyT(
+        const DocKey& key,
+        typename StoredDocKeyT<Allocator>::allocator_type allocator)
+    : keydata(allocator) {
     if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
         keydata.resize(key.size());
         std::copy(key.data(), key.data() + key.size(), keydata.begin());
@@ -30,7 +39,9 @@ StoredDocKey::StoredDocKey(const DocKey& key) {
     }
 }
 
-StoredDocKey::StoredDocKey(const std::string& key, CollectionID cid) {
+template <template <class> class Allocator>
+StoredDocKeyT<Allocator>::StoredDocKeyT(const std::string& key,
+                                        CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
     keydata.resize(key.size() + leb128.size());
     std::copy(key.begin(),
@@ -38,12 +49,14 @@ StoredDocKey::StoredDocKey(const std::string& key, CollectionID cid) {
               std::copy(leb128.begin(), leb128.end(), keydata.begin()));
 }
 
-CollectionID StoredDocKey::getCollectionID() const {
+template <template <class> class Allocator>
+CollectionID StoredDocKeyT<Allocator>::getCollectionID() const {
     return cb::mcbp::decode_unsigned_leb128<CollectionIDType>({data(), size()})
             .first;
 }
 
-DocKey StoredDocKey::makeDocKeyWithoutCollectionID() const {
+template <template <class> class Allocator>
+DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
     auto decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
             {data(), size()});
     return {decoded.second.data(),
@@ -51,11 +64,13 @@ DocKey StoredDocKey::makeDocKeyWithoutCollectionID() const {
             DocKeyEncodesCollectionId::No};
 }
 
-std::string StoredDocKey::to_string() const {
+template <template <class> class Allocator>
+std::string StoredDocKeyT<Allocator>::to_string() const {
     return DocKey(*this).to_string();
 }
 
-const char* StoredDocKey::c_str() const {
+template <template <class> class Allocator>
+const char* StoredDocKeyT<Allocator>::c_str() const {
     // Locate the leb128 stop byte, and return pointer after that
     auto key = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
             {reinterpret_cast<const uint8_t*>(keydata.data()), keydata.size()});
@@ -66,9 +81,8 @@ const char* StoredDocKey::c_str() const {
     return nullptr;
 }
 
-std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
-    return os << key.to_string();
-}
+template class StoredDocKeyT<std::allocator>;
+template class StoredDocKeyT<MemoryTrackingAllocator>;
 
 CollectionID SerialisedDocKey::getCollectionID() const {
     return cb::mcbp::decode_unsigned_leb128<CollectionIDType>({bytes, length})

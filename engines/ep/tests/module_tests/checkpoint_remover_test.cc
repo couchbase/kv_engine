@@ -116,6 +116,11 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
 
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
+
+    // Allocator used for tracking the memory usage of the keys in the
+    // checkpoint indexes.
+    checkpoint_index::key_type::allocator_type keyIndexKeyTrackingAllocator;
+
     // Emulate the Checkpoint metaKeyIndex so we can determine the number
     // of bytes that should be allocated during its use.
     checkpoint_index metaKeyIndex(memoryTrackingAllocator);
@@ -153,12 +158,16 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
             // Add the size of adding to the queue
             expected_size += perElementOverhead;
             // Add to the emulated metaKeyIndex
-            metaKeyIndex.emplace((*itr)->getKey(), entry);
+            metaKeyIndex.emplace(
+                    CheckpointIndexKeyType((*itr)->getKey(),
+                                           keyIndexKeyTrackingAllocator),
+                    entry);
         }
     }
 
     const auto metaKeyIndexSize =
-            *(metaKeyIndex.get_allocator().getBytesAllocated());
+            *(metaKeyIndex.get_allocator().getBytesAllocated()) +
+            *(keyIndexKeyTrackingAllocator.getBytesAllocated());
     ASSERT_EQ(expected_size + metaKeyIndexSize,
               checkpointManager->getMemoryUsage());
 
@@ -171,13 +180,16 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // Add the size of adding to the queue
     new_expected_size += perElementOverhead;
     // Add to the keyIndex
-    committedKeyIndex.emplace(item.getKey(), entry);
+    committedKeyIndex.emplace(
+            CheckpointIndexKeyType(item.getKey(), keyIndexKeyTrackingAllocator),
+            entry);
 
     // As the metaKeyIndex, preparedKeyIndex and committedKeyIndex all share
     // the same allocator, retrieving the bytes allocated for the keyIndex,
     // will also include the bytes allocated for the other indexes.
     const size_t keyIndexSize =
-            *(committedKeyIndex.get_allocator().getBytesAllocated());
+            *(committedKeyIndex.get_allocator().getBytesAllocated()) +
+            *(keyIndexKeyTrackingAllocator.getBytesAllocated());
     ASSERT_EQ(new_expected_size + keyIndexSize,
               checkpointManager->getMemoryUsage());
 }
@@ -262,6 +274,11 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
+
+    // Allocator used for tracking the memory usage of the keys in the
+    // checkpoint indexes.
+    checkpoint_index::key_type::allocator_type keyIndexKeyTrackingAllocator;
+
     // Emulate the Checkpoint keyIndex so we can determine the number
     // of bytes that should be allocated during its use.
     checkpoint_index keyIndex(memoryTrackingAllocator);
@@ -284,7 +301,9 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
         // Add the size of adding to the queue
         expectedFreedMemoryFromItems += perElementOverhead;
         // Add to the emulated keyIndex
-        keyIndex.emplace(item.getKey(), entry);
+        keyIndex.emplace(CheckpointIndexKeyType(item.getKey(),
+                                                keyIndexKeyTrackingAllocator),
+                         entry);
     }
 
     ASSERT_EQ(1, checkpointManager->getNumCheckpoints());
@@ -314,10 +333,14 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // Add the size of adding to the queue
     expectedFreedMemoryFromItems += perElementOverhead;
     // Add to the emulated keyIndex
-    keyIndex.emplace(chkptEnd->getKey(), entry);
+    keyIndex.emplace(CheckpointIndexKeyType(chkptEnd->getKey(),
+                                            keyIndexKeyTrackingAllocator),
+                     entry);
 
     const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
-    expectedFreedMemoryFromItems += (keyIndexSize - initialKeyIndexSize);
+    expectedFreedMemoryFromItems +=
+            (keyIndexSize - initialKeyIndexSize +
+             *keyIndexKeyTrackingAllocator.getBytesAllocated());
 
     // Manually handle the slow stream, this is the same logic as the checkpoint
     // remover task uses, just without the overhead of setting up the task

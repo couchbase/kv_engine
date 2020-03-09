@@ -237,7 +237,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         // Check in the appropriate key index if an item already exists.
         auto& keyIndex =
                 qi->isCommitted() ? committedKeyIndex : preparedKeyIndex;
-        auto it = keyIndex.find(qi->getKey());
+        auto it = keyIndex.find(makeIndexKey(qi));
 
         // Before de-duplication could discard a delete, store the largest
         // "rev-seqno" encountered
@@ -346,7 +346,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         // the list.
         if (qi->isCheckPointMetaItem()) {
             // Insert the new entry into the metaKeyIndex
-            auto result = metaKeyIndex.emplace(qi->getKey(), entry);
+            auto result = metaKeyIndex.emplace(makeIndexKey(qi), entry);
             if (!result.second) {
                 // Did not manage to insert - so update the value directly
                 result.first->second = entry;
@@ -355,7 +355,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             // Insert the new entry into the keyIndex
             auto& keyIndex =
                     qi->isCommitted() ? committedKeyIndex : preparedKeyIndex;
-            auto result = keyIndex.emplace(qi->getKey(), entry);
+            auto result = keyIndex.emplace(makeIndexKey(qi), entry);
             if (!result.second) {
                 // Did not manage to insert - so update the value directly
                 result.first->second = entry;
@@ -456,7 +456,7 @@ CheckpointQueue Checkpoint::expelItems(
                 auto& keyIndex = toExpel->isCommitted() ? committedKeyIndex
                                                         : preparedKeyIndex;
 
-                auto itr = keyIndex.find(toExpel->getKey());
+                auto itr = keyIndex.find(makeIndexKey(toExpel));
                 Expects(itr != keyIndex.end());
                 Expects(itr->second.position == expelItr);
                 itr->second.invalidate(end());
@@ -501,10 +501,14 @@ CheckpointQueue Checkpoint::expelItems(
     return expelledItems;
 }
 
+CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
+    return CheckpointIndexKeyType(item->getKey(), keyIndexKeyTrackingAllocator);
+}
+
 int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
     if ((*cursor.currentPos)->isCheckPointMetaItem()) {
         auto cursor_item_idx =
-                metaKeyIndex.find((*cursor.currentPos)->getKey());
+                metaKeyIndex.find(makeIndexKey(*cursor.currentPos));
         if (cursor_item_idx == metaKeyIndex.end()) {
             throw std::logic_error(
                     "Checkpoint::queueDirty: Unable "
@@ -519,7 +523,7 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
 
     auto& keyIndex = (*cursor.currentPos)->isCommitted() ? committedKeyIndex
                                                          : preparedKeyIndex;
-    auto cursor_item_idx = keyIndex.find((*cursor.currentPos)->getKey());
+    auto cursor_item_idx = keyIndex.find(makeIndexKey(*cursor.currentPos));
     if (cursor_item_idx == keyIndex.end()) {
         throw std::logic_error(
                 "Checkpoint::queueDirty: Unable "
