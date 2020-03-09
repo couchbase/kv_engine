@@ -77,6 +77,30 @@ public:
 };
 
 /**
+ * MagmaScanContext is BySeqnoScanContext with the magma
+ * iterator added.
+ */
+class MagmaScanContext : public BySeqnoScanContext {
+public:
+    MagmaScanContext(std::unique_ptr<StatusCallback<GetValue>> cb,
+                     std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                     Vbid vb,
+                     std::unique_ptr<KVFileHandle> handle,
+                     int64_t start,
+                     int64_t end,
+                     uint64_t purgeSeqno,
+                     DocumentFilter _docFilter,
+                     ValueFilter _valFilter,
+                     uint64_t _documentCount,
+                     const vbucket_state& vbucketState,
+                     const std::vector<Collections::KVStore::DroppedCollection>&
+                             droppedCollections,
+                     std::unique_ptr<magma::Magma::SeqIterator> itr);
+
+    std::unique_ptr<magma::Magma::SeqIterator> itr{nullptr};
+};
+
+/**
  * A persistence store based on magma.
  */
 class MagmaKVStore : public KVStore {

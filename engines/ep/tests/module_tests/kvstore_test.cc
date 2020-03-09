@@ -2731,15 +2731,9 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
 
     // We are picking up a scan which was prematurely stopped in a simulated
     // ENOMEM error. Since we've done a compaction, we have removed all the
-    // remaining keys that would have been returned if the scan were working
-    // correctly (meaning that the snapshot does not change), but at the
-    // moment its broken so this checkin tests the newly
-    // added code but in its broken scan context.
-    if (kvstoreConfig->getBackend() == "magma") {
-        EXPECT_EQ(callback->nItems, 1);
-    } else {
-        EXPECT_EQ(callback->nItems, 2);
-    }
+    // remaining keys that would have been returned so this test should
+    // be verifying that we haven't lost the original snapshot of the scan.
+    EXPECT_EQ(callback->nItems, 2);
 }
 
 static std::string kvstoreTestParams[] = {
