@@ -6288,23 +6288,41 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
     return SUCCESS;
 }
 
+// Write to the vbucket's (couchstore) vbstate (_local/vbstate)
+static void write_vb_state(std::string dbdir,
+                           Vbid vbucket,
+                           const nlohmann::json& json) {
+    std::string filename = dbdir + cb::io::DirectorySeparator +
+                           std::to_string(vbucket.get()) + ".couch.1";
+    Db* handle;
+    couchstore_error_t err = couchstore_open_db(
+            filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
+
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to open " + filename);
+    const auto vbStateStr = json.dump();
+
+    LocalDoc vbstate;
+    vbstate.id.buf = (char*)"_local/vbstate";
+    vbstate.id.size = sizeof("_local/vbstate") - 1;
+    vbstate.json.buf = (char*)vbStateStr.c_str();
+    vbstate.json.size = vbStateStr.size();
+    vbstate.deleted = 0;
+
+    err = couchstore_save_local_document(handle, &vbstate);
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to write local document");
+    couchstore_commit(handle);
+    couchstore_close_file(handle);
+    couchstore_free_db(handle);
+}
+
 /**
  * Rewrite the persisted vbucket_state to the oldest version we support upgrade
  * to (v5.0 at time of writing).
  */
 static void force_vbstate_to_v5(std::string dbname,
-                                int vbucket,
+                                Vbid vbucket,
                                 bool hlcEpoch = true,
                                 bool mightContainXattrs = true) {
-    std::string filename = dbname + cb::io::DirectorySeparator +
-                           std::to_string(vbucket) + ".couch.1";
-    Db* handle;
-    couchstore_error_t err = couchstore_open_db(filename.c_str(),
-                                                COUCHSTORE_OPEN_FLAG_CREATE,
-                                                &handle);
-
-    checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
-
     // Create 5.0.0 _local/vbstate
     // Note: unconditionally adding namespaces_supported to keep this test
     // working.
@@ -6321,20 +6339,7 @@ static void force_vbstate_to_v5(std::string dbname,
     if (mightContainXattrs) {
         vbstate5["might_contain_xattrs"] = false;
     }
-    const auto vbStateStr = vbstate5.dump();
-
-    LocalDoc vbstate;
-    vbstate.id.buf = (char *)"_local/vbstate";
-    vbstate.id.size = sizeof("_local/vbstate") - 1;
-    vbstate.json.buf = (char*)vbStateStr.c_str();
-    vbstate.json.size = vbStateStr.size();
-    vbstate.deleted = 0;
-
-    err = couchstore_save_local_document(handle, &vbstate);
-    checkeq(COUCHSTORE_SUCCESS, err, "Failed to write local document");
-    couchstore_commit(handle);
-    couchstore_close_file(handle);
-    couchstore_free_db(handle);
+    write_vb_state(dbname, vbucket, vbstate5);
 }
 
 // Regression test for MB-19635
@@ -6364,8 +6369,8 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
 
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
 
-    force_vbstate_to_v5(dbname, 0);
-    force_vbstate_to_v5(dbname, 1);
+    force_vbstate_to_v5(dbname, Vbid(0));
+    force_vbstate_to_v5(dbname, Vbid(1));
 
     // Now shutdown engine force and restart to warmup from the 2.5.x data.
     testHarness->reload_engine(&h,
@@ -6424,9 +6429,9 @@ static enum test_result test_mb38031_upgrade_from_4x_via_5x_hop(
 
     // Force vbstate on three vbuckets with each combination of hlc_epoch and
     // might_contain_xattrs
-    force_vbstate_to_v5(dbname, 0, true, false);
-    force_vbstate_to_v5(dbname, 1, false, true);
-    force_vbstate_to_v5(dbname, 2, false, false);
+    force_vbstate_to_v5(dbname, Vbid(0), true, false);
+    force_vbstate_to_v5(dbname, Vbid(1), false, true);
+    force_vbstate_to_v5(dbname, Vbid(2), false, false);
 
     // Now shutdown engine force and restart to warmup
     testHarness->reload_engine(
@@ -6447,17 +6452,60 @@ static enum test_result test_mb38031_upgrade_from_4x_via_5x_hop(
     return SUCCESS;
 }
 
+// Regression test for MB-38031
+// If upgrade from 4.x via a 5.x 'hop' some vbstate entries that 5.x creates
+// won't be present if 5.x is just a stepping stone with no flushes
+static enum test_result test_mb38031_illegal_json_throws(EngineIface* h) {
+    if (!isWarmupEnabled(h)) {
+        return SKIPPED;
+    }
+
+    checkeq(ENGINE_SUCCESS,
+            store(h,
+                  nullptr,
+                  OPERATION_SET,
+                  "key",
+                  "data",
+                  nullptr,
+                  0,
+                  Vbid(0)),
+            "Failed to store a value");
+
+    wait_for_flusher_to_settle(h);
+
+    // VBState with a required field missing, max_cas
+    const nlohmann::json vbstate = {
+            {"state", "active"},
+            {"checkpoint_id", "1"},
+            {"max_deleted_seqno", "0"},
+            {"snap_start", "34344987306"}, // illegal as start > end
+            {"snap_end", "1"},
+            {"hlc_epoch", std::to_string(HlcCasSeqnoUninitialised)},
+            {"might_contain_xattrs", false},
+            {"namespaces_supported", true}};
+
+    write_vb_state(get_dbname(testHarness->get_current_testcase()->cfg),
+                   Vbid(0),
+                   vbstate);
+
+    // reload_engine will throw an engine initialize exception from CouchKVStore
+    try {
+        testHarness->reload_engine(
+                &h, testHarness->get_current_testcase()->cfg, true, false);
+    } catch (const std::runtime_error& e) {
+        check(std::string(e.what()).find(
+                      "CouchKVStore::initialize: no vbstate for") !=
+                      std::string::npos,
+              "unexpected exception");
+        return SUCCESS;
+    }
+
+    return FAIL;
+}
+
 static void force_vbstate_MB34173_corruption(std::string dbname,
                                              const std::string state,
-                                             int vbucket) {
-    std::string filename = dbname + cb::io::DirectorySeparator +
-                           std::to_string(vbucket) + ".couch.1";
-    Db* handle;
-    couchstore_error_t err = couchstore_open_db(
-            filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
-
-    checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
-
+                                             Vbid vbucket) {
     const nlohmann::json vbstateIllegalSnapshotRange = {
             {"state", state},
             {"checkpoint_id", "1"},
@@ -6468,20 +6516,8 @@ static void force_vbstate_MB34173_corruption(std::string dbname,
             {"hlc_epoch", std::to_string(HlcCasSeqnoUninitialised)},
             {"might_contain_xattrs", false},
             {"namespaces_supported", true}};
-    const auto vbStateStr = vbstateIllegalSnapshotRange.dump();
 
-    LocalDoc ldoc;
-    ldoc.id.buf = (char*)"_local/vbstate";
-    ldoc.id.size = sizeof("_local/vbstate") - 1;
-    ldoc.json.buf = (char*)vbStateStr.c_str();
-    ldoc.json.size = vbStateStr.size();
-    ldoc.deleted = 0;
-
-    err = couchstore_save_local_document(handle, &ldoc);
-    checkeq(COUCHSTORE_SUCCESS, err, "Failed to write local document");
-    couchstore_commit(handle);
-    couchstore_close_file(handle);
-    couchstore_free_db(handle);
+    write_vb_state(dbname, vbucket, vbstateIllegalSnapshotRange);
 }
 
 static enum test_result test_MB34173_warmup(EngineIface* h) {
@@ -6506,9 +6542,9 @@ static enum test_result test_MB34173_warmup(EngineIface* h) {
 
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
 
-    force_vbstate_MB34173_corruption(dbname, "active", 0);
-    force_vbstate_MB34173_corruption(dbname, "replica", 1);
-    force_vbstate_MB34173_corruption(dbname, "pending", 2);
+    force_vbstate_MB34173_corruption(dbname, "active", Vbid(0));
+    force_vbstate_MB34173_corruption(dbname, "replica", Vbid(1));
+    force_vbstate_MB34173_corruption(dbname, "pending", Vbid(2));
 
     // Warmup
     testHarness->reload_engine(&h,
@@ -9224,6 +9260,15 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test_mb38031_upgrade_from_4x_via_5x_hop",
                  test_mb38031_upgrade_from_4x_via_5x_hop,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 // couchstore only issue - so skip magma and rocks
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 cleanup),
+
+        TestCase("test_mb38031_illegal_json_throws",
+                 test_mb38031_illegal_json_throws,
                  test_setup,
                  teardown,
                  nullptr,
