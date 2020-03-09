@@ -98,6 +98,30 @@ add_sanitizers(genconfig)
 add_subdirectory(tools/couchfile_upgrade)
 include_directories(tools/couchfile_upgrade)
 
+add_executable(kvstore_gen tools/kvstore_gen.cc
+        ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
+        ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
+        ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
+        $<TARGET_OBJECTS:ep_objs>)
+
+target_link_libraries(kvstore_gen
+        JSON_checker
+        cbcompress
+        dirutils
+        engine_utilities
+        ep-engine_collections
+        hdr_histogram_static
+        mcbp
+        mcd_tracing
+        mcd_util
+        platform
+        phosphor
+        xattr
+        ${EP_STORAGE_LIBS}
+        ${LIBEVENT_LIBRARIES}
+        ${FOLLY_LIBRARIES}
+)
+
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                           ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
                   COMMAND
