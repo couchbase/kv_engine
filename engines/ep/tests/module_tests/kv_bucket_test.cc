@@ -121,13 +121,22 @@ void KVBucketTest::reinitialise(std::string config) {
     initialise(config);
 }
 
-Item KVBucketTest::store_item(Vbid vbid,
-                              const DocKey& key,
-                              const std::string& value,
-                              uint32_t exptime,
-                              const std::vector<cb::engine_errc>& expected,
-                              protocol_binary_datatype_t datatype) {
+Item KVBucketTest::store_item(
+        Vbid vbid,
+        const DocKey& key,
+        const std::string& value,
+        uint32_t exptime,
+        const std::vector<cb::engine_errc>& expected,
+        protocol_binary_datatype_t datatype,
+        boost::optional<cb::durability::Requirements> reqs,
+        bool deleted) {
     auto item = make_item(vbid, key, value, exptime, datatype);
+    if (reqs) {
+        item.setPendingSyncWrite(*reqs);
+    }
+    if (deleted) {
+        item.setDeleted(DeleteSource::Explicit);
+    }
     auto returnCode = store->set(item, cookie);
     // Doing the EXPECT this way as it is a less noisy when many operations fail
     auto expectedCount = std::count(

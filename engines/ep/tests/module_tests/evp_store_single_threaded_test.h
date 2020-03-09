@@ -348,3 +348,5 @@ protected:
         SingleThreadedKVBucketTest::SetUp();
     }
 };
+
+class STParamPersistentBucketTest : public STParameterizedBucketTest {};

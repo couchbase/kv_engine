@@ -705,8 +705,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
             // @todo: MB-36773, vbstate update is not retried
 
-            // @todo: Add test for stressing this code path
-            //
             // Flush failed, we need to reset the pcursor to the original
             // position. At the next run the flusher will re-attempt by
             // retrieving all the items from the disk queue again.
@@ -1133,8 +1131,8 @@ compaction_ctx EPBucket::makeCompactionContext(CompactionConfig& config,
                                  std::placeholders::_2);
 
     ctx.completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
-                                        this,
-                                        std::placeholders::_1);
+                                       this,
+                                       std::placeholders::_1);
 
     return ctx;
 }

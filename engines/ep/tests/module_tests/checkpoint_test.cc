@@ -2440,7 +2440,7 @@ CheckpointTest::testGetItemsForPersistenceCursor() {
     EXPECT_EQ(queue_op::empty, initialPos->getOperation());
 
     // Enqueue 1 item
-    EXPECT_TRUE(queueNewItem("key"));
+    EXPECT_TRUE(queueNewItem("keyA"));
     EXPECT_EQ(1, manager->getNumOpenChkItems());
 
     // Checkpoint shape now is (P/C stand for pCursor/pCursorCopy):
@@ -2452,7 +2452,8 @@ CheckpointTest::testGetItemsForPersistenceCursor() {
     std::vector<queued_item> items;
     auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
 
-    // Check that we get all the expected range-info + items
+    // Check that we get all the expected
+    EXPECT_TRUE(res.flushHandle);
     EXPECT_FALSE(res.moreAvailable);
     EXPECT_EQ(1, res.ranges.size());
     EXPECT_EQ(0, res.ranges[0].getStart());
@@ -2467,14 +2468,14 @@ CheckpointTest::testGetItemsForPersistenceCursor() {
     // This is the expected CM state
     // [E    CS    M:1)
     //  ^          ^
-    //  C          P
+    //  B          P
 
     // Check that the pCursor has moved
     auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
     EXPECT_EQ(queue_op::mutation, pos->getOperation());
     EXPECT_EQ(1001, pos->getBySeqno());
 
-    // Check that we have created a copy of the persistence cursor.
+    // Check that we have created the backup persistence cursor.
     // The peristence cursor will be reset to that copy if necessary (ie,
     // KVStore::commit failure).
     EXPECT_EQ(2, manager->getNumOfCursors());
@@ -2493,8 +2494,8 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushSuccessScenario) {
 
     // This step tests preconditions and leaves the CM as:
     // [E    CS    M:1)
-    //  ^          ^
-    //  C          P
+    //             ^
+    //             P
     testGetItemsForPersistenceCursor();
 
     // Note: The previous step simulates the KVStore::commit successful path at
@@ -2504,10 +2505,6 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushSuccessScenario) {
     const auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
     ASSERT_EQ(queue_op::mutation, pos->getOperation());
     ASSERT_EQ(1001, pos->getBySeqno());
-
-    // [E    CS    M:1)
-    //             ^
-    //             P
 
     // Now try to pull items out again and expect no items for pcursor as
     // the flush has succeded
@@ -2526,10 +2523,11 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushFailureScenario) {
     // This step tests preconditions and leaves the CM as:
     // [E    CS    M:1)
     //  ^          ^
-    //  C          P
+    //  B          P
     auto res = testGetItemsForPersistenceCursor();
 
     // This step simulates the KVStore::commit failure path at persistence
+    ASSERT_TRUE(res.flushHandle);
     res.flushHandle->markFlushFailed();
     res.flushHandle.reset();
 
@@ -2551,6 +2549,7 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushFailureScenario) {
     std::vector<queued_item> items;
     res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
 
+    ASSERT_TRUE(res.flushHandle);
     EXPECT_FALSE(res.moreAvailable);
     ASSERT_EQ(1, res.ranges.size());
     EXPECT_EQ(0, res.ranges[0].getStart());
@@ -2577,7 +2576,7 @@ TEST_P(CheckpointTest, NeverDropBackupPCursor) {
     // Now I want to get to:
     // [E:1    CS:1    M:1    M:2    CE:3]    [E:3    CS:3)
     //                 ^                              ^
-    //                 C                              P
+    //                 B                              P
 
     // Step necessary to avoid pcursor to be moved to the new checkpoint at
     // CM::createNewCheckpoint below. This would invalidate the test as we need
@@ -2618,6 +2617,118 @@ TEST_P(CheckpointTest, NeverDropBackupPCursor) {
     // Note: backup-pcursor is in a closed checkpoint, so it would be eligible
     //   for dropping if treated as a DCP cursor
     EXPECT_EQ(0, manager->getListOfCursorsToDrop().size());
+}
+
+/**
+ * Test that the backup persistence cursor is correctly handled at deduplication
+ * when it points to the item being dedup'ed.
+ */
+TEST_P(CheckpointTest,
+       GetItemsForPersistenceCursor_FlushFailureScenario_Deduplication) {
+    if (!persistent()) {
+        return;
+    }
+
+    // Queue items
+    // [E    CS    M(keyA):1)
+    //  ^
+    //  P
+
+    // Flush - getItems
+    // [E    CS    M(keyA):1)
+    //  ^          ^
+    //  B          P
+
+    // Flush - success
+    // [E    CS    M(keyA):1)
+    //             ^
+    //             P
+    testGetItemsForPersistenceCursor();
+
+    // Queue items
+    // [E    CS    M(keyA):1    M(keyB):2)
+    //             ^
+    //             P
+    ASSERT_TRUE(queueNewItem("keyB"));
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
+
+    // Flush - getItems
+    // [E    CS    M(keyA):1    M(keyB):2)
+    //             ^            ^
+    //             B            P
+    std::vector<queued_item> items;
+    auto res = manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    ASSERT_EQ(1, items.size());
+    EXPECT_EQ(queue_op::mutation, items.at(0)->getOperation());
+    EXPECT_EQ(1002, items.at(0)->getBySeqno());
+
+    EXPECT_EQ(2, manager->getNumOfCursors());
+    // Check pcursor
+    auto pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::mutation, pos->getOperation());
+    EXPECT_EQ(1002, pos->getBySeqno());
+    // Check backup pcursor
+    pos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager->getBackupPersistenceCursor());
+    EXPECT_EQ(queue_op::mutation, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
+
+    // Queue items (it can happen in the middle of the flush as CM is unlocked)
+    // [E    CS    x    M(keyB):2    M(keyA):3)
+    //       ^          ^
+    //       B          P
+    ASSERT_TRUE(queueNewItem("keyA"));
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
+
+    // pcursor has not moved
+    pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::mutation, pos->getOperation());
+    EXPECT_EQ(1002, pos->getBySeqno());
+    // backup cursor has moved backward
+    pos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager->getBackupPersistenceCursor());
+    EXPECT_EQ(queue_op::checkpoint_start, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
+
+    // Flush - failure
+    // [E    CS    x    M(keyB):2    M(keyA):3)
+    //       ^
+    //       P
+    // This step simulates the KVStore::commit failure path at persistence
+    res.flushHandle->markFlushFailed();
+    res.flushHandle.reset();
+
+    // The previous step re-initializes pcursor, need to reset the test cursor
+    ASSERT_EQ(1, manager->getNumOfCursors());
+    cursor = manager->getPersistenceCursor();
+    ASSERT_TRUE(cursor);
+
+    // backup cursor has been released
+    ASSERT_FALSE(manager->getBackupPersistenceCursor());
+    // pcursor reset to the expected position
+    pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::checkpoint_start, pos->getOperation());
+    EXPECT_EQ(1001, pos->getBySeqno());
+
+    // Re-attempt Flush - getItems
+    // [E    CS    x    M(keyB):2    M(keyA):3)
+    //                               ^
+    //                               P
+    items.clear();
+    manager->getItemsForCursor(cursor, items, 123 /*limit*/);
+    ASSERT_EQ(2, items.size());
+    EXPECT_EQ(queue_op::mutation, items.at(0)->getOperation());
+    EXPECT_EQ(1002, items.at(0)->getBySeqno());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_EQ(1003, items.at(1)->getBySeqno());
+
+    // Flush - success
+    // no backup cursor around
+    ASSERT_FALSE(manager->getBackupPersistenceCursor());
+    // pcursor at the expected position
+    pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
+    EXPECT_EQ(queue_op::mutation, pos->getOperation());
+    EXPECT_EQ(1003, pos->getBySeqno());
 }
 
 INSTANTIATE_TEST_SUITE_P(
