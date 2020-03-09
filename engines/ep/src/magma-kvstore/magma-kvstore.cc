@@ -624,9 +624,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     auto kvstoreList = magma->GetKVStoreList();
     for (auto& kvid : kvstoreList) {
-        // No need to get vbHandle or vbstateMutex as we are just
-        // booting magma.
-        status = readVBStateFromDisk(Vbid(kvid));
+        status = loadVBStateCache(Vbid(kvid));
         if (!status) {
             throw std::logic_error("MagmaKVStore vbstate vbid:" +
                                    std::to_string(kvid) +
@@ -1425,26 +1423,20 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
         DocumentFilter options,
         ValueFilter valOptions) {
     auto handle = makeFileHandle(vbid);
-    auto& kvHandle = static_cast<MagmaKVFileHandle&>(*handle).kvHandle;
 
-    vbucket_state vbstate;
-
-    {
-        std::shared_lock<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
-        const auto* vbstatePtr = getVBucketState(vbid);
-
-        if (!vbstatePtr) {
-            logger->warn("MagmaKVStore::initScanContext {} vbstate is null",
-                         vbid);
-            return nullptr;
-        }
-        // copy the vbstate for use outside the lock to init the scan context
-        vbstate = *vbstatePtr;
+    auto readState = readVBStateFromDisk(vbid);
+    if (!readState.status.IsOK()) {
+        logger->warn(
+                "MagmaKVStore::initScanContext {} failed to read vbstate "
+                "from disk. Status:{}",
+                vbid,
+                readState.status.String());
+        return nullptr;
     }
 
-    uint64_t highSeqno = vbstate.highSeqno;
-    uint64_t purgeSeqno = vbstate.purgeSeqno;
-    uint64_t docCount = highSeqno - startSeqno + 1;
+    uint64_t highSeqno = readState.vbstate.highSeqno;
+    uint64_t purgeSeqno = readState.vbstate.purgeSeqno;
+    uint64_t nDocsToRead = highSeqno - startSeqno + 1;
 
     auto collectionsManifest = getDroppedCollections(vbid);
 
@@ -1487,12 +1479,12 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
 
         logger->info(
                 "initScanContext {} seqno:{} endSeqno:{}"
-                " purgeSeqno:{} docCount:{} docFilter:{} valFilter:{}",
+                " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{}",
                 vbid,
                 startSeqno,
                 highSeqno,
                 purgeSeqno,
-                docCount,
+                nDocsToRead,
                 docFilter,
                 valFilter);
     }
@@ -1506,8 +1498,8 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initScanContext(
                                                      purgeSeqno,
                                                      options,
                                                      valOptions,
-                                                     docCount,
-                                                     vbstate,
+                                                     nDocsToRead,
+                                                     readState.vbstate,
                                                      collectionsManifest);
 
     mctx->logger = logger.get();
@@ -1666,44 +1658,55 @@ vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
     return vbstate;
 }
 
-// Note: Assume the kvHandle and vbstateMutex are held
-magma::Status MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
-    Status status = Status::OK();
+MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
+    Status status;
     std::string valString;
     std::tie(status, valString) = readLocalDoc(vbid, vbstateKey);
 
-    if (!status) {
-        cachedMagmaInfo[vbid.get()].reset(new MagmaInfo());
-        cachedVBStates[vbid.get()].reset(new vbucket_state());
-        return status;
+    if (!status.IsOK()) {
+        return {status, {}, {}};
     }
+
     nlohmann::json j;
 
     try {
         j = nlohmann::json::parse(valString);
     } catch (const nlohmann::json::exception& e) {
-        return Status("MagmaKVStore::readVBStateFromDisk failed - vbucket( " +
-                      std::to_string(vbid.get()) + ") " +
-                      " Failed to parse the vbstate json doc: " + valString +
-                      ". Reason: " + e.what());
+        return {Status("MagmaKVStore::readVBStateFromDisk failed - vbucket( " +
+                       std::to_string(vbid.get()) + ") " +
+                       " Failed to parse the vbstate json doc: " + valString +
+                       ". Reason: " + e.what()),
+                {},
+                {}};
     }
 
-    vbucket_state vbstate = j;
     logger->TRACE(
             "MagmaKVStore::readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
 
-    auto vbs = std::make_unique<vbucket_state>(vbstate);
-    cachedVBStates[vbid.get()] = std::move(vbs);
+    vbucket_state vbstate = j;
+    MagmaInfo magmaInfo = {
+            std::stoull(j.at("doc_count").get<std::string>()),
+            std::stoull(j.at("persisted_deletes").get<std::string>()),
+            std::stoull(j.at("kvstore_revision").get<std::string>())};
 
-    auto minfo = std::make_unique<MagmaInfo>();
-    minfo->docCount = std::stoull(j.at("doc_count").get<std::string>());
-    minfo->persistedDeletes =
-            std::stoull(j.at("persisted_deletes").get<std::string>());
-    minfo->kvstoreRev.reset(
-            std::stoull(j.at("kvstore_revision").get<std::string>()));
+    return {status, vbstate, magmaInfo};
+}
 
-    cachedMagmaInfo[vbid.get()] = std::move(minfo);
-    return status;
+magma::Status MagmaKVStore::loadVBStateCache(Vbid vbid) {
+    const auto readState = readVBStateFromDisk(vbid);
+    if (!readState.status.IsOK()) {
+        logger->error("MagmaKVStore::loadVBStateCache {} failed. {}",
+                      vbid,
+                      readState.status.String());
+        return readState.status;
+    }
+
+    cachedVBStates[vbid.get()] =
+            std::make_unique<vbucket_state>(readState.vbstate);
+    cachedMagmaInfo[vbid.get()] =
+            std::make_unique<MagmaInfo>(readState.magmaInfo);
+
+    return Status::OK();
 }
 
 magma::Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
@@ -2148,20 +2151,21 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    // No need to worry about locks cause no one can be
-    // using this vbucket since its in the middle of rollback.
+    vbucket_state* vbstate;
+    {
+        std::shared_lock<std::shared_timed_mutex> rlock(kvHandle->vbstateMutex);
+        status = loadVBStateCache(vbid);
 
-    cachedVBStates[vbid.get()].reset();
-    cachedMagmaInfo[vbid.get()].reset();
-    status = readVBStateFromDisk(vbid);
-    if (!status) {
-        logger->critical(
-                "MagmaKVStore::rollback {} readVBStateFromDisk status:{}",
-                vbid,
-                status.String());
-        return RollbackResult(false);
+        if (!status.IsOK()) {
+            logger->error(
+                    "MagmaKVStore::rollback {} readVBStateFromDisk status:{}",
+                    vbid,
+                    status.String());
+            return RollbackResult(false);
+        }
+        vbstate = cachedVBStates[vbid.get()].get();
     }
-    auto vbstate = cachedVBStates[vbid.get()].get();
+
     if (!vbstate) {
         logger->critical(
                 "MagmaKVStore::rollback getVBState {} vbstate not found", vbid);

@@ -395,7 +395,7 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
     // Read persisted VBs state
     for (const auto vbh : vbHandles) {
         if (vbh) {
-            readVBState(*vbh);
+            loadVBStateCache(*vbh);
             // Update stats
             ++st.numLoadedVb;
         }
@@ -1094,7 +1094,8 @@ GetValue RocksDBKVStore::makeGetValue(Vbid vb,
             makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, 0);
 }
 
-void RocksDBKVStore::readVBState(const VBHandle& vbh) {
+RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(
+        const VBHandle& vbh) {
     auto key = getVbstateKey();
     std::string jsonStr;
     vbucket_state vbState;
@@ -1106,12 +1107,14 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
     if (!status.ok()) {
         if (status.IsNotFound()) {
             logger.info(
-                    "RocksDBKVStore::readVBState: '_local/vbstate.{}' not "
+                    "RocksDBKVStore::readVBStateFromDisk: '_local/vbstate.{}' "
+                    "not "
                     "found",
                     vbid.get());
         } else {
             logger.warn(
-                    "RocksDBKVStore::readVBState: error getting vbstate "
+                    "RocksDBKVStore::readVBStateFromDisk: error getting "
+                    "vbstate "
                     "error:{}, {}",
                     status.getState(),
                     vbid);
@@ -1122,12 +1125,13 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
             json = nlohmann::json::parse(jsonStr);
         } catch (const nlohmann::json::exception& e) {
             logger.warn(
-                    "RocksKVStore::readVBState: Failed to parse the vbstat "
+                    "RocksKVStore::readVBStateFromDisk: Failed to parse the "
+                    "vbstat "
                     "json doc for {}, json:{} with reason:{}",
                     vbid,
                     jsonStr,
                     e.what());
-            return;
+            return {};
         }
 
         // Merge in the high_seqno (which is implicitly stored as the highest
@@ -1138,20 +1142,27 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
             vbState = json;
         } catch (const nlohmann::json::exception& e) {
             logger.warn(
-                    "RocksKVStore::readVBState: Failed to "
+                    "RocksKVStore::readVBStateFromDisk: Failed to "
                     "convert the vbstat json doc for {} to vbState, json:{}, "
                     "with "
                     "reason:{}",
                     vbid,
                     jsonStr,
                     e.what());
-            return;
+            return {};
         }
     }
 
+    return {status, vbState};
+}
+
+void RocksDBKVStore::loadVBStateCache(const VBHandle& vbh) {
+    auto diskState = readVBStateFromDisk(vbh);
+
     // Cannot use make_unique here as it doesn't support brace-initialization
     // until C++20.
-    cachedVBStates[vbid.get()].reset(new vbucket_state(vbState));
+    auto vbid = vbh.vbid;
+    cachedVBStates[vbid.get()].reset(new vbucket_state(diskState.vbstate));
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,
@@ -1440,20 +1451,20 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initScanContext(
     // find, we approximate this value with the seqno difference + 1
     // as scan is supposed to be inclusive at both ends,
     // seqnos 2 to 4 covers 3 docs not 4 - 2 = 2
-
-    auto& state = cachedVBStates[vbid.get()];
+    auto handle = getVBHandle(vbid);
+    auto diskState = readVBStateFromDisk(*handle.get());
     return std::make_unique<BySeqnoScanContext>(
             std::move(cb),
             std::move(cl),
             vbid,
             makeFileHandle(vbid),
             startSeqno,
-            state->highSeqno,
+            diskState.vbstate.highSeqno,
             0, /*TODO RDB: pass the real purge-seqno*/
             options,
             valOptions,
-            /* documentCount */ state->highSeqno - startSeqno + 1,
-            *state,
+            /* documentCount */ diskState.vbstate.highSeqno - startSeqno + 1,
+            diskState.vbstate,
             std::vector<Collections::KVStore::DroppedCollection>{
                     /*no collections in rocksdb*/});
 }

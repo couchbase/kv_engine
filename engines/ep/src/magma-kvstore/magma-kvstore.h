@@ -24,6 +24,7 @@
 #include "libmagma/magma.h"
 #include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_state.h"
 
 #include <folly/Synchronized.h>
 #include <platform/dirutils.h>
@@ -422,13 +423,27 @@ public:
                                  MagmaInfo& magmaInfo) const;
 
     /**
-     * Read the encoded vstate + magmaInfo from the local db into the cache.
+     * Read the vbstate from disk and load into cache
      */
-    magma::Status readVBStateFromDisk(Vbid vbid);
+    magma::Status loadVBStateCache(Vbid vbid);
 
     /**
-     * Write the encoded vbstate + magmaInfo to the local db.
-     * with the new vbstate as well as write to disk.
+     * Return value of readVBStateFromDisk. Would have problems assigning
+     * MagmaInfo otherwise as it include a Monotonic.
+     */
+    struct DiskState {
+        magma::Status status;
+        vbucket_state vbstate;
+        MagmaInfo magmaInfo;
+    };
+
+    /**
+     * Read the encoded vstate + docCount from the local db.
+     */
+    DiskState readVBStateFromDisk(Vbid vbid);
+
+    /**
+     * Write the encoded vbstate + docCount to the local db.
      */
     magma::Status writeVBStateToDisk(Vbid vbid,
                                      magma::Magma::CommitBatch& commitBatch,

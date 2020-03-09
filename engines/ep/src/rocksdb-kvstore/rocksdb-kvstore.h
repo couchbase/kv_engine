@@ -27,6 +27,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_state.h"
 
 #include <platform/dirutils.h>
 #include <platform/non_negative_counter.h>
@@ -434,7 +435,20 @@ private:
                           const rocksdb::Slice& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    void readVBState(const VBHandle& db);
+    /**
+     * Read the state of teh given vBucket from disk and load into the cache
+     */
+    void loadVBStateCache(const VBHandle& vbh);
+
+    /**
+     * Return value of readVBStateFromDisk.
+     */
+    struct DiskState {
+        rocksdb::Status status;
+        vbucket_state vbstate;
+    };
+
+    DiskState readVBStateFromDisk(const VBHandle& vbh);
 
     // Serialize the vbucket state and add it to the local CF in the specified
     // batch of writes.

@@ -2647,6 +2647,101 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     EXPECT_EQ(keys, int(cb->getProcessedCount()));
 }
 
+class ReuseSnapshotCallback : public StatusCallback<GetValue> {
+public:
+    ReuseSnapshotCallback(uint64_t startSeqno,
+                          uint64_t endSeqno,
+                          uint64_t enomemSeqno)
+        : startSeqno(startSeqno),
+          endSeqno(endSeqno),
+          enomemSeqno(enomemSeqno){};
+
+    void callback(GetValue& result) override {
+        EXPECT_LE(startSeqno, result.item->getBySeqno());
+        EXPECT_LE(result.item->getBySeqno(), endSeqno);
+        if (!didEnomem && result.item->getBySeqno() == enomemSeqno) {
+            setStatus(ENGINE_ENOMEM);
+            didEnomem = true;
+            return;
+        }
+        nItems++;
+        setStatus(ENGINE_SUCCESS);
+        return;
+    }
+
+    uint32_t nItems{0};
+
+private:
+    int64_t startSeqno{0};
+    int64_t endSeqno{0};
+    int64_t enomemSeqno{0};
+    bool didEnomem{false};
+};
+
+// Simulate an ENOMEM error during scan and show that continuing
+// the scan stays on the same snapshot.
+TEST_P(KVStoreParamTest, reuseSeqIterator) {
+    uint64_t seqno = 1;
+
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    for (int j = 0; j < 2; j++) {
+        auto key = makeStoredDocKey("key" + std::to_string(j));
+        auto qi = makeCommittedItem(key, "value");
+        qi->setBySeqno(seqno++);
+        kvstore->set(qi);
+    }
+    // Need a valid snap end for couchstore
+    flush.proposedVBState.lastSnapEnd = seqno - 1;
+
+    kvstore->commit(flush);
+
+    auto cb = std::make_unique<ReuseSnapshotCallback>(1, 2, 2);
+    auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 2, vbid);
+    auto callback = cb.get();
+    auto scanCtx = kvstore->initScanContext(std::move(cb),
+                                            std::move(cl),
+                                            vbid,
+                                            1,
+                                            DocumentFilter::ALL_ITEMS,
+                                            ValueFilter::VALUES_COMPRESSED);
+
+    ASSERT_NE(nullptr, scanCtx);
+    kvstore->scan(*scanCtx);
+    ASSERT_EQ(callback->nItems, 1);
+
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    for (int j = 0; j < 2; j++) {
+        auto key = makeStoredDocKey("key" + std::to_string(j));
+        auto qi = makeCommittedItem(key, "value");
+        qi->setBySeqno(seqno++);
+        kvstore->set(qi);
+    }
+    kvstore->commit(flush);
+
+    CompactionConfig compactionConfig;
+    compactionConfig.purge_before_seq = 0;
+    compactionConfig.purge_before_ts = 0;
+    compactionConfig.drop_deletes = 0;
+    compactionConfig.db_file_id = vbid;
+    compaction_ctx cctx(compactionConfig, 0);
+
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    kvstore->scan(*scanCtx);
+
+    // We are picking up a scan which was prematurely stopped in a simulated
+    // ENOMEM error. Since we've done a compaction, we have removed all the
+    // remaining keys that would have been returned if the scan were working
+    // correctly (meaning that the snapshot does not change), but at the
+    // moment its broken so this checkin tests the newly
+    // added code but in its broken scan context.
+    if (kvstoreConfig->getBackend() == "magma") {
+        EXPECT_EQ(callback->nItems, 1);
+    } else {
+        EXPECT_EQ(callback->nItems, 2);
+    }
+}
+
 static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_MAGMA
         "magma",
