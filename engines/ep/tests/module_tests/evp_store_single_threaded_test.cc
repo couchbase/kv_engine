@@ -4732,6 +4732,94 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(0, vb.dirtyQueueSize);
 }
 
+TEST_P(STParamPersistentBucketTest,
+       BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateOnly) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    ASSERT_FALSE(engine->getKVBucket()->getVBucket(vbid));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology",
+                        nlohmann::json::array({{"active", "replica"}})}}));
+
+    const auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    ASSERT_TRUE(vb->isBucketCreation());
+
+    // This flush fails, the bucket creation flag must be still set
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    ASSERT_EQ(1, vb->dirtyQueueSize);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(1, vb->dirtyQueueSize);
+    EXPECT_TRUE(vb->isBucketCreation());
+
+    // This flush succeeds
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    EXPECT_FALSE(vb->isBucketCreation());
+}
+
+TEST_P(STParamPersistentBucketTest,
+       BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateAndMutations) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    ASSERT_FALSE(engine->getKVBucket()->getVBucket(vbid));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(
+                      vbid,
+                      vbucket_state_active,
+                      {{"topology",
+                        nlohmann::json::array({{"active", "replica"}})}}));
+
+    const auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    ASSERT_TRUE(vb->isBucketCreation());
+
+    store_item(vbid,
+               makeStoredDocKey("key"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+
+    // This flush fails, the bucket creation flag must be still set
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    ASSERT_EQ(2, vb->dirtyQueueSize);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+    EXPECT_TRUE(vb->isBucketCreation());
+
+    // This flush succeeds
+    // Note: the returned num-flushed does not account meta-items
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    EXPECT_FALSE(vb->isBucketCreation());
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParamPersistentBucketTest,
                          STParameterizedBucketTest::persistentConfigValues(),

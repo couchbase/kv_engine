@@ -705,11 +705,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         // Update in-memory vbstate
         rwUnderlying->setVBucketState(vbid, commitData.proposedVBState);
 
-        // Now the commit is complete, vBucket file must exist.
-        if (vb->setBucketCreation(false)) {
-            EP_LOG_DEBUG("{} created", vbid);
-        }
-
         // The new vbstate was the only thing to flush. All done.
         flushSuccessEpilogue(*vb,
                              flushStart,
@@ -795,11 +790,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     //     back to the DM unconditionally.
     vb->notifyPersistenceToDurabilityMonitor();
 
-    // Now the commit is complete, vBucket file must exist.
-    if (vb->setBucketCreation(false)) {
-        EP_LOG_DEBUG("{} created", vbid);
-    }
-
     flushSuccessEpilogue(*vb,
                          flushStart,
                          flushBatchSize /*itemsFlushed*/,
@@ -827,6 +817,11 @@ void EPBucket::flushSuccessEpilogue(
         size_t itemsFlushed,
         const VBucket::AggregatedFlushStats& aggStats,
         const Collections::VB::Flush& collectionFlush) {
+    // Clear the flag if set (ie, only at vbucket creation)
+    if (vb.setBucketCreation(false)) {
+        EP_LOG_DEBUG("EPBucket::flushSuccessEpilogue: {} created", vb.getId());
+    }
+
     // Update flush stats
     const auto flushEnd = std::chrono::steady_clock::now();
     const auto transTime =
