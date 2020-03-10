@@ -349,4 +349,7 @@ protected:
     }
 };
 
-class STParamPersistentBucketTest : public STParameterizedBucketTest {};
+class STParamPersistentBucketTest : public STParameterizedBucketTest {
+protected:
+    void testAbortDoesNotIncrementOpsDelete(bool flusherDedup);
+};

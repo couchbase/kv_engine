@@ -2967,7 +2967,6 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
 
     if (deleted) {
         ++stats.totalPersisted;
-        ++opsDelete;
 
         /**
          * MB-30137: Decrement the total number of on-disk items. This needs to
@@ -2977,6 +2976,7 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
          */
         if (v && queuedItem.isCommitted()) {
             decrNumTotalItems();
+            ++opsDelete;
         }
     }
     doStatsForFlushing(queuedItem, queuedItem.size());

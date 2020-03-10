@@ -4820,6 +4820,62 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_FALSE(vb->isBucketCreation());
 }
 
+void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
+        bool flusherDedup) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, vb.getNumTotalItems());
+    EXPECT_EQ(0, vb.opsDelete);
+
+    // Active receives PRE:1
+    const auto key = makeStoredDocKey("key");
+    store_item(vbid,
+               key,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES,
+               {cb::durability::Requirements()});
+
+    const auto& manager = *vb.checkpointManager;
+    if (!flusherDedup) {
+        // Flush PRE now (avoid Flush dedup)
+        EXPECT_EQ(1, manager.getNumItemsForPersistence());
+        flush_vbucket_to_disk(vbid, 1);
+        EXPECT_EQ(0, manager.getNumItemsForPersistence());
+        EXPECT_EQ(0, vb.getNumTotalItems());
+        EXPECT_EQ(0, vb.opsDelete);
+    }
+
+    // ABORT:2
+    ASSERT_EQ(1, manager.getHighSeqno());
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb.abort(key,
+                       1 /*prepareSeqno*/,
+                       {} /*abortSeqno*/,
+                       vb.lockCollections(key)));
+
+    // Flush ABORT
+    EXPECT_EQ(flusherDedup ? 2 : 1, manager.getNumItemsForPersistence());
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(0, manager.getNumItemsForPersistence());
+    EXPECT_EQ(0, vb.getNumTotalItems());
+    EXPECT_EQ(0, vb.opsDelete);
+}
+
+TEST_P(STParamPersistentBucketTest, AbortDoesNotIncrementOpsDelete) {
+    testAbortDoesNotIncrementOpsDelete(true /*flusherDedup*/);
+}
+
+TEST_P(STParamPersistentBucketTest,
+       AbortDoesNotIncrementOpsDelete_FlusherDedup) {
+    testAbortDoesNotIncrementOpsDelete(false /*flusherDedup*/);
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParamPersistentBucketTest,
                          STParameterizedBucketTest::persistentConfigValues(),
