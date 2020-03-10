@@ -404,7 +404,7 @@ public:
                             const DocKey& key,
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override {
-        return ENGINE_EINVAL;
+        return ENGINE_NO_BUCKET;
     }
 
     cb::engine::FeatureSet getFeatures() override {
