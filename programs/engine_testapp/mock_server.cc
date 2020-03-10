@@ -311,6 +311,12 @@ struct MockServerCookieApi : public ServerCookieIface {
         return cb::rbac::PrivilegeAccess::Ok;
     }
 
+    uint32_t get_privilege_context_revision(
+            gsl::not_null<const void*> cookie) override {
+        // @todo allow for mocking
+        return 0;
+    }
+
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
                                        ENGINE_ERROR_CODE code) override {
         if (code == ENGINE_DISCONNECT) {

@@ -134,6 +134,10 @@ public:
                                               CollectionID cid) override {
         return wrapped->check_privilege(cookie, privilege, sid, cid);
     }
+    uint32_t get_privilege_context_revision(
+            gsl::not_null<const void*> cookie) override {
+        return wrapped->get_privilege_context_revision(cookie);
+    }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
                                        ENGINE_ERROR_CODE code) override {
         return wrapped->engine_error2mcbp(cookie, code);

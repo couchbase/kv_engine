@@ -106,6 +106,10 @@ public:
                                               CollectionID cid) override {
         throw std::runtime_error("Not implemented");
     }
+    uint32_t get_privilege_context_revision(
+            gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
                                        ENGINE_ERROR_CODE code) override {
         throw std::runtime_error("Not implemented");

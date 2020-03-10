@@ -315,6 +315,10 @@ struct ServerCookieApi : public ServerCookieIface {
         return getCookie(cookie).checkPrivilege(privilege, sid, cid);
     }
 
+    uint32_t get_privilege_context_revision(
+            gsl::not_null<const void*> cookie) override {
+        return getCookie(cookie).getPrivilegeContext().getGeneration();
+    }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> void_cookie,
                                        ENGINE_ERROR_CODE code) override {
         const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());

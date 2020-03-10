@@ -193,6 +193,12 @@ struct ServerCookieIface {
             ScopeID sid,
             CollectionID cid) = 0;
 
+    /// Get the revision number for the privilege context for the cookie to
+    /// allow the engine to cache the result of a privilege check if locating
+    /// the sid / cid is costly.
+    virtual uint32_t get_privilege_context_revision(
+            gsl::not_null<const void*> cookie) = 0;
+
     /**
      * Method to map an engine error code to the appropriate mcbp response
      * code (the client may not support all error codes so we may have

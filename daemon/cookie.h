@@ -522,6 +522,11 @@ public:
         return doCheckPrivilege(privilege, {}, {});
     }
 
+    /// Get the underlying privilege context
+    const cb::rbac::PrivilegeContext& getPrivilegeContext() const {
+        return privilegeContext;
+    }
+
     /**
      * Set the effective user executing this command
      *
