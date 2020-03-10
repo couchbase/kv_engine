@@ -8041,6 +8041,74 @@ static enum test_result test_mb23640(EngineIface* h) {
     return SUCCESS;
 }
 
+static enum test_result test_replace_at_pending_insert(EngineIface* h) {
+    const auto* cookie1 = testHarness->create_cookie(h);
+    testHarness->set_ewouldblock_handling(cookie1, false);
+    const auto* cookie2 = testHarness->create_cookie(h);
+    testHarness->set_ewouldblock_handling(cookie2, false);
+
+    const auto vbid = Vbid(0);
+
+    // Add a replica in topology. By doing that, no SW will ever be Committed
+    const char meta[] = "{\"topology\":[[\"active\", \"replica\"]]}";
+    check(set_vbucket_state(h, vbid, vbucket_state_active, {meta}),
+          "set_vbucket_state failed");
+
+    const auto statSet =
+            "vbucket-durability-state " + std::to_string(vbid.get());
+    const auto vbPrefix = "vb_" + std::to_string(vbid.get()) + ":";
+
+    const auto checkHPSAndHighSeqno =
+            [h, &statSet, &vbPrefix](int expectedHPS, int expectedHS) -> void {
+        const auto durStats = get_all_stats(h, statSet.c_str());
+        checkeq(expectedHPS,
+                std::stoi(durStats.at(vbPrefix + "high_prepared_seqno")),
+                "HPS must be 0");
+        checkeq(expectedHS,
+                std::stoi(durStats.at(vbPrefix + "high_seqno")),
+                "high_seqno must be 0");
+    };
+
+    // No doc around
+    checkHPSAndHighSeqno(0, 0);
+
+    // The insert blocks as durability requirements cannot be satisfied with
+    // a single node, so the write will stay pending. Note that we provide an
+    // infinite timeout, so the write will never abort either.
+    using namespace cb::durability;
+    const char key[] = "key";
+    checkeq(ENGINE_EWOULDBLOCK,
+            store(h,
+                  cookie1,
+                  OPERATION_ADD,
+                  key,
+                  "add-value",
+                  nullptr,
+                  0 /*cas*/,
+                  vbid,
+                  3600 /*exp*/,
+                  0 /*datatype*/,
+                  DocumentState::Alive,
+                  {{Level::Majority, Timeout::Infinity()}}),
+            "durable add failed");
+
+    // Prepare pending
+    checkHPSAndHighSeqno(1, 1);
+
+    // Simulate replace on a second connection
+    checkeq(ENGINE_KEY_ENOENT,
+            replace(h, cookie2, key, "replace-value", 0 /*flags*/, vbid),
+            "replace failed");
+
+    // Prepare still pending, high-seqno not increased as replace rejected
+    checkHPSAndHighSeqno(1, 1);
+
+    testHarness->destroy_cookie(cookie1);
+    testHarness->destroy_cookie(cookie2);
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite";
@@ -9274,6 +9342,16 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  // couchstore only issue - so skip magma and rocks
                  prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 cleanup),
+
+        TestCase("test_replace_at_pending_insert",
+                 test_replace_at_pending_insert,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 // The test logic assumes that the KV BloomFilter is enabled,
+                 // but it is currently disabled for Magma
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
 
         TestCase(

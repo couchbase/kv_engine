@@ -233,7 +233,12 @@ bool set_param(EngineIface* h,
                const char* param,
                const char* val,
                Vbid vb = Vbid(0));
-bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state);
+
+bool set_vbucket_state(EngineIface* h,
+                       Vbid vb,
+                       vbucket_state_t state,
+                       cb::const_char_buffer meta = {});
+
 bool get_all_vb_seqnos(EngineIface* h,
                        boost::optional<RequestedVBState> state,
                        const void* cookie,
@@ -251,17 +256,19 @@ void stop_persistence(EngineIface* h);
  * @param outitem If non-null, address of the stored item is saved here.
  * @return
  */
-ENGINE_ERROR_CODE store(EngineIface* h,
-                        const void* cookie,
-                        ENGINE_STORE_OPERATION op,
-                        const char* key,
-                        const char* value,
-                        item** outitem = nullptr,
-                        uint64_t casIn = 0,
-                        Vbid vb = Vbid(0),
-                        uint32_t exp = 3600,
-                        uint8_t datatype = 0x00,
-                        DocumentState docState = DocumentState::Alive);
+ENGINE_ERROR_CODE store(
+        EngineIface* h,
+        const void* cookie,
+        ENGINE_STORE_OPERATION op,
+        const char* key,
+        const char* value,
+        item** outitem = nullptr,
+        uint64_t casIn = 0,
+        Vbid vb = Vbid(0),
+        uint32_t exp = 3600,
+        uint8_t datatype = 0x00,
+        DocumentState docState = DocumentState::Alive,
+        const boost::optional<cb::durability::Requirements>& durReqs = {});
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
                                  const void* cookie,
@@ -304,7 +311,16 @@ cb::EngineErrorItemPair storeCasVb11(
         Vbid vb,
         uint32_t exp = 3600,
         uint8_t datatype = 0x00,
-        DocumentState docState = DocumentState::Alive);
+        DocumentState docState = DocumentState::Alive,
+        const boost::optional<cb::durability::Requirements>& durReqs = {});
+
+ENGINE_ERROR_CODE replace(EngineIface* h,
+                          const void* cookie,
+                          const char* key,
+                          const char* value,
+                          uint32_t flags,
+                          Vbid vb);
+
 ENGINE_ERROR_CODE touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp);
 ENGINE_ERROR_CODE unl(EngineIface* h,
                       const void* cookie,
