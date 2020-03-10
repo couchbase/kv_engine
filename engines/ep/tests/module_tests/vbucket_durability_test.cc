@@ -1425,12 +1425,7 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
 
 void VBucketDurabilityTest::doSyncWriteAndCommit() {
     auto key = makeStoredDocKey("key");
-    auto prepared = makePendingItem(key, "\"valueB\""s);
-    prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
-
-    VBQueueItemCtx ctx;
-    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
+    ASSERT_EQ(MutationStatus::WasClean, doPrepareSyncSet(key, "\"valueB\""s));
     ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
     auto preparedSeqno = vbucket->getHighSeqno();
 
@@ -1496,6 +1491,25 @@ void VBucketDurabilityTest::doSyncDelete() {
     ASSERT_EQ(ENGINE_SUCCESS,
               vbucket->commit(
                       key, lastSeqno + 1, {}, vbucket->lockCollections(key)));
+}
+
+MutationStatus VBucketDurabilityTest::doPrepareSyncSet(const StoredDocKey& key,
+                                                       std::string value) {
+    auto prepared = makePendingItem(key, value);
+    prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
+
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    return public_processSet(*prepared, 0, ctx);
+}
+
+AddStatus VBucketDurabilityTest::doPrepareSyncAdd(const StoredDocKey& key,
+                                                  std::string value) {
+    auto prepared = makePendingItem(key, value);
+    prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
+    VBQueueItemCtx ctx;
+    ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
+    return public_processAdd(*prepared, ctx);
 }
 
 TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncDelete) {
@@ -2896,5 +2910,87 @@ TEST_P(EPVBucketDurabilityTest,
 
     EXPECT_EQ(0, vbucket->getNumItems())
             << "Should have zero items once set(pending) persistence callback "
+               "has run.";
+}
+
+// Test that the combination of:
+//   1) A SyncWrite, followed by
+//   2) A Delete, followed by
+//   3) A SyncAdd (which re-creates the key);
+// where the persistence callback for the Commit of the SyncWrite happens
+// after (3) results in the correct on-disk item count.
+//
+// This is a regression test for a second variant of MB-38197, where the
+// persistence callback for the SET did not find a Committed item in the
+// HashTable and hence did not increment the number of on-disk items.
+TEST_P(EPVBucketDurabilityTest,
+       MB_38197_ItemCountSyncWriteCommitPersistedAfterPendingDelete) {
+    // Setup
+    // (1) Prepare a SyncWrite
+    auto key = makeStoredDocKey("key");
+    ASSERT_EQ(MutationStatus::WasClean, doPrepareSyncSet(key, "\"valueA\""));
+    ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
+
+    // (1.1) Run persistence callback for Prepare (not important, but must
+    // happen before Commit occurs).
+    std::vector<queued_item> items;
+    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    EXPECT_EQ(2, items.size());
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::pending_sync_write, items.at(1)->getOperation());
+
+    EPTransactionContext txnCtx(global_stats, *vbucket);
+    PersistenceCallback persistCb;
+    persistCb(txnCtx, items.back(), KVStore::MutationSetResultState::Insert);
+    EXPECT_EQ(0, vbucket->getNumItems())
+            << "Prepared SyncAdd should not increase numItems";
+
+    // (1.2) Commit the SyncWrite
+    auto preparedSeqno = vbucket->getHighSeqno();
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vbucket->commit(
+                      key, preparedSeqno, {}, vbucket->lockCollections(key)));
+
+    // (1.3) Begin persistence of the SyncWrite (i.e. advance persistence
+    // cursor) but don't _yet_ complete persistence.
+    items.clear();
+    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    EXPECT_EQ(1, items.size());
+    EXPECT_EQ(queue_op::commit_sync_write, items.at(0)->getOperation());
+
+    // (1.4) Delete key. Note crucially this happens before the Commit of the
+    // SyncWrite has run it's persistence callback.
+    softDeleteOne(key, MutationStatus::WasDirty);
+    EXPECT_EQ(0, vbucket->getNumTotalItems()) << "With EvictionPolicy::Full";
+    EXPECT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // (1.5) Prepare a SyncAdd for the same key.
+    // This will replace the committed, deleted, dirty item added at 1.4 in
+    // HT with a prepare.
+    ASSERT_EQ(AddStatus::UnDel, doPrepareSyncAdd(key, "\"valueB\""));
+    ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
+
+    // TEST
+    // Run the persistence callback for the Commit SyncWrite at (1.2).
+    // This should increase the number of items on disk from 0 to 1.
+    persistCb(txnCtx, items.at(0), KVStore::MutationSetResultState::Insert);
+    EXPECT_EQ(1, vbucket->getNumTotalItems())
+            << "Should have one item once set(Commit) persistence callback has "
+               "run.";
+
+    // Run persistence callback for Delete at (1.4). Item count should
+    // be reduced to zero, but in fact underflowed in original MB, given missing
+    // increment from previous Commit SyncAdd.
+    items.clear();
+    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    EXPECT_EQ(3, items.size());
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_TRUE(items.at(1)->isDeleted());
+    EXPECT_EQ(queue_op::pending_sync_write, items.at(2)->getOperation());
+    persistCb(txnCtx, items.at(1), KVStore::MutationStatus::Success);
+
+    EXPECT_EQ(0, vbucket->getNumItems())
+            << "Should have zero items once delete persistence callback "
                "has run.";
 }

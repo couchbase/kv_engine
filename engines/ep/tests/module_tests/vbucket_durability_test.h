@@ -290,6 +290,9 @@ protected:
     void doSyncWriteAndCommit();
     void doSyncDelete();
 
+    MutationStatus doPrepareSyncSet(const StoredDocKey& key, std::string value);
+    AddStatus doPrepareSyncAdd(const StoredDocKey& key, std::string value);
+
     // All owned by VBucket
     HashTable* ht;
     MockCheckpointManager* ckptMgr;
