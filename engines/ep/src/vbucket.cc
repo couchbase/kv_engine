@@ -1691,12 +1691,6 @@ ENGINE_ERROR_CODE VBucket::replace(
         auto htRes = ht.findForUpdate(itm.getKey());
         auto& hbl = htRes.getHBL();
 
-        // If a pending SV was found and it's not yet complete, then we cannot
-        // perform another mutation while the first is in progress.
-        if (htRes.pending && !htRes.pending->isCompleted()) {
-            return ENGINE_SYNC_WRITE_IN_PROGRESS;
-        }
-
         cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
         if (predicate &&
             (storeIfStatus = callPredicate(predicate, htRes.committed)) ==
@@ -1718,6 +1712,18 @@ ENGINE_ERROR_CODE VBucket::replace(
                 htRes.committed->isTempInitialItem()) {
                 mtype = MutationStatus::NeedBgFetch;
             } else {
+                // If a pending SV was found and it's not yet complete, then we
+                // cannot perform another mutation while the first is in
+                // progress.
+                //
+                // MB-37342: The semantic of replace must not change. Ie, we try
+                //  the set only /after/ having verified that the doc exists,
+                //  which is also the right time to check for any pending SW
+                //  (and to reject the operation if a prepare is in-flight).
+                if (htRes.pending && !htRes.pending->isCompleted()) {
+                    return ENGINE_SYNC_WRITE_IN_PROGRESS;
+                }
+
                 PreLinkDocumentContext preLinkDocumentContext(
                         engine, cookie, &itm);
                 VBQueueItemCtx queueItmCtx;

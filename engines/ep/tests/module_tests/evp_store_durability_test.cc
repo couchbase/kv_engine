@@ -24,6 +24,7 @@
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
+#include "ep_vb.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "src/internal.h" // this is couchstore/src/internal.h
@@ -324,6 +325,18 @@ protected:
             vbucket_state_t newState);
 
     void takeoverSendsDurabilityAmbiguous(vbucket_state_t newState);
+
+    enum class DocState : uint8_t { NOENT, RESIDENT, EJECTED };
+
+    /**
+     * Check that the correct replace semantic is still enforced if a prepare is
+     * in-flight for the same doc:
+     * 1) the replace is rejected with KEY_ENOENT if no committed doc exists
+     *  (regardless of whether a prepare is in-flight or not)
+     * 2) else, the set-phase of the replace is rejected with SW_IN_PROGRESS if
+     *  a pending prepare exists in the HT
+     */
+    void testReplaceAtPendingSW(DocState docState);
 
     /// Member to store the default options for GET and GET_REPLICA ops
     static const get_options_t options = static_cast<get_options_t>(
@@ -3747,6 +3760,104 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
     requestPtr = createObserveRequest({keyMaybeVisible, keyCommitted});
     res = engine->observe(cookie, *requestPtr, dummyAddResponse);
     EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, res);
+}
+
+void DurabilityBucketTest::testReplaceAtPendingSW(DocState docState) {
+    if (!persistent()) {
+        return;
+    }
+
+    // 1 replica node in topology, no SyncWrite will be ever completed unless
+    // manually ack'ed.
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+
+    ASSERT_TRUE(store);
+    auto& vb = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
+
+    switch (docState) {
+    case DocState::NOENT:
+        break;
+    case DocState::RESIDENT: {
+        ASSERT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+        flush_vbucket_to_disk(vbid, 1 /*expectedNumFlused*/);
+        break;
+    }
+    case DocState::EJECTED: {
+        ASSERT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+        flush_vbucket_to_disk(vbid, 1 /*expectedNumFlused*/);
+        {
+            auto res = vb.ht.findForWrite(key);
+            ASSERT_TRUE(res.storedValue);
+        }
+        auto cHandle = vb.lockCollections(key);
+        ASSERT_TRUE(cHandle.valid());
+        const auto buffer = std::make_unique<const char[]>(128);
+        const char* msg = buffer.get();
+        ASSERT_EQ(cb::mcbp::Status::Success, vb.evictKey(&msg, cHandle));
+        ASSERT_TRUE(std::strcmp("Ejected.", msg) == 0);
+        break;
+    }
+    }
+
+    // Pending mutation for the same key
+    auto pending = makePendingItem(key, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+    ENGINE_ERROR_CODE expectedRes;
+
+    {
+        const auto res = vb.ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+
+        // Verify committed state in HT and residency
+        switch (docState) {
+        case DocState::NOENT: {
+            ASSERT_FALSE(res.committed);
+            ASSERT_EQ(0, vb.getNumTotalItems());
+            expectedRes = ENGINE_KEY_ENOENT;
+            break;
+        }
+        case DocState::RESIDENT: {
+            ASSERT_TRUE(res.committed);
+            ASSERT_EQ(1, vb.getNumTotalItems());
+            expectedRes = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            break;
+        }
+        case DocState::EJECTED: {
+            if (fullEviction()) {
+                // The committed item is fully ejected, the bloom filter must
+                // trigger a bg-fetch
+                ASSERT_FALSE(res.committed);
+                expectedRes = ENGINE_EWOULDBLOCK;
+            } else {
+                ASSERT_TRUE(res.committed);
+                expectedRes = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            }
+            ASSERT_EQ(1, vb.getNumTotalItems());
+            break;
+        }
+        }
+    }
+
+    EXPECT_EQ(expectedRes, store->replace(*item, cookie));
+}
+
+TEST_P(DurabilityBucketTest, ReplaceAtPendingSW_DocEnoent) {
+    testReplaceAtPendingSW(DocState::NOENT);
+}
+
+TEST_P(DurabilityBucketTest, ReplaceAtPendingSW_DocResident) {
+    testReplaceAtPendingSW(DocState::RESIDENT);
+}
+
+TEST_P(DurabilityBucketTest, ReplaceAtPendingSW_DocEjected) {
+    testReplaceAtPendingSW(DocState::EJECTED);
 }
 
 // Test cases which run against couchstore
