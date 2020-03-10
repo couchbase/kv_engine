@@ -61,7 +61,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     if (newManifest->getUid() != 0) {
         // However expect it to be increasing
         if (newManifest->getUid() < current->getUid()) {
-            // Bad - newManifest has a equal/lower UID
+            // Bad - newManifest has a lower UID
             EP_LOG_WARN(
                     "Collections::Manager::update the new manifest has "
                     "UID < current manifest UID. Current UID:{}, New "
