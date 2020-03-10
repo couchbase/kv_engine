@@ -546,8 +546,28 @@ def stats_dcp(mc):
     stats_formatter(stats_perform(mc, 'dcp'))
 
 @cmd
-def stats_collections(mc):
-    stats_formatter(stats_perform(mc, 'collections'))
+def stats_collections(mc, *args):
+    if not args:
+        cmd = 'collections'
+    else:
+        if len(args) == 1:
+            # assume single argument is collection path
+            cmd = "collections %s" % args[0]
+        elif args[0] == "id":
+            cidStr = args[1].lower()
+            base = 16 if cidStr.startswith("0x") else 10
+            try:
+                cid = int(cidStr, base)
+            except ValueError:
+                print('Specified collection ID "%s" is not valid decimal or '
+                      '"0x" prefixed hex.' % cidStr)
+                return
+            cmd = "collections-byid %s" % ("0x{:x}".format(cid))
+        else:
+            print('Specified collection "%s" is not valid' % " ".join(args))
+            return
+    stats_formatter(stats_perform(mc, cmd))
+
 
 @cmd
 def stats_collections_details(mc, vb=-1):
@@ -907,7 +927,7 @@ def main():
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
     c.addCommand('warmup', stats_warmup, 'warmup')
     c.addCommand('uuid', stats_uuid, 'uuid')
-    c.addCommand('collections', stats_collections, 'collections')
+    c.addCommand('collections', stats_collections, 'collections [scope.collection | id collectionID]')
     c.addCommand('collections-details', stats_collections_details,
                  'collections-details [vbid]')
     c.addCommand('scopes', stats_scopes, 'scopes')

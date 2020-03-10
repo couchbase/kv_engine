@@ -31,6 +31,39 @@ class VBucket;
 namespace Collections {
 
 /**
+ * Copy of per-collection stats which may be expensive to collect repeatedly
+ * (e.g., may require vbucket visiting). After collecting the stats once
+ * (see Collections::Manager::getPerCollectionStats) they can be used to
+ * format stats for multiple collections or scopes.
+ */
+class CachedStats {
+public:
+    CachedStats(std::unordered_map<CollectionID, size_t> colMemUsed,
+                std::unordered_map<CollectionID, uint64_t> colDiskCount);
+    /**
+     * Add stats for a single collection.
+     * @param scope
+     * @param cid
+     * @param collection
+     * @param add_stat memcached callback which will be called with each stat
+     * @param cookie
+     */
+    void addStatsForCollection(const Scope& scope,
+                               const CollectionID& cid,
+                               const Manifest::Collection& collection,
+                               const AddStatFn& add_stat,
+                               const void* cookie);
+
+private:
+    void addAggregatedCollectionStats(const std::vector<CollectionID>& cids,
+                                      std::string_view prefix,
+                                      const AddStatFn& add_stat,
+                                      const void* cookie);
+    std::unordered_map<CollectionID, size_t> colMemUsed;
+    std::unordered_map<CollectionID, uint64_t> colDiskCount;
+};
+
+/**
  * Collections::Manager provides some bucket level management functions
  * such as the code which enables the MCBP set_collections command.
  */
@@ -121,10 +154,11 @@ public:
     /**
      * Perform the gathering of collection stats for the bucket.
      */
-    static ENGINE_ERROR_CODE doCollectionStats(KVBucket& bucket,
-                                               const void* cookie,
-                                               const AddStatFn& add_stat,
-                                               const std::string& statKey);
+    static cb::EngineErrorGetCollectionIDResult doCollectionStats(
+            KVBucket& bucket,
+            const void* cookie,
+            const AddStatFn& add_stat,
+            const std::string& statKey);
 
     /**
      * Perform the gathering of scope stats for the bucket.
@@ -141,6 +175,21 @@ private:
      */
     boost::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
                                             const Manifest& newManifest);
+
+    /**
+     * Get a copy of stats which are relevant at a per-collection level.
+     * The copied stats can then be used to format stats for one or more
+     * collections (e.g., when aggregating over a scope) without repeatedly
+     * aggregating over CoreStores/vBuckets.
+     *
+     * The stats collected here are either tracked per-collection, or are
+     * tracked per-collection per-vbucket but can be meaningfully aggregated
+     * across vbuckets. e.g., high seqnos are not meaningful outside the context
+     * of the vbucket, but memory usage can easily be summed.
+     * @param bucket bucket to collect stats for
+     * @return copy of the stats to use to format stats for a request
+     */
+    static CachedStats getPerCollectionStats(KVBucket& bucket);
 
     /**
      * validate the path is correctly formed for get_collection_id.

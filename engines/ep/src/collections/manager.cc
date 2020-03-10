@@ -323,7 +323,7 @@ private:
 // collections
 //   - return top level stats (manager/manifest)
 //   - return per collection item counts from all active VBs
-ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
+cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
         KVBucket& bucket,
         const void* cookie,
         const AddStatFn& add_stat,
@@ -345,26 +345,18 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
                         "Collections::Manager::doCollectionStats invalid "
                         "vbid:{}, exception:{}",
                         *arg, e.what());
-                return ENGINE_EINVAL;
+                return {cb::engine_errc::invalid_arguments, 0, 0};
             }
 
             Vbid vbid = Vbid(id);
             VBucketPtr vb = bucket.getVBucket(vbid);
             if (!vb) {
-                return ENGINE_NOT_MY_VBUCKET;
+                return {cb::engine_errc::not_my_vbucket, 0, 0};
             }
 
-            try {
-                success = vb->lockCollections().addCollectionStats(
-                        vbid, cookie, add_stat);
-            } catch (const std::exception& e) {
-                EP_LOG_WARN(
-                        "Collections::Manager::doCollectionStats failed to "
-                        "build stats for {} exception:{}",
-                        *arg,
-                        e.what());
-                return ENGINE_EINVAL;
-            }
+            success = vb->lockCollections().addCollectionStats(
+                    vbid, cookie, add_stat);
+
         } else {
             bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
             CollectionDetailedVBucketVisitor visitor(cookie, add_stat);
@@ -372,31 +364,80 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
             success = visitor.getSuccess();
         }
     } else {
-        // Do the high level stats (includes global count)
-        bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
-        CollectionCountVBucketVisitor visitor;
-        bucket.visit(visitor);
-        for (const auto& entry : visitor.summary) {
-            try {
-                const int bsize = 512;
-                char buffer[bsize];
-                checked_snprintf(buffer,
-                                 bsize,
-                                 "collection:%s:items",
-                                 entry.first.to_string().c_str());
-                add_casted_stat(buffer, entry.second, add_stat, cookie);
-            } catch (const std::exception& e) {
+        auto cachedStats = getPerCollectionStats(bucket);
+        // if an argument was provided, look up the collection
+        if (arg) {
+            CollectionIDType cid;
+            if (cb_isPrefix(statKey, "collections-byid")) {
+                // provided argument should be a hex collection ID N, 0xN or 0XN
+                try {
+                    cid = std::stoi(*arg, nullptr, 16);
+                } catch (const std::logic_error& e) {
+                    EP_LOG_WARN(
+                            "Collections::Manager::doCollectionStats invalid "
+                            "collection id:{}, exception:{}",
+                            *arg,
+                            e.what());
+                    return {cb::engine_errc::invalid_arguments, 0, 0};
+                }
+            } else {
+                // provided argument should be a collection path
+                auto res = bucket.getCollectionsManager().getCollectionID(*arg);
+                if (res.result != cb::engine_errc::success) {
+                    EP_LOG_WARN(
+                            "Collections::Manager::doCollectionStats could not "
+                            "find "
+                            "collection name:{} error:{}",
+                            *arg,
+                            res.result);
+                    return res;
+                }
+                cid = res.getCollectionId();
+            }
+
+            auto current =
+                    bucket.getCollectionsManager().currentManifest.rlock();
+            auto collectionItr = current->findCollection(cid);
+
+            if (collectionItr == current->end()) {
                 EP_LOG_WARN(
-                        "Collections::Manager::doCollectionStats failed to "
-                        "build stats: "
-                        "{}",
-                        e.what());
-                success = false;
+                        "Collections::Manager::doCollectionStats unknown "
+                        "collection id:{}",
+                        *arg);
+                return {cb::engine_errc::unknown_collection,
+                        current->getUid(),
+                        0};
+            }
+
+            // collection was specified, do stats for that collection only
+            const auto& collection = collectionItr->second;
+            const auto scopeItr = current->findScope(collection.sid);
+            Expects(scopeItr != current->endScopes());
+
+            cachedStats.addStatsForCollection(
+                    scopeItr->second, cid, collection, add_stat, cookie);
+        } else {
+            // no collection ID was provided
+
+            // Do the high level stats (includes global count)
+            bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
+
+            auto current =
+                    bucket.getCollectionsManager().currentManifest.rlock();
+            // do stats for every collection
+            for (const auto& entry : *current) {
+                const auto scopeItr = current->findScope(entry.second.sid);
+                Expects(scopeItr != current->endScopes());
+                cachedStats.addStatsForCollection(scopeItr->second,
+                                                  entry.first,
+                                                  entry.second,
+                                                  add_stat,
+                                                  cookie);
             }
         }
     }
 
-    return success ? ENGINE_SUCCESS : ENGINE_FAILED;
+    return {success ? cb::engine_errc::success : cb::engine_errc::failed, 0, 0};
 }
 
 // scopes-details
@@ -471,4 +512,64 @@ std::ostream& Collections::operator<<(std::ostream& os,
     os << "Collections::Manager current:" << *manager.currentManifest.rlock()
        << "\n";
     return os;
+}
+
+Collections::CachedStats Collections::Manager::getPerCollectionStats(
+        KVBucket& bucket) {
+    auto memUsed = bucket.getEPEngine().getEpStats().getAllCollectionsMemUsed();
+
+    CollectionCountVBucketVisitor visitor;
+    bucket.visit(visitor);
+
+    return {memUsed, visitor.summary /* diskCount */};
+}
+
+Collections::CachedStats::CachedStats(
+        std::unordered_map<CollectionID, size_t> colMemUsed,
+        std::unordered_map<CollectionID, uint64_t> colDiskCount)
+    : colMemUsed(std::move(colMemUsed)), colDiskCount(std::move(colDiskCount)) {
+}
+void Collections::CachedStats::addStatsForCollection(
+        const Scope& scope,
+        const CollectionID& cid,
+        const Manifest::Collection& collection,
+        const AddStatFn& add_stat,
+        const void* cookie) {
+    fmt::memory_buffer buf;
+    // format prefix
+    format_to(buf, "{}:{}", scope.name, collection.name);
+    addAggregatedCollectionStats(
+            {cid}, {buf.data(), buf.size()}, add_stat, cookie);
+
+    // add collection ID stat
+    buf.resize(0);
+    format_to(buf, "{}:{}:id", scope.name, collection.name);
+    add_stat({buf.data(), buf.size()}, cid.to_string(), cookie);
+}
+
+void Collections::CachedStats::addAggregatedCollectionStats(
+        const std::vector<CollectionID>& cids,
+        std::string_view prefix,
+        const AddStatFn& add_stat,
+        const void* cookie) {
+    size_t memUsed = 0;
+    uint64_t diskCount = 0;
+
+    for (const auto& cid : cids) {
+        memUsed += colMemUsed[cid];
+        diskCount += colDiskCount[cid];
+    }
+
+    const auto addStat = [prefix, &add_stat, &cookie](const auto& statKey,
+                                                      const auto& statValue) {
+        fmt::memory_buffer key;
+        fmt::memory_buffer value;
+        format_to(key, "{}:{}", prefix, statKey);
+        format_to(value, "{}", statValue);
+        add_stat(
+                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    };
+
+    addStat("mem_used", memUsed);
+    addStat("items", diskCount);
 }
