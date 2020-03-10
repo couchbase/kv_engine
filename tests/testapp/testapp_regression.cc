@@ -329,3 +329,16 @@ TEST_P(RegressionTest, MB37506) {
         ASSERT_TRUE(e.isInvalidArguments());
     }
 }
+
+/// MB-38243 - Crash caused by server keeping the connection open after
+///            processing a command where the validator return a failure
+TEST_P(RegressionTest, MB38243) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+
+    for (int ii = 0; ii < 10; ++ii) {
+        const auto rsp = conn.execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::DcpFlush_Unsupported});
+        ASSERT_FALSE(rsp.isSuccess());
+    }
+}

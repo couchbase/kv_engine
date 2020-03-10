@@ -556,6 +556,11 @@ void Connection::executeCommandPipeline() {
             const auto status = cookie->validate();
             if (status != cb::mcbp::Status::Success) {
                 cookie->sendResponse(status);
+                if (cookies.empty()) {
+                    // Add back the empty slot
+                    cookie->reset();
+                    cookies.push_back(std::move(cookie));
+                }
             } else {
                 // We may only start execute the packet if:
                 //  * We don't have any ongoing commands
