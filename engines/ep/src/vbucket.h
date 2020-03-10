@@ -584,12 +584,6 @@ public:
         boost::optional<uint64_t> maxDeletedRevSeqno = {};
         CheckpointType checkpointType = CheckpointType::Memory;
 
-        /**
-         * Number of items that were in the reject queue and need to be flushed.
-         * Used to correct flusher_todo.
-         */
-        cb::NonNegativeCounter<size_t> itemsToRetry = 0;
-
         // See CM::ItemsForCursor for details.
         UniqueFlushHandle flushHandle;
     };
@@ -1717,7 +1711,6 @@ public:
      */
     uint64_t getMaxVisibleSeqno() const;
 
-    std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;

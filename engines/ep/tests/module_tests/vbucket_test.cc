@@ -557,44 +557,55 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_EQ(range.getEnd() + 6, result.ranges.back().getEnd());
 }
 
-// @todo: Disabling this test now and refactoring (or removing it) in the next
-//  patch where I will remove the rejectQueue code.
-//
 // Check that getItemsToPersist() can correctly impose a limit on items fetched.
+// Note that from MB-37546 the CheckpointManager is the only source of items.
 TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
-    // Setup - Add items to reject, backfill and checkpoint manager.
+    // Setup - Add items to multiple checkpoints in the CM.
 
-    this->vbucket->rejectQueue.push(makeQueuedItem("1"));
-    this->vbucket->rejectQueue.push(makeQueuedItem("2"));
-
-    // Add 2 items to checkpoint manager (in addition to initial
+    // Add 2 items into the first checkpoint (in addition to initial
     // checkpoint_start).
-    const int itemsToGenerate = 2;
-    auto keys = generateKeys(itemsToGenerate, 3);
+    auto keys = generateKeys(2 /*numItems*/, 1 /*start key*/);
     setMany(keys, MutationStatus::WasClean);
+    auto& manager = *vbucket->checkpointManager;
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getNumItemsForPersistence());
 
-    // Test - fetch items in chunks spanning the different item sources.
-    // Should get specified number (in correct order), and should always have
-    // items available until the end.
-    auto result = this->vbucket->getItemsToPersist(1);
+    // Create second checkpoint
+    const auto firstCkptId = manager.getOpenCheckpointId();
+    const auto secondCkptId = manager.createNewCheckpoint();
+    ASSERT_GT(secondCkptId, firstCkptId);
+
+    // Add items to the second checkpoint
+    keys = generateKeys(3 /*numItems*/, 3 /*start key*/);
+    setMany(keys, MutationStatus::WasClean);
+    EXPECT_EQ(3, manager.getNumOpenChkItems());
+    EXPECT_EQ(5, manager.getNumItemsForPersistence());
+
+    // Test - fetch items with (approxLimit < size_first_ckpt), we must retrieve
+    // the complete first checkpoint (as it is not valid to read partial
+    // checkpoint contents) but no item from the second checkpoint.
+    auto result = this->vbucket->getItemsToPersist(1 /*approxLimit*/);
     EXPECT_TRUE(result.moreAvailable);
-    EXPECT_EQ(1, result.items.size());
+    ASSERT_EQ(3, result.items.size());
     EXPECT_STREQ("1", result.items[0]->getKey().c_str());
-    EXPECT_TRUE(result.ranges.empty());
-
-    // Next call should read 1 item from reject queue; and *all* items from
-    // checkpoint (even through we only asked for 2 total), as it is not valid
-    // to read partial checkpoint contents.
-    result = this->vbucket->getItemsToPersist(2);
-    EXPECT_FALSE(result.moreAvailable);
-    EXPECT_EQ(4, result.items.size());
-    EXPECT_STREQ("2", result.items[0]->getKey().c_str());
-    EXPECT_TRUE(result.items[1]->isCheckPointMetaItem());
-    EXPECT_STREQ("3", result.items[2]->getKey().c_str());
-    EXPECT_STREQ("4", result.items[3]->getKey().c_str());
+    EXPECT_STREQ("2", result.items[1]->getKey().c_str());
+    EXPECT_EQ(queue_op::checkpoint_end, result.items[2]->getOperation());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(range.getStart(), result.ranges.front().getStart());
-    EXPECT_EQ(range.getEnd() + itemsToGenerate, result.ranges.back().getEnd());
+    EXPECT_EQ(range.getEnd() + 2, result.ranges.back().getEnd());
+
+    // Again, get the complete second checkpoint, different items and range
+    // expected
+    result = this->vbucket->getItemsToPersist(2 /*approxLimit*/);
+    EXPECT_FALSE(result.moreAvailable);
+    EXPECT_EQ(4, result.items.size());
+    EXPECT_EQ(queue_op::checkpoint_start, result.items[0]->getOperation());
+    EXPECT_STREQ("3", result.items[1]->getKey().c_str());
+    EXPECT_STREQ("4", result.items[2]->getKey().c_str());
+    EXPECT_STREQ("5", result.items[3]->getKey().c_str());
+    EXPECT_EQ(1, result.ranges.size());
+    EXPECT_EQ(range.getEnd() + 3, result.ranges.front().getStart());
+    EXPECT_EQ(range.getEnd() + 5, result.ranges.back().getEnd());
 }
 
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we
