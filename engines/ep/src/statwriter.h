@@ -29,8 +29,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-
-using namespace std::string_view_literals;
+#include <type_traits>
 
 class EventuallyPersistentEngine;
 
@@ -49,8 +48,8 @@ struct HistogramBucket {
 /**
  * Data for a whole histogram for use when adding a stat.
  *
- * The add_casted_stat has overloads which will convert a Histogram
- * or HdrHistogram to this structure.
+ * StatCollector has overloads which will convert a Histogram
+ * or HdrHistogram to this type, and call addStat with the result.
  *
  * This type exists to provide a canonical structure for histogram data.
  * All currently used Histogram stats can be converted to this format.
@@ -103,146 +102,201 @@ inline uint64_t getBucketMax(const MicrosecondHistogram::value_type& bucket) {
     return bucket->end().count();
 }
 
-template <typename T>
-void add_casted_stat(std::string_view k,
-                     const T& v,
-                     const AddStatFn& add_stat,
-                     const void* cookie) {
-    fmt::memory_buffer buf;
-    fmt::format_to(buf, "{}", v);
-    add_stat(k, {buf.data(), buf.size()}, cookie);
-}
-
-inline void add_casted_stat(std::string_view k,
-                            const bool v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_stat(k, v ? "true"sv : "false"sv, cookie);
-}
-
-template <typename T>
-void add_casted_stat(std::string_view k,
-                     const std::atomic<T>& v,
-                     const AddStatFn& add_stat,
-                     const void* cookie) {
-    add_casted_stat(k, v.load(), add_stat, cookie);
-}
-
-template <typename T>
-void add_casted_stat(std::string_view k,
-                     const cb::RelaxedAtomic<T>& v,
-                     const AddStatFn& add_stat,
-                     const void* cookie) {
-    add_casted_stat(k, v.load(), add_stat, cookie);
-}
-
 /**
- * Call add_stat for each bucket of a HistogramData.
+ * Interface implemented by statistics collection backends.
+ *
+ * Allows stats to be added in a key-value manner, to be formatted
+ * and exposed in a backend-specific manner.
+ *
+ * Users may call the collector addStat with a stat key (e.g., get_cmd)
+ * and a value for the backend to format appropriately.
  */
-inline void add_casted_stat(std::string_view k,
-                            const HistogramData& hist,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    fmt::memory_buffer buf;
-    format_to(buf, "{}_mean", k);
-    add_casted_stat({buf.data(), buf.size()}, hist.mean, add_stat, cookie);
+class StatCollector {
+public:
+    /**
+     * Add a textual stat to the collector.
+     *
+     * Try to use other type specific overloads where possible.
+     */
+    virtual void addStat(std::string_view k, std::string_view v) = 0;
+    /**
+     * Add a boolean stat to the collector.
+     */
+    virtual void addStat(std::string_view k, bool v) = 0;
 
-    for (const auto& bucket : hist.buckets) {
-        buf.resize(0);
-        format_to(buf, "{}_{},{}", k, bucket.lowerBound, bucket.upperBound);
-        add_casted_stat(
-                {buf.data(), buf.size()}, bucket.count, add_stat, cookie);
+    /**
+     * Add a numeric stat to the collector.
+     *
+     * Overloaded for signed, unsigned, and floating-point numbers.
+     * Converting all numbers to any one of these types would either
+     * cause narrowing, loss of precision, so backends are responsible
+     * for handling each appropriately.
+     */
+    virtual void addStat(std::string_view k, int64_t v) = 0;
+    virtual void addStat(std::string_view k, uint64_t v) = 0;
+    virtual void addStat(std::string_view k, double v) = 0;
+
+    /**
+     * Add a histogram stat to the collector.
+     *
+     * HistogramData is an intermediate type to which multiple
+     * histogram types are converted.
+     */
+    virtual void addStat(std::string_view k, const HistogramData& hist) = 0;
+
+    /**
+     * Add a textual stat. This overload is present to avoid conversion
+     * to bool; overload resolution selects the bool overload rather than the
+     * string_view overload.
+     *
+     * TODO: MB-40259 - replace this with a more general solution.
+     */
+    void addStat(std::string_view k, const char* v) {
+        addStat(k, std::string_view(v));
+    };
+
+    /**
+     * Overload with other signed/unsigned/float types.
+     *
+     * Avoids ambiguous calls when a numeric type is not explicitly
+     * handled and may be converted to more than one of int64_t,
+     * uint64_t,and double.
+     */
+    template <class T, class = std::enable_if_t<std::is_arithmetic_v<T>>>
+    void addStat(std::string_view k, T v) {
+        /* Converts the value to uint64_t/int64_t/double
+         * based on if it is a signed/unsigned type.
+         */
+        if constexpr (std::is_unsigned_v<T>) {
+            addStat(k, uint64_t(v));
+        } else if constexpr (std::is_signed_v<T>) {
+            addStat(k, int64_t(v));
+        } else {
+            addStat(k, double(v));
+        }
     }
-}
 
-inline void add_casted_histo_stat(std::string_view k,
-                                  const HdrHistogram& v,
-                                  const AddStatFn& add_stat,
-                                  const void* cookie) {
-    if (v.getValueCount() > 0) {
-        HistogramData histData;
-        histData.mean = std::round(v.getMean());
-        histData.sampleCount = v.getValueCount();
+    /**
+     * Converts a HdrHistogram instance to HistogramData,
+     * and adds the result to the collector.
+     *
+     * Used to adapt histogram types to a single common type
+     * for backends to support.
+     */
+    void addStat(std::string_view k, const HdrHistogram& v) {
+        if (v.getValueCount() > 0) {
+            HistogramData histData;
+            histData.mean = std::round(v.getMean());
+            histData.sampleCount = v.getValueCount();
 
-        HdrHistogram::Iterator iter{v.getHistogramsIterator()};
-        while (auto result = v.getNextBucketLowHighAndCount(iter)) {
-            auto [lower, upper, count] = *result;
+            HdrHistogram::Iterator iter{v.getHistogramsIterator()};
+            while (auto result = v.getNextBucketLowHighAndCount(iter)) {
+                auto [lower, upper, count] = *result;
 
+                histData.buckets.push_back({lower, upper, count});
+
+                // TODO: HdrHistogram doesn't track the sum of all added values
+                //  but prometheus requires that value. For now just approximate
+                //  it from bucket counts.
+                auto avgBucketValue = (lower + upper) / 2;
+                histData.sampleSum += avgBucketValue * count;
+            }
+            addStat(k, histData);
+        }
+    }
+
+    /**
+     * Converts a Histogram<T, Limits> instance to HistogramData,
+     * and adds the result to the collector.
+     *
+     * Used to adapt histogram types to a single common type
+     * for backends to support.
+     */
+    template <typename T, template <class> class Limits>
+    void addStat(std::string_view k, const Histogram<T, Limits>& hist) {
+        HistogramData histData{};
+        histData.sampleCount = hist.total();
+        histData.buckets.reserve(hist.size());
+
+        for (const auto& bin : hist) {
+            auto lower = getBucketMin(bin);
+            auto upper = getBucketMax(bin);
+            auto count = bin->count();
             histData.buckets.push_back({lower, upper, count});
-            // TODO: HdrHistogram doesn't track the sum of all added values but
-            //  prometheus requires that value. For now just approximate it
-            //  from bucket counts.
+
+            // TODO: Histogram doesn't track the sum of all added values but
+            //  prometheus requires that value. For now just approximate it from
+            //  bucket counts.
             auto avgBucketValue = (lower + upper) / 2;
             histData.sampleSum += avgBucketValue * count;
         }
-        add_casted_stat(k, histData, add_stat, cookie);
+        if (histData.sampleCount != 0) {
+            histData.mean = std::round(double(histData.sampleSum) /
+                                       histData.sampleCount);
+        }
+        addStat(k, histData);
     }
-}
 
-inline void add_casted_stat(std::string_view k,
-                            const HdrHistogram& v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_casted_histo_stat(k, v, add_stat, cookie);
-}
+    /**
+     * Convenience method for types with a method
+     *  T load() const;
+     *
+     *  which returns an arithmetic type. Used to "unwrap" std::atomic,
+     *  RelaxedAtomic, Monotonic, and NonNegativeCounter instances.
+     *
+     *  Avoids relying on implicit conversions for these types, so _other_
+     *  types are not implicitly converted unintentionally.
+     *
+     */
+    template <typename T>
+    auto addStat(std::string_view k, const T& v)
+            -> std::enable_if_t<std::is_arithmetic_v<decltype(v.load())>,
+                                void> {
+        addStat(k, v.load());
+    }
+};
 
-inline void add_casted_stat(std::string_view k,
-                            const Hdr1sfMicroSecHistogram& v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_casted_histo_stat(k, v, add_stat, cookie);
-}
+/**
+ * StatCollector implementation for exposing stats via CMD_STAT.
+ *
+ * Formats all stats to text and immediately calls the provided
+ * addStatFn.
+ */
+class CBStatCollector : public StatCollector {
+public:
+    /**
+     * Construct a collector which calls the provided addStatFn
+     * for each added stat.
+     * @param addStatFn callback called for each stat
+     * @param cookie passed to addStatFn for each call
+     */
+    CBStatCollector(const AddStatFn& addStatFn, const void* cookie)
+        : addStatFn(addStatFn), cookie(cookie) {
+    }
+    // Allow usage of the "helper" methods defined in the base type.
+    // They would otherwise be shadowed
+    using StatCollector::addStat;
 
-inline void add_casted_stat(std::string_view k,
-                            const Hdr2sfMicroSecHistogram& v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_casted_histo_stat(k, v, add_stat, cookie);
-}
+    void addStat(std::string_view k, std::string_view v) override;
+    void addStat(std::string_view k, bool v) override;
+    void addStat(std::string_view k, int64_t v) override;
+    void addStat(std::string_view k, uint64_t v) override;
+    void addStat(std::string_view k, double v) override;
+    void addStat(std::string_view k, const HistogramData& hist) override;
 
-inline void add_casted_stat(std::string_view k,
-                            const Hdr1sfInt32Histogram& v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_casted_histo_stat(k, v, add_stat, cookie);
-}
+private:
+    const AddStatFn& addStatFn;
+    const void* cookie;
+};
 
-inline void add_casted_stat(std::string_view k,
-                            const HdrUint8Histogram& v,
-                            const AddStatFn& add_stat,
-                            const void* cookie) {
-    add_casted_histo_stat(k, v, add_stat, cookie);
-}
-
-template <typename T, template <class> class Limits>
+// Convenience method which maintain the existing add_casted_stat interface
+// but calls out to CBStatCollector.
+template <typename T>
 void add_casted_stat(std::string_view k,
-                     const Histogram<T, Limits>& hist,
+                     T&& v,
                      const AddStatFn& add_stat,
                      const void* cookie) {
-    HistogramData histData{};
-
-    histData.sampleCount = hist.total();
-    histData.buckets.reserve(hist.size());
-
-    for (const auto& bin : hist) {
-        auto lower = getBucketMin(bin);
-        auto upper = getBucketMax(bin);
-        auto count = bin->count();
-        histData.buckets.push_back({lower, upper, count});
-
-        // TODO: Histogram doesn't track the sum of all added values but
-        //  prometheus requires that value. For now just approximate it from
-        //  bucket counts.
-        auto avgBucketValue = (lower + upper) / 2;
-        histData.sampleSum += avgBucketValue * count;
-    }
-
-    if (histData.sampleCount != 0) {
-        histData.mean =
-                std::round(double(histData.sampleSum) / histData.sampleCount);
-    }
-
-    add_casted_stat(k, histData, add_stat, cookie);
+    CBStatCollector(add_stat, cookie).addStat(k, std::forward<T>(v));
 }
 
 template <typename P, typename T>

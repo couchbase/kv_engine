@@ -327,6 +327,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/server_document_iface_border_guard.h
             src/seqlist.cc
             src/stats.cc
+            src/statwriter.cc
             src/string_utils.cc
             src/storeddockey.cc
             src/stored-value.cc
