@@ -39,6 +39,7 @@
 #include <folly/portability/GMock.h>
 
 #include <engines/ep/tests/module_tests/vbucket_utils.h>
+#include <spdlog/fmt/fmt.h>
 #include <functional>
 #include <thread>
 
@@ -1598,9 +1599,11 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
 
     const auto makeStatPair = [](const ScopeEntry::Entry& scope,
                                  const CollectionEntry::Entry& collection) {
-        return std::make_pair("manifest:collection:" +
-                                      collection.getId().to_string() + ":scope",
-                              scope.getId().to_string());
+        // scope name is present in all collection stats, arbitrarily check the
+        // ID stat exists and contains the scope name.
+        return std::make_pair(
+                fmt::format("{}:{}:id", scope.name, collection.name),
+                collection.getId().to_string());
     };
 
     std::map<std::string, std::string> expected{

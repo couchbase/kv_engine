@@ -324,9 +324,9 @@ void Manifest::addCollectionStats(const void* cookie,
     };
 
     try {
-        addStat("manifest:collections", collections.size());
-        addStat("manifest:default_exists", defaultCollectionExists);
-        addStat("manifest:uid", uid);
+        addStat("collections", collections.size());
+        addStat("default_exists", defaultCollectionExists);
+        addStat("uid", uid);
 
         for (const auto& scope : scopes) {
             for (const auto& entry : scope.second.collections) {
@@ -334,17 +334,12 @@ void Manifest::addCollectionStats(const void* cookie,
                 const auto cid = entry.id.to_string();
 
                 fmt::memory_buffer key;
-                format_to(key, "manifest:collection:{}:name", cid);
-                addStat({key.data(), key.size()}, name);
-
-
-                key.resize(0);
-                format_to(key, "manifest:collection:{}:scope", cid);
-                addStat({key.data(), key.size()}, scope.first.to_string());
+                format_to(key, "{}:{}:id", scope.second.name, name);
+                addStat({key.data(), key.size()}, cid);
 
                 if (entry.maxTtl) {
                     key.resize(0);
-                    format_to(key, "manifest:collection:{}:maxTTL", cid);
+                    format_to(key, "{}:{}:maxTTL", scope.second.name, name);
                     addStat({key.data(), key.size()}, entry.maxTtl->count());
                 }
             }
@@ -362,24 +357,28 @@ void Manifest::addScopeStats(const void* cookie,
     try {
         const int bsize = 512;
         char buffer[bsize];
-        checked_snprintf(buffer, bsize, "manifest:scopes");
+        checked_snprintf(buffer, bsize, "scopes");
         add_casted_stat(buffer, scopes.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "manifest:uid");
+        checked_snprintf(buffer, bsize, "uid");
         add_casted_stat(buffer, uid, add_stat, cookie);
 
         for (const auto& entry : scopes) {
-            checked_snprintf(buffer,
-                             bsize,
-                             "manifest:scopes:%s:name",
-                             entry.first.to_string().c_str());
+            const auto name = entry.second.name.c_str();
+            checked_snprintf(buffer, bsize, "%s:id", name);
             add_casted_stat(
-                    buffer, entry.second.name.c_str(), add_stat, cookie);
-            checked_snprintf(buffer,
-                             bsize,
-                             "manifest:scopes:%s:collections",
-                             entry.first.to_string().c_str());
+                    buffer, entry.first.to_string().c_str(), add_stat, cookie);
+            checked_snprintf(buffer, bsize, "%s:collections", name);
             add_casted_stat<unsigned long>(
                     buffer, entry.second.collections.size(), add_stat, cookie);
+            // add each collection name and id
+            for (const auto& colEntry : entry.second.collections) {
+                auto colName = findCollection(colEntry.id)->second.name;
+                checked_snprintf(buffer, bsize, "%s:%s", name, colName.c_str());
+                add_casted_stat(buffer,
+                                colEntry.id.to_string().c_str(),
+                                add_stat,
+                                cookie);
+            }
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(
