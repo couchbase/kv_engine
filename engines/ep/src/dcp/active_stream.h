@@ -22,6 +22,7 @@
 #include <memcached/engine_error.h>
 #include <platform/non_negative_counter.h>
 #include <spdlog/common.h>
+#include <optional>
 
 class CheckpointManager;
 class VBucket;
@@ -413,6 +414,10 @@ protected:
      */
     bool tryAndScheduleOSOBackfill(DcpProducer& producer, VBucket& vb);
 
+    bool isCollectionEnabledStream() const {
+        return !filter.isLegacyFilter();
+    }
+
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.
     std::atomic<StreamState> state_{StreamState::Pending};
@@ -474,14 +479,18 @@ private:
      * Pushes the items of a snapshot to the readyQ.
      *
      * @param checkpointType The type of checkpoint (Disk/Memory)
-     * @param snapshot The items to be streamed
+     * @param items The items to be streamed
      * @param highCompletedSeqno (optional) Required for CheckpointType::Disk
      * @param maxVisibleSeqno the maximum visible seq (not prepare/abort)
+     * @param highNonVisibleSeqno the snapEnd seqno that includes any non
+     * visible mutations i.e. prepares and aborts. This is only used when
+     * collections is enabled and sync writes are not supported on the stream.
      */
     void snapshot(CheckpointType checkpointType,
-                  std::deque<std::unique_ptr<DcpResponse>>& snapshot,
+                  std::deque<std::unique_ptr<DcpResponse>>& items,
                   std::optional<uint64_t> highCompletedSeqno,
-                  uint64_t maxVisibleSeqno);
+                  uint64_t maxVisibleSeqno,
+                  std::optional<uint64_t> highNonVisibleSeqno);
 
     void endStream(end_stream_status_t reason);
 
@@ -552,6 +561,12 @@ private:
      */
     void removeAcksFromDM(
             folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
+
+    /**
+     * Check and enqueue a SeqnoAdvanced op if needed
+     * @return true if an SeqnoAdvanced has been queue
+     */
+    bool queueSeqnoAdvancedIfNeeded();
 
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */

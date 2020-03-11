@@ -836,6 +836,14 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     resp->getStreamId());
             break;
         }
+        case DcpResponse::Event::SeqnoAdvanced: {
+            const auto& s = static_cast<SeqnoAdvanced&>(*resp);
+            ret = producers->seqno_advanced(s.getOpaque(),
+                                            s.getVBucket(),
+                                            *s.getBySeqno(),
+                                            resp->getStreamId());
+            break;
+        }
         default:
         {
             logger->warn(
@@ -847,12 +855,13 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
     }
 
+    const auto event = resp->getEvent();
     if (ret == ENGINE_E2BIG) {
         rejectResp = std::move(resp);
     }
 
     if (ret == ENGINE_SUCCESS) {
-        switch (resp->getEvent()) {
+        switch (event) {
         case DcpResponse::Event::Abort:
         case DcpResponse::Event::Commit:
         case DcpResponse::Event::Deletion:
@@ -1602,7 +1611,7 @@ void DcpProducer::closeAllStreams() {
                               handle.clear();
                           }
 
-                          for (auto streamPtr : streamPtrs) {
+                          for (const auto& streamPtr : streamPtrs) {
                               streamPtr->setDead(END_STREAM_DISCONNECTED);
                           }
                       });
@@ -1681,6 +1690,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                         case DcpResponse::Event::SetVbucket:
                         case DcpResponse::Event::SystemEvent:
                         case DcpResponse::Event::OSOSnapshot:
+                        case DcpResponse::Event::SeqnoAdvanced:
                             break;
                         default:
                             throw std::logic_error(

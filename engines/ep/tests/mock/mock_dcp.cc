@@ -523,10 +523,12 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_advanced(
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_byseqno = seqno;
-    last_stream_id = sid;
     cb::mcbp::request::DcpSeqnoAdvancedPayload extras(seqno);
-    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
-                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras);
+    if (sid) {
+        last_stream_id = sid;
+        totalBytes += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    }
     last_packet_size = totalBytes;
     return ENGINE_SUCCESS;
 }

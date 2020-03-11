@@ -110,7 +110,9 @@ public:
           exp_err(ENGINE_SUCCESS),
           exp_rollback(0),
           expected_values(0),
-          opaque(0) {
+          opaque(0),
+          exp_seqno_advanced(0),
+          exp_system_events(0) {
         seqno = {0, static_cast<uint64_t>(~0)};
         snapshot = {0, static_cast<uint64_t>(~0)};
     }
@@ -162,6 +164,12 @@ public:
     size_t expected_values;
     /* stream opaque */
     uint32_t opaque;
+    /* Expected number of SeqnoAdvanced ops*/
+    size_t exp_seqno_advanced;
+    /* Expected number of SystemEvent ops*/
+    size_t exp_system_events;
+    /* Expected sequence of Collection IDs from SystemEvents */
+    std::vector<CollectionID> exp_collection_ids{};
 };
 
 class TestDcpConsumer {
@@ -237,6 +245,14 @@ public:
 
     MockDcpMessageProducers producers;
 
+    void setCollectionsFilter(
+            std::optional<std::string_view> filter = std::nullopt) {
+        if (filter) {
+            collectionFilter = filter;
+            producers.isCollectionsSupported = true;
+        }
+    }
+
 private:
     /* Vbucket-level stream stats used in test */
     struct VBStats {
@@ -253,7 +269,9 @@ private:
               extra_takeover_ops(0),
               exp_disk_snapshot(false),
               exp_conflict_res(0),
-              num_values(0) {
+              num_values(0),
+              number_of_seqno_advanced(0),
+              number_of_system_events(0) {
         }
 
         size_t num_mutations;
@@ -269,6 +287,9 @@ private:
         bool exp_disk_snapshot;
         uint8_t exp_conflict_res;
         size_t num_values;
+        size_t number_of_seqno_advanced;
+        size_t number_of_system_events;
+        std::vector<CollectionID> collections{};
     };
 
     /* Connection name */
@@ -292,6 +313,7 @@ private:
     EngineIface* h;
     gsl::not_null<DcpIface*> dcp;
     std::vector<int> nruCounter;
+    std::optional<std::string_view> collectionFilter;
 
     // Flag used by run() to check if it should continue to execute.
     std::atomic<bool> done{false};
@@ -318,7 +340,6 @@ private:
 
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
         const std::string& name, const std::string& value) {
-    auto dcp = requireDcpIface(h);
     return dcp->control(cookie, ++opaque, name, value);
 }
 
@@ -362,6 +383,10 @@ void TestDcpConsumer::run(bool openConn) {
         openConnection();
     }
 
+    if (collectionFilter) {
+        // Enable noop ops needed for collections
+        dcp->control(cookie, opaque, "enable_noop", "true");
+    }
     /* Open streams in the above open connection */
     openStreams();
 
@@ -400,7 +425,7 @@ void TestDcpConsumer::run(bool openConn) {
             done = true;
         } else {
             const Vbid vbid = producers.last_vbucket;
-            auto &stats = vb_stats[vbid];
+            auto& stats = vb_stats[vbid];
             switch (producers.last_op) {
             case cb::mcbp::ClientOpcode::DcpMutation:
                 cb_assert(vbid != static_cast<Vbid>(-1));
@@ -523,6 +548,28 @@ void TestDcpConsumer::run(bool openConn) {
                     testHarness->unlock_cookie(cookie);
                 }
                 break;
+            case cb::mcbp::ClientOpcode::DcpNoop:
+                bytes_read += producers.last_packet_size;
+                all_bytes += producers.last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
+                checkeq(stream_ctxs[vbid.get()].exp_mutations,
+                        stats.num_mutations,
+                        "Seqno is not at end of Snapshot");
+                checklt(stats.last_by_seqno,
+                        producers.last_byseqno.load(),
+                        "Check correct seqno");
+                stats.number_of_seqno_advanced++;
+                stats.last_by_seqno = producers.last_byseqno;
+                bytes_read += producers.last_packet_size;
+                all_bytes += producers.last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSystemEvent:
+                bytes_read += producers.last_packet_size;
+                all_bytes += producers.last_packet_size;
+                stats.number_of_system_events++;
+                stats.collections.push_back(producers.last_collection_id);
+                break;
             default:
                 // Aborting ...
                 std::stringstream ss;
@@ -629,6 +676,19 @@ void TestDcpConsumer::run(bool openConn) {
                         stats.num_values,
                         "Expected values didn't match");
             }
+            checkeq(ctx.exp_seqno_advanced,
+                    stats.number_of_seqno_advanced,
+                    "Number of expected SeqnoAdvanced ops send to the consumer "
+                    "is incorrect");
+            checkeq(ctx.exp_system_events,
+                    stats.number_of_system_events,
+                    "Number of expected SystemEvent ops sent to the consumer "
+                    "is incorrect");
+            if (!ctx.exp_collection_ids.empty()) {
+                check(ctx.exp_collection_ids == stats.collections,
+                      "Expected collections IDs does not match the ones seen "
+                      "from SystemEvents");
+            }
         }
     }
 
@@ -709,7 +769,7 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
                                                ctx.snapshot.end,
                                                &rollback,
                                                mock_dcp_add_failover_log,
-                                               {});
+                                               collectionFilter);
 
         checkeq(ctx.exp_err, rv, "Failed to initiate stream request");
 
@@ -901,10 +961,11 @@ static void dcp_stream_to_replica(EngineIface* h,
                                   uint64_t snap_start_seqno,
                                   uint64_t snap_end_seqno,
                                   uint8_t cas = 0x1,
-                                  uint8_t datatype = 1,
+                                  uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                                   uint32_t exprtime = 0,
                                   uint32_t lockTime = 0,
-                                  uint64_t revSeqno = 0) {
+                                  uint64_t revSeqno = 0,
+                                  CollectionID cid = CollectionID::Default) {
     /* Send snapshot marker */
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
@@ -921,7 +982,7 @@ static void dcp_stream_to_replica(EngineIface* h,
     /* Send DCP mutations */
     for (uint64_t i = start; i <= end; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+        const StoredDocKey docKey(key, cid);
         const cb::const_byte_buffer value{(uint8_t*)data.data(), data.size()};
         checkeq(ENGINE_SUCCESS,
                 dcp->mutation(cookie,
@@ -929,7 +990,7 @@ static void dcp_stream_to_replica(EngineIface* h,
                               docKey,
                               value,
                               0, // priv bytes
-                              PROTOCOL_BINARY_RAW_BYTES,
+                              datatype,
                               cas,
                               vbucket,
                               flags,
@@ -3581,7 +3642,9 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                 checkeq(cb::mcbp::ClientOpcode::DcpControl,
                         producers.last_op,
                         "Unexpected last_op");
-                checkeq(controlKey, producers.last_key, "Unexpected key");
+                checkeq(std::move(controlKey),
+                        producers.last_key,
+                        "Unexpected key");
                 checkne(opaque, producers.last_opaque, "Unexpected opaque");
             };
 
@@ -5737,6 +5800,424 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
 
     return SUCCESS;
 }
+
+/*
+ * Perform the same test as test_dcp_replica_stream_all(), but this time
+ * enable collections on the DCP stream.
+ *
+ * This test performs the following steps:
+ * 1. Stream 100 keys in the default collection to the replica for fist
+ * checkpoint
+ * 2. Stream another 100 keys in the default collection to the replica creating
+ * a new checkpoint
+ * 3. flush the mutations to disk in closed checkpoints
+ * 4. stream another 100 new keys to the replica
+ * 5. Now create a new DCP consumer
+ * 6. New DCP consumer the streams all 300 mutations from the replica vbucket
+ * in this case we should receive all 300 mutations as one disk snapshot.
+ * Under the hood the first 100 should be streamed from backfill and the next
+ * 100 should come from memory. We should not see a SeqnoAdvanced op as we're
+ * only streaming the default collection and no other collections have been
+ * created.
+ */
+static enum test_result test_dcp_replica_stream_all_collection_enabled(
+        EngineIface* h) {
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void* cookie = testHarness->create_cookie(h);
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char* name = "unittest";
+
+    /* Open an DCP consumer connection */
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      flags,
+                      name,
+                      R"({"consumer_name":"replica1"})"),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+
+    /* Send DCP mutations with in memory flag (0x01) */
+    dcp_stream_to_replica(
+            h, cookie, opaque, Vbid(0), 0x01, 1, num_items, 0, num_items);
+
+    /* Send 100 more DCP mutations with checkpoint creation flag (0x04) */
+    uint64_t start = num_items;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100);
+
+    wait_for_flusher_to_settle(h);
+    stop_persistence(h);
+    checkeq(2 * num_items,
+            get_int_stat(h, "vb_replica_curr_items"),
+            "wrong number of items in replica vbucket");
+
+    /* Add 100 more items to the replica node on a new checkpoint */
+    /* Send with flag (0x04) indicating checkpoint creation */
+    start = 2 * num_items;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100);
+
+    /* Disk backfill + in memory stream from replica */
+    /* Wait for a checkpoint to be removed */
+    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = 300;
+    ctx.exp_markers = 1;
+    ctx.exp_seqno_advanced = 0;
+
+    const void* cookie1 = testHarness->create_cookie(h);
+    TestDcpConsumer tdc("unittest1", cookie1, h);
+    tdc.addStreamCtx(ctx);
+    tdc.setCollectionsFilter();
+    tdc.run();
+
+    testHarness->destroy_cookie(cookie1);
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/*
+ * This test is focused on ensuring we received a SeqnoAdvanced when streaming
+ * from one collection and from disk.
+ *
+ * This test performs the following steps:
+ * 1. Stream 100 new mutations for the default collection to the replica as one
+ * checkpoint
+ * 2. Stream 100 new mutations for the "meat" collection to the replica as a new
+ * checkpoint
+ * 3. flush the 200 mutations to disk as the checkpoints can be closed
+ * 4. stream another 100 new keys for the default collection to the replica
+ * 5. Now create a new DCP consumer
+ * 6. New DCP consumer to stream just the "meat" collection. We should get
+ * 100 mutations from disk and then a SeqnoAdvance to move us to the end
+ * of the snapshot of all 300 mutations.
+ */
+static enum test_result test_dcp_replica_stream_one_collection_on_disk(
+        EngineIface* h) {
+    const void* cookie = testHarness->create_cookie(h);
+    std::string manifest(R"({
+   "scopes":[
+      {
+         "collections":[
+            {
+               "name":"_default",
+               "uid":"0"
+            },
+            {
+               "name":"meat",
+               "uid":"8"
+            }
+         ],
+         "name":"_default",
+         "uid":"0"
+      }
+   ],
+   "uid":"1"
+})");
+
+    checkeq(h->set_collection_manifest(cookie, manifest),
+            cb::engine_errc::success,
+            "Failed to set collection manifest");
+
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char* name = "unittest";
+
+    /* Open an DCP consumer connection */
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      flags,
+                      name,
+                      R"({"consumer_name":"replica1"})"),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+
+    uint64_t startSeqno = 1;
+    /* Send DCP mutations with in memory flag (0x01) */
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x01,
+                          1 + startSeqno,
+                          num_items + startSeqno,
+                          0,
+                          startSeqno + num_items);
+
+    /*
+     * Send 100 more DCP mutations with checkpoint creation flag (0x04)
+     * These will be for collection 0x8 and will be streamed from disk
+     */
+    uint64_t start = num_items + startSeqno;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100,
+                          0x1,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          0,
+                          0,
+                          0,
+                          CollectionID(8));
+
+    wait_for_flusher_to_settle(h);
+    stop_persistence(h);
+    checkeq(2 * num_items,
+            get_int_stat(h, "vb_replica_curr_items"),
+            "wrong number of items in replica vbucket");
+
+    /* Add 100 more items to the replica node on a new checkpoint */
+    /* Send with flag (0x04) indicating checkpoint creation */
+    start = 2 * num_items + startSeqno;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100);
+
+    /* Disk backfill + in memory stream from replica */
+    /* Wait for a checkpoint to be removed */
+    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = 100;
+    ctx.exp_markers = 1;
+    ctx.exp_system_events = 1;
+    ctx.exp_collection_ids.emplace_back(8);
+    ctx.exp_seqno_advanced = 1;
+
+    const void* cookie1 = testHarness->create_cookie(h);
+    TestDcpConsumer tdc("unittest1", cookie1, h);
+    tdc.addStreamCtx(ctx);
+    tdc.setCollectionsFilter({R"({"collections":["8"]})"});
+    tdc.run();
+
+    testHarness->destroy_cookie(cookie1);
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/*
+ * This test is focused on ensuring we do not see a SeqnoAdvanced when streaming
+ * from one collection when the last mutation in the snapshot is a mutation in
+ * the collection we are streaming.
+ *
+ * This test performs the following steps:
+ * 1. Stream 100 new mutations for the default collection to the replica as one
+ * checkpoint
+ * 2. Stream 100 new mutations for the "meat" collection to the replica creating
+ * a new checkpoint
+ * 3. flush the mutations to disk from the closed checkpoints
+ * 4. stream another 100 new keys for the default collection to the replica
+ * 5. stream another 100 new keys for the "meat" collection to the replica
+ * 6. Now create a new DCP consumer
+ * 7. New DCP consumer to stream just the "meat" collection. We should get
+ * 100 mutations from disk, 100 mutations from memory that takes us to the end
+ * of the backfill snapshot. Thus, meaning we should not see a SeqnoAdvanced.
+ */
+static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
+    const void* cookie = testHarness->create_cookie(h);
+    std::string manifest(R"({
+   "scopes":[
+      {
+         "collections":[
+            {
+               "name":"_default",
+               "uid":"0"
+            },
+            {
+               "name":"meat",
+               "uid":"8"
+            }
+         ],
+         "name":"_default",
+         "uid":"0"
+      }
+   ],
+   "uid":"1"
+})");
+
+    checkeq(h->set_collection_manifest(cookie, manifest),
+            cb::engine_errc::success,
+            "Failed to set collection manifest");
+
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char* name = "unittest";
+
+    /* Open an DCP consumer connection */
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      flags,
+                      name,
+                      R"({"consumer_name":"replica1"})"),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+
+    uint64_t startSeqno = 1;
+    /* Send DCP mutations with in memory flag (0x01) */
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x01,
+                          1 + startSeqno,
+                          num_items + startSeqno,
+                          0,
+                          startSeqno + num_items);
+
+    /*
+     * Send 100 more DCP mutations with checkpoint creation flag (0x04)
+     * These will be for collection 0x8 and will be streamed from disk
+     */
+    uint64_t start = num_items + startSeqno;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100,
+                          0x1,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          0,
+                          0,
+                          0,
+                          CollectionID(8));
+
+    wait_for_flusher_to_settle(h);
+    stop_persistence(h);
+    checkeq(2 * num_items,
+            get_int_stat(h, "vb_replica_curr_items"),
+            "wrong number of items in replica vbucket");
+
+    /* Add 100 more items to the replica node on a new checkpoint */
+    /* Send with flag (0x04) indicating checkpoint creation */
+    start = 2 * num_items + startSeqno;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100);
+    // Add another 100 items for collection 0x8
+    // These should be streamed from memory
+    start = 3 * num_items + startSeqno;
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100,
+                          0x1,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          0,
+                          0,
+                          0,
+                          CollectionID(8));
+
+    /* Disk backfill + in memory stream from replica */
+    /* Wait for a checkpoint to be removed */
+    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 3, "checkpoint");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = 200;
+    ctx.exp_markers = 1;
+    ctx.exp_system_events = 1;
+    ctx.exp_collection_ids.emplace_back(8);
+    ctx.exp_seqno_advanced = 0;
+
+    const void* cookie1 = testHarness->create_cookie(h);
+    TestDcpConsumer tdc("unittest1", cookie1, h);
+    tdc.addStreamCtx(ctx);
+    tdc.setCollectionsFilter({R"({"collections":["8"]})"});
+    tdc.run();
+
+    testHarness->destroy_cookie(cookie1);
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 /**
  * A test to check that expiries streamed to a replica behave as expected,
  * including the difference between enabling an expiryOutput on the consumer
@@ -6045,7 +6526,8 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
                                /*datatype*/ 1,
                                /*exprtime*/ 0,
                                /*lockTime*/ 0,
-                               /*revSeqno*/ 0);
+                               /*revSeqno*/ 0,
+                               CollectionID::Default);
 
     /* now wait on the condition variable; the condition variable is signaled
        by the notification from the seqnoPersistence request that had received
@@ -7982,6 +8464,28 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),
         TestCase("test dcp replica stream all",
                  test_dcp_replica_stream_all,
+                 test_setup,
+                 teardown,
+                 "chk_remover_stime=1;max_checkpoints=2",
+                 prepare,
+                 cleanup),
+        TestCase("test dcp replica stream all with collections enabled stream",
+                 test_dcp_replica_stream_all_collection_enabled,
+                 test_setup,
+                 teardown,
+                 "chk_remover_stime=1;max_checkpoints=2",
+                 prepare,
+                 cleanup),
+        TestCase("test dcp replica stream one collection with mutations just "
+                 "from disk",
+                 test_dcp_replica_stream_one_collection_on_disk,
+                 test_setup,
+                 teardown,
+                 "chk_remover_stime=1;max_checkpoints=2",
+                 prepare,
+                 cleanup),
+        TestCase("test dcp replica stream one collection",
+                 test_dcp_replica_stream_one_collection,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;max_checkpoints=2",

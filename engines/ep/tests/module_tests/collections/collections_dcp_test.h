@@ -70,12 +70,14 @@ public:
     void createDcpStream(
             std::optional<std::string_view> collections,
             Vbid id = Vbid(0),
-            cb::engine_errc expectedError = cb::engine_errc::success);
+            cb::engine_errc expectedError = cb::engine_errc::success,
+            uint32_t flags = 0);
 
     void createDcpConsumer();
 
     void createDcpObjects(std::optional<std::string_view> collections,
-                          bool enableOutOfOrderSnapshots = false);
+                          bool enableOutOfOrderSnapshots = false,
+                          uint32_t flags = 0);
 
     void TearDown() override;
 

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc
+ *     Copyright 2020 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@
 #include "tests/module_tests/test_helpers.h"
 
 #include <engines/ep/src/collections/collections_types.h>
+#include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <engines/ep/tests/ep_test_apis.h>
 #include <functional>
 #include <thread>
@@ -2193,6 +2194,237 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
 
     // And no more
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+}
+
+TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["c"]})"}});
+
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 4);
+    }
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory_replica) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 4);
+    }
+
+    store->setVBucketState(vbid, vbucket_state_replica);
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["c"]})"}});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       seqno_advanced_backfill_from_empty_disk_snapshot) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 4);
+    }
+
+    ensureDcpWillBackfill();
+
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["c"]})"}});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_byseqno.load(), 4);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       seqno_advanced_backfill_from_empty_disk_snapshot_replica) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 4);
+    }
+    store->setVBucketState(vbid, vbucket_state_replica);
+    ensureDcpWillBackfill();
+
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["c"]})"}});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_byseqno.load(), 4);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       seqno_advanced_backfill_from_empty_disk_snapshot_replica_due_deleted) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    StoredDocKey keyOne{"meat::one", CollectionEntry::meat};
+    StoredDocKey keyTwo{"meat::two", CollectionEntry::meat};
+    StoredDocKey keyThree{"dairy::one", CollectionEntry::dairy};
+    store_item(vbid, keyOne, "pork");
+    store_item(vbid, keyTwo, "beef");
+
+    // 2 collections + 2 mutations
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    delete_item(vbid, keyOne);
+    delete_item(vbid, keyTwo);
+    store_item(vbid, keyThree, "cheese");
+
+    // 2 deletes
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    // Purge toumb stones
+    if (persistent()) {
+        runCompaction(0, 0, true);
+    } else {
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
+        EphemeralVBucket::HTTombstonePurger purger(0);
+        purger.setCurrentVBucket(*evb);
+        evb->ht.visit(purger);
+        EXPECT_EQ(purger.getVisitedCount(), 5);
+        EXPECT_EQ(purger.getNumItemsMarkedStale(), 2);
+        EXPECT_EQ(evb->purgeStaleItems(), 2);
+    }
+
+    store->setVBucketState(vbid, vbucket_state_replica);
+    ensureDcpWillBackfill();
+
+    // filter only CollectionEntry::meat
+    createDcpObjects({{R"({"collections":["8"]})"}});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_byseqno.load(), 7);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       seqno_advanced_backfill_from_disk_snapshot) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(
+            vbid, StoredDocKey{"dairy::one", CollectionEntry::dairy}, "milk");
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 5);
+    }
+
+    ensureDcpWillBackfill();
+
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["c"]})"}});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_byseqno.load(), 5);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       seqno_advanced_backfill_from_disk_snapshot_replica) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(
+            vbid, StoredDocKey{"dairy::one", CollectionEntry::dairy}, "milk");
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 5);
+    }
+    store->setVBucketState(vbid, vbucket_state_replica);
+    ensureDcpWillBackfill();
+
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["c"]})"}},
+                     false,
+                     DCP_ADD_STREAM_FLAG_DISKONLY);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_byseqno.load(), 5);
 }
 
 // Test cases which run for persistent and ephemeral buckets

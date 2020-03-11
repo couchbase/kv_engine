@@ -54,7 +54,7 @@ public:
 
     virtual ~DcpResponse() {}
 
-    uint32_t getOpaque() {
+    uint32_t getOpaque() const {
         return opaque_;
     }
 
@@ -1223,12 +1223,13 @@ public:
         return vbucket;
     }
 
-    [[nodiscard]] uint64_t getAdvancedSeqno() const {
-        return advancedSeqno;
+    [[nodiscard]] OptionalSeqno getBySeqno() const override {
+        return {advancedSeqno};
     }
 
     [[nodiscard]] uint32_t getMessageSize() const override {
-        return baseMsgBytes;
+        return baseMsgBytes +
+               (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
 
     static const uint32_t baseMsgBytes;

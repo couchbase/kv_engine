@@ -321,11 +321,12 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
 }
 
 void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
-                                               uint64_t purgeBeforeSeq) {
+                                               uint64_t purgeBeforeSeq,
+                                               bool dropDeletes) {
     CompactionConfig compactConfig;
     compactConfig.purge_before_ts = purgeBeforeTime;
     compactConfig.purge_before_seq = purgeBeforeSeq;
-    compactConfig.drop_deletes = false;
+    compactConfig.drop_deletes = dropDeletes;
     compactConfig.db_file_id = vbid;
     store->scheduleCompaction(vbid, compactConfig, nullptr);
     // run the compaction task

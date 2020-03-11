@@ -120,7 +120,7 @@ protected:
     ProgressTracker progressTracker;
 
     /// Count of how many items have been visited.
-    size_t numVisitedItems;
+    size_t numVisitedItems = 0;
 
     /// Count of how many items have been purged.
     size_t numPurgedItems;

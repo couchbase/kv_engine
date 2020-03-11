@@ -60,10 +60,11 @@ Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
 void CollectionsDcpTest::createDcpStream(
         std::optional<std::string_view> collections,
         Vbid id,
-        cb::engine_errc expectedError) {
+        cb::engine_errc expectedError,
+        uint32_t flags) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(ENGINE_ERROR_CODE(expectedError),
-              producer->streamRequest(0, // flags
+              producer->streamRequest(flags,
                                       1, // opaque
                                       id,
                                       0, // start_seqno
@@ -99,7 +100,8 @@ void CollectionsDcpTest::createDcpConsumer() {
 
 void CollectionsDcpTest::createDcpObjects(
         std::optional<std::string_view> collections,
-        bool enableOutOfOrderSnapshots) {
+        bool enableOutOfOrderSnapshots,
+        uint32_t flags) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
@@ -110,7 +112,7 @@ void CollectionsDcpTest::createDcpObjects(
     producers->consumer = consumer.get();
     producers->replicaVB = replicaVB;
 
-    createDcpStream(collections);
+    createDcpStream(collections, vbid, cb::engine_errc::success, flags);
 }
 
 void CollectionsDcpTest::TearDown() {

@@ -270,10 +270,16 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         }
 
         if (!supportSyncWrites()) {
-            // the connection does not support sync writes, so the
-            // snapshot end must be set to the seqno of a visible item.
-            // Items after the MVS will not be sent.
-            endSeqno = maxVisibleSeqno;
+            if (!isCollectionEnabledStream()) {
+                /* the connection does not support sync writes or collections,
+                 * so the snapshot end must be set to the seqno of a visible
+                 * item. Thus, items after the MVS will not be sent. As we are
+                 * the client can not process non-visible items nor can we
+                 * inform it that a seqno has moved to the end of the snapshot
+                 * using a SeqnoAdvanced op.
+                 */
+                endSeqno = maxVisibleSeqno;
+            }
             if (endSeqno < startSeqno) {
                 // no visible items in backfill, should not send
                 // a snapshot marker at all (no data will be sent)
@@ -427,6 +433,23 @@ void ActiveStream::completeBackfill() {
         // greater.
         if (lastBackfilledSeqno > lastReadSeqno) {
             lastReadSeqno.store(lastBackfilledSeqno);
+        }
+
+        /**
+         * In most cases we want to send a SeqnoAdvanced op if we have not sent
+         * the final seqno in the snapshot at the end of backfill. However,
+         * replica vbucket may transition their snapshot from backfill to
+         * streaming from memory without sending another snapshot. Thus, in this
+         * case we do not want to send a SeqnoAdvanced at the end of backfill.
+         * So check that we don't have an in memory range to stream from.
+         */
+        auto vb = engine->getVBucket(vb_);
+        auto info = vb->checkpointManager->getSnapshotInfo();
+        if (isCurrentSnapshotCompleted() ||
+            (vb->getState() == vbucket_state_replica &&
+             info.range.getStart() >= lastBackfilledSeqno &&
+             info.range.getStart() == info.range.getEnd())) {
+            queueSeqnoAdvancedIfNeeded();
         }
 
         if (isBackfilling()) {
@@ -1186,8 +1209,36 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
 
         // Initialise to the first visibleSeqno of the batch of items
         uint64_t visibleSeqno = outstandingItemsResult.visibleSeqno;
+        /*
+         * highNonVisibleSeqno is used to track the current seqno of non visible
+         * seqno of a snapshot before we filter them out. This is only used when
+         * collections is enabled on a stream and sync write support is not.
+         * This allows us to inform the consumer of the high seqno of a
+         * collection regardless if it is committed or not. By sending a
+         * SeqnoAdvanced op. This solves the problem where a snapshot would be
+         * sent to a non sync write aware client with the last mutation of the
+         * snapshot was a prepare or abort and the final seqno would never be
+         * sent meaning the snapshot was never completed.
+         */
+        std::optional<uint64_t> highNonVisibleSeqno;
         for (auto& qi : outstandingItemsResult.items) {
-            if (shouldProcessItem(*qi)) {
+            if (qi->getOperation() == queue_op::checkpoint_start) {
+                /* if there are already other mutations, then they belong to the
+                   previous checkpoint and hence we must create a snapshot and
+                   put them onto readyQ */
+                if (!mutations.empty()) {
+                    snapshot(outstandingItemsResult.checkpointType,
+                             mutations,
+                             outstandingItemsResult.highCompletedSeqno,
+                             visibleSeqno,
+                             highNonVisibleSeqno);
+                    /* clear out all the mutations since they are already put
+                       onto the readyQ */
+                    mutations.clear();
+                }
+                /* mark true as it indicates a new checkpoint snapshot */
+                nextSnapshotIsCheckpoint = true;
+            } else if (shouldProcessItem(*qi)) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
                 // Check if the item is allowed on the stream, note the filter
@@ -1200,21 +1251,18 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                             qi, SendCommitSyncWriteAs::Commit));
                 }
 
-            } else if (qi->getOperation() == queue_op::checkpoint_start) {
-                /* if there are already other mutations, then they belong to the
-                   previous checkpoint and hence we must create a snapshot and
-                   put them onto readyQ */
-                if (!mutations.empty()) {
-                    snapshot(outstandingItemsResult.checkpointType,
-                             mutations,
-                             outstandingItemsResult.highCompletedSeqno,
-                             visibleSeqno);
-                    /* clear out all the mutations since they are already put
-                       onto the readyQ */
-                    mutations.clear();
+            } else if (isCollectionEnabledStream() && !supportSyncWrites()) {
+                /*
+                 * If we're a collection stream that does not support sync
+                 * writes then we want to be able to send a SeqnoAdvanced op.
+                 * Thus, if we see a non visible mutation i.e. an abort or
+                 * prepare then up highNonVisibleSeqno with the items seqno only
+                 * if the item is for the streaming collections.
+                 */
+                if ((qi->isPending() || qi->isAbort()) &&
+                    filter.checkAndUpdate(*qi)) {
+                    highNonVisibleSeqno = qi->getBySeqno();
                 }
-                /* mark true as it indicates a new checkpoint snapshot */
-                nextSnapshotIsCheckpoint = true;
             }
         }
 
@@ -1222,7 +1270,21 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
             snapshot(outstandingItemsResult.checkpointType,
                      mutations,
                      outstandingItemsResult.highCompletedSeqno,
-                     visibleSeqno);
+                     visibleSeqno,
+                     highNonVisibleSeqno);
+        } else if (isCollectionEnabledStream() && !supportSyncWrites() &&
+                   readyQ.empty()) {
+            auto vbState = engine->getVBucket(getVBucket())->getState();
+            if (vbState == vbucket_state_replica) {
+                /*
+                 * If this is a collection stream and we're not sending any
+                 * mutations from memory and we haven't queued a snapshot shot
+                 * and we're a replica then our snapshot covers backfill and in
+                 * memory. Thus, we need to send a SeqnoAdvanced to push the
+                 * consumer's seqno to the end of the snapshot.
+                 */
+                queueSeqnoAdvancedIfNeeded();
+            }
         }
     }
 
@@ -1257,7 +1319,8 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
 void ActiveStream::snapshot(CheckpointType checkpointType,
                             std::deque<std::unique_ptr<DcpResponse>>& items,
                             std::optional<uint64_t> highCompletedSeqno,
-                            uint64_t maxVisibleSeqno) {
+                            uint64_t maxVisibleSeqno,
+                            std::optional<uint64_t> highNonVisibleSeqno) {
     if (items.empty()) {
         return;
     }
@@ -1283,6 +1346,18 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
 
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
+
+        /*
+         * If the highNonVisibleSeqno has been set and it higher than the snap
+         * end of the filtered mutations it means that the last item in the snap
+         * shot is not visible i.e. a prepare or abort. Thus we need need to
+         * extend the snapshot end to this value and then send a SeqnoAdvanced
+         * at the end of the snapshot to inform the client of this.
+         */
+        if (highNonVisibleSeqno.has_value() &&
+            highNonVisibleSeqno.value() > snapEnd) {
+            snapEnd = highNonVisibleSeqno.value();
+        }
 
         if (nextSnapshotIsCheckpoint) {
             flags |= MARKER_FLAG_CHK;
@@ -1337,6 +1412,8 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
     for (auto& item : items) {
         pushToReadyQ(std::move(item));
     }
+
+    queueSeqnoAdvancedIfNeeded();
 }
 
 void ActiveStream::setDeadInner(end_stream_status_t status) {
@@ -2018,4 +2095,18 @@ void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
         lh.unlock();
         notifyStreamReady();
     }
+}
+
+bool ActiveStream::queueSeqnoAdvancedIfNeeded() {
+    if (!isCollectionEnabledStream()) {
+        return false;
+    }
+
+    if (lastSentSnapEndSeqno.load() > lastReadSeqno.load()) {
+        pushToReadyQ(std::make_unique<SeqnoAdvanced>(
+                opaque_, vb_, sid, lastSentSnapEndSeqno.load()));
+        return true;
+    }
+
+    return false;
 }
