@@ -975,6 +975,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         CheckpointCursor* cursorPtr,
         std::vector<queued_item>& items,
         size_t approxLimit) {
+    Expects(approxLimit > 0);
+
     LockHolder lh(queueLock);
     if (!cursorPtr) {
         EP_LOG_WARN("getItemsForCursor(): Caller had a null cursor {}",
