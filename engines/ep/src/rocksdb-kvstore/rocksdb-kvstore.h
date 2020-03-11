@@ -436,7 +436,7 @@ private:
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
     /**
-     * Read the state of teh given vBucket from disk and load into the cache
+     * Read the state of the given vBucket from disk and load into the cache
      */
     void loadVBStateCache(const VBHandle& vbh);
 
