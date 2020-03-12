@@ -260,36 +260,11 @@ public:
 
     scan_error_t scan(BySeqnoScanContext& sctx) override;
 
-    /**
-     * The magmaKVHandle protects magma from a kvstore being dropped
-     * while an API operation is active. This is required because
-     * unlike couchstore which just unlinks the data file, magma
-     * must wait for all threads to exit and then block subsequent
-     * threads from proceeding while the kvstore is being dropped.
-     * Inside the handle is the vbstateMutex. This mutex is used
-     * to protect the vbstate from race conditions when updated.
-     */
-    struct MagmaKVHandleStruct {
-        std::shared_timed_mutex vbstateMutex;
-    };
-    using MagmaKVHandle = std::shared_ptr<MagmaKVHandleStruct>;
-
-    std::vector<std::pair<MagmaKVHandle, std::shared_timed_mutex>>
-            magmaKVHandles;
-
-    const MagmaKVHandle getMagmaKVHandle(Vbid vbid) {
-        std::lock_guard<std::shared_timed_mutex> lock(
-                magmaKVHandles[vbid.get()].second);
-        return magmaKVHandles[vbid.get()].first;
-    }
-
     class MagmaKVFileHandle : public ::KVFileHandle {
     public:
-        MagmaKVFileHandle(MagmaKVStore& kvstore, Vbid vbid)
-            : vbid(vbid), kvHandle(kvstore.getMagmaKVHandle(vbid)) {
+        MagmaKVFileHandle(Vbid vbid) : vbid(vbid) {
         }
         Vbid vbid;
-        MagmaKVHandle kvHandle;
     };
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
@@ -536,9 +511,7 @@ private:
                           const magma::Slice& valueSlice,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    int saveDocs(VB::Commit& commitData,
-                 kvstats_ctx& kvctx,
-                 const MagmaKVHandle& kvHandle);
+    int saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx);
 
     void commitCallback(int status, kvstats_ctx& kvctx);
 
@@ -582,16 +555,12 @@ private:
     // This is used for testing only!
     bool useUpsertForSet{false};
 
-    // Get lock on KVHandle and wait for all threads to exit before
-    // returning the lock to the caller.
-    std::unique_lock<std::shared_timed_mutex> getExclusiveKVHandle(Vbid vbid);
-
     struct MagmaCompactionCtx {
-        MagmaCompactionCtx(compaction_ctx* ctx, MagmaKVHandle kvHandle)
-            : ctx(ctx), kvHandle(kvHandle){};
+        MagmaCompactionCtx(compaction_ctx* ctx) : ctx(ctx) {
+        }
         compaction_ctx* ctx;
-        MagmaKVHandle kvHandle;
     };
+
     // This needs to be a shared_ptr because its possible an implicit
     // compaction kicks off while an explicit compaction is happening
     // and we don't want to free it while the implicit compaction is working.
@@ -613,7 +582,6 @@ private:
         std::stringstream itemKeyBuf;
         std::shared_ptr<MagmaCompactionCtx> magmaCompactionCtx;
         compaction_ctx* ctx{nullptr};
-        MagmaKVHandle kvHandle;
         Vbid vbid{};
     };
 

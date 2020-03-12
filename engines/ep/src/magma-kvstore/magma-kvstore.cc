@@ -407,11 +407,9 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             if (compaction_ctxList[cbCtx.vbid.get()]) {
                 cbCtx.magmaCompactionCtx = compaction_ctxList[cbCtx.vbid.get()];
                 cbCtx.ctx = cbCtx.magmaCompactionCtx->ctx;
-                cbCtx.kvHandle = cbCtx.magmaCompactionCtx->kvHandle;
             }
         }
         if (!cbCtx.ctx) {
-            cbCtx.kvHandle = getMagmaKVHandle(cbCtx.vbid);
             // TODO: we don't have a callback function to kv_engine
             // to grab the compaction_ctx when the compaction is
             // triggered by magma (Level, Expiry).
@@ -587,14 +585,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         ObjectRegistry::onSwitchThread(nullptr);
     };
 
-    // Populate the magmaKVHandles
-    magmaKVHandles =
-            std::vector<std::pair<MagmaKVHandle, std::shared_timed_mutex>>(
-                    configuration.getMaxVBuckets());
-    for (int i = 0; i < configuration.getMaxVBuckets(); i++) {
-        magmaKVHandles[i].first = std::make_shared<MagmaKVHandleStruct>();
-    }
-
     configuration.magmaCfg.MakeCompactionCallback = [&]() {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this);
     };
@@ -668,10 +658,8 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
     kvstats_ctx kvctx(commitData);
     bool success = true;
 
-    auto kvHandle = getMagmaKVHandle(transactionCtx->vbid);
-
     // Flush all documents to disk
-    auto errCode = saveDocs(commitData, kvctx, kvHandle);
+    auto errCode = saveDocs(commitData, kvctx);
     if (errCode != ENGINE_SUCCESS) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
                      pendingReqs->front().getVbID(),
@@ -828,8 +816,6 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     Magma::FetchBuffer seqBuf;
     bool found;
 
-    auto kvHandle = getMagmaKVHandle(vbid);
-
     auto start = std::chrono::steady_clock::now();
 
     Status status = magma->Get(
@@ -867,7 +853,6 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
 }
 
 void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
-    auto kvHandle = getMagmaKVHandle(vbid);
 
     for (auto& it : itms) {
         auto& key = it.first;
@@ -969,8 +954,6 @@ void MagmaKVStore::getRange(Vbid vbid,
                       cb::UserData{makeDiskDocKey(endKeySlice).to_string()});
     }
 
-    auto kvHandle = getMagmaKVHandle(vbid);
-
     auto status = magma->GetRange(
             vbid.get(), startKeySlice, endKeySlice, callback, true);
     if (!status) {
@@ -992,42 +975,31 @@ void MagmaKVStore::reset(Vbid vbid) {
                 vbid.to_string());
     }
 
-    {
-        // Get exclusive access to the handle
-        auto lock = getExclusiveKVHandle(vbid);
-        Status status;
-        Magma::KVStoreRevision kvsRev;
-        std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
-        if (!status) {
-            logger->critical(
-                    "MagmaKVStore::reset SoftDeleteKVStore failed. {} "
-                    "status:{}",
-                    vbid.to_string(),
-                    status.String());
-        }
-        // Even though SoftDeleteKVStore might have failed, go ahead and
-        // call DeleteKVStore because it will remove the KVStore path
-        // regardless if we think the kvstore is valid or not.
-        status = magma->DeleteKVStore(vbid.get(), kvsRev);
-        if (!status) {
-            logger->critical(
-                    "MagmaKVStore::reset DeleteKVStore {} failed. status:{}",
-                    vbid,
-                    status.String());
-        }
-
-        // Reset the vbstate and magmaInfo
-        auto kvHandle = magmaKVHandles[vbid.get()].first;
-        {
-            std::lock_guard<std::shared_timed_mutex> lock(
-                    kvHandle->vbstateMutex);
-            vbstate = cachedVBStates[vbid.get()].get();
-            vbstate->reset();
-            cachedMagmaInfo[vbid.get()]->reset();
-        }
+    Status status;
+    Magma::KVStoreRevision kvsRev;
+    std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
+    if (!status) {
+        logger->critical(
+                "MagmaKVStore::reset SoftDeleteKVStore failed. {} "
+                "status:{}",
+                vbid.to_string(),
+                status.String());
+    }
+    // Even though SoftDeleteKVStore might have failed, go ahead and
+    // call DeleteKVStore because it will remove the KVStore path
+    // regardless if we think the kvstore is valid or not.
+    status = magma->DeleteKVStore(vbid.get(), kvsRev);
+    if (!status) {
+        logger->critical(
+                "MagmaKVStore::reset DeleteKVStore {} failed. status:{}",
+                vbid,
+                status.String());
     }
 
-    // We've released all our locks so snapshot the reset vbstate
+    vbstate = cachedVBStates[vbid.get()].get();
+    vbstate->reset();
+    cachedMagmaInfo[vbid.get()]->reset();
+
     snapshotVBucket(vbid, *vbstate);
 }
 
@@ -1041,16 +1013,6 @@ void MagmaKVStore::del(queued_item item) {
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
-    std::unique_lock<std::shared_timed_mutex> lock(
-            magmaKVHandles[vbid.get()].second);
-    if (magmaKVHandles[vbid.get()].first.use_count() != 1) {
-        logger->warn(
-                "MagmaKVStore::delVBucket {} Can't get exclusive"
-                " access so adding to pending list.",
-                vbid);
-        pendingVbucketDeletions.wlock()->push({vbid, vb_version});
-        return;
-    }
     auto status = magma->DeleteKVStore(
             vbid.get(), static_cast<Magma::KVStoreRevision>(vb_version));
     logger->info("MagmaKVStore::delVBucket DeleteKVStore {} {}. status:{}",
@@ -1060,7 +1022,6 @@ void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
 }
 
 void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
-    auto kvHandle = getMagmaKVHandle(vbid);
     if (magma->KVStoreExists(vbid.get())) {
         throw std::logic_error("MagmaKVStore::prepareToCreateImpl " +
                                vbid.to_string() +
@@ -1068,7 +1029,6 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
                                " prepareToDelete on an existing kvstore.");
     }
     if (cachedVBStates[vbid.get()]) {
-        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
         cachedVBStates[vbid.get()]->reset();
         cachedMagmaInfo[vbid.get()]->reset();
         cachedMagmaInfo[vbid.get()]->kvstoreRev++;
@@ -1079,9 +1039,7 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
 }
 
 uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
-    auto kvHandle = getMagmaKVHandle(vbid);
     if (magma->KVStoreExists(vbid.get())) {
-        auto kvHandle = getMagmaKVHandle(vbid);
         Status status;
         Magma::KVStoreRevision kvsRev;
         std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
@@ -1103,9 +1061,6 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
 // Note: It is assumed this can only be called from bg flusher thread or
 // there will be issues with writes coming from multiple threads.
 bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& vbstate) {
-    auto kvHandle = getMagmaKVHandle(vbid);
-    std::unique_lock<std::shared_timed_mutex> vbstateLock(
-            kvHandle->vbstateMutex);
 
     // Taking a copy of the MagmaInfo
     MagmaInfo minfo = getMagmaInfo(vbid);
@@ -1134,8 +1089,6 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& vbstate) {
         // Make a copy of the vbstate (already have the MagmaInfo) and release
         // the locks.
         auto vbs = *cachedVBStates[vbid.get()].get();
-
-        vbstateLock.unlock();
 
         std::unique_ptr<Magma::CommitBatch> batch;
         auto status = magma->NewCommitBatch(
@@ -1245,9 +1198,7 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                     0);
 }
 
-int MagmaKVStore::saveDocs(VB::Commit& commitData,
-                           kvstats_ctx& kvctx,
-                           const MagmaKVHandle& kvHandle) {
+int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
     uint64_t ninserts = 0;
     uint64_t ndeletes = 0;
     int64_t lastSeqno = 0;
@@ -1362,21 +1313,18 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData,
                       std::placeholders::_1,
                       std::placeholders::_2));
 
-    {
-        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
-        auto& vbstate = commitData.proposedVBState;
-        vbstate.highSeqno = lastSeqno;
-        vbstate.onDiskPrepares += kvctx.onDiskPrepareDelta;
-        auto& magmaInfo = getMagmaInfo(vbid);
+    auto& vbstate = commitData.proposedVBState;
+    vbstate.highSeqno = lastSeqno;
+    vbstate.onDiskPrepares += kvctx.onDiskPrepareDelta;
+    auto& magmaInfo = getMagmaInfo(vbid);
 
-        magmaInfo.docCount += ninserts - ndeletes;
-        magmaInfo.persistedDeletes += ndeletes;
+    magmaInfo.docCount += ninserts - ndeletes;
+    magmaInfo.persistedDeletes += ndeletes;
 
-        // Write out current vbstate to the CommitBatch.
-        status = writeVBStateToDisk(vbid, *(batch.get()), vbstate, magmaInfo);
-        if (!status) {
-            return status.ErrorCode();
-        }
+    // Write out current vbstate to the CommitBatch.
+    status = writeVBStateToDisk(vbid, *(batch.get()), vbstate, magmaInfo);
+    if (!status) {
+        return status.ErrorCode();
     }
 
     if (collectionsMeta.needsCommit) {
@@ -1680,7 +1628,6 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
 }
 
 vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
-    auto kvHandle = getMagmaKVHandle(vbid);
 
     // Have to assume the caller is protecting the vbstate
     auto vbstate = cachedVBStates[vbid.get()].get();
@@ -1838,22 +1785,10 @@ Vbid MagmaKVStore::getDBFileId(const cb::mcbp::Request& req) {
 }
 
 size_t MagmaKVStore::getItemCount(Vbid vbid) {
-    auto kvHandle = getMagmaKVHandle(vbid);
-    std::shared_lock<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
     if (cachedMagmaInfo[vbid.get()]) {
         return cachedMagmaInfo[vbid.get()]->docCount;
     }
     return 0;
-}
-
-std::unique_lock<std::shared_timed_mutex> MagmaKVStore::getExclusiveKVHandle(
-        Vbid vbid) {
-    std::unique_lock<std::shared_timed_mutex> lock(
-            magmaKVHandles[vbid.get()].second);
-    while (magmaKVHandles[vbid.get()].first.use_count() != 1) {
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
-    }
-    return lock;
 }
 
 ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
@@ -1861,7 +1796,6 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
         const DiskDocKey& startKey,
         uint32_t count,
         std::shared_ptr<Callback<const DiskDocKey&>> cb) {
-    auto kvHandle = getMagmaKVHandle(vbid);
 
     Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
                            startKey.size()};
@@ -1932,8 +1866,6 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
 
     Vbid vbid = ctx->compactConfig.db_file_id;
 
-    auto kvHandle = getMagmaKVHandle(vbid);
-
     auto status = magma->Sync(true);
     if (!status) {
         logger->warn("MagmaKVStore::compactDB Sync failed. {}",
@@ -1944,7 +1876,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     {
         std::lock_guard<std::mutex> lock(compactionCtxMutex);
         compaction_ctxList[vbid.get()] =
-                std::make_shared<MagmaCompactionCtx>(ctx, kvHandle);
+                std::make_shared<MagmaCompactionCtx>(ctx);
     }
 
     auto dropped = getDroppedCollections(vbid);
@@ -1952,7 +1884,6 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
             std::make_unique<Collections::VB::EraserContext>(dropped);
 
     {
-        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
         ctx->highCompletedSeqno =
                 cachedVBStates[vbid.get()]->persistedCompletedSeqno;
     }
@@ -2037,7 +1968,6 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     vbucket_state vbs;
     MagmaInfo minfo;
     {
-        std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
         cachedVBStates[vbid.get()]->onDiskPrepares -= ctx->stats.preparesPurged;
         cachedVBStates[vbid.get()]->purgeSeqno = ctx->max_purged_seq;
         cachedMagmaInfo[vbid.get()]->docCount -=
@@ -2110,15 +2040,13 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) {
-    return std::make_unique<MagmaKVFileHandle>(*this, vbid);
+    return std::make_unique<MagmaKVFileHandle>(vbid);
 }
 
 RollbackResult MagmaKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackSeqno,
                                       std::unique_ptr<RollbackCB> cb) {
     logger->info("MagmaKVStore::rollback {} seqno:{}", vbid, rollbackSeqno);
-
-    auto kvHandle = getMagmaKVHandle(vbid);
 
     Magma::FetchBuffer idxBuf;
     Magma::FetchBuffer seqBuf;
@@ -2187,7 +2115,6 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
 
     vbucket_state* vbstate;
     {
-        std::shared_lock<std::shared_timed_mutex> rlock(kvHandle->vbstateMutex);
         status = loadVBStateCache(vbid);
 
         if (!status.IsOK()) {
@@ -2213,8 +2140,6 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
 }
 
 Collections::KVStore::Manifest MagmaKVStore::getCollectionsManifest(Vbid vbid) {
-    auto kvHandle = getMagmaKVHandle(vbid);
-
     Status status;
 
     std::string manifest;
