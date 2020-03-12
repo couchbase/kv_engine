@@ -3960,27 +3960,45 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
-    dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    cb_assert(producers.last_status == cb::mcbp::Status::Success);
-    cb_assert(producers.last_opaque != opaque);
+    // Might get a buffer ack which we don't care about here so step past
+    // anything not a snapshot marker (the first thing we care about).
+    do {
+        dcp_step(h, cookie, producers);
+        checkne(cb::mcbp::ClientOpcode::Invalid,
+                producers.last_op,
+                "Failed, got EWOULDBLOCK from engine");
+    } while (producers.last_op != cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    checkeq(cb::mcbp::Status::Success,
+            producers.last_status,
+            "Failed, not success");
+    checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op ==
-              cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
-    cb_assert(producers.last_status == cb::mcbp::Status::Success);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+            producers.last_op,
+            "Failed, not seqno ack");
+    checkeq(cb::mcbp::Status::Success,
+            producers.last_status,
+            "Failed, not success");
+    checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    cb_assert(producers.last_status == cb::mcbp::Status::Success);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+            producers.last_op,
+            "Failed, not snapshot marker");
+    checkeq(cb::mcbp::Status::Success,
+            producers.last_status,
+            "Failed, not success");
+    checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
 
     dcp_step(h, cookie, producers);
-    cb_assert(producers.last_op ==
-              cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
-    cb_assert(producers.last_status == cb::mcbp::Status::Success);
-    cb_assert(producers.last_opaque != opaque);
+    checkeq(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+            producers.last_op,
+            "Failed, not seqno ack");
+    checkeq(cb::mcbp::Status::Success,
+            producers.last_status,
+            "Failed, not success");
+    checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
 
     testHarness->destroy_cookie(cookie);
 
