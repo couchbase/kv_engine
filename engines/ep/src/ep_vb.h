@@ -308,7 +308,8 @@ private:
             HashTable::StoredValueProxy& v) override;
 
     /**
-     * Total number of alive (non-deleted) items on-disk in this vBucket.
+     * Total number of alive (non-deleted), Committed items on-disk in this
+     * vBucket (excludes Prepares).
      * Initially populated during warmup as the number of items on disk;
      * then incremented / decremented by persistence callbacks as new
      * items are created & old items deleted.

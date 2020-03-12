@@ -52,23 +52,17 @@ void PersistenceCallback::operator()(
 
     switch (mutationResult) {
     case KVStore::MutationSetResultState::Insert: {
-        // Only increment on disk count if this value is in the hash table
-        // or if the mutation wasn't committed but is an insertion and we
-        // didn't find an a valid value for it. Then it must be the first
-        // time we're writing a prepare for this key to disk. Thus, treat it
-        // as a create.
-        // This make sure we don't increment for sets that have been performed
-        // for collection manifests
-        if (isInHashTable || queuedItem->isPending()) {
-            // We should only increment the item counter if we have persisted a
-            // committed (by mutation or commit) item
-            if (queuedItem->isCommitted()) {
-                ++vbucket.opsCreate;
-                vbucket.incrNumTotalItems();
-            }
-            vbucket.incrMetaDataDisk(*queuedItem);
+        // Only count Committed items in numTotalItems.
+        if (queuedItem->isCommitted()) {
+            ++vbucket.opsCreate;
+            vbucket.incrNumTotalItems();
         }
 
+        // All items which are actually flushed to disk (Mutations, prepares,
+        // commits, and system events) take up space on disk so increment
+        // metadata stat.
+
+        vbucket.incrMetaDataDisk(*queuedItem);
         vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
         --epCtx.stats.diskQueueSize;
         epCtx.stats.totalPersisted++;
