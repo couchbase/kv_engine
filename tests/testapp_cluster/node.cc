@@ -208,29 +208,8 @@ NodeImpl::~NodeImpl() {
 }
 
 void NodeImpl::parsePortnumberFile() {
-    using std::chrono::steady_clock;
-    const auto timeout = steady_clock::now() + std::chrono::minutes(5);
-
-    do {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        if (cb::io::isFile(config["portnumber_file"])) {
-            break;
-        }
-        if (!isRunning()) {
-            throw std::runtime_error("parsePortnumberFile: node " + id +
-                                     " is no longer running");
-        }
-    } while (steady_clock::now() < timeout);
-
-    if (!cb::io::isFile(config["portnumber_file"])) {
-        throw std::runtime_error(
-                "parsePortnumberFile: Timed out after 5 minutes waiting for "
-                "memcached port file for node " +
-                id);
-    }
-
-    connectionMap.initialize(
-            nlohmann::json::parse(cb::io::loadFile(config["portnumber_file"])));
+    connectionMap.initialize(nlohmann::json::parse(cb::io::loadFile(
+            config["portnumber_file"], std::chrono::minutes{5})));
     cb::io::rmrf(config["portnumber_file"]);
 }
 

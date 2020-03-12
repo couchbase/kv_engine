@@ -227,12 +227,8 @@ TEST_F(SettingsTest, AlwaysCollectTraceInfo) {
 }
 
 TEST_F(SettingsTest, AuditFile) {
-    // Ensure that we detect non-string values for admin
     nonStringValuesShouldFail("audit_file");
-
-    // Ensure that we accept a string, but the file must exist
-    const auto filename = cb::io::mktemp("config_parse_test");
-
+    const std::string filename{"/foo/bar"};
     nlohmann::json json;
     json["audit_file"] = filename;
     try {
@@ -242,18 +238,11 @@ TEST_F(SettingsTest, AuditFile) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
-
-    // But we should fail if the file don't exist
-    cb::io::rmrf(filename);
-    expectFail<std::system_error>(json);
 }
 
 TEST_F(SettingsTest, RbacFile) {
     nonStringValuesShouldFail("rbac_file");
-
-    // Ensure that we accept a string, but the file must exist
-    const auto filename = cb::io::mktemp("config_parse_test");
-
+    const std::string filename{"/foo/bar"};
     nlohmann::json json;
     json["rbac_file"] = filename;
     try {
@@ -263,10 +252,6 @@ TEST_F(SettingsTest, RbacFile) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
-
-    // But we should fail if the file don't exist
-    cb::io::rmrf(filename);
-    expectFail<std::system_error>(json);
 }
 
 TEST_F(SettingsTest, Threads) {

@@ -92,7 +92,7 @@ std::string cb::sasl::pwdb::read_password_file(const std::string& filename) {
         return contents;
     }
 
-    auto ret = cb::io::loadFile(filename);
+    auto ret = cb::io::loadFile(filename, std::chrono::seconds{5});
 
     // The password file may be encrypted
     auto* env = getenv("COUCHBASE_CBSASL_SECRETS");

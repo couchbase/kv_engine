@@ -98,19 +98,16 @@ static void handle_always_collect_trace_info(Settings& s,
 /**
  * Handle the "rbac_file" tag in the settings
  *
- *  The value must be a string that points to a file that must exist
+ * ns_server don't synchronize updates to the files with memcached
+ * (see MB-38270) we can't really check for the file existence as
+ * we may race with ns_server trying to install a new version of the
+ * file.
  *
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
 static void handle_rbac_file(Settings& s, const nlohmann::json& obj) {
-    std::string file = obj.get<std::string>();
-
-    if (!cb::io::isFile(file)) {
-        throw_missing_file_exception("rbac_file", file);
-    }
-
-    s.setRbacFile(file);
+    s.setRbacFile(obj.get<std::string>());
 }
 
 /**
@@ -128,19 +125,16 @@ static void handle_privilege_debug(Settings& s, const nlohmann::json& obj) {
 /**
  * Handle the "audit_file" tag in the settings
  *
- *  The value must be a string that points to a file that must exist
+ * ns_server don't synchronize updates to the files with memcached
+ * (see MB-38270) we can't really check for the file existence as
+ * we may race with ns_server trying to install a new version of the
+ * file.
  *
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
 static void handle_audit_file(Settings& s, const nlohmann::json& obj) {
-    std::string file = obj.get<std::string>();
-
-    if (!cb::io::isFile(file)) {
-        throw_missing_file_exception("audit_file", file);
-    }
-
-    s.setAuditFile(file);
+    s.setAuditFile(obj.get<std::string>());
 }
 
 static void handle_error_maps_dir(Settings& s, const nlohmann::json& obj) {
@@ -348,7 +342,7 @@ static void handle_datatype_snappy(Settings& s, const nlohmann::json& obj) {
  * @param obj the object in the configuration
  */
 static void handle_root(Settings& s, const nlohmann::json& obj) {
-    std::string dir = obj.get<std::string>();
+    auto dir = obj.get<std::string>();
 
     if (!cb::io::isDirectory(dir)) {
         throw_missing_file_exception("root", dir);
@@ -1255,17 +1249,9 @@ static size_t parseErrorMap(const std::string& filename,
         throw_missing_file_exception(errkey, filename);
     }
 
-    std::ifstream ifs(filename);
-    if (ifs.good()) {
-        // Read into buffer
-        contents.assign(std::istreambuf_iterator<char>{ifs},
-                        std::istreambuf_iterator<char>());
-        if (contents.empty()) {
-            throw_file_exception(errkey, filename, FileError::Empty);
-        }
-    } else if (ifs.fail()) {
-        // TODO: make this into std::system_error
-        throw std::runtime_error(errkey + ": " + "Couldn't read");
+    contents = cb::io::loadFile(filename);
+    if (contents.empty()) {
+        throw_file_exception(errkey, filename, FileError::Empty);
     }
 
     auto json = nlohmann::json::parse(contents);

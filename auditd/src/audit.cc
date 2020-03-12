@@ -177,7 +177,8 @@ bool AuditImpl::reconfigure(std::string file) {
 
 bool AuditImpl::configure() {
     bool is_enabled_before_reconfig = config.is_auditd_enabled();
-    const auto configuration = cb::io::loadFile(configfile);
+    const auto configuration =
+            cb::io::loadFile(configfile, std::chrono::seconds{5});
     if (configuration.empty()) {
         return false;
     }
@@ -233,7 +234,8 @@ bool AuditImpl::configure() {
         cb::io::sanitizePath(audit_events_file);
     }
 
-    const auto str = cb::io::loadFile(audit_events_file);
+    const auto str =
+            cb::io::loadFile(audit_events_file, std::chrono::seconds{5});
     if (str.empty()) {
         return false;
     }

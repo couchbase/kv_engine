@@ -28,7 +28,7 @@
 
 void load_config_file(const char *file, Settings& settings)
 {
-    auto content = cb::io::loadFile(file);
+    auto content = cb::io::loadFile(file, std::chrono::seconds{5});
     settings.reconfigure(nlohmann::json::parse(content));
 }
 
@@ -54,7 +54,7 @@ boost::optional<nlohmann::json> validate_proposed_config_changes(
 
 void reload_config_file() {
     LOG_INFO("Reloading config file {}", get_config_file());
-    auto content = cb::io::loadFile(get_config_file());
+    auto content = cb::io::loadFile(get_config_file(), std::chrono::seconds{5});
     Settings new_settings(nlohmann::json::parse(content));
     Settings::instance().updateSettings(new_settings, true);
 }

@@ -463,7 +463,7 @@ std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user) {
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
-    const auto content = cb::io::loadFile(filename);
+    const auto content = cb::io::loadFile(filename, std::chrono::seconds{5});
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(content);

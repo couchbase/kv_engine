@@ -560,26 +560,8 @@ void TestappTest::parse_portnumber_file() {
     // if we hit it we have a real problem and not just a loaded
     // server (rebuilding all of the source one more time is just
     // putting more load on the servers).
-    using std::chrono::steady_clock;
-    const auto timeout = steady_clock::now() + std::chrono::minutes(5);
-
-    do {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        if (cb::io::isFile(portnumber_file)) {
-            break;
-        }
-
-        verify_server_running();
-    } while (steady_clock::now() < timeout);
-
-    ASSERT_TRUE(cb::io::isFile(portnumber_file))
-            << "Timed out after 5 minutes waiting for memcached port file '"
-            << portnumber_file << "' to be created.";
-
-    // We'll throw here if anything goes wrong
-    const auto json = nlohmann::json::parse(cb::io::loadFile(portnumber_file));
-
-    connectionMap.initialize(json);
+    connectionMap.initialize(nlohmann::json::parse(
+            cb::io::loadFile(portnumber_file, std::chrono::minutes{5})));
 
     // The tests which don't use the MemcachedConnection class needs the
     // global variables port and ssl_port to be set

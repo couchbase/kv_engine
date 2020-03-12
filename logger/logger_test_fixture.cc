@@ -55,7 +55,7 @@ void SpdloggerTest::setUpLogger() {
 
 int SpdloggerTest::countInFile(const std::string& file,
                                const std::string& msg) {
-    const auto content = cb::io::loadFile(file);
+    const auto content = cb::io::loadFile(file, {});
 
     const auto* begin = content.data();
     const auto* end = begin + content.size();
@@ -73,7 +73,7 @@ std::string SpdloggerTest::getLogContents() {
     std::string ret;
 
     for (const auto& file : files) {
-        ret.append(cb::io::loadFile(file));
+        ret.append(cb::io::loadFile(file, {}));
     }
 
     return ret;
