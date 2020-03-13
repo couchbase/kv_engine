@@ -42,7 +42,9 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Couchstore_SOURCE_DIR}/include
                            ${Couchstore_BINARY_DIR}/include
                            ${phosphor_SOURCE_DIR}/include
-                           ${CMAKE_CURRENT_BINARY_DIR})
+                           ${CMAKE_CURRENT_BINARY_DIR}
+                           ${PROMETHEUS_INCLUDE_DIR}
+        )
 
 # Mark third-party libraries as 'system' so we skip any warnings they
 # generate.
@@ -418,6 +420,7 @@ if (NOT EP_BYPASS_TESTS)
             mcbp
             mcd_util
             platform
+            statistics
             ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep_perfsuite)
 
