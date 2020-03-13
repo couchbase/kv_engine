@@ -1,17 +1,32 @@
 - test: ep_benchmarks
   command: "build/kv_engine/ep_engine_benchmarks
-                --benchmark_filter='FlushVBucket/|HashTableBench/'
+                --benchmark_filter='HashTableBench'
                 --benchmark_out_format=json
                 --benchmark_out=benchmark_output.json &&
             python kv_engine/scripts/benchmark2xml.py
                 --benchmark_file=benchmark_output.json
-                --output_file=benchmark_results.xml --time_format=ns
-                --in_place --cpu_time"
+                --output_file=benchmark_results.xml
+                --in_place --cbnt_metrics cpu_time"
+  output:
+    - "benchmark_results.xml"
+
+# Note: The main purpose of the FlushVBucket bench is to measure memory usage.
+#  But given that the bench flushes a fixed number of items, then we can measure
+#  real_time too.
+- test: ep_benchmarks
+  command: "build/kv_engine/ep_engine_benchmarks
+                --benchmark_filter='MemTrackingVBucketBench/FlushVBucket'
+                --benchmark_out_format=json
+                --benchmark_out=benchmark_output.json &&
+            python kv_engine/scripts/benchmark2xml.py
+                --benchmark_file=benchmark_output.json
+                --output_file=benchmark_results.xml
+                --in_place --cbnt_metrics real_time,PeakBytesPerItem"
   output:
     - "benchmark_results.xml"
 
 - test: perfsuite
-  command: 'build/kv_engine/ep_perfsuite -E ep -e "dbname=./ep_perfsuite.value_eviction.db" -f xml &&
+  command: 'build/kv_engine/ep_perfsuite -E ep -e "dbname=./ep_perfsuite.value_eviction.db" -v -f xml &&
             python kv_engine/scripts/cbnt_perfsuite_strip_results.py -d . -p output -i ".pct99" -i ".pct95"'
   output:
     - "output.2_buckets_2_threads_baseline.xml"
@@ -20,7 +35,7 @@
     - "output.With_constant_defragmention.xml"
 
 - test: perfsuite_ephemeral
-  command: 'build/kv_engine/ep_perfsuite -E ep -e "bucket_type=ephemeral;dbname=./ep_perfsuite.ephemeral.db" -f xml &&
+  command: 'build/kv_engine/ep_perfsuite -E ep -e "bucket_type=ephemeral;dbname=./ep_perfsuite.ephemeral.db" -v -f xml &&
             python kv_engine/scripts/cbnt_perfsuite_strip_results.py -d . -p output -i ".pct99" -i ".pct95"'
   output:
     - "output.2_buckets_2_threads_baseline.xml"
@@ -44,8 +59,8 @@
                 --benchmark_out=benchmark_output.json &&
            python kv_engine/scripts/benchmark2xml.py
                 --benchmark_file=benchmark_output.json
-                --output_file=benchmark_results.xml --time_format=ns
-                --in_place --cpu_time"
+                --output_file=benchmark_results.xml
+                --in_place --cbnt_metrics cpu_time"
   output:
     - "benchmark_results.xml"
 
@@ -56,7 +71,7 @@
                 --benchmark_out=benchmark_output.json &&
           python kv_engine/scripts/benchmark2xml.py
                --benchmark_file=benchmark_output.json
-               --output_file=benchmark_results.xml --time_format=ns
-               --in_place --cbnt_metric 'AvgQueueDirtyRuntime'"
+               --output_file=benchmark_results.xml
+               --in_place --cbnt_metrics AvgQueueDirtyRuntime"
   output:
     - "benchmark_results.xml"

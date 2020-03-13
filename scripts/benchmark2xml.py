@@ -30,18 +30,6 @@ import json
 import collections
 
 
-def convert_time(input_time, input_format, desired_format):
-    units = {"s": 1, "ms": 1000, "us": 1000000, "ns": 1000000000}
-    if input_format == desired_format:
-        return float(input_time)
-    if units[input_format] > units[desired_format]:
-        factor = float(units[desired_format]) / float(units[input_format])
-        return float(input_time) * float(factor)
-    else:
-        factor = float(units[input_format]) / float(units[desired_format])
-        return float(input_time) / float(factor)
-
-
 def main():
     parser = optparse.OptionParser()
     required_args = optparse.OptionGroup(parser, 'Required Arguments')
@@ -51,17 +39,16 @@ def main():
     required_args.add_option('-o', '--output_file', action='store',
                              type='string', dest='output_file',
                              help='The file to output the generated XML to')
-    required_args.add_option('-t', '--time_format', action='store',
-                             dest='time_format', type='choice',
-                             choices=('s', 'ms', 'us', 'ns'),
-                             help='Coverts all time based results into this '
-                                  'format. [s, ms, us, ns]')
+    required_args.add_option('-c', '--cbnt_metrics', action='store',
+                             dest='cbnt_metrics', type='string',
+                             help='String that specifies the list of metrics '
+                                  'to be tracked, comma separated. That can '
+                                  'be any of the metrics measured in a bench '
+                                  '(eg, GBench real_time\'/\'cpu_time\', or '
+                                  'any user metric.)')
     parser.add_option_group(required_args)
 
     optional_args = optparse.OptionGroup(parser, 'Optional Arguments')
-    optional_args.add_option('-c', '--cpu_time', action='store_true',
-                             dest='cpu_time', default=False,
-                             help='Create test results for CPU time stats')
     optional_args.add_option('-s', '--separator', action='store',
                              dest='separator', type='string', default='/',
                              help='The separator character used in the test '
@@ -75,14 +62,6 @@ def main():
                              help='An optional string which gets added to the '
                                   'start of each test suite name. For example'
                                   '"Logger/".')
-    optional_args.add_option('--cbnt_metric', action='store',
-                             dest='cbnt_metric', type='string', default='',
-                             help='An optional string marking which named '
-                                  'value should be taken as the result. '
-                                  'If specified, this will override the time '
-                                  'results, however if it is specified and it '
-                                  'does not exist in the test results, '
-                                  'then the \'real_time\' value will be used.')
     parser.add_option_group(optional_args)
     (options, args) = parser.parse_args()
 
@@ -120,21 +99,11 @@ def main():
 
     timestamp = json_data['context']['date'].replace(' ', 'T')
 
-    test_suites = collections.defaultdict(list)
-
-    # Dictionary containing the names of the stats we want to include in the
-    # final result. The dictionary is in the form { Name->string : Flag->bool }
-    # The flag represents whether we need to append the stat name to the result
-    # in order to differentiate them.
-    test_cases = {'real_time': False}
-
-    if options.cpu_time:
-        test_cases['cpu_time'] = True
-
     # Get the base names of the test suite
-    for test in json_data['benchmarks']:
-        name = test['name'].split(options.separator.strip())[0]
-        test_suites[name].append(test)
+    test_suites = collections.defaultdict(list)
+    for suite in json_data['benchmarks']:
+        name = suite['name'].split(options.separator.strip())[0]
+        test_suites[name].append(suite)
 
     # If we are consuming the input file, delete it
     if options.consume:
@@ -154,37 +123,34 @@ def main():
     # Write the XML data to the output file in the format used within CBNT.
     testcase_string = '    <testcase name="{}" time="%f" classname="{}{}"/>\n'
     output_file.write('<testsuites timestamp="{}">\n'.format(timestamp))
+
+    metrics = options.cbnt_metrics.split(',')
+
     for test_suite in test_suites:
         output_file.write('  <testsuite name="{}{}">\n'.
                           format(options.suite_name, test_suite))
+
         for test in test_suites[test_suite]:
-            name = options.separator.join(
+            base_name = options.separator.join(
                 test['name'].split(options.separator.strip())[1:])
-            if not name:
-                name = test['name']
-            if options.cbnt_metric:
-                if options.cbnt_metric in test:
-                    # Use cbnt_metric result
-                    time = test[options.cbnt_metric]
-                else:
-                    # Use real time by default
-                    time = float(convert_time(test['real_time'],
-                                              test['time_unit'],
-                                              options.time_format.strip()))
+            if not base_name:
+                base_name = test['name']
+
+            for metric in metrics:
+                if metric not in test:
+                    print('Metric \'{}\' not found for test {}'.format(
+                        metric, test))
+                    sys.exit(-1)
+
+                test_name = options.separator.join([base_name,
+                                                    metric])
+                # Note: The sample goes in a field called 'time' in the xml
+                #  only because that is the CBNT way of naming things.
+                sample = test[metric]
                 output_file.write(
-                    testcase_string.format(name, options.suite_name,
-                                           test_suite) % time)
-            else:
-                for stat in test_cases:
-                    if stat not in test:
-                        continue
-                    if test_cases[stat]:
-                        name = options.separator.join([name, stat])
-                    time = float(convert_time(test[stat], test['time_unit'],
-                                              options.time_format.strip()))
-                    output_file.write(
-                        testcase_string.format(name, options.suite_name,
-                                               test_suite) % time)
+                    testcase_string.format(test_name, options.suite_name,
+                                           test_suite) % sample)
+
         output_file.write('  </testsuite>\n')
     output_file.write('</testsuites>\n')
 
