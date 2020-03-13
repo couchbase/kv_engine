@@ -36,6 +36,7 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <gsl/gsl>
@@ -583,6 +584,47 @@ static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
     return bucket_get_stats(cookie, arg, value, appendStatsFn);
 }
 
+static ENGINE_ERROR_CODE stat_allocator_executor(const std::string&,
+                                                 Cookie& cookie) {
+    std::vector<char> lineBuffer;
+    lineBuffer.reserve(256);
+    struct CallbackData {
+        std::vector<char>& lineBuffer;
+        Cookie& cookie;
+    } callbackData{lineBuffer, cookie};
+
+    // je_malloc will return each line of output in multiple callbacks, we will
+    // join those together and send individual lines to the client (without the
+    // newline), if mcstat is the caller each returned 'line' is printed with
+    // a newline and we get nicely formatted statistics.
+    static auto callback = [](void* opaque, const char* msg) {
+        auto* cbdata = reinterpret_cast<CallbackData*>(opaque);
+        std::string_view message(msg);
+        auto& buf = cbdata->lineBuffer;
+        bool newlineFound = false;
+
+        // Use copy_if so we can scan for newlines whilst copying to our buffer
+        std::copy_if(message.begin(),
+                     message.end(),
+                     std::back_inserter(buf),
+                     [&newlineFound](char c) {
+                         if (c == '\n') {
+                             newlineFound = true;
+                             return false;
+                         }
+                         return true;
+                     });
+
+        if (newlineFound) {
+            append_stats(
+                    "allocator", {buf.data(), buf.size()}, &cbdata->cookie);
+            buf.clear();
+        }
+    };
+    cb::ArenaMalloc::getDetailedStats(callback, &callbackData);
+    return ENGINE_SUCCESS;
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -615,7 +657,8 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"topkeys_json", {false, true, stat_topkeys_json_executor}},
                 {"subdoc_execute", {false, true, stat_subdoc_execute_executor}},
                 {"responses", {false, true, stat_responses_json_executor}},
-                {"tracing", {true, false, stat_tracing_executor}}};
+                {"tracing", {true, false, stat_tracing_executor}},
+                {"allocator", {true, false, stat_allocator_executor}}};
 
 /**
  * For a given key, try and return the handler for it

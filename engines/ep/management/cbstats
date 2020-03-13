@@ -309,17 +309,17 @@ def time_label(s):
 
     product = 1
     '''
-    For unit labeling we define our thresh holds as 
+    For unit labeling we define our thresh holds as
     Any value <= 10,000 will represented as a micro second (us)
     Any value <= 10,000,000 will be represented as a milli second (ms)
     Any value <= 600,000,000 will be represented as a second (s)
     Anything > than 600,000,000 will be represented as minutes and seconds
     e.g. 1m:05s
-    
+
     We do this unusual thresholding so that we always have than two s.f. to
     for values greater than 10us to distinguish between buckets.
     For instance if we didn't do this bucket start/end values could look like
-    this: 
+    this:
      968us - 1ms   : ( 99.82%)    22
     1ms - 1ms     : ( 99.84%)    22
     1ms - 1ms     : ( 99.86%)    23
@@ -327,8 +327,8 @@ def time_label(s):
     9ms - 15ms    : ( 99.99%)     2
     15ms - 23ms   : ( 99.99%)     1
     23ms - 40ms   : ( 99.99%)     2
-     
-    Which isn't very useful. However, with this style of thresholding 
+
+    Which isn't very useful. However, with this style of thresholding
     we end up with:
     968us - 1050us : ( 99.8247%)    22
     1050us - 1168us : ( 99.8440%)    22
@@ -592,10 +592,6 @@ def stats_checkpoint(mc, vb=-1):
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
         print('Specified vbucket \"%s\" is not valid' % str(vb))
-
-@cmd
-def stats_allocator(mc):
-    print(stats_perform(mc, 'allocator')['detailed'])
 
 @cmd
 def stats_slabs(mc):
@@ -878,7 +874,6 @@ def main():
     c = cli_auth_utils.get_authed_clitool()
 
     c.addCommand('all', stats_all, 'all')
-    c.addCommand('allocator', stats_allocator, 'allocator')
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')

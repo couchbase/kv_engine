@@ -4629,14 +4629,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
-    if (key == "allocator"_ccb) {
-        // @todo: MB-37467: make this an mcstat, it's reporting global data
-        // @todo: this buffer is not big enough now we are creating arenas
-        char buffer[64 * 1024];
-        cb::ArenaMalloc::getDetailedStats({buffer, sizeof(buffer)});
-        add_casted_stat("detailed", buffer, add_stat, cookie);
-        return ENGINE_SUCCESS;
-    }
     if (key == "config"_ccb) {
         configuration.addStats(add_stat, cookie);
         return ENGINE_SUCCESS;

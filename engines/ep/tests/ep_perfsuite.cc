@@ -163,7 +163,6 @@ std::unordered_map<std::string, StatProperties> stat_tests = {
         make_stat_pair("kvtimings", {"kvtimings", StatRuntime::Slow, {}}),
         make_stat_pair("kvstore", {"kvstore", StatRuntime::Fast, {}}),
         make_stat_pair("info", {"info", StatRuntime::Fast, {}}),
-        make_stat_pair("allocator", {"allocator", StatRuntime::Slow, {}}),
         make_stat_pair("config", {"config", StatRuntime::Fast, {}}),
         make_stat_pair("dcp-vbtakeover",
                        {"dcp-vbtakeover 0 DCP", StatRuntime::Fast, {}}),

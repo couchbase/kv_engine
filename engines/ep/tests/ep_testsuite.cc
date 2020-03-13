@@ -6896,7 +6896,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             {"uuid", {"uuid"}},
             {"kvstore", kvstats},
             {"info", {"info"}},
-            {"allocator", {"detailed"}},
             {"config",
              {"ep_allow_del_with_meta_prune_user_data",
               "ep_backend",
