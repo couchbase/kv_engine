@@ -11,21 +11,23 @@
     - "benchmark_results.xml"
 
 - test: perfsuite
-  command: "build/kv_engine/engine_testapp -E build/kv_engine/ep.so -T build/kv_engine/ep_perfsuite.so -v -e dbname=./value_eviction_perf -f xml &&
-            python kv_engine/scripts/cbnt_perfsuite_strip_results.py -d . -p output -i '.pct99' -i '.pct95'"
-  output:
-    - "output.2_buckets_2_threads_baseline.xml"
-    - "output.With_background_DCP.xml"
-    - "output.With_constant_Expiry_pager.xml"
-    - "output.With_constant_defragmention.xml"
-- test: perfsuite_ephemeral
-  command: 'build/kv_engine/engine_testapp -E build/kv_engine/ep.so -T build/kv_engine/ep_perfsuite.so -v -e "bucket_type=ephemeral;dbname=./ep_perfsuite.ephemeral.db" -f xml &&
+  command: 'build/kv_engine/ep_perfsuite -E ep -e "dbname=./ep_perfsuite.value_eviction.db" -f xml &&
             python kv_engine/scripts/cbnt_perfsuite_strip_results.py -d . -p output -i ".pct99" -i ".pct95"'
   output:
     - "output.2_buckets_2_threads_baseline.xml"
     - "output.With_background_DCP.xml"
     - "output.With_constant_Expiry_pager.xml"
     - "output.With_constant_defragmention.xml"
+
+- test: perfsuite_ephemeral
+  command: 'build/kv_engine/ep_perfsuite -E ep -e "bucket_type=ephemeral;dbname=./ep_perfsuite.ephemeral.db" -f xml &&
+            python kv_engine/scripts/cbnt_perfsuite_strip_results.py -d . -p output -i ".pct99" -i ".pct95"'
+  output:
+    - "output.2_buckets_2_threads_baseline.xml"
+    - "output.With_background_DCP.xml"
+    - "output.With_constant_Expiry_pager.xml"
+    - "output.With_constant_defragmention.xml"
+
 # This following test comes from discussions with Dave Rigby: "lookup/mutation, dict/array; and with some multipath stuff in there"
 # taking stability data from the existing CBNT runs to try and get the most stable set of tests possible
 - test: subdoc_perf
