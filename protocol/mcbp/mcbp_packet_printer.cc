@@ -18,7 +18,6 @@
 #include <getopt.h>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
-#include <platform/memorymap.h>
 #include <platform/sized_buffer.h>
 #include <algorithm>
 #include <iostream>
@@ -103,13 +102,11 @@ int main(int argc, char** argv) {
 
     while (optind < argc) {
         try {
-            cb::byte_buffer buf;
+            cb::const_byte_buffer buf;
             std::vector<uint8_t> data;
-
-            cb::io::MemoryMappedFile map(
-                    argv[optind], cb::io::MemoryMappedFile::Mode::RDONLY);
-            auto payload = map.content();
-            buf = {reinterpret_cast<uint8_t*>(payload.data()), payload.size()};
+            const auto payload = cb::io::loadFile(argv[optind]);
+            buf = {reinterpret_cast<const uint8_t*>(payload.data()),
+                   payload.size()};
 
             switch (format) {
             case Format::Raw:
