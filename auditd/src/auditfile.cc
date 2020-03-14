@@ -101,8 +101,7 @@ bool AuditFile::open() {
     cb_assert(!file);
     cb_assert(open_time == 0);
 
-    open_file_name = log_directory + "/audit.log";
-    cb::io::sanitizePath(open_file_name);
+    open_file_name = cb::io::sanitizePath(log_directory + "/audit.log");
     file.reset(fopen(open_file_name.c_str(), "wb"));
     if (!file) {
         LOG_WARNING("Audit: open error on file {}: {}",
@@ -154,8 +153,7 @@ void AuditFile::close_and_rotate_log() {
 }
 
 void AuditFile::cleanup_old_logfile(const std::string& log_path) {
-    auto filename = log_path + "/audit.log";
-    cb::io::sanitizePath(filename);
+    auto filename = cb::io::sanitizePath(log_path + "/audit.log");
 
     if (cb::io::isFile(filename)) {
         // open the audit.log that needs archiving
@@ -211,7 +209,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         std::replace(ts.begin(), ts.end(), ':', '-');
         // form the archive filename
         auto archive_file = log_path + "/" + hostname + "-" + ts + "-audit.log";
-        cb::io::sanitizePath(archive_file);
+        archive_file = cb::io::sanitizePath(archive_file);
         if (rename(filename.c_str(), archive_file.c_str()) != 0) {
             throw std::system_error(
                     errno,

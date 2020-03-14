@@ -15,6 +15,7 @@ add_executable(auditevent_generator
 target_link_libraries(auditevent_generator platform dirutils mcd_util)
 add_sanitizers(auditevent_generator)
 
+target_link_libraries(auditevent_generator dirutils platform)
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
 # subset of the audit descriptors.

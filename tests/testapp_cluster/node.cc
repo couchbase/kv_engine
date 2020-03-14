@@ -62,18 +62,16 @@ protected:
 
 NodeImpl::NodeImpl(std::string directory, std::string id)
     : Node(std::move(directory)), id(std::move(id)) {
-    std::string errmaps(SOURCE_ROOT);
-    errmaps.append("/etc/couchbase/kv/error_maps");
-    cb::io::sanitizePath(errmaps);
-    std::string rbac(SOURCE_ROOT);
-    rbac.append("/tests/testapp/rbac.json");
-    cb::io::sanitizePath(rbac);
-    std::string log_filename = NodeImpl::directory + "/memcached_log";
-    cb::io::sanitizePath(log_filename);
-    std::string portnumber_file = NodeImpl::directory + "/memcached.ports.json";
-    cb::io::sanitizePath(portnumber_file);
-    std::string minidump_dir = NodeImpl::directory + "/crash";
-    cb::io::sanitizePath(minidump_dir);
+    const auto errmaps =
+            cb::io::sanitizePath(SOURCE_ROOT "/etc/couchbase/kv/error_maps");
+    const auto rbac =
+            cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
+    const auto log_filename =
+            cb::io::sanitizePath(NodeImpl::directory + "/memcached_log");
+    const auto portnumber_file =
+            cb::io::sanitizePath(NodeImpl::directory + "/memcached.ports.json");
+    const auto minidump_dir =
+            cb::io::sanitizePath(NodeImpl::directory + "/crash");
     cb::io::mkdirp(minidump_dir);
 
     config = {
@@ -108,8 +106,7 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
                                {"port", 0},
                                {"ipv4", "required"},
                                {"host", "*"}};
-    configfile = NodeImpl::directory + "/memcached.json";
-    cb::io::sanitizePath(configfile);
+    configfile = cb::io::sanitizePath(NodeImpl::directory + "/memcached.json");
     std::ofstream out(configfile);
     out << config.dump(2);
     out.close();

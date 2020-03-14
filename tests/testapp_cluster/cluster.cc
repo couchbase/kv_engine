@@ -228,8 +228,7 @@ void ClusterImpl::deleteBucket(const std::string& name) {
         connection->authenticate("@admin", "password", "plain");
         connection->deleteBucket(name);
         // And nuke the files for the database on that node..
-        std::string bucketdir = n->directory + "/" + name;
-        cb::io::sanitizePath(bucketdir);
+        std::string bucketdir = cb::io::sanitizePath(n->directory + "/" + name);
         cb::io::rmrf(bucketdir);
     }
 }
@@ -242,8 +241,7 @@ ClusterImpl::~ClusterImpl() {
     bool cleanup = true;
 
     for (auto& n : nodes) {
-        std::string minidump_dir = n->directory + "/crash";
-        cb::io::sanitizePath(minidump_dir);
+        const auto minidump_dir = cb::io::sanitizePath(n->directory + "/crash");
         if (cb::io::isDirectory(minidump_dir)) {
             auto files = cb::io::findFilesWithPrefix(minidump_dir, "");
             cleanup &= files.empty();
@@ -258,15 +256,13 @@ ClusterImpl::~ClusterImpl() {
 }
 
 std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
-    auto pattern = cb::io::getcwd() + "/cluster_";
-    cb::io::sanitizePath(pattern);
-    auto clusterdir = cb::io::mkdtemp(pattern);
+    const auto pattern = cb::io::sanitizePath(cb::io::getcwd() + "/cluster_");
+    const auto clusterdir = cb::io::mkdtemp(pattern);
 
     std::vector<std::unique_ptr<Node>> nodes;
     for (size_t n = 0; n < num_nodes; ++n) {
         const std::string id = "n_" + std::to_string(n);
-        std::string nodedir = clusterdir + "/" + id;
-        cb::io::sanitizePath(nodedir);
+        const auto nodedir = cb::io::sanitizePath(clusterdir + "/" + id);
         cb::io::mkdirp(nodedir);
         nodes.emplace_back(Node::create(nodedir, id));
     }

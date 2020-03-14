@@ -20,9 +20,8 @@
 #include <platform/dirutils.h>
 
 TEST(McbpStatusTest, VerifyErrorMap) {
-    std::string filename =
-            SOURCE_ROOT "/etc/couchbase/kv/error_maps/error_map_v1.json";
-    cb::io::sanitizePath(filename);
+    const auto filename = cb::io::sanitizePath(
+            SOURCE_ROOT "/etc/couchbase/kv/error_maps/error_map_v1.json");
     auto json = nlohmann::json::parse(cb::io::loadFile(filename));
     ASSERT_EQ(1, json["version"].get<int>());
     ASSERT_EQ(2, json["revision"].get<int>());

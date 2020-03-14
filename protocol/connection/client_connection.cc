@@ -668,13 +668,12 @@ void MemcachedConnection::setSslCertFile(const std::string& file)  {
         ssl_cert_file.clear();
         return;
     }
-    auto path = file;
-    cb::io::sanitizePath(path);
+    auto path = cb::io::sanitizePath(file);
     if (!cb::io::isFile(path)) {
         throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
                                 "Can't use [" + path + "]");
     }
-    ssl_cert_file = path;
+    ssl_cert_file = std::move(path);
 }
 
 void MemcachedConnection::setSslKeyFile(const std::string& file) {
@@ -682,13 +681,12 @@ void MemcachedConnection::setSslKeyFile(const std::string& file) {
         ssl_key_file.clear();
         return;
     }
-    auto path = file;
-    cb::io::sanitizePath(path);
+    auto path = cb::io::sanitizePath(file);
     if (!cb::io::isFile(path)) {
         throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
                                 "Can't use [" + path + "]");
     }
-    ssl_key_file = path;
+    ssl_key_file = std::move(path);
 }
 
 void MemcachedConnection::setTlsProtocol(std::string protocol) {

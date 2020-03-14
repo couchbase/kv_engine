@@ -20,9 +20,8 @@
 #include <platform/sized_buffer.h>
 
 TEST(ParserTest, GdbOutput) {
-    std::string file{SOURCE_ROOT};
-    file.append("/protocol/mcbp/gdb_output.txt");
-    cb::io::sanitizePath(file);
+    const auto file =
+            cb::io::sanitizePath(SOURCE_ROOT "/protocol/mcbp/gdb_output.txt");
     const auto content = cb::io::loadFile(file);
     cb::byte_buffer buf = {
             const_cast<uint8_t*>(
@@ -45,9 +44,8 @@ TEST(ParserTest, GdbOutput) {
 }
 
 TEST(ParserTest, LldbOutput) {
-    std::string file{SOURCE_ROOT};
-    file.append("/protocol/mcbp/lldb_output.txt");
-    cb::io::sanitizePath(file);
+    const auto file =
+            cb::io::sanitizePath(SOURCE_ROOT "/protocol/mcbp/lldb_output.txt");
     const auto content = cb::io::loadFile(file);
     cb::byte_buffer buf = {
             const_cast<uint8_t*>(

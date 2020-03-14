@@ -59,14 +59,14 @@ Module::Module(const nlohmann::json& object,
     file.assign(srcRoot);
     file.append("/");
     file.append(cb::jsonGet<std::string>(data, "file"));
-    cb::io::sanitizePath(file);
+    file = cb::io::sanitizePath(file);
 
     auto hfile = data.value("header", "");
     if (!hfile.empty()) {
         header.assign(objRoot);
         header.append("/");
         header.append(hfile);
-        cb::io::sanitizePath(header);
+        header = cb::io::sanitizePath(header);
         ++expected;
     }
 

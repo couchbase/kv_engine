@@ -121,11 +121,11 @@ TEST_F(SingleModuleParseTest, TestCorrectInput) {
     Module module(json, SOURCE_ROOT, OBJECT_ROOT);
     EXPECT_EQ("module1", module.name);
     EXPECT_EQ(0, module.start);
-    std::string expected = SOURCE_ROOT "/auditd/generator/tests/module1.json";
-    cb::io::sanitizePath(expected);
+    auto expected = cb::io::sanitizePath(
+            SOURCE_ROOT "/auditd/generator/tests/module1.json");
     EXPECT_EQ(expected, module.file);
-    expected = OBJECT_ROOT "/auditd/generator/module_test.h";
-    cb::io::sanitizePath(expected);
+    expected =
+            cb::io::sanitizePath(OBJECT_ROOT "/auditd/generator/module_test.h");
     EXPECT_EQ(expected, module.header);
     EXPECT_FALSE(module.enterprise);
     EXPECT_EQ(3, module.events.size());
