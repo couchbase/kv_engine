@@ -184,9 +184,8 @@ int main(int argc, char** argv) {
     snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
     putenv(envvar);
 
-    std::string isasl_file_name = SOURCE_ROOT;
-    isasl_file_name.append("/tests/testapp_cluster/cbsaslpw.json");
-    cb::io::sanitizePath(isasl_file_name);
+    const auto isasl_file_name = cb::io::sanitizePath(
+            SOURCE_ROOT "/tests/testapp_cluster/cbsaslpw.json");
 
     // Add the file to the exec environment
     snprintf(isasl_env_var,

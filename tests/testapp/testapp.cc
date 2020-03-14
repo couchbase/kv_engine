@@ -418,10 +418,7 @@ std::string CERTIFICATE_PATH(const std::string& file) {
 #endif
 }
 static std::string get_errmaps_dir() {
-    std::string dir(SOURCE_ROOT);
-    dir += "/etc/couchbase/kv/error_maps";
-    cb::io::sanitizePath(dir);
-    return dir;
+    return cb::io::sanitizePath(SOURCE_ROOT "/etc/couchbase/kv/error_maps");
 }
 
 nlohmann::json TestappTest::generate_config() {

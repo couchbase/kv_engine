@@ -239,7 +239,7 @@ bool AuditConfig::is_filtering_enabled() const {
 }
 
 void AuditConfig::sanitize_path(std::string &path) {
-    cb::io::sanitizePath(path);
+    path = cb::io::sanitizePath(path);
     if (path.length() > 1 && path.back() == cb::io::DirectorySeparator) {
         path.resize(path.length() - 1);
     }

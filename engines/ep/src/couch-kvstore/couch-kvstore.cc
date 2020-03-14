@@ -745,8 +745,7 @@ std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
 
 void CouchKVStore::getPersistedStats(std::map<std::string,
                                      std::string> &stats) {
-    std::string fname = dbname + "/stats.json";
-    cb::io::sanitizePath(fname);
+    const auto fname = cb::io::sanitizePath(dbname + "/stats.json");
     if (!cb::io::isFile(fname)) {
         return;
     }
@@ -3010,9 +3009,9 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
                 "read-only object.");
     }
 
-    std::string fname = dbname + "/" + std::to_string(vbucket.get()) +
-                        ".couch." + std::to_string(fRev);
-    cb::io::sanitizePath(fname);
+    const auto fname =
+            cb::io::sanitizePath(dbname + "/" + std::to_string(vbucket.get()) +
+                                 ".couch." + std::to_string(fRev));
     logger.debug("CouchKVStore::unlinkCouchFile: {}, revision:{}, fname:{}",
                  vbucket,
                  fRev,

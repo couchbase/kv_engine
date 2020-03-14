@@ -119,7 +119,7 @@ public:
 
         std::string certPath{SOURCE_ROOT};
         certPath.append("/tests/cert/parse-test.pem");
-        cb::io::sanitizePath(certPath);
+        certPath = cb::io::sanitizePath(certPath);
         auto data = cb::io::loadFile(certPath);
         auto* certbio = BIO_new_mem_buf(
                 const_cast<void*>(static_cast<const void*>(data.data())),

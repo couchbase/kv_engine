@@ -146,9 +146,8 @@ std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::ClientOpcode opcode) {
  */
 static nlohmann::json mergeFilesOnDisk(const std::string& root) {
     // First try to read the system default
-    std::string system = root + "/etc/couchbase/kv/opcode-attributes.json";
-    cb::io::sanitizePath(system);
-
+    auto system = cb::io::sanitizePath(
+            root + "/etc/couchbase/kv/opcode-attributes.json");
     nlohmann::json configuration;
 
     if (cb::io::isFile(system)) {

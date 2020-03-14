@@ -227,11 +227,11 @@ bool AuditImpl::configure() {
         }
     }
 
-    auto audit_events_file = config.get_descriptors_path();
-    cb::io::sanitizePath(audit_events_file);
+    auto audit_events_file =
+            cb::io::sanitizePath(config.get_descriptors_path());
     if (!cb::io::isFile(audit_events_file)) {
         audit_events_file.append("/audit_events.json");
-        cb::io::sanitizePath(audit_events_file);
+        audit_events_file = cb::io::sanitizePath(audit_events_file);
     }
 
     const auto str =

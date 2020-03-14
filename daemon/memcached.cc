@@ -546,7 +546,7 @@ static void update_settings_from_config()
     if (settings.getErrorMapsDir().empty()) {
         // Set the error map dir.
         std::string error_maps_dir(root + "/etc/couchbase/kv/error_maps");
-        cb::io::sanitizePath(error_maps_dir);
+        error_maps_dir = cb::io::sanitizePath(error_maps_dir);
         if (cb::io::isDirectory(error_maps_dir)) {
             settings.setErrorMapsDir(error_maps_dir);
         }

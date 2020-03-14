@@ -77,7 +77,7 @@ void process_stream(FILE* stream, const std::string& output, bool preserve) {
                 filename = ss.str();
             }
 
-            cb::io::sanitizePath(filename);
+            filename = cb::io::sanitizePath(filename);
             ofs = fopen(filename.c_str(), "w");
             if (ofs == nullptr) {
                 throw std::system_error(errno,
