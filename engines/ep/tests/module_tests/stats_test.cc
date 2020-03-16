@@ -27,14 +27,17 @@
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "kv_bucket.h"
+#include "statwriter.h"
 #include "tasks.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
 #include "trace_helpers.h"
+#include <tests/mock/mock_function_helper.h>
 
 #include <folly/portability/GMock.h>
 #include <memcached/server_cookie_iface.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
 #include <functional>
@@ -195,6 +198,68 @@ TEST_F(StatTest, HashStatsMemUsed) {
     // Any temporary memory should have been freed by now, and accounted
     // correctly.
     EXPECT_EQ(baselineMemory, engine->getEpStats().getPreciseTotalMemoryUsed());
+}
+
+TEST_F(StatTest, HistogramStatExpansion) {
+    // Test that Histograms expand out to the expected stat keys to
+    // be returned for CMD_STAT, even after being converted to HistogramData
+    Histogram<uint32_t> histogram{size_t(5)};
+
+    // populate the histogram with some dummy valuea
+    histogram.add(1 /* value */, 100 /* count */);
+    histogram.add(15, 200);
+    histogram.add(10000, 6500);
+
+    auto cookie = create_mock_cookie(engine.get());
+
+    using namespace testing;
+    using namespace std::literals::string_view_literals;
+
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+            cb;
+
+    EXPECT_CALL(cb, Call("test_histogram_mean"sv, "2052741737"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_0,1"sv, "0"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_1,2"sv, "100"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_2,4"sv, "0"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_4,8"sv, "0"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_8,16"sv, "200"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_16,32"sv, "0"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_32,4294967295"sv, "6500"sv, _));
+
+    add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), cookie);
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_F(StatTest, HdrHistogramStatExpansion) {
+    // Test that HdrHistograms expand out to the expected stat keys to
+    // be returned for CMD_STAT, even after being converted to HistogramData
+    HdrHistogram histogram{0, 1000000, 1};
+
+    // populate the histogram with some dummy valuea
+    histogram.addValueAndCount(1 /* value */, 100 /* count */);
+    histogram.addValueAndCount(15, 200);
+    histogram.addValueAndCount(10000, 6500);
+
+    auto cookie = create_mock_cookie(engine.get());
+
+    using namespace testing;
+    using namespace std::literals::string_view_literals;
+
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+            cb;
+
+    EXPECT_CALL(cb, Call("test_histogram_mean"sv, "9543"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_0,1"sv, "100"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_1,15"sv, "200"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_15,9727"sv, "6500"sv, _));
+
+    add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), cookie);
+
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
