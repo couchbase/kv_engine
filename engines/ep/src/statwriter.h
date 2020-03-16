@@ -35,12 +35,45 @@ using namespace std::string_view_literals;
 class EventuallyPersistentEngine;
 
 /**
+ * Data for a single histogram bucket to be added as a stat.
+ */
+struct HistogramBucket {
+    // All currently used histograms have bucket bounds which are
+    // (convertible to) uint64_t so this is used here. If histograms
+    // are added for other underlying types, this may need extending.
+    uint64_t lowerBound;
+    uint64_t upperBound;
+    uint64_t count;
+};
+
+/**
+ * Data for a whole histogram for use when adding a stat.
+ *
+ * The add_casted_stat has overloads which will convert a Histogram
+ * or HdrHistogram to this structure.
+ *
+ * This type exists to provide a canonical structure for histogram data.
+ * All currently used Histogram stats can be converted to this format.
+ * This means future alternative stat sinks (e.g., prometheus) don't need
+ * to be aware of what type of histogram is used internally.
+ */
+struct HistogramData {
+    uint64_t mean = 0;
+    uint64_t sampleCount = 0;
+    uint64_t sampleSum = 0;
+    std::vector<HistogramBucket> buckets;
+};
+
+/**
  * Helper method to get a Histogram bucket lower bound as a uint64_t.
  *
  * Histogram can be instantiated with types not immediately
  * convertible to uint64_t (e.g., a std::chrono::duration);
  * this helper avoids duplicating code to handle different
  * instantiations.
+ *
+ * @param bucket the histogram bucket to from which to extract info
+ * @return the lower bound of the given bucket
  */
 template <typename HistValueType>
 uint64_t getBucketMin(const HistValueType& bucket) {
@@ -53,6 +86,9 @@ inline uint64_t getBucketMin(const MicrosecondHistogram::value_type& bucket) {
 
 /**
  * Helper method to get a Histogram bucket upper bound as a uint64_t.
+ *
+ * @param bin the histogram bucket to from which to extract info
+ * @return the upper bound of the given bucket
  */
 template <typename HistValueType>
 uint64_t getBucketMax(const HistValueType& bucket) {
@@ -97,31 +133,45 @@ void add_casted_stat(std::string_view k,
 }
 
 /**
- * Convert a histogram into add stat calls for each bucket and for the mean.
+ * Call add_stat for each bucket of a HistogramData.
  */
-template <typename T>
+inline void add_casted_stat(std::string_view k,
+                            const HistogramData& hist,
+                            const AddStatFn& add_stat,
+                            const void* cookie) {
+    fmt::memory_buffer buf;
+    format_to(buf, "{}_mean", k);
+    add_casted_stat({buf.data(), buf.size()}, hist.mean, add_stat, cookie);
+
+    for (const auto& bucket : hist.buckets) {
+        buf.resize(0);
+        format_to(buf, "{}_{},{}", k, bucket.lowerBound, bucket.upperBound);
+        add_casted_stat(
+                {buf.data(), buf.size()}, bucket.count, add_stat, cookie);
+    }
+}
+
 inline void add_casted_histo_stat(std::string_view k,
-                                  const T& v,
+                                  const HdrHistogram& v,
                                   const AddStatFn& add_stat,
                                   const void* cookie) {
     if (v.getValueCount() > 0) {
-        fmt::memory_buffer buf;
-        format_to(buf, "{}_mean", k);
-        add_casted_stat({buf.data(), buf.size()},
-                        std::round(v.getMean()),
-                        add_stat,
-                        cookie);
+        HistogramData histData;
+        histData.mean = std::round(v.getMean());
+        histData.sampleCount = v.getValueCount();
 
         HdrHistogram::Iterator iter{v.getHistogramsIterator()};
         while (auto result = v.getNextBucketLowHighAndCount(iter)) {
             auto [lower, upper, count] = *result;
-            if (count > 0) {
-                buf.resize(0);
-                format_to(buf, "{}_{},{}", k, lower, upper);
-                add_casted_stat(
-                        {buf.data(), buf.size()}, count, add_stat, cookie);
-            }
+
+            histData.buckets.push_back({lower, upper, count});
+            // HdrHistogram doesn't track the sum of all added values but
+            // prometheus requires that value. For now just approximate it
+            // from bucket counts.
+            auto avgBucketValue = (lower + upper) / 2;
+            histData.sampleSum += avgBucketValue * count;
         }
+        add_casted_stat(k, histData, add_stat, cookie);
     }
 }
 
@@ -129,35 +179,35 @@ inline void add_casted_stat(std::string_view k,
                             const HdrHistogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_histo_stat<HdrHistogram>(k, v, add_stat, cookie);
+    add_casted_histo_stat(k, v, add_stat, cookie);
 }
 
 inline void add_casted_stat(std::string_view k,
                             const Hdr1sfMicroSecHistogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_histo_stat<Hdr1sfMicroSecHistogram>(k, v, add_stat, cookie);
+    add_casted_histo_stat(k, v, add_stat, cookie);
 }
 
 inline void add_casted_stat(std::string_view k,
                             const Hdr2sfMicroSecHistogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_histo_stat<Hdr2sfMicroSecHistogram>(k, v, add_stat, cookie);
+    add_casted_histo_stat(k, v, add_stat, cookie);
 }
 
 inline void add_casted_stat(std::string_view k,
                             const Hdr1sfInt32Histogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_histo_stat<Hdr1sfInt32Histogram>(k, v, add_stat, cookie);
+    add_casted_histo_stat(k, v, add_stat, cookie);
 }
 
 inline void add_casted_stat(std::string_view k,
                             const HdrUint8Histogram& v,
                             const AddStatFn& add_stat,
                             const void* cookie) {
-    add_casted_histo_stat<HdrUint8Histogram>(k, v, add_stat, cookie);
+    add_casted_histo_stat(k, v, add_stat, cookie);
 }
 
 template <typename T, template <class> class Limits>
@@ -165,15 +215,30 @@ void add_casted_stat(std::string_view k,
                      const Histogram<T, Limits>& hist,
                      const AddStatFn& add_stat,
                      const void* cookie) {
-    fmt::memory_buffer buf;
+    HistogramData histData{};
+
+    histData.sampleCount = hist.total();
+    histData.buckets.reserve(hist.size());
+
     for (const auto& bin : hist) {
         auto lower = getBucketMin(bin);
         auto upper = getBucketMax(bin);
         auto count = bin->count();
-        buf.resize(0);
-        format_to(buf, "{}_{},{}", k, lower, upper);
-        add_casted_stat({buf.data(), buf.size()}, count, add_stat, cookie);
+        histData.buckets.push_back({lower, upper, count});
+
+        // TODO: Histogram doesn't track the sum of all added values but
+        //  prometheus requires that value. For now just approximate it from
+        //  bucket counts.
+        auto avgBucketValue = (lower + upper) / 2;
+        histData.sampleSum += avgBucketValue * count;
     }
+
+    if (histData.sampleCount != 0) {
+        histData.mean =
+                std::round(double(histData.sampleSum) / histData.sampleCount);
+    }
+
+    add_casted_stat(k, histData, add_stat, cookie);
 }
 
 template <typename P, typename T>
