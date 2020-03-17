@@ -89,6 +89,9 @@ void KVBucketTest::initialise(std::string config) {
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
 
+    if (config.find("backend=magma") != std::string::npos) {
+        config += ";" + magmaConfig;
+    }
     engine = SynchronousEPEngine::build(config);
 
     store = engine->getKVBucket();

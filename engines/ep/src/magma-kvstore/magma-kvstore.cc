@@ -2066,65 +2066,33 @@ std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) {
 
 RollbackResult MagmaKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackSeqno,
-                                      std::unique_ptr<RollbackCB> cb) {
+                                      std::unique_ptr<RollbackCB> callback) {
     logger->info("MagmaKVStore::rollback {} seqno:{}", vbid, rollbackSeqno);
 
     Magma::FetchBuffer idxBuf;
     Magma::FetchBuffer seqBuf;
     auto cacheLookup = std::make_shared<NoLookupCallback>();
-    cb->setKVFileHandle(makeFileHandle(vbid));
+    callback->setKVFileHandle(makeFileHandle(vbid));
 
-    auto keyCallback = [&](const Slice& keySlice,
-                           const uint64_t seqno,
-                           std::shared_ptr<magma::Snapshot>& keySS,
-                           std::shared_ptr<magma::Snapshot>& seqSS) {
-        auto docKey = makeDiskDocKey(keySlice);
-        CacheLookup lookup(docKey, seqno, vbid);
-        cacheLookup->callback(lookup);
-        if (cacheLookup->getStatus() == ENGINE_KEY_EEXISTS) {
-            return;
-        }
-        Slice metaSlice;
-        Slice valueSlice;
-        bool found;
-        Status status = magma->Get(vbid.get(),
-                                   keySlice,
-                                   keySS,
-                                   seqSS,
-                                   idxBuf,
-                                   seqBuf,
-                                   metaSlice,
-                                   valueSlice,
-                                   found);
+    auto dropped = getDroppedCollections(vbid);
+    auto eraserContext =
+            std::make_unique<Collections::VB::EraserContext>(dropped);
 
-        if (!status) {
-            logger->warn("MagmaKVStore::Rollback Get {} key:{} status:{}",
-                         vbid,
-                         cb::UserData{docKey.to_string()},
-                         status.String());
-            return;
-        }
-
-        if (logger->should_log(spdlog::level::TRACE)) {
-            logger->TRACE(
-                    "MagmaKVStore::Rollback Get {} key:{} seqno:{} "
-                    "found:{}",
-                    vbid,
-                    cb::UserData{docKey.to_string()},
-                    seqno,
-                    found);
-        }
-
-        // If we don't find the item or its not the latest,
-        // we are not interested.
-        if (!found || getSeqNum(metaSlice) != seqno) {
-            return;
-        }
-
-        auto rv = makeGetValue(
-                vbid, keySlice, metaSlice, valueSlice, GetMetaOnly::Yes);
-        cb->callback(rv);
-    };
+    auto keyCallback =
+            [this, ec = eraserContext.get(), cb = callback.get(), vbid](
+                    const Slice& keySlice,
+                    const uint64_t seqno,
+                    const Slice& metaSlice) {
+                auto diskKey = makeDiskDocKey(keySlice);
+                auto docKey = diskKey.getDocKey();
+                if (!docKey.getCollectionID().isSystem() &&
+                    ec->isLogicallyDeleted(docKey, seqno)) {
+                    return;
+                }
+                auto rv = this->makeGetValue(
+                        vbid, keySlice, metaSlice, Slice(), GetMetaOnly::Yes);
+                cb->callback(rv);
+            };
 
     auto status = magma->Rollback(vbid.get(), rollbackSeqno, keyCallback);
     if (!status) {

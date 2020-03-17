@@ -268,7 +268,11 @@ public:
 
         // key should be gone
         {
-            auto result = store->get(key, vbid, nullptr, {});
+            auto result = store->get(key, vbid, nullptr, needsBGFetchQueued());
+            if (needsBGFetch(result.getStatus())) {
+                runBGFetcherTask();
+                result = store->get(key, vbid, nullptr, {});
+            }
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                     << "A key set after the rollback point was found";
         }
@@ -341,9 +345,13 @@ protected:
             EXPECT_EQ(ENGINE_KEY_ENOENT,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
-            GetValue gcb = store->get(a, vbid, nullptr, QUEUE_BG_FETCH);
+            auto gcb = store->get(a, vbid, nullptr, QUEUE_BG_FETCH);
 
             if (flushOnce && !deleteLast) {
+                if (needsBGFetch(gcb.getStatus())) {
+                    runBGFetcherTask();
+                    gcb = store->get(a, vbid, nullptr, {});
+                }
                 EXPECT_EQ(ENGINE_KEY_ENOENT, gcb.getStatus());
             } else {
                 // We only need to bg fetch the document if we deduplicate a
@@ -494,24 +502,28 @@ protected:
 
         // These keys should be gone after the rollback
         for (int i = 0; i < 3; i++) {
-            auto result = store->get(
-                    makeStoredDocKey("rollback-cp-" + std::to_string(i)),
-                    vbid,
-                    cookie,
-                    {});
+            auto key = makeStoredDocKey("rollback-cp-" + std::to_string(i));
+            auto result = store->get(key, vbid, cookie, needsBGFetchQueued());
+            if (needsBGFetch(result.getStatus())) {
+                runBGFetcherTask();
+                result = store->get(key, vbid, cookie, {});
+            }
+
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
-                << "A key set after the rollback point was found";
+                    << "A key set after the rollback point was found";
         }
 
         // These keys should be gone after the rollback
         for (int i = 0; i < 2; i++) {
-            auto result = store->get(
-                    makeStoredDocKey("anotherkey_" + std::to_string(i)),
-                    vbid,
-                    cookie,
-                    {});
+            auto key = makeStoredDocKey("anotherkey_" + std::to_string(i));
+            auto result = store->get(key, vbid, cookie, needsBGFetchQueued());
+            if (needsBGFetch(result.getStatus())) {
+                runBGFetcherTask();
+                result = store->get(key, vbid, cookie, {});
+            }
+
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
-                << "A key set after the rollback point was found";
+                    << "A key set after the rollback point was found";
         }
 
         if (rollbackCollectionCreate) {
@@ -700,6 +712,13 @@ TEST_P(RollbackTest, RollbackToZeroExplicitlyDocCounts) {
 }
 
 TEST_P(RollbackTest, RollbackToZeroLTMidpointDocCounts) {
+    // Here we are testing that we rollback to 0 if we have a rollback point
+    // that would require us to discard more than half of our seqnos. Skipped
+    // for magma as we don't make this "optimization".
+    // @TODO magma: investigate if we should make the above "optimization".
+    if (getBackend() == "magma") {
+        return;
+    }
     rollback_to_zero(4);
 }
 
@@ -745,11 +764,12 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
     /* since we rely only on disk snapshots currently, we must lose the items in
        the checkpoints */
     for (int i = 0; i < 2; i++) {
-        auto result =
-                store->get(makeStoredDocKey("rollback-cp-" + std::to_string(i)),
-                           vbid,
-                           nullptr,
-                           {});
+        auto key = makeStoredDocKey("rollback-cp-" + std::to_string(i));
+        auto result = store->get(key, vbid, nullptr, needsBGFetchQueued());
+        if (needsBGFetch(result.getStatus())) {
+            runBGFetcherTask();
+            result = store->get(key, vbid, nullptr, {});
+        }
         EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
     }
@@ -2205,7 +2225,12 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 }
 
 auto allConfigValues =
-        ::testing::Combine(::testing::Values("couchdb"),
+        ::testing::Combine(::testing::Values("couchdb"
+#ifdef EP_USE_MAGMA
+                                             ,
+                                             "magma"
+#endif
+                                             ),
                            ::testing::Values("value_only", "full_eviction"),
                            ::testing::Values("replica", "pending"));
 

@@ -30,6 +30,19 @@
 
 #include <chrono>
 
+// Couchstore defaults to creating a rollback point at each batch
+// commit. In order to simulate that with magma, we need to set
+// magma_commit_point_interval=0 and
+// magma_commit_point_every_batch=true. Also increate the number of
+// commit points retained. Since we are doing very little work, to
+// improve performance, only start 1 flusher and compactor thread.
+static std::string magmaConfig =
+        "magma_max_commit_points=10;"
+        "magma_commit_point_interval=0;"
+        "magma_commit_point_every_batch=true;"
+        "magma_num_flushers=2;"
+        "magma_num_compactors=2";
+
 class VBucket;
 
 /// Creates an item with the given vbucket id, key and value.

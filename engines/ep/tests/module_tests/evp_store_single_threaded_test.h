@@ -112,6 +112,34 @@ public:
      */
     void runCollectionsEraser();
 
+    bool isBloomFilterEnabled() const {
+        return engine->getConfiguration().isBfilterEnabled();
+    }
+
+    bool isFullEviction() const {
+        return engine->getConfiguration().getItemEvictionPolicy() ==
+               "full_eviction";
+    }
+
+    bool isPersistent() const {
+        return engine->getConfiguration().getBucketType() == "persistent";
+    }
+
+    bool needsBGFetch(ENGINE_ERROR_CODE ec) const {
+        if (ec == ENGINE_EWOULDBLOCK && isPersistent() && isFullEviction()) {
+            return true;
+        }
+        return false;
+    }
+
+    get_options_t needsBGFetchQueued() const {
+        get_options_t ops = {};
+        if (!isBloomFilterEnabled()) {
+            ops = QUEUE_BG_FETCH;
+        }
+        return ops;
+    }
+
 protected:
     void SetUp() override;
 
