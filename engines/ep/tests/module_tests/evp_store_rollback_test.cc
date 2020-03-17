@@ -53,16 +53,19 @@ using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
  * Test fixture for rollback tests. Parameterized on:
- * - eviction policy (full / value)
- * - vBucket state at rollback (pending or replica).
+ * 1. storage backend (couchstore / magma)
+ * 2. eviction policy (full / value)
+ * 3. vBucket state at rollback (pending or replica).
  */
-class RollbackTest : public SingleThreadedEPBucketTest,
-                     public ::testing::WithParamInterface<
-                             std::tuple<std::string, std::string>> {
+class RollbackTest
+    : public SingleThreadedEPBucketTest,
+      public ::testing::WithParamInterface<
+              std::tuple<std::string, std::string, std::string>> {
     void SetUp() override {
-        config_string += "item_eviction_policy=" + std::get<0>(GetParam());
+        config_string += "backend=" + getBackend();
+        config_string += ";item_eviction_policy=" + getEvictionMode();
         SingleThreadedEPBucketTest::SetUp();
-        if (std::get<1>(GetParam()) == "pending") {
+        if (getVBStateAtRollback() == "pending") {
             vbStateAtRollback = vbucket_state_pending;
         } else {
             vbStateAtRollback = vbucket_state_replica;
@@ -111,6 +114,24 @@ protected:
     }
 
 public:
+    std::string getBackend() const {
+        return std::get<0>(GetParam());
+    }
+
+    std::string getEvictionMode() const {
+        return std::get<1>(GetParam());
+    }
+
+    std::string getVBStateAtRollback() const {
+        return std::get<2>(GetParam());
+    }
+
+    static std::string PrintToStringParamName(
+            const ::testing::TestParamInfo<ParamType>& info) {
+        return std::get<0>(info.param) + "_" + std::get<1>(info.param) + "_" +
+               std::get<2>(info.param);
+    }
+
     /**
      * Test rollback after deleting an item.
      * @param flush_before_rollback: Should the vbucket be flushed to disk just
@@ -168,7 +189,7 @@ public:
         // Sanity-check - item should no longer exist.
         // If we're in value_only or have not flushed in full_eviction then
         // we don't need to do a bg fetch
-        if (std::get<0>(GetParam()) == "value_only" || !flush_before_rollback) {
+        if (getEvictionMode() == "value_only" || !flush_before_rollback) {
             EXPECT_EQ(ENGINE_KEY_ENOENT,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
@@ -316,7 +337,7 @@ protected:
 
         EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
-        if (std::get<0>(GetParam()) == "value_only") {
+        if (getEvictionMode() == "value_only") {
             EXPECT_EQ(ENGINE_KEY_ENOENT,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
@@ -851,9 +872,9 @@ public:
     }
 
     void SetUp() override {
-        config_string += "item_eviction_policy=" + std::get<0>(GetParam());
+        config_string += "item_eviction_policy=" + getEvictionMode();
         SingleThreadedEPBucketTest::SetUp();
-        if (std::get<1>(GetParam()) == "pending") {
+        if (getVBStateAtRollback() == "pending") {
             vbStateAtRollback = vbucket_state_pending;
         } else {
             vbStateAtRollback = vbucket_state_replica;
@@ -2184,17 +2205,20 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 }
 
 auto allConfigValues =
-        ::testing::Combine(::testing::Values("value_only", "full_eviction"),
+        ::testing::Combine(::testing::Values("couchdb"),
+                           ::testing::Values("value_only", "full_eviction"),
                            ::testing::Values("replica", "pending"));
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states
 INSTANTIATE_TEST_SUITE_P(FullAndValueEvictionOnReplicaAndPending,
                          RollbackTest,
-                         allConfigValues);
+                         allConfigValues,
+                         RollbackTest::PrintToStringParamName);
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states
 INSTANTIATE_TEST_SUITE_P(FullAndValueEvictionOnReplicaAndPending,
                          RollbackDcpTest,
-                         allConfigValues);
+                         allConfigValues,
+                         RollbackTest::PrintToStringParamName);
