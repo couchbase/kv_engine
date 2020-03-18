@@ -899,8 +899,8 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
         }
         // Upgrade V2 to V3
         // Alloc a buffer using the length read from V2 as input to V3::len
-        allocated = std::make_unique<uint8_t[]>(
-                MutationLogEntryV3::len(mleV2->key().size()));
+        allocated =
+                std::make_unique<uint8_t[]>(MutationLogEntryV3::len(*mleV2));
 
         // Now in-place construct into the new buffer and assign to mleV3
         (void)new (allocated.get()) MutationLogEntryV3(*mleV2);

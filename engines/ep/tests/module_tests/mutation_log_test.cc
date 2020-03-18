@@ -14,7 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include "engines/ep/tests/test_file_helper.h"
+
+#include "../mock/mock_function_helper.h"
+
 #include <folly/portability/Fcntl.h>
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
@@ -621,4 +627,63 @@ TEST_F(MutationLogTest, upgrade) {
             EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
         }
     }
+}
+
+// matcher testing a DocKey against an expected key (std::string)
+MATCHER_P(_key, expected, "") {
+    auto key =
+            std::string(reinterpret_cast<const char*>(arg.data()), arg.size());
+    return key == expected;
+}
+
+// helper to call a std::function passed in arg for each mutation log entry.
+bool mutationLogCB(void* arg, Vbid vbid, const DocKey& key) {
+    const auto& func =
+            *reinterpret_cast<std::function<bool(Vbid, const DocKey&)>*>(arg);
+    return func(vbid, key);
+}
+
+TEST_F(MutationLogTest, readPreMadHatterAccessLog) {
+    /* read an access log written by spock code to confirm
+     * the upgrade path can correctly parse what was written.
+     * File contains:
+     * - 10 mutations (all for vbid 3)
+     *    New: mykey0
+     *    New: mykey1
+     *    ...
+     *    New: mykey10
+     * - commit1
+     * - commit2
+     */
+
+    auto vbid = Vbid(3);
+
+    MutationLog ml(std::string(testsSourceDir) +
+                   "/pre-mad-hatter_access_log.bin");
+    ml.open(true);
+    MutationLogHarvester h(ml);
+    h.setVBucket(vbid);
+
+    auto next_it = h.loadBatch(ml.begin(), 0);
+    EXPECT_EQ(ml.end(), next_it);
+
+    using namespace testing;
+    // mutation log callback - called for each entry read.
+    StrictMock<MockFunction<bool(Vbid, const DocKey&)>> cb;
+
+    {
+        // mark that the following EXPECT_CALLs must be triggered in order.
+        InSequence s;
+
+        // expect the callback to be called for every key known to be in the
+        // "blessed input" in order, and not be called for anything else.
+        for (int keyNum = 0; keyNum < 10; keyNum++) {
+            using namespace std::literals;
+            auto expected = "\0mykey"s + std::to_string(keyNum);
+            EXPECT_CALL(cb, Call(vbid, _key(expected))).WillOnce(Return(true));
+        }
+    }
+
+    auto mlcb = asStdFunction(cb);
+    h.apply(&mlcb, mutationLogCB);
 }

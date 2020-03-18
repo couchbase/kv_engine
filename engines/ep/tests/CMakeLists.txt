@@ -369,3 +369,7 @@ ADD_TEST(NAME ep_perfsuite.ephemeral
         COMMAND ${_ep_perfsuite_cmdline} -e "bucket_type=ephemeral$<SEMICOLON>dbname=./ep_perfsuite.ephemeral.db")
 
 # ============================================================================ #
+
+configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/module_tests/test_file_helper.h.in
+        ${CMAKE_CURRENT_BINARY_DIR}/test_file_helper.h)
