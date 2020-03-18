@@ -264,16 +264,12 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     // Add default back - so we don't get collection unknown errors
     vb->updateFromManifest({cm.add(CollectionEntry::defaultC)});
 
+    auto key1 = makeStoredDocKey("dairy:milk", CollectionEntry::defaultC);
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
-    GetValue gv =
-            store->get(StoredDocKey{"dairy:milk", CollectionEntry::defaultC},
-                       vbid,
-                       cookie,
-                       options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(ENGINE_KEY_ENOENT, checkKeyExists(key1, vbid, options));
 }
 
 // Test that following a full drop (compaction completes the deletion), warmup
@@ -516,8 +512,7 @@ TEST_P(CollectionsEraserTest, MB_38313) {
 }
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_SUITE_P(
-        CollectionsEraserTests,
-        CollectionsEraserTest,
-        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
+                         CollectionsEraserTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
