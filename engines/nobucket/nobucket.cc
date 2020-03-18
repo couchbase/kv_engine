@@ -153,8 +153,8 @@ public:
     }
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*>,
-                                std::string_view,
-                                std::string_view,
+                                cb::const_char_buffer,
+                                cb::const_char_buffer,
                                 const AddStatFn&) override {
         return ENGINE_NO_BUCKET;
     }
@@ -200,8 +200,8 @@ public:
                            uint32_t,
                            uint32_t,
                            uint32_t,
-                           std::string_view,
-                           std::string_view) override {
+                           cb::const_char_buffer,
+                           cb::const_char_buffer) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -219,18 +219,19 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*>,
-                                 uint32_t,
-                                 uint32_t,
-                                 Vbid,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t*,
-                                 dcp_add_failover_log,
-                                 boost::optional<std::string_view>) override {
+    ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*>,
+            uint32_t,
+            uint32_t,
+            Vbid,
+            uint64_t,
+            uint64_t,
+            uint64_t,
+            uint64_t,
+            uint64_t,
+            uint64_t*,
+            dcp_add_failover_log,
+            boost::optional<cb::const_char_buffer>) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -343,8 +344,8 @@ public:
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*>,
                               uint32_t,
-                              std::string_view,
-                              std::string_view) override {
+                              cb::const_char_buffer,
+                              cb::const_char_buffer) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -418,8 +419,9 @@ public:
         return {};
     }
 
-    cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
-                                            std::string_view json) override {
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override {
         return cb::engine_errc::no_bucket;
     }
 
@@ -430,12 +432,14 @@ public:
     }
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override {
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override {
         return {cb::engine_errc::no_bucket, 0, 0};
     }
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override {
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override {
         return {cb::engine_errc::no_bucket, 0, 0};
     }
 

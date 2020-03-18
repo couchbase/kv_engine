@@ -57,7 +57,7 @@ Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
 }
 
 void CollectionsDcpTest::createDcpStream(
-        boost::optional<std::string_view> collections,
+        boost::optional<cb::const_char_buffer> collections,
         Vbid id,
         cb::engine_errc expectedError) {
     uint64_t rollbackSeqno;
@@ -97,7 +97,7 @@ void CollectionsDcpTest::createDcpConsumer() {
 }
 
 void CollectionsDcpTest::createDcpObjects(
-        boost::optional<std::string_view> collections) {
+        boost::optional<cb::const_char_buffer> collections) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);

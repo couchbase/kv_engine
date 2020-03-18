@@ -52,10 +52,11 @@ bool ServerBackend::try_legacy_user(const std::string& password) {
     return false;
 }
 
-std::pair<Error, std::string_view> ServerBackend::start(
-        std::string_view input) {
+std::pair<Error, cb::const_char_buffer> ServerBackend::start(
+        cb::const_char_buffer input) {
     if (input.empty()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
+                                                            {});
     }
 
     // Skip everything up to the first \0
@@ -66,7 +67,8 @@ std::pair<Error, std::string_view> ServerBackend::start(
     inputpos++;
 
     if (inputpos >= input.size()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
+                                                            {});
     }
 
     size_t pwlen = 0;
@@ -78,7 +80,8 @@ std::pair<Error, std::string_view> ServerBackend::start(
     inputpos++;
 
     if (inputpos > input.size()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return std::make_pair<Error, cb::const_char_buffer>(Error::BAD_PARAM,
+                                                            {});
     } else if (inputpos != input.size()) {
         password = input.data() + inputpos;
         while (inputpos < input.size() && input[inputpos] != '\0') {
@@ -91,19 +94,19 @@ std::pair<Error, std::string_view> ServerBackend::start(
     const std::string userpw(password, pwlen);
 
     if (try_legacy_user(userpw)) {
-        return std::make_pair<Error, std::string_view>(Error::OK, {});
+        return std::make_pair<Error, cb::const_char_buffer>(Error::OK, {});
     }
 
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
-        return std::pair<Error, std::string_view>{Error::NO_USER, {}};
+        return std::pair<Error, cb::const_char_buffer>{Error::NO_USER, {}};
     }
 
-    return std::make_pair<Error, std::string_view>(
+    return std::make_pair<Error, cb::const_char_buffer>(
             cb::sasl::plain::check_password(&context, user, userpw), {});
 }
 
-std::pair<Error, std::string_view> ClientBackend::start() {
+std::pair<Error, cb::const_char_buffer> ClientBackend::start() {
     auto usernm = usernameCallback();
     auto passwd = passwordCallback();
 
@@ -112,7 +115,7 @@ std::pair<Error, std::string_view> ClientBackend::start() {
     buffer.push_back(0);
     std::copy(passwd.begin(), passwd.end(), std::back_inserter(buffer));
 
-    return std::make_pair<Error, std::string_view>(
+    return std::make_pair<Error, cb::const_char_buffer>(
             Error::OK, {buffer.data(), buffer.size()});
 }
 

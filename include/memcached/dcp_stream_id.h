@@ -18,6 +18,7 @@
 #pragma once
 
 #include <mcbp/protocol/request.h>
+#include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
 #include <stdint.h>

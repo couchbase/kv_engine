@@ -17,6 +17,7 @@
 
 #include "doc_pre_expiry.h"
 #include <memcached/protocol_binary.h>
+#include <platform/sized_buffer.h>
 #include <xattr/blob.h>
 
 std::string document_pre_expiry(const item_info& itm_info) {

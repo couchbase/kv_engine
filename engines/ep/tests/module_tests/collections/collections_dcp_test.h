@@ -68,13 +68,13 @@ public:
     Collections::KVStore::Manifest getPersistedManifest(Vbid vb) const;
 
     void createDcpStream(
-            boost::optional<std::string_view> collections,
+            boost::optional<cb::const_char_buffer> collections,
             Vbid id = Vbid(0),
             cb::engine_errc expectedError = cb::engine_errc::success);
 
     void createDcpConsumer();
 
-    void createDcpObjects(boost::optional<std::string_view> collections);
+    void createDcpObjects(boost::optional<cb::const_char_buffer> collections);
 
     void TearDown() override;
 

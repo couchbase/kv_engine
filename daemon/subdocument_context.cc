@@ -114,7 +114,7 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
     return ENGINE_SUCCESS;
 }
 
-bool SubdocCmdContext::containsMacro(std::string_view macro) {
+bool SubdocCmdContext::containsMacro(const cb::const_char_buffer& macro) {
     return std::any_of(std::begin(paddedMacros),
                        std::end(paddedMacros),
                        [&macro](const MacroPair& m) {
@@ -122,7 +122,7 @@ bool SubdocCmdContext::containsMacro(std::string_view macro) {
                        });
 }
 
-void SubdocCmdContext::substituteMacro(std::string_view macroName,
+void SubdocCmdContext::substituteMacro(cb::const_char_buffer macroName,
                                        const std::string& macroValue,
                                        cb::char_buffer& value) {
     // Do an in-place substitution of the real macro value where we
@@ -147,7 +147,8 @@ void SubdocCmdContext::substituteMacro(std::string_view macroName,
     }
 }
 
-std::string_view SubdocCmdContext::get_padded_macro(std::string_view macro) {
+cb::const_char_buffer SubdocCmdContext::get_padded_macro(
+        cb::const_char_buffer macro) {
     return std::find_if(
                    std::begin(paddedMacros),
                    std::end(paddedMacros),
@@ -155,7 +156,7 @@ std::string_view SubdocCmdContext::get_padded_macro(std::string_view macro) {
             ->second;
 }
 
-void SubdocCmdContext::generate_macro_padding(std::string_view payload,
+void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
                                               cb::xattr::macros::macro macro) {
     if (!do_macro_expansion) {
         // macro expansion is not needed
@@ -188,14 +189,14 @@ void SubdocCmdContext::generate_macro_padding(std::string_view payload,
         }
 
         for (auto& op : getOperations(Phase::XATTR)) {
-            if (op.value.find(candidate, 0) != std::string_view::npos) {
+            if (op.value.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
                 break;
             }
         }
 
         if (unique) {
-            if (payload.find(candidate, 0) != std::string_view::npos) {
+            if (payload.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
             } else {
                 paddedMacros.emplace_back(macro.name, candidate);
@@ -214,7 +215,7 @@ void SubdocCmdContext::setMutationSemantics(mcbp::subdoc::doc_flag docFlags) {
     }
 }
 
-std::string_view SubdocCmdContext::get_document_vattr() {
+cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
     if (document_vattr.empty()) {
         // @todo we can optimize this by building the json in a more efficient
         //       way, but for now just do it by using nlohmann json...
@@ -268,10 +269,10 @@ std::string_view SubdocCmdContext::get_document_vattr() {
         document_vattr = root.dump();
     }
 
-    return std::string_view(document_vattr.data(), document_vattr.size());
+    return cb::const_char_buffer(document_vattr.data(), document_vattr.size());
 }
 
-std::string_view SubdocCmdContext::get_vbucket_vattr() {
+cb::const_char_buffer SubdocCmdContext::get_vbucket_vattr() {
     if (vbucket_vattr.empty()) {
         auto hlc = connection.getBucketEngine().getVBucketHlcNow(vbucket);
         using namespace nlohmann;
@@ -287,10 +288,10 @@ std::string_view SubdocCmdContext::get_vbucket_vattr() {
     return vbucket_vattr;
 }
 
-std::string_view SubdocCmdContext::get_xtoc_vattr() {
+cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
     if (!mcbp::datatype::is_xattr(in_datatype)) {
         xtoc_vattr = R"({"$XTOC":[]})";
-        return std::string_view(xtoc_vattr.data(), xtoc_vattr.size());
+        return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
     }
     if (xtoc_vattr.empty()) {
         const auto bodyoffset = cb::xattr::get_body_offset(in_doc);
@@ -301,7 +302,8 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
 
         nlohmann::json arr;
         for (const auto& kvPair : xattr_blob) {
-            bool isSystemXattr = cb::xattr::is_system_xattr(kvPair.first);
+            bool isSystemXattr = cb::xattr::is_system_xattr(
+                    const_cast<cb::const_char_buffer&>(kvPair.first));
 
             if (xtocSemantics == XtocSemantics::All ||
                 (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||
@@ -314,7 +316,7 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
         doc["$XTOC"] = arr;
         xtoc_vattr = doc.dump();
     }
-    return std::string_view(xtoc_vattr.data(), xtoc_vattr.size());
+    return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
 }
 
 cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
@@ -387,7 +389,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
 }
 
 uint32_t SubdocCmdContext::computeValueCRC32C() {
-    std::string_view value;
+    cb::const_char_buffer value;
     if (mcbp::datatype::is_xattr(in_datatype)) {
         // Note: in the XAttr naming, body/value excludes XAttrs
         value = cb::xattr::get_body(in_doc);

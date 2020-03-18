@@ -28,8 +28,6 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <vector>
 
-using namespace std::string_view_literals;
-
 class BasicEngineTestsuite : public EngineTestsuite {
 protected:
     void SetUp() override {
@@ -407,10 +405,10 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
 }
 
 uint32_t evictions;
-static void eviction_stats_handler(std::string_view key,
-                                   std::string_view value,
+static void eviction_stats_handler(cb::const_char_buffer key,
+                                   cb::const_char_buffer value,
                                    gsl::not_null<const void*>) {
-    if (key == "evictions"sv) {
+    if (key == "evictions"_ccb) {
         std::string v{value.data(), value.size()};
         evictions = atoi(v.c_str());
     }
@@ -858,9 +856,9 @@ TEST_F(CollectionsTest, SetGetCollections) {
     cb::mcbp::Status returnedStatus;
 
     AddResponseFn addResponseFunc = [&returnedData, &returnedStatus](
-                                            std::string_view key,
-                                            std::string_view extras,
-                                            std::string_view body,
+                                            cb::const_char_buffer key,
+                                            cb::const_char_buffer extras,
+                                            cb::const_char_buffer body,
                                             uint8_t datatype,
                                             cb::mcbp::Status status,
                                             uint64_t cas,

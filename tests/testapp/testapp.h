@@ -99,7 +99,7 @@ public:
 
     /// Helper which which returns true if the specified value is correctly
     /// encoded as JSON.
-    static bool isJSON(std::string_view value);
+    static bool isJSON(cb::const_char_buffer value);
 
     /// Does this test/connection support JSON datatype?
     virtual ClientJSONSupport hasJSONSupport() const {
@@ -429,7 +429,7 @@ void delete_object(const std::string& key, bool ignore_missing = false);
  * @param datatype The datatype to use
  */
 void store_object_w_datatype(const std::string& key,
-                             std::string_view value,
+                             cb::const_char_buffer value,
                              uint32_t flags,
                              uint32_t expiration,
                              cb::mcbp::Datatype datatype);

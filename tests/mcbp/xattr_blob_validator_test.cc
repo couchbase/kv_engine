@@ -47,7 +47,7 @@ protected:
         memcpy(blob.data(), &len, 4);
     }
 
-    std::string_view getBuffer() {
+    cb::const_char_buffer getBuffer() {
         return {blob.data(), blob.size()};
     }
 

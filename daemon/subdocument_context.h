@@ -26,6 +26,7 @@
 
 #include <memcached/engine.h>
 #include <platform/compress.h>
+#include <platform/sized_buffer.h>
 #include <cstddef>
 #include <iomanip>
 #include <memory>
@@ -77,7 +78,7 @@ public:
      * @return the buffer we want to pass on to subdoc instead of the macro
      *         name
      */
-    std::string_view get_padded_macro(std::string_view macro);
+    cb::const_char_buffer get_padded_macro(cb::const_char_buffer macro);
 
     /**
      * Generate macro padding we may use to substitute a macro with. E.g. We
@@ -110,7 +111,7 @@ public:
      *
      * @throws std::logic_error if the macro expansion size is invalid
      */
-    void generate_macro_padding(std::string_view payload,
+    void generate_macro_padding(cb::const_char_buffer payload,
                                 cb::xattr::macros::macro macro);
 
     Operations& getOperations(const Phase phase) {
@@ -158,7 +159,7 @@ public:
     // Note this is *always* in a decompressed form (and hence can safely be
     // read / manipulated directly) - see get_document_for_searching().
     // TODO: Remove (b), and just use intermediate result.
-    std::string_view in_doc{};
+    cb::const_char_buffer in_doc{};
 
     // Temporary buffer to hold the inflated content in case of the
     // document in the engine being compressed
@@ -277,7 +278,7 @@ public:
      *
      * @return the key
      */
-    std::string_view get_xattr_key() {
+    cb::const_char_buffer get_xattr_key() {
         if (xattr_key.empty()) {
             return {};
         }
@@ -290,7 +291,7 @@ public:
      *
      * @param key the key to be accessed
      */
-    void set_xattr_key(std::string_view key) {
+    void set_xattr_key(const cb::const_char_buffer& key) {
         xattr_key = {key.data(), key.size()};
     }
 
@@ -303,7 +304,7 @@ public:
      * the document. The storage is created the first time the method is called,
      * and reused for the rest of the lifetime of the context.
      */
-    std::string_view get_document_vattr();
+    cb::const_char_buffer get_document_vattr();
 
     /**
      * Get the document containing all of the virtual attributes for
@@ -315,7 +316,7 @@ public:
      * Get the xtoc document which contains a list of xattr keys that exist for
      * the document.
      */
-    std::string_view get_xtoc_vattr();
+    cb::const_char_buffer get_xtoc_vattr();
 
     // This is the item info for the item we've fetched from the
     // database
@@ -366,9 +367,9 @@ private:
      * @param macro The macro we are checking for
      * @return True if the macro exists, False otherwise
      */
-    bool containsMacro(std::string_view macro);
+    bool containsMacro(const cb::const_char_buffer& macro);
 
-    void substituteMacro(std::string_view macroName,
+    void substituteMacro(cb::const_char_buffer macroName,
                          const std::string& macroValue,
                          cb::char_buffer& value);
 
@@ -381,7 +382,7 @@ private:
     // The xattr key being accessed in this command
     std::string xattr_key;
 
-    using MacroPair = std::pair<std::string_view, std::string>;
+    using MacroPair = std::pair<cb::const_char_buffer, std::string>;
     std::vector<MacroPair> paddedMacros;
 
     std::string document_vattr;

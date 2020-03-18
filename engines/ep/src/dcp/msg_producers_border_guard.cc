@@ -177,9 +177,10 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::buffer_acknowledgement(
     NonBucketAllocationGuard guard;
     return guarded.buffer_acknowledgement(opaque, vbucket, buffer_bytes);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::control(uint32_t opaque,
-                                                      std::string_view key,
-                                                      std::string_view value) {
+ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::control(
+        uint32_t opaque,
+        cb::const_char_buffer key,
+        cb::const_char_buffer value) {
     NonBucketAllocationGuard guard;
     return guarded.control(opaque, key, value);
 }

@@ -16,7 +16,6 @@
  */
 
 #include "string_utils.h"
-#include <cstring>
 
 bool cb_stob(const std::string& s) {
     if (s == "true") {
@@ -32,7 +31,7 @@ bool cb_isPrefix(const std::string& input, const std::string& prefix) {
     return (input.compare(0, prefix.length(), prefix) == 0);
 }
 
-bool cb_isPrefix(std::string_view input, const std::string& prefix) {
+bool cb_isPrefix(cb::const_char_buffer input, const std::string& prefix) {
     if (prefix.size() > input.size()) {
         return false;
     }

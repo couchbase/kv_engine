@@ -90,7 +90,7 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::start(
 }
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::plain_auth(
-        std::string_view input, bool authOnly) {
+        cb::const_char_buffer input, bool authOnly) {
     // The syntax for the payload for plain auth is a string looking like:
     // \0username\0password
     if (input.empty()) {

@@ -112,8 +112,8 @@ public:
                                              uint32_t buffer_bytes) override;
 
     ENGINE_ERROR_CODE control(uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE system_event(uint32_t opaque,
                                    Vbid vbucket,

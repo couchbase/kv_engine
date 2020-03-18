@@ -178,7 +178,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t lock_time,
-        std::string_view meta,
+        cb::const_char_buffer meta,
         uint8_t nru) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm.get());
@@ -329,9 +329,10 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::buffer_acknowledgement(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::control(uint32_t opaque,
-                                                   std::string_view key,
-                                                   std::string_view value) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::control(
+        uint32_t opaque,
+        cb::const_char_buffer key,
+        cb::const_char_buffer value) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpControl;
     last_opaque = opaque;

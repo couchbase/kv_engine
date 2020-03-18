@@ -524,8 +524,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return ENGINE_SUCCESS if all goes well
      */
     virtual ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                        std::string_view key,
-                                        std::string_view value,
+                                        cb::const_char_buffer key,
+                                        cb::const_char_buffer value,
                                         const AddStatFn& add_stat) = 0;
 
     /**
@@ -580,7 +580,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * the engine(s) that support them.
      */
     virtual cb::engine_errc set_collection_manifest(
-            gsl::not_null<const void*> cookie, std::string_view json) {
+            gsl::not_null<const void*> cookie, cb::const_char_buffer json) {
         return cb::engine_errc::not_supported;
     }
 
@@ -593,12 +593,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     }
 
     virtual cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie, std::string_view path) {
+            gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
         return {cb::engine_errc::not_supported, {}, {}};
     }
 
     virtual cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie, std::string_view path) {
+            gsl::not_null<const void*> cookie, cb::const_char_buffer path) {
         return {cb::engine_errc::not_supported, {}, {}};
     }
 

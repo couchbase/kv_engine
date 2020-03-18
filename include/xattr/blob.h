@@ -18,6 +18,7 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <platform/compress.h>
+#include <platform/sized_buffer.h>
 #include <xattr/utils.h>
 #include <cstddef>
 #include <memory>
@@ -92,7 +93,7 @@ public:
      * @param buffer an existing buffer to use
      * @param compressed the buffer contains snappy compressed data
      */
-    Blob& assign(std::string_view buffer, bool compressed);
+    Blob& assign(cb::const_char_buffer buffer, bool compressed);
 
     /**
      * Get the value for a given key located in the blob
@@ -101,14 +102,14 @@ public:
      * @return a buffer containing it's value. If not found the buffer length
      *         is 0
      */
-    cb::char_buffer get(std::string_view key) const;
+    cb::char_buffer get(const cb::const_char_buffer& key) const;
 
     /**
      * Remove a given key (and its value) from the blob.
      *
      * @param key The key to remove
      */
-    void remove(std::string_view key);
+    void remove(const cb::const_char_buffer& key);
 
     /**
      * Set (add or replace) the given key with the specified value.
@@ -116,7 +117,8 @@ public:
      * @param key The key to set
      * @param value The new value for the key
      */
-    void set(std::string_view key, std::string_view value);
+    void set(const cb::const_char_buffer& key,
+             const cb::const_char_buffer& value);
 
     void prune_user_keys();
 
@@ -128,8 +130,8 @@ public:
      *
      * @return the encoded blob
      */
-    std::string_view finalize() {
-        return std::string_view(blob.data(), blob.size());
+    cb::const_char_buffer finalize() {
+        return cb::const_char_buffer(blob.data(), blob.size());
     }
 
     /**
@@ -186,12 +188,13 @@ public:
             return rv;
         }
 
-        std::pair<std::string_view, std::string_view> operator*() const {
+        std::pair<cb::const_char_buffer, cb::const_char_buffer> operator*()
+                const {
             auto* ptr = blob.blob.data() + current + 4;
             const auto keylen = strlen(ptr);
-            std::string_view key{ptr, keylen};
+            cb::const_char_buffer key{ptr, keylen};
             ptr += (keylen + 1);
-            std::string_view value{ptr, strlen(ptr)};
+            cb::const_char_buffer value{ptr, strlen(ptr)};
             return {key, value};
         }
 
@@ -221,7 +224,7 @@ protected:
      * @param key The key to append
      * @param value The value to store with the key
      */
-    void append_kvpair(std::string_view key, std::string_view value);
+    void append_kvpair(cb::const_char_buffer key, cb::const_char_buffer value);
 
     /**
      * Write a kv-paid at the given offset
@@ -231,8 +234,8 @@ protected:
      * @param value The value to insert
      */
     void write_kvpair(size_t offset,
-                      std::string_view key,
-                      std::string_view value);
+                      cb::const_char_buffer key,
+                      cb::const_char_buffer value);
 
     /**
      * Get the length stored at the given offset

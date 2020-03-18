@@ -22,6 +22,8 @@
 #include "ep_types.h"
 
 #include <memcached/engine.h>
+#include <platform/sized_buffer.h>
+
 #include <folly/SharedMutex.h>
 #include <atomic>
 #include <list>

@@ -172,8 +172,8 @@ struct default_engine : public EngineIface {
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
+                                cb::const_char_buffer key,
+                                cb::const_char_buffer value,
                                 const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
@@ -202,18 +202,21 @@ struct default_engine : public EngineIface {
 
     float getMinCompressionRatio() override;
 
-    cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
-                                            std::string_view json) override;
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
 
     cb::engine_errc get_collection_manifest(
             gsl::not_null<const void*> cookie,
             const AddResponseFn& response) override;
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override;
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override;
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
     std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,

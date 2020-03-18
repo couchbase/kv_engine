@@ -30,9 +30,9 @@
 #include <platform/compress.h>
 #include <platform/string_hex.h>
 
-static bool mcbp_response_handler(std::string_view key,
-                                  std::string_view extras,
-                                  std::string_view body,
+static bool mcbp_response_handler(cb::const_char_buffer key,
+                                  cb::const_char_buffer extras,
+                                  cb::const_char_buffer body,
                                   protocol_binary_datatype_t datatype,
                                   cb::mcbp::Status status,
                                   uint64_t cas,
@@ -42,7 +42,7 @@ static bool mcbp_response_handler(std::string_view key,
 
     Connection* c = &cookie->getConnection();
     cb::compression::Buffer buffer;
-    auto payload = body;
+    cb::const_char_buffer payload = body;
 
     if ((!c->isSnappyEnabled() && mcbp::datatype::is_snappy(datatype)) ||
         (mcbp::datatype::is_snappy(datatype) &&

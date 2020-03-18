@@ -634,7 +634,7 @@ public:
      * Method to handle set_collections commands
      * @param json a buffer containing a JSON manifest to apply to the bucket
      */
-    cb::engine_error setCollections(std::string_view json);
+    cb::engine_error setCollections(cb::const_char_buffer json);
 
     /**
      * Method to handle get_collections commands
@@ -648,14 +648,15 @@ public:
      * @return pair with error status and result if success
      */
     cb::EngineErrorGetCollectionIDResult getCollectionID(
-            std::string_view path) const;
+            cb::const_char_buffer path) const;
 
     /**
      * Method to handle get_scope_id command
      * @param path A path for scope
      * @return pair with error status and result if success
      */
-    cb::EngineErrorGetScopeIDResult getScopeID(std::string_view path) const;
+    cb::EngineErrorGetScopeIDResult getScopeID(
+            cb::const_char_buffer path) const;
 
     /**
      * Method to lookup a collection's scope

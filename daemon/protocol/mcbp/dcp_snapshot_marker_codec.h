@@ -21,6 +21,8 @@
 
 #include <boost/optional/optional_fwd.hpp>
 #include <memcached/protocol_binary.h>
+#include <platform/sized_buffer.h>
+
 namespace cb {
 namespace mcbp {
 

@@ -24,8 +24,8 @@ void collections_get_scope_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& req = cookie.getRequest();
     auto key = req.getKey();
-    std::string_view path{reinterpret_cast<const char*>(key.data()),
-                          key.size()};
+    cb::const_char_buffer path{reinterpret_cast<const char*>(key.data()),
+                               key.size()};
     auto rv = connection.getBucketEngine().get_scope_id(&cookie, path);
 
     auto remapErr = connection.remapErrorCode(rv.result);

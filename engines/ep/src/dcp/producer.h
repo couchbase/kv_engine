@@ -75,7 +75,7 @@ public:
             uint64_t next_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<std::string_view> json) override;
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
@@ -84,8 +84,8 @@ public:
                                             uint32_t buffer_bytes) override;
 
     ENGINE_ERROR_CODE control(uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
                                          Vbid vbucket,

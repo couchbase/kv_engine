@@ -68,8 +68,8 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
                     ? sizeof(metaResponse)
                     : sizeof(metaResponse) - sizeof(metaResponse.datatype);
 
-    std::string_view extras = {reinterpret_cast<const char*>(&metaResponse),
-                               responseExtlen};
+    cb::const_char_buffer extras = {
+            reinterpret_cast<const char*>(&metaResponse), responseExtlen};
     cookie.sendResponse(cb::mcbp::Status::Success,
                         extras,
                         {},

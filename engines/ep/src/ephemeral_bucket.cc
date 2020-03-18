@@ -29,6 +29,8 @@
 #include "rollback_result.h"
 #include "statwriter.h"
 
+#include <platform/sized_buffer.h>
+
 /**
  * A configuration value changed listener that responds to Ephemeral bucket
  * parameter changes.
@@ -42,9 +44,9 @@ public:
     void stringValueChanged(const std::string& key,
                             const char* value) override {
         if (key == "ephemeral_full_policy") {
-            if (std::string_view(value) == "auto_delete") {
+            if (cb::const_char_buffer(value) == "auto_delete") {
                 bucket.enableItemPager();
-            } else if (std::string_view(value) == "fail_new_data") {
+            } else if (cb::const_char_buffer(value) == "fail_new_data") {
                 bucket.disableItemPager();
             } else {
                 EP_LOG_WARN(

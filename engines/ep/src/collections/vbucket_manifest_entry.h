@@ -23,6 +23,8 @@
 #include "systemevent.h"
 
 #include <platform/non_negative_counter.h>
+#include <platform/sized_buffer.h>
+
 #include <memory>
 
 namespace Collections {

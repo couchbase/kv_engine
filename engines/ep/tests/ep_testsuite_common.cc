@@ -505,7 +505,7 @@ void check_key_value(EngineIface* h,
     check(h->get_item_info(getResult.second.get(), &info),
           "Failed to get_item_info");
 
-    std::string_view payload;
+    cb::const_char_buffer payload;
     cb::compression::Buffer inflated;
     if (isCompressionEnabled(h) &&
         (info.datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
@@ -519,7 +519,7 @@ void check_key_value(EngineIface* h,
                                              info.value[0].iov_len};
     }
 
-    checkeq(std::string_view(val, vlen), payload, "Data mismatch");
+    checkeq(cb::const_char_buffer(val, vlen), payload, "Data mismatch");
 }
 
 bool isCompressionEnabled(EngineIface* h) {

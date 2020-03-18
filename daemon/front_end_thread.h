@@ -21,6 +21,7 @@
 #include <event.h>
 #include <memcached/engine_error.h>
 #include <platform/platform_thread.h>
+#include <platform/sized_buffer.h>
 #include <platform/socket.h>
 #include <subdoc/operations.h>
 

@@ -27,6 +27,8 @@
 #include "trace_helpers.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
+#include <platform/sized_buffer.h>
+
 class WarmupDisabledTest : public EventuallyPersistentEngineTest {
 
     void SetUp() override {
@@ -41,8 +43,8 @@ public:
     MOCK_CONST_METHOD2(Callback, void(std::string key, std::string value));
 
     // Static method to act as trampoline to the GoogleMock object method.
-    static void trampoline(std::string_view key,
-                           std::string_view value,
+    static void trampoline(cb::const_char_buffer key,
+                           cb::const_char_buffer value,
                            gsl::not_null<const void*> cookie) {
         auto* object = reinterpret_cast<const MockAddStat*>(cookie.get());
         object->Callback({key.data(), key.size()},

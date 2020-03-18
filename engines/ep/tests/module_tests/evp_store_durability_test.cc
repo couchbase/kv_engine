@@ -3737,9 +3737,9 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
     auto committed = makeCommittedItem(makeStoredDocKey(keyCommitted), "value");
     store->set(*committed, cookie);
 
-    const auto dummyAddResponse = [](std::string_view key,
-                                     std::string_view extras,
-                                     std::string_view body,
+    const auto dummyAddResponse = [](cb::const_char_buffer key,
+                                     cb::const_char_buffer extras,
+                                     cb::const_char_buffer body,
                                      uint8_t datatype,
                                      cb::mcbp::Status status,
                                      uint64_t cas,

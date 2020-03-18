@@ -54,12 +54,12 @@ void dcp_stream_req_executor(Cookie& cookie) {
         uint64_t snap_end_seqno = payload->getSnapEndSeqno();
 
         // Collection enabled DCP allows a value containing stream config data.
-        boost::optional<std::string_view> collections;
+        boost::optional<cb::const_char_buffer> collections;
         // Initialise the optional only if collections is enabled and even
         // if valuelen is 0
         if (cookie.getConnection().isCollectionsSupported()) {
             auto value = request.getValue();
-            collections = std::string_view{
+            collections = cb::const_char_buffer{
                     reinterpret_cast<const char*>(value.data()), value.size()};
         }
 

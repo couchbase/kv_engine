@@ -19,6 +19,8 @@
 #include <memcached/audit_interface.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
+#include <platform/sized_buffer.h>
+
 #include <cstdint>
 #include <string>
 

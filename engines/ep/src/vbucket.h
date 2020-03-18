@@ -815,7 +815,7 @@ public:
      */
     void replicaAddCollection(Collections::ManifestUid uid,
                               ScopeCollectionPair identifiers,
-                              std::string_view collectionName,
+                              cb::const_char_buffer collectionName,
                               cb::ExpiryLimit maxTtl,
                               int64_t bySeqno) {
         manifest->wlock().replicaAdd(
@@ -847,7 +847,7 @@ public:
      */
     void replicaAddScope(Collections::ManifestUid uid,
                          ScopeID sid,
-                         std::string_view scopeName,
+                         cb::const_char_buffer scopeName,
                          int64_t bySeqno) {
         manifest->wlock().replicaAddScope(*this, uid, sid, scopeName, bySeqno);
     }

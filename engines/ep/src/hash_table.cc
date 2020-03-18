@@ -1077,7 +1077,8 @@ nlohmann::json HashTable::dumpStoredValuesAsJson() const {
     return obj;
 }
 
-void HashTable::storeCompressedBuffer(std::string_view buf, StoredValue& v) {
+void HashTable::storeCompressedBuffer(cb::const_char_buffer buf,
+                                      StoredValue& v) {
     const auto preProps = valueStats.prologue(&v);
 
     v.storeCompressedBuffer(buf);

@@ -21,7 +21,7 @@
 #include <memcached/util.h>
 
 std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
-                                             std::string_view key,
+                                             cb::const_char_buffer key,
                                              uint64_t delta,
                                              uint64_t initial,
                                              uint32_t exp) {
@@ -45,8 +45,8 @@ std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
 }
 
 std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
-                                          std::string_view key,
-                                          std::string_view value,
+                                          cb::const_char_buffer key,
+                                          cb::const_char_buffer value,
                                           uint32_t flags,
                                           uint32_t exp) {
     using namespace cb::mcbp;

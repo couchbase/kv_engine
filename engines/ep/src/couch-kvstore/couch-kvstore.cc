@@ -795,7 +795,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
         // If the document is compressed we need to inflate it to
         // determine if it is json or not.
         cb::compression::Buffer inflated;
-        std::string_view data{item->buf, item->size};
+        cb::const_char_buffer data {item->buf, item->size};
         if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
                 (*info)->content_meta) {
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
@@ -3131,7 +3131,7 @@ CouchKVStore::LocalDocHolder CouchKVStore::readLocalDoc(
 
 couchstore_error_t CouchKVStore::writeLocalDoc(Db& db,
                                                const std::string& name,
-                                               std::string_view data) {
+                                               cb::const_char_buffer data) {
     LocalDoc lDoc;
     lDoc.id.buf = const_cast<char*>(name.data());
     lDoc.id.size = name.size();

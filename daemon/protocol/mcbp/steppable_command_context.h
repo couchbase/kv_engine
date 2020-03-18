@@ -19,6 +19,8 @@
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/sized_buffer.h>
+
 #include "command_context.h"
 
 // Forward declaration

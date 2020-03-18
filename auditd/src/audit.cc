@@ -39,8 +39,6 @@
 #include <sstream>
 #include <string>
 
-using namespace std::string_view_literals;
-
 AuditImpl::AuditImpl(std::string config_file,
                      ServerCookieIface* sapi,
                      const std::string& host)
@@ -332,7 +330,7 @@ bool AuditImpl::configure() {
     return true;
 }
 
-bool AuditImpl::put_event(uint32_t event_id, std::string_view payload) {
+bool AuditImpl::put_event(uint32_t event_id, cb::const_char_buffer payload) {
     if (!config.is_auditd_enabled()) {
         // Audit is disabled
         return true;
@@ -398,8 +396,9 @@ void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
 void AuditImpl::stats(const AddStatFn& add_stats,
                       gsl::not_null<const void*> cookie) {
     const auto* enabled = config.is_auditd_enabled() ? "true" : "false";
-    add_stats("enabled"sv, enabled, cookie.get());
-    add_stats("dropped_events"sv, std::to_string(dropped_events), cookie.get());
+    add_stats("enabled"_ccb, enabled, cookie.get());
+    add_stats(
+            "dropped_events"_ccb, std::to_string(dropped_events), cookie.get());
 }
 
 void AuditImpl::consume_events() {

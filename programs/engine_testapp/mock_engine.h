@@ -108,8 +108,8 @@ struct MockEngine : public EngineIface, public DcpIface {
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
+                                cb::const_char_buffer key,
+                                cb::const_char_buffer value,
                                 const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
@@ -126,18 +126,21 @@ struct MockEngine : public EngineIface, public DcpIface {
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
-    cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
-                                            std::string_view json) override;
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer json) override;
 
     cb::engine_errc get_collection_manifest(
             gsl::not_null<const void*> cookie,
             const AddResponseFn& response) override;
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override;
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override;
+            gsl::not_null<const void*> cookie,
+            cb::const_char_buffer path) override;
 
     std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
@@ -177,8 +180,8 @@ struct MockEngine : public EngineIface, public DcpIface {
                            uint32_t opaque,
                            uint32_t seqno,
                            uint32_t flags,
-                           std::string_view name,
-                           std::string_view value) override;
+                           cb::const_char_buffer name,
+                           cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -202,7 +205,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t snap_end_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<std::string_view> json) override;
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -278,8 +281,8 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                               uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,

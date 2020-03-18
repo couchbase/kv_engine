@@ -92,9 +92,9 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
 
         if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
-                std::string_view payload(
-                        static_cast<const char*>(oldItemInfo.value[0].iov_base),
-                        oldItemInfo.value[0].iov_len);
+                cb::const_char_buffer payload(static_cast<const char*>(
+                                              oldItemInfo.value[0].iov_base),
+                                              oldItemInfo.value[0].iov_len);
                 if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                               payload,
                                               buffer)) {

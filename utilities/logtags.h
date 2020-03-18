@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <platform/sized_buffer.h>
 #include <spdlog/fmt/ostr.h>
 #include <string>
 
@@ -57,20 +58,20 @@ public:
     explicit UserDataView(const uint8_t* dataParam, size_t dataLen)
         : data((const char*)dataParam, dataLen){};
 
-    explicit UserDataView(std::string_view dataParam) : data(dataParam){};
+    explicit UserDataView(cb::const_char_buffer dataParam) : data(dataParam){};
 
     // Retrieve tagged user data as a string
     std::string getSanitizedValue() const {
         return userdataStartTag + std::string(data) + userdataEndTag;
     }
 
-    // Retrieve untagged user data as a std::string_view
-    std::string_view getRawValue() const {
+    // Retrieve untagged user data as a const_char_buffer
+    const_char_buffer getRawValue() const {
         return data;
     }
 
 private:
-    std::string_view data;
+    cb::const_char_buffer data;
 };
 
 std::ostream& operator<<(std::ostream& os, const UserDataView& d);

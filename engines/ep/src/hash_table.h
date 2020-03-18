@@ -899,7 +899,7 @@ public:
      * @param v   StoredValue in which compressed data has
      *            to be stored
      */
-    void storeCompressedBuffer(std::string_view buf, StoredValue& v);
+    void storeCompressedBuffer(cb::const_char_buffer buf, StoredValue& v);
 
     /**
      * Result of an Update operation.

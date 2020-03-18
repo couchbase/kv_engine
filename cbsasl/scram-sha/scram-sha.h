@@ -112,9 +112,11 @@ public:
                   Mechanism mechanism,
                   cb::crypto::Algorithm algo);
 
-    std::pair<Error, std::string_view> start(std::string_view input) override;
+    std::pair<Error, const_char_buffer> start(
+            cb::const_char_buffer input) override;
 
-    std::pair<Error, std::string_view> step(std::string_view input) override;
+    std::pair<Error, const_char_buffer> step(
+            cb::const_char_buffer input) override;
 
 protected:
     std::string getSaltedPassword() override {
@@ -173,8 +175,9 @@ public:
                   Mechanism mechanism,
                   cb::crypto::Algorithm algo);
 
-    std::pair<Error, std::string_view> start() override;
-    std::pair<Error, std::string_view> step(std::string_view input) override;
+    std::pair<Error, const_char_buffer> start() override;
+    std::pair<Error, const_char_buffer> step(
+            cb::const_char_buffer input) override;
 
 protected:
     bool generateSaltedPassword(const std::string& secret);

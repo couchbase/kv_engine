@@ -270,8 +270,8 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
         return true;
     }
 
-    std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
-                            payload.size()};
+    cb::const_char_buffer buffer{reinterpret_cast<const char*>(payload.data()),
+                                 payload.size()};
     return auditHandle.withRLock([audit_eventid, buffer](auto& handle) {
         if (!handle) {
             return false;

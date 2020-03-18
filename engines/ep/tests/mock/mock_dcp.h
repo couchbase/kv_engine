@@ -110,8 +110,8 @@ public:
                                              Vbid vbucket,
                                              uint32_t buffer_bytes) override;
     ENGINE_ERROR_CODE control(uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
     ENGINE_ERROR_CODE get_error_map(uint32_t opaque, uint16_t version) override;
     // Change the status code returned from mutation() to the specified value.
     void setMutationStatus(ENGINE_ERROR_CODE code);
@@ -222,6 +222,6 @@ protected:
                                               uint64_t by_seqno,
                                               uint64_t rev_seqno,
                                               uint32_t lock_time,
-                                              std::string_view meta,
+                                              cb::const_char_buffer meta,
                                               uint8_t nru);
 };

@@ -24,6 +24,7 @@
 #include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
 #include <platform/compression/buffer.h>
+#include <platform/sized_buffer.h>
 #include <chrono>
 
 // Forward decls
@@ -352,9 +353,9 @@ public:
      * @throws std::logic_error if the write buffer contains data
      */
     void sendResponse(cb::mcbp::Status status,
-                      std::string_view extras,
-                      std::string_view key,
-                      std::string_view value,
+                      cb::const_char_buffer extras,
+                      cb::const_char_buffer key,
+                      cb::const_char_buffer value,
                       cb::mcbp::Datatype datatype,
                       uint64_t cas);
 
@@ -464,7 +465,7 @@ public:
      * Get the inflated payload (inflated as part of package validation),
      * and if the payload wasn't inflated the packets value is returned.
      */
-    std::string_view getInflatedInputPayload() const;
+    cb::const_char_buffer getInflatedInputPayload() const;
 
     /**
      * Inflate the value (if deflated)

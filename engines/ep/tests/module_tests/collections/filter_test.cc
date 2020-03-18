@@ -88,7 +88,7 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
                                        R"({"collections:[a])"};
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
         try {
             Collections::VB::Filter f(json, vbm);
             FAIL() << "Should of thrown an exception " << s;
@@ -114,7 +114,7 @@ TEST_F(CollectionsVBFilterTest, junk_in_scope) {
                                        R"({"scope":["0", "2"]"})"};
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
         try {
             Collections::VB::Filter f(json, vbm);
             FAIL() << "Should of thrown an exception " << s;
@@ -143,7 +143,7 @@ TEST_F(CollectionsVBFilterTest, validation1) {
             R"({"collections":["9", "a"]})"};
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
 
         try {
             Collections::VB::Filter f(json, vbm);
@@ -167,7 +167,7 @@ TEST_F(CollectionsVBFilterTest, validation1_scope) {
             R"({"scope":"8"})"};
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
 
         try {
             Collections::VB::Filter f(json, vbm);
@@ -195,7 +195,7 @@ TEST_F(CollectionsVBFilterTest, validation2) {
     };
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
         try {
             Collections::VB::Filter f(json, vbm);
             FAIL() << "Should have thrown an exception with input " << s;
@@ -219,7 +219,7 @@ TEST_F(CollectionsVBFilterTest, validation2_scope) {
     };
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
         try {
             Collections::VB::Filter f(json, vbm);
             FAIL() << "Should have thrown an exception with input " << s;
@@ -245,7 +245,7 @@ TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
                 "collections":["2"]})"};
 
     for (const auto& s : inputs) {
-        boost::optional<std::string_view> json(s);
+        boost::optional<cb::const_char_buffer> json(s);
         try {
             Collections::VB::Filter f(json, vbm);
             FAIL() << "Should have thrown an exception";
@@ -263,7 +263,7 @@ TEST_F(CollectionsVBFilterTest, validation2_empty_scope) {
     vbm.wlock().update(vb, m);
 
     std::string input = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(input);
+    boost::optional<cb::const_char_buffer> json(input);
     try {
         Collections::VB::Filter f(json, vbm);
     } catch (const cb::engine_error& e) {
@@ -286,7 +286,7 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    boost::optional<std::string_view> json;
+    boost::optional<cb::const_char_buffer> json;
     try {
         Collections::VB::Filter f(json, vbm);
         FAIL() << "Should of thrown an exception";
@@ -300,7 +300,7 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
 // class exposes some of the internal state flags
 class CollectionsTestFilter : public Collections::VB::Filter {
 public:
-    CollectionsTestFilter(boost::optional<std::string_view> jsonFilter,
+    CollectionsTestFilter(boost::optional<cb::const_char_buffer> jsonFilter,
                           const Collections::VB::Manifest& manifest)
         : Collections::VB::Filter(jsonFilter, manifest) {
     }
@@ -337,7 +337,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
     CollectionsTestFilter f(json, vbm);
 
     // This is not a passthrough filter
@@ -362,7 +362,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"scope":"0"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
     CollectionsTestFilter f(json, vbm);
 
     EXPECT_FALSE(f.isPassthrough());
@@ -381,7 +381,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1_non_default_scope) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
     CollectionsTestFilter f(json, vbm);
 
     EXPECT_FALSE(f.isPassthrough());
@@ -405,7 +405,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic2) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter; // empty string creates a pass through
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
     CollectionsTestFilter f(json, vbm);
 
     // This is a passthrough filter
@@ -429,7 +429,7 @@ TEST_F(CollectionsVBFilterTest, filter_legacy) {
     vbm.wlock().update(vb, m);
 
     // No string...
-    boost::optional<std::string_view> json;
+    boost::optional<cb::const_char_buffer> json;
     CollectionsTestFilter f(json, vbm);
 
     // Not a pass through
@@ -456,7 +456,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -511,7 +511,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_default_scope) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"scope":"0"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -551,7 +551,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -590,7 +590,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    boost::optional<std::string_view> json;
+    boost::optional<cb::const_char_buffer> json;
 
     CollectionsTestFilter vbf(json, vbm);
     // Legacy would only allow default
@@ -619,7 +619,7 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
     vbm.wlock().update(vb, m);
 
     std::string filterJson; // empty string
-    boost::optional<std::string_view> json(filterJson);
+    boost::optional<cb::const_char_buffer> json(filterJson);
 
     // Everything is allowed (even junk, which isn't the filter's job to police)
     CollectionsTestFilter vbf(json, vbm);
@@ -672,7 +672,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["8", "9"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     // Now filter!
     CollectionsTestFilter vbf(json, vbm);
@@ -728,7 +728,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["8", "9"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(
@@ -794,7 +794,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "8"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(
@@ -868,7 +868,7 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter;
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -903,7 +903,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
 
     // only events for default and meat are allowed
     std::string jsonFilter = R"({"collections":["0", "8"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -951,7 +951,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
 
     // Only events for defaultC and dairy are allowed
     std::string jsonFilter = R"({"scope":"0"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -999,7 +999,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
 
     // Only events for meat are allowed
     std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -1047,7 +1047,7 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    boost::optional<std::string_view> json;
+    boost::optional<cb::const_char_buffer> json;
 
     CollectionsTestFilter vbf(json, vbm);
 
@@ -1074,7 +1074,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
     CollectionsTestFilter vbf(json, vbm);
 
     // Only have meat in this filter
@@ -1106,7 +1106,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
 
     // scope 8 is shop1
     std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
     CollectionsTestFilter vbf(json, vbm);
 
     // 2 collections in this filter
@@ -1147,7 +1147,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     // Create the filter
     CollectionsTestFilter vbf(json, vbm);
@@ -1181,7 +1181,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["9"]})";
-    boost::optional<std::string_view> json(jsonFilter);
+    boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     CollectionsTestFilter vbf(json, vbm);
     EXPECT_TRUE(

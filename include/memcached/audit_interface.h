@@ -82,7 +82,7 @@ public:
      *         false if an error occurred while trying to insert the
      *               event to the audit queue.
      */
-    virtual bool put_event(uint32_t eventid, std::string_view payload) = 0;
+    virtual bool put_event(uint32_t eventid, cb::const_char_buffer payload) = 0;
 
     /**
      * Update the audit daemon with the specified configuration file

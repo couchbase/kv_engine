@@ -61,8 +61,6 @@ using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
-using namespace std::string_view_literals;
-
 void StreamTest::SetUp() {
     bucketType = GetParam();
     DCPTest::SetUp();
@@ -1708,10 +1706,10 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_FALSE(stream->getNumBackfillItemsRemaining());
 
     bool statusFound = false;
-    auto checkStatusFn = [&statusFound](std::string_view key,
-                                        std::string_view value,
+    auto checkStatusFn = [&statusFound](cb::const_char_buffer key,
+                                        cb::const_char_buffer value,
                                         gsl::not_null<const void*> cookie) {
-        if (key == "status"sv) {
+        if (key == "status"_ccb) {
             EXPECT_EQ(std::string(reinterpret_cast<const char*>(cookie.get())),
                       std::string(value.data(), value.size()));
             statusFound = true;

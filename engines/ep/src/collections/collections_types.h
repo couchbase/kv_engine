@@ -22,6 +22,7 @@
 #include <memcached/dockey.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
+#include <platform/sized_buffer.h>
 #include <gsl/gsl>
 
 #include <unordered_map>
@@ -31,10 +32,10 @@ namespace Collections {
 
 // The reserved name of the system owned, default collection.
 const char* const DefaultCollectionName = "_default";
-static std::string_view DefaultCollectionIdentifier(DefaultCollectionName);
+static cb::const_char_buffer DefaultCollectionIdentifier(DefaultCollectionName);
 
 const char* const DefaultScopeName = "_default";
-static std::string_view DefaultScopeIdentifier(DefaultScopeName);
+static cb::const_char_buffer DefaultScopeIdentifier(DefaultScopeName);
 
 static constexpr const nlohmann::json::value_t CollectionsType =
         nlohmann::json::value_t::array;

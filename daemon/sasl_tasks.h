@@ -18,6 +18,7 @@
 
 #include "authn_authz_service_task.h"
 #include <cbsasl/server.h>
+#include <platform/sized_buffer.h>
 #include <string>
 
 class Connection;
@@ -52,7 +53,7 @@ public:
         return response.first;
     }
 
-    std::string_view getResponse() const {
+    cb::const_char_buffer getResponse() const {
         return response.second;
     }
 
@@ -69,6 +70,6 @@ protected:
     cb::sasl::server::ServerContext& serverContext;
     std::string mechanism;
     std::string challenge;
-    std::pair<cb::sasl::Error, std::string_view> response{cb::sasl::Error::FAIL,
-                                                          {}};
+    std::pair<cb::sasl::Error, cb::const_char_buffer> response{
+            cb::sasl::Error::FAIL, {}};
 };

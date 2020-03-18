@@ -120,8 +120,8 @@ public:
 
     MOCK_METHOD3(control,
                  ENGINE_ERROR_CODE(uint32_t opaque,
-                                   std::string_view key,
-                                   std::string_view value));
+                                   cb::const_char_buffer key,
+                                   cb::const_char_buffer value));
 
     MOCK_METHOD8(system_event,
                  ENGINE_ERROR_CODE(uint32_t opaque,

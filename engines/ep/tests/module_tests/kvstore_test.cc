@@ -214,8 +214,8 @@ static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
  * 'cookie' is a std::unordered_map<std::string, std::string) which stats
  * are accumulated in.
  */
-static void add_stat_callback(std::string_view key,
-                              std::string_view value,
+static void add_stat_callback(cb::const_char_buffer key,
+                              cb::const_char_buffer value,
                               gsl::not_null<const void*> cookie) {
     auto* map = reinterpret_cast<std::map<std::string, std::string>*>(
             const_cast<void*>(cookie.get()));

@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
+#include <platform/sized_buffer.h>
 #include <algorithm>
 #include <iostream>
 

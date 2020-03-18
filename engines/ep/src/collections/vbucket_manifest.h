@@ -26,6 +26,8 @@
 #include <boost/optional/optional_fwd.hpp>
 #include <platform/non_negative_counter.h>
 #include <platform/rwlock.h>
+#include <platform/sized_buffer.h>
+
 #include <functional>
 #include <iostream>
 #include <mutex>
@@ -51,7 +53,7 @@ namespace VB {
  * Each collection is represented by a Collections::VB::ManifestEntry and all of
  * the collections are stored in an unordered_map. The map is implemented to
  * allow look-up by collection-name without having to allocate a std::string,
- * callers only need a std::string_view for look-ups.
+ * callers only need a cb::const_char_buffer for look-ups.
  *
  * The Manifest allows for an external manager to drive the lifetime of each
  * collection.
@@ -546,7 +548,7 @@ public:
         void replicaAdd(::VBucket& vb,
                         ManifestUid manifestUid,
                         ScopeCollectionPair identifiers,
-                        std::string_view collectionName,
+                        cb::const_char_buffer collectionName,
                         cb::ExpiryLimit maxTtl,
                         int64_t startSeqno) {
             manifest.addCollection(*this,
@@ -588,7 +590,7 @@ public:
         void replicaAddScope(::VBucket& vb,
                              ManifestUid manifestUid,
                              ScopeID sid,
-                             std::string_view scopeName,
+                             cb::const_char_buffer scopeName,
                              int64_t startSeqno) {
             manifest.addScope(*this,
                               vb,
@@ -716,7 +718,8 @@ public:
      * @returns CreateEventData which carries all of the data which needs to be
      *          marshalled into a DCP system event message.
      */
-    static CreateEventData getCreateEventData(std::string_view flatbufferData);
+    static CreateEventData getCreateEventData(
+            cb::const_char_buffer flatbufferData);
 
     /**
      * Get the system event collection drop data from a SystemEvent
@@ -727,7 +730,7 @@ public:
      * @returns DropEventData which carries all of the data which needs to be
      *          marshalled into a DCP system event message.
      */
-    static DropEventData getDropEventData(std::string_view flatbufferData);
+    static DropEventData getDropEventData(cb::const_char_buffer flatbufferData);
 
     /**
      * Get the system event scope create data from a SystemEvent Item's value.
@@ -737,7 +740,7 @@ public:
      *          to be marshalled into a DCP system event message.
      */
     static CreateScopeEventData getCreateScopeEventData(
-            std::string_view flatbufferData);
+            cb::const_char_buffer flatbufferData);
 
     /**
      * Get the system event scope drop data from a SystemEvent Item's value.
@@ -748,7 +751,7 @@ public:
      *          be marshalled into a DCP system event message.
      */
     static DropScopeEventData getDropScopeEventData(
-            std::string_view flatbufferData);
+            cb::const_char_buffer flatbufferData);
 
     /**
      * @return an Item that represent a collection create or delete
@@ -756,7 +759,7 @@ public:
     static std::unique_ptr<Item> makeCollectionSystemEvent(
             ManifestUid uid,
             CollectionID cid,
-            std::string_view collectionName,
+            cb::const_char_buffer collectionName,
             const ManifestEntry& entry,
             bool deleted,
             OptionalSeqno seq);
@@ -853,7 +856,7 @@ protected:
                        ::VBucket& vb,
                        ManifestUid manifestUid,
                        ScopeCollectionPair identifiers,
-                       std::string_view collectionName,
+                       cb::const_char_buffer collectionName,
                        cb::ExpiryLimit maxTtl,
                        OptionalSeqno optionalSeqno);
 
@@ -892,7 +895,7 @@ protected:
                   ::VBucket& vb,
                   ManifestUid manifestUid,
                   ScopeID sid,
-                  std::string_view scopeName,
+                  cb::const_char_buffer scopeName,
                   OptionalSeqno optionalSeqno);
 
     /**
@@ -1207,7 +1210,7 @@ protected:
     int64_t queueCollectionSystemEvent(const WriteHandle& wHandle,
                                        ::VBucket& vb,
                                        CollectionID cid,
-                                       std::string_view collectionName,
+                                       cb::const_char_buffer collectionName,
                                        const ManifestEntry& entry,
                                        bool deleted,
                                        OptionalSeqno seq) const;

@@ -124,7 +124,7 @@ TEST(ResponseBuilder, SetFields) {
     compare(value, response->getValue());
 
     // nuke the key, and the value should be correct
-    builder.setKey(std::string_view{nullptr, 0});
+    builder.setKey(cb::const_char_buffer{nullptr, 0});
     ASSERT_EQ(0, response->getKeylen());
     ASSERT_EQ(value.size() + extras.size() + frame_extras.size(),
               response->getBodylen());
@@ -225,7 +225,7 @@ TEST(RequestBuilder, SetFields) {
     compare(value, request->getValue());
 
     // nuke the key, and the value should be correct
-    builder.setKey(std::string_view{nullptr, 0});
+    builder.setKey(cb::const_char_buffer{nullptr, 0});
     ASSERT_EQ(0, request->getKeylen());
     ASSERT_EQ(value.size() + extras.size() + request->getFramingExtraslen(),
               request->getBodylen());

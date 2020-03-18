@@ -21,13 +21,14 @@
 #include <cstdlib>
 #include <stdexcept>
 
-void ClusterConfiguration::setConfiguration(std::string_view buffer, int rev) {
+void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer,
+                                            int rev) {
     std::lock_guard<std::mutex> guard(mutex);
     revision = rev;
     config = std::make_shared<std::string>(buffer.begin(), buffer.end());
 }
 
-void ClusterConfiguration::setConfiguration(std::string_view buffer) {
+void ClusterConfiguration::setConfiguration(cb::const_char_buffer buffer) {
     int rev = getRevisionNumber(buffer);
     if (rev == NoConfiguration) {
         throw std::invalid_argument(
@@ -40,7 +41,7 @@ void ClusterConfiguration::setConfiguration(std::string_view buffer) {
     config = std::make_shared<std::string>(buffer.begin(), buffer.end());
 }
 
-int ClusterConfiguration::getRevisionNumber(std::string_view buffer) {
+int ClusterConfiguration::getRevisionNumber(cb::const_char_buffer buffer) {
     Subdoc::Operation operation;
     Subdoc::Result result;
     operation.set_code(Subdoc::Command::GET);

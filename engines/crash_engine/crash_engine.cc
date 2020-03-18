@@ -103,8 +103,8 @@ public:
             bool preserveTtl) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
+                                cb::const_char_buffer key,
+                                cb::const_char_buffer value,
                                 const AddStatFn& add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
@@ -262,8 +262,8 @@ ENGINE_ERROR_CODE CrashEngine::unlock(gsl::not_null<const void*> cookie,
 }
 
 ENGINE_ERROR_CODE CrashEngine::get_stats(gsl::not_null<const void*>,
-                                         std::string_view,
-                                         std::string_view,
+                                         cb::const_char_buffer,
+                                         cb::const_char_buffer,
                                          const AddStatFn&) {
     return ENGINE_FAILED;
 }

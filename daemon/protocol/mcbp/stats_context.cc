@@ -43,8 +43,6 @@
 
 #include <cinttypes>
 
-using namespace std::string_view_literals;
-
 /*************************** ADD STAT CALLBACKS ***************************/
 
 // Generic add_stat<T>. Uses std::to_string which requires heap allocation.
@@ -211,8 +209,8 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
     return ENGINE_SUCCESS;
 }
 
-static void append_stats(std::string_view key,
-                         std::string_view value,
+static void append_stats(cb::const_char_buffer key,
+                         cb::const_char_buffer value,
                          gsl::not_null<const void*> void_cookie) {
     auto& cookie = *const_cast<Cookie*>(
             reinterpret_cast<const Cookie*>(void_cookie.get()));
@@ -259,7 +257,7 @@ static void process_bucket_details(Cookie& cookie) {
     json["buckets"] = array;
 
     const auto stats_str = json.dump();
-    append_stats("bucket details"sv, stats_str, static_cast<void*>(&cookie));
+    append_stats("bucket details"_ccb, stats_str, static_cast<void*>(&cookie));
 }
 
 /**
@@ -464,7 +462,7 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
                                          mc_time_get_current_time());
 
         if (ret == ENGINE_SUCCESS) {
-            append_stats("topkeys_json"sv, topkeys_doc.dump(), &cookie);
+            append_stats("topkeys_json"_ccb, topkeys_doc.dump(), &cookie);
         }
         return ret;
     } else {
@@ -519,7 +517,7 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
             }
         }
 
-        append_stats("responses"sv, json.dump(), &cookie);
+        append_stats("responses"_ccb, json.dump(), &cookie);
         return ENGINE_SUCCESS;
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -540,7 +538,7 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
         }
 
         void operator()(gsl_p::cstring_span key, bool value) override {
-            const auto svalue = value ? "true"sv : "false"sv;
+            const auto svalue = value ? "true"_ccb : "false"_ccb;
             append_stats({key.data(), key.size()}, svalue.data(), &c);
         }
 

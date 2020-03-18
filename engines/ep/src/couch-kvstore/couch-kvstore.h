@@ -595,7 +595,7 @@ protected:
      */
     couchstore_error_t writeLocalDoc(Db& db,
                                      const std::string& name,
-                                     std::string_view data);
+                                     cb::const_char_buffer data);
 
     /**
      * Delete a document from the local docs index

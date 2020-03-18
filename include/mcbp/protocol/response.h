@@ -23,6 +23,8 @@
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/sized_buffer.h>
+
 #ifndef WIN32
 #include <arpa/inet.h>
 #endif

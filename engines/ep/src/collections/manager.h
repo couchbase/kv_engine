@@ -21,6 +21,8 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
+#include <platform/sized_buffer.h>
+
 #include <folly/Synchronized.h>
 #include <memory>
 #include <mutex>
@@ -48,7 +50,7 @@ public:
      * @param manifest the json manifest form a set-collections command.
      * @returns engine_error indicating why the update failed.
      */
-    cb::engine_error update(KVBucket& bucket, std::string_view manifest);
+    cb::engine_error update(KVBucket& bucket, cb::const_char_buffer manifest);
 
     /**
      * Retrieve the current manifest
@@ -65,7 +67,7 @@ public:
      *  and collection-cid
      */
     cb::EngineErrorGetCollectionIDResult getCollectionID(
-            std::string_view path) const;
+            cb::const_char_buffer path) const;
 
     /**
      * Lookup scope id from path
@@ -74,7 +76,8 @@ public:
      * @return EngineErrorGetScopeIDResult which is status, manifest-uid
      *  and scope-id
      */
-    cb::EngineErrorGetScopeIDResult getScopeID(std::string_view path) const;
+    cb::EngineErrorGetScopeIDResult getScopeID(
+            cb::const_char_buffer path) const;
 
     /**
      * Lookup scope id from DocKey
@@ -151,7 +154,7 @@ private:
      * scope/collection components.
      * @returns true if path is correctly formed, false is not
      */
-    static bool validateGetCollectionIDPath(std::string_view path);
+    static bool validateGetCollectionIDPath(cb::const_char_buffer path);
 
     /**
      * validate the path is correctly formed for get_scope_id.
@@ -162,7 +165,7 @@ private:
      * scope/collection components
      * @returns true if path is correctly formed, false is not
      */
-    static bool validateGetScopeIDPath(std::string_view path);
+    static bool validateGetScopeIDPath(cb::const_char_buffer path);
 
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 

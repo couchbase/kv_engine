@@ -1114,8 +1114,8 @@ struct snapshot_add_stat_cookie : cb::tracing::Traceable {
     std::map<std::string, std::string> smap;
 };
 
-static void snapshot_add_stat(std::string_view key,
-                              std::string_view value,
+static void snapshot_add_stat(cb::const_char_buffer key,
+                              cb::const_char_buffer value,
                               gsl::not_null<const void*> cookie) {
     void* ptr = const_cast<void*>(cookie.get());
     auto* snap = static_cast<snapshot_add_stat_cookie*>(ptr);
@@ -1180,7 +1180,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                                             const AddStatFn& add_stat) {
     // Simplify the repetition of formatting and calling add_stat with cookie each
     // time by using a generic lambda.
-    auto DO_STAT = [&add_stat, cookie](std::string_view key, auto&& value) {
+    auto DO_STAT = [&add_stat, cookie](cb::const_char_buffer key, auto&& value) {
         fmt::memory_buffer buf;
         format_to(buf, "{}", value);
         add_stat(key, {buf.data(), buf.size()}, cookie);
@@ -2550,7 +2550,7 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
-cb::engine_error KVBucket::setCollections(std::string_view manifest) {
+cb::engine_error KVBucket::setCollections(cb::const_char_buffer manifest) {
     // Inhibit VB state changes whilst updating the vbuckets
     LockHolder lh(vbsetMutex);
 
@@ -2568,7 +2568,7 @@ std::pair<cb::mcbp::Status, std::string> KVBucket::getCollections() const {
 }
 
 cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(
-        std::string_view path) const {
+        cb::const_char_buffer path) const {
     try {
         return collectionsManager->getCollectionID(path);
     } catch (const cb::engine_error& e) {
@@ -2577,7 +2577,7 @@ cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(
 }
 
 cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
-        std::string_view path) const {
+        cb::const_char_buffer path) const {
     try {
         return collectionsManager->getScopeID(path);
     } catch (const cb::engine_error& e) {

@@ -53,8 +53,8 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
         std::map<std::string, std::string> map;
     };
     StatMap stats;
-    auto add_stats = [](std::string_view key,
-                        std::string_view value,
+    auto add_stats = [](cb::const_char_buffer key,
+                        cb::const_char_buffer value,
                         gsl::not_null<const void*> cookie) {
         auto* stats =
                 reinterpret_cast<StatMap*>(const_cast<void*>(cookie.get()));
@@ -169,13 +169,13 @@ TEST_F(StatTest, HashStatsMemUsed) {
     // (i.e. no engine yet selected).
     ObjectRegistry::onSwitchThread(nullptr);
 
-    std::string_view key{"_hash-dump 0"};
+    cb::const_char_buffer key{"_hash-dump 0"};
     struct Cookie : public cb::tracing::Traceable {
         int addStats_calls = 0;
     } state;
 
-    auto callback = [](std::string_view key,
-                       std::string_view value,
+    auto callback = [](cb::const_char_buffer key,
+                       cb::const_char_buffer value,
                        gsl::not_null<const void*> cookie) {
         Cookie& state =
                 *reinterpret_cast<Cookie*>(const_cast<void*>(cookie.get()));

@@ -102,7 +102,7 @@ protected:
     static ::testing::AssertionResult hasCorrectDatatype(
             cb::mcbp::Datatype expectedType,
             cb::mcbp::Datatype actualType,
-            std::string_view value);
+            cb::const_char_buffer value);
 
     /**
      * Replaces document `name` with a document containing the given

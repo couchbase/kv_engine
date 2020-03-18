@@ -23,6 +23,8 @@
 #include "dockey.h"
 #include "engine_common.h"
 #include "engine_error.h"
+#include <platform/sized_buffer.h>
+
 namespace cb {
 
 struct EngineErrorGetCollectionIDResult {

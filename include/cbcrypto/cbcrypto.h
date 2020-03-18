@@ -18,6 +18,7 @@
 
 #include <gsl.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/sized_buffer.h>
 #include <cstdint>
 #include <string>
 
@@ -40,8 +41,8 @@ const int SHA512_DIGEST_SIZE = 64;
  *         std::runtime_error - Failures generating the HMAC
  */
 std::string HMAC(Algorithm algorithm,
-                 std::string_view key,
-                 std::string_view data);
+                 cb::const_char_buffer key,
+                 cb::const_char_buffer data);
 
 /**
  * Generate a PBKDF2_HMAC digest of the key and data by using the given
@@ -52,13 +53,13 @@ std::string HMAC(Algorithm algorithm,
  */
 std::string PBKDF2_HMAC(Algorithm algorithm,
                         const std::string& pass,
-                        std::string_view salt,
+                        cb::const_char_buffer salt,
                         unsigned int iterationCount);
 
 /**
  * Generate a digest by using the requested algorithm
  */
-std::string digest(Algorithm algorithm, std::string_view data);
+std::string digest(Algorithm algorithm, cb::const_char_buffer data);
 
 enum class Cipher { AES_256_cbc };
 
@@ -74,9 +75,9 @@ Cipher to_cipher(const std::string& str);
  * @return The encrypted data
  */
 std::string encrypt(Cipher cipher,
-                    std::string_view key,
-                    std::string_view iv,
-                    std::string_view data);
+                    cb::const_char_buffer key,
+                    cb::const_char_buffer iv,
+                    cb::const_char_buffer data);
 
 /**
  * Encrypt the specified data
@@ -92,7 +93,7 @@ std::string encrypt(Cipher cipher,
  * @param length the length of the data to encrypt
  * @return The encrypted data
  */
-std::string encrypt(const nlohmann::json& json, std::string_view data);
+std::string encrypt(const nlohmann::json& json, cb::const_char_buffer data);
 
 /**
  * Decrypt the specified data by using a given cipher
@@ -104,9 +105,9 @@ std::string encrypt(const nlohmann::json& json, std::string_view data);
  * @return The decrypted data
  */
 std::string decrypt(Cipher cipher,
-                    std::string_view key,
-                    std::string_view iv,
-                    std::string_view data);
+                    cb::const_char_buffer key,
+                    cb::const_char_buffer iv,
+                    cb::const_char_buffer data);
 
 /**
  * Decrypt the specified data
@@ -122,7 +123,7 @@ std::string decrypt(Cipher cipher,
  * @param length the length of the data to decrypt
  * @return The decrypted data
  */
-std::string decrypt(const nlohmann::json& json, std::string_view data);
+std::string decrypt(const nlohmann::json& json, cb::const_char_buffer data);
 
 } // namespace crypto
 } // namespace cb

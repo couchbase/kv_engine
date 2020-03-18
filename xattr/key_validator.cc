@@ -82,7 +82,7 @@ int get_utf8_char_width(const char* ptr, size_t avail) {
     throw encoding_error("get_char_width: Invalid utf8 encoding");
 }
 
-bool is_valid_xattr_key(std::string_view path, size_t& key_length) {
+bool is_valid_xattr_key(cb::const_char_buffer path, size_t& key_length) {
     // Check for the random list of reserved leading characters.
     size_t dot = path.size();
     bool system = false;

@@ -121,8 +121,8 @@ static void create_single_path_context(SubdocCmdContext& context,
     const auto pathlen = parser.getPathlen();
     auto flags = parser.getSubdocFlags();
     const auto valbuf = request.getValue();
-    std::string_view value{reinterpret_cast<const char*>(valbuf.data()),
-                           valbuf.size()};
+    cb::const_char_buffer value{reinterpret_cast<const char*>(valbuf.data()),
+                                valbuf.size()};
     // Path is the first thing in the value; remainder is the operation
     // value.
     auto path = value.substr(0, pathlen);
@@ -198,8 +198,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
     // Decode each of lookup specs from the value into our command context.
     const auto& request = cookie.getRequest();
     const auto valbuf = request.getValue();
-    std::string_view value{reinterpret_cast<const char*>(valbuf.data()),
-                           valbuf.size()};
+    cb::const_char_buffer value{reinterpret_cast<const char*>(valbuf.data()),
+                                valbuf.size()};
 
     context.setMutationSemantics(doc_flags);
     size_t offset = 0;
@@ -207,8 +207,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
         cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
         protocol_binary_subdoc_flag flags;
         size_t headerlen;
-        std::string_view path;
-        std::string_view spec_value;
+        cb::const_char_buffer path;
+        cb::const_char_buffer spec_value;
         if (traits.is_mutator) {
             auto* spec = reinterpret_cast<
                     const protocol_binary_subdoc_multi_mutation_spec*>(
@@ -251,7 +251,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         if (xattr) {
             size_t xattr_keylen;
             is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
-            std::string_view key{path.data(), xattr_keylen};
+            cb::const_char_buffer key{path.data(), xattr_keylen};
             if (!cb::xattr::is_vattr(key)) {
                 context.set_xattr_key(key);
             }
@@ -575,7 +575,7 @@ static bool subdoc_fetch(Cookie& cookie,
 static cb::mcbp::Status subdoc_operate_one_path(
         SubdocCmdContext& context,
         SubdocCmdContext::OperationSpec& spec,
-        std::string_view in_doc) {
+        const cb::const_char_buffer& in_doc) {
     // Prepare the specified sub-document command.
     auto& op = context.connection.getThread().subdoc_op;
     op.clear();
@@ -601,12 +601,14 @@ static cb::mcbp::Status subdoc_operate_one_path(
         }
 
         // Check which VATTR is being accessed:
-        std::string_view doc;
-        if (vattr_key == cb::xattr::vattrs::DOCUMENT) {
+        cb::const_char_buffer doc;
+        if (cb::const_char_buffer{vattr_key.data(), vattr_key.size()} ==
+            cb::xattr::vattrs::DOCUMENT) {
             // This is a call to the "$document" VATTR, so replace the document
             // with the document virtual one..
             doc = context.get_document_vattr();
-        } else if (vattr_key == cb::xattr::vattrs::XTOC) {
+        } else if (cb::const_char_buffer{vattr_key.data(), vattr_key.size()} ==
+                   cb::xattr::vattrs::XTOC) {
             doc = context.get_xtoc_vattr();
         } else if (cb::const_char_buffer{vattr_key.data(), vattr_key.size()} ==
                    cb::xattr::vattrs::VBUCKET) {
@@ -676,7 +678,7 @@ static cb::mcbp::Status subdoc_operate_one_path(
 static cb::mcbp::Status subdoc_operate_wholedoc(
         SubdocCmdContext& context,
         SubdocCmdContext::OperationSpec& spec,
-        std::string_view& doc) {
+        cb::const_char_buffer& doc) {
     switch (spec.traits.mcbpCommand) {
     case cb::mcbp::ClientOpcode::Get:
         if (doc.empty()) {
@@ -719,7 +721,7 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
  * @throws std::bad_alloc if allocation fails
  */
 static bool operate_single_doc(SubdocCmdContext& context,
-                               std::string_view& doc,
+                               cb::const_char_buffer& doc,
                                protocol_binary_datatype_t& doc_datatype,
                                std::unique_ptr<char[]>& temp_buffer,
                                bool& modified) {
@@ -780,7 +782,9 @@ static bool operate_single_doc(SubdocCmdContext& context,
                     // the entire document has been replaced as part of a
                     // wholedoc op update the datatype to match
                     JSON_checker::Validator validator;
-                    bool isValidJson = validator.validate(doc);
+                    bool isValidJson = validator.validate(
+                            reinterpret_cast<const uint8_t*>(doc.data()),
+                            doc.size());
 
                     // don't alter context.in_datatype directly here in case we
                     // are in xattrs phase
@@ -824,8 +828,8 @@ static bool operate_single_doc(SubdocCmdContext& context,
     return true;
 }
 
-static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context,
-                                                  std::string_view key) {
+static ENGINE_ERROR_CODE validate_vattr_privilege(
+        SubdocCmdContext& context, const cb::const_char_buffer key) {
     // The $document vattr doesn't require any xattr permissions.
     if (key[1] == 'X') {
         // In the xtoc case we want to see which privileges the connection has
@@ -920,7 +924,7 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
  * @param bodyoffset The offset in to the body of the xattr section
  * @param bodysize The size of the body (excludes xattrs)
  */
-static inline void replace_xattrs(std::string_view new_xattr,
+static inline void replace_xattrs(cb::const_char_buffer new_xattr,
                                   SubdocCmdContext& context,
                                   const size_t bodyoffset,
                                   const size_t bodysize) {
@@ -1064,7 +1068,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     }
 
     std::unique_ptr<char[]> temp_doc;
-    std::string_view document{value_buf.data(), value_buf.size()};
+    cb::const_char_buffer document{value_buf.data(), value_buf.size()};
 
     context.generate_macro_padding(document, cb::xattr::macros::CAS);
     context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
@@ -1124,7 +1128,7 @@ static bool do_body_phase(SubdocCmdContext& context) {
     }
 
     size_t xattrsize = 0;
-    std::string_view document{context.in_doc};
+    cb::const_char_buffer document{context.in_doc};
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
         // We shouldn't have any documents like that!
@@ -1406,7 +1410,7 @@ static void encode_mutation_descr(SubdocCmdContext& context,
  * @param buffer Buffer to encode into
  * @return The number of bytes written into the buffer.
  */
-static std::string_view encode_multi_mutation_result_spec(
+static cb::const_char_buffer encode_multi_mutation_result_spec(
         uint8_t index,
         const SubdocCmdContext::OperationSpec& op,
         cb::char_buffer buffer) {
@@ -1441,7 +1445,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     auto& connection = context.connection;
 
     context.response_val_len = 0;
-    std::string_view value = {};
+    cb::const_char_buffer value = {};
     if (context.traits.responseHasValue()) {
         // The value may have been created in the xattr or the body phase
         // so it should only be one, so if it isn't an xattr it should be
@@ -1463,7 +1467,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     }
 
     // Add mutation descr to response buffer if requested.
-    std::string_view extras = {};
+    cb::const_char_buffer extras = {};
     mutation_descr_t descr = {};
     if (connection.isSupportsMutationExtras() && context.traits.is_mutator) {
         encode_mutation_descr(context, descr);
@@ -1496,7 +1500,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     // On failure body indicates the index and status code of the first failing
     // spec.
     mutation_descr_t descr = {};
-    std::string_view extras = {};
+    cb::const_char_buffer extras = {};
 
     // Encode mutation extras into buffer if success & they were requested.
     if (context.overall_status == cb::mcbp::Status::Success &&
@@ -1639,7 +1643,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
                 }
                 const uint16_t status;
                 uint32_t length = 0;
-                std::string_view getBuffer() const {
+                cb::const_char_buffer getBuffer() const {
                     return {reinterpret_cast<const char*>(this), sizeof(*this)};
                 }
             };

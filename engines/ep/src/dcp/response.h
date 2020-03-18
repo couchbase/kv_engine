@@ -725,7 +725,7 @@ public:
             sizeof(protocol_binary_request_header) + sizeof(uint64_t) +
             sizeof(uint32_t) + sizeof(uint8_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
-    virtual std::string_view getKey() const = 0;
+    virtual cb::const_char_buffer getKey() const = 0;
     virtual cb::const_byte_buffer getEventData() const = 0;
     virtual mcbp::systemevent::version getVersion() const = 0;
 };
@@ -770,7 +770,7 @@ public:
         return OptionalSeqno{bySeqno};
     }
 
-    std::string_view getKey() const override {
+    cb::const_char_buffer getKey() const override {
         return key;
     }
 
@@ -869,7 +869,7 @@ public:
           eventData{ev} {
     }
 
-    std::string_view getKey() const override {
+    cb::const_char_buffer getKey() const override {
         return {key.data(), key.size()};
     }
 
@@ -900,7 +900,7 @@ public:
           eventData{ev} {
     }
 
-    std::string_view getKey() const override {
+    cb::const_char_buffer getKey() const override {
         return {key.data(), key.size()};
     }
 
@@ -927,7 +927,7 @@ public:
         : SystemEventProducerMessage(opaque, itm, sid), eventData{data} {
     }
 
-    std::string_view getKey() const override {
+    cb::const_char_buffer getKey() const override {
         return {/* no key value for a drop event*/};
     }
 
@@ -956,7 +956,7 @@ public:
           eventData{data} {
     }
 
-    std::string_view getKey() const override {
+    cb::const_char_buffer getKey() const override {
         return {key.data(), key.size()};
     }
 
@@ -983,7 +983,7 @@ public:
         : SystemEventProducerMessage(opaque, itm, sid), eventData{data} {
     }
 
-    std::string_view getKey() const override {
+    cb::const_char_buffer getKey() const override {
         return {/* no key value for a drop event*/};
     }
 
@@ -1039,7 +1039,7 @@ public:
                           : Collections::CreateWithMaxTtlEventDcpData::size) {
     }
 
-    std::string_view getKey() const {
+    cb::const_char_buffer getKey() const {
         return event.getKey();
     }
 
@@ -1118,7 +1118,7 @@ public:
         : CollectionsEvent(e, Collections::CreateScopeEventDcpData::size) {
     }
 
-    std::string_view getKey() const {
+    cb::const_char_buffer getKey() const {
         return event.getKey();
     }
 
