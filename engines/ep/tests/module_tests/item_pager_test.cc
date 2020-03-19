@@ -56,23 +56,13 @@ protected:
     void SetUp() override {
         config_string += "ht_size=47";
         STParameterizedBucketTest::SetUp();
-        auto& stats = engine->getEpStats();
-
-        // Setup the bucket from the entry state, which can be polluted from
-        // previous tests, i.e. not guaranteed to be '0'. The worst offender is
-        // if a background thread is still around, it could have data in the
-        // arena inflating it - e.g. rocksdb threads
-        const size_t expectedStart = stats.getPreciseTotalMemoryUsed();
 
         ObjectRegistry::onSwitchThread(engine.get());
 
-        // Bump the quota 700KiB above the current mem_used
-        const size_t quota = expectedStart + (700 * 1024);
-        engine->getConfiguration().setMaxSize(quota);
-
-        // Set the water marks to 70% and 85%
-        engine->getConfiguration().setMemLowWat(quota * 0.7);
-        engine->getConfiguration().setMemHighWat(quota * 0.85);
+        // Bump the quota above mem_used. Need a large amount of memory for
+        // magma
+        auto quota = isMagma() ? 5 * 1024 * 1024 : 700 * 1024;
+        increaseQuota(quota);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
@@ -93,6 +83,22 @@ protected:
         ASSERT_EQ(47, store->getVBucket(vbid)->ht.getSize())
                 << "Expected to have a HashTable of size 47 (mem calculations "
                    "based on this).";
+    }
+
+    void increaseQuota(size_t val) {
+        // Setup the bucket from the entry state, which can be polluted from
+        // previous tests, i.e. not guaranteed to be '0'. The worst offender is
+        // if a background thread is still around, it could have data in the
+        // arena inflating it - e.g. rocksdb threads
+        auto& stats = engine->getEpStats();
+        const size_t expectedStart = stats.getPreciseTotalMemoryUsed();
+
+        const size_t quota = expectedStart + val;
+        engine->getConfiguration().setMaxSize(quota);
+
+        // Set the water marks to 70% and 85%
+        engine->getConfiguration().setMemLowWat(quota * 0.7);
+        engine->getConfiguration().setMemHighWat(quota * 0.85);
     }
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
@@ -168,7 +174,7 @@ protected:
      * flushed.
      */
     void flushDirectlyIfPersistent(Vbid vb) {
-        if (std::get<0>(GetParam()) == "persistent") {
+        if (persistent()) {
             auto& bucket = dynamic_cast<EPBucket&>(*store);
             bucket.flushVBucket(vb);
         }
@@ -179,7 +185,7 @@ protected:
      * function) and test the output of the flush function.
      */
     void flushDirectlyIfPersistent(Vbid vb, const FlushResult& expected) {
-        if (std::get<0>(GetParam()) == "persistent") {
+        if (persistent()) {
             const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vb);
             EXPECT_EQ(expected, res);
         }
@@ -266,7 +272,6 @@ protected:
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
-
     size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
 
@@ -921,8 +926,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     // perform a bgfetch to check key_1 no longer exists in the above
     // expiredItemsDeleted().
     const ENGINE_ERROR_CODE err =
-            std::get<0>(GetParam()) == "persistent" &&
-                            std::get<1>(GetParam()) == "value_only"
+            persistent() && std::get<1>(GetParam()) == "value_only"
                     ? ENGINE_EWOULDBLOCK
                     : ENGINE_SUCCESS;
 
@@ -930,7 +934,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     EXPECT_EQ(err,
               store->getMetaData(
                       key_1, vbid, cookie, metadata, deleted, datatype));
-    if (std::get<0>(GetParam()) == "persistent") {
+    if (persistent()) {
         runBGFetcherTask();
         EXPECT_EQ(ENGINE_SUCCESS,
                   store->getMetaData(
@@ -946,7 +950,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
             << "Key with TTL:10 should be removed.";
 
     // Verify that the xattr body still exists.
-    if (std::get<0>(GetParam()) == "persistent") {
+    if (persistent()) {
         runBGFetcherTask();
     }
     auto item = store->get(key_1, vbid, cookie, GET_DELETED_VALUE);
@@ -981,8 +985,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     // perform a bgfetch to check key_1 no longer exists in the above
     // expiredItemsDeleted().
     const ENGINE_ERROR_CODE err =
-            std::get<0>(GetParam()) == "persistent" &&
-                            std::get<1>(GetParam()) == "value_only"
+            persistent() && std::get<1>(GetParam()) == "value_only"
                     ? ENGINE_EWOULDBLOCK
                     : ENGINE_SUCCESS;
 
@@ -990,7 +993,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(err,
               store->getMetaData(
                       key_1, vbid, cookie, metadata, deleted, datatype));
-    if (std::get<0>(GetParam()) == "persistent") {
+    if (persistent()) {
         runBGFetcherTask();
         EXPECT_EQ(ENGINE_SUCCESS,
                   store->getMetaData(
@@ -1023,7 +1026,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
 
     auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    if (std::get<0>(GetParam()) == "persistent") {
+    if (persistent()) {
         runBGFetcherTask();
         EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
     }
@@ -1055,7 +1058,11 @@ TEST_P(STExpiryPagerTest, MB_25671) {
 class STValueEvictionExpiryPagerTest : public STExpiryPagerTest {
 public:
     static auto configValues() {
-        return ::testing::Values(std::make_tuple("persistent"s, "value_only"s));
+        return ::testing::Values(
+#ifdef EP_USE_MAGMA
+                std::make_tuple("persistentMagma"s, "value_only"s),
+#endif
+                std::make_tuple("persistent"s, "value_only"s));
     }
 };
 
@@ -1337,17 +1344,15 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
 // hence it is required currently.
 #if defined(HAVE_JEMALLOC)
 
-INSTANTIATE_TEST_SUITE_P(
-        EphemeralOrPersistent,
-        STItemPagerTest,
-        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         STItemPagerTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(
-        EphemeralOrPersistent,
-        STExpiryPagerTest,
-        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         STExpiryPagerTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(ValueOnly,
                          STValueEvictionExpiryPagerTest,
@@ -1366,7 +1371,7 @@ INSTANTIATE_TEST_SUITE_P(Ephemeral,
 
 INSTANTIATE_TEST_SUITE_P(PersistentFullValue,
                          MB_36087,
-                         STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 #endif
