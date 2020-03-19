@@ -387,9 +387,9 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     EXPECT_THROW(kvstore.ro->getDbFileInfo(Vbid(0)), std::system_error);
 }
 
-class CollectionsOfflineUpgadeCallback : public StatusCallback<CacheLookup> {
+class CollectionsOfflineUpgradeCallback : public StatusCallback<CacheLookup> {
 public:
-    CollectionsOfflineUpgadeCallback(CollectionID cid) : expectedCid(cid) {
+    CollectionsOfflineUpgradeCallback(CollectionID cid) : expectedCid(cid) {
     }
 
     void callback(CacheLookup& lookup) {
@@ -446,7 +446,7 @@ private:
 // Test the InputCouchFile/OutputCouchFile objects (in a simple test) to
 // check they do what we expect, that is create a new couchfile with all keys
 // moved into a specified collection.
-TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
+TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
     CouchKVStoreConfig config1(1024, 4, data_dir, "couchdb", 0);
 
     CouchKVStoreConfig config2(1024, 4, data_dir, "couchdb", 0);
@@ -529,7 +529,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     auto scanCtx = kvstore2.rw->initScanContext(
             std::make_unique<CollectionsOfflineGetCallback>(
                     std::pair<int, int>{18, 18 + deletedKeys}),
-            std::make_unique<CollectionsOfflineUpgadeCallback>(cid),
+            std::make_unique<CollectionsOfflineUpgradeCallback>(cid),
             Vbid(0),
             1,
             DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS,
@@ -538,7 +538,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     ASSERT_TRUE(scanCtx);
     EXPECT_EQ(scan_success, kvstore2.rw->scan(*scanCtx));
 
-    const auto& cl = static_cast<const CollectionsOfflineUpgadeCallback&>(
+    const auto& cl = static_cast<const CollectionsOfflineUpgradeCallback&>(
             scanCtx->getCacheCallback());
     EXPECT_EQ(keys, cl.callbacks);
 
