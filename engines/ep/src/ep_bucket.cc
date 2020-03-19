@@ -1187,8 +1187,7 @@ bool EPBucket::doCompact(CompactionConfig& config,
             // VB currently locked; try again later.
             return true;
         }
-
-        if (!vb) {
+        if (!vb && cookie) {
             err = ENGINE_NOT_MY_VBUCKET;
             engine.storeEngineSpecific(cookie, nullptr);
             /**
@@ -1196,7 +1195,8 @@ bool EPBucket::doCompact(CompactionConfig& config,
              * visit the engine interface in case of a NOT_MY_VB notification
              */
             engine.decrementSessionCtr();
-        } else {
+        }
+        if (vb) {
             compactInternal(config, purgeSeqno);
         }
     } else {

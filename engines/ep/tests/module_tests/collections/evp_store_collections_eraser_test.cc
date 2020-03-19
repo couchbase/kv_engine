@@ -490,6 +490,31 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 }
 
+// MB found that if compaction is scheduled for a collection drop and the
+// vbucket is remove, a gsl not_null exception occurs as we enter some code
+// that expects a cookie, but the collection purge trigger has no cookie.
+TEST_P(CollectionsEraserTest, MB_38313) {
+    if (!persistent()) {
+        return;
+    }
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    // add some items
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
+
+    flush_vbucket_to_disk(vbid, 2 /* 1x system 2x items */);
+
+    // delete the collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // Remove vbucket
+    store->deleteVBucket(vbid, nullptr);
+    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+                "Compact DB file 0"); // would fault (gsl exception)
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(
         CollectionsEraserTests,
