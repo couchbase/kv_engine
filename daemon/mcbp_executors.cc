@@ -69,9 +69,14 @@ void update_topkeys(const Cookie& cookie) {
     if (topkey_commands[opcode]) {
         auto& bucket = cookie.getConnection().getBucket();
         const auto key = cookie.getRequestKey();
-        if (bucket.topkeys) {
-            bucket.topkeys->updateKey(
-                    key.data(), key.size(), mc_time_get_current_time());
+        // MB-32828: ChesireCat will deprecate top-keys and until removal
+        // only the default collection will be tracked
+        if (bucket.topkeys && key.getCollectionID().isDefaultCollection()) {
+            // Update top-keys using the un-prefixed key (logical key)
+            const auto defaultKey = key.makeDocKeyWithoutCollectionID();
+            bucket.topkeys->updateKey(defaultKey.data(),
+                                      defaultKey.size(),
+                                      mc_time_get_current_time());
         }
     }
 }
