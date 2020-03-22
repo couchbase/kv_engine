@@ -23,6 +23,8 @@
 #include "collections/manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
+#include "ep_time.h"
+#include "ephemeral_vb.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
@@ -2010,6 +2012,50 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 
     // And no more
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+}
+
+// Because there is never an explicit create event for the default collection
+// we can never purge it's tombstone.
+TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // 1) Drop the default collection
+    // 2) Add a new collection so that the drop event is not the high-seq
+    CollectionsManifest cm;
+    store->setCollections(std::string{cm.remove(CollectionEntry::defaultC)});
+    store->setCollections(std::string{cm.add(CollectionEntry::meat)});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    if (persistent()) {
+        // collection purger runs (was scheduled by the drop of default)
+        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+                    "Compact DB file 0");
+        runCompaction(ep_real_time() + 10000, 3);
+    } else {
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
+        evb->purgeStaleItems();
+    }
+
+    // Clear everything from CP manager so DCP backfills
+    vb->checkpointManager->clear(vbucket_state_active);
+
+    createDcpObjects({{}});
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*from-memory... false backfill*/);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::defaultC.getId(), producers->last_collection_id);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
 }
 
 // Test cases which run for persistent and ephemeral buckets

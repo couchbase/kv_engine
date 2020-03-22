@@ -624,6 +624,14 @@ int64_t Manifest::queueCollectionSystemEvent(
 
     auto item = makeCollectionSystemEvent(
             getManifestUid(), cid, collectionName, entry, deleted, seq);
+
+    // We can never purge the drop of the default collection because it has an
+    // implied creation event. If we did allow the default collection tombstone
+    // to be purged a client would wrongly assume it exists.
+    if (!seq.is_initialized() && deleted && cid.isDefaultCollection()) {
+        item->setExpTime(~0);
+    }
+
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.addSystemEventItem(item.release(), seq, cid, wHandle);
 

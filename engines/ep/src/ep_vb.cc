@@ -859,12 +859,12 @@ int64_t EPVBucket::addSystemEventItem(
         qi->setExpTime(ep_real_time());
     }
 
-        checkpointManager->queueDirty(
-                *this,
-                qi,
-                getGenerateBySeqno(seqno),
-                GenerateCas::Yes,
-                nullptr /* No pre link step as this is for system events */);
+    checkpointManager->queueDirty(
+            *this,
+            qi,
+            getGenerateBySeqno(seqno),
+            GenerateCas::Yes,
+            nullptr /* No pre link step as this is for system events */);
     VBNotifyCtx notifyCtx;
     // If the seqno is initialized, skip replication notification
     notifyCtx.notifyReplication = !seqno.is_initialized();
