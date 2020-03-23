@@ -1304,6 +1304,36 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
                       0 /*opaque*/, vbid, 1 /*prepareSeqno*/));
 }
 
+/**
+ * Regression test for MB-38356 - if a DCP consumer sends a stream request for
+ * a Vbid which it is already streaming, then the second request should fail,
+ * leaving the first stream as it was.
+ * (In the case of MB-38356 the first stream incorrectly lost it's cursor).
+ */
+TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    // Second request to same vbid should fail.
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, doStreamRequest(*producer).status);
+
+    // Original stream should still be established and allow items to be
+    // streamed.
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    const auto cursor = stream->getCursor();
+    EXPECT_TRUE(cursor.lock());
+    auto& vb = *engine->getVBucket(vbid);
+    auto& cm = *vb.checkpointManager;
+    std::vector<queued_item> items;
+    cm.getItemsForCursor(cursor.lock().get(), items, 0);
+    ASSERT_EQ(2, items.size());
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::set_vbucket_state, items.at(1)->getOperation());
+
+    destroy_dcp_stream();
+}
+
 class CacheCallbackTest : public StreamTest {
 protected:
     void SetUp() override {
