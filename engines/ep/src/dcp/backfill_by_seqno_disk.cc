@@ -50,7 +50,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
 
     if (lastPersistedSeqno < endSeqno) {
         stream->log(spdlog::level::level_enum::info,
-                    "({}) Rescheduling backfill"
+                    "({}) Rescheduling backfill "
                     "because backfill up to seqno {}"
                     " is needed but only up to "
                     "{} is persisted",

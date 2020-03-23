@@ -418,10 +418,10 @@ void ActiveStream::completeBackfill() {
     {
         LockHolder lh(streamMutex);
 
-        // backfills can be scheduled and return nothing. lastReadSeqno is
-        // monotonic (and assigned in many places). In this backfill assignment
-        // we will only assign when not equal
-        if (lastReadSeqno != lastBackfilledSeqno) {
+        // backfills can be scheduled and return nothing, leaving
+        // lastBackfilledSeqno to be behind lastReadSeqno. Only update when
+        // greater.
+        if (lastBackfilledSeqno > lastReadSeqno) {
             lastReadSeqno.store(lastBackfilledSeqno);
         }
 
