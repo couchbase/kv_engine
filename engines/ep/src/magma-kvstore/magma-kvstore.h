@@ -423,12 +423,26 @@ public:
      * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct
      */
     nlohmann::json encodeVBState(const vbucket_state& vbstate,
-                                 MagmaInfo& magmaInfo) const;
+                                 const MagmaInfo& magmaInfo) const;
 
     /**
      * Read the vbstate from disk and load into cache
      */
     magma::Status loadVBStateCache(Vbid vbid);
+
+    /**
+     * Write the vbucket_state and MagmaInfo to disk.
+     * This is done outside an atomic batch so we need to
+     * create a batch to write it.
+     *
+     * @param vbid vbucket id
+     * @param vbstate vbucket state
+     * @param minfo MagmaInfo
+     * @return status
+     */
+    magma::Status writeVBStateToDisk(Vbid vbid,
+                                     const vbucket_state& vbstate,
+                                     const MagmaInfo& minfo);
 
     /**
      * Return value of readVBStateFromDisk. Would have problems assigning
@@ -450,8 +464,8 @@ public:
      */
     magma::Status writeVBStateToDisk(Vbid vbid,
                                      magma::Magma::CommitBatch& commitBatch,
-                                     vbucket_state& vbs,
-                                     MagmaInfo& minfo);
+                                     const vbucket_state& vbs,
+                                     const MagmaInfo& minfo);
 
     /**
      * Get vbstate from cache. If cache not populated, read it from disk

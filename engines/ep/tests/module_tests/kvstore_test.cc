@@ -2979,9 +2979,10 @@ TEST_F(MagmaKVStoreTest, RollbackNoValidCommitPoint) {
 }
 
 TEST_F(MagmaKVStoreTest, prepareToCreate) {
-    EXPECT_THROW(kvstore->prepareToCreate(Vbid(0)), std::logic_error);
+    // initialize calls prepareToCreate twice and creates
+    // the vbucket by doing a snapshotVBucket.
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
-    ASSERT_EQ(1, int(kvsRev));
+    ASSERT_EQ(3, int(kvsRev));
     EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
 }
 
