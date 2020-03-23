@@ -17,6 +17,7 @@
 #include <platform/cb_malloc.h>
 
 #include "../mock/mock_basic_ll.h"
+#include "../mock/mock_function_helper.h"
 #include "hash_table.h"
 #include "item.h"
 #include "linked_list.h"
@@ -1046,16 +1047,6 @@ TEST_F(BasicLinkedListTest, PurgeEarlyExitsIfRangeIteratorExists) {
     });
 
     EXPECT_EQ(0, purgedCount);
-}
-
-// MockFunction.AsStdFunction exists, but due to MB-37860 could not
-// be used under windows. For now, this serves as a replacement
-template <class Return, class... Args>
-std::function<Return(Args...)> asStdFunction(
-        testing::MockFunction<Return(Args...)>& mockFunction) {
-    return [&mockFunction](Args&&... args) {
-        return mockFunction.Call(std::forward<Args>(args)...);
-    };
 }
 
 TEST_F(BasicLinkedListTest, PurgeRunsOnPartialRangeIfOverlappingRangeLock) {

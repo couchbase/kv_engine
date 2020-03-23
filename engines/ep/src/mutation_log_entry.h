@@ -34,6 +34,85 @@ enum class MutationLogType : uint8_t {
 
 std::string to_string(MutationLogType t);
 
+/**
+ * Used only for backwards compatibility when reading MutationLogEntryV2 from
+ * disk. SerialisedDocKey has changed layout, so this type is used to allow
+ * reading of access logs written by spock/vulcan/alice.
+ *
+ * This should be removed if MutationLogEntryV2 is ever removed.
+ *
+ * See MB-38327.
+ */
+class SpockSerialisedDocKey : public DocKeyInterface<SpockSerialisedDocKey> {
+public:
+    /**
+     * The copy/move constructor/assignment deleted due to the bytes living
+     * outside of the object.
+     */
+    SpockSerialisedDocKey(const SpockSerialisedDocKey& obj) = delete;
+    SpockSerialisedDocKey& operator=(const SpockSerialisedDocKey& obj) = delete;
+
+    SpockSerialisedDocKey(SpockSerialisedDocKey&& obj) = delete;
+    SpockSerialisedDocKey& operator=(SpockSerialisedDocKey&& obj) = delete;
+
+    const uint8_t* data() const {
+        return bytes;
+    }
+
+    size_t size() const {
+        return length;
+    }
+
+    DocKeyEncodesCollectionId getEncoding() const {
+        return DocKeyEncodesCollectionId::No;
+    }
+
+    operator DocKey() const {
+        return {bytes, length, DocKeyEncodesCollectionId::No};
+    }
+
+protected:
+    /**
+     * This type should _only_ be used by MutationLogEntryV2 to maintain
+     * compatibility with mutation logs written by older versions.
+     */
+    friend class MutationLogEntryV2;
+
+    SpockSerialisedDocKey() : length(0), docNamespace(0), bytes() {
+    }
+
+    /**
+     * Create a LegacySerialisedDocKey from a byte_buffer that has no collection
+     * data and requires the caller to state the collection-ID This is used by
+     * MutationLogEntryV1 -> V2 upgrade
+     */
+    explicit SpockSerialisedDocKey(cb::const_byte_buffer key)
+        : length(gsl::narrow_cast<uint8_t>(key.size())),
+          docNamespace(0),
+          bytes() {
+        // Assertions to protect the layout of MutationLogEntryV2 as
+        // compatibility must be maintained with entries written by older
+        // versions (entries are read from disk and reinterpret_cast).
+        static_assert(offsetof(SpockSerialisedDocKey, length) == 0,
+                      "length must be be at offset 0");
+        static_assert(offsetof(SpockSerialisedDocKey, bytes) == 2,
+                      "bytes must be be at offset 2");
+        std::copy(key.begin(), key.end(), reinterpret_cast<char*>(bytes));
+    }
+
+    uint8_t length{0};
+    // V2 entries always set the docNamespace member to 0.
+    // Upgrading to V3 ignores this value, so docNamespace is currently
+    // unused. This member is present to maintain compatibility with entries
+    // written by spock/vulcan/alice. Entries are read from disk then
+    // reinterpret_cast, so the struct layout is crucial.
+    uint8_t docNamespace;
+    uint8_t bytes[1];
+};
+
+static_assert(std::is_standard_layout<SpockSerialisedDocKey>::value,
+              "LegacySeralisedDocKey: must satisfy is_standard_layout");
+
 class MutationLogEntryV2;
 class MutationLogEntryV3;
 
@@ -193,9 +272,15 @@ public:
         : _vbucket(mleV1._vbucket),
           magic(MagicMarker),
           _type(mleV1._type),
-          _key({reinterpret_cast<const uint8_t*>(mleV1._key), mleV1.keylen},
-               CollectionID::Default) {
+          _key({reinterpret_cast<const uint8_t*>(mleV1._key), mleV1.keylen}) {
         (void)pad;
+        static_assert(offsetof(MutationLogEntryV2, _key) ==
+                              (sizeof(MutationLogEntryV2) -
+                               sizeof(SpockSerialisedDocKey)),
+                      "_key must be the final member of MutationLogEntryV2");
+        static_assert(sizeof(_key) == 3,
+                      "_key struct must be 3 bytes in size to maintain"
+                      "MutationLogEntryV2 layout");
     }
 
     /**
@@ -244,8 +329,10 @@ public:
      * the specified length.
      */
     static size_t len(size_t klen) {
-        // the exact empty record size as will be packed into the layout
-        return sizeof(MutationLogEntryV2) + klen;
+        // The exact empty record size as will be packed into the layout.
+        // one byte of the (non namespace prefixed) key overlaps the end of
+        // this struct; the first byte of the key byte array (_key.bytes).
+        return sizeof(MutationLogEntryV2) + (klen - 1);
     }
 
     /**
@@ -259,7 +346,7 @@ public:
     /**
      * This entry's key.
      */
-    const SerialisedDocKey& key() const {
+    const SpockSerialisedDocKey& key() const {
         return _key;
     }
 
@@ -286,8 +373,15 @@ private:
     const Vbid _vbucket;
     const uint8_t magic;
     const MutationLogType _type;
-    const uint8_t pad[2] = {}; // padding to ensure _key is the final member
-    const SerialisedDocKey _key;
+    const uint8_t pad{}; // padding to ensure _key is the final member
+    // MB-38327: SerialisedDocKey used to contain an explicit namespace
+    // byte. This was since removed, and is now treated as a prefix of
+    // the key itself.
+    // BUT, to correctly read V2 entries from disk, the semantics of
+    // the length field and the offset of the length field and of the
+    // start of the key bytes _must_ be retained. SpockSerialisedDocKey
+    // retains the previous layout. See the MB for details.
+    const SpockSerialisedDocKey _key;
 
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntryV2);
 
@@ -308,16 +402,16 @@ public:
 
     /**
      * Construct a V3 from V2.
-     * V2 stored a 1 byte namespace which was the value of 0. we could just
-     * treat that as a leb128 encoded DefaultCollection, but for cleanliness
-     * skip that first byte and re-encode as the DefaultCollection
+     * V2 stored a 1 byte namespace (which was the value of 0) but it is not
+     * treated as a prefix of the key (i.e., key.size() does not include it).
+     * For cleanliness, discard mleV2._key.docNamespace and re-encode the key
+     * with the DefaultCollection prefix.
      */
     MutationLogEntryV3(const MutationLogEntryV2& mleV2)
         : _vbucket(mleV2._vbucket),
           magic(MagicMarker),
           _type(mleV2._type),
-          _key({mleV2._key.data() + 1, mleV2._key.size() - 1},
-               CollectionID::Default) {
+          _key({mleV2._key.data(), mleV2._key.size()}, CollectionID::Default) {
         (void)pad;
     }
 
@@ -392,8 +486,24 @@ public:
      * the specified length.
      */
     static size_t len(size_t klen) {
-        // the exact empty record size as will be packed into the layout
+        // The exact empty record size as will be packed into the layout
+        // One byte of the key overlaps the end of this struct (_key.bytes).
         return sizeof(MutationLogEntryV3) + (klen - 1);
+    }
+
+    /**
+     * The size of a MutationLogEntryV3, in bytes, needed to contain the key
+     * from a MutationLogEntryV2.
+     */
+    static size_t len(const MutationLogEntryV2& mlev2) {
+        // the constructor of MLEV3 adds a one-byte namespace prefix to the key.
+        // MLEV2 does have a docNamespace field, but it is not included in the
+        // key length. The V2->V3 upgrade is the transition point, changing the
+        // semantics of the key length.
+        auto keylen = mlev2._key.size() + 1;
+        // The exact empty record size as will be packed into the layout
+        // One byte of the key overlaps the end of this struct (_key.bytes).
+        return len(keylen);
     }
 
     /**
@@ -435,7 +545,7 @@ private:
         static_assert(
                 offsetof(MutationLogEntryV3, _key) ==
                         (sizeof(MutationLogEntryV3) - sizeof(SerialisedDocKey)),
-                "_key must be the final member of MutationLogEntryV2");
+                "_key must be the final member of MutationLogEntryV3");
     }
 
     MutationLogEntryV3(MutationLogType t, Vbid vb)
