@@ -303,8 +303,9 @@ Available params for "set_vbucket_param":
     c.addCommand('start', start, 'start')
     c.addCommand('stop', stop, 'stop')
 
-    # Add collection get/set manifest methods
-    c.addCommand('set_collections', set_collections, 'set_collections filename')
-    c.addCommand('get_collections', get_collections, 'get_collections')
+    # Add collection get manifest methods - These should not be executed
+    # except for when required by support/development
+    c.addCommand('set_collections', set_collections, None, hidden=True)
+    c.addCommand('get_collections', get_collections, None, hidden=True)
 
     c.execute()

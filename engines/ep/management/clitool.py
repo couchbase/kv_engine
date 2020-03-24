@@ -15,10 +15,10 @@ class CliTool(object):
             usage="%prog host[:dataport] command [options]\n\n"
                   "dataport [default:11210]")
 
-    def addCommand(self, name, f, help=None):
+    def addCommand(self, name, f, help=None, hidden=False):
         if not help:
             help = name
-        self.cmds[name] = (f, help)
+        self.cmds[name] = (f, help, hidden)
 
     def addFlag(self, flag, key, description):
         self.flags[flag] = description
@@ -83,7 +83,8 @@ class CliTool(object):
     def format_command_list(self):
         output = ""
 
-        cmds = sorted(c[1] for c in self.cmds.values())
+        # Create list and ignore any hidden=True commands
+        cmds = sorted(c[1] for c in (y for y in self.cmds.values() if not y[2]))
         output += "\nCommands:\n"
 
         for c in cmds:
