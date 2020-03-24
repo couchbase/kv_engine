@@ -463,14 +463,13 @@ cb::mcbp::Status Cookie::validate() {
             auto result = packetValidator.validate(opcode, *this);
             if (result != cb::mcbp::Status::Success) {
                 LOG_WARNING(
-                        "{}: Invalid format specified for \"{}\" - Status: "
-                        "\"{}\" - Closing connection. Packet:[{}] "
-                        "Reason:\"{}\"",
+                        "{}: Packet validation failed for \"{}\" - Status: "
+                        "\"{}\" - Packet:[{}] - Returned payload:[{}]",
                         connection.getId(),
                         to_string(opcode),
                         to_string(result),
                         request.toJSON(false).dump(),
-                        getErrorContext());
+                        getErrorJson());
                 audit_invalid_packet(getConnection(), getPacket());
                 return result;
             }
