@@ -293,7 +293,6 @@ CouchRequest::CouchRequest(queued_item it)
     dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
 
     dbDocInfo.rev_seq = item->getRevSeqno();
-    dbDocInfo.size = dbDoc.data.size;
 
     if (item->isDeleted() && !item->isPending()) {
         // Prepared SyncDeletes are not marked as deleted.
@@ -1966,8 +1965,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     }
 
     if (metaOnly == GetMetaOnly::Yes) {
-        auto it = makeItemFromDocInfo(
-                vbId, *docinfo, *metadata, {nullptr, docinfo->size});
+        auto it = makeItemFromDocInfo(vbId, *docinfo, *metadata, {nullptr, 0});
 
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
@@ -2255,9 +2253,10 @@ static void saveDocsCallback(const DocInfo* oldInfo,
  * "useful" data ep-engine is writing to disk for this document.
  * Used for Write Amplification calculation.
  */
-static size_t calcLogicalDataSize(const DocInfo& info) {
-    // key len + revision metadata (expiry, flags, etc) + value len.
-    return info.id.size + info.rev_meta.size + info.size;
+static size_t calcLogicalDataSize(const Doc* doc, const DocInfo& info) {
+    // key len + revision metadata (expiry, flags, etc) + value len (if not
+    // deleted).
+    return info.id.size + info.rev_meta.size + (doc ? doc->data.size : 0);
 }
 
 couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
@@ -2290,7 +2289,8 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                 maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
 
                 // Accumulate the size of the useful data in this docinfo.
-                docsLogicalBytes += calcLogicalDataSize(*docinfos[idx]);
+                docsLogicalBytes +=
+                        calcLogicalDataSize(docs[idx], *docinfos[idx]);
             }
 
             auto cs_begin = std::chrono::steady_clock::now();
@@ -2413,8 +2413,8 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                                   kvstats_ctx& kvctx,
                                   couchstore_error_t errCode) {
     for (auto& committed : committedReqs) {
-        const auto docLogicalSize =
-                calcLogicalDataSize(*committed.getDbDocInfo());
+        const auto docLogicalSize = calcLogicalDataSize(
+                committed.getDbDoc(), *committed.getDbDocInfo());
         /* update ep stats */
         ++st.io_num_write;
         st.io_document_write_bytes += docLogicalSize;
