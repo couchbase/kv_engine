@@ -104,7 +104,7 @@ public:
                  IncludeDeleteTime includeDeleteTime,
                  Collections::VB::Filter filter);
 
-    virtual ~ActiveStream();
+    ~ActiveStream() override;
 
     std::unique_ptr<DcpResponse> next() override;
 
@@ -424,9 +424,9 @@ protected:
 
     //! Stats to track items read and sent from the backfill phase
     struct {
-        std::atomic<size_t> memory;
-        std::atomic<size_t> disk;
-        std::atomic<size_t> sent;
+        std::atomic<size_t> memory = 0;
+        std::atomic<size_t> disk = 0;
+        std::atomic<size_t> sent = 0;
     } backfillItems;
 
     /* The last sequence number queued from disk or memory and is
@@ -488,7 +488,7 @@ private:
      */
     void scheduleBackfill_UNLOCKED(bool reschedule);
 
-    std::string getEndStreamStatusStr(end_stream_status_t status);
+    static std::string getEndStreamStatusStr(end_stream_status_t status);
 
     bool isCurrentSnapshotCompleted() const;
 
@@ -527,8 +527,8 @@ private:
      *
      * @return log level
      */
-    spdlog::level::level_enum getTransitionStateLogLevel(StreamState currState,
-                                                         StreamState newState);
+    static spdlog::level::level_enum getTransitionStateLogLevel(
+            StreamState currState, StreamState newState);
 
     /**
      * Performs the basic actions for closing a stream (ie, queueing a
@@ -586,12 +586,12 @@ private:
     const std::weak_ptr<DcpProducer> producerPtr;
 
     struct {
-        std::atomic<size_t> bytes;
-        std::atomic<size_t> items;
+        std::atomic<size_t> bytes = 0;
+        std::atomic<size_t> items = 0;
     } bufferedBackfill;
 
     /// Records the time at which the TakeoverSend phase begins.
-    std::atomic<rel_time_t> takeoverStart;
+    std::atomic<rel_time_t> takeoverStart = 0;
 
     /**
      * Maximum amount of time the TakeoverSend phase is permitted to take before

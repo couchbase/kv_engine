@@ -668,9 +668,9 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
             // backfill being scheduled
             transitionState(StreamState::Backfilling);
             pendingBackfill = false;
-            return NULL;
+            return {};
         } else if (nextCheckpointItem()) {
-            return NULL;
+            return {};
         }
     }
     return nextQueuedItem();
@@ -687,12 +687,12 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
         return nextQueuedItem();
     } else {
         if (nextCheckpointItem()) {
-            return NULL;
+            return {};
         }
     }
 
     if (waitForSnapshot != 0) {
-        return NULL;
+        return {};
     }
 
     if (vb) {
