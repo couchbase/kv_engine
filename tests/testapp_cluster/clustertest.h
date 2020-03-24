@@ -24,6 +24,7 @@ class MemcachedConnection;
 namespace cb {
 namespace test {
 
+class Bucket;
 class Cluster;
 
 /**
@@ -56,6 +57,19 @@ protected:
                     const std::string& key);
 
     static std::unique_ptr<Cluster> cluster;
+};
+
+class UpgradeTest : public ClusterTest {
+public:
+    static void SetUpTestCase();
+
+    static void TearDownTestCase() {
+        bucket.reset();
+        ClusterTest::TearDownTestCase();
+    }
+
+protected:
+    static std::shared_ptr<Bucket> bucket;
 };
 
 } // namespace test

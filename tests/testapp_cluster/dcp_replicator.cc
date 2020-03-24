@@ -255,6 +255,8 @@ void DcpReplicatorImpl::createDcpPipe(const Cluster& cluster,
     mine->setFeatures(name, features);
     BinprotDcpOpenCommand consumerOpenCommand{name};
 
+    consumerOpenCommand.setFlags(specific.dcpOpenFlags);
+
     if (specific.syncRepl) {
         consumerOpenCommand.setConsumerName("n_" +
                                             std::to_string(specific.consumer));

@@ -27,39 +27,7 @@
 namespace cb {
 namespace test {
 
-class DurabilityUpgradeTest : public ClusterTest {
-public:
-    static void SetUpTestCase() {
-        // Can't just use the ClusterTest::SetUp as we need to prevent it from
-        // creating replication streams so that we can create them as we like to
-        // mock upgrade scenarios.
-        cluster = Cluster::create(3);
-        if (!cluster) {
-            std::cerr << "Failed to create the cluster" << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
-
-        try {
-            bucket = cluster->createBucket("default",
-                                           {{"replicas", 2},
-                                            {"max_vbuckets", 1},
-                                            {"max_num_shards", 1}},
-                                           {},
-                                           false /*No replication*/);
-        } catch (const std::runtime_error& error) {
-            std::cerr << error.what();
-            std::exit(EXIT_FAILURE);
-        }
-    }
-
-    static void TearDownTestCase() {
-        bucket.reset();
-        ClusterTest::TearDownTestCase();
-    }
-
-protected:
-    static std::shared_ptr<Bucket> bucket;
-};
+class DurabilityUpgradeTest : public UpgradeTest {};
 
 /**
  * Test that when we receive a Disk snapshot from a non-MH node that we do not
@@ -127,5 +95,3 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
 
 } // namespace test
 } // namespace cb
-
-std::shared_ptr<cb::test::Bucket> cb::test::DurabilityUpgradeTest::bucket;

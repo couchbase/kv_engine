@@ -2466,6 +2466,11 @@ static test_result testDcpProducerExpiredItemBackfill(
     const void* cookie = testHarness->create_cookie();
     TestDcpConsumer tdc("unittest", cookie, h);
     uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
+
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        // dcp expiry requires the connection to opt in to delete times
+        flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
+    }
     tdc.openConnection(flags);
 
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
@@ -5786,7 +5791,11 @@ static test_result test_dcp_replica_stream_expiries(
         EngineIface* h, EnableExpiryOutput enableExpiryOutput) {
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
-    uint32_t flags = 0;
+    // dcp expiry requires the connection to opt in to delete times
+    uint32_t flags =
+            enableExpiryOutput == EnableExpiryOutput::Yes
+                    ? cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes
+                    : 0;
     const int num_items = 5;
     const char* name = "unittest";
     const uint32_t expiryTime = 256;
@@ -5842,7 +5851,7 @@ static test_result test_dcp_replica_stream_expiries(
 
     const void* cookie1 = testHarness->create_cookie();
     TestDcpConsumer tdc("unittest1", cookie1, h);
-    tdc.openConnection();
+    tdc.openConnection(flags | cb::mcbp::request::DcpOpenPayload::Producer);
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
         checkeq(ENGINE_SUCCESS,
                 tdc.sendControlMessage("enable_expiry_opcode", "true"),
@@ -5921,6 +5930,10 @@ static test_result test_stream_deleteWithMeta_expiration(
     const void* cookie = testHarness->create_cookie();
     TestDcpConsumer tdc("unittest", cookie, h);
     uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        // dcp expiry requires the connection to opt in to delete times
+        flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
+    }
     tdc.openConnection(flags);
 
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {

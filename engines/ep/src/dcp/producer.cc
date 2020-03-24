@@ -1003,15 +1003,12 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
            option to toggle it back mid way during the connection */
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "enable_expiry_opcode", key.size()) == 0) {
-        if (valueStr == "true") {
-            // Expiry opcode uses the same encoding as deleteV2 (includes
-            // delete time); therefore a client enabling expiry_opcode also
-            // implicitly enables includeDeletetime.
-            includeDeleteTime = IncludeDeleteTime::Yes;
-            enableExpiryOpcode = true;
-        } else {
-            enableExpiryOpcode = false;
-        }
+        // Expiry opcode uses the same encoding as deleteV2 (includes
+        // delete time); therefore a client can only enable expiry_opcode
+        // if the dcpOpen flags have includeDeleteTime set.
+        enableExpiryOpcode = valueStr == "true" &&
+                             includeDeleteTime == IncludeDeleteTime::Yes;
+
         return ENGINE_SUCCESS;
     } else if (keyStr == "enable_stream_id") {
         if (valueStr != "true") {
