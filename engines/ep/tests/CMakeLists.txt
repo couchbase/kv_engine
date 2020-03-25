@@ -105,7 +105,8 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
-        ${Couchstore_SOURCE_DIR})
+        ${Couchstore_SOURCE_DIR}
+        ${EventuallyPersistentEngine_BINARY_DIR}/tests/include)
 
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         cbcompress
@@ -363,3 +364,7 @@ ADD_TEST(NAME ep_perfsuite.ephemeral
         COMMAND ${_ep_perfsuite_cmdline} -e "bucket_type=ephemeral$<SEMICOLON>dbname=./ep_perfsuite.ephemeral.db")
 
 # ============================================================================ #
+
+configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/module_tests/test_file_helper.h.in
+        ${EventuallyPersistentEngine_BINARY_DIR}/tests/include/test_file_helper.h)
