@@ -31,6 +31,26 @@ class MockPassiveStream;
  */
 class StreamTest : public DCPTest,
                    public ::testing::WithParamInterface<std::string> {
+public:
+    static auto allConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_MAGMA
+                "persistentMagma",
+#endif
+                "persistent",
+                "ephemeral");
+    }
+
+    static auto persistentConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_MAGMA
+                "persistentMagma",
+#endif
+                "persistent");
+    }
+
 protected:
     void SetUp() override;
 
