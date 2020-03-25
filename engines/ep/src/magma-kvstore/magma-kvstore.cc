@@ -32,6 +32,7 @@
 #include <string.h>
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 class Snapshot;
 
@@ -217,11 +218,11 @@ static_assert(sizeof(MetaData) == 47,
 } // namespace magmakv
 
 // Keys to localdb docs
-static const Slice vbstateKey = {"_vbstate"};
-static const Slice manifestKey = {"_collections/manifest"};
-static const Slice openCollectionsKey = {"_collections/open"};
-static const Slice openScopesKey = {"_scopes/open"};
-static const Slice droppedCollectionsKey = {"_collections/dropped"};
+static const std::string vbstateKey = "_vbstate";
+static const std::string manifestKey = "_collections/manifest";
+static const std::string openCollectionsKey = "_collections/open";
+static const std::string openScopesKey = "_scopes/open";
+static const std::string droppedCollectionsKey = "_collections/dropped";
 
 /**
  * Class representing a document to be persisted in Magma.
@@ -570,13 +571,14 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     cachedVBStates.resize(configuration.getMaxVBuckets());
 
-    commitPointEveryBatch = configuration.getMagmaCommitPointEveryBatch();
     useUpsertForSet = configuration.getMagmaEnableUpsert();
     if (useUpsertForSet) {
         configuration.magmaCfg.EnableUpdateStatusForSet = false;
     } else {
         configuration.magmaCfg.EnableUpdateStatusForSet = true;
     }
+
+    doCommitEveryBatch = configuration.getMagmaCommitPointEveryBatch();
 
     // Set up thread and memory tracking.
     auto currEngine = ObjectRegistry::getCurrentEngine();
@@ -1168,72 +1170,33 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
 int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
     uint64_t ninserts = 0;
     uint64_t ndeletes = 0;
-    int64_t lastSeqno = 0;
-
     auto vbid = transactionCtx->vbid;
 
-    // Start a magma CommitBatch.
-    // This is an atomic batch of items... all or nothing.
-    std::unique_ptr<Magma::CommitBatch> batch;
-    auto& minfo = getMagmaInfo(vbid);
-    Status status = magma->NewCommitBatch(
-            vbid.get(),
-            batch,
-            static_cast<Magma::KVStoreRevision>(minfo.kvstoreRev));
-    if (!status) {
-        logger->warn(
-                "MagmaKVStore::saveDocs NewCommitBatch failed {} status:{}",
-                vbid,
-                status.String());
-        return status.ErrorCode();
-    }
-
-    auto begin = std::chrono::steady_clock::now();
-
-    for (auto& req : *pendingReqs) {
-        Slice key = Slice{req.getKey(), req.getKeyLen()};
-        auto docMeta = req.getDocMeta();
-        Slice meta = Slice{reinterpret_cast<char*>(&docMeta),
-                           sizeof(magmakv::MetaData)};
-        Slice value = Slice{req.getBodyData(), req.getBodySize()};
-
-        if (req.getDocMeta().bySeqno > lastSeqno) {
-            lastSeqno = req.getDocMeta().bySeqno;
-        }
-
-        bool found{false};
-        bool tombstone{false};
-        status = batch->Set(key, meta, value, &found, &tombstone);
-        if (!status) {
-            logger->warn("MagmaKVStore::saveDocs: Set {} status:{}",
-                         vbid,
-                         status.String());
-            req.markRequestFailed();
-            continue;
-        }
+    auto writeDocsCB = [this, &commitData, &kvctx, &ninserts, &ndeletes, vbid](
+                               const Magma::WriteOperation& op,
+                               const bool docExists,
+                               const bool isTombstone) {
+        auto req = reinterpret_cast<MagmaRequest*>(op.UserData);
+        auto diskDocKey = makeDiskDocKey(op.Key);
+        auto docKey = diskDocKey.getDocKey();
 
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
-                    "MagmaKVStore::saveDocs {} key:{} seqno:{} delete:{} "
-                    "found:{} "
-                    "tombstone:{}",
+                    "MagmaKVStore::writeDocsCB {} key:{} seqno:{} delete:{} "
+                    "docExists:{} tombstone:{}",
                     vbid,
-                    cb::UserData{makeDiskDocKey(key).to_string()},
-                    req.getDocMeta().bySeqno,
-                    req.isDelete(),
-                    found,
-                    tombstone);
+                    cb::UserData{diskDocKey.to_string()},
+                    req->getDocMeta().bySeqno,
+                    req->isDelete(),
+                    docExists,
+                    isTombstone);
         }
-
-        auto diskDocKey = makeDiskDocKey(key);
-        auto docKey = diskDocKey.getDocKey();
-
-        if (found) {
-            req.markOldItemExists();
-            if (tombstone) {
-                req.markOldItemIsDelete();
+        if (docExists) {
+            req->markOldItemExists();
+            if (isTombstone) {
+                req->markOldItemIsDelete();
                 // Old item is a delete and new is an insert.
-                if (!req.isDelete()) {
+                if (!req->isDelete()) {
                     ninserts++;
                     if (diskDocKey.isCommitted()) {
                         commitData.collections.incrementDiskCount(docKey);
@@ -1241,7 +1204,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                         kvctx.onDiskPrepareDelta++;
                     }
                 }
-            } else if (req.isDelete()) {
+            } else if (req->isDelete()) {
                 // Old item is insert and new is delete.
                 ndeletes++;
                 if (diskDocKey.isCommitted()) {
@@ -1252,7 +1215,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             }
         } else {
             // Old item doesn't exist and new is an insert.
-            if (!req.isDelete()) {
+            if (!req->isDelete()) {
                 ninserts++;
                 if (diskDocKey.isCommitted()) {
                     commitData.collections.incrementDiskCount(docKey);
@@ -1262,66 +1225,92 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             }
         }
 
-        if (req.oldItemExists()) {
-            if (!req.oldItemIsDelete()) {
+        if (req->oldItemExists()) {
+            if (!req->oldItemIsDelete()) {
                 // If we are replacing the item...
                 kvctx.keyWasOnDisk.insert(diskDocKey);
             }
         }
 
         commitData.collections.setPersistedHighSeqno(
-                docKey, req.getDocMeta().bySeqno, int(req.isDelete()));
-    }
+                docKey, req->getDocMeta().bySeqno, int(req->isDelete()));
+    };
 
-    commitData.collections.saveCollectionStats(
-            std::bind(&MagmaKVStore::saveCollectionStats,
-                      this,
-                      std::ref(*(batch.get())),
-                      std::placeholders::_1,
-                      std::placeholders::_2));
+    // LocalDbReqs is used to store the memory for the localDb updates.
+    LocalDbReqs localDbReqs;
+    int64_t lastSeqno = 0;
 
-    auto& vbstate = commitData.proposedVBState;
-    vbstate.highSeqno = lastSeqno;
-    vbstate.onDiskPrepares += kvctx.onDiskPrepareDelta;
-    auto& magmaInfo = getMagmaInfo(vbid);
+    auto postWriteDocsCB = [this,
+                            &commitData,
+                            &kvctx,
+                            &localDbReqs,
+                            &lastSeqno,
+                            &vbid,
+                            &ninserts,
+                            &ndeletes](WriteOps& postWriteOps) {
+        commitData.collections.saveCollectionStats(
+                std::bind(&MagmaKVStore::saveCollectionStats,
+                          this,
+                          std::ref(localDbReqs),
+                          std::placeholders::_1,
+                          std::placeholders::_2));
+        Status status;
+        auto& vbstate = commitData.proposedVBState;
+        vbstate.highSeqno = lastSeqno;
+        vbstate.onDiskPrepares += kvctx.onDiskPrepareDelta;
+        auto& magmaInfo = getMagmaInfo(vbid);
+        magmaInfo.docCount += ninserts - ndeletes;
+        magmaInfo.persistedDeletes += ndeletes;
 
-    magmaInfo.docCount += ninserts - ndeletes;
-    magmaInfo.persistedDeletes += ndeletes;
+        // Write out current vbstate to the CommitBatch.
+        addVBStateUpdateToLocalDbReqs(localDbReqs, vbstate, magmaInfo);
 
-    // Write out current vbstate to the CommitBatch.
-    status = writeVBStateToDisk(vbid, *(batch.get()), vbstate, magmaInfo);
-    if (!status) {
-        return status.ErrorCode();
-    }
-
-    if (collectionsMeta.needsCommit) {
-        status = updateCollectionsMeta(
-                vbid, *(batch.get()), commitData.collections);
-        if (!status) {
-            logger->warn(
-                    "MagmaKVStore::saveDocs: updateCollectionsMeta status:{}",
-                    status.String());
+        if (collectionsMeta.needsCommit) {
+            updateCollectionsMeta(vbid, localDbReqs, commitData.collections);
         }
+        addLocalDbReqs(localDbReqs, postWriteOps);
+    };
+
+    auto begin = std::chrono::steady_clock::now();
+
+    // Vector of updates to be written to the data store.
+    WriteOps writeOps;
+    writeOps.reserve(pendingReqs->size());
+
+    // TODO: Replace writeOps with Magma::WriteOperations when it
+    // becomes available. This will allow us to pass pendingReqs
+    // in and create the WriteOperation from the pendingReqs queue.
+    for (auto& req : *pendingReqs) {
+        auto& docMeta = req.getDocMeta();
+        Slice valSlice{req.getBodyData(), req.getBodySize()};
+        if (req.getDocMeta().bySeqno > lastSeqno) {
+            lastSeqno = req.getDocMeta().bySeqno;
+        }
+        writeOps.emplace_back(Magma::WriteOperation::NewDocUpdate(
+                {req.getKey(), req.getKeyLen()},
+                {reinterpret_cast<char*>(&docMeta), sizeof(magmakv::MetaData)},
+                valSlice,
+                &req));
     }
 
-    // Done with the CommitBatch so add in the endTxn and create
-    // a snapshot so that documents can not be read.
-    status = magma->ExecuteCommitBatch(std::move(batch));
+    auto& minfo = getMagmaInfo(vbid);
+    auto status = magma->WriteDocs(vbid.get(),
+                                   writeOps,
+                                   minfo.kvstoreRev,
+                                   writeDocsCB,
+                                   postWriteDocsCB);
+
     if (!status) {
-        logger->warn("MagmaKVStore::saveDocs: ExecuteCommitBatch {} status:{}",
-                     vbid,
-                     status.String());
-    } else {
-        // Flush the WAL to disk.
-        // If the shard writeCache is full, this will trigger all the
-        // KVStores to persist their memtables.
-        status = magma->SyncCommitBatches(commitPointEveryBatch);
-        if (!status) {
-            logger->warn(
-                    "MagmaKVStore::saveDocs: SyncCommitBatches {} status:{}",
-                    vbid,
-                    status.String());
-        }
+        logger->critical(
+                "MagmaKVStore::saveDocs {} WriteDocs failed. Status:{}",
+                vbid,
+                status.String());
+    }
+    status = magma->Sync(doCommitEveryBatch);
+    if (!status) {
+        logger->critical("MagmaKVStore::saveDocs {} Sync failed. Status:{}",
+                         vbid,
+                         status.String());
     }
 
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1616,8 +1605,6 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) {
 }
 
 vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
-
-    // Have to assume the caller is protecting the vbstate
     auto vbstate = cachedVBStates[vbid.get()].get();
     if (vbstate && logger->should_log(spdlog::level::TRACE)) {
         auto& minfo = getMagmaInfo(vbid);
@@ -1631,7 +1618,8 @@ vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     Status status;
     std::string valString;
-    std::tie(status, valString) = readLocalDoc(vbid, vbstateKey);
+    Slice keySlice(vbstateKey);
+    std::tie(status, valString) = readLocalDoc(vbid, keySlice);
 
     if (!status.IsOK()) {
         return {status, {}, {}};
@@ -1657,7 +1645,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     MagmaInfo magmaInfo = {
             std::stoull(j.at("doc_count").get<std::string>()),
             std::stoull(j.at("persisted_deletes").get<std::string>()),
-            std::stoull(j.at("kvstore_revision").get<std::string>())};
+            std::stoul(j.at("kvstore_revision").get<std::string>())};
 
     return {status, vbstate, magmaInfo};
 }
@@ -1679,14 +1667,13 @@ magma::Status MagmaKVStore::loadVBStateCache(Vbid vbid) {
     return Status::OK();
 }
 
-magma::Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
-                                               Magma::CommitBatch& commitBatch,
-                                               const vbucket_state& vbs,
-                                               const MagmaInfo& minfo) {
-    auto jstr = encodeVBState(vbs, minfo).dump();
-    logger->TRACE("MagmaKVStore::writeVBStateToDisk {} vbstate:{}", vbid, jstr);
-    Slice valSlice(jstr);
-    return setLocalDoc(commitBatch, vbstateKey, valSlice);
+void MagmaKVStore::addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
+                                                 const vbucket_state& vbs,
+                                                 const MagmaInfo& minfo) {
+    std::string vbstateString = encodeVBState(vbs, minfo).dump();
+    logger->TRACE("MagmaKVStore::writeVBStateToDisk vbstate:{}", vbstateString);
+    localDbReqs.emplace_back(
+            MagmaLocalReq(vbstateKey, std::move(vbstateString)));
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
@@ -1720,28 +1707,6 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         }
     }
     return std::make_pair(retStatus, valSlice.ToString());
-}
-
-Status MagmaKVStore::setLocalDoc(Magma::CommitBatch& commitBatch,
-                                 const Slice& keySlice,
-                                 const Slice& valSlice) {
-    if (logger->should_log(spdlog::level::TRACE)) {
-        logger->TRACE("MagmaKVStore::setLocalDoc {} key:{} valueLen:{}",
-                      commitBatch.GetkvID(),
-                      keySlice.ToString(),
-                      valSlice.Len());
-    }
-    return commitBatch.SetLocal(keySlice, valSlice);
-}
-
-Status MagmaKVStore::deleteLocalDoc(Magma::CommitBatch& commitBatch,
-                                    const Slice& keySlice) {
-    if (logger->should_log(spdlog::level::TRACE)) {
-        logger->TRACE("MagmaKVStore::deleteLocalDoc {} key:{}",
-                      commitBatch.GetkvID(),
-                      keySlice.ToString());
-    }
-    return commitBatch.DeleteLocal(keySlice);
 }
 
 nlohmann::json MagmaKVStore::encodeVBState(const vbucket_state& vbstate,
@@ -1963,21 +1928,6 @@ bool MagmaKVStore::compactDBInternal(compaction_ctx* ctx) {
 
     // Need to save off new vbstate and possibly collections manifest.
     // Start a new CommitBatch
-    std::unique_ptr<Magma::CommitBatch> batch;
-
-    status = magma->NewCommitBatch(
-            vbid.get(),
-            batch,
-            static_cast<Magma::KVStoreRevision>(getMagmaInfo(vbid).kvstoreRev));
-    if (!status) {
-        logger->warn(
-                "MagmaKVStore::compactDBInternal: failed creating batch for {} "
-                "status:{}",
-                vbid,
-                status.String());
-        return false;
-    }
-
     auto vbstate = getVBucketState(vbid);
     auto& minfo = getMagmaInfo(vbid);
     vbstate->onDiskPrepares -= ctx->stats.preparesPurged;
@@ -1993,36 +1943,38 @@ bool MagmaKVStore::compactDBInternal(compaction_ctx* ctx) {
         ctx->completionCallback(*ctx);
     }
 
-    writeVBStateToDisk(vbid, *(batch.get()), *vbstate, minfo);
+    LocalDbReqs localDbReqs;
+    addVBStateUpdateToLocalDbReqs(localDbReqs, *vbstate, minfo);
 
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
-        status = deleteLocalDoc(*(batch.get()), droppedCollectionsKey);
-        if (!status) {
-            logger->warn(
-                    "MagmaKVStore::compactDBInternal: magma::deleteLocalDoc "
-                    "{} update dropped collections failed status:{}",
-                    vbid,
-                    status.String());
-        }
+        // Delete dropped collections.
+        localDbReqs.emplace_back(
+                MagmaLocalReq::makeDeleted(droppedCollectionsKey));
     }
 
-    // Write & Sync the CommitBatch
-    status = magma->ExecuteCommitBatch(std::move(batch));
+    WriteOps writeOps;
+    addLocalDbReqs(localDbReqs, writeOps);
+
+    status = magma->WriteDocs(vbid.get(), writeOps, minfo.kvstoreRev);
     if (!status) {
-        logger->warn(
-                "MagmaKVStore::compactDBInternal: magma::ExecuteCommitBatch "
-                "{} status:{}",
+        logger->critical(
+                "MagmaKVStore::compactDBInternal {} WriteDocs failed. "
+                "Status:{}",
                 vbid,
                 status.String());
-    } else {
-        status = magma->SyncCommitBatches(commitPointEveryBatch);
-        if (!status) {
-            logger->warn(
-                    "MagmaKVStore::compactDBInternal: magma::SyncCommitBatches "
-                    "{} status:{}",
-                    vbid,
-                    status.String());
-        }
+        std::lock_guard<std::mutex> lock(compactionCtxMutex);
+        compaction_ctxList[vbid.get()].reset();
+        return false;
+    }
+    status = magma->Sync(doCommitEveryBatch);
+    if (!status) {
+        logger->critical(
+                "MagmaKVStore::compactDBInternal {} Sync failed. Status:{}",
+                vbid,
+                status.String());
+        std::lock_guard<std::mutex> lock(compactionCtxMutex);
+        compaction_ctxList[vbid.get()].reset();
+        return false;
     }
 
     st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -2077,6 +2029,9 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                     ec->isLogicallyDeleted(docKey, seqno)) {
                     return;
                 }
+                logger->TRACE("MagmaKVStore::rollback callback key:{} seqno:{}",
+                              cb::UserData{diskKey.to_string()},
+                              seqno);
                 auto rv = this->makeGetValue(
                         vbid, keySlice, metaSlice, Slice(), GetMetaOnly::Yes);
                 cb->callback(rv);
@@ -2125,7 +2080,8 @@ Collections::KVStore::Manifest MagmaKVStore::getCollectionsManifest(Vbid vbid) {
     std::tie(status, openScopes) = readLocalDoc(vbid, openScopesKey);
 
     std::string droppedCollections;
-    std::tie(status, droppedCollections) = readLocalDoc(vbid, droppedCollectionsKey);
+    std::tie(status, droppedCollections) =
+            readLocalDoc(vbid, droppedCollectionsKey);
     return Collections::KVStore::decodeManifest(
             {reinterpret_cast<const uint8_t*>(manifest.data()),
              manifest.length()},
@@ -2141,20 +2097,18 @@ std::vector<Collections::KVStore::DroppedCollection>
 MagmaKVStore::getDroppedCollections(Vbid vbid) {
     Status status;
     std::string dropped;
-    std::tie(status, dropped) = readLocalDoc(vbid, droppedCollectionsKey);
+    Slice keySlice(droppedCollectionsKey);
+    std::tie(status, dropped) = readLocalDoc(vbid, keySlice);
     return Collections::KVStore::decodeDroppedCollections(
             {reinterpret_cast<const uint8_t*>(dropped.data()),
              dropped.length()});
 }
 
-Status MagmaKVStore::updateCollectionsMeta(
+void MagmaKVStore::updateCollectionsMeta(
         Vbid vbid,
-        Magma::CommitBatch& commitBatch,
+        LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
-    auto status = updateManifestUid(commitBatch);
-    if (!status) {
-        return status;
-    }
+    updateManifestUid(localDbReqs);
 
     // If the updateOpenCollections reads the dropped collections, it can pass
     // them via this optional to updateDroppedCollections, thus we only read
@@ -2163,68 +2117,55 @@ Status MagmaKVStore::updateCollectionsMeta(
 
     if (!collectionsMeta.collections.empty() ||
         !collectionsMeta.droppedCollections.empty()) {
-        std::tie(status, dropped) = updateOpenCollections(vbid, commitBatch);
-        if (!status) {
-            return status;
-        }
+        dropped = updateOpenCollections(vbid, localDbReqs);
     }
 
     if (!collectionsMeta.droppedCollections.empty()) {
         if (!dropped.has_value()) {
             dropped = getDroppedCollections(vbid);
         }
-        status = updateDroppedCollections(vbid, commitBatch, dropped);
-        if (!status) {
-            return status;
-        }
+        updateDroppedCollections(vbid, localDbReqs, dropped);
         collectionsFlush.setNeedsPurge();
     }
 
     if (!collectionsMeta.scopes.empty() ||
         !collectionsMeta.droppedScopes.empty()) {
-        status = updateScopes(vbid, commitBatch);
-        if (!status) {
-            return status;
-        }
+        updateScopes(vbid, localDbReqs);
     }
 
     collectionsMeta.clear();
-    return Status::OK();
 }
 
-Status MagmaKVStore::updateManifestUid(Magma::CommitBatch& commitBatch) {
-    // write back, no read required
+void MagmaKVStore::updateManifestUid(LocalDbReqs& localDbReqs) {
     auto buf = Collections::KVStore::encodeManifestUid(collectionsMeta);
-    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return setLocalDoc(commitBatch, manifestKey, valSlice);
+    localDbReqs.emplace_back(MagmaLocalReq(manifestKey, buf));
 }
 
-std::pair<magma::Status, std::vector<Collections::KVStore::DroppedCollection>>
-MagmaKVStore::updateOpenCollections(Vbid vbid,
-                                    Magma::CommitBatch& commitBatch) {
+std::vector<Collections::KVStore::DroppedCollection>
+MagmaKVStore::updateOpenCollections(Vbid vbid, LocalDbReqs& localDbReqs) {
     auto dropped = getDroppedCollections(vbid);
     Status status;
     std::string collections;
-    std::tie(status, collections) = readLocalDoc(vbid, openCollectionsKey);
+    Slice keySlice(openCollectionsKey);
+    std::tie(status, collections) = readLocalDoc(vbid, keySlice);
     auto buf = Collections::KVStore::encodeOpenCollections(
             dropped,
             collectionsMeta,
             {reinterpret_cast<const uint8_t*>(collections.data()),
              collections.length()});
 
-    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
-    status = setLocalDoc(commitBatch, openCollectionsKey, valSlice);
-    return std::make_pair(status, dropped);
+    localDbReqs.emplace_back(MagmaLocalReq(openCollectionsKey, buf));
+    return dropped;
 }
 
-magma::Status MagmaKVStore::updateDroppedCollections(
+void MagmaKVStore::updateDroppedCollections(
         Vbid vbid,
-        Magma::CommitBatch& commitBatch,
+        LocalDbReqs& localDbReqs,
         std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                 dropped) {
     for (const auto& drop : collectionsMeta.droppedCollections) {
         // Delete the 'stats' document for the collection
-        deleteCollectionStats(commitBatch, drop.collectionId);
+        deleteCollectionStats(localDbReqs, drop.collectionId);
     }
 
     // If the input 'dropped' is not initialised we must read the dropped
@@ -2232,11 +2173,9 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     if (!dropped.has_value()) {
         dropped = getDroppedCollections(vbid);
     }
-
     auto buf = Collections::KVStore::encodeDroppedCollections(collectionsMeta,
                                                               dropped.value());
-    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return setLocalDoc(commitBatch, droppedCollectionsKey, valSlice);
+    localDbReqs.emplace_back(MagmaLocalReq(droppedCollectionsKey, buf));
 }
 
 std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) {
@@ -2244,22 +2183,12 @@ std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) {
 }
 
 void MagmaKVStore::saveCollectionStats(
-        magma::Magma::CommitBatch& commitBatch,
+        LocalDbReqs& localDbReqs,
         CollectionID cid,
         const Collections::VB::PersistedStats& stats) {
     auto key = getCollectionsStatsKey(cid);
-    Slice keySlice(key);
     auto encodedStats = stats.getLebEncodedStats();
-    Slice valSlice(encodedStats);
-    auto status = setLocalDoc(commitBatch, keySlice, valSlice);
-    if (!status) {
-        logger->warn(
-                "MagmaKVStore::saveCollectionStats setLocalDoc {} failed. "
-                "status:{}",
-                keySlice.ToString(),
-                status.String());
-    }
-    return;
+    localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
 }
 
 std::optional<Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
@@ -2277,23 +2206,21 @@ std::optional<Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
     return Collections::VB::PersistedStats(stats.c_str(), stats.size());
 }
 
-magma::Status MagmaKVStore::deleteCollectionStats(
-        Magma::CommitBatch& commitBatch, CollectionID cid) {
+void MagmaKVStore::deleteCollectionStats(LocalDbReqs& localDbReqs,
+                                         CollectionID cid) {
     auto key = getCollectionsStatsKey(cid);
-    Slice keySlice(key);
-    return deleteLocalDoc(commitBatch, keySlice);
+    localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
 }
 
-magma::Status MagmaKVStore::updateScopes(Vbid vbid,
-                                         Magma::CommitBatch& commitBatch) {
+void MagmaKVStore::updateScopes(Vbid vbid, LocalDbReqs& localDbReqs) {
     Status status;
     std::string scopes;
-    std::tie(status, scopes) = readLocalDoc(vbid, openScopesKey);
+    Slice keySlice(openScopesKey);
+    std::tie(status, scopes) = readLocalDoc(vbid, keySlice);
     auto buf = encodeScopes(
             collectionsMeta,
             {reinterpret_cast<const uint8_t*>(scopes.data()), scopes.length()});
-    Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return setLocalDoc(commitBatch, openScopesKey, valSlice);
+    localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));
 }
 
 bool MagmaKVStore::getStat(const char* name, size_t& value) {
@@ -2389,12 +2316,13 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
 Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                                         const vbucket_state& vbstate,
                                         const MagmaInfo& minfo) {
-    std::unique_ptr<Magma::CommitBatch> batch;
-    auto status = magma->NewCommitBatch(
-            vbid.get(),
-            batch,
-            static_cast<Magma::KVStoreRevision>(minfo.kvstoreRev));
+    LocalDbReqs localDbReqs;
+    addVBStateUpdateToLocalDbReqs(localDbReqs, vbstate, minfo);
 
+    WriteOps writeOps;
+    addLocalDbReqs(localDbReqs, writeOps);
+
+    auto status = magma->WriteDocs(vbid.get(), writeOps, minfo.kvstoreRev);
     if (!status) {
         logger->critical(
                 "MagmaKVStore::writeVBStateToDisk failed creating "
@@ -2404,21 +2332,7 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                 status.String());
         return status;
     }
-
-    writeVBStateToDisk(vbid, *(batch.get()), vbstate, minfo);
-
-    status = magma->ExecuteCommitBatch(std::move(batch));
-    if (!status) {
-        logger->critical(
-                "MagmaKVStore::writeVBStateToDisk: "
-                "magma::ExecuteCommitBatch "
-                "{} status:{}",
-                vbid,
-                status.String());
-        return status;
-    }
-
-    status = magma->SyncCommitBatches(commitPointEveryBatch);
+    status = magma->Sync(doCommitEveryBatch);
     if (!status) {
         logger->critical(
                 "MagmaKVStore::writeVBStateToDisk: "
@@ -2426,7 +2340,26 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                 "status:{}",
                 vbid,
                 status.String());
-        return status;
     }
     return Status::OK();
+}
+
+MagmaKVStore::MagmaLocalReq::MagmaLocalReq(
+        std::string_view key, const flatbuffers::DetachedBuffer& buf)
+    : key(key), value(reinterpret_cast<const char*>(buf.data()), buf.size()) {
+}
+
+void MagmaKVStore::addLocalDbReqs(const LocalDbReqs& localDbReqs,
+                                  WriteOps& writeOps) {
+    for (auto& req : localDbReqs) {
+        Slice keySlice(req.key);
+        Slice valSlice(req.value);
+        if (req.deleted) {
+            writeOps.emplace_back(
+                    Magma::WriteOperation::NewLocalDocDelete(keySlice));
+        } else {
+            writeOps.emplace_back(Magma::WriteOperation::NewLocalDocUpdate(
+                    keySlice, valSlice));
+        }
+    }
 }

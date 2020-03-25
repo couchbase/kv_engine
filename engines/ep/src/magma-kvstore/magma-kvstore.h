@@ -34,6 +34,7 @@
 #include <queue>
 #include <shared_mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace magma {
@@ -63,17 +64,11 @@ public:
         persistedDeletes = 0;
     }
 
-    // This method exists as a way to assign to this without violating the
-    // kvstore monotonic property (it will be reset).
-    void reset(const MagmaInfo& other) {
-        docCount = other.docCount;
-        persistedDeletes = other.persistedDeletes;
-        kvstoreRev.reset(other.kvstoreRev);
-    }
-
     cb::NonNegativeCounter<uint64_t> docCount{0};
     cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
-    Monotonic<uint64_t> kvstoreRev{1};
+
+    // Magma API takes a 32bit KVStoreRevision
+    Monotonic<uint32_t> kvstoreRev{1};
 };
 
 /**
@@ -105,6 +100,48 @@ public:
  */
 class MagmaKVStore : public KVStore {
 public:
+    using WriteOps = std::vector<magma::Magma::WriteOperation>;
+    using ReadOps = std::vector<magma::Slice>;
+
+    /**
+     * A localDb request is used to scope the memory required for
+     * inserting a localDb update into the kvstore localDb.
+     */
+    class MagmaLocalReq {
+    public:
+        MagmaLocalReq(std::string_view key,
+                      std::string&& value,
+                      bool deleted = false)
+            : key(key), value(std::move(value)), deleted(deleted) {
+        }
+
+        // Some localDb Reqs come from flatbuffers. We need to convert
+        // the flatbuffer into a string.
+        MagmaLocalReq(std::string_view key,
+                      const flatbuffers::DetachedBuffer& buf);
+
+        static MagmaLocalReq makeDeleted(std::string_view key,
+                                         std::string&& value = {}) {
+            return MagmaLocalReq(
+                    std::move(key), std::move(value), true /*deleted*/);
+        }
+
+        std::string key;
+        std::string value;
+        bool deleted{false};
+    };
+
+    using LocalDbReqs = std::vector<MagmaLocalReq>;
+
+    /**
+     * Add localDbReqs to the WriteOps vector to be inserted into
+     * the kvstore.
+     *
+     * @param localDbReqs vector of localDb updates
+     * @param writeOps vector of Magma::WriteOperations's
+     */
+    void addLocalDbReqs(const LocalDbReqs& localDbReqs, WriteOps& writeOps);
+
     MagmaKVStore(MagmaKVStoreConfig& config);
 
     ~MagmaKVStore() override;
@@ -312,27 +349,23 @@ public:
     /**
      * This function maintains the set of open collections, adding newly opened
      * collections and removing those which are dropped. To validate the
-     * creation
-     * of new collections, this method must read the dropped collections.
+     * creation of new collections, this method must read the dropped
+     * collections.
      *
      * @param vbid vbucket id
-     * @param commitBatch current magma commit batch
+     * @param localDbReqs vector of localDb updates
      * @param collectionsFlush
-     * @return status magma status
      */
-    magma::Status updateCollectionsMeta(
-            Vbid vbid,
-            magma::Magma::CommitBatch& commitBatch,
-            Collections::VB::Flush& collectionsFlush);
+    void updateCollectionsMeta(Vbid vbid,
+                               LocalDbReqs& localDbReqs,
+                               Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the current uid committed
      *
-     * @param vbid vbucket id
-     * @param commitBatch current magma commit batch
-     * @return status magma status
+     * @param localDbReqs vector of localDb updates
      */
-    magma::Status updateManifestUid(magma::Magma::CommitBatch& commitBatch);
+    void updateManifestUid(LocalDbReqs& localDbReqs);
 
     /**
      * Maintain the list of open collections. The maintenance requires
@@ -340,25 +373,24 @@ public:
      * a reread.
      *
      * @param vbid vbucket id
-     * @param commitBatch current magma commit batch
-     * @return pair magma status and dropped collection list
+     * @param localDbReqs vector of localDb updates
+     * @return dropped collection list
      */
-    std::pair<magma::Status,
-              std::vector<Collections::KVStore::DroppedCollection>>
-    updateOpenCollections(Vbid vbid, magma::Magma::CommitBatch& commitBatch);
+
+    std::vector<Collections::KVStore::DroppedCollection> updateOpenCollections(
+            Vbid vbid, LocalDbReqs& localDbReqs);
 
     /**
      * Maintain the list of dropped collections
      *
      * @param vbid vbucket id
-     * @param commitBatch current magma commit batch
+     * @param localDbReqs vector of localDb updates
      * @param dropped This method will only read the dropped collections
      *   from storage if this optional is not initialised
-     * @return status magma status
      */
-    magma::Status updateDroppedCollections(
+    void updateDroppedCollections(
             Vbid vbid,
-            magma::Magma::CommitBatch& commitBatch,
+            LocalDbReqs& localDbReqs,
             std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                     dropped);
 
@@ -366,11 +398,9 @@ public:
      * Maintain the list of open scopes
      *
      * @param vbid vbucket id
-     * @param commitBatch current magma commit batch
-     * @return status magma status
+     * @param localDbReqs vector of localDb updates
      */
-    magma::Status updateScopes(Vbid vbid,
-                               magma::Magma::CommitBatch& commitBatch);
+    void updateScopes(Vbid vbid, LocalDbReqs& localDbReqs);
 
     /**
      * Given a collection id, return the key used to maintain the
@@ -383,41 +413,27 @@ public:
     /**
      * Save stats for collection cid
      *
-     * @param commitBatch current magma commit batch
+     * @param localDbReqs vector of localDb updates
      * @param cid Collection ID
      * @param stats The stats that should be persisted
      */
-    void saveCollectionStats(magma::Magma::CommitBatch& commitBatch,
+    void saveCollectionStats(LocalDbReqs& localDbReqs,
                              CollectionID cid,
                              const Collections::VB::PersistedStats& stats);
 
     /**
      * Delete the collection stats for the given collection id
      *
-     * @param commitBatch current magma commit batch
+     * @param localDbReqs vector of localDb updates
      * @param cid Collection ID
      */
-    magma::Status deleteCollectionStats(magma::Magma::CommitBatch& commitBatch,
-                                        CollectionID cid);
+    void deleteCollectionStats(LocalDbReqs& localDbReqs, CollectionID cid);
 
     /**
      * Read from local DB
      */
     std::pair<magma::Status, std::string> readLocalDoc(
             Vbid vbid, const magma::Slice& keySlice);
-
-    /**
-     * Add a local document to the commitBatch
-     */
-    magma::Status setLocalDoc(magma::Magma::CommitBatch& commitBatch,
-                              const magma::Slice& keySlice,
-                              const magma::Slice& valSlice);
-
-    /**
-     * Add delete local document to the commitBatch
-     */
-    magma::Status deleteLocalDoc(magma::Magma::CommitBatch& commitBatch,
-                                 const magma::Slice& keySlice);
 
     /**
      * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct
@@ -462,10 +478,9 @@ public:
     /**
      * Write the encoded vbstate + docCount to the local db.
      */
-    magma::Status writeVBStateToDisk(Vbid vbid,
-                                     magma::Magma::CommitBatch& commitBatch,
-                                     const vbucket_state& vbs,
-                                     const MagmaInfo& minfo);
+    void addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
+                                       const vbucket_state& vbs,
+                                       const MagmaInfo& minfo);
 
     /**
      * Get vbstate from cache. If cache not populated, read it from disk
@@ -619,9 +634,9 @@ protected:
     // as the structure to store that and we save magmaInfo with the vbstate.
     std::vector<std::unique_ptr<MagmaInfo>> cachedMagmaInfo;
 
-    // We need to mimic couchstores ability to turn every batch of items
-    // into a rollback point. This is used for testing only!
-    bool commitPointEveryBatch{false};
+    // For testing, we need to simulate couchstore where every batch
+    // is a potential rollback point.
+    bool doCommitEveryBatch{false};
 
     // Using upsert for Set means we can't keep accurate document totals.
     // This is used for testing only!

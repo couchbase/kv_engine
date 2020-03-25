@@ -2745,7 +2745,9 @@ TEST_F(MagmaKVStoreTest, Rollback) {
     rv = kvstore->get(makeDiskDocKey("key6"), Vbid(0));
     EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
 
-    kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
+    auto rollbackResult =
+            kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
+    ASSERT_TRUE(rollbackResult.success);
 
     rv = kvstore->get(makeDiskDocKey("key1"), Vbid(0));
     EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
