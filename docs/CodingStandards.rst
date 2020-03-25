@@ -1586,6 +1586,23 @@ the file.  When it is marked static explicitly, this is immediately obvious.
 Also, there is no reason to enclose the definition of "``operator<``" in the
 namespace just because it was declared there.
 
+Clang Tidy
+-------------------
+KV-Engine uses `Clang-Tidy <https://clang.llvm.org/extra/clang-tidy/>`_
+(from Clang's `tools extra git repo <https://github.com/llvm-mirror/clang-tools-extra/tree/master/clang-tidy>`_)
+as part of our commit validation, to help prevent common bugs and help to ensure
+our code base adheres to modern coding standards. To help with this we provide a
+Clang-Tidy config (.clang-tidy) file which can be found
+`here <https://github.com/couchbase/tlm/blob/master/dot-clang-tidy>`_. Which is
+automatically copied to a ``.clang-tidy`` in the root directory of a
+Couchbase Server checkout. This config can also be used inconjuction with CLion,
+information on how to do this can be found on the
+`CLion website <https://www.jetbrains.com/help/clion/clang-tidy-checks-support.html#conffiles>`_.
+For more more information on the format of the file please refer to ``Configuration files:``
+section of the Clang-Tidy's help. Definitions for each Clang-Tidy check does can
+be found on the `clang website  <https://clang.llvm.org/extra/clang-tidy/checks/list.html>`_.
+
+
 See Also
 ========
 
