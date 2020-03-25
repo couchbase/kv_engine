@@ -964,6 +964,7 @@ StorageProperties RocksDBKVStore::getStorageProperties() {
                          // of RocksDB
                          StorageProperties::EfficientGet::Yes,
                          StorageProperties::ConcurrentWriteCompact::Yes,
+                         StorageProperties::BackgroundCompact::No,
                          StorageProperties::ByIdScan::No);
     return rv;
 }

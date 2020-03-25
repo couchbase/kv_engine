@@ -759,15 +759,19 @@ void MagmaKVStore::rollback() {
     }
 }
 
-// Magma does allow compactions to run concurrent with writes.
-// What it does not do is allow the update of vbstate info outside
-// of the bg_writer thread.
+// @TODO MB-38611: Correct ConcurrentWriteCompact so that BackgroundCompact is
+//  not necessary. We should allow explicit compactions and writes concurrently.
+//
+// Magma does not allow explicit (ns_server/kv_engine) compactions to run
+// concurrently with writes. It does however run implicit (background)
+// compactions.
 StorageProperties MagmaKVStore::getStorageProperties() {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,
                          StorageProperties::EfficientGet::Yes,
                          StorageProperties::ConcurrentWriteCompact::No,
+                         StorageProperties::BackgroundCompact::Yes,
                          StorageProperties::ByIdScan::No);
     return rv;
 }
