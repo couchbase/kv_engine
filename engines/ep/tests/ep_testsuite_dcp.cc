@@ -3350,7 +3350,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be_gte(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
     // Wait for something to be removed from the checkpoint manager to ensure
     // that when we create our stream we will start backfilling from disk. If we
