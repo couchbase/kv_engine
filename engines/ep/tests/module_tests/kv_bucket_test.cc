@@ -34,6 +34,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
 #include "flusher.h"
@@ -438,6 +439,14 @@ unique_request_ptr KVBucketTest::createObserveRequest(
                         valueStr);
 }
 
+class KVBucketParamTest : public STParameterizedBucketTest {
+    void SetUp() override {
+        STParameterizedBucketTest::SetUp();
+        // Have all the objects, activate vBucket zero so we can store data.
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    }
+};
+
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on resident items works correctly.
@@ -445,20 +454,23 @@ TEST_P(KVBucketParamTest, GetKeyStatsResident) {
     key_stats kstats;
 
     // Should start with key not existing.
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->getKeyStats(makeStoredDocKey("key"),
-                                 Vbid(0),
-                                 cookie,
-                                 kstats,
-                                 WantsDeleted::No));
+    auto getKeyStats = [&]() -> ENGINE_ERROR_CODE {
+        return store->getKeyStats(makeStoredDocKey("key"),
+                                  Vbid(0),
+                                  cookie,
+                                  kstats,
+                                  WantsDeleted::No);
+    };
+
+    auto rv = getKeyStats();
+    if (needsBGFetch(rv)) {
+        runBGFetcherTask();
+        rv = getKeyStats();
+    }
+    EXPECT_EQ(ENGINE_KEY_ENOENT, rv);
 
     store_item(Vbid(0), makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->getKeyStats(makeStoredDocKey("key"),
-                                 Vbid(0),
-                                 cookie,
-                                 kstats,
-                                 WantsDeleted::No))
+    EXPECT_EQ(ENGINE_SUCCESS, getKeyStats())
             << "Expected to get key stats on existing item";
     EXPECT_EQ(vbucket_state_active, kstats.vb_state);
     EXPECT_FALSE(kstats.logically_deleted);
@@ -512,7 +524,12 @@ TEST_P(KVBucketParamTest, GetKeyStatsNMVB) {
 TEST_P(KVBucketParamTest, ReplaceENOENT) {
     // Should start with key not existing (and hence cannot replace).
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item, cookie));
+    auto rv = store->replace(item, cookie);
+    if (needsBGFetch(rv)) {
+        runBGFetcherTask();
+        rv = store->replace(item, cookie);
+    }
+    EXPECT_EQ(ENGINE_KEY_ENOENT, rv);
 }
 
 // Create then delete an item, checking replace reports ENOENT.
@@ -549,8 +566,14 @@ TEST_P(KVBucketParamTest, SetCASNonExistent) {
     ASSERT_NE(0, item.getCas());
 
     // Should get ENOENT as we should immediately know (either from metadata
-    // being resident, or by bloomfilter) that key doesn't exist.
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item, cookie));
+    // being resident, or by bloomfilter) that key doesn't exist. Might need to
+    // bg fetch for magma which implements their own bloom filters
+    auto rv = store->set(item, cookie);
+    if (needsBGFetch(rv)) {
+        runBGFetcherTask();
+        rv = store->set(item, cookie);
+    }
+    EXPECT_EQ(ENGINE_KEY_ENOENT, rv);
 }
 
 // Test CAS set against a deleted item
@@ -670,7 +693,12 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItemNegative) {
 // Test successful add
 TEST_P(KVBucketParamTest, Add) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
+    auto rv = store->add(item, cookie);
+    if (needsBGFetch(rv)) {
+        runBGFetcherTask();
+        rv = store->add(item, cookie);
+    }
+    EXPECT_EQ(ENGINE_SUCCESS, rv);
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
@@ -687,14 +715,25 @@ TEST_P(KVBucketParamTest, SetWithMeta) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     item.setCas();
     uint64_t seqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              store->setWithMeta(item,
-                                 0,
-                                 &seqno,
-                                 cookie,
-                                 {vbucket_state_active},
-                                 CheckConflicts::Yes,
-                                 /*allowExisting*/ false));
+    auto setWithMeta = [&]() -> ENGINE_ERROR_CODE {
+        return store->setWithMeta(item,
+                                  0,
+                                  &seqno,
+                                  cookie,
+                                  {vbucket_state_active},
+                                  CheckConflicts::Yes,
+                                  /*allowExisting*/ false);
+    };
+
+    auto rv = setWithMeta();
+    if (isMagma()) {
+        // Magma lacks bloom filters so needs to bg fetch
+        auto vb = store->getVBucket(vbid);
+        EXPECT_TRUE(vb->hasPendingBGFetchItems());
+        runBGFetcherTask();
+        rv = setWithMeta();
+    }
+    EXPECT_EQ(ENGINE_SUCCESS, rv);
 }
 
 // Test setWithMeta with a conflict with an existing item.
@@ -859,22 +898,31 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
                     : 0;
 
     EXPECT_EQ(initialEpoch, vb->getHLCEpochSeqno());
+
     auto item = make_item(vbid, makeStoredDocKey("key1"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
-    if (engine->getConfiguration().getBucketType() == "persistent") {
-        // Trigger a flush to disk.
-        flush_vbucket_to_disk(vbid);
+    auto rv = store->add(item, cookie);
+    if (needsBGFetch(rv)) {
+        EXPECT_TRUE(vb->hasPendingBGFetchItems());
+        runBGFetcherTask();
+        rv = store->add(item, cookie);
     }
+    EXPECT_EQ(ENGINE_SUCCESS, rv);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto seqno = vb->getHLCEpochSeqno();
     EXPECT_NE(HlcCasSeqnoUninitialised, seqno);
 
     auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
-    if (engine->getConfiguration().getBucketType() == "persistent") {
-        // Trigger a flush to disk.
-        flush_vbucket_to_disk(vbid);
+    rv = store->add(item2, cookie);
+    if (needsBGFetch(rv)) {
+        EXPECT_TRUE(vb->hasPendingBGFetchItems());
+        runBGFetcherTask();
+        rv = store->add(item2, cookie);
     }
+    EXPECT_EQ(ENGINE_SUCCESS, rv);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // hlc seqno doesn't change was more items are stored
     EXPECT_EQ(seqno, vb->getHLCEpochSeqno());
@@ -1315,7 +1363,7 @@ TEST_P(KVBucketParamTest, MB_27162) {
 
      flushVBucketToDiskIfPersistent(vbid, 1);
 
-     if (GetParam() != "bucket_type=ephemeral") {
+     if (isPersistent()) {
          evict_key(vbid, key);
      }
 
@@ -1329,8 +1377,7 @@ TEST_P(KVBucketParamTest, MB_27162) {
 
      auto engineResult = doGetMetaData();
 
-     if (engine->getConfiguration().getBucketType() == "persistent" &&
-         GetParam() == "item_eviction_policy=full_eviction") {
+     if (isPersistent() && isFullEviction()) {
          ASSERT_EQ(ENGINE_EWOULDBLOCK, engineResult);
          // Manually run the bgfetch task, and re-attempt getMetaData
          runBGFetcherTask();
@@ -1536,8 +1583,7 @@ TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
                          std::string_view value,
                          gsl::not_null<const void*> cookie) { ADD_FAILURE(); };
 
-    auto expected = (GetParam() == "bucket_type=ephemeral") ? ENGINE_KEY_ENOENT
-                                                            : ENGINE_SUCCESS;
+    auto expected = (isPersistent()) ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
     EXPECT_EQ(expected, store->getPerVBucketDiskStats({}, mockStatFn));
 }
 
@@ -1656,19 +1702,7 @@ TEST_F(AbsoluteExpiryLimitTest, MB_37643) {
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          KVBucketParamTest,
-                         ::testing::Values("item_eviction_policy=value_only",
-                                           "item_eviction_policy=full_eviction",
-                                           "bucket_type=ephemeral"),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param.substr(info.param.find('=') + 1);
-                         });
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 const char KVBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
-
-void KVBucketParamTest::SetUp() {
-    config_string += GetParam();
-    KVBucketTest::SetUp();
-
-    // Have all the objects, activate vBucket zero so we can store data.
-    store->setVBucketState(vbid, vbucket_state_active);
-}

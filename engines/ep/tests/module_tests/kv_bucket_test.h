@@ -265,14 +265,3 @@ public:
     // The (mock) server cookie.
     const void* cookie = nullptr;
 };
-
-/**
- * Test fixture for KVBucket unit tests.
- *
- * These tests are parameterized over an extra config string to allow them to
- * be run against ephemeral and value and full eviction persistent buckets.
- */
-class KVBucketParamTest : public KVBucketTest,
-                          public ::testing::WithParamInterface<std::string> {
-    void SetUp() override;
-};
