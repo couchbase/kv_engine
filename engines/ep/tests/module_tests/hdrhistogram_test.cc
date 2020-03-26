@@ -17,9 +17,9 @@
 #include "hdrhistogram.h"
 #include "thread_gate.h"
 
-#include <boost/optional.hpp>
 #include <folly/portability/GTest.h>
 #include <hdr_histogram.h>
+#include <optional>
 
 #include <cmath>
 #include <iomanip>

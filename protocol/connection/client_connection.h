@@ -16,7 +16,6 @@
  */
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/openssl.h>
@@ -25,6 +24,7 @@
 #include <memcached/types.h>
 #include <platform/dynamic.h>
 #include <platform/socket.h>
+#include <optional>
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -821,7 +821,7 @@ public:
      */
     void setFeature(cb::mcbp::Feature feature, bool enabled);
 
-    boost::optional<std::chrono::microseconds> getTraceData() const {
+    std::optional<std::chrono::microseconds> getTraceData() const {
         return traceData;
     }
 
@@ -904,7 +904,7 @@ protected:
     BIO* bio = nullptr;
     SOCKET sock = INVALID_SOCKET;
     std::string tag;
-    boost::optional<std::chrono::microseconds> traceData;
+    std::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;
 

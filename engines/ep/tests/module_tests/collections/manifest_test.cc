@@ -48,7 +48,7 @@ TEST(ManifestTest, defaultState) {
 
     auto oScope = m.getScopeID("_default._default");
     EXPECT_EQ(ScopeID::Default, oScope.value_or(~0));
-    auto oCollection = m.getCollectionID(oScope.get(), "_default._default");
+    auto oCollection = m.getCollectionID(oScope.value(), "_default._default");
     EXPECT_EQ(CollectionID::Default, oCollection.value_or(~0));
 }
 
@@ -766,13 +766,13 @@ TEST(ManifestTest, getScopeID) {
     //    * "scope"
     // the function ignores anything after a .
     // The Manifest::getScopeID expects a valid path, it peforms no validation
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID("").get());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".").get());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default").get());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".ignorethis").get());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default.ignorethis").get());
-    EXPECT_EQ(8, cm.getScopeID("brewerA").get());
-    EXPECT_EQ(8, cm.getScopeID("brewerA.ignorethis").get());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID("").value());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".").value());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default").value());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".ignorethis").value());
+    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default.ignorethis").value());
+    EXPECT_EQ(8, cm.getScopeID("brewerA").value());
+    EXPECT_EQ(8, cm.getScopeID("brewerA.ignorethis").value());
 
     // valid input to unknown scopes
     EXPECT_FALSE(cm.getScopeID("unknown.ignored"));
@@ -821,18 +821,18 @@ TEST(ManifestTest, getCollectionID) {
     // Note: usage of getCollectionID assumes getScopeID was called first
     // Note: getCollectionID does not perform validation of the path
     EXPECT_EQ(CollectionID::Default,
-              cm.getCollectionID(ScopeID::Default, ".").get());
+              cm.getCollectionID(ScopeID::Default, ".").value());
     EXPECT_EQ(CollectionID::Default,
-              cm.getCollectionID(ScopeID::Default, "_default.").get());
-    EXPECT_EQ(8, cm.getCollectionID(ScopeID::Default, ".meat").get());
-    EXPECT_EQ(8, cm.getCollectionID(ScopeID::Default, "_default.meat").get());
-    EXPECT_EQ(9, cm.getCollectionID(ScopeID(8), "brewerA.beer").get());
-    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "brewerA.meat").get());
+              cm.getCollectionID(ScopeID::Default, "_default.").value());
+    EXPECT_EQ(8, cm.getCollectionID(ScopeID::Default, ".meat").value());
+    EXPECT_EQ(8, cm.getCollectionID(ScopeID::Default, "_default.meat").value());
+    EXPECT_EQ(9, cm.getCollectionID(ScopeID(8), "brewerA.beer").value());
+    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "brewerA.meat").value());
 
     // getCollectionID doesn't care about the scope part, correct usage
     // is always to call getScopeID(path) first which is where scope name errors
     // are caught
-    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "ignored.meat").get());
+    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "ignored.meat").value());
 
     // validation of the path formation is not done by getCollectionID the
     // following does end up throwing though because it assumes the collection
@@ -861,7 +861,7 @@ TEST(ManifestTest, getCollectionID) {
     }
 
     // illegal scope name isn't checked here, getScopeID is always called first
-    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "*#illegal.meat").get());
+    EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "*#illegal.meat").value());
 
     // Unknown names
     EXPECT_FALSE(cm.getCollectionID(ScopeID::Default, "unknown.collection"));

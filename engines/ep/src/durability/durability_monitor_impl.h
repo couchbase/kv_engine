@@ -274,8 +274,7 @@ private:
 
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.
-    const boost::optional<std::chrono::steady_clock::time_point> expiryTime =
-            {};
+    const std::optional<std::chrono::steady_clock::time_point> expiryTime = {};
 
     friend std::ostream& operator<<(std::ostream&, const ActiveSyncWrite&);
 };

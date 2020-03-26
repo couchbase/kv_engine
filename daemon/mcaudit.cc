@@ -91,7 +91,7 @@ void setEnabled(uint32_t id, bool enable) {
  * @return the json object containing the basic information
  */
 static nlohmann::json create_memcached_audit_object(
-        const Connection& c, const boost::optional<cb::rbac::UserIdent>& euid) {
+        const Connection& c, const std::optional<cb::rbac::UserIdent>& euid) {
     nlohmann::json root;
 
     root["timestamp"] = ISOTime::generatetimestamp();

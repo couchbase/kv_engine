@@ -389,7 +389,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     }
 
     // The range becomes initialised only when an item is flushed
-    boost::optional<snapshot_range_t> range;
+    std::optional<snapshot_range_t> range;
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
 
     while (!rwUnderlying->begin(
@@ -445,7 +445,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // any other item in this flush batch. This is required because we
     // send mutations instead of a commits and would not otherwise
     // update the HCS on disk.
-    boost::optional<uint64_t> hcs = boost::make_optional(false, uint64_t());
+    std::optional<uint64_t> hcs;
 
     // HPS is optional because we have to update it on disk only if a
     // prepare is found in the flush-batch
@@ -454,7 +454,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // point) but cannot be used to initialise a PassiveDM after warmup
     // as this value will advance into snapshots immediately, without
     // the entire snapshot needing to be persisted.
-    boost::optional<uint64_t> hps = boost::make_optional(false, uint64_t());
+    std::optional<uint64_t> hps;
 
     // We always maintain the maxVisibleSeqno at the current value
     // and only change it to a higher-seqno when a flush of a visible
@@ -467,7 +467,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     Monotonic<uint64_t> maxVisibleSeqno{proposedVBState.maxVisibleSeqno};
 
     if (toFlush.maxDeletedRevSeqno) {
-        proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.get();
+        proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.value();
     }
 
     VBucket::AggregatedFlushStats aggStats;
@@ -565,7 +565,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
             ++stats.flusher_todo;
 
-            if (!range.is_initialized()) {
+            if (!range.has_value()) {
                 range = snapshot_range_t{
                         proposedVBState.lastSnapStart,
                         toFlush.ranges.empty()
@@ -750,7 +750,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
     // Note: We want to update the snap-range only if we have flushed at least
     // one item. I.e. don't appear to be in a snap when you have no data for it
-    Expects(range.is_initialized());
+    Expects(range.has_value());
     vb->setPersistedSnapshot(*range);
 
     uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);

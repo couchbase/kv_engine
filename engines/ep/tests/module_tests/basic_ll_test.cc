@@ -708,7 +708,7 @@ TEST_F(BasicLinkedListTest, MultipleRangeIterator_MB24474) {
     /* Create a 'RangeIterator' on the heap so that it can be deleted before
        the function scope ends */
     auto itr1Optional =
-            std::make_unique<boost::optional<SequenceList::RangeIterator>>(
+            std::make_unique<std::optional<SequenceList::RangeIterator>>(
                     basicLL->makeRangeIterator(true /*isBackfill*/));
     auto itr1 = std::move(**itr1Optional);
 

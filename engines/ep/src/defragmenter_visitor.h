@@ -92,5 +92,5 @@ private:
     VBucket* currentVb;
 
     // If defined, the age at which StoredValue's are de-fragmented
-    boost::optional<uint8_t> sv_age_threshold;
+    std::optional<uint8_t> sv_age_threshold;
 };

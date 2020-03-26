@@ -45,7 +45,8 @@ void CollectionsDcpTest::internalSetUp() {
     // Start vbucket as active to allow us to store items directly to it.
     store->setVBucketState(vbid, vbucket_state_active);
     producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
-    createDcpObjects({{}} /*collections on, but no filter*/);
+    createDcpObjects(std::make_optional(
+            std::string_view{}) /*collections on, but no filter*/);
 }
 
 Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
@@ -57,7 +58,7 @@ Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
 }
 
 void CollectionsDcpTest::createDcpStream(
-        boost::optional<std::string_view> collections,
+        std::optional<std::string_view> collections,
         Vbid id,
         cb::engine_errc expectedError) {
     uint64_t rollbackSeqno;
@@ -97,7 +98,7 @@ void CollectionsDcpTest::createDcpConsumer() {
 }
 
 void CollectionsDcpTest::createDcpObjects(
-        boost::optional<std::string_view> collections,
+        std::optional<std::string_view> collections,
         bool enableOutOfOrderSnapshots) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
@@ -393,8 +394,8 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        boost::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> maxVisibleSeqno,
         cb::mcbp::DcpStreamId sid) {
     auto ret = ENGINE_SUCCESS;
     if (consumer) {

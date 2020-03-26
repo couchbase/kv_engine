@@ -91,7 +91,7 @@ public:
      * @param manifest The vbucket's collection manifest.
      * @throws cb::engine_error
      */
-    Filter(boost::optional<std::string_view> jsonFilter,
+    Filter(std::optional<std::string_view> jsonFilter,
            const ::Collections::VB::Manifest& manifest);
 
     /**
@@ -269,13 +269,13 @@ protected:
     void insertCollection(CollectionID cid);
 
     Container filter;
-    boost::optional<ScopeID> scopeID;
+    std::optional<ScopeID> scopeID;
     bool scopeIsDropped = false;
 
     bool defaultAllowed = false;
     bool passthrough = false;
     bool systemEventsAllowed = false;
-    boost::optional<Collections::ManifestUid> uid;
+    std::optional<Collections::ManifestUid> uid;
     cb::mcbp::DcpStreamId streamId;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);

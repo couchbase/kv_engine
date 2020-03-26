@@ -346,11 +346,11 @@ void BinprotResponse::assign(std::vector<uint8_t>&& srcbuf) {
     payload = std::move(srcbuf);
 }
 
-boost::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
+std::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
         const {
     auto framingExtrasLen = getFramingExtraslen();
     if (framingExtrasLen == 0) {
-        return boost::optional<std::chrono::microseconds>{};
+        return std::optional<std::chrono::microseconds>{};
     }
     const auto& framingExtras = getResponse().getFramingExtras();
     const auto& data = framingExtras.data();
@@ -368,7 +368,7 @@ boost::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
         offset += 1 + len;
     }
 
-    return boost::optional<std::chrono::microseconds>{};
+    return std::optional<std::chrono::microseconds>{};
 }
 
 cb::mcbp::ClientOpcode BinprotResponse::getOp() const {

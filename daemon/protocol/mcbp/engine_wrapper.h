@@ -59,7 +59,7 @@ ENGINE_ERROR_CODE bucket_store(
         gsl::not_null<item*> item_,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        boost::optional<cb::durability::Requirements> durability,
+        std::optional<cb::durability::Requirements> durability,
         DocumentState document_state,
         bool preserveTtl);
 
@@ -69,7 +69,7 @@ cb::EngineErrorCasPair bucket_store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
-        boost::optional<cb::durability::Requirements> durability,
+        std::optional<cb::durability::Requirements> durability,
         DocumentState document_state,
         bool preserveTtl);
 
@@ -78,7 +78,7 @@ ENGINE_ERROR_CODE bucket_remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        boost::optional<cb::durability::Requirements> durability,
+        std::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info);
 
 cb::EngineErrorItemPair bucket_get(
@@ -98,7 +98,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiration,
-        boost::optional<cb::durability::Requirements> durability);
+        std::optional<cb::durability::Requirements> durability);
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie);
 
@@ -380,15 +380,14 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
  *
  * @return ENGINE_ERROR_CODE
  */
-ENGINE_ERROR_CODE dcpSnapshotMarker(
-        Cookie& cookie,
-        uint32_t opaque,
-        Vbid vbid,
-        uint64_t startSeqno,
-        uint64_t endSeqno,
-        uint32_t flags,
-        boost::optional<uint64_t> highCompletedSeqno,
-        boost::optional<uint64_t> maxVisibleSeqno);
+ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
+                                    uint32_t opaque,
+                                    Vbid vbid,
+                                    uint64_t startSeqno,
+                                    uint64_t endSeqno,
+                                    uint32_t flags,
+                                    std::optional<uint64_t> highCompletedSeqno,
+                                    std::optional<uint64_t> maxVisibleSeqno);
 
 /**
  * Calls the underlying engine DCP stream-end
@@ -436,7 +435,7 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                uint64_t snapEndSeqno,
                                uint64_t* rollbackSeqno,
                                dcp_add_failover_log callback,
-                               boost::optional<std::string_view> json);
+                               std::optional<std::string_view> json);
 
 /**
  * Calls the underlying engine DCP system-event

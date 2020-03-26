@@ -16,11 +16,11 @@
  */
 #include "client_cert_config.h"
 
-#include <boost/optional.hpp>
 #include <nlohmann/json.hpp>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <utilities/json_utilities.h>
+#include <optional>
 
 namespace cb {
 namespace x509 {
@@ -177,7 +177,7 @@ std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
 ClientCertConfig::ClientCertConfig(Mode mode_, const nlohmann::json& config)
     : mode(mode_) {
     auto prefixes = cb::getOptionalJsonObject(config, "prefixes");
-    if (!prefixes.is_initialized()) {
+    if (!prefixes.has_value()) {
         // this is an old style configuration
         mappings.emplace_back(createMapping(config));
         return;

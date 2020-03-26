@@ -17,10 +17,10 @@
 
 #include "json_utilities.h"
 
-#include <boost/optional.hpp>
+#include <optional>
 
 namespace cb {
-boost::optional<nlohmann::json> getOptionalJsonObject(
+std::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object, const std::string& key) {
     try {
         return object.at(key);
@@ -29,7 +29,7 @@ boost::optional<nlohmann::json> getOptionalJsonObject(
     }
 }
 
-boost::optional<nlohmann::json> getOptionalJsonObject(
+std::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object,
         const std::string& key,
         nlohmann::json::value_t expectedType) {

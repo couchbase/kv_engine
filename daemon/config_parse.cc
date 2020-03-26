@@ -32,7 +32,7 @@ void load_config_file(const char *file, Settings& settings)
     settings.reconfigure(nlohmann::json::parse(content));
 }
 
-boost::optional<nlohmann::json> validate_proposed_config_changes(
+std::optional<nlohmann::json> validate_proposed_config_changes(
         const char* new_cfg) {
     nlohmann::json errors = nlohmann::json::array();
     // Earlier we returned all of the errors, now I'm terminating on

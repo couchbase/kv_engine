@@ -460,11 +460,11 @@ std::mutex& BasicLinkedList::getListWriteLock() const {
     return writeLock;
 }
 
-boost::optional<SequenceList::RangeIterator> BasicLinkedList::makeRangeIterator(
+std::optional<SequenceList::RangeIterator> BasicLinkedList::makeRangeIterator(
         bool isBackfill) {
     auto pRangeItr = RangeIteratorLL::create(*this, isBackfill);
     return pRangeItr ? RangeIterator(std::move(pRangeItr))
-                     : boost::optional<SequenceList::RangeIterator>{};
+                     : std::optional<SequenceList::RangeIterator>{};
 }
 
 RangeGuard BasicLinkedList::tryLockSeqnoRange(seqno_t start,

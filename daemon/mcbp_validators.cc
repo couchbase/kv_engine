@@ -371,7 +371,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 cookie.setErrorJsonExtras(json);
                 return Status::UnknownCollection;
             }
-            sid = res.second.get();
+            sid = res.second.value();
         }
         cookie.setCurrentCollectionInfo({sid, key.getCollectionID()});
     }

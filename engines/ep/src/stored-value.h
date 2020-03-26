@@ -632,7 +632,7 @@ public:
             Vbid vbid,
             HideLockedCas hideLockedCas = HideLockedCas::No,
             IncludeValue includeValue = IncludeValue::Yes,
-            boost::optional<cb::durability::Requirements> durabilityReqs = {})
+            std::optional<cb::durability::Requirements> durabilityReqs = {})
             const;
 
     /**
@@ -663,7 +663,7 @@ public:
      *                    If the object is a temporary item the optional is not
      *                    initialised.
      */
-    boost::optional<item_info> getItemInfo(uint64_t vbuuid) const;
+    std::optional<item_info> getItemInfo(uint64_t vbuuid) const;
 
     void setNext(UniquePtr&& nextSv) {
         if (isStalePriv()) {

@@ -28,7 +28,7 @@
 
 #include <platform/dirutils.h>
 
-#include <boost/optional.hpp>
+#include <optional>
 
 class SpdloggerTest : virtual public ::testing::Test {
 protected:

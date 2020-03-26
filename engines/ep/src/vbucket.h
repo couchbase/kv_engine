@@ -581,7 +581,7 @@ public:
         std::vector<queued_item> items;
         std::vector<CheckpointSnapshotRange> ranges;
         bool moreAvailable = false;
-        boost::optional<uint64_t> maxDeletedRevSeqno = {};
+        std::optional<uint64_t> maxDeletedRevSeqno = {};
         CheckpointType checkpointType = CheckpointType::Memory;
 
         // See CM::ItemsForCursor for details.
@@ -1157,7 +1157,7 @@ public:
             uint64_t& cas,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            boost::optional<cb::durability::Requirements> durability,
+            std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
@@ -1310,7 +1310,7 @@ public:
     virtual int64_t addSystemEventItem(
             Item* item,
             OptionalSeqno seqno,
-            boost::optional<CollectionID> cid,
+            std::optional<CollectionID> cid,
             const Collections::VB::Manifest::WriteHandle& wHandle) = 0;
 
     /**
@@ -1409,7 +1409,7 @@ public:
     ENGINE_ERROR_CODE commit(
             const DocKey& key,
             uint64_t prepareSeqno,
-            boost::optional<int64_t> commitSeqno,
+            std::optional<int64_t> commitSeqno,
             const Collections::VB::Manifest::CachingReadHandle& cHandle,
             const void* cookie = nullptr);
 
@@ -1429,7 +1429,7 @@ public:
     ENGINE_ERROR_CODE abort(
             const DocKey& key,
             uint64_t prepareSeqno,
-            boost::optional<int64_t> abortSeqno,
+            std::optional<int64_t> abortSeqno,
             const Collections::VB::Manifest::CachingReadHandle& cHandle,
             const void* cookie = nullptr);
 
@@ -1810,7 +1810,7 @@ protected:
      * @return Result indicating the status of the operation and notification
      *                info (if operation was successful).
      */
-    std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSet(
+    std::pair<MutationStatus, std::optional<VBNotifyCtx>> processSet(
             HashTable::FindUpdateResult& htRes,
             StoredValue*& v,
             Item& itm,
@@ -1824,7 +1824,7 @@ protected:
     /**
      * Inner function for processSet. Allows overwriting of in-flight prepares.
      */
-    std::pair<MutationStatus, boost::optional<VBNotifyCtx>> processSetInner(
+    std::pair<MutationStatus, std::optional<VBNotifyCtx>> processSetInner(
             HashTable::FindUpdateResult& htRes,
             StoredValue*& v,
             Item& itm,
@@ -1849,7 +1849,7 @@ protected:
      * @return Result indicating the status of the operation and notification
      *                info (if the operation was successful).
      */
-    std::pair<AddStatus, boost::optional<VBNotifyCtx>> processAdd(
+    std::pair<AddStatus, std::optional<VBNotifyCtx>> processAdd(
             HashTable::FindUpdateResult& htRes,
             StoredValue*& v,
             Item& itm,
@@ -1878,7 +1878,7 @@ protected:
      *         status of the operation.
      *         notification info, if status was successful.
      */
-    std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+    std::tuple<MutationStatus, StoredValue*, std::optional<VBNotifyCtx>>
     processSoftDelete(HashTable::FindUpdateResult& htRes,
                       StoredValue& v,
                       uint64_t cas,
@@ -1891,7 +1891,7 @@ protected:
      * Inner function for processSoftDelete. Allows overwriting of in-flight
      * prepares.
      */
-    std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+    std::tuple<MutationStatus, StoredValue*, std::optional<VBNotifyCtx>>
     processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
                            StoredValue& v,
                            uint64_t cas,
@@ -2259,7 +2259,7 @@ private:
             HashTable::FindUpdateResult& values,
             uint64_t prepareSeqno,
             const VBQueueItemCtx& queueItmCtx,
-            boost::optional<int64_t> commitSeqno) = 0;
+            std::optional<int64_t> commitSeqno) = 0;
 
     /**
      * Abort the given pending item by removing it from in-memory structures
@@ -2272,11 +2272,10 @@ private:
      *     then CheckpointManager will generate one.
      * @return Information on who should be notified of the commit.
      */
-    virtual VBNotifyCtx abortStoredValue(
-            const HashTable::HashBucketLock& hbl,
-            StoredValue& v,
-            int64_t prepareSeqno,
-            boost::optional<int64_t> abortSeqno) = 0;
+    virtual VBNotifyCtx abortStoredValue(const HashTable::HashBucketLock& hbl,
+                                         StoredValue& v,
+                                         int64_t prepareSeqno,
+                                         std::optional<int64_t> abortSeqno) = 0;
 
     /**
      * Add a new abort item. To be used when an abort has been received, but the

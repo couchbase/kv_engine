@@ -356,8 +356,8 @@ public:
                    uint64_t start_seqno,
                    uint64_t end_seqno,
                    uint32_t flags,
-                   boost::optional<uint64_t> highCompletedSeqno,
-                   boost::optional<uint64_t> maxVisibleSeqno,
+                   std::optional<uint64_t> highCompletedSeqno,
+                   std::optional<uint64_t> maxVisibleSeqno,
                    cb::mcbp::DcpStreamId sid)
         : DcpResponse(Event::SnapshotMarker, opaque, sid),
           vbucket_(vbucket),
@@ -386,11 +386,11 @@ public:
 
     uint32_t getMessageSize() const override;
 
-    boost::optional<uint64_t> getHighCompletedSeqno() const {
+    std::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
     }
 
-    boost::optional<uint64_t> getMaxVisibleSeqno() const {
+    std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
 
@@ -401,8 +401,8 @@ private:
     uint64_t start_seqno_;
     uint64_t end_seqno_;
     uint32_t flags_;
-    boost::optional<uint64_t> highCompletedSeqno;
-    boost::optional<uint64_t> maxVisibleSeqno;
+    std::optional<uint64_t> highCompletedSeqno;
+    std::optional<uint64_t> maxVisibleSeqno;
 };
 
 class MutationResponse : public DcpResponse {

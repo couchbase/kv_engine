@@ -125,15 +125,14 @@ void KVBucketTest::reinitialise(std::string config) {
     initialise(config);
 }
 
-Item KVBucketTest::store_item(
-        Vbid vbid,
-        const DocKey& key,
-        const std::string& value,
-        uint32_t exptime,
-        const std::vector<cb::engine_errc>& expected,
-        protocol_binary_datatype_t datatype,
-        boost::optional<cb::durability::Requirements> reqs,
-        bool deleted) {
+Item KVBucketTest::store_item(Vbid vbid,
+                              const DocKey& key,
+                              const std::string& value,
+                              uint32_t exptime,
+                              const std::vector<cb::engine_errc>& expected,
+                              protocol_binary_datatype_t datatype,
+                              std::optional<cb::durability::Requirements> reqs,
+                              bool deleted) {
     auto item = make_item(vbid, key, value, exptime, datatype);
     if (reqs) {
         item.setPendingSyncWrite(*reqs);
@@ -1602,7 +1601,7 @@ public:
  * add, but fail set/replace with predicate_failed
  */
 TEST_F(StoreIfTest, store_if_basic) {
-    cb::StoreIfPredicate pred = [](const boost::optional<item_info>& existing,
+    cb::StoreIfPredicate pred = [](const std::optional<item_info>& existing,
                                    cb::vbucket_info vb) -> cb::StoreIfStatus {
         return cb::StoreIfStatus::Fail;
     };

@@ -35,7 +35,7 @@
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>
 
-#include <boost/optional/optional_fwd.hpp>
+#include <optional>
 
 #include <string>
 
@@ -55,7 +55,7 @@ struct Config;
  * @return optional error message if something goes wrong
  */
 LOGGER_PUBLIC_API
-boost::optional<std::string> initialize(const Config& logger_settings);
+std::optional<std::string> initialize(const Config& logger_settings);
 
 /**
  * Initialize the logger with the blackhole logger object

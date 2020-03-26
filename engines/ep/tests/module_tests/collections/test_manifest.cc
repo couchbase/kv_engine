@@ -68,7 +68,7 @@ CollectionsManifest& CollectionsManifest::add(
     jsonEntry["uid"] = ss.str();
 
     if (maxTtl) {
-        jsonEntry["maxTTL"] = maxTtl.get().count();
+        jsonEntry["maxTTL"] = maxTtl.value().count();
     }
 
     // Add the new collection to the set of collections belonging to the

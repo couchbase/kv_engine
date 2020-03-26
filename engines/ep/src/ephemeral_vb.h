@@ -21,7 +21,7 @@
 #include "stats.h"
 #include "vbucket.h"
 
-#include <boost/optional/optional.hpp>
+#include <optional>
 
 class EphemeralVBucket : public VBucket {
 public:
@@ -160,7 +160,7 @@ public:
      * @return range iterator object when possible
      *         null when not possible
      */
-    boost::optional<SequenceList::RangeIterator> makeRangeIterator(
+    std::optional<SequenceList::RangeIterator> makeRangeIterator(
             bool isBackfill);
 
     void dump() const override;
@@ -250,7 +250,7 @@ public:
     int64_t addSystemEventItem(
             Item* item,
             OptionalSeqno seqno,
-            boost::optional<CollectionID> cid,
+            std::optional<CollectionID> cid,
             const Collections::VB::Manifest::WriteHandle& wHandle) override;
 
     /**
@@ -290,16 +290,15 @@ private:
             uint64_t bySeqno,
             DeleteSource deleteSource = DeleteSource::Explicit) override;
 
-    VBNotifyCtx commitStoredValue(
-            HashTable::FindUpdateResult& values,
-            uint64_t prepareSeqno,
-            const VBQueueItemCtx& queueItmCtx,
-            boost::optional<int64_t> commitSeqno) override;
+    VBNotifyCtx commitStoredValue(HashTable::FindUpdateResult& values,
+                                  uint64_t prepareSeqno,
+                                  const VBQueueItemCtx& queueItmCtx,
+                                  std::optional<int64_t> commitSeqno) override;
 
     VBNotifyCtx abortStoredValue(const HashTable::HashBucketLock& hbl,
                                  StoredValue& v,
                                  int64_t prepareSeqno,
-                                 boost::optional<int64_t> abortSeqno) override;
+                                 std::optional<int64_t> abortSeqno) override;
 
     VBNotifyCtx addNewAbort(const HashTable::HashBucketLock& hbl,
                             const DocKey& key,

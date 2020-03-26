@@ -23,10 +23,10 @@
 #include "monotonic.h"
 #include "queue_op.h"
 
-#include <boost/optional.hpp>
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -60,10 +60,10 @@ struct CheckpointSnapshotRange {
 
     // HCS that should be flushed. Currently should only be set for Disk
     // Checkpoint runs.
-    boost::optional<uint64_t> highCompletedSeqno = {};
+    std::optional<uint64_t> highCompletedSeqno = {};
     // HPS that should be flushed when the entire range has been persisted.
     // This is the seqno of the latest prepare in this checkpoint.
-    boost::optional<uint64_t> highPreparedSeqno = {};
+    std::optional<uint64_t> highPreparedSeqno = {};
 };
 
 /**
@@ -84,8 +84,8 @@ public:
         ItemsForCursor() {
         }
         ItemsForCursor(CheckpointType checkpointType,
-                       boost::optional<uint64_t> maxDeletedRevSeqno,
-                       boost::optional<uint64_t> highCompletedSeqno,
+                       std::optional<uint64_t> maxDeletedRevSeqno,
+                       std::optional<uint64_t> highCompletedSeqno,
                        uint64_t visibleSeqno)
             : checkpointType(checkpointType),
               maxDeletedRevSeqno(maxDeletedRevSeqno),
@@ -102,7 +102,7 @@ public:
          */
         CheckpointType checkpointType = CheckpointType::Memory;
 
-        boost::optional<uint64_t> maxDeletedRevSeqno = {};
+        std::optional<uint64_t> maxDeletedRevSeqno = {};
 
         /**
          * HCS that must be sent to Replica when the Active is streaming a
@@ -122,7 +122,7 @@ public:
          * as soon as we refactor the DCP stream code in CheckpointManager and
          * ActiveStream.
          */
-        boost::optional<uint64_t> highCompletedSeqno;
+        std::optional<uint64_t> highCompletedSeqno;
 
         /**
          * The max visible seqno for first Checkpoint returned, e.g. if multiple
@@ -431,7 +431,7 @@ public:
 
     void createSnapshot(uint64_t snapStartSeqno,
                         uint64_t snapEndSeqno,
-                        boost::optional<uint64_t> highCompletedSeqno,
+                        std::optional<uint64_t> highCompletedSeqno,
                         CheckpointType checkpointType,
                         uint64_t maxVisibleSnapEnd);
 
@@ -559,7 +559,7 @@ protected:
                                    uint64_t snapStartSeqno,
                                    uint64_t snapEndSeqno,
                                    uint64_t visibleSnapEnd,
-                                   boost::optional<uint64_t> highCompletedSeqno,
+                                   std::optional<uint64_t> highCompletedSeqno,
                                    CheckpointType checkpointType);
 
     /*
@@ -586,7 +586,7 @@ protected:
                            uint64_t snapStart,
                            uint64_t snapEnd,
                            uint64_t visibleSnapEnd,
-                           boost::optional<uint64_t> highCompletedSeqno,
+                           std::optional<uint64_t> highCompletedSeqno,
                            CheckpointType checkpointType);
 
     /**

@@ -928,9 +928,9 @@ TEST_P(EPBucketTest, expiredItemCount) {
 
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
     // You can't keep returning GetItemInfo
-    cb::StoreIfPredicate predicate = [](
-            const boost::optional<item_info>& existing,
-            cb::vbucket_info vb) -> cb::StoreIfStatus {
+    cb::StoreIfPredicate predicate =
+            [](const std::optional<item_info>& existing,
+               cb::vbucket_info vb) -> cb::StoreIfStatus {
         return cb::StoreIfStatus::GetItemInfo;
     };
 
@@ -964,28 +964,28 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
     };
 
     std::vector<TestData> testData;
-    cb::StoreIfPredicate predicate1 = [](
-            const boost::optional<item_info>& existing,
-            cb::vbucket_info vb) -> cb::StoreIfStatus {
+    cb::StoreIfPredicate predicate1 =
+            [](const std::optional<item_info>& existing,
+               cb::vbucket_info vb) -> cb::StoreIfStatus {
         return cb::StoreIfStatus::Continue;
     };
-    cb::StoreIfPredicate predicate2 = [](
-            const boost::optional<item_info>& existing,
-            cb::vbucket_info vb) -> cb::StoreIfStatus {
+    cb::StoreIfPredicate predicate2 =
+            [](const std::optional<item_info>& existing,
+               cb::vbucket_info vb) -> cb::StoreIfStatus {
         return cb::StoreIfStatus::Fail;
     };
-    cb::StoreIfPredicate predicate3 = [](
-            const boost::optional<item_info>& existing,
-            cb::vbucket_info vb) -> cb::StoreIfStatus {
-        if (existing.is_initialized()) {
+    cb::StoreIfPredicate predicate3 =
+            [](const std::optional<item_info>& existing,
+               cb::vbucket_info vb) -> cb::StoreIfStatus {
+        if (existing.has_value()) {
             return cb::StoreIfStatus::Continue;
         }
         return cb::StoreIfStatus::GetItemInfo;
     };
-    cb::StoreIfPredicate predicate4 = [](
-            const boost::optional<item_info>& existing,
-            cb::vbucket_info vb) -> cb::StoreIfStatus {
-        if (existing.is_initialized()) {
+    cb::StoreIfPredicate predicate4 =
+            [](const std::optional<item_info>& existing,
+               cb::vbucket_info vb) -> cb::StoreIfStatus {
+        if (existing.has_value()) {
             return cb::StoreIfStatus::Fail;
         }
         return cb::StoreIfStatus::GetItemInfo;
@@ -1058,10 +1058,10 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
         return;
     }
 
-    cb::StoreIfPredicate predicate = [](
-            const boost::optional<item_info>& existing,
-            cb::vbucket_info vb) -> cb::StoreIfStatus {
-        if (existing.is_initialized()) {
+    cb::StoreIfPredicate predicate =
+            [](const std::optional<item_info>& existing,
+               cb::vbucket_info vb) -> cb::StoreIfStatus {
+        if (existing.has_value()) {
             return cb::StoreIfStatus::Continue;
         }
         return cb::StoreIfStatus::GetItemInfo;

@@ -51,11 +51,11 @@ Manifest::Manifest(const KVStore::Manifest& data)
     }
 }
 
-boost::optional<CollectionID> Manifest::applyDeletions(
+std::optional<CollectionID> Manifest::applyDeletions(
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<CollectionID>& changes) {
-    boost::optional<CollectionID> rv;
+    std::optional<CollectionID> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
@@ -68,11 +68,11 @@ boost::optional<CollectionID> Manifest::applyDeletions(
     return rv;
 }
 
-boost::optional<Manifest::CollectionAddition> Manifest::applyCreates(
+std::optional<Manifest::CollectionAddition> Manifest::applyCreates(
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<CollectionAddition>& changes) {
-    boost::optional<CollectionAddition> rv;
+    std::optional<CollectionAddition> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
@@ -90,11 +90,11 @@ boost::optional<Manifest::CollectionAddition> Manifest::applyCreates(
     return rv;
 }
 
-boost::optional<ScopeID> Manifest::applyScopeDrops(
+std::optional<ScopeID> Manifest::applyScopeDrops(
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<ScopeID>& changes) {
-    boost::optional<ScopeID> rv;
+    std::optional<ScopeID> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
@@ -106,11 +106,11 @@ boost::optional<ScopeID> Manifest::applyScopeDrops(
     return rv;
 }
 
-boost::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
+std::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<ScopeAddition>& changes) {
-    boost::optional<ScopeAddition> rv;
+    std::optional<ScopeAddition> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
@@ -165,8 +165,8 @@ Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
         addScope(wHandle,
                  vb,
                  uid,
-                 finalScopeCreate.get().sid,
-                 finalScopeCreate.get().name,
+                 finalScopeCreate.value().sid,
+                 finalScopeCreate.value().name,
                  OptionalSeqno{/*no-seqno*/});
     }
 
@@ -186,9 +186,9 @@ Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
         addCollection(wHandle,
                       vb,
                       uid,
-                      finalAddition.get().identifiers,
-                      finalAddition.get().name,
-                      finalAddition.get().maxTtl,
+                      finalAddition.value().identifiers,
+                      finalAddition.value().name,
+                      finalAddition.value().maxTtl,
                       OptionalSeqno{/*no-seqno*/});
     }
 
@@ -248,9 +248,9 @@ void Manifest::addCollection(const WriteHandle& wHandle,
             collectionName,
             identifiers.second,
             identifiers.first,
-            maxTtl.is_initialized(),
-            maxTtl ? maxTtl.get().count() : 0,
-            optionalSeqno.is_initialized(),
+            maxTtl.has_value(),
+            maxTtl.value_or(std::chrono::seconds::zero()).count(),
+            optionalSeqno.has_value(),
             seqno,
             manifestUid);
 
@@ -294,7 +294,7 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
     bool processingTombstone = false;
     // A replica that receives a collection tombstone is required to persist
     // that tombstone, so the replica can switch to active consistently
-    if (optionalSeqno.is_initialized() && map.count(cid) == 0) {
+    if (optionalSeqno.has_value() && map.count(cid) == 0) {
         // Must store an event that replicates what the active had
         processingTombstone = true;
 
@@ -331,7 +331,7 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
             vb.getId(),
             cid,
             itr->second.getScopeID(),
-            optionalSeqno.is_initialized(),
+            optionalSeqno.has_value(),
             seqno,
             manifestUid,
             processingTombstone);
@@ -392,7 +392,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
             vb.getId(),
             scopeName,
             sid,
-            optionalSeqno.is_initialized(),
+            optionalSeqno.has_value(),
             seqno,
             manifestUid);
 }
@@ -436,7 +436,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
-    if (!optionalSeqno.is_initialized()) {
+    if (!optionalSeqno.has_value()) {
         vb.checkpointManager->createNewCheckpoint();
     }
 
@@ -445,7 +445,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
             "replica:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             sid,
-            optionalSeqno.is_initialized(),
+            optionalSeqno.has_value(),
             seqno,
             manifestUid);
 }
@@ -562,7 +562,7 @@ time_t Manifest::processExpiryTime(const container::const_iterator entry,
 
     // If the collection has a TTL, it gets used
     if (entry->second.getMaxTtl()) {
-        enforcedTtl = entry->second.getMaxTtl().get();
+        enforcedTtl = entry->second.getMaxTtl().value();
     }
 
     // Note: A ttl value of 0 means no maxTTL
@@ -581,17 +581,16 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         OptionalSeqno seq) {
     flatbuffers::FlatBufferBuilder builder;
     if (!deleted) {
-        auto collection =
-                CreateCollection(builder,
-                                 uid,
-                                 entry.getScopeID(),
-                                 cid,
-                                 entry.getMaxTtl().is_initialized(),
-                                 entry.getMaxTtl().is_initialized()
-                                         ? (*entry.getMaxTtl()).count()
-                                         : 0,
-                                 builder.CreateString(collectionName.data(),
-                                                      collectionName.size()));
+        auto collection = CreateCollection(
+                builder,
+                uid,
+                entry.getScopeID(),
+                cid,
+                entry.getMaxTtl().has_value(),
+                entry.getMaxTtl().has_value() ? (*entry.getMaxTtl()).count()
+                                              : 0,
+                builder.CreateString(collectionName.data(),
+                                     collectionName.size()));
         builder.Finish(collection);
     } else {
         auto collection =
@@ -617,7 +616,7 @@ int64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
                                              OptionalSeqno seq) const {
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
-    if (!seq.is_initialized() && deleted) {
+    if (!seq.has_value() && deleted) {
         vb.checkpointManager->createNewCheckpoint();
     }
 
@@ -627,7 +626,7 @@ int64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
     // We can never purge the drop of the default collection because it has an
     // implied creation event. If we did allow the default collection tombstone
     // to be purged a client would wrongly assume it exists.
-    if (!seq.is_initialized() && deleted && cid.isDefaultCollection()) {
+    if (!seq.has_value() && deleted && cid.isDefaultCollection()) {
         item->setExpTime(~0);
     }
 
@@ -873,7 +872,7 @@ void Manifest::updateSummary(Summary& summary) const {
     }
 }
 
-boost::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
+std::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
         ScopeID identifier) const {
     if (std::find(scopes.begin(), scopes.end(), identifier) == scopes.end()) {
         return {};

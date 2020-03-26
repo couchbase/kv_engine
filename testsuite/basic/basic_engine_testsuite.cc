@@ -837,12 +837,12 @@ TEST_F(CollectionsTest, ScopeIDLookup2) {
     auto rv = engine->get_scope_id(cookie.get(), key1);
     EXPECT_EQ(0, rv.first);
     EXPECT_TRUE(rv.second);
-    EXPECT_EQ(ScopeID::Default, rv.second.get());
+    EXPECT_EQ(ScopeID::Default, rv.second.value());
 
     rv = engine->get_scope_id(cookie.get(), key2);
     EXPECT_EQ(0, rv.first);
     EXPECT_TRUE(rv.second);
-    EXPECT_EQ(ScopeID::Default, rv.second.get());
+    EXPECT_EQ(ScopeID::Default, rv.second.value());
 
     rv = engine->get_scope_id(cookie.get(), key3);
     EXPECT_EQ(0, rv.first);

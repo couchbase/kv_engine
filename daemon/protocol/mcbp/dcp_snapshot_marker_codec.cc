@@ -58,8 +58,8 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
                              uint64_t start,
                              uint64_t end,
                              uint32_t flags,
-                             boost::optional<uint64_t> highCompletedSeqno,
-                             boost::optional<uint64_t> maxVisibleSeqno) {
+                             std::optional<uint64_t> highCompletedSeqno,
+                             std::optional<uint64_t> maxVisibleSeqno) {
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;

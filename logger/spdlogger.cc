@@ -86,7 +86,7 @@ const bool cb::logger::isInitialized() {
  * Initialises the loggers. Called if the logger configuration is
  * specified in a separate settings object.
  */
-boost::optional<std::string> cb::logger::initialize(
+std::optional<std::string> cb::logger::initialize(
         const Config& logger_settings) {
     auto fname = logger_settings.filename;
     auto buffersz = logger_settings.buffersize;
@@ -176,7 +176,7 @@ boost::optional<std::string> cb::logger::initialize(
     } catch (const spdlog::spdlog_ex& ex) {
         std::string msg =
                 std::string{"Log initialization failed: "} + ex.what();
-        return boost::optional<std::string>{msg};
+        return std::optional<std::string>{msg};
     }
     return {};
 }

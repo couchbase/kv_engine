@@ -167,7 +167,7 @@ public:
             uint64_t& cas,
             Vbid vbucket,
             const void* cookie,
-            boost::optional<cb::durability::Requirements> durability,
+            std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) override;
 
@@ -665,7 +665,7 @@ public:
      *              does not exist in the manifest with the returned
      *              uid
      */
-    std::pair<uint64_t, boost::optional<ScopeID>> getScopeID(
+    std::pair<uint64_t, std::optional<ScopeID>> getScopeID(
             const DocKey& key) const;
 
     const Collections::Manager& getCollectionsManager() const;

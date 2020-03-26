@@ -17,9 +17,8 @@
 
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
-
 #include <memory>
+#include <optional>
 #include <string>
 
 // Forward declarations for types defined elsewhere.
@@ -154,7 +153,7 @@ enum class QueueBgFetch {Yes, No};
 enum class ForGetReplicaOp { No, Yes };
 
 /// Allow for methods to optionally accept a seqno
-using OptionalSeqno = boost::optional<int64_t>;
+using OptionalSeqno = std::optional<int64_t>;
 
 /// Determine the GenerateBySeqno value from an OptionalSeqno
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno);

@@ -23,11 +23,11 @@
 #include "item.h"
 #include "monotonic.h"
 
-#include <boost/optional.hpp>
 #include <folly/Synchronized.h>
 #include <memcached/engine_common.h>
 #include <platform/non_negative_counter.h>
 #include <utilities/memory_tracking_allocator.h>
+#include <optional>
 
 #include <list>
 #include <map>
@@ -396,7 +396,7 @@ public:
                uint64_t snapStart,
                uint64_t snapEnd,
                uint64_t visibleSnapEnd,
-               boost::optional<uint64_t> highCompletedSeqno,
+               std::optional<uint64_t> highCompletedSeqno,
                Vbid vbid,
                CheckpointType checkpointType);
 
@@ -534,11 +534,11 @@ public:
         checkpointType = type;
     }
 
-    void setHighCompletedSeqno(boost::optional<uint64_t> seqno) {
+    void setHighCompletedSeqno(std::optional<uint64_t> seqno) {
         highCompletedSeqno = seqno;
     }
 
-    boost::optional<uint64_t> getHighCompletedSeqno() const {
+    std::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
     }
 
@@ -554,8 +554,11 @@ public:
     /**
      * Returns the seqno of the last prepare queued in the checkpoint.
      */
-    boost::optional<uint64_t> getHighPreparedSeqno() const {
-        return boost::make_optional(highPreparedSeqno != 0, static_cast<uint64_t>(highPreparedSeqno));
+    std::optional<uint64_t> getHighPreparedSeqno() const {
+        if (highPreparedSeqno != 0) {
+            return highPreparedSeqno;
+        }
+        return std::nullopt;
     }
 
     /**
@@ -631,7 +634,7 @@ public:
     }
 
     /// @return the maximum 'deleted' rev-seq for this checkpoint (can be none)
-    boost::optional<uint64_t> getMaxDeletedRevSeqno() const {
+    std::optional<uint64_t> getMaxDeletedRevSeqno() const {
         return maxDeletedRevSeqno;
     }
 
@@ -723,7 +726,7 @@ private:
     // only necessary for Disk snapshot (due to de-dupe) and the way we retrieve
     // items from the CheckpointManager for memory snapshots makes it
     // non-trivial to send the HCS in memory snapshot markers.
-    boost::optional<uint64_t> highCompletedSeqno;
+    std::optional<uint64_t> highCompletedSeqno;
 
     // Tracks the seqno of the most recently queued prepare. Once this entire
     // checkpoint has been persisted, the state on disk definitely has a
@@ -735,7 +738,7 @@ private:
     // this value tracks the largest rev seqno of those deleted items,
     // and allows the flusher to get the max value irrespective of
     // de-duplication.
-    boost::optional<uint64_t> maxDeletedRevSeqno;
+    std::optional<uint64_t> maxDeletedRevSeqno;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

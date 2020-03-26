@@ -763,15 +763,15 @@ bool set_vbucket_state(EngineIface* h,
 }
 
 bool get_all_vb_seqnos(EngineIface* h,
-                       boost::optional<RequestedVBState> state,
+                       std::optional<RequestedVBState> state,
                        const void* cookie,
-                       boost::optional<CollectionIDType> collection) {
+                       std::optional<CollectionIDType> collection) {
     unique_request_ptr pkt;
 
     if (collection) {
         if (!state) {
             // Do the same check so we can print for the user...
-            checkeq(state.is_initialized(),
+            checkeq(state.has_value(),
                     true,
                     "State must be set when "
                     "collection is specified");
@@ -806,7 +806,7 @@ bool get_all_vb_seqnos(EngineIface* h,
 void verify_all_vb_seqnos(EngineIface* h,
                           int vb_start,
                           int vb_end,
-                          boost::optional<CollectionID> cid) {
+                          std::optional<CollectionID> cid) {
     const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
     const int high_seqno_offset = sizeof(uint16_t);
 
@@ -1112,7 +1112,7 @@ ENGINE_ERROR_CODE store(
         uint32_t exp,
         uint8_t datatype,
         DocumentState docState,
-        const boost::optional<cb::durability::Requirements>& durReqs) {
+        const std::optional<cb::durability::Requirements>& durReqs) {
     auto ret = storeCasVb11(h,
                             cookie,
                             op,
@@ -1180,7 +1180,7 @@ cb::EngineErrorItemPair storeCasVb11(
         uint32_t exp,
         uint8_t datatype,
         DocumentState docState,
-        const boost::optional<cb::durability::Requirements>& durReqs) {
+        const std::optional<cb::durability::Requirements>& durReqs) {
     uint64_t cas = 0;
 
     auto rv = allocate(h, cookie, key, vlen, flags, exp, datatype, vb);
@@ -1244,7 +1244,7 @@ ENGINE_ERROR_CODE replace(EngineIface* h,
     // not contain any xattr, and the vbucket that owns the doc has surely never
     // seen a doc with xattr. Which means that we do not need any pre-fetch for
     // preserving xattrs, the replace can just proceed.
-    const cb::StoreIfPredicate predicate = [](const boost::optional<item_info>&,
+    const cb::StoreIfPredicate predicate = [](const std::optional<item_info>&,
                                               cb::vbucket_info) {
         return cb::StoreIfStatus::Continue;
     };

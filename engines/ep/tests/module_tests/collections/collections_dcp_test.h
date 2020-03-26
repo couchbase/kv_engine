@@ -48,8 +48,8 @@ public:
                              uint64_t start_seqno,
                              uint64_t end_seqno,
                              uint32_t flags,
-                             boost::optional<uint64_t> high_completed_seqno,
-                             boost::optional<uint64_t> maxVisibleSeqno,
+                             std::optional<uint64_t> high_completed_seqno,
+                             std::optional<uint64_t> maxVisibleSeqno,
                              cb::mcbp::DcpStreamId sid) override;
 
     MockDcpConsumer* consumer = nullptr;
@@ -68,13 +68,13 @@ public:
     Collections::KVStore::Manifest getPersistedManifest(Vbid vb) const;
 
     void createDcpStream(
-            boost::optional<std::string_view> collections,
+            std::optional<std::string_view> collections,
             Vbid id = Vbid(0),
             cb::engine_errc expectedError = cb::engine_errc::success);
 
     void createDcpConsumer();
 
-    void createDcpObjects(boost::optional<std::string_view> collections,
+    void createDcpObjects(std::optional<std::string_view> collections,
                           bool enableOutOfOrderSnapshots = false);
 
     void TearDown() override;

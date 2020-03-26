@@ -16,10 +16,10 @@
  */
 #pragma once
 
-#include <boost/optional/optional.hpp>
 #include <platform/sized_buffer.h>
 #include <array>
 #include <gsl/gsl>
+#include <optional>
 #include <type_traits>
 
 namespace cb {
@@ -108,7 +108,7 @@ skip_unsigned_leb128(cb::const_byte_buffer buf) {
 }
 
 /// @return the index of the stop byte within buf
-static inline boost::optional<size_t> unsigned_leb128_get_stop_byte_index(
+static inline std::optional<size_t> unsigned_leb128_get_stop_byte_index(
         cb::const_byte_buffer buf) {
     // If buf does not contain a stop-byte, invalid
     size_t stopByte = 0;

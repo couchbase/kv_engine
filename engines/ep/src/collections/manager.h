@@ -114,7 +114,7 @@ public:
      *
      * @return optional scope-ID initialised if the lookup was successful
      */
-    std::pair<uint64_t, boost::optional<ScopeID>> getScopeID(
+    std::pair<uint64_t, std::optional<ScopeID>> getScopeID(
             const DocKey& key) const;
 
     /**
@@ -173,8 +173,8 @@ private:
      * Apply newManifest to all active vbuckets
      * @return uninitialized if success, else the vbid which triggered failure.
      */
-    boost::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
-                                            const Manifest& newManifest);
+    std::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
+                                          const Manifest& newManifest);
 
     /**
      * Get a copy of stats which are relevant at a per-collection level.

@@ -100,7 +100,7 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                              "vb_%d:collection:%s:entry:maxTTL",
                              vbid.get(),
                              cid.c_str());
-            add_casted_stat(buffer, getMaxTtl().get(), add_stat, cookie);
+            add_casted_stat(buffer, getMaxTtl().value(), add_stat, cookie);
         }
         return true;
     } catch (const std::exception& error) {
@@ -123,7 +123,7 @@ std::ostream& Collections::VB::operator<<(
        << ", diskCount:" << manifestEntry.getDiskCount();
 
     if (manifestEntry.getMaxTtl()) {
-        os << ", maxTtl:" << manifestEntry.getMaxTtl().get().count();
+        os << ", maxTtl:" << manifestEntry.getMaxTtl().value().count();
     }
     return os;
 }

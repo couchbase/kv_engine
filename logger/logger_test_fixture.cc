@@ -48,7 +48,7 @@ void SpdloggerTest::setUpLogger() {
     RemoveFiles();
 
     const auto ret = cb::logger::initialize(config);
-    EXPECT_FALSE(ret) << ret.get();
+    EXPECT_FALSE(ret) << ret.value();
 
     cb::logger::get()->set_level(config.log_level);
 }

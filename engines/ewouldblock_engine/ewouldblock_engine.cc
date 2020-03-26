@@ -317,7 +317,7 @@ public:
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::REMOVE, cookie, err)) {
@@ -371,7 +371,7 @@ public:
             const DocKey& key,
             Vbid vbucket,
             uint32_t exptime,
-            const boost::optional<cb::durability::Requirements>& durability)
+            const std::optional<cb::durability::Requirements>& durability)
             override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::GET, cookie, err)) {
@@ -422,7 +422,7 @@ public:
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
@@ -446,7 +446,7 @@ public:
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
@@ -674,7 +674,7 @@ public:
             gsl::not_null<const void*> cookie, std::string_view path) override;
     cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie, std::string_view path) override;
-    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
             const DocKey& key) const override;
 
@@ -729,19 +729,18 @@ public:
                                    Vbid vbucket,
                                    cb::mcbp::DcpStreamId sid) override;
 
-    ENGINE_ERROR_CODE stream_req(
-            gsl::not_null<const void*> cookie,
-            uint32_t flags,
-            uint32_t opaque,
-            Vbid vbucket,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint64_t vbucket_uuid,
-            uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno,
-            uint64_t* rollback_seqno,
-            dcp_add_failover_log callback,
-            boost::optional<std::string_view> json) override;
+    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
+                                 uint32_t flags,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno,
+                                 uint64_t* rollback_seqno,
+                                 dcp_add_failover_log callback,
+                                 std::optional<std::string_view> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -760,8 +759,8 @@ public:
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint32_t flags,
-            boost::optional<uint64_t> high_completed_seqno,
-            boost::optional<uint64_t> max_visible_seqno) override;
+            std::optional<uint64_t> high_completed_seqno,
+            std::optional<uint64_t> max_visible_seqno) override;
 
     ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
                                uint32_t opaque,
@@ -980,7 +979,7 @@ private:
         // be added to the pending_io_ops (and subsequently notified)?
         // @returns empty if shouldn't be added, otherwise contains the
         // status code to notify with.
-        virtual boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
+        virtual std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
             return ENGINE_SUCCESS;
         }
 
@@ -1129,7 +1128,7 @@ private:
             return inject;
         }
 
-        boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() override {
+        std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() override {
             // If this function has been called, should_inject_error() must
             // have returned true. Return the next status code in the sequnce
             // as the result of the pending IO.
@@ -1167,7 +1166,7 @@ private:
               : FaultInjectMode(injected_error_),
                 issued_return_error(false) {}
 
-            boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops()
+            std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops()
                     override {
                 return {};
             }
@@ -1398,19 +1397,18 @@ ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::stream_req(
-        gsl::not_null<const void*> cookie,
-        uint32_t flags,
-        uint32_t opaque,
-        Vbid vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint64_t vbucket_uuid,
-        uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno,
-        uint64_t* rollback_seqno,
-        dcp_add_failover_log callback,
-        boost::optional<std::string_view> json) {
+ENGINE_ERROR_CODE EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
+                                         uint32_t flags,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno,
+                                         uint64_t* rollback_seqno,
+                                         dcp_add_failover_log callback,
+                                         std::optional<std::string_view> json) {
     auto stream = dcp_stream.find(cookie.get());
     if (stream != dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
@@ -1494,8 +1492,8 @@ ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        boost::optional<uint64_t> max_visible_seqno) {
+        std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> max_visible_seqno) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
@@ -2017,7 +2015,7 @@ void EWB_Engine::initiate_shutdown() {
     }
 }
 
-std::pair<uint64_t, boost::optional<ScopeID>> EWB_Engine::get_scope_id(
+std::pair<uint64_t, std::optional<ScopeID>> EWB_Engine::get_scope_id(
         gsl::not_null<const void*> cookie, const DocKey& key) const {
     return real_engine->get_scope_id(cookie, key);
 }

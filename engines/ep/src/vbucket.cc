@@ -42,11 +42,11 @@
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 
-#include <boost/optional/optional_io.hpp>
 #include <folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_document_iface.h>
 #include <platform/compress.h>
+#include <platform/optional.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -846,7 +846,7 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
 ENGINE_ERROR_CODE VBucket::commit(
         const DocKey& key,
         uint64_t prepareSeqno,
-        boost::optional<int64_t> commitSeqno,
+        std::optional<int64_t> commitSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
     auto res = ht.findForUpdate(key);
@@ -858,7 +858,7 @@ ENGINE_ERROR_CODE VBucket::commit(
                 id,
                 cb::UserDataView(key.to_string()),
                 prepareSeqno,
-                commitSeqno);
+                to_string_or_none(commitSeqno));
         return ENGINE_KEY_ENOENT;
     }
 
@@ -903,7 +903,7 @@ ENGINE_ERROR_CODE VBucket::commit(
 ENGINE_ERROR_CODE VBucket::abort(
         const DocKey& key,
         uint64_t prepareSeqno,
-        boost::optional<int64_t> abortSeqno,
+        std::optional<int64_t> abortSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
     auto htRes = ht.findForUpdate(key);
@@ -948,7 +948,7 @@ ENGINE_ERROR_CODE VBucket::abort(
                     "Abort seqno: {}",
                     id,
                     prepareSeqno,
-                    abortSeqno);
+                    to_string_or_none(abortSeqno));
             return ENGINE_EINVAL;
         }
 
@@ -1261,7 +1261,7 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
     switch (state) {
     case vbucket_state_active:
         if (item->isPending()) {
-            Expects(ctx.durability.is_initialized());
+            Expects(ctx.durability.has_value());
             getActiveDM().addSyncWrite(ctx.durability->cookie, item);
         }
         break;
@@ -1297,9 +1297,9 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
 
     // If we are queueing a SyncWrite StoredValue; extract the durability
     // requirements to use to create the Item.
-    boost::optional<cb::durability::Requirements> durabilityReqs;
+    std::optional<cb::durability::Requirements> durabilityReqs;
     if (v.isPending()) {
-        Expects(ctx.durability.is_initialized());
+        Expects(ctx.durability.has_value());
         durabilityReqs = boost::get<cb::durability::Requirements>(
                 ctx.durability->requirementsOrPreparedSeqno);
     }
@@ -1315,7 +1315,7 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     qi->setQueuedTime();
 
     if (qi->isCommitSyncWrite()) {
-        Expects(ctx.durability.is_initialized());
+        Expects(ctx.durability.has_value());
         qi->setPrepareSeqno(boost::get<int64_t>(
                 ctx.durability->requirementsOrPreparedSeqno));
     }
@@ -1543,7 +1543,7 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
         storeIfStatus = predicate(info, getInfo());
         // No no, you can't ask for it again
         if (storeIfStatus == cb::StoreIfStatus::GetItemInfo &&
-            info.is_initialized()) {
+            info.has_value()) {
             throw std::logic_error(
                     "VBucket::callPredicate invalid result of GetItemInfo");
         }
@@ -1612,7 +1612,7 @@ ENGINE_ERROR_CODE VBucket::set(
         }
         queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
         MutationStatus status;
-        boost::optional<VBNotifyCtx> notifyCtx;
+        std::optional<VBNotifyCtx> notifyCtx;
         std::tie(status, notifyCtx) = processSet(htRes,
                                                  v,
                                                  itm,
@@ -1709,7 +1709,7 @@ ENGINE_ERROR_CODE VBucket::replace(
 
             auto* v = htRes.selectSVToModify(itm);
             MutationStatus mtype;
-            boost::optional<VBNotifyCtx> notifyCtx;
+            std::optional<VBNotifyCtx> notifyCtx;
             if (eviction == EvictionPolicy::Full &&
                 htRes.committed->isTempInitialItem()) {
                 mtype = MutationStatus::NeedBgFetch;
@@ -1827,7 +1827,7 @@ ENGINE_ERROR_CODE VBucket::prepare(
     auto& hbl = htRes.getHBL();
     bool maybeKeyExists = true;
     MutationStatus status;
-    boost::optional<VBNotifyCtx> notifyCtx;
+    std::optional<VBNotifyCtx> notifyCtx;
     VBQueueItemCtx queueItmCtx{
             genBySeqno,
             genCas,
@@ -1992,7 +1992,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             {} /*overwritingPrepareSeqno*/};
 
     MutationStatus status;
-    boost::optional<VBNotifyCtx> notifyCtx;
+    std::optional<VBNotifyCtx> notifyCtx;
     std::tie(status, notifyCtx) = processSet(htRes,
                                              v,
                                              itm,
@@ -2056,7 +2056,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         uint64_t& cas,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        boost::optional<cb::durability::Requirements> durability,
+        std::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
@@ -2129,10 +2129,10 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         }
 
         MutationStatus delrv;
-        boost::optional<VBNotifyCtx> notifyCtx;
+        std::optional<VBNotifyCtx> notifyCtx;
 
         // Determine which of committed / prepared SV to modify.
-        auto* v = htRes.selectSVToModify(durability.is_initialized());
+        auto* v = htRes.selectSVToModify(durability.has_value());
 
         if (htRes.committed->isExpired(ep_real_time())) {
             std::tie(delrv, v, notifyCtx) =
@@ -2286,7 +2286,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     }
 
     MutationStatus delrv;
-    boost::optional<VBNotifyCtx> notifyCtx;
+    std::optional<VBNotifyCtx> notifyCtx;
     bool metaBgFetch = true;
     if (!v) {
         if (eviction == EvictionPolicy::Full) {
@@ -2499,7 +2499,7 @@ ENGINE_ERROR_CODE VBucket::add(
                     DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
         }
         AddStatus status;
-        boost::optional<VBNotifyCtx> notifyCtx;
+        std::optional<VBNotifyCtx> notifyCtx;
         std::tie(status, notifyCtx) =
                 processAdd(htRes, v, itm, maybeKeyExists, queueItmCtx, cHandle);
 
@@ -3180,7 +3180,7 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
     } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
 }
 
-std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
+std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSet(
         HashTable::FindUpdateResult& htRes,
         StoredValue*& v,
         Item& itm,
@@ -3235,16 +3235,16 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
                            maybeKeyExists);
 }
 
-std::pair<MutationStatus, boost::optional<VBNotifyCtx>>
-VBucket::processSetInner(HashTable::FindUpdateResult& htRes,
-                         StoredValue*& v,
-                         Item& itm,
-                         uint64_t cas,
-                         bool allowExisting,
-                         bool hasMetaData,
-                         const VBQueueItemCtx& queueItmCtx,
-                         cb::StoreIfStatus storeIfStatus,
-                         bool maybeKeyExists) {
+std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
+        HashTable::FindUpdateResult& htRes,
+        StoredValue*& v,
+        Item& itm,
+        uint64_t cas,
+        bool allowExisting,
+        bool hasMetaData,
+        const VBQueueItemCtx& queueItmCtx,
+        cb::StoreIfStatus storeIfStatus,
+        bool maybeKeyExists) {
     if (!htRes.getHBL().getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processSet: htLock not held for " +
@@ -3377,7 +3377,7 @@ VBucket::processSetInner(HashTable::FindUpdateResult& htRes,
     return {status, notifyCtx};
 }
 
-std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
+std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         HashTable::FindUpdateResult& htRes,
         StoredValue*& v,
         Item& itm,
@@ -3453,7 +3453,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
     return rv;
 }
 
-std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+std::tuple<MutationStatus, StoredValue*, std::optional<VBNotifyCtx>>
 VBucket::processSoftDelete(HashTable::FindUpdateResult& htRes,
                            StoredValue& v,
                            uint64_t cas,
@@ -3473,7 +3473,7 @@ VBucket::processSoftDelete(HashTable::FindUpdateResult& htRes,
         // missing a prepare. This code allows this mutation to be accepted
         // and overwrites the existing prepare.
         if (getState() == vbucket_state_active || !isReceivingDiskSnapshot()) {
-            return {MutationStatus::IsPendingSyncWrite, &v, boost::none};
+            return {MutationStatus::IsPendingSyncWrite, &v, std::nullopt};
         }
 
         getPassiveDM().completeSyncWrite(
@@ -3506,7 +3506,7 @@ VBucket::processSoftDelete(HashTable::FindUpdateResult& htRes,
                                   deleteSource);
 }
 
-std::tuple<MutationStatus, StoredValue*, boost::optional<VBNotifyCtx>>
+std::tuple<MutationStatus, StoredValue*, std::optional<VBNotifyCtx>>
 VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
                                 StoredValue& v,
                                 uint64_t cas,
@@ -3515,7 +3515,7 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
                                 bool use_meta,
                                 uint64_t bySeqno,
                                 DeleteSource deleteSource) {
-    boost::optional<VBNotifyCtx> empty;
+    std::optional<VBNotifyCtx> empty;
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }

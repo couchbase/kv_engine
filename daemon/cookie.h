@@ -510,7 +510,7 @@ public:
      */
     cb::mcbp::Status setEffectiveUser(const cb::rbac::UserIdent& e);
 
-    boost::optional<cb::rbac::UserIdent> getEffectiveUser() const {
+    std::optional<cb::rbac::UserIdent> getEffectiveUser() const {
         return euid;
     }
 
@@ -648,7 +648,7 @@ protected:
 
     /// If the request came in with the impersonate frame info set, this
     /// is the user requested
-    boost::optional<cb::rbac::UserIdent> euid;
+    std::optional<cb::rbac::UserIdent> euid;
 
     /// Fetch the privileges from the EUID
     bool fetchEuidPrivilegeSet();
@@ -659,5 +659,5 @@ protected:
 
     /// If the request came in with the impersonate frame info set, this
     /// is the privilege context for that user (which we'll also test)
-    boost::optional<cb::rbac::PrivilegeContext> euidPrivilegeContext;
+    std::optional<cb::rbac::PrivilegeContext> euidPrivilegeContext;
 };

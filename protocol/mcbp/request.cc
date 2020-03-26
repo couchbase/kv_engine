@@ -282,8 +282,8 @@ bool Request::isQuiet() const {
     throw std::invalid_argument("Request::isQuiet: Uknown opcode");
 }
 
-boost::optional<cb::durability::Requirements>
-Request::getDurabilityRequirements() const {
+std::optional<cb::durability::Requirements> Request::getDurabilityRequirements()
+        const {
     using cb::durability::Level;
     using cb::durability::Requirements;
     Requirements ret;

@@ -19,8 +19,8 @@
 
 #include <mcbp/protocol/framebuilder.h>
 
-#include <boost/optional/optional_fwd.hpp>
 #include <memcached/protocol_binary.h>
+#include <optional>
 namespace cb {
 namespace mcbp {
 
@@ -37,10 +37,10 @@ public:
     uint32_t getFlags() const {
         return flags;
     }
-    boost::optional<uint64_t> getHighCompletedSeqno() const {
+    std::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
     }
-    boost::optional<uint64_t> getMaxVisibleSeqno() const {
+    std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
 
@@ -64,8 +64,8 @@ protected:
     uint64_t startSeqno;
     uint64_t endSeqno;
     uint32_t flags;
-    boost::optional<uint64_t> highCompletedSeqno;
-    boost::optional<uint64_t> maxVisibleSeqno;
+    std::optional<uint64_t> highCompletedSeqno;
+    std::optional<uint64_t> maxVisibleSeqno;
 };
 
 /**
@@ -85,8 +85,8 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
                              uint64_t start,
                              uint64_t end,
                              uint32_t flags,
-                             boost::optional<uint64_t> highCompletedSeqno,
-                             boost::optional<uint64_t> maxVisibleSeqno);
+                             std::optional<uint64_t> highCompletedSeqno,
+                             std::optional<uint64_t> maxVisibleSeqno);
 
 } // end namespace mcbp
 } // end namespace cb

@@ -1,11 +1,11 @@
 #pragma once
 
-#include <boost/optional/optional.hpp>
 #include <memcached/dockey.h>
 #include <sys/types.h>
 #include <chrono>
 #include <cstdint>
 #include <iosfwd>
+#include <optional>
 
 #ifdef WIN32
 // Need DWORD and ssize_t (used to be defined in platform/platform.h
@@ -152,7 +152,7 @@ struct vbucket_info {
     bool mayContainXattrs;
 };
 
-using ExpiryLimit = boost::optional<std::chrono::seconds>;
+using ExpiryLimit = std::optional<std::chrono::seconds>;
 
 static const ExpiryLimit NoExpiryLimit{};
 }

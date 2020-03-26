@@ -29,7 +29,7 @@ TEST(ManifestEntry, test_getters) {
                                      1000);
     EXPECT_EQ(1000, m.getStartSeqno());
     EXPECT_TRUE(m.getMaxTtl());
-    EXPECT_EQ(5000s, m.getMaxTtl().get());
+    EXPECT_EQ(5000s, m.getMaxTtl().value());
 }
 
 TEST(ManifestEntry, exceptions) {

@@ -17,8 +17,8 @@
 
 #include "ep_types.h"
 
-#include <boost/optional.hpp>
 #include <folly/lang/Assume.h>
+#include <optional>
 #include <ostream>
 
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {

@@ -190,7 +190,7 @@ std::unique_ptr<Item> StoredValue::toItem(
         Vbid vbid,
         HideLockedCas hideLockedCas,
         IncludeValue includeValue,
-        boost::optional<cb::durability::Requirements> durabilityReqs) const {
+        std::optional<cb::durability::Requirements> durabilityReqs) const {
     auto item = toItemBase(vbid, hideLockedCas, includeValue);
 
     // Set the correct CommittedState and associated properties (durability
@@ -394,9 +394,9 @@ void StoredValue::storeCompressedBuffer(std::string_view deflated) {
 /**
  * Get an item_info from the StoredValue
  */
-boost::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
+std::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
     if (isTempItem()) {
-        return boost::none;
+        return std::nullopt;
     }
 
     item_info info;

@@ -2702,9 +2702,8 @@ void CouchKVStore::deleteCollectionStats(Db& db, CollectionID cid) {
     deleteLocalDoc(db, "|" + cid.to_string() + "|"); // internally logs
 }
 
-boost::optional<Collections::VB::PersistedStats>
-CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
-                                 CollectionID collection) {
+std::optional<Collections::VB::PersistedStats> CouchKVStore::getCollectionStats(
+        const KVFileHandle& kvFileHandle, CollectionID collection) {
     std::string docName = "|" + collection.to_string() + "|";
 
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
@@ -3368,8 +3367,7 @@ couchstore_error_t CouchKVStore::updateCollectionsMeta(
     // If the updateOpenCollections reads the dropped collections, it can pass
     // them via this optional to updateDroppedCollections, thus we only read
     // the dropped list once per update.
-    boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
-            dropped;
+    std::optional<std::vector<Collections::KVStore::DroppedCollection>> dropped;
 
     if (!collectionsMeta.collections.empty() ||
         !collectionsMeta.droppedCollections.empty()) {
@@ -3430,7 +3428,7 @@ CouchKVStore::updateOpenCollections(Db& db) {
 
 couchstore_error_t CouchKVStore::updateDroppedCollections(
         Db& db,
-        boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
+        std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                 dropped) {
     for (const auto& drop : collectionsMeta.droppedCollections) {
         // Delete the 'stats' document for the collection
@@ -3439,12 +3437,12 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
 
     // If the input 'dropped' is not initialised we must read the dropped
     // collection data
-    if (!dropped.is_initialized()) {
+    if (!dropped.has_value()) {
         dropped = getDroppedCollections(db);
     }
 
     auto buf = Collections::KVStore::encodeDroppedCollections(collectionsMeta,
-                                                              dropped.get());
+                                                              dropped.value());
     return writeLocalDoc(
             db,
             Collections::droppedCollectionsName,

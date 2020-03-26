@@ -189,7 +189,7 @@ protected:
 bool operator==(const Requirements& lhs, const Requirements& rhs);
 
 // @todo-durability: Might be able to remove this now we are using
-// boost::optional for requirements in VBucket, and Item uses the queue_op
+// std::optional for requirements in VBucket, and Item uses the queue_op
 // to determine it's CommittedState. Check if any references remain.
 // (Can also remove Level::None).
 static constexpr Requirements NoRequirements = {Level::None, Timeout{}};

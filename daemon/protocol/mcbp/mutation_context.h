@@ -56,7 +56,7 @@ public:
 
     /// this function is the predicate to pass to store_if
     static cb::StoreIfStatus storeIfPredicate(
-            const boost::optional<item_info>& existing, cb::vbucket_info vb);
+            const std::optional<item_info>& existing, cb::vbucket_info vb);
 
 protected:
     ENGINE_ERROR_CODE step() override;

@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#include <boost/optional/optional.hpp>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 #include "input_couchfile.h"
 #include "output_couchfile.h"
@@ -117,15 +117,15 @@ std::string InputCouchFile::getLocalDocument(
 
 bool InputCouchFile::isCompletelyNamespaced() const {
     auto value = getSupportsNamespaces();
-    return value.is_initialized() && value.get();
+    return value.has_value() && value.value();
 }
 
 bool InputCouchFile::isPartiallyNamespaced() const {
     auto value = getSupportsNamespaces();
-    return value.is_initialized() && !value.get();
+    return value.has_value() && !value.value();
 }
 
-boost::optional<bool> InputCouchFile::getSupportsNamespaces() const {
+std::optional<bool> InputCouchFile::getSupportsNamespaces() const {
     auto vbstate = getLocalDocument("_local/vbstate");
     nlohmann::json json;
     try {
@@ -137,7 +137,7 @@ boost::optional<bool> InputCouchFile::getSupportsNamespaces() const {
                 vbstate + " exception:" + e.what());
     }
 
-    boost::optional<bool> rv;
+    std::optional<bool> rv;
 
     try {
         auto supported = json.at(NamespacesSupportedKey);

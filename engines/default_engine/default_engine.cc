@@ -247,7 +247,7 @@ ENGINE_ERROR_CODE default_engine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     if (durability) {
         return ENGINE_ENOTSUP;
@@ -390,7 +390,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
-        const boost::optional<cb::durability::Requirements>& durability) {
+        const std::optional<cb::durability::Requirements>& durability) {
     if (durability) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
     }
@@ -540,7 +540,7 @@ ENGINE_ERROR_CODE default_engine::store(
         gsl::not_null<item*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     if (durability) {
@@ -563,7 +563,7 @@ cb::EngineErrorCasPair default_engine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     if (durability) {
@@ -592,7 +592,7 @@ cb::EngineErrorCasPair default_engine::store_if(
             }
             status = predicate(info, {true});
         } else {
-            status = predicate(boost::none, {true});
+            status = predicate(std::nullopt, {true});
         }
 
         switch (status) {
@@ -1032,13 +1032,13 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
 }
 
 // permit lookup of the default scope only
-std::pair<uint64_t, boost::optional<ScopeID>> default_engine::get_scope_id(
+std::pair<uint64_t, std::optional<ScopeID>> default_engine::get_scope_id(
         gsl::not_null<const void*> cookie, const DocKey& key) const {
     if (key.getCollectionID().isDefaultCollection()) {
-        return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+        return std::make_pair<uint64_t, std::optional<ScopeID>>(
                 0, ScopeID{ScopeID::Default});
     }
-    return std::make_pair<uint64_t, boost::optional<ScopeID>>(0, {});
+    return std::make_pair<uint64_t, std::optional<ScopeID>>(0, {});
 }
 
 void default_engine::generate_unknown_collection_response(

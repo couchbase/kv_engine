@@ -278,7 +278,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     return acquireEngine(this)->itemDelete(
             cookie, key, cas, vbucket, durability, mut_info);
@@ -336,7 +336,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
-        const boost::optional<cb::durability::Requirements>& durability) {
+        const std::optional<cb::durability::Requirements>& durability) {
     if (durability) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
     }
@@ -405,7 +405,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         gsl::not_null<item*> itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     Item& item = *static_cast<Item*>(itm.get());
@@ -413,7 +413,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         item.setDeleted();
     }
     if (durability) {
-        item.setPendingSyncWrite(durability.get());
+        item.setPendingSyncWrite(durability.value());
     }
     return acquireEngine(this)->storeInner(
             cookie, item, cas, operation, preserveTtl);
@@ -425,7 +425,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
@@ -434,7 +434,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         item.setDeleted();
     }
     if (durability) {
-        item.setPendingSyncWrite(durability.get());
+        item.setPendingSyncWrite(durability.value());
     }
     return acquireEngine(this)->storeIfInner(
             cookie, item, cas, operation, predicate, preserveTtl);
@@ -1355,7 +1355,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
         uint64_t snapEndSeqno,
         uint64_t* rollbackSeqno,
         dcp_add_failover_log callback,
-        boost::optional<std::string_view> json) {
+        std::optional<std::string_view> json) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1448,8 +1448,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        boost::optional<uint64_t> max_visible_seqno) {
+        std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> max_visible_seqno) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1847,7 +1847,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     return rv;
 }
 
-std::pair<uint64_t, boost::optional<ScopeID>>
+std::pair<uint64_t, std::optional<ScopeID>>
 EventuallyPersistentEngine::get_scope_id(gsl::not_null<const void*>,
                                          const DocKey& key) const {
     auto engine = acquireEngine(this);
@@ -2248,7 +2248,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        boost::optional<cb::durability::Requirements> durability,
+        std::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info) {
     // Check if this is a in-progress durable delete which has now completed -
     // (see 'case EWOULDBLOCK' at the end of this function where we record
@@ -3653,11 +3653,11 @@ public:
                 if (filter != attributes.end()) {
                     auto iter = filter->find("user");
                     if (iter != filter->end()) {
-                        user.reset(cb::tagUserData(iter->get<std::string>()));
+                        user = cb::tagUserData(iter->get<std::string>());
                     }
                     iter = filter->find("port");
                     if (iter != filter->end()) {
-                        port.reset(iter->get<in_port_t>());
+                        port = iter->get<in_port_t>();
                     }
                 }
             } catch (const std::exception& e) {
@@ -3680,8 +3680,8 @@ public:
     }
 
 protected:
-    boost::optional<std::string> user;
-    boost::optional<in_port_t> port;
+    std::optional<std::string> user;
+    std::optional<in_port_t> port;
 };
 
 /**
@@ -4682,7 +4682,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::checkPrivilege(
             if (!res.second) {
                 return ENGINE_UNKNOWN_COLLECTION;
             }
-            sid = res.second.get();
+            sid = res.second.value();
         }
 
         const auto acc = serverApi->cookie->check_privilege(
@@ -6390,7 +6390,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // By default allow any alive states. If reqState has been set then
     // filter on that specific state.
     auto reqState = aliveVBStates;
-    boost::optional<CollectionIDType> reqCollection = {};
+    std::optional<CollectionIDType> reqCollection = {};
 
     // if extlen is non-zero, it limits the result to either only include the
     // vbuckets in the specified vbucket state, or in the specified vbucket
@@ -6473,7 +6473,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                 // Check this instead of throwing and catching an
                 // exception.
                 auto handle = vb->lockCollections();
-                if (handle.exists(reqCollection.get())) {
+                if (handle.exists(reqCollection.value())) {
                     highSeqno = htonll(handle.getHighSeqno(*reqCollection));
                 } else {
                     // If the collection doesn't exist in this

@@ -67,7 +67,7 @@ public:
             const std::vector<cb::engine_errc>& expected =
                     {cb::engine_errc::success},
             protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON,
-            boost::optional<cb::durability::Requirements> reqs = {},
+            std::optional<cb::durability::Requirements> reqs = {},
             bool deleted = false);
 
     /**

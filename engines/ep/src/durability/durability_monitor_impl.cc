@@ -22,7 +22,7 @@
 
 /// Helper function to determine the expiry time for a SyncWrite from the
 /// durability requirements.
-static boost::optional<std::chrono::steady_clock::time_point>
+static std::optional<std::chrono::steady_clock::time_point>
 expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
                         std::chrono::milliseconds defaultTimeout) {
     auto timeout = reqs.getTimeout();

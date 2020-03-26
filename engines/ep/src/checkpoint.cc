@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include <boost/optional/optional_io.hpp>
 #include <gsl.h>
 #include <platform/checked_snprintf.h>
 #include <string>
@@ -182,7 +181,7 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t snapStart,
                        uint64_t snapEnd,
                        uint64_t visibleSnapEnd,
-                       boost::optional<uint64_t> highCompletedSeqno,
+                       std::optional<uint64_t> highCompletedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType)
     : stats(st),
@@ -603,8 +602,10 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
-       << " type:" << to_string(c.getCheckpointType())
-       << " hcs:" << c.getHighCompletedSeqno() << " items:[" << std::endl;
+       << " type:" << to_string(c.getCheckpointType());
+    const auto hcs = c.getHighCompletedSeqno();
+    os << " hcs:" << (hcs ? std::to_string(hcs.value()) : "none ") << " items:["
+       << std::endl;
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";

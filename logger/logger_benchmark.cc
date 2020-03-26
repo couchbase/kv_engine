@@ -17,10 +17,10 @@
 
 #include <benchmark/benchmark.h>
 
-#include <boost/optional/optional.hpp>
 #include <logger/logger.h>
 #include <logger/logger_config.h>
 #include <iostream>
+#include <optional>
 
 /**
  * A fixture for benchmarking the logger.

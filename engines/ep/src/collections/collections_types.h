@@ -219,7 +219,7 @@ struct CreateWithMaxTtlEventDcpData {
           sid(ev.metaData.sid),
           cid(ev.metaData.cid),
           maxTtl(htonl(gsl::narrow_cast<uint32_t>(
-                  ev.metaData.maxTtl.get().count()))) {
+                  ev.metaData.maxTtl.value().count()))) {
     }
     /// The manifest uid stored in network byte order ready for sending
     ManifestUidNetworkOrder manifestUid;

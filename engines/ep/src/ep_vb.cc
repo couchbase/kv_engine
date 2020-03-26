@@ -613,7 +613,7 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindUpdateResult& values,
                                          uint64_t prepareSeqno,
                                          const VBQueueItemCtx& queueItmCtx,
-                                         boost::optional<int64_t> commitSeqno) {
+                                         std::optional<int64_t> commitSeqno) {
     // Remove a previously committed SV if one exists
     if (values.committed) {
         // Only delete the existing committed item
@@ -634,7 +634,7 @@ VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindUpdateResult& values,
 VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
                                         StoredValue& v,
                                         int64_t prepareSeqno,
-                                        boost::optional<int64_t> abortSeqno) {
+                                        std::optional<int64_t> abortSeqno) {
     // Note: We have to enqueue the item into the CM /before/ removing it from
     //     the HT as the removal is synchronous and deallocates the StoredValue
     VBQueueItemCtx queueItmCtx;
@@ -849,7 +849,7 @@ void EPVBucket::dropKey(int64_t bySeqno,
 int64_t EPVBucket::addSystemEventItem(
         Item* item,
         OptionalSeqno seqno,
-        boost::optional<CollectionID> cid,
+        std::optional<CollectionID> cid,
         const Collections::VB::Manifest::WriteHandle& wHandle) {
     item->setVBucketId(getId());
     queued_item qi(item);
@@ -867,7 +867,7 @@ int64_t EPVBucket::addSystemEventItem(
             nullptr /* No pre link step as this is for system events */);
     VBNotifyCtx notifyCtx;
     // If the seqno is initialized, skip replication notification
-    notifyCtx.notifyReplication = !seqno.is_initialized();
+    notifyCtx.notifyReplication = !seqno.has_value();
     notifyCtx.notifyFlusher = true;
     notifyCtx.bySeqno = qi->getBySeqno();
     notifyNewSeqno(notifyCtx);

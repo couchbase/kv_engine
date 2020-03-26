@@ -189,8 +189,8 @@ public:
      * @return optional CollectionID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
-    boost::optional<CollectionID> getCollectionID(ScopeID scope,
-                                                  std::string_view path) const;
+    std::optional<CollectionID> getCollectionID(ScopeID scope,
+                                                std::string_view path) const;
 
     /**
      * Attempt to lookup the scope-id of the "path", note that this method
@@ -206,13 +206,13 @@ public:
      * @return optional ScopeID, undefined if nothing found
      * @throws cb::engine_error(invalid_argument) for invalid input
      */
-    boost::optional<ScopeID> getScopeID(std::string_view path) const;
+    std::optional<ScopeID> getScopeID(std::string_view path) const;
 
     /**
      * Attempt to lookup the scope-id of the "key" (using the collection-ID)
      * @return an optional ScopeID, undefined if nothing found
      */
-    boost::optional<ScopeID> getScopeID(const DocKey& key) const;
+    std::optional<ScopeID> getScopeID(const DocKey& key) const;
 
     /**
      * @returns this manifest as a std::string (JSON formatted)

@@ -110,13 +110,13 @@ public:
     }
 
     // Wire through to private method
-    boost::optional<Manifest::CollectionAddition> public_applyCreates(
+    std::optional<Manifest::CollectionAddition> public_applyCreates(
             ::VBucket& vb, std::vector<CollectionAddition>& changes) {
         auto wHandle = wlock();
         return applyCreates(wHandle, vb, changes);
     }
 
-    boost::optional<std::vector<CollectionID>> public_getCollectionsForScope(
+    std::optional<std::vector<CollectionID>> public_getCollectionsForScope(
             ScopeID identifier) {
         return getCollectionsForScope(identifier);
     }
@@ -772,14 +772,14 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
             changes; // start out empty
     auto value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
-    EXPECT_FALSE(value.is_initialized());
+    EXPECT_FALSE(value.has_value());
     changes.push_back({std::make_pair(0, 8), "name1"});
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
-    ASSERT_TRUE(value.is_initialized());
-    EXPECT_EQ(0, value.get().identifiers.first);
-    EXPECT_EQ(8, value.get().identifiers.second);
-    EXPECT_EQ("name1", value.get().name);
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(0, value.value().identifiers.first);
+    EXPECT_EQ(8, value.value().identifiers.second);
+    EXPECT_EQ("name1", value.value().name);
     EXPECT_TRUE(changes.empty());
 
     changes.push_back({std::make_pair(0, 8), "name2"});
@@ -787,10 +787,10 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
-    ASSERT_TRUE(value.is_initialized());
-    EXPECT_EQ(0, value.get().identifiers.first);
-    EXPECT_EQ(9, value.get().identifiers.second);
-    EXPECT_EQ("name3", value.get().name);
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(0, value.value().identifiers.first);
+    EXPECT_EQ(9, value.value().identifiers.second);
+    EXPECT_EQ("name3", value.value().name);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
 }
 

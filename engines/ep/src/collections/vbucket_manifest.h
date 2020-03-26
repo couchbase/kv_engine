@@ -23,12 +23,12 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "systemevent.h"
 
-#include <boost/optional/optional_fwd.hpp>
 #include <platform/non_negative_counter.h>
 #include <platform/rwlock.h>
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 class VBucket;
@@ -153,7 +153,7 @@ public:
          * @returns optional vector of CollectionIDs associated with the
          *          scope. Returns uninitialized if the scope does not exist
          */
-        boost::optional<std::vector<CollectionID>> getCollectionsForScope(
+        std::optional<std::vector<CollectionID>> getCollectionsForScope(
                 ScopeID identifier) const {
             return manifest->getCollectionsForScope(identifier);
         }
@@ -816,24 +816,24 @@ protected:
      * @param changes a vector of CollectionIDs to add/delete (based on update)
      * @return the last element of the changes vector
      */
-    boost::optional<CollectionAddition> applyCreates(
+    std::optional<CollectionAddition> applyCreates(
             const WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<CollectionAddition>& changes);
 
-    boost::optional<CollectionID> applyDeletions(
+    std::optional<CollectionID> applyDeletions(
             const WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<CollectionID>& changes);
 
-    boost::optional<ScopeAddition> applyScopeCreates(
+    std::optional<ScopeAddition> applyScopeCreates(
             const WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<ScopeAddition>& changes);
 
-    boost::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
-                                             ::VBucket& vb,
-                                             std::vector<ScopeID>& changes);
+    std::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
+                                           ::VBucket& vb,
+                                           std::vector<ScopeID>& changes);
 
     /**
      * Add a collection to the manifest.
@@ -1023,7 +1023,7 @@ protected:
      * @return optional vector of CollectionIDs. Returns uninitialized if the
      *         scope does not exist
      */
-    boost::optional<std::vector<CollectionID>> getCollectionsForScope(
+    std::optional<std::vector<CollectionID>> getCollectionsForScope(
             ScopeID identifier) const;
 
     /**

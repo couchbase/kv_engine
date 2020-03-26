@@ -19,7 +19,7 @@
 
 #include "couchfile.h"
 
-#include <boost/optional/optional_fwd.hpp>
+#include <optional>
 
 namespace Collections {
 
@@ -57,7 +57,7 @@ private:
 
     bool isPartiallyNamespaced() const;
 
-    boost::optional<bool> getSupportsNamespaces() const;
+    std::optional<bool> getSupportsNamespaces() const;
 
     LocalDocPtr openLocalDocument(const std::string& documentName) const;
 };

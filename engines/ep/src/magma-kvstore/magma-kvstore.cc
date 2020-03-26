@@ -2177,8 +2177,7 @@ Status MagmaKVStore::updateCollectionsMeta(
     // If the updateOpenCollections reads the dropped collections, it can pass
     // them via this optional to updateDroppedCollections, thus we only read
     // the dropped list once per update.
-    boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
-            dropped;
+    std::optional<std::vector<Collections::KVStore::DroppedCollection>> dropped;
 
     if (!collectionsMeta.collections.empty() ||
         !collectionsMeta.droppedCollections.empty()) {
@@ -2189,7 +2188,7 @@ Status MagmaKVStore::updateCollectionsMeta(
     }
 
     if (!collectionsMeta.droppedCollections.empty()) {
-        if (!dropped.is_initialized()) {
+        if (!dropped.has_value()) {
             dropped = getDroppedCollections(vbid);
         }
         status = updateDroppedCollections(vbid, commitBatch, dropped);
@@ -2239,7 +2238,7 @@ MagmaKVStore::updateOpenCollections(Vbid vbid,
 magma::Status MagmaKVStore::updateDroppedCollections(
         Vbid vbid,
         Magma::CommitBatch& commitBatch,
-        boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
+        std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                 dropped) {
     for (const auto& drop : collectionsMeta.droppedCollections) {
         // Delete the 'stats' document for the collection
@@ -2248,12 +2247,12 @@ magma::Status MagmaKVStore::updateDroppedCollections(
 
     // If the input 'dropped' is not initialised we must read the dropped
     // collection data
-    if (!dropped.is_initialized()) {
+    if (!dropped.has_value()) {
         dropped = getDroppedCollections(vbid);
     }
 
     auto buf = Collections::KVStore::encodeDroppedCollections(collectionsMeta,
-                                                              dropped.get());
+                                                              dropped.value());
     Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
     return setLocalDoc(commitBatch, droppedCollectionsKey, valSlice);
 }
@@ -2281,9 +2280,8 @@ void MagmaKVStore::saveCollectionStats(
     return;
 }
 
-boost::optional<Collections::VB::PersistedStats>
-MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
-                                 CollectionID cid) {
+std::optional<Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
+        const KVFileHandle& kvFileHandle, CollectionID cid) {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
     auto key = getCollectionsStatsKey(cid);

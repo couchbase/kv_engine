@@ -422,7 +422,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
     ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
-    EXPECT_EQ(expectedSeqno, msg->getBySeqno().get());
+    EXPECT_EQ(expectedSeqno, msg->getBySeqno().value());
     auto* mutation = static_cast<MutationConsumerMessage*>(msg.get());
 
     // If the item is actually a commit_sync_write which had to be transmitted

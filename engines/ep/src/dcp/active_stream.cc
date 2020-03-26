@@ -25,8 +25,8 @@
 #include "kv_bucket.h"
 #include "statwriter.h"
 
-#include <boost/optional/optional_io.hpp>
 #include <memcached/protocol_binary.h>
+#include <platform/optional.h>
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,
@@ -250,11 +250,10 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
     }
 }
 
-bool ActiveStream::markDiskSnapshot(
-        uint64_t startSeqno,
-        uint64_t endSeqno,
-        boost::optional<uint64_t> highCompletedSeqno,
-        uint64_t maxVisibleSeqno) {
+bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
+                                    uint64_t endSeqno,
+                                    std::optional<uint64_t> highCompletedSeqno,
+                                    uint64_t maxVisibleSeqno) {
     {
         LockHolder lh(streamMutex);
         uint64_t chkCursorSeqno = endSeqno;
@@ -328,15 +327,18 @@ bool ActiveStream::markDiskSnapshot(
         // If the stream supports SyncRep then send the HCS in the
         // SnapshotMarker if it is not 0
         auto sendHCS = supportSyncReplication() && highCompletedSeqno;
-        auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
+        auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
+        auto mvsToSend = supportSyncReplication()
+                                 ? std::make_optional(maxVisibleSeqno)
+                                 : std::nullopt;
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
             "start {}, end {}, and high completed {}, max visible {}",
             logPrefix,
             startSeqno,
             endSeqno,
-            hcsToSend,
-            maxVisibleSeqno);
+            to_string_or_none(hcsToSend),
+            to_string_or_none(mvsToSend));
         pushToReadyQ(std::make_unique<SnapshotMarker>(
                 opaque_,
                 vb_,
@@ -344,8 +346,7 @@ bool ActiveStream::markDiskSnapshot(
                 endSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                 hcsToSend,
-                boost::optional<uint64_t>{supportSyncReplication(),
-                                          maxVisibleSeqno},
+                mvsToSend,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
@@ -607,7 +608,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
 
         // Only DcpResponse objects representing items from "disk" have a size
         // so only update backfillRemaining when non-zero
-        if (resp->getApproximateSize() && backfillRemaining.is_initialized()) {
+        if (resp->getApproximateSize() && backfillRemaining.has_value()) {
             (*backfillRemaining)--;
         }
     }
@@ -1247,7 +1248,7 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
 
 void ActiveStream::snapshot(CheckpointType checkpointType,
                             std::deque<std::unique_ptr<DcpResponse>>& items,
-                            boost::optional<uint64_t> highCompletedSeqno,
+                            std::optional<uint64_t> highCompletedSeqno,
                             uint64_t maxVisibleSeqno) {
     if (items.empty()) {
         return;
@@ -1294,9 +1295,9 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
 
         // If the stream supports SyncRep then send the HCS for CktpType::disk
         const auto sendHCS = supportSyncReplication() && isCkptTypeDisk;
-        const auto hcsToSend = sendHCS ? highCompletedSeqno : boost::none;
+        const auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
         if (sendHCS) {
-            Expects(hcsToSend.is_initialized());
+            Expects(hcsToSend.has_value());
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::snapshot: Sending disk snapshot with start "
                 "seqno {}, end seqno {}, and"
@@ -1304,19 +1305,20 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
                 logPrefix,
                 snapStart,
                 snapEnd,
-                hcsToSend);
+                to_string_or_none(hcsToSend));
         }
+        const auto mvsToSend = supportSyncReplication()
+                                       ? std::make_optional(maxVisibleSeqno)
+                                       : std::nullopt;
 
-        pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_,
-                vb_,
-                snapStart,
-                snapEnd,
-                flags,
-                hcsToSend,
-                boost::optional<uint64_t>{supportSyncReplication(),
-                                          maxVisibleSeqno},
-                sid));
+        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                      vb_,
+                                                      snapStart,
+                                                      snapEnd,
+                                                      flags,
+                                                      hcsToSend,
+                                                      mvsToSend,
+                                                      sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
         // Here we can just clear this flag as it is set every time we process
@@ -1349,11 +1351,11 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
 void ActiveStream::setDead(end_stream_status_t status,
                            folly::SharedMutex::WriteHolder& vbstateLock) {
     setDeadInner(status);
-    removeAcksFromDM(vbstateLock);
+    removeAcksFromDM(&vbstateLock);
 }
 
 void ActiveStream::removeAcksFromDM(
-        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
+        folly::SharedMutex::WriteHolder* vbstateLock) {
     // Remove any unknown acks for the stream. Why here and not on
     // destruction of the object? We could be replacing an existing
     // DcpProducer with another. This old ActiveStream may then live on

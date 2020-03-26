@@ -16,12 +16,12 @@
  */
 
 #include "hdrhistogram.h"
-#include <boost/optional/optional.hpp>
 #include <folly/lang/Assume.h>
 #include <hdr_histogram.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <iostream>
+#include <optional>
 #include <sstream>
 
 // Custom deleter for the hdr_histogram struct.
@@ -186,9 +186,9 @@ HdrHistogram::Iterator HdrHistogram::getHistogramsIterator() const {
     return makeIterator(defaultIterationMode);
 }
 
-boost::optional<std::pair<uint64_t, uint64_t>>
-HdrHistogram::getNextValueAndCount(Iterator& iter) const {
-    boost::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
+std::optional<std::pair<uint64_t, uint64_t>> HdrHistogram::getNextValueAndCount(
+        Iterator& iter) const {
+    std::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
     if (hdr_iter_next(&iter)) {
         auto value = static_cast<uint64_t>(iter.value);
         uint64_t count = 0;
@@ -218,12 +218,11 @@ HdrHistogram::getNextValueAndCount(Iterator& iter) const {
     }
 }
 
-boost::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
+std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
 HdrHistogram::getNextBucketLowHighAndCount(Iterator& iter) const {
-    boost::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
-            bucketHighLowCount;
+    std::optional<std::tuple<uint64_t, uint64_t, uint64_t>> bucketHighLowCount;
     auto valueAndCount = getNextValueAndCount(iter);
-    if (valueAndCount.is_initialized()) {
+    if (valueAndCount.has_value()) {
         bucketHighLowCount = std::make_tuple(
                 iter.lastVal, valueAndCount->first, valueAndCount->second);
         iter.lastVal = valueAndCount->first;
@@ -231,9 +230,9 @@ HdrHistogram::getNextBucketLowHighAndCount(Iterator& iter) const {
     return bucketHighLowCount;
 }
 
-boost::optional<std::pair<uint64_t, double>>
+std::optional<std::pair<uint64_t, double>>
 HdrHistogram::getNextValueAndPercentile(Iterator& iter) const {
-    boost::optional<std::pair<uint64_t, double>> valueAndPer;
+    std::optional<std::pair<uint64_t, double>> valueAndPer;
     if (iter.type == Iterator::IterMode::Percentiles) {
         if (hdr_iter_next(&iter)) {
             // We subtract one from the lowest value as we have added a one
@@ -286,7 +285,7 @@ nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
 
     int64_t lastval = 0;
     while (auto pair = getNextValueAndPercentile(itr)) {
-        if (!pair.is_initialized())
+        if (!pair.has_value())
             break;
 
         dataArr.push_back(

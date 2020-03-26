@@ -28,10 +28,10 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 
-#include <boost/optional/optional_io.hpp>
 #include <utility>
 
 #include <gsl.h>
+#include <platform/optional.h>
 
 constexpr const char* CheckpointManager::pCursorName;
 constexpr const char* CheckpointManager::backupPCursorName;
@@ -163,7 +163,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
         uint64_t visibleSnapEnd,
-        boost::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType) {
     // First, we must close the open checkpoint.
     auto& oldOpenCkpt = *checkpointList.back();
@@ -191,7 +191,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
             snapStartSeqno,
             snapEndSeqno,
             visibleSnapEnd,
-            highCompletedSeqno,
+            to_string_or_none(highCompletedSeqno),
             to_string(checkpointType));
     addOpenCheckpoint(id,
                       snapStartSeqno,
@@ -239,7 +239,7 @@ void CheckpointManager::addOpenCheckpoint(
         uint64_t snapStart,
         uint64_t snapEnd,
         uint64_t visibleSnapEnd,
-        boost::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType) {
     Expects(checkpointList.empty() ||
             checkpointList.back()->getState() ==
@@ -1092,9 +1092,10 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     if (globalBucketLogger->should_log(spdlog::level::debug)) {
         std::stringstream ranges;
         for (const auto& range : result.ranges) {
+            const auto hcs = range.highCompletedSeqno;
             ranges << "{" << range.range.getStart() << ","
                    << range.range.getEnd()
-                   << "} with HCS:" << range.highCompletedSeqno;
+                   << "} with HCS:" << to_string_or_none(hcs);
         }
         EP_LOG_DEBUG(
                 "CheckpointManager::getItemsForCursor() "
@@ -1319,11 +1320,11 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(
 void CheckpointManager::createSnapshot(
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
-        boost::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
         uint64_t visibleSnapEnd) {
     if (checkpointType == CheckpointType::Disk) {
-        Expects(highCompletedSeqno.is_initialized());
+        Expects(highCompletedSeqno.has_value());
     }
     LockHolder lh(queueLock);
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);

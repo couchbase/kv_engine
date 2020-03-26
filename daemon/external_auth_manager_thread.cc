@@ -437,7 +437,7 @@ bool ExternalAuthManagerThread::haveRbacEntryForUser(
                       2 * activeUsersPushInterval.load();
     using namespace std::chrono;
     const auto ts = cb::rbac::getExternalUserTimestamp(user);
-    const auto timestamp = ts ? ts.get() : steady_clock::time_point{};
+    const auto timestamp = ts.value_or(steady_clock::time_point{});
     const uint64_t age = static_cast<uint64_t>(
             duration_cast<seconds>(timestamp.time_since_epoch()).count());
 

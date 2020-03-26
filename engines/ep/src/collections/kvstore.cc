@@ -148,8 +148,8 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
                 event.startSeqno,
                 meta.sid,
                 meta.cid,
-                meta.maxTtl.is_initialized(),
-                meta.maxTtl.is_initialized() ? meta.maxTtl.get().count() : 0,
+                meta.maxTtl.has_value(),
+                meta.maxTtl.value_or(std::chrono::seconds::zero()).count(),
                 builder.CreateString(meta.name.data(), meta.name.size()));
         openCollections.push_back(newEntry);
 

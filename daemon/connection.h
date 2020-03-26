@@ -651,8 +651,8 @@ public:
                              uint64_t start_seqno,
                              uint64_t end_seqno,
                              uint32_t flags,
-                             boost::optional<uint64_t> high_completed_seqno,
-                             boost::optional<uint64_t> max_visible_seqno,
+                             std::optional<uint64_t> high_completed_seqno,
+                             std::optional<uint64_t> max_visible_seqno,
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,

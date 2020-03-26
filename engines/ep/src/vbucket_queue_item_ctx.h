@@ -19,9 +19,9 @@
 
 #include "ep_types.h"
 
-#include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <memcached/durability_spec.h>
+#include <optional>
 
 class PreLinkDocumentContext;
 
@@ -65,9 +65,9 @@ struct VBQueueItemCtx {
                    GenerateCas genCas,
                    GenerateDeleteTime generateDeleteTime,
                    TrackCasDrift trackCasDrift,
-                   boost::optional<DurabilityItemCtx> durability,
+                   std::optional<DurabilityItemCtx> durability,
                    PreLinkDocumentContext* preLinkDocumentContext_,
-                   boost::optional<int64_t> overwritingPrepareSeqno)
+                   std::optional<int64_t> overwritingPrepareSeqno)
         : genBySeqno(genBySeqno),
           genCas(genCas),
           generateDeleteTime(generateDeleteTime),
@@ -82,11 +82,11 @@ struct VBQueueItemCtx {
     GenerateDeleteTime generateDeleteTime = GenerateDeleteTime::Yes;
     TrackCasDrift trackCasDrift = TrackCasDrift::No;
     /// Durability requirements. Only present for SyncWrites.
-    boost::optional<DurabilityItemCtx> durability = {};
+    std::optional<DurabilityItemCtx> durability = {};
     /// Context object that allows running the pre-link callback after the CAS
     /// is assigned but the document is not yet available for reading
     PreLinkDocumentContext* preLinkDocumentContext = nullptr;
     /// Passed into the durability monitor to instruct it to remove an old
     /// prepare with the given seqno
-    boost::optional<int64_t> overwritingPrepareSeqno = {};
+    std::optional<int64_t> overwritingPrepareSeqno = {};
 };

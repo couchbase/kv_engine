@@ -17,10 +17,10 @@
 
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <utility>
 
 // hdr_histogram.h emits a warning on windows
@@ -228,7 +228,7 @@ public:
      * The pair is optional because iterating past the last value in the
      * histogram will return no result.
      */
-    boost::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount(
+    std::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount(
             Iterator& iter) const;
 
     /**
@@ -239,7 +239,7 @@ public:
      * The pair is optional because iterating past the last value in the
      * histogram will return no result.
      */
-    boost::optional<std::pair<uint64_t, double>> getNextValueAndPercentile(
+    std::optional<std::pair<uint64_t, double>> getNextValueAndPercentile(
             Iterator& iter) const;
 
     /**
@@ -253,7 +253,7 @@ public:
      * the low and high values of the bucket. The second part of the pair
      * containing the count as a uint64_t for the bucket.
      */
-    boost::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
+    std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
     getNextBucketLowHighAndCount(Iterator& iter) const;
 
     /**

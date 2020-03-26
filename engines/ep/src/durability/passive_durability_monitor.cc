@@ -154,7 +154,7 @@ int64_t PassiveDurabilityMonitor::getHighCompletedSeqno() const {
 }
 
 void PassiveDurabilityMonitor::addSyncWrite(
-        queued_item item, boost::optional<int64_t> overwritingPrepareSeqno) {
+        queued_item item, std::optional<int64_t> overwritingPrepareSeqno) {
     auto durReq = item->getDurabilityReqs();
 
     if (durReq.getLevel() == cb::durability::Level::None) {
@@ -296,7 +296,7 @@ std::string PassiveDurabilityMonitor::to_string(Resolution res) {
 void PassiveDurabilityMonitor::completeSyncWrite(
         const StoredDocKey& key,
         Resolution res,
-        boost::optional<uint64_t> prepareSeqno) {
+        std::optional<uint64_t> prepareSeqno) {
     auto s = state.wlock();
 
     // If we are receiving a disk snapshot, we need to relax a few checks

@@ -25,10 +25,9 @@
 #include "vb_visitors.h"
 #include "vbucket.h"
 
-#include <boost/optional.hpp>
-#include <utility>
-
 #include <spdlog/fmt/ostr.h>
+#include <optional>
+#include <utility>
 
 Collections::Manager::Manager() {
 }
@@ -78,7 +77,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
         }
 
         auto updated = updateAllVBuckets(bucket, *newManifest);
-        if (updated.is_initialized()) {
+        if (updated.has_value()) {
             return cb::engine_error(
                     cb::engine_errc::cannot_apply_collections_manifest,
                     "Collections::Manager::update aborted on " +
@@ -106,7 +105,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                             "Collections::Manager::update");
 }
 
-boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
+std::optional<Vbid> Collections::Manager::updateAllVBuckets(
         KVBucket& bucket, const Manifest& newManifest) {
     for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(Vbid(i));
@@ -165,12 +164,12 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         return {cb::engine_errc::unknown_scope, current->getUid(), 0};
     }
 
-    auto collection = current->getCollectionID(scope.get(), path);
+    auto collection = current->getCollectionID(scope.value(), path);
     if (!collection) {
         return {cb::engine_errc::unknown_collection, current->getUid(), 0};
     }
 
-    return {cb::engine_errc::success, current->getUid(), collection.get()};
+    return {cb::engine_errc::success, current->getUid(), collection.value()};
 }
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
@@ -184,22 +183,22 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         return {cb::engine_errc::unknown_scope, current->getUid(), 0};
     }
 
-    return {cb::engine_errc::success, current->getUid(), scope.get()};
+    return {cb::engine_errc::success, current->getUid(), scope.value()};
 }
 
-std::pair<uint64_t, boost::optional<ScopeID>> Collections::Manager::getScopeID(
+std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
         const DocKey& key) const {
     // 'shortcut' For the default collection, just return the default scope.
     // If the default collection was deleted the vbucket will have the final say
     // but for this interface allow this without taking the rlock.
     if (key.getCollectionID().isDefaultCollection()) {
         // Allow the default collection in the default scope...
-        return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+        return std::make_pair<uint64_t, std::optional<ScopeID>>(
                 0, ScopeID{ScopeID::Default});
     }
 
     auto current = currentManifest.rlock();
-    return std::make_pair<uint64_t, boost::optional<ScopeID>>(
+    return std::make_pair<uint64_t, std::optional<ScopeID>>(
             current->getUid(), current->getScopeID(key));
 }
 
@@ -329,7 +328,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
         const AddStatFn& add_stat,
         const std::string& statKey) {
     bool success = true;
-    boost::optional<std::string> arg;
+    std::optional<std::string> arg;
 
     if (auto pos = statKey.find_first_of(' '); pos != std::string::npos) {
         arg = statKey.substr(pos + 1);
@@ -454,7 +453,7 @@ ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
         const AddStatFn& add_stat,
         const std::string& statKey) {
     bool success = true;
-    boost::optional<std::string> arg;
+    std::optional<std::string> arg;
 
     if (auto pos = statKey.find_first_of(' '); pos != std::string_view::npos) {
         arg = statKey.substr(pos + 1);

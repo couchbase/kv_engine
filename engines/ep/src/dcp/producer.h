@@ -75,7 +75,7 @@ public:
             uint64_t next_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<std::string_view> json) override;
+            std::optional<std::string_view> json) override;
 
     ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
@@ -129,7 +129,7 @@ public:
     void closeStreamDueToVbStateChange(
             Vbid vbucket,
             vbucket_state_t state,
-            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock);
+            folly::SharedMutex::WriteHolder* vbstateLock);
 
     void closeStreamDueToRollback(Vbid vbucket);
 
@@ -443,7 +443,7 @@ protected:
             Vbid vbid,
             cb::mcbp::DcpStreamId sid,
             end_stream_status_t status,
-            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock = {});
+            folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
 
     /**
      * Return the hotness value to use for this item in a DCP message.

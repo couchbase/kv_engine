@@ -730,8 +730,8 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        boost::optional<uint64_t> max_visible_seqno) {
+        std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> max_visible_seqno) {
     lastMessageTime = ep_current_time();
     uint32_t bytes = SnapshotMarker::baseMsgBytes;
     if (high_completed_seqno || max_visible_seqno) {

@@ -372,8 +372,8 @@ ENGINE_ERROR_CODE MutationCommandContext::reset() {
 // is not initialised) we force a fetch (return GetInfo) if the VB may
 // have xattr items in it.
 cb::StoreIfStatus MutationCommandContext::storeIfPredicate(
-        const boost::optional<item_info>& existing, cb::vbucket_info vb) {
-    if (existing.is_initialized()) {
+        const std::optional<item_info>& existing, cb::vbucket_info vb) {
+    if (existing.has_value()) {
         if (mcbp::datatype::is_xattr(existing.value().datatype)) {
             return cb::StoreIfStatus::Fail;
         }

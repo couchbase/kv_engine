@@ -19,8 +19,8 @@
 #include "durability_monitor.h"
 #include "ep_types.h"
 
-#include <boost/optional.hpp>
 #include <folly/SynchronizedPtr.h>
+#include <optional>
 
 #include <vector>
 
@@ -109,7 +109,7 @@ public:
      *                                one exists with this seqno?
      */
     void addSyncWrite(queued_item item,
-                      boost::optional<int64_t> overwritingPrepareSeqno = {});
+                      std::optional<int64_t> overwritingPrepareSeqno = {});
 
     /**
      * The reason a SyncWrite has been completed.
@@ -133,7 +133,7 @@ public:
      */
     void completeSyncWrite(const StoredDocKey& key,
                            Resolution res,
-                           boost::optional<uint64_t> prepareSeqno);
+                           std::optional<uint64_t> prepareSeqno);
 
     static std::string to_string(Resolution res);
 

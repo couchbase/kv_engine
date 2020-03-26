@@ -113,7 +113,7 @@ struct default_engine : public EngineIface {
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
@@ -147,7 +147,7 @@ struct default_engine : public EngineIface {
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
-            const boost::optional<cb::durability::Requirements>& durability)
+            const std::optional<cb::durability::Requirements>& durability)
             override;
 
     ENGINE_ERROR_CODE store(
@@ -155,7 +155,7 @@ struct default_engine : public EngineIface {
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
 
@@ -165,7 +165,7 @@ struct default_engine : public EngineIface {
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
 
@@ -215,7 +215,7 @@ struct default_engine : public EngineIface {
     cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie, std::string_view path) override;
 
-    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
             const DocKey& key) const override;
 

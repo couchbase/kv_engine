@@ -64,8 +64,8 @@ public:
                              uint64_t start_seqno,
                              uint64_t end_seqno,
                              uint32_t flags,
-                             boost::optional<uint64_t> highCompletedSeqno,
-                             boost::optional<uint64_t> maxVisibleSeqno,
+                             std::optional<uint64_t> highCompletedSeqno,
+                             std::optional<uint64_t> maxVisibleSeqno,
 
                              cb::mcbp::DcpStreamId sid) override;
 

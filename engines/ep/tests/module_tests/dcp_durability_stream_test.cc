@@ -314,7 +314,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_EQ(expectedVisibleSeqno, marker.getMaxVisibleSeqno().value_or(~0));
-    EXPECT_FALSE(marker.getHighCompletedSeqno().is_initialized());
+    EXPECT_FALSE(marker.getHighCompletedSeqno().has_value());
     EXPECT_EQ(2, marker.getEndSeqno());
 
     // Simulate the Replica ack'ing the SnapshotMarker's bytes
@@ -650,7 +650,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     const auto& marker = static_cast<SnapshotMarker&>(*resp);
-    ASSERT_TRUE(marker.getHighCompletedSeqno().is_initialized());
+    ASSERT_TRUE(marker.getHighCompletedSeqno().has_value());
     EXPECT_EQ(0, *marker.getHighCompletedSeqno());
 }
 
@@ -1986,7 +1986,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
         uint64_t seqno,
         cb::durability::Level level,
         uint64_t snapshotMarkerFlags,
-        boost::optional<uint64_t> hcs) {
+        std::optional<uint64_t> hcs) {
     using namespace cb::durability;
 
     // The consumer receives snapshot-marker [seqno, seqno]

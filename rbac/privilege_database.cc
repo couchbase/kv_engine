@@ -540,7 +540,7 @@ nlohmann::json to_json(Domain domain) {
     return (*ctx.db.rlock())->to_json(domain);
 }
 
-boost::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
+std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
         const std::string& user) {
     auto& ctx = contexts[to_index(Domain::External)];
     try {

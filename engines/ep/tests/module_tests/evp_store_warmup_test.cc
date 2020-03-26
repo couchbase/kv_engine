@@ -1249,8 +1249,8 @@ void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
         vb->checkpointManager->createSnapshot(
                 1 /*snapStart*/,
                 2 /*snapEnd*/,
-                boost::make_optional(cpType == CheckpointType::Disk,
-                                     static_cast<uint64_t>(1)) /*HCS*/,
+                (cpType == CheckpointType::Disk ? std::make_optional(1)
+                                                : std::nullopt) /*HCS*/,
                 cpType,
                 0);
         ASSERT_EQ(cpType == CheckpointType::Disk,
@@ -1297,13 +1297,11 @@ void DurabilityWarmupTest::testPartiallyPersistedSnapshotDoesNotSetHPS(
         // Receive a partial snapshot
         // 1        2         3
         // Prepare, Mutation, NOT RECEIVED
+        const auto hcs = (cpType == CheckpointType::Disk)
+                                 ? std::make_optional(1)
+                                 : std::nullopt;
         vb->checkpointManager->createSnapshot(
-                1 /*snapStart*/,
-                3 /*snapEnd*/,
-                boost::make_optional(cpType == CheckpointType::Disk,
-                                     static_cast<uint64_t>(1)) /*HCS*/,
-                cpType,
-                0);
+                1 /*snapStart*/, 3 /*snapEnd*/, hcs, cpType, 0);
         ASSERT_EQ(cpType == CheckpointType::Disk,
                   vb->isReceivingDiskSnapshot());
 

@@ -19,7 +19,7 @@
 
 #include "dcp/consumer.h"
 
-#include <boost/optional/optional_fwd.hpp>
+#include <optional>
 
 /*
  * Mock of the DcpConsumer class.  Wraps the real DcpConsumer class
@@ -132,7 +132,7 @@ public:
      * the value that will be used for the opaque of a given stream, use this
      * map to get the correct value.
      */
-    boost::optional<uint32_t> getStreamOpaque(uint32_t opaque);
+    std::optional<uint32_t> getStreamOpaque(uint32_t opaque);
 
     void public_streamAccepted(uint32_t opaque,
                                cb::mcbp::Status status,

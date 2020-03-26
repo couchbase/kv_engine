@@ -275,7 +275,7 @@ public:
             uint64_t& cas,
             Vbid vbucket,
             const void* cookie,
-            boost::optional<cb::durability::Requirements> durability,
+            std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) = 0;
 

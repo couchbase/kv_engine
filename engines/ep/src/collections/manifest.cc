@@ -205,7 +205,7 @@ Manifest::Manifest(std::string_view json,
             cb::ExpiryLimit maxTtl;
             if (cmaxttl) {
                 // Don't exceed 32-bit max
-                auto value = cmaxttl.get().get<uint64_t>();
+                auto value = cmaxttl.value().get<uint64_t>();
                 if (value > std::numeric_limits<uint32_t>::max()) {
                     throw std::out_of_range("Manifest::Manifest maxTTL:" +
                                             std::to_string(value));
@@ -292,7 +292,7 @@ std::string Manifest::toJson() const {
                      << R"(","uid":")" << std::hex << collection.id << "\"";
                 if (collection.maxTtl) {
                     json << R"(,"maxTTL":)" << std::dec
-                         << collection.maxTtl.get().count();
+                         << collection.maxTtl.value().count();
                 }
                 json << "}";
                 if (nCollections != scope.second.collections.size() - 1) {
@@ -388,7 +388,7 @@ void Manifest::addScopeStats(const void* cookie,
     }
 }
 
-boost::optional<CollectionID> Manifest::getCollectionID(
+std::optional<CollectionID> Manifest::getCollectionID(
         ScopeID scope, std::string_view path) const {
     int pos = path.find_first_of('.');
     auto collection = path.substr(pos + 1);
@@ -422,7 +422,7 @@ boost::optional<CollectionID> Manifest::getCollectionID(
     return {};
 }
 
-boost::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
+std::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
     int pos = path.find_first_of('.');
     auto scope = path.substr(0, pos);
 
@@ -446,7 +446,7 @@ boost::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
     return {};
 }
 
-boost::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
+std::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
     if (key.getCollectionID().isDefaultCollection() &&
         defaultCollectionExists) {
         return ScopeID{ScopeID::Default};

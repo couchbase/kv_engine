@@ -280,7 +280,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         uint64_t snap_end_seqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
-        boost::optional<std::string_view> json) {
+        std::optional<std::string_view> json) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -296,7 +296,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     }
 
     // check for mandatory noop
-    if ((includeXattrs == IncludeXattrs::Yes) || json.is_initialized()) {
+    if ((includeXattrs == IncludeXattrs::Yes) || json.has_value()) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
             logger->warn(
@@ -1500,7 +1500,7 @@ void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
 void DcpProducer::closeStreamDueToVbStateChange(
         Vbid vbucket,
         vbucket_state_t state,
-        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
+        folly::SharedMutex::WriteHolder* vbstateLock) {
     if (setStreamDeadStatus(vbucket, {}, END_STREAM_STATE, vbstateLock)) {
         logger->debug("({}) State changed to {}, closing active stream!",
                       vbucket,
@@ -1538,7 +1538,7 @@ bool DcpProducer::setStreamDeadStatus(
         Vbid vbid,
         cb::mcbp::DcpStreamId sid,
         end_stream_status_t status,
-        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
+        folly::SharedMutex::WriteHolder* vbstateLock) {
     auto rv = streams.find(vbid.get());
     if (rv != streams.end()) {
         std::shared_ptr<Stream> streamPtr;

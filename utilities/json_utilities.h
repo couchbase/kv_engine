@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 namespace cb {
 
@@ -93,18 +93,18 @@ T jsonGet(nlohmann::json::const_iterator it) {
 }
 
 /**
- *  Helper function that returns a boost optional json object using the given
+ *  Helper function that returns a std::optional json object using the given
  *  object and key.
  *
  * @param object - root json object
  * @param key - the key for the wanted object
  * @return - json object if it exists, otherwise uninitialized
  */
-boost::optional<nlohmann::json> getOptionalJsonObject(
+std::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object, const std::string& key);
 
 /**
- *  Helper function that returns a boost optional json object using the given
+ *  Helper function that returns a std::optional json object using the given
  *  object and key. The object must be of the expectedType.
  *
  * @param object - root json object
@@ -112,7 +112,7 @@ boost::optional<nlohmann::json> getOptionalJsonObject(
  * @param expectedType - the objects expected type
  * @return - json object if it exists, otherwise uninitialized
  */
-boost::optional<nlohmann::json> getOptionalJsonObject(
+std::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object,
         const std::string& key,
         nlohmann::json::value_t expectedType);

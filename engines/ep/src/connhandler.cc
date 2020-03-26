@@ -165,8 +165,8 @@ ENGINE_ERROR_CODE ConnHandler::snapshotMarker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        boost::optional<uint64_t> max_visible_seqno) {
+        std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> max_visible_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp snapshot marker API");
@@ -193,7 +193,7 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(
         uint64_t snapEndSeqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
-        boost::optional<std::string_view> json) {
+        std::optional<std::string_view> json) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream request API");

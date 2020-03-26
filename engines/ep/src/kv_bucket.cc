@@ -877,7 +877,7 @@ void KVBucket::setVBucketState_UNLOCKED(
             closeInboundStreams = true;
         }
         engine.getDcpConnMap().vbucketStateChanged(
-                vb->getId(), to, closeInboundStreams, {vbStateLock});
+                vb->getId(), to, closeInboundStreams, &vbStateLock);
     }
 
     /**
@@ -1870,7 +1870,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
         uint64_t& cas,
         Vbid vbucket,
         const void* cookie,
-        boost::optional<cb::durability::Requirements> durability,
+        std::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
     auto vb = getVBucket(vbucket);
@@ -2585,7 +2585,7 @@ cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
     }
 }
 
-std::pair<uint64_t, boost::optional<ScopeID>> KVBucket::getScopeID(
+std::pair<uint64_t, std::optional<ScopeID>> KVBucket::getScopeID(
         const DocKey& key) const {
     return collectionsManager->getScopeID(key);
 }

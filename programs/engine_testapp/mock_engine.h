@@ -49,7 +49,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
@@ -83,7 +83,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             const DocKey& key,
             Vbid vbucket,
             uint32_t expiryTime,
-            const boost::optional<cb::durability::Requirements>& durability)
+            const std::optional<cb::durability::Requirements>& durability)
             override;
 
     ENGINE_ERROR_CODE store(
@@ -91,7 +91,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
 
@@ -101,7 +101,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
 
@@ -139,7 +139,7 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie, std::string_view path) override;
 
-    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
             const DocKey& key) const override;
 
@@ -190,19 +190,18 @@ struct MockEngine : public EngineIface, public DcpIface {
                                    Vbid vbucket,
                                    cb::mcbp::DcpStreamId sid) override;
 
-    ENGINE_ERROR_CODE stream_req(
-            gsl::not_null<const void*> cookie,
-            uint32_t flags,
-            uint32_t opaque,
-            Vbid vbucket,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint64_t vbucket_uuid,
-            uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno,
-            uint64_t* rollback_seqno,
-            dcp_add_failover_log callback,
-            boost::optional<std::string_view> json) override;
+    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
+                                 uint32_t flags,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno,
+                                 uint64_t* rollback_seqno,
+                                 dcp_add_failover_log callback,
+                                 std::optional<std::string_view> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -221,8 +220,8 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint32_t flags,
-            boost::optional<uint64_t> high_completed_seqno,
-            boost::optional<uint64_t> max_visible_seqno) override;
+            std::optional<uint64_t> high_completed_seqno,
+            std::optional<uint64_t> max_visible_seqno) override;
     ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
                                uint32_t opaque,
                                const DocKey& key,

@@ -2039,7 +2039,7 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     // Clear everything from CP manager so DCP backfills
     vb->checkpointManager->clear(vbucket_state_active);
 
-    createDcpObjects({{}});
+    createDcpObjects(std::make_optional(std::string_view{}));
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*from-memory... false backfill*/);

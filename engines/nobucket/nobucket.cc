@@ -70,7 +70,7 @@ public:
             const DocKey&,
             uint64_t&,
             Vbid,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t&) override {
         return ENGINE_NO_BUCKET;
     }
@@ -121,18 +121,17 @@ public:
             const DocKey&,
             Vbid,
             uint32_t,
-            const boost::optional<cb::durability::Requirements>&) override {
+            const std::optional<cb::durability::Requirements>&) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    ENGINE_ERROR_CODE store(
-            gsl::not_null<const void*>,
-            gsl::not_null<item*>,
-            uint64_t&,
-            ENGINE_STORE_OPERATION,
-            const boost::optional<cb::durability::Requirements>&,
-            DocumentState,
-            bool) override {
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
+                            gsl::not_null<item*>,
+                            uint64_t&,
+                            ENGINE_STORE_OPERATION,
+                            const std::optional<cb::durability::Requirements>&,
+                            DocumentState,
+                            bool) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -142,7 +141,7 @@ public:
             uint64_t,
             ENGINE_STORE_OPERATION,
             const cb::StoreIfPredicate&,
-            const boost::optional<cb::durability::Requirements>&,
+            const std::optional<cb::durability::Requirements>&,
             DocumentState,
             bool) override {
         return {cb::engine_errc::no_bucket, 0};
@@ -230,7 +229,7 @@ public:
                                  uint64_t,
                                  uint64_t*,
                                  dcp_add_failover_log,
-                                 boost::optional<std::string_view>) override {
+                                 std::optional<std::string_view>) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -257,8 +256,8 @@ public:
                                       uint64_t,
                                       uint64_t,
                                       uint32_t,
-                                      boost::optional<uint64_t>,
-                                      boost::optional<uint64_t>) override {
+                                      std::optional<uint64_t>,
+                                      std::optional<uint64_t>) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -439,7 +438,7 @@ public:
         return {cb::engine_errc::no_bucket, 0, 0};
     }
 
-    std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie,
             const DocKey& key) const override {
         return {0, ScopeID{0}};

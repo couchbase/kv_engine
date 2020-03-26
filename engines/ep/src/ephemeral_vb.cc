@@ -314,8 +314,8 @@ EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
     return seqList->rangeRead(start, end);
 }
 
-boost::optional<SequenceList::RangeIterator>
-EphemeralVBucket::makeRangeIterator(bool isBackfill) {
+std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
+        bool isBackfill) {
     return seqList->makeRangeIterator(isBackfill);
 }
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
@@ -628,7 +628,7 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
         HashTable::FindUpdateResult& values,
         uint64_t prepareSeqno,
         const VBQueueItemCtx& queueItmCtx,
-        boost::optional<int64_t> commitSeqno) {
+        std::optional<int64_t> commitSeqno) {
     if (!values.pending) {
         throw std::invalid_argument(
                 "EphemeralVBucket::commitStoredValue: Cannot call on a "
@@ -695,7 +695,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         const HashTable::HashBucketLock& hbl,
         StoredValue& prepared,
         int64_t prepareSeqno,
-        boost::optional<int64_t> abortSeqno) {
+        std::optional<int64_t> abortSeqno) {
     // From MB-36650 this function is enabled to accept also Completed Prepares
     // (Committed/Aborted) for converting/updating the SV in input to
     // PrepareAborted.
@@ -921,7 +921,7 @@ void EphemeralVBucket::dropKey(
 int64_t EphemeralVBucket::addSystemEventItem(
         Item* i,
         OptionalSeqno seqno,
-        boost::optional<CollectionID> cid,
+        std::optional<CollectionID> cid,
         const Collections::VB::Manifest::WriteHandle& wHandle) {
     // Must be freed once passed through addNew/update StoredValue
     std::unique_ptr<Item> item(i);
@@ -942,7 +942,7 @@ int64_t EphemeralVBucket::addSystemEventItem(
 
     VBNotifyCtx notifyCtx;
     // If the seqno is initialized, skip replication notification
-    notifyCtx.notifyReplication = !seqno.is_initialized();
+    notifyCtx.notifyReplication = !seqno.has_value();
     notifyCtx.bySeqno = v->getBySeqno();
     notifyNewSeqno(notifyCtx);
 

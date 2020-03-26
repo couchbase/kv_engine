@@ -13,8 +13,8 @@
 #include <unordered_set>
 #include <utility>
 
-#include <boost/optional/optional_fwd.hpp>
 #include <gsl/gsl>
+#include <optional>
 
 #include <mcbp/protocol/datatype.h>
 #include <memcached/visibility.h>
@@ -98,7 +98,7 @@ enum class StoreIfStatus {
 };
 
 using StoreIfPredicate = std::function<StoreIfStatus(
-        const boost::optional<item_info>&, cb::vbucket_info)>;
+        const std::optional<item_info>&, cb::vbucket_info)>;
 
 struct EngineErrorCasPair {
     engine_errc status;
@@ -308,7 +308,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) = 0;
 
     /**
@@ -421,8 +421,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
-            const boost::optional<cb::durability::Requirements>&
-                    durability) = 0;
+            const std::optional<cb::durability::Requirements>& durability) = 0;
 
     /**
      * Store an item into the underlying engine with the given
@@ -448,7 +447,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) = 0;
 
@@ -466,7 +465,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param predicate a function that will be called from the engine the
      *                  result of which determines how the store behaves.
      *                  The function is given any existing item's item_info (as
-     *                  a boost::optional) and a cb::vbucket_info object. In the
+     *                  a std::optional) and a cb::vbucket_info object. In the
      *                  case that the optional item_info is not initialised the
      *                  function can return cb::StoreIfStatus::GetInfo to
      *                  request that the engine tries to get the item_info, the
@@ -491,7 +490,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) {
         return {cb::engine_errc::not_supported, 0};
@@ -610,7 +609,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return pair with the manifest UID and if found the scope where the key
      *              belongs.
      */
-    virtual std::pair<uint64_t, boost::optional<ScopeID>> get_scope_id(
+    virtual std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
             gsl::not_null<const void*> cookie, const DocKey& key) const {
         return {};
     }

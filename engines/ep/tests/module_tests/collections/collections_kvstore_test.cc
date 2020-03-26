@@ -208,7 +208,7 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
     EXPECT_EQ("_default", md.collections[0].metaData.name);
     EXPECT_EQ(CollectionID::Default, md.collections[0].metaData.cid);
     EXPECT_EQ(ScopeID::Default, md.collections[0].metaData.sid);
-    EXPECT_FALSE(md.collections[0].metaData.maxTtl.is_initialized());
+    EXPECT_FALSE(md.collections[0].metaData.maxTtl.has_value());
 
     EXPECT_EQ(ScopeID::Default, md.scopes[0]);
     EXPECT_EQ(0, md.manifestUid);

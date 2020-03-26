@@ -18,7 +18,7 @@
 
 #include <utilities/json_utilities.h>
 
-#include <boost/optional.hpp>
+#include <optional>
 
 EventDescriptor::EventDescriptor(const nlohmann::json& root)
     : id(cb::jsonGet<uint32_t>(root, "id")),
@@ -34,7 +34,7 @@ EventDescriptor::EventDescriptor(const nlohmann::json& root)
     expected += root.count("filtering_permitted");
 
     auto obj = cb::getOptionalJsonObject(root, "mandatory_fields");
-    if (obj.is_initialized()) {
+    if (obj.has_value()) {
         if ((*obj).type() != nlohmann::json::value_t::array &&
             (*obj).type() != nlohmann::json::value_t::object) {
             throw std::invalid_argument(
@@ -46,7 +46,7 @@ EventDescriptor::EventDescriptor(const nlohmann::json& root)
     }
 
     obj = cb::getOptionalJsonObject(root, "optional_fields");
-    if (obj.is_initialized()) {
+    if (obj.has_value()) {
         if ((*obj).type() != nlohmann::json::value_t::array &&
             (*obj).type() != nlohmann::json::value_t::object) {
             throw std::invalid_argument(

@@ -961,7 +961,7 @@ public:
      * @param collection the id of the collection to lookup
      * @return optional persisted stats, initialised if the collection was found
      */
-    virtual boost::optional<Collections::VB::PersistedStats> getCollectionStats(
+    virtual std::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) = 0;
 
     /**

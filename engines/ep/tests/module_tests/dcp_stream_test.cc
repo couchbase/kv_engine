@@ -812,7 +812,7 @@ TEST_P(StreamTest, BackfillOnly) {
     while (stream->public_readyQSize() > 0) {
         auto item = stream->public_nextQueuedItem();
         EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
-        auto seqno = item->getBySeqno().get();
+        auto seqno = item->getBySeqno().value();
         EXPECT_GE(seqno, snapMarker.getStartSeqno());
         EXPECT_LE(seqno, snapMarker.getEndSeqno());
     }
@@ -2870,7 +2870,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
                                   1 /*snapStart*/,
                                   3 /*snapEnd*/,
                                   dcp_marker_flag_t::MARKER_FLAG_DISK,
-                                  boost::optional<uint64_t>(1) /*HCS*/,
+                                  std::optional<uint64_t>(1) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);

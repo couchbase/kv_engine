@@ -30,11 +30,11 @@ namespace Collections {
 
 namespace VB {
 
-Filter::Filter(boost::optional<std::string_view> jsonFilter,
+Filter::Filter(std::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest) {
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support _default
-    if (!jsonFilter.is_initialized()) {
+    if (!jsonFilter.has_value()) {
         // Ask the manifest object if the default collection exists?
         if (manifest.lock().doesDefaultCollectionExist()) {
             enableDefaultCollection();
@@ -46,7 +46,7 @@ Filter::Filter(boost::optional<std::string_view> jsonFilter,
         }
     }
 
-    auto json = jsonFilter.get();
+    auto json = jsonFilter.value();
 
     // If the filter is initialised that means collections are enabled so system
     // events are allowed
@@ -185,7 +185,7 @@ void Filter::addScope(const nlohmann::json& object,
     // Require that the requested scope exists in the manifest.
     // DCP cannot filter an unknown scope.
     auto sid = makeScopeID(object.get<std::string>());
-    boost::optional<std::vector<CollectionID>> collections =
+    std::optional<std::vector<CollectionID>> collections =
             manifest.lock().getCollectionsForScope(sid);
 
     if (!collections) {
@@ -289,7 +289,7 @@ bool Filter::processCollectionEvent(const Item& item) {
 
     CollectionID cid;
     ManifestUid manifestUid = 0;
-    boost::optional<ScopeID> sid;
+    std::optional<ScopeID> sid;
     if (!item.isDeleted()) {
         auto dcpData = VB::Manifest::getCreateEventData(
                 {item.getData(), item.getNBytes()});

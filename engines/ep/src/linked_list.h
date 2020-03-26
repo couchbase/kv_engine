@@ -143,7 +143,7 @@ public:
 
     std::mutex& getListWriteLock() const override;
 
-    boost::optional<SequenceList::RangeIterator> makeRangeIterator(
+    std::optional<SequenceList::RangeIterator> makeRangeIterator(
             bool isBackfill) override;
 
     /**

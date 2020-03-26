@@ -33,7 +33,7 @@
 #include "memcached/engine_error.h"
 #include "stored-value.h"
 
-#include <boost/optional/optional.hpp>
+#include <optional>
 
 /* [EPHE TODO]: Check if uint64_t can be used instead */
 using seqno_t = int64_t;
@@ -456,7 +456,7 @@ public:
      * @return range iterator object when possible
      *         null when not possible
      */
-    virtual boost::optional<SequenceList::RangeIterator> makeRangeIterator(
+    virtual std::optional<SequenceList::RangeIterator> makeRangeIterator(
             bool isBackfill) = 0;
 
     /**

@@ -21,7 +21,6 @@
  * by the memcached core. For more information see rbac.md in the
  * docs directory.
  */
-#include <boost/optional.hpp>
 #include <cbsasl/domain.h>
 #include <memcached/dockey.h>
 #include <memcached/rbac/privileges.h>
@@ -31,6 +30,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -524,7 +524,7 @@ void destroy();
  * @param user the name of the user to search for
  * @return The modification timestamp for the user if found
  */
-boost::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
+std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
         const std::string& user);
 
 /**

@@ -202,7 +202,7 @@ ENGINE_ERROR_CODE MockEngine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     auto engine_fn = std::bind(&EngineIface::remove,
                                the_engine.get(),
@@ -255,7 +255,7 @@ cb::EngineErrorItemPair MockEngine::get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiryTime,
-        const boost::optional<cb::durability::Requirements>& durability) {
+        const std::optional<cb::durability::Requirements>& durability) {
     auto engine_fn = std::bind(&EngineIface::get_and_touch,
                                the_engine.get(),
                                cookie,
@@ -325,7 +325,7 @@ ENGINE_ERROR_CODE MockEngine::store(
         gsl::not_null<item*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     auto engine_fn = std::bind(&EngineIface::store,
@@ -349,7 +349,7 @@ cb::EngineErrorCasPair MockEngine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     auto engine_fn = std::bind(&EngineIface::store_if,
@@ -426,7 +426,7 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
     return the_engine->get_scope_id(cookie, path);
 }
 
-std::pair<uint64_t, boost::optional<ScopeID>> MockEngine::get_scope_id(
+std::pair<uint64_t, std::optional<ScopeID>> MockEngine::get_scope_id(
         gsl::not_null<const void*> cookie, const DocKey& key) const {
     return the_engine->get_scope_id(cookie, key);
 }
@@ -468,19 +468,18 @@ ENGINE_ERROR_CODE MockEngine::close_stream(gsl::not_null<const void*> cookie,
     return the_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
 }
 
-ENGINE_ERROR_CODE MockEngine::stream_req(
-        gsl::not_null<const void*> cookie,
-        uint32_t flags,
-        uint32_t opaque,
-        Vbid vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint64_t vbucket_uuid,
-        uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno,
-        uint64_t* rollback_seqno,
-        dcp_add_failover_log callback,
-        boost::optional<std::string_view> json) {
+ENGINE_ERROR_CODE MockEngine::stream_req(gsl::not_null<const void*> cookie,
+                                         uint32_t flags,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno,
+                                         uint64_t* rollback_seqno,
+                                         dcp_add_failover_log callback,
+                                         std::optional<std::string_view> json) {
     return the_engine_dcp->stream_req(cookie,
                                       flags,
                                       opaque,
@@ -517,8 +516,8 @@ ENGINE_ERROR_CODE MockEngine::snapshot_marker(
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags,
-        boost::optional<uint64_t> high_completed_seqno,
-        boost::optional<uint64_t> max_visible_seqno) {
+        std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> max_visible_seqno) {
     return the_engine_dcp->snapshot_marker(cookie,
                                            opaque,
                                            vbucket,

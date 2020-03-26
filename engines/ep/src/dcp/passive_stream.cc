@@ -932,7 +932,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
         auto& ckptMgr = *vb->checkpointManager;
 
-        boost::optional<uint64_t> hcs = marker->getHighCompletedSeqno();
+        std::optional<uint64_t> hcs = marker->getHighCompletedSeqno();
         if ((marker->getFlags() & MARKER_FLAG_DISK) &&
             !supportsSyncReplication) {
             // If this stream doesn't support SyncReplication (i.e. the producer

@@ -16,10 +16,10 @@
  */
 #pragma once
 #include "client_connection.h"
-#include <boost/optional/optional_fwd.hpp>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/response.h>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <unordered_set>
 
 class FrameInfo;
@@ -262,7 +262,7 @@ public:
     /**
      * Retrieve the approximate time spent on the server
      */
-    boost::optional<std::chrono::microseconds> getTracingData() const;
+    std::optional<std::chrono::microseconds> getTracingData() const;
 
     /**
      * Populate this response from a response

@@ -1547,8 +1547,8 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
                                      uint32_t flags,
-                                     boost::optional<uint64_t> hcs,
-                                     boost::optional<uint64_t> mvs,
+                                     std::optional<uint64_t> hcs,
+                                     std::optional<uint64_t> mvs,
                                      cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;

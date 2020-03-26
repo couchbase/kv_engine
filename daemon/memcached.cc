@@ -1794,7 +1794,7 @@ int memcached_main(int argc, char** argv) {
                 cb::logger::initialize(Settings::instance().getLoggerConfig());
         if (ret) {
             FATAL_ERROR(
-                    EXIT_FAILURE, "Failed to initialize logger: {}", ret.get());
+                    EXIT_FAILURE, "Failed to initialize logger: {}", ret.value());
         }
     }
 

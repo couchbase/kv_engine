@@ -55,7 +55,7 @@ std::shared_ptr<PassiveStream> MockDcpConsumer::makePassiveStream(
                                                vb_manifest_uid);
 }
 
-boost::optional<uint32_t> MockDcpConsumer::getStreamOpaque(uint32_t opaque) {
+std::optional<uint32_t> MockDcpConsumer::getStreamOpaque(uint32_t opaque) {
     for (const auto& pair : opaqueMap_) {
         if (pair.second.first == opaque) {
             return pair.first;

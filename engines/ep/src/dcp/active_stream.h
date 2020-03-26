@@ -183,7 +183,7 @@ public:
      */
     bool markDiskSnapshot(uint64_t startSeqno,
                           uint64_t endSeqno,
-                          boost::optional<uint64_t> highCompletedSeqno,
+                          std::optional<uint64_t> highCompletedSeqno,
                           uint64_t maxVisibleSeqno);
 
     /**
@@ -285,7 +285,7 @@ public:
          * The HCS. Set only for CheckpointType::Disk, ie when a Producer
          * streams a disk-snapshot from memory.
          */
-        boost::optional<uint64_t> highCompletedSeqno;
+        std::optional<uint64_t> highCompletedSeqno;
 
         /**
          * The visibleSeqno used to 'seed' the processItems loop
@@ -443,7 +443,7 @@ protected:
      * scanned) it is empty.
      * Guarded by streamMutex.
      */
-    boost::optional<cb::NonNegativeCounter<size_t>> backfillRemaining;
+    std::optional<cb::NonNegativeCounter<size_t>> backfillRemaining;
 
     std::unique_ptr<DcpResponse> backfillPhase(std::lock_guard<std::mutex>& lh);
 
@@ -474,7 +474,7 @@ private:
      */
     void snapshot(CheckpointType checkpointType,
                   std::deque<std::unique_ptr<DcpResponse>>& snapshot,
-                  boost::optional<uint64_t> highCompletedSeqno,
+                  std::optional<uint64_t> highCompletedSeqno,
                   uint64_t maxVisibleSeqno);
 
     void endStream(end_stream_status_t reason);
@@ -545,7 +545,7 @@ private:
      *     acquires the lock if not provided.
      */
     void removeAcksFromDM(
-            boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock = {});
+            folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
 
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */

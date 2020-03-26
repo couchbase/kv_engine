@@ -56,7 +56,7 @@ public:
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
@@ -90,7 +90,7 @@ public:
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
-            const boost::optional<cb::durability::Requirements>& durability)
+            const std::optional<cb::durability::Requirements>& durability)
             override;
 
     ENGINE_ERROR_CODE store(
@@ -98,7 +98,7 @@ public:
             gsl::not_null<item*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
-            const boost::optional<cb::durability::Requirements>& durability,
+            const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
 
@@ -209,7 +209,7 @@ ENGINE_ERROR_CODE CrashEngine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     return ENGINE_FAILED;
 }
@@ -242,7 +242,7 @@ cb::EngineErrorItemPair CrashEngine::get_and_touch(
         const DocKey&,
         Vbid,
         uint32_t,
-        const boost::optional<cb::durability::Requirements>&) {
+        const std::optional<cb::durability::Requirements>&) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -273,7 +273,7 @@ ENGINE_ERROR_CODE CrashEngine::store(
         gsl::not_null<item*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
-        const boost::optional<cb::durability::Requirements>& durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState,
         bool) {
     return ENGINE_FAILED;

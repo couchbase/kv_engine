@@ -232,7 +232,7 @@ void DcpConnMap::vbucketStateChanged(
         Vbid vbucket,
         vbucket_state_t state,
         bool closeInboundStreams,
-        boost::optional<folly::SharedMutex::WriteHolder&> vbstateLock) {
+        folly::SharedMutex::WriteHolder* vbstateLock) {
     LockHolder lh(connsLock);
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {

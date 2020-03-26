@@ -240,13 +240,13 @@ bool set_vbucket_state(EngineIface* h,
                        std::string_view meta = {});
 
 bool get_all_vb_seqnos(EngineIface* h,
-                       boost::optional<RequestedVBState> state,
+                       std::optional<RequestedVBState> state,
                        const void* cookie,
-                       boost::optional<CollectionIDType> collection = {});
+                       std::optional<CollectionIDType> collection = {});
 void verify_all_vb_seqnos(EngineIface* h,
                           int vb_start,
                           int vb_end,
-                          boost::optional<CollectionID> collection = {});
+                          std::optional<CollectionID> collection = {});
 void start_persistence(EngineIface* h);
 void stop_persistence(EngineIface* h);
 
@@ -268,7 +268,7 @@ ENGINE_ERROR_CODE store(
         uint32_t exp = 3600,
         uint8_t datatype = 0x00,
         DocumentState docState = DocumentState::Alive,
-        const boost::optional<cb::durability::Requirements>& durReqs = {});
+        const std::optional<cb::durability::Requirements>& durReqs = {});
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
                                  const void* cookie,
@@ -312,7 +312,7 @@ cb::EngineErrorItemPair storeCasVb11(
         uint32_t exp = 3600,
         uint8_t datatype = 0x00,
         DocumentState docState = DocumentState::Alive,
-        const boost::optional<cb::durability::Requirements>& durReqs = {});
+        const std::optional<cb::durability::Requirements>& durReqs = {});
 
 ENGINE_ERROR_CODE replace(EngineIface* h,
                           const void* cookie,

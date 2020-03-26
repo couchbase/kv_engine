@@ -278,7 +278,7 @@ public:
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
-    boost::optional<Collections::VB::PersistedStats> getCollectionStats(
+    std::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     /**
@@ -359,8 +359,7 @@ public:
     magma::Status updateDroppedCollections(
             Vbid vbid,
             magma::Magma::CommitBatch& commitBatch,
-            boost::optional<
-                    std::vector<Collections::KVStore::DroppedCollection>>
+            std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                     dropped);
 
     /**

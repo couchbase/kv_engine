@@ -578,7 +578,7 @@ protected:
      */
     void deleteCollectionStats(Db& db, CollectionID cid);
 
-    boost::optional<Collections::VB::PersistedStats> getCollectionStats(
+    std::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     /**
@@ -661,8 +661,7 @@ protected:
      */
     couchstore_error_t updateDroppedCollections(
             Db& db,
-            boost::optional<
-                    std::vector<Collections::KVStore::DroppedCollection>>
+            std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                     dropped);
 
     /**

@@ -20,8 +20,8 @@
  */
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <optional>
 
 class Settings;
 void load_config_file(const char *filename, Settings& settings);
@@ -31,7 +31,7 @@ void load_config_file(const char *filename, Settings& settings);
  * can be applied, else returns false and updates error_msg to list of messages
  * describing what could not be applied.
  */
-boost::optional<nlohmann::json> validate_proposed_config_changes(
+std::optional<nlohmann::json> validate_proposed_config_changes(
         const char* new_cfg);
 
 /* perform a reload of the config file initially specified on the command-line.

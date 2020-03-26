@@ -253,7 +253,7 @@ VBucketTestBase::public_processSoftDelete(const DocKey& key,
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto htRes = vbucket->ht.findForUpdate(key);
-    auto* v = htRes.selectSVToModify(ctx.durability.is_initialized());
+    auto* v = htRes.selectSVToModify(ctx.durability.has_value());
     if (!v) {
         return {MutationStatus::NotFound, nullptr};
     }

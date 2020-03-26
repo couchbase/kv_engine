@@ -111,15 +111,14 @@ struct dcp_message_producers {
      *
      * @return ENGINE_SUCCESS upon success
      */
-    virtual ENGINE_ERROR_CODE marker(
-            uint32_t opaque,
-            Vbid vbucket,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint32_t flags,
-            boost::optional<uint64_t> highCompletedSeqno,
-            boost::optional<uint64_t> maxVisibleSeqno,
-            cb::mcbp::DcpStreamId sid) = 0;
+    virtual ENGINE_ERROR_CODE marker(uint32_t opaque,
+                                     Vbid vbucket,
+                                     uint64_t start_seqno,
+                                     uint64_t end_seqno,
+                                     uint32_t flags,
+                                     std::optional<uint64_t> highCompletedSeqno,
+                                     std::optional<uint64_t> maxVisibleSeqno,
+                                     cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a Mutation
@@ -465,7 +464,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
             uint64_t snap_end_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
-            boost::optional<std::string_view> json) = 0;
+            std::optional<std::string_view> json) = 0;
 
     /**
      * Callback to the engine that a get failover log message was received
@@ -494,8 +493,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint32_t flags,
-            boost::optional<uint64_t> high_completed_seqno,
-            boost::optional<uint64_t> max_visible_seqno) = 0;
+            std::optional<uint64_t> high_completed_seqno,
+            std::optional<uint64_t> max_visible_seqno) = 0;
 
     /**
      * Callback to the engine that a mutation message was received

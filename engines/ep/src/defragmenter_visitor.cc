@@ -66,7 +66,7 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
     }
 
     if (sv_age_threshold) {
-        if (v.getAge() >= sv_age_threshold.get()) {
+        if (v.getAge() >= sv_age_threshold.value()) {
             defragmentStoredValue(v);
         } else {
             v.incrementAge();

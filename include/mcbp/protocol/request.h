@@ -18,12 +18,12 @@
 
 #include "datatype.h"
 
-#include <boost/optional.hpp>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <memcached/rbac/privilege_database.h>
 #include <memcached/vbucket.h>
+#include <optional>
 #ifndef WIN32
 #include <arpa/inet.h>
 #endif
@@ -226,7 +226,7 @@ public:
      * This method may throw exceptions iff the request object has not been
      * inspected by the packet validators.
      */
-    boost::optional<cb::durability::Requirements> getDurabilityRequirements()
+    std::optional<cb::durability::Requirements> getDurabilityRequirements()
             const;
 
     /**
