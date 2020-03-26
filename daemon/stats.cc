@@ -24,6 +24,10 @@
 #include "settings.h"
 
 #include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
+#include <statistics/prometheus.h>
+
+#include <string_view>
 
 // add global stats
 static void server_global_stats(StatCollector& collector) {
@@ -140,6 +144,41 @@ ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket) {
         server_global_stats(collector);
         server_agg_stats(collector);
         server_bucket_stats(collector, bucket);
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
+    }
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE server_prometheus_stats(
+        StatCollector& collector, cb::prometheus::Cardinality cardinality) {
+    std::lock_guard<std::mutex> guard(stats_mutex);
+    try {
+        // do global stats
+        server_global_stats(collector);
+        bucketsForEach(
+                [&collector, cardinality](Bucket& bucket, void*) {
+                    if (std::string_view(bucket.name).empty()) {
+                        // skip the initial bucket with aggregated stats
+                        return true;
+                    }
+                    auto labelledCollector =
+                            collector.withLabels({{"bucket", bucket.name}});
+
+                    // do engine stats
+                    bucket.getEngine().get_prometheus_stats(labelledCollector,
+                                                            cardinality);
+
+                    if (cardinality == cb::prometheus::Cardinality::Low) {
+                        // do memcached per-bucket stats
+                        server_bucket_stats(labelledCollector, bucket);
+                    }
+
+                    // continue checking buckets
+                    return true;
+                },
+                nullptr);
+
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }

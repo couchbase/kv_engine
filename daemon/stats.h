@@ -24,6 +24,11 @@
 #include <mutex>
 #include <vector>
 
+namespace cb::prometheus {
+// forward declaration
+enum class Cardinality;
+} // namespace cb::prometheus
+
 /**
  * Stats stored per-thread.
  */
@@ -200,6 +205,16 @@ struct thread_stats* get_thread_stats(Connection* c);
 class StatCollector;
 class Bucket;
 ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket);
+
+/**
+ * Add stats needed for Prometheus to the given collector.
+ *
+ * The groups of stats which will be added is dependent on @p cardinality.
+ * The cardinality indicates if the incoming request was to the high
+ * or low cardinality endpoint.
+ */
+ENGINE_ERROR_CODE server_prometheus_stats(
+        StatCollector& collector, cb::prometheus::Cardinality cardinality);
 
 /*
  *  Macros for managing statistics inside memcached

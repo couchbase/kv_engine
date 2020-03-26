@@ -56,7 +56,7 @@ void PrometheusStatCollector::addClientMetric(
         const Labels& additionalLabels,
         prometheus::ClientMetric metric,
         prometheus::MetricType metricType) {
-    auto name = key.metricFamily.empty() ? key.uniqueKey : key.metricFamily;
+    auto name = key.metricFamily;
 
     auto [itr, inserted] = metricFamilies.try_emplace(
             std::string(name), prometheus::MetricFamily());

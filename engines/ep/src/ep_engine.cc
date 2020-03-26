@@ -73,6 +73,7 @@
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <statistics/prometheus.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
@@ -401,6 +402,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
 
     return acquireEngine(this)->getStats(
             cookie, key, value, addStatExitBorderGuard);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::get_prometheus_stats(
+        StatCollector& collector, cb::prometheus::Cardinality cardinality) {
+    try {
+        if (cardinality == cb::prometheus::Cardinality::High) {
+            doTimingStats(collector);
+            // TODO: collection stats
+            // TODO: scope stats
+        } else {
+            if (ENGINE_ERROR_CODE status = doEngineStats(collector);
+                status != ENGINE_SUCCESS) {
+                return status;
+            }
+        }
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
+    }
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(

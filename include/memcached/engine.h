@@ -28,6 +28,12 @@ namespace cb::mcbp {
 class Request;
 } // namespace cb::mcbp
 
+namespace cb::prometheus {
+enum class Cardinality;
+} // namespace cb::prometheus
+
+class StatCollector;
+
 /*! \mainpage memcached public API
  *
  * \section intro_sec Introduction
@@ -513,6 +519,19 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
                                         std::string_view key,
                                         std::string_view value,
                                         const AddStatFn& add_stat) = 0;
+
+    /**
+     * Get statistics for Prometheus exposition from the engine.
+     * Some engines may not support this.
+     *
+     * @param collector where the bucket may register stats
+     *
+     * @return ENGINE_SUCCESS if all goes well
+     */
+    virtual ENGINE_ERROR_CODE get_prometheus_stats(
+            StatCollector& collector, cb::prometheus::Cardinality cardinality) {
+        return ENGINE_ENOTSUP;
+    }
 
     /**
      * Reset the stats.

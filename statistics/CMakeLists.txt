@@ -2,6 +2,7 @@ add_library(statistics STATIC
         collector.cc
         definitions.cc
         labelled_collector.cc
+        prometheus.cc
         prometheus_collector.cc
         )
 

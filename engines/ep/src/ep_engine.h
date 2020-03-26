@@ -46,6 +46,7 @@ class DcpConnMap;
 class DcpFlowControlManager;
 class ItemMetaData;
 class KVBucket;
+class PrometheusStatCollector;
 class StatCollector;
 class StoredValue;
 class VBucketCountVisitor;
@@ -53,6 +54,10 @@ class VBucketCountVisitor;
 // Forward decl
 class EventuallyPersistentEngine;
 class ReplicationThrottle;
+
+namespace cb::prometheus {
+enum class Cardinality;
+} // namespace cb::prometheus
 
 /**
     To allow Engines to run tasks.
@@ -182,6 +187,10 @@ public:
                                 std::string_view key,
                                 std::string_view value,
                                 const AddStatFn& add_stat) override;
+
+    ENGINE_ERROR_CODE get_prometheus_stats(
+            StatCollector& collector,
+            cb::prometheus::Cardinality cardinality) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 

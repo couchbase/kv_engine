@@ -59,6 +59,7 @@
 #include <platform/interrupt.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
+#include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/openssl_utils.h>
@@ -232,6 +233,23 @@ static void stats_init() {
     stats.total_conns.reset();
     stats.rejected_conns.reset();
     stats.curr_conns.store(0, std::memory_order_relaxed);
+}
+
+static void prometheus_changed_listener(const std::string&, Settings& s) {
+    cb::prometheus::initialize(s.getPrometheusConfig());
+}
+
+static void prometheus_init() {
+    auto& settings = Settings::instance();
+
+    if (Settings::instance().has.prometheus_config) {
+        cb::prometheus::initialize(settings.getPrometheusConfig());
+    } else {
+        LOG_WARNING("Prometheus config not specified");
+    }
+
+    Settings::instance().addChangeListener("prometheus_config",
+                                           prometheus_changed_listener);
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
@@ -1413,6 +1431,8 @@ int memcached_main(int argc, char** argv) {
 
     /* initialize other stuff */
     stats_init();
+
+    prometheus_init();
 
 #ifndef WIN32
     /*
