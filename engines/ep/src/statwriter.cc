@@ -22,6 +22,10 @@
 
 using namespace std::string_view_literals;
 
+LabelGuard::~LabelGuard() {
+    collector.removeDefaultLabel(label);
+}
+
 void CBStatCollector::addStat(std::string_view k, std::string_view v) {
     addStatFn(k, v, cookie);
 }

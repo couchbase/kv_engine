@@ -102,17 +102,73 @@ inline uint64_t getBucketMax(const MicrosecondHistogram::value_type& bucket) {
     return bucket->end().count();
 }
 
+class StatCollector;
 /**
- * Interface implemented by statistics collection backends.
+ * RAII helper which removes a default label from the StatCollector when it goes
+ * out of scope. Created by StatCollector.withDefaultLabel(...)
  *
- * Allows stats to be added in a key-value manner, to be formatted
- * and exposed in a backend-specific manner.
+ * Note, the label is _removed_ not reset to a previous value.
+ */
+struct LabelGuard {
+    LabelGuard(StatCollector& collector, std::string_view label)
+        : collector(collector), label(label) {
+    }
+
+    ~LabelGuard();
+    StatCollector& collector;
+    std::string label;
+};
+
+/**
+ * Interface implemented by stats backends.
  *
- * Users may call the collector addStat with a stat key (e.g., get_cmd)
- * and a value for the backend to format appropriately.
+ * Allows stats to be added in a key-value manner. Keys may also have
+ * labels, but not all backends need support these.
+ *
+ * Users may call addStat with a key and value to be formatted
+ * appropriately by the backend.
+ *
+ * Stats are often organised in related blocks, for example all stats for a
+ * particular bucket. Rather than repeating the bucket label for every stat
+ * the bucket label can be set as a default.
+ *
+ * addDefaultLabel("bucket", "bucketName");
+ * addStat("foo", 1);
+ * addStat("bar", 2);
+ * removeDefaultLabel("bucket");
+ *
+ * Would lead to CBStats generating:
+ *
+ * foo: 1
+ * bar: 2
+ *
+ * But the Prometheus backend may generate:
+ *
+ * foo{bucket="bucketName"} 1
+ * bar{bucket="bucketName"} 2
  */
 class StatCollector {
 public:
+    /**
+     * Add a label which will be included for all added stats until it is
+     * removed.
+     *
+     * Adding a label with the same name will overwrite the previously set
+     * value.
+     *
+     * @param name label name to add to following stats
+     * @param value the value of the label
+     */
+    virtual void addDefaultLabel(std::string_view name,
+                                 std::string_view value) = 0;
+    /**
+     * Removes a previously added default label. Following stats will no longer
+     * have the named label included. See addDefaultLabel.
+     *
+     * @param name name of the label to remove
+     */
+    virtual void removeDefaultLabel(std::string_view name) = 0;
+
     /**
      * Add a textual stat to the collector.
      *
@@ -154,6 +210,16 @@ public:
     void addStat(std::string_view k, const char* v) {
         addStat(k, std::string_view(v));
     };
+
+    /**
+     * Add a default label and return an RAII helper which
+     * will remove the label when it goes out of scope.
+     */
+    [[nodiscard]] LabelGuard withDefaultLabel(std::string_view label,
+                                              std::string_view value) {
+        addDefaultLabel(label, value);
+        return {*this, label};
+    }
 
     /**
      * Overload with other signed/unsigned/float types.
@@ -273,6 +339,15 @@ public:
     CBStatCollector(const AddStatFn& addStatFn, const void* cookie)
         : addStatFn(addStatFn), cookie(cookie) {
     }
+
+    void addDefaultLabel(std::string_view name,
+                         std::string_view value) override {
+        // CMD_STAT doesn't have labelling, all labels are ignored
+    }
+    void removeDefaultLabel(std::string_view name) override {
+        // CMD_STAT doesn't have labelling, all labels are ignored
+    }
+
     // Allow usage of the "helper" methods defined in the base type.
     // They would otherwise be shadowed
     using StatCollector::addStat;
