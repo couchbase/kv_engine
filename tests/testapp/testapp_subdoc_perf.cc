@@ -36,7 +36,7 @@
 
 class SubdocPerfTest : public SubdocTestappTest {
 protected:
-    void SetUp() {
+    void SetUp() override {
         McdTestappTest::SetUp();
         // Performance test - disable ewouldblock_engine.
         ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,

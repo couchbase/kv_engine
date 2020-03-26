@@ -74,7 +74,7 @@ public:
                 const std::string& name,
                 std::string consumerName);
 
-    virtual ~DcpConsumer();
+    ~DcpConsumer() override;
 
     const char *getType() const override { return "consumer"; };
 
@@ -649,17 +649,17 @@ public:
           cons(conn) {
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Little data on how long this typically takes (rare operation).
         // Somewhat arbitrary selection of 10s as being slow.
         return std::chrono::seconds(10);
     }
 
-    bool run();
+    bool run() override;
 
 private:
     const std::string description;

@@ -29,7 +29,7 @@ class ItemFreqDecayerVisitor : public VBucketAwareHTVisitor {
 public:
     ItemFreqDecayerVisitor(uint16_t percentage_);
 
-    ~ItemFreqDecayerVisitor() = default;
+    ~ItemFreqDecayerVisitor() override = default;
 
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(std::chrono::steady_clock::time_point deadline_);

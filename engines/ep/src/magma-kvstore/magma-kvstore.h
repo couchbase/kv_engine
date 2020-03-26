@@ -107,7 +107,7 @@ class MagmaKVStore : public KVStore {
 public:
     MagmaKVStore(MagmaKVStoreConfig& config);
 
-    ~MagmaKVStore();
+    ~MagmaKVStore() override;
 
     void operator=(MagmaKVStore& from) = delete;
 
@@ -579,10 +579,10 @@ private:
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
     public:
         MagmaCompactionCB(MagmaKVStore& magmaKVStore);
-        ~MagmaCompactionCB();
+        ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
                         const magma::Slice& metaSlice,
-                        const magma::Slice& valueSlice) {
+                        const magma::Slice& valueSlice) override {
             return magmaKVStore.compactionCallBack(
                     *this, keySlice, metaSlice, valueSlice);
         }

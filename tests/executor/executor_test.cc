@@ -29,7 +29,7 @@
 
 class ExecutorTest : public ::testing::Test {
 protected:
-    void SetUp() {
+    void SetUp() override {
         executorpool = std::make_unique<cb::ExecutorPool>(4);
     }
 
@@ -49,8 +49,7 @@ public:
         executionComplete.store(false);
     }
 
-    virtual ~BasicTestTask() {
-
+    ~BasicTestTask() override {
     }
 
     Status execute() override {

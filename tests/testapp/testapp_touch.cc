@@ -24,7 +24,7 @@
 
 class TouchTest : public TestappClientTest {
 public:
-    void SetUp() {
+    void SetUp() override {
         TestappClientTest::SetUp();
         document.info.cas = mcbp::cas::Wildcard;
         document.info.flags = 0xcaffee;

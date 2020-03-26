@@ -31,13 +31,13 @@ class ItemNoValuePruneTest : public ::testing::TestWithParam<
 public:
 
     SingleThreadedRCPtr<Item> item;
-    void SetUp() {
+    void SetUp() override {
         item = std::make_unique<Item>(makeStoredDocKey("key"),
                                       Vbid(0),
                                       queue_op::empty,
                                       /*revSeq*/ 0,
                                       /*bySeq*/ 0);
-        }
+    }
 };
 
 TEST_P(ItemNoValuePruneTest, testPrune) {
@@ -71,8 +71,7 @@ public:
 
 class ItemPruneTest : public ItemTest {
 public:
-
-    void SetUp() {
+    void SetUp() override {
         std::string valueData = R"({"json":"yes"})";
         std::string data = createXattrValue(valueData);
         protocol_binary_datatype_t datatype = (PROTOCOL_BINARY_DATATYPE_JSON |
@@ -85,7 +84,7 @@ public:
                 data.data(),
                 data.size(),
                 datatype);
-        }
+    }
 };
 
 TEST_F(ItemTest, getAndSetCachedDataType) {

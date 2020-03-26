@@ -75,7 +75,7 @@ public:
      * (2) To notify idle connections; either for connections that need to be
      * closed or to ensure dcp noop messages are sent once a second.
      */
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "ConnManager");
         connmap->manageConnections();
         snooze(snoozeTime);
@@ -84,11 +84,11 @@ public:
                !connmap->isDeadConnectionsEmpty();
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Connection Manager";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // In *theory* this should run very quickly (p50 of <1ms); however
         // there's evidence it sometimes takes much longer than that - p99.99
         // of 10s.

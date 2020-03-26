@@ -37,7 +37,7 @@ class DummyCB : public Callback<Vbid> {
 public:
     DummyCB() {}
 
-    void callback(Vbid& dummy) {
+    void callback(Vbid& dummy) override {
     }
 };
 

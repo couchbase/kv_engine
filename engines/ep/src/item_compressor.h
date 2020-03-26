@@ -30,13 +30,13 @@ class ItemCompressorTask : public GlobalTask {
 public:
     ItemCompressorTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
-    bool run();
+    bool run() override;
 
     void stop();
 
-    std::string getDescription();
+    std::string getDescription() override;
 
-    std::chrono::microseconds maxExpectedDuration();
+    std::chrono::microseconds maxExpectedDuration() override;
 
 private:
     /// Duration (in seconds) the compressor should sleep for between

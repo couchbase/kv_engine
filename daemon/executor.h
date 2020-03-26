@@ -54,7 +54,7 @@ public:
     /**
      * Terminate the executor thread
      */
-    virtual ~Executor();
+    ~Executor() override;
 
     /**
      * Schedule a task for execution at some time

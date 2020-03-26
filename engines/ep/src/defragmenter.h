@@ -99,13 +99,13 @@ class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
-    bool run();
+    bool run() override;
 
     void stop();
 
-    std::string getDescription();
+    std::string getDescription() override;
 
-    std::chrono::microseconds maxExpectedDuration();
+    std::chrono::microseconds maxExpectedDuration() override;
 
     /// Maximum allocation size the defragmenter should consider
     static size_t getMaxValueSize();

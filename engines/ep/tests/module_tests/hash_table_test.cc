@@ -45,7 +45,7 @@ public:
 
     Counter(bool v) : count(), deleted(), verify(v) {}
 
-    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         if (v.isDeleted()) {
             ++deleted;
         } else {
@@ -58,6 +58,7 @@ public:
         }
         return true;
     }
+
 private:
     bool verify;
 };
@@ -258,7 +259,7 @@ public:
         std::shuffle(keys.begin(), keys.end(), g);
     }
 
-    bool operator()() {
+    bool operator()() override {
         for (const auto& key : keys) {
             if (rand() % 111 == 0) {
                 resize();

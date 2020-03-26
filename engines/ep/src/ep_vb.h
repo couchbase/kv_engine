@@ -54,7 +54,7 @@ public:
               const nlohmann::json& replicationTopology = {},
               uint64_t maxVisibleSeqno = 0);
 
-    ~EPVBucket();
+    ~EPVBucket() override;
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DiskDocKey& key,

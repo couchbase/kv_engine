@@ -48,7 +48,7 @@ public:
      */
     ItemPager(EventuallyPersistentEngine& e, EPStats& st);
 
-    bool run();
+    bool run() override;
 
     item_pager_phase getPhase() const {
         return phase;
@@ -58,11 +58,11 @@ public:
         phase = item_phase;
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Paging out items.";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Typically runs in single-digit milliseconds. Set max expected to
         // 25ms - a "fair" timeslice for a task to take.
         return std::chrono::milliseconds(25);
@@ -111,13 +111,13 @@ public:
     ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
                      size_t stime, ssize_t taskTime = -1);
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Paging expired items.";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Typically runs in single-digit milliseconds. Set max expected to
         // 25ms - a "fair" timeslice for a task to take.
         return std::chrono::milliseconds(25);

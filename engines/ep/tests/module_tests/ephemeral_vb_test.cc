@@ -39,7 +39,7 @@ public:
     }
 
 protected:
-    void SetUp() {
+    void SetUp() override {
         /* to test ephemeral vbucket specific stuff */
         mockEpheVB = new MockEphemeralVBucket(Vbid(0),
                                               vbucket_state_active,
@@ -61,7 +61,7 @@ protected:
         vbucket.reset(mockEpheVB);
     }
 
-    void TearDown() {
+    void TearDown() override {
         vbucket.reset();
     }
 

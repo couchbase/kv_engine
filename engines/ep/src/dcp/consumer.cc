@@ -65,14 +65,14 @@ public:
                       c->getName()) {
     }
 
-    ~DcpConsumerTask() {
+    ~DcpConsumerTask() override {
         auto consumer = consumerPtr.lock();
         if (consumer) {
             consumer->taskCancelled();
         }
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "DcpConsumerTask");
         auto consumer = consumerPtr.lock();
         if (!consumer) {
@@ -130,11 +130,11 @@ public:
         return true;
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // This should be a very fast operation (p50 under 10us), however we
         // have observed long tails: p99.9 of 20ms; so use a threshold of 100ms.
         return std::chrono::milliseconds(100);

@@ -56,7 +56,7 @@ public:
                 uint32_t flags,
                 bool startTask);
 
-    virtual ~DcpProducer();
+    ~DcpProducer() override;
 
     /**
      * Clears active stream checkpoint processor task's queue, resets its

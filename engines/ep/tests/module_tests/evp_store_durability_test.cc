@@ -44,7 +44,7 @@
 
 class DurabilityEPBucketTest : public STParameterizedBucketTest {
 protected:
-    void SetUp() {
+    void SetUp() override {
         STParameterizedBucketTest::SetUp();
         // Add an initial replication topology so we can accept SyncWrites.
         setVBucketToActiveWithValidTopology();

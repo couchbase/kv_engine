@@ -30,7 +30,7 @@ public:
     ChangeListener(CheckpointConfig& c) : config(c) {
     }
 
-    virtual void sizeValueChanged(const std::string& key, size_t value) {
+    void sizeValueChanged(const std::string& key, size_t value) override {
         if (key.compare("chk_period") == 0) {
             config.setCheckpointPeriod(value);
         } else if (key.compare("chk_max_items") == 0) {
@@ -40,7 +40,7 @@ public:
         }
     }
 
-    virtual void booleanValueChanged(const std::string& key, bool value) {
+    void booleanValueChanged(const std::string& key, bool value) override {
         if (key.compare("item_num_based_new_chk") == 0) {
             config.allowItemNumBasedNewCheckpoint(value);
         } else if (key.compare("keep_closed_chks") == 0) {

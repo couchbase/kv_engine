@@ -53,11 +53,11 @@ public:
     };
 
 protected:
-    void SetUp() {
+    void SetUp() override {
         basicLL = std::make_unique<MockBasicLinkedList>(global_stats);
     }
 
-    void TearDown() {
+    void TearDown() override {
         /* Like in a vbucket we want the list to be erased before HashTable is
            is destroyed. */
         basicLL.reset();

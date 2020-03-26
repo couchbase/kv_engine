@@ -34,7 +34,7 @@ protected:
     MemoryTrackingAllocatorListTest() : theList(allocator) {
     }
 
-    void SetUp() {
+    void SetUp() override {
 #if WIN32
         // On windows for an empty list we still allocate space for
         // containing one element.

@@ -57,7 +57,7 @@ public:
         return this;
     }
 
-    virtual void validateSize(const std::string& key, size_t value) {
+    void validateSize(const std::string& key, size_t value) override {
         if (value < lower || value > upper) {
             std::string error = "Validation Error, " + key +
                                 " takes values between " +
@@ -68,7 +68,7 @@ public:
         }
     }
 
-    virtual void validateSSize(const std::string& key, ssize_t value) {
+    void validateSSize(const std::string& key, ssize_t value) override {
         auto s_lower = static_cast<ssize_t> (lower);
         auto s_upper = static_cast<ssize_t> (upper);
 
@@ -81,6 +81,7 @@ public:
             throw std::range_error(error);
         }
     }
+
 private:
     size_t lower;
     size_t upper;
@@ -104,7 +105,7 @@ public:
         return this;
     }
 
-    virtual void validateSSize(const std::string& key, ssize_t value) {
+    void validateSSize(const std::string& key, ssize_t value) override {
         if (value < lower || value > upper) {
             std::string error = "Validation Error, " + key +
                                 " takes values between " +
@@ -114,6 +115,7 @@ public:
             throw std::range_error(error);
         }
     }
+
 private:
     ssize_t lower;
     ssize_t upper;
@@ -137,7 +139,7 @@ public:
         return this;
     }
 
-    virtual void validateFloat(const std::string& key, float value) {
+    void validateFloat(const std::string& key, float value) override {
         if (value < lower || value > upper) {
             std::string error = "Validation Error, " + key +
                                 " takes values between " +
@@ -147,6 +149,7 @@ public:
             throw std::range_error(error);
         }
     }
+
 private:
     float lower;
     float upper;
@@ -165,7 +168,7 @@ public:
         return this;
     }
 
-    virtual void validateString(const std::string& key, const char* value) {
+    void validateString(const std::string& key, const char* value) override {
         if (acceptable.find(std::string(value)) == acceptable.end()) {
             std::string error = "Validation Error, " + key +
                                 " takes one of [";

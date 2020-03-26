@@ -189,7 +189,7 @@ public:
                                uint64_t rev_seqno,
                                uint32_t lock_time,
                                uint8_t nru,
-                               cb::mcbp::DcpStreamId sid) {
+                               cb::mcbp::DcpStreamId sid) override {
         return mutation(opaque,
                         reinterpret_cast<Item*>(itm.get()),
                         vbucket,
@@ -205,7 +205,7 @@ public:
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               cb::mcbp::DcpStreamId sid) {
+                               cb::mcbp::DcpStreamId sid) override {
         return deletion(opaque,
                         reinterpret_cast<Item*>(itm.get()),
                         vbucket,
@@ -220,7 +220,7 @@ public:
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
                                   uint32_t delete_time,
-                                  cb::mcbp::DcpStreamId sid) {
+                                  cb::mcbp::DcpStreamId sid) override {
         return deletionV2(opaque,
                           reinterpret_cast<Item*>(itm.get()),
                           vbucket,
@@ -236,7 +236,7 @@ public:
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  uint32_t delete_time,
-                                 cb::mcbp::DcpStreamId sid) {
+                                 cb::mcbp::DcpStreamId sid) override {
         return expiration(opaque,
                           reinterpret_cast<Item*>(itm.get()),
                           vbucket,
@@ -254,7 +254,7 @@ public:
                               uint32_t lock_time,
                               uint8_t nru,
                               DocumentState document_state,
-                              cb::durability::Level level) {
+                              cb::durability::Level level) override {
         return prepare(opaque,
                        reinterpret_cast<Item*>(itm.get()),
                        vbucket,

@@ -38,7 +38,7 @@ class CacheCallback : public StatusCallback<CacheLookup> {
 public:
     CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
 
-    void callback(CacheLookup& lookup);
+    void callback(CacheLookup& lookup) override;
 
 private:
     /**
@@ -57,7 +57,7 @@ class DiskCallback : public StatusCallback<GetValue> {
 public:
     DiskCallback(std::shared_ptr<ActiveStream> s);
 
-    void callback(GetValue& val);
+    void callback(GetValue& val) override;
 
 private:
     std::weak_ptr<ActiveStream> streamPtr;

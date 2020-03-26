@@ -129,7 +129,7 @@ public:
         state_ = state;
     }
 
-    virtual OutstandingItemsResult getOutstandingItems(VBucket& vb) override {
+    OutstandingItemsResult getOutstandingItems(VBucket& vb) override {
         preGetOutstandingItemsCallback();
         return ActiveStream::getOutstandingItems(vb);
     }
@@ -207,8 +207,8 @@ public:
       * the callback function which is used to inject additional work prior to
       * the execution of the method ActiveStream::registerCursor.
       */
-    virtual void registerCursor(CheckpointManager& chkptmgr,
-                                uint64_t lastProcessedSeqno) override {
+    void registerCursor(CheckpointManager& chkptmgr,
+                        uint64_t lastProcessedSeqno) override {
         callbackBeforeRegisterCursor();
         ActiveStream::registerCursor(chkptmgr, lastProcessedSeqno);
         callbackAfterRegisterCursor();

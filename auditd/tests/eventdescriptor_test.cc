@@ -23,7 +23,7 @@
 
 class EventDescriptorTest : public ::testing::Test {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         // We normally expect this to be an unsigned integer so we need to
         // explicitly pass a unsigned int to json[].
         size_t id = 1;

@@ -196,7 +196,7 @@ protected:
         };
     }
 
-    void SetUp() {
+    void SetUp() override {
         config.set_descriptors_path(event_descriptor);
         config.set_rotate_size(2000);
         config.set_rotate_interval(900);
@@ -215,7 +215,7 @@ protected:
         configure();
     }
 
-    void TearDown() {
+    void TearDown() override {
         config.set_auditd_enabled(false);
         configure();
     }
@@ -279,7 +279,7 @@ TEST_P(AuditDaemonTest, StartupEnableCreateFile) {
 
 class AuditDaemonFilteringTest : public AuditDaemonTest {
 protected:
-    void SetUp() {
+    void SetUp() override {
         AuditDaemonTest::SetUp();
         // Add the userid : {"source" : "internal", "user" : "johndoe"}
         // to the disabled users list

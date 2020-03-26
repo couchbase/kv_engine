@@ -30,7 +30,7 @@ class ItemCompressorVisitor : public VBucketAwareHTVisitor {
 public:
     ItemCompressorVisitor();
 
-    ~ItemCompressorVisitor();
+    ~ItemCompressorVisitor() override;
 
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(std::chrono::steady_clock::time_point deadline_);
@@ -42,8 +42,7 @@ public:
     void setMinCompressionRatio(float minCompressionRatio);
 
     // Implementation of HashTableVisitor interface:
-    virtual bool visit(const HashTable::HashBucketLock& lh,
-                       StoredValue& v) override;
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
     // Resets any held stats to zero.
     void clearStats();

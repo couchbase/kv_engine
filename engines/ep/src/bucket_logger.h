@@ -93,7 +93,7 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
 class BucketLogger : public spdlog::logger {
 public:
     /// Unregister this BucketLogger on destruction
-    ~BucketLogger();
+    ~BucketLogger() override;
 
     /**
      * Record a log message for the bucket currently associated with the calling

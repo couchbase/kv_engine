@@ -58,7 +58,7 @@ public:
                   uint64_t vb_high_seqno,
                   const Collections::ManifestUid vb_manifest_uid);
 
-    virtual ~PassiveStream();
+    ~PassiveStream() override;
 
     process_items_error_t processBufferedMessages(uint32_t& processed_bytes,
                                                   size_t batchSize);

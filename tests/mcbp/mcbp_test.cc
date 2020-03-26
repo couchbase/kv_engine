@@ -2187,7 +2187,7 @@ class EvictKeyValidatorTest : public ::testing::WithParamInterface<bool>,
 public:
     EvictKeyValidatorTest() : ValidatorTest(GetParam()) {
     }
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.setKeylen(10);
         request.message.header.request.setBodylen(10);
@@ -2243,7 +2243,7 @@ class RevokeUserPermissionsValidatorTest
 public:
     RevokeUserPermissionsValidatorTest() : ValidatorTest(GetParam()) {
     }
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.setKeylen(10);
         request.message.header.request.setBodylen(10);

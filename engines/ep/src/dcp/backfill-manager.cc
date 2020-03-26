@@ -46,11 +46,11 @@ public:
           weak_manager(std::move(mgr)) {
     }
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription();
+    std::string getDescription() override;
 
-    std::chrono::microseconds maxExpectedDuration();
+    std::chrono::microseconds maxExpectedDuration() override;
 
 private:
     // A weak pointer to the backfill manager which owns this

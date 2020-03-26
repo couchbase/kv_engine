@@ -44,13 +44,13 @@ public:
         desc = ss.str();
     }
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return desc;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Flusher duration is likely to vary significantly; depending on
         // number of documents to flush and speed/capacity of disk subsystem.
         // As such, selecting a good maximum duration for all scenarios is hard.
@@ -76,13 +76,13 @@ public:
                 const void* ck,
                 bool completeBeforeShutdown = false);
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return desc;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Empirical evidence suggests this task runs under 25s 99.98% of
         // the time.
         return std::chrono::seconds(25);
@@ -107,13 +107,13 @@ public:
         : GlobalTask(e, TaskId::StatSnap, sleeptime, completeBeforeShutdown),
           runOnce(runOneTimeOnly) {}
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Updating stat snapshot on disk";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // A background periodic Writer task; which no front-end operation
         // depends on. However it does run on a writer thread; which we don't
         // want to slow down persistTo times; so expect to complete quickly.
@@ -134,13 +134,13 @@ class MultiBGFetcherTask : public GlobalTask {
 public:
     MultiBGFetcherTask(EventuallyPersistentEngine* e, BgFetcher* b);
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Batching background fetch";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Much like other disk tasks (e.g. Flusher), duration is likely to
         // vary significantly; depending on number of documents to fetch and
         // speed/capacity of disk subsystem. As such, selecting a good maximum
@@ -179,13 +179,13 @@ public:
                       std::string(key.c_str()) + "} " + vbucket.to_string()) {
     }
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Much like other disk tasks, duration is likely to
         // vary significantly; depending on speed/capacity of disk subsystem.
         // As such, selecting a good maximum duration for all scenarios is hard.
@@ -211,15 +211,15 @@ public:
     WorkLoadMonitor(EventuallyPersistentEngine *e,
                     bool completeBeforeShutdown = false);
 
-    bool run();
+    bool run() override;
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Runtime should be very quick (lookup a few statistics; perform
         // some calculation on them). p99.9 is <50us.
         return std::chrono::milliseconds(1);
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Monitoring a workload pattern";
     }
 

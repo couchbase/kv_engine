@@ -37,13 +37,13 @@ public:
              Configuration().getHtLocks()) {
     }
 
-    void SetUp(benchmark::State& state) {
+    void SetUp(benchmark::State& state) override {
         if (state.thread_index == 0) {
             ht.resize(numItems);
         }
     }
 
-    void TearDown(benchmark::State& state) {
+    void TearDown(benchmark::State& state) override {
         if (state.thread_index == 0) {
             ht.clear();
         }

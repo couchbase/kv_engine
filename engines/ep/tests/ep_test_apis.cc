@@ -1446,7 +1446,7 @@ public:
     engine_error(ENGINE_ERROR_CODE code_)
         : code(code_) {}
 
-    virtual const char* what() const NOEXCEPT {
+    const char* what() const NOEXCEPT override {
         return "engine_error";
     }
 

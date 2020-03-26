@@ -28,7 +28,7 @@ public:
     HashTableDepthStatVisitor() : size(0), memUsed(0), min(-1), max(0) {
     }
 
-    void visit(int bucket, int depth, size_t mem) {
+    void visit(int bucket, int depth, size_t mem) override {
         (void)bucket;
         // -1 is a special case for min.  If there's a value other than
         // -1, we prefer that.

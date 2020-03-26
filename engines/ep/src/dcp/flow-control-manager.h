@@ -67,11 +67,11 @@ class DcpFlowControlManagerStatic : public DcpFlowControlManager {
 public:
     DcpFlowControlManagerStatic(EventuallyPersistentEngine &engine);
 
-    ~DcpFlowControlManagerStatic();
+    ~DcpFlowControlManagerStatic() override;
 
-    size_t newConsumerConn(DcpConsumer *consumerConn);
+    size_t newConsumerConn(DcpConsumer* consumerConn) override;
 
-    bool isEnabled() const;
+    bool isEnabled() const override;
 };
 
 /**
@@ -85,13 +85,13 @@ class DcpFlowControlManagerDynamic : public DcpFlowControlManager {
 public:
     DcpFlowControlManagerDynamic(EventuallyPersistentEngine &engine);
 
-    ~DcpFlowControlManagerDynamic();
+    ~DcpFlowControlManagerDynamic() override;
 
-    size_t newConsumerConn(DcpConsumer *consumerConn);
+    size_t newConsumerConn(DcpConsumer* consumerConn) override;
 
-    void handleDisconnect(DcpConsumer *consumerConn);
+    void handleDisconnect(DcpConsumer* consumerConn) override;
 
-    bool isEnabled() const;
+    bool isEnabled() const override;
 
 private:
     /* Total memory used by all DCP consumer buffers */
@@ -109,13 +109,13 @@ class DcpFlowControlManagerAggressive : public DcpFlowControlManager {
 public:
     DcpFlowControlManagerAggressive(EventuallyPersistentEngine &engine);
 
-    ~DcpFlowControlManagerAggressive();
+    ~DcpFlowControlManagerAggressive() override;
 
-    size_t newConsumerConn(DcpConsumer *consumerConn);
+    size_t newConsumerConn(DcpConsumer* consumerConn) override;
 
-    void handleDisconnect(DcpConsumer *consumerConn);
+    void handleDisconnect(DcpConsumer* consumerConn) override;
 
-    bool isEnabled() const;
+    bool isEnabled() const override;
 
 private:
     /**

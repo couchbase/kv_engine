@@ -33,20 +33,21 @@ class MockTaskable : public Taskable {
 public:
     MockTaskable();
 
-    const std::string& getName() const;
+    const std::string& getName() const override;
 
-    task_gid_t getGID() const;
+    task_gid_t getGID() const override;
 
-    bucket_priority_t getWorkloadPriority() const;
+    bucket_priority_t getWorkloadPriority() const override;
 
-    void setWorkloadPriority(bucket_priority_t prio);
+    void setWorkloadPriority(bucket_priority_t prio) override;
 
-    WorkLoadPolicy& getWorkLoadPolicy();
+    WorkLoadPolicy& getWorkLoadPolicy() override;
 
-    void logQTime(TaskId id, const std::chrono::steady_clock::duration enqTime);
+    void logQTime(TaskId id,
+                  const std::chrono::steady_clock::duration enqTime) override;
 
     void logRunTime(TaskId id,
-                    const std::chrono::steady_clock::duration runTime);
+                    const std::chrono::steady_clock::duration runTime) override;
 
 protected:
     std::string name;
@@ -109,7 +110,7 @@ public:
         tMutex.wait(lh, [this] { return taskLocator.empty(); });
     }
 
-    ~TestExecutorPool() = default;
+    ~TestExecutorPool() override = default;
 };
 
 class ExecutorPoolTest : public ::testing::Test {};

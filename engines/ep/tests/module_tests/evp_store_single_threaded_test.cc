@@ -1826,15 +1826,15 @@ TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
     public:
         TestTask(Taskable& t, TaskId id, double s) : GlobalTask(t, id, s) {
         }
-        bool run() {
+        bool run() override {
             return false;
         }
 
-        std::string getDescription() {
+        std::string getDescription() override {
             return "Task uid:" + std::to_string(getId());
         }
 
-        std::chrono::microseconds maxExpectedDuration() {
+        std::chrono::microseconds maxExpectedDuration() override {
             return std::chrono::seconds(0);
         }
     };
@@ -1867,15 +1867,15 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     public:
         TestTask(EventuallyPersistentEngine *e, double s) :
                  GlobalTask(e, TaskId::ActiveStreamCheckpointProcessorTask, s) {}
-        bool run() {
+        bool run() override {
             return false;
         }
 
-        std::string getDescription() {
+        std::string getDescription() override {
             return "Test MB20235";
         }
 
-        std::chrono::microseconds maxExpectedDuration() {
+        std::chrono::microseconds maxExpectedDuration() override {
             return std::chrono::seconds(0);
         }
     };
@@ -2310,12 +2310,12 @@ static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(
 // for this tests needs.
 class MB20054_SingleThreadedEPStoreTest : public STParamPersistentBucketTest {
 public:
-    void SetUp() {
+    void SetUp() override {
         STParameterizedBucketTest::SetUp();
         engine->initializeConnmap();
     }
 
-    void TearDown() {
+    void TearDown() override {
         engine.reset();
         ExecutorPool::shutdown();
     }

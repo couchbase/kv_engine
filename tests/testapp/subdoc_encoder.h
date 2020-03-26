@@ -77,7 +77,7 @@ struct SubdocMultiLookupCmd : public SubdocMultiCmd {
     /* Takes the current state of object and encodes a
      * protocol_binary_request_subdocument_multi_lookup packet in network order.
      */
-    std::vector<char> encode() const;
+    std::vector<char> encode() const override;
 };
 
 /* Sub-document API MULTI_MUTATION command */
@@ -97,5 +97,5 @@ struct SubdocMultiMutationCmd : public SubdocMultiCmd {
     /* Takes the current state of object and encodes a
      * protocol_binary_request_subdocument_multi_lookup packet in network order.
      */
-    std::vector<char> encode() const;
+    std::vector<char> encode() const override;
 };

@@ -22,7 +22,7 @@
 
 class TopKeysTest : public ::testing::Test {
 protected:
-    void SetUp() {
+    void SetUp() override {
         Settings::instance().setTopkeysEnabled(true);
         topkeys.reset(new TopKeys(10));
     }

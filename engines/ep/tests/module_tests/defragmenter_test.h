@@ -32,7 +32,7 @@ class DefragmenterTest
       public ::testing::TestWithParam<std::tuple<EvictionPolicy, bool> > {
 public:
     DefragmenterTest();
-    ~DefragmenterTest();
+    ~DefragmenterTest() override;
 
 protected:
     void SetUp() override {

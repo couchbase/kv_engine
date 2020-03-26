@@ -21,7 +21,7 @@
 
 class StatsTest : public TestappClientTest {
 public:
-    void SetUp() {
+    void SetUp() override {
         TestappClientTest::SetUp();
         // Let all tests start with an empty set of stats (There is
         // a special test case that tests that reset actually work)

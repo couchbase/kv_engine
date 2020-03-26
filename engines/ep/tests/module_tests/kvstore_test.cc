@@ -63,7 +63,7 @@ public:
         : start(s), end(e), vb(vbid) {
     }
 
-    void callback(CacheLookup &lookup) {
+    void callback(CacheLookup& lookup) override {
         EXPECT_EQ(vb, lookup.getVBucketId());
         EXPECT_LE(start, lookup.getBySeqno());
         EXPECT_LE(lookup.getBySeqno(), end);
@@ -86,7 +86,7 @@ public:
         expectCompressed(expect_compressed),
         expectedErrorCode(_expectedErrorCode) { }
 
-    void callback(GetValue &result) {
+    void callback(GetValue& result) override {
         EXPECT_EQ(expectedErrorCode, result.getStatus());
         if (result.getStatus() == ENGINE_SUCCESS) {
             if (expectCompressed) {
@@ -155,7 +155,7 @@ public:
     CustomCallback()
         : cb([](RV... val){}) {}
 
-    void callback(RV&...result) {
+    void callback(RV&... result) override {
         cb(std::forward<RV>(result)...);
         processed++;
     }
@@ -182,7 +182,7 @@ public:
     CustomRBCallback()
         : cb([](GetValue val){}) {}
 
-    void callback(GetValue &result) {
+    void callback(GetValue& result) override {
         cb(std::move(result));
     }
 
@@ -394,7 +394,7 @@ public:
     CollectionsOfflineUpgradeCallback(CollectionID cid) : expectedCid(cid) {
     }
 
-    void callback(CacheLookup& lookup) {
+    void callback(CacheLookup& lookup) override {
         EXPECT_EQ(expectedCid, lookup.getKey().getDocKey().getCollectionID());
         callbacks++;
     }
@@ -409,7 +409,7 @@ public:
         : deletedRange(std::move(deletedRange)) {
     }
 
-    void callback(GetValue& result) {
+    void callback(GetValue& result) override {
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus());
 
         if (result.item->isDeleted()) {
@@ -657,7 +657,7 @@ public:
                 dynamic_cast<CouchKVStoreConfig&>(config), ops));
         initialize_kv_store(kvstore.get());
     }
-    ~CouchKVStoreErrorInjectionTest() {
+    ~CouchKVStoreErrorInjectionTest() override {
         cb::io::rmrf(data_dir.c_str());
     }
 
@@ -1487,7 +1487,7 @@ public:
         kvstore->snapshotVBucket(vbid, state);
     }
 
-    ~CouchstoreTest() {
+    ~CouchstoreTest() override {
         cb::io::rmrf(data_dir.c_str());
     }
 
@@ -1505,7 +1505,7 @@ class MockedGetCallback : public Callback<T> {
     public:
         MockedGetCallback() {}
 
-        void callback(GetValue& value){
+        void callback(GetValue& value) override {
             status(value.getStatus());
             if (value.getStatus() == ENGINE_SUCCESS) {
                 EXPECT_CALL(*this, value("value"));

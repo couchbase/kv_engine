@@ -30,7 +30,7 @@ class MutationWithMetaTest : public ::testing::WithParamInterface<
 public:
     MutationWithMetaTest() : ValidatorTest(std::get<1>(GetParam())) {
     }
-    virtual void SetUp() override {
+    void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.setExtlen(24);
         request.message.header.request.setKeylen(10);

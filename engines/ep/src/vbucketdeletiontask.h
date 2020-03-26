@@ -39,13 +39,13 @@ public:
                               VBucket* vbucket,
                               TaskId tid = TaskId::VBucketMemoryDeletionTask);
 
-    ~VBucketMemoryDeletionTask();
+    ~VBucketMemoryDeletionTask() override;
 
-    std::string getDescription();
+    std::string getDescription() override;
 
-    std::chrono::microseconds maxExpectedDuration();
+    std::chrono::microseconds maxExpectedDuration() override;
 
-    bool run();
+    bool run() override;
 
 protected:
     /**
@@ -88,7 +88,7 @@ public:
                                      KVShard& shard,
                                      EPVBucket* vbucket);
 
-    bool run();
+    bool run() override;
 
 protected:
     KVShard& shard;

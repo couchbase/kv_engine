@@ -131,7 +131,7 @@ public:
      * Wait for the underlying thread to reach the zombie state
      * (== terminated, but not reaped)
      */
-    ~BlockMonitorThread() {
+    ~BlockMonitorThread() override {
         waitForState(Couchbase::ThreadState::Zombie);
     }
 
@@ -1000,7 +1000,7 @@ private:
           : FaultInjectMode(injected_error_),
             prev_cmd(Cmd::NONE) {}
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             // Block unless the previous command from this cookie
             // was the same - i.e. all of a connections' commands
             // will EWOULDBLOCK the first time they are called.
@@ -1012,7 +1012,7 @@ private:
             return inject;
         }
 
-        std::string to_string() const {
+        std::string to_string() const override {
             return "ErrOnFirst inject_error=" + std::to_string(injected_error);
         }
 
@@ -1027,7 +1027,7 @@ private:
           : FaultInjectMode(injected_error_),
             count(count_) {}
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             if (count > 0) {
                 --count;
                 err = injected_error;
@@ -1037,7 +1037,7 @@ private:
             }
         }
 
-        std::string to_string() const {
+        std::string to_string() const override {
             return std::string("ErrOnNextN") +
                    " inject_error=" + std::to_string(injected_error) +
                    " count=" + std::to_string(count);
@@ -1054,7 +1054,7 @@ private:
           : FaultInjectMode(injected_error_),
             percentage_to_err(percentage_) {}
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<uint32_t> dis(1, 100);
@@ -1066,7 +1066,7 @@ private:
             }
         }
 
-        std::string to_string() const {
+        std::string to_string() const override {
             return std::string("ErrRandom") +
                    " inject_error=" + std::to_string(injected_error) +
                    " percentage=" + std::to_string(percentage_to_err);
@@ -1114,7 +1114,7 @@ private:
               pos(sequence.begin()) {
         }
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             if (pos == sequence.end()) {
                 throw std::logic_error(
                         "ErrSequence::should_inject_error() Reached end of "
@@ -1129,7 +1129,7 @@ private:
             return inject;
         }
 
-        virtual boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
+        boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() override {
             // If this function has been called, should_inject_error() must
             // have returned true. Return the next status code in the sequnce
             // as the result of the pending IO.
@@ -1142,7 +1142,7 @@ private:
             return ENGINE_ERROR_CODE(*pos++);
         }
 
-        std::string to_string() const {
+        std::string to_string() const override {
             std::stringstream ss;
             ss << "ErrSequence sequence=[";
             for (const auto& err : sequence) {
@@ -1167,11 +1167,12 @@ private:
               : FaultInjectMode(injected_error_),
                 issued_return_error(false) {}
 
-            boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
+            boost::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops()
+                    override {
                 return {};
             }
 
-            bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
                 if (!issued_return_error) {
                     issued_return_error = true;
                     err = injected_error;
@@ -1181,7 +1182,7 @@ private:
                 }
             }
 
-            std::string to_string() const {
+            std::string to_string() const override {
                 return std::string("ErrOnNoNotify") +
                        " inject_error=" + std::to_string(injected_error) +
                        " issued_return_error=" +
@@ -1199,7 +1200,7 @@ private:
           : FaultInjectMode(ENGINE_KEY_EEXISTS),
             count(count_) {}
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             if (cmd == Cmd::CAS && (count > 0)) {
                 --count;
                 err = injected_error;
@@ -1209,7 +1210,7 @@ private:
             }
         }
 
-        std::string to_string() const {
+        std::string to_string() const override {
             return std::string("CASMismatch") +
                    " count=" + std::to_string(count);
         }

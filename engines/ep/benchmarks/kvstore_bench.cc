@@ -52,7 +52,7 @@ public:
 class MockCacheCallback : public StatusCallback<CacheLookup> {
 public:
     MockCacheCallback(){};
-    void callback(CacheLookup& lookup) {
+    void callback(CacheLookup& lookup) override {
         // I want to simulate DGM scenarios where we have a HT-miss most times.
         // So, here I return what KVStore understands as "Item not in the
         // HashTable, go to the Storage".
@@ -63,7 +63,7 @@ public:
 class MockDiskCallback : public StatusCallback<GetValue> {
 public:
     MockDiskCallback() : itemCount(0){};
-    void callback(GetValue& val) {
+    void callback(GetValue& val) override {
         // Just increase the item count
         // Note: this callback is invoked for each item read from the storage.
         //     This is where the real DiskCallback pushes the Item to

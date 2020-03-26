@@ -33,7 +33,7 @@
 
 class PasswordMetaTest : public ::testing::Test {
 public:
-    void SetUp() {
+    void SetUp() override {
         root["h"] = "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=";
         root["s"] = "iiU7hLv7l3yOoEgXusJvT2i1J2A=";
         root["i"] = 10;
@@ -107,7 +107,7 @@ TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForSalt) {
 
 class UserTest : public ::testing::Test {
 public:
-    void SetUp() {
+    void SetUp() override {
         root["n"] = "username";
         root["plain"] = Couchbase::Base64::encode("secret");
 
@@ -264,7 +264,7 @@ TEST_F(UserTest, CreateDummy) {
 
 class PasswordDatabaseTest : public ::testing::Test {
 public:
-    void SetUp() {
+    void SetUp() override {
         nlohmann::json root;
         nlohmann::json array = nlohmann::json::array();
 

@@ -150,7 +150,7 @@ public:
         DummyCB() {
         }
 
-        void callback(Vbid& dummy) {
+        void callback(Vbid& dummy) override {
         }
     };
 

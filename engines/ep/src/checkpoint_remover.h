@@ -53,13 +53,13 @@ public:
     size_t attemptMemoryRecovery(MemoryRecoveryMechanism mechanism,
                                  size_t amountOfMemoryToClear);
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Removing closed unreferenced checkpoints from memory";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Empirical evidence from perf runs suggests this task runs
         // under 250ms 99.99999% of the time.
         return std::chrono::milliseconds(250);

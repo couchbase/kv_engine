@@ -3439,7 +3439,7 @@ public:
           cookie(cookie) {
     }
 
-    ~AddStatsStream() {
+    ~AddStatsStream() override {
         auto value = buf.str();
         callback(key, value, cookie);
     }
@@ -3551,7 +3551,7 @@ public:
           cookie(c),
           add_stat(std::move(a)) {
     }
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
         StatCheckpointVisitor scv(ep->getKVBucket(), cookie, add_stat);
         ep->getKVBucket()->visit(scv);
@@ -3559,11 +3559,11 @@ public:
         return false;
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "checkpoint stats for all vbuckets";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Task needed to lookup "checkpoint" stats; so the runtime should only
         // affects the particular stat request. However we don't want this to
         // take /too/ long, so set limit of 100ms.
@@ -5928,7 +5928,7 @@ public:
         buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
-    void callback(const DiskDocKey& key) {
+    void callback(const DiskDocKey& key) override {
         auto outKey = key.getDocKey();
         if (outKey.isPrivate() || key.isPrepared()) {
             // Skip system-event and durability-prepared keys
@@ -5992,17 +5992,17 @@ public:
           collectionsSupported(collectionsSupported) {
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Duration will be a function of how many documents are fetched;
         // however for simplicity just return a fixed "reasonable" duration.
         return std::chrono::milliseconds(100);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
         ENGINE_ERROR_CODE err;
         if (engine->getKVBucket()->getVBuckets().

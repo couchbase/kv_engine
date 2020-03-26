@@ -166,8 +166,10 @@ struct kvstats_ctx {
 class NoLookupCallback : public StatusCallback<CacheLookup> {
 public:
     NoLookupCallback() {}
-    ~NoLookupCallback() {}
-    void callback(CacheLookup&) {}
+    ~NoLookupCallback() override {
+    }
+    void callback(CacheLookup&) override {
+    }
 };
 
 struct DBFileInfo {
@@ -1127,7 +1129,7 @@ public:
     RollbackCB() {
     }
 
-    virtual void callback(GetValue &val) = 0;
+    void callback(GetValue& val) override = 0;
 
     void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) {
         kvFileHandle = std::move(handle);

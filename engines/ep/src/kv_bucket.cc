@@ -128,7 +128,7 @@ public:
     EPStoreValueChangeListener(KVBucket& st) : store(st) {
     }
 
-    virtual void sizeValueChanged(const std::string &key, size_t value) {
+    void sizeValueChanged(const std::string& key, size_t value) override {
         if (key.compare("compaction_write_queue_cap") == 0) {
             store.setCompactionWriteQueueCap(value);
         } else if (key.compare("exp_pager_stime") == 0) {
@@ -149,7 +149,7 @@ public:
         }
     }
 
-    virtual void ssizeValueChanged(const std::string& key, ssize_t value) {
+    void ssizeValueChanged(const std::string& key, ssize_t value) override {
         if (key.compare("exp_pager_initial_run_time") == 0) {
             store.setExpiryPagerTasktime(value);
         } else if (key.compare("replication_throttle_queue_cap") == 0) {
@@ -157,7 +157,7 @@ public:
         }
     }
 
-    virtual void booleanValueChanged(const std::string &key, bool value) {
+    void booleanValueChanged(const std::string& key, bool value) override {
         if (key.compare("bfilter_enabled") == 0) {
             store.setAllBloomFilters(value);
         } else if (key.compare("exp_pager_enabled") == 0) {
@@ -171,7 +171,7 @@ public:
         }
     }
 
-    virtual void floatValueChanged(const std::string &key, float value) {
+    void floatValueChanged(const std::string& key, float value) override {
         if (key.compare("bfilter_residency_threshold") == 0) {
             store.setBfiltersResidencyThreshold(value);
         } else if (key.compare("dcp_min_compression_ratio") == 0) {
@@ -193,17 +193,17 @@ public:
                       vbucket->getId().to_string()) {
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // This should be a very fast operation (p50 under 10us), however we
         // have observed long tails: p99.9 of 20ms; so use a threshold of 100ms.
         return std::chrono::milliseconds(100);
     }
 
-    bool run() {
+    bool run() override {
         TRACE_EVENT1("ep-engine/task",
                      "PendingOpsNotification",
                      "vb",
@@ -237,16 +237,16 @@ public:
         }
     }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // Copied from PendingOpsNotification as this task is very similar
         return std::chrono::milliseconds(100);
     }
 
-    bool run() {
+    bool run() override {
         auto vbucket = weakVb.lock();
         if (!vbucket) {
             return false;

@@ -56,7 +56,9 @@ public:
     BloomFilterCallback(KVBucket& eps) : store(eps) {
     }
 
-    void callback(Vbid& vbucketId, const DocKey& key, bool& isDeleted) {
+    void callback(Vbid& vbucketId,
+                  const DocKey& key,
+                  bool& isDeleted) override {
         VBucketPtr vb = store.getVBucket(vbucketId);
         if (vb) {
             /* Check if a temporary filter has been initialized. If not,
@@ -185,7 +187,7 @@ public:
     ExpiredItemsCallback(KVBucket& store) : epstore(store) {
     }
 
-    void callback(Item& it, time_t& startTime) {
+    void callback(Item& it, time_t& startTime) override {
         if (epstore.compactionCanExpireItems()) {
             epstore.deleteExpiredItem(it, startTime, ExpireBy::Compactor);
         }
@@ -218,8 +220,7 @@ public:
     ValueChangedListener(EPBucket& bucket) : bucket(bucket) {
     }
 
-    virtual void sizeValueChanged(const std::string& key,
-                                  size_t value) override {
+    void sizeValueChanged(const std::string& key, size_t value) override {
         if (key == "flusher_total_batch_limit") {
             bucket.setFlusherBatchSplitTrigger(value);
         } else if (key == "alog_sleep_time") {
@@ -231,8 +232,7 @@ public:
         }
     }
 
-    virtual void booleanValueChanged(const std::string& key,
-                                     bool value) override {
+    void booleanValueChanged(const std::string& key, bool value) override {
         if (key == "access_scanner_enabled") {
             if (value) {
                 bucket.enableAccessScannerTask();
@@ -1405,7 +1405,7 @@ public:
         : RollbackCB(), engine(e), rollbackSeqno(rollbackSeqno) {
     }
 
-    void callback(GetValue& val) {
+    void callback(GetValue& val) override {
         if (!val.item) {
             throw std::invalid_argument(
                     "EPDiskRollbackCB::callback: val is NULL");

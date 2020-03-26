@@ -31,7 +31,7 @@ public:
     CollectionsDcpTestProducers(EngineIface* engine = nullptr)
         : MockDcpMessageProducers(engine) {
     }
-    ~CollectionsDcpTestProducers() {
+    ~CollectionsDcpTestProducers() override {
     }
 
     ENGINE_ERROR_CODE system_event(uint32_t opaque,

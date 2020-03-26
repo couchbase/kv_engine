@@ -32,13 +32,13 @@ public:
 
     HashtableResizerTask(KVBucketIface& s, double sleepTime);
 
-    bool run();
+    bool run() override;
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return "Adjusting hash table sizes.";
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         // [per Bucket Task] This task doesn't do very much (most of the actual
         // work to check and resize HashTables is delegated to the per-vBucket
         // 'ResizingVisitor' tasks). As such we don't expect to execute for

@@ -51,11 +51,11 @@ protected:
     AuditConfig config;
     static std::string testdir;
 
-    virtual void SetUp() {
+    void SetUp() override {
         json = createDefaultConfig();
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
     }
 
     nlohmann::json createDefaultConfig() {

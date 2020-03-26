@@ -93,7 +93,7 @@ public:
      */
     PassiveDurabilityMonitor(VBucket& vb, ActiveDurabilityMonitor&& adm);
 
-    ~PassiveDurabilityMonitor();
+    ~PassiveDurabilityMonitor() override;
 
     void addStats(const AddStatFn& addStat, const void* cookie) const override;
 

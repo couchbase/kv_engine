@@ -159,7 +159,8 @@ public:
           requestValue_(request_value) {
     }
 
-    ~StreamRequest() {}
+    ~StreamRequest() override {
+    }
 
     Vbid getVBucket() {
         return vbucket_;
@@ -193,7 +194,7 @@ public:
         return requestValue_;
     }
 
-    uint32_t getMessageSize() const {
+    uint32_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
@@ -220,7 +221,7 @@ public:
           status_(status) {
     }
 
-    ~AddStreamResponse() = default;
+    ~AddStreamResponse() override = default;
 
     uint32_t getStreamOpaque() {
         return streamOpaque_;
@@ -230,7 +231,7 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() const {
+    uint32_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
@@ -251,7 +252,7 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() const {
+    uint32_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
@@ -271,7 +272,7 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() const {
+    uint32_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
@@ -307,7 +308,7 @@ public:
         return vbucket_;
     }
 
-    uint32_t getMessageSize() const {
+    uint32_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
@@ -337,7 +338,7 @@ public:
         return state_;
     }
 
-    uint32_t getMessageSize() const {
+    uint32_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
@@ -445,7 +446,7 @@ public:
     /**
      * @return OptionalSeqno with the underlying Item's seqno.
      */
-    OptionalSeqno getBySeqno() const {
+    OptionalSeqno getBySeqno() const override {
         return OptionalSeqno{item_->getBySeqno()};
     }
 
@@ -456,13 +457,13 @@ public:
     /**
       * @return size of message to be sent over the wire to the consumer.
       */
-    uint32_t getMessageSize() const;
+    uint32_t getMessageSize() const override;
 
     /**
      * @returns a size representing approximately the memory used, in this case
      * the item's size.
      */
-    size_t getApproximateSize() const {
+    size_t getApproximateSize() const override {
         return item_->size();
     }
 
@@ -582,7 +583,7 @@ public:
     /**
      * @return size of message on the wire
      */
-    uint32_t getMessageSize() const;
+    uint32_t getMessageSize() const override;
 
     ExtendedMetaData* getExtMetaData() {
         return emd.get();

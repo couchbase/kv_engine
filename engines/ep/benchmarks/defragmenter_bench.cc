@@ -29,7 +29,7 @@
 
 class DefragmentBench : public benchmark::Fixture {
 public:
-    void SetUp(::benchmark::State& state) {
+    void SetUp(::benchmark::State& state) override {
         // The first parameter specifies the eviction mode:
         EvictionPolicy evictionPolicy;
         switch (state.range(0)) {
@@ -66,7 +66,7 @@ public:
         populateVbucket();
     }
 
-    void TearDown(const ::benchmark::State& state) {
+    void TearDown(const ::benchmark::State& state) override {
         vbucket.reset();
     }
 

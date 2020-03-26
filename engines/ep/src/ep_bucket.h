@@ -173,7 +173,7 @@ public:
 
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
-    virtual bool isGetAllKeysSupported() const override {
+    bool isGetAllKeysSupported() const override {
         return true;
     }
 

@@ -57,7 +57,7 @@ public:
         // Empty
     }
 
-    ~CreateBucketThread() {
+    ~CreateBucketThread() override {
         waitForState(Couchbase::ThreadState::Zombie);
     }
 

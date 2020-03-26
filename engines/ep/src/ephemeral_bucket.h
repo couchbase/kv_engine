@@ -32,7 +32,7 @@ class EphemeralBucket : public KVBucket {
 public:
     EphemeralBucket(EventuallyPersistentEngine& theEngine);
 
-    ~EphemeralBucket();
+    ~EphemeralBucket() override;
 
     bool initialize() override;
 
@@ -124,7 +124,7 @@ public:
      */
     void disableTombstonePurgerTask();
 
-    virtual bool isGetAllKeysSupported() const override {
+    bool isGetAllKeysSupported() const override {
         return false;
     }
 

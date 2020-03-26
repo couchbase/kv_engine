@@ -183,7 +183,7 @@ public:
         }
     }
 
-    ~EpBucketImpl() {
+    ~EpBucketImpl() override {
         // Cleanup any files created.
         try {
             cb::io::rmrf(dbPath);

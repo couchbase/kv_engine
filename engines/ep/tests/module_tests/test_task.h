@@ -28,13 +28,15 @@ public:
     }
 
     // returning true will also drive the ExecutorPool::reschedule path.
-    bool run() { return true; }
+    bool run() override {
+        return true;
+    }
 
-    std::string getDescription() {
+    std::string getDescription() override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() {
+    std::chrono::microseconds maxExpectedDuration() override {
         return std::chrono::seconds(0);
     }
 

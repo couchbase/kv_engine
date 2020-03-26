@@ -37,7 +37,7 @@ public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
 
-    ~DcpConnMap();
+    ~DcpConnMap() override;
 
     /**
      * Find or build a dcp connection for the given cookie and with
@@ -105,7 +105,7 @@ public:
 
     void shutdownAllConnections();
 
-    bool isDeadConnectionsEmpty() {
+    bool isDeadConnectionsEmpty() override {
         LockHolder lh(connsLock);
         return deadConnections.empty();
     }
@@ -119,7 +119,7 @@ public:
 
     void disconnect(const void *cookie);
 
-    void manageConnections();
+    void manageConnections() override;
 
     bool canAddBackfillToActiveQ();
 
@@ -155,7 +155,7 @@ public:
 
     std::shared_ptr<ConnHandler> findByName(const std::string& name);
 
-    bool isConnections();
+    bool isConnections() override;
 
     /**
      * Call a function on each DCP connection.

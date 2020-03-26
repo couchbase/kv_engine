@@ -104,7 +104,7 @@ class KVBucket : public KVBucketIface {
 public:
 
     KVBucket(EventuallyPersistentEngine &theEngine);
-    virtual ~KVBucket();
+    ~KVBucket() override;
 
     bool initialize() override;
 
@@ -857,7 +857,7 @@ public:
     NotifyNewSeqnoCB(KVBucket& kvb) : kvBucket(kvb) {
     }
 
-    void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) {
+    void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) override {
         kvBucket.notifyNewSeqno(vbid, notifyCtx);
     }
 

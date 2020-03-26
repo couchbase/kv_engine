@@ -137,7 +137,7 @@ public:
      */
     ActiveDurabilityMonitor(EPStats& stats, PassiveDurabilityMonitor&& pdm);
 
-    ~ActiveDurabilityMonitor();
+    ~ActiveDurabilityMonitor() override;
 
     /**
      * Sets the Replication Topology.

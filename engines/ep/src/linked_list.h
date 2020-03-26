@@ -85,7 +85,7 @@ class BasicLinkedList : public SequenceList {
 public:
     BasicLinkedList(Vbid vbucketId, EPStats& st);
 
-    ~BasicLinkedList();
+    ~BasicLinkedList() override;
 
     void appendToList(std::lock_guard<std::mutex>& seqLock,
                       std::lock_guard<std::mutex>& writeLock,
@@ -305,7 +305,7 @@ private:
         static std::unique_ptr<RangeIteratorLL> create(BasicLinkedList& ll,
                                                        bool isBackfill);
 
-        ~RangeIteratorLL();
+        ~RangeIteratorLL() override;
 
         OrderedStoredValue& operator*() const override;
 

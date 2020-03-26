@@ -27,7 +27,7 @@ class ActiveDurabilityMonitor;
  */
 class VBucketDurabilityTest : public VBucketTest {
 public:
-    void SetUp();
+    void SetUp() override;
 
 protected:
     /// Specification of a SyncWrite to store, as used by storeSyncWrites.

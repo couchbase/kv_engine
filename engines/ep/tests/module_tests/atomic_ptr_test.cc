@@ -52,7 +52,7 @@ public:
     explicit AtomicPtrTest(RCPtr<Doodad>* p) : ptr(p) {
     }
 
-    bool operator()() {
+    bool operator()() override {
         for (int i = 0; i < NUM_TIMES; ++i) {
             switch (rand() % 7) {
             case 0:
