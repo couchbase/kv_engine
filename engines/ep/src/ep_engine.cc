@@ -4676,7 +4676,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::checkPrivilege(
         }
 
         const auto acc = serverApi->cookie->check_privilege(
-                cookie, cb::rbac::Privilege::Read, sid, key.getCollectionID());
+                cookie, priv, sid, key.getCollectionID());
         return acc == cb::rbac::PrivilegeAccess::Ok ? ENGINE_SUCCESS
                                                     : ENGINE_EACCESS;
 
