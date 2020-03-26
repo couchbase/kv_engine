@@ -47,6 +47,19 @@ TYPENAME(float)
 TYPENAME(std::string)
 #undef TYPENAME
 
+std::string to_string(const value_variant_t& value) {
+    // Due to the way fmtlib and std::variant interact, if the variant
+    // contains a bool type it will get converted to a integer type
+    // and hence printed as '0' or '1' instead of 'false' / 'true'.
+    // Avoid this by explicitly printing as a bool type if that's
+    // what the variant contains.
+    if (auto* bool_ptr = std::get_if<bool>(&value)) {
+        return fmt::format("{}", *bool_ptr);
+    }
+    return std::visit([](auto&& elem) { return fmt::format("{}", elem); },
+                      value);
+}
+
 void ValueChangedListener::booleanValueChanged(const std::string& key, bool) {
     EP_LOG_DEBUG("Configuration error.. {} does not expect a boolean value",
                  key);
@@ -192,14 +205,13 @@ T Configuration::getParameter(const std::string& key) const {
         return T();
     }
 
-    T* value = boost::get<T>(&iter->second->value);
+    auto* value = std::get_if<T>(&iter->second->value);
 
-    if (value == nullptr) {
-        std::cerr << iter->second->value << std::endl;
-        throw std::invalid_argument(
-                "Configuration::getParameter: key \"" + key + "\" (which is " +
-                std::to_string(iter->second->value.which()) + ") is not " +
-                type_name<T>::value);
+    if (!value) {
+        throw std::invalid_argument("Configuration::getParameter: key \"" +
+                                    key + "\" (which is " +
+                                    to_string(iter->second->value) +
+                                    ") is not " + type_name<T>::value);
     }
     return *value;
 }
@@ -217,8 +229,8 @@ std::ostream& operator<<(std::ostream& out, const Configuration& config) {
     LockHolder lh(config.mutex);
     for (const auto& attribute : config.attributes) {
         std::stringstream line;
-        line << std::boolalpha << attribute.first.c_str() << " = ["
-             << attribute.second->value << "]" << std::endl;
+        line << attribute.first.c_str() << " = ["
+             << to_string(attribute.second->value) << "]" << std::endl;
         out << line.str();
     }
 
@@ -302,20 +314,10 @@ void Configuration::addStats(const AddStatFn& add_stat, const void* c) const {
         fmt::memory_buffer key;
         format_to(key, "ep_{}", attribute.first);
 
-        // Due to the way fmtlib and boost::variant interact, if the variant
-        // contains a bool type it will get converted to a integer type
-        // and hence printed as '0' or '1' instead of 'false' / 'true'.
-        // Avoid this by explicitly printing as a bool type if that's
-        // what the variant contains.
-        fmt::memory_buffer value;
-        if (bool* bool_ptr = boost::get<bool>(&attribute.second->value)) {
-            format_to(value, "{}", *bool_ptr);
-        } else {
-            format_to(value, "{}", attribute.second->value);
-        }
-
         // Note: fmt::memory_buffer is not null-terminated.
-        add_stat({key.data(), key.size()}, {value.data(), value.size()}, c);
+        add_stat({key.data(), key.size()},
+                 to_string(attribute.second->value),
+                 c);
     }
 }
 
@@ -342,7 +344,7 @@ bool Configuration::parseConfiguration(const char *str,
     for (const auto& attribute : attributes) {
         config.push_back(std::make_unique<ConfigItem>(
                 attribute.first.c_str(),
-                config_datatype(attribute.second->value.which())));
+                config_datatype(attribute.second->value.index())));
     }
 
     const int nelem = config.size();
@@ -394,9 +396,9 @@ bool Configuration::parseConfiguration(const char *str,
 void Configuration::visit(Configuration::Visitor visitor) const {
     for (const auto& attr : attributes) {
         if (requirementsMet(*attr.second)) {
-            std::stringstream value;
-            value << std::boolalpha << attr.second->value;
-            visitor(attr.first, attr.second->dynamic, value.str());
+            visitor(attr.first,
+                    attr.second->dynamic,
+                    to_string(attr.second->value));
         }
     }
 }

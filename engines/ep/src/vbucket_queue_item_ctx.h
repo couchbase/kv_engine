@@ -19,9 +19,9 @@
 
 #include "ep_types.h"
 
-#include <boost/variant.hpp>
 #include <memcached/durability_spec.h>
 #include <optional>
+#include <variant>
 
 class PreLinkDocumentContext;
 
@@ -35,13 +35,13 @@ struct DurabilityItemCtx {
      * - the Durability Requirements, if we queue a Prepare
      * - the prepared-seqno, if we queue a Commit
      */
-    boost::variant<cb::durability::Requirements, int64_t>
+    std::variant<cb::durability::Requirements, int64_t>
             requirementsOrPreparedSeqno;
     /**
      * The client cookie associated with the Durability operation. If non-null
      * then notifyIOComplete will be called on it when operation is committed.
      */
-    const void* cookie;
+    const void* cookie = nullptr;
 };
 
 /**

@@ -1275,7 +1275,7 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
             pdm.completeSyncWrite(
                     item->getKey(),
                     PassiveDurabilityMonitor::Resolution::Commit,
-                    boost::get<int64_t>(
+                    std::get<int64_t>(
                             ctx.durability->requirementsOrPreparedSeqno));
         } else if (item->isAbort()) {
             pdm.completeSyncWrite(item->getKey(),
@@ -1300,7 +1300,7 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     std::optional<cb::durability::Requirements> durabilityReqs;
     if (v.isPending()) {
         Expects(ctx.durability.has_value());
-        durabilityReqs = boost::get<cb::durability::Requirements>(
+        durabilityReqs = std::get<cb::durability::Requirements>(
                 ctx.durability->requirementsOrPreparedSeqno);
     }
 
@@ -1316,8 +1316,8 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
 
     if (qi->isCommitSyncWrite()) {
         Expects(ctx.durability.has_value());
-        qi->setPrepareSeqno(boost::get<int64_t>(
-                ctx.durability->requirementsOrPreparedSeqno));
+        qi->setPrepareSeqno(
+                std::get<int64_t>(ctx.durability->requirementsOrPreparedSeqno));
     }
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
@@ -3550,7 +3550,7 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
 
     // SyncDeletes are special cases. We actually want to add a new prepare.
     if (queueItmCtx.durability) {
-        auto requirements = boost::get<cb::durability::Requirements>(
+        auto requirements = std::get<cb::durability::Requirements>(
                 queueItmCtx.durability->requirementsOrPreparedSeqno);
 
         // @TODO potentially inefficient to recreate the item in the below

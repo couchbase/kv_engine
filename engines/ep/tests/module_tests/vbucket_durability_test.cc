@@ -228,7 +228,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
               public_processSet(*pending, 0 /*cas*/, ctx));
 
     auto item = makeCommittedItem(key, "value");
-    ctx.durability = {};
+    ctx.durability.reset();
     ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
               public_processSet(*item, 0 /*cas*/, ctx));
 
@@ -270,7 +270,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
         auto item = makeCommittedItem(key, "value" + std::to_string(i));
 
         // Check that we block normal set
-        ctx.durability = {};
+        ctx.durability.reset();
         ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
                   public_processSet(*item, 0 /*cas*/, ctx));
 
@@ -304,7 +304,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
         auto item = makeCommittedItem(key, "value" + std::to_string(i));
 
         // Check that we block normal set
-        ctx.durability = {};
+        ctx.durability.reset();
         ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
                   public_processSet(*item, 0 /*cas*/, ctx));
 

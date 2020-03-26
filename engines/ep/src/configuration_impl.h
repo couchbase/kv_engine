@@ -25,14 +25,14 @@
 
 #include "configuration.h"
 
-#include <boost/variant.hpp>
-
 #include <set>
 #include <string>
+#include <variant>
 #include <vector>
 
-using value_variant_t =
-        boost::variant<size_t, ssize_t, float, bool, std::string>;
+using value_variant_t = std::variant<size_t, ssize_t, float, bool, std::string>;
+
+std::string to_string(const value_variant_t& value);
 
 class requirements_unsatisfied : public std::logic_error {
 public:
