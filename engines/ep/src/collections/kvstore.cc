@@ -226,8 +226,7 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
 
 flatbuffers::DetachedBuffer encodeDroppedCollections(
         Collections::KVStore::CommitMetaData& collectionsMeta,
-        boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
-                dropped) {
+        const std::vector<Collections::KVStore::DroppedCollection>& dropped) {
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>>
             droppedCollections;
@@ -240,7 +239,7 @@ flatbuffers::DetachedBuffer encodeDroppedCollections(
         droppedCollections.push_back(newEntry);
     }
 
-    for (const auto& entry : dropped.get()) {
+    for (const auto& entry : dropped) {
         auto newEntry = Collections::KVStore::CreateDropped(
                 builder, entry.startSeqno, entry.endSeqno, entry.collectionId);
         droppedCollections.push_back(newEntry);

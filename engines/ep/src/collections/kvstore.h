@@ -198,8 +198,7 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
  */
 flatbuffers::DetachedBuffer encodeDroppedCollections(
         Collections::KVStore::CommitMetaData& collectionsMeta,
-        boost::optional<std::vector<Collections::KVStore::DroppedCollection>>
-                dropped);
+        const std::vector<Collections::KVStore::DroppedCollection>& dropped);
 
 /**
  * Encode open scopes list into flat buffer.

@@ -3432,7 +3432,7 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
     }
 
     auto buf = Collections::KVStore::encodeDroppedCollections(collectionsMeta,
-                                                              dropped);
+                                                              dropped.get());
     return writeLocalDoc(
             db,
             Collections::droppedCollectionsName,

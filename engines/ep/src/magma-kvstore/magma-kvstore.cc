@@ -2253,7 +2253,7 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     }
 
     auto buf = Collections::KVStore::encodeDroppedCollections(collectionsMeta,
-                                                              dropped);
+                                                              dropped.get());
     Slice valSlice = {reinterpret_cast<const char*>(buf.data()), buf.size()};
     return setLocalDoc(commitBatch, droppedCollectionsKey, valSlice);
 }
