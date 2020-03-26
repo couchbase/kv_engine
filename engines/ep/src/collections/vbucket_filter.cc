@@ -16,9 +16,11 @@
  */
 
 #include "collections/vbucket_filter.h"
-#include "collections/vbucket_manifest.h"
+
 #include "bucket_logger.h"
+#include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
+#include "ep_engine.h"
 #include "statwriter.h"
 
 #include <json_utilities.h>
@@ -31,42 +33,48 @@ namespace Collections {
 namespace VB {
 
 Filter::Filter(std::optional<std::string_view> jsonFilter,
-               const Collections::VB::Manifest& manifest) {
+               const Collections::VB::Manifest& manifest,
+               gsl::not_null<const void*> cookie,
+               const EventuallyPersistentEngine& engine) {
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support _default
     if (!jsonFilter.has_value()) {
         // Ask the manifest object if the default collection exists?
         if (manifest.lock().doesDefaultCollectionExist()) {
             enableDefaultCollection();
-            return;
         } else {
             throw cb::engine_error(cb::engine_errc::unknown_collection,
                                    "Filter::Filter cannot make filter - no "
                                    "_default collection");
         }
+    } else {
+        auto json = jsonFilter.value();
+
+        // If the filter is initialised that means collections are enabled so
+        // system events are allowed
+        systemEventsAllowed = true;
+
+        // Assume passthrough constructFromJson will correct if we reach it
+        passthrough = true;
+        if (!json.empty()) {
+            // assume default, constructFromJson will correct based on the JSON
+            enableDefaultCollection();
+
+            try {
+                constructFromJson(json, manifest);
+            } catch (const std::invalid_argument& e) {
+                // json utilities may throw invalid_argument
+                throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                                       e.what());
+            }
+        }
     }
 
-    auto json = jsonFilter.value();
-
-    // If the filter is initialised that means collections are enabled so system
-    // events are allowed
-    systemEventsAllowed = true;
-
-    // Assume passthrough constructFromJson will correct if we reach it
-    passthrough = true;
-    if (json.empty()) {
-        return;
-    } else {
-        // assume default, constructFromJson will correct based on the JSON
-        enableDefaultCollection();
-
-        try {
-            constructFromJson(json, manifest);
-        } catch (const std::invalid_argument& e) {
-            // json utilities may throw invalid_argument
-            throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                                   e.what());
-        }
+    // Now use checkPrivileges to check if the user has the required access
+    if (!checkPrivileges(cookie, engine)) {
+        throw cb::engine_error(
+                cb::engine_errc::no_access,
+                "Filter::Filter no_access - incorrect privileges");
     }
 }
 
@@ -167,17 +175,20 @@ void Filter::addCollection(const nlohmann::json& object,
     // Require that the requested collection exists in the manifest.
     // DCP cannot filter an unknown collection.
     auto cid = makeCollectionID(object.get<std::string>());
+    ScopeID sid;
     {
         auto rh = manifest.lock();
-        if (!rh.exists(cid)) {
+        auto scope = rh.getScopeID(cid);
+        if (!scope) {
             // Error time
             throw cb::engine_error(cb::engine_errc::unknown_collection,
                                    "Filter::addCollection unknown collection:" +
                                            cid.to_string());
         }
+        sid = *scope;
     }
 
-    insertCollection(cid);
+    insertCollection(cid, sid);
 }
 
 void Filter::addScope(const nlohmann::json& object,
@@ -185,8 +196,7 @@ void Filter::addScope(const nlohmann::json& object,
     // Require that the requested scope exists in the manifest.
     // DCP cannot filter an unknown scope.
     auto sid = makeScopeID(object.get<std::string>());
-    std::optional<std::vector<CollectionID>> collections =
-            manifest.lock().getCollectionsForScope(sid);
+    auto collections = manifest.lock().getCollectionsForScope(sid);
 
     if (!collections) {
         // Error time - the scope does not exist
@@ -197,12 +207,12 @@ void Filter::addScope(const nlohmann::json& object,
 
     scopeID = sid;
     for (const auto& cid : *collections) {
-        insertCollection(cid);
+        insertCollection(cid, sid);
     }
 }
 
-void Filter::insertCollection(CollectionID cid) {
-    this->filter.insert(cid);
+void Filter::insertCollection(CollectionID cid, ScopeID sid) {
+    this->filter.insert({cid, sid});
     if (cid.isDefaultCollection()) {
         defaultAllowed = true;
     }
@@ -321,7 +331,7 @@ bool Filter::processCollectionEvent(const Item& item) {
                 return true;
             } else {
                 // update the filter set as this collection is in our scope
-                filter.insert(cid);
+                filter.insert({cid, *sid});
             }
         }
 
@@ -372,7 +382,7 @@ bool Filter::processScopeEvent(const Item& item) {
 void Filter::enableDefaultCollection() {
     defaultAllowed = true;
     // For simpler client usage, insert in the set
-    filter.insert(CollectionID::Default);
+    filter.insert({CollectionID::Default, ScopeID::Default});
 }
 
 void Filter::disableDefaultCollection() {
@@ -451,6 +461,30 @@ std::string Filter::getUid() const {
     return "none";
 }
 
+bool Filter::checkPrivileges(gsl::not_null<const void*> cookie,
+                             const EventuallyPersistentEngine& engine) const {
+    if (passthrough) {
+        // Must have access to the bucket
+        return engine.checkPrivilege(cookie, DcpStreamPrivilege, {}, {}) ==
+               cb::engine_errc::success;
+    } else if (scopeID) {
+        // Must have access to at least the scope
+        return engine.checkPrivilege(cookie, DcpStreamPrivilege, scopeID, {}) ==
+               cb::engine_errc::success;
+    } else {
+        // Must have access to the collections
+        for (const auto& c : filter) {
+            if (engine.checkPrivilege(
+                        cookie, DcpStreamPrivilege, c.second, c.first) !=
+                cb::engine_errc::success) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 void Filter::dump() const {
     std::cerr << *this << std::endl;
 }
@@ -473,8 +507,8 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
 
     os << ", sid:" << filter.streamId;
     os << ", filter.size:" << filter.filter.size() << std::endl;
-    for (auto& cid : filter.filter) {
-        os << "filter:entry:0x" << std::hex << cid << std::endl;
+    for (const auto& c : filter.filter) {
+        os << "filter:entry:0x" << std::hex << c.first << std::endl;
     }
     return os;
 }

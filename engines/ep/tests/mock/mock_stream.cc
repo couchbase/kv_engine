@@ -46,7 +46,7 @@ MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,
-                   {{}, vb.getManifest()}) {
+                   {{}, vb.getManifest(), p->getCookie(), *e}) {
 }
 
 void MockActiveStream::public_registerCursor(CheckpointManager& manager,

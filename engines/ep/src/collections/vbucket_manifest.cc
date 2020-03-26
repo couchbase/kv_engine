@@ -711,6 +711,14 @@ std::string Manifest::getExceptionString(const std::string& thrower,
     return ss.str();
 }
 
+std::optional<ScopeID> Manifest::getScopeID(CollectionID identifier) const {
+    auto itr = map.find(identifier);
+    if (itr == map.end()) {
+        return {};
+    }
+    return itr->second.getScopeID();
+}
+
 uint64_t Manifest::getItemCount(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {

@@ -165,6 +165,13 @@ public:
             return manifest->exists(identifier);
         }
 
+        /**
+         * @return scope-id of the collection if it exists
+         */
+        std::optional<ScopeID> getScopeID(CollectionID identifier) const {
+            return manifest->getScopeID(identifier);
+        }
+
         /// @return the manifest UID that last updated this vb::manifest
         ManifestUid getManifestUid() const {
             return manifest->getManifestUid();
@@ -1032,6 +1039,11 @@ protected:
     bool exists(CollectionID identifier) const {
         return map.count(identifier) > 0;
     }
+
+    /**
+     * @return scope-id of the collection if it exists in the internal container
+     */
+    std::optional<ScopeID> getScopeID(CollectionID identifier) const;
 
     /**
      * @return the number of items stored for collection

@@ -24,10 +24,15 @@
 #include <memcached/engine_common.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
+#include <optional>
 #include <string>
-#include <unordered_set>
+#include <unordered_map>
 
+class EventuallyPersistentEngine;
 class SystemEventMessage;
+
+// Switch over to DcpStream only when it is being added to rbac.json
+const auto DcpStreamPrivilege = cb::rbac::Privilege::Read;
 
 namespace Collections {
 namespace VB {
@@ -89,10 +94,15 @@ public:
      * @param jsonFilter Optional string data that can contain JSON
      *        configuration info
      * @param manifest The vbucket's collection manifest.
+     * @param cookie Cookie associated with the connection that is making a
+     *        stream-request
+     * @param engine reference to engine for checkPrivilege calls
      * @throws cb::engine_error
      */
     Filter(std::optional<std::string_view> jsonFilter,
-           const ::Collections::VB::Manifest& manifest);
+           const ::Collections::VB::Manifest& manifest,
+           gsl::not_null<const void*> cookie,
+           const EventuallyPersistentEngine& engine);
 
     /**
      * Check the item and if required and maybe update the filter.
@@ -148,6 +158,14 @@ public:
     bool empty() const;
 
     /**
+     * Check the filter (what it permits) against the cookie's associated
+     * privileges (calling methods on engine).
+     * @return true if all required privileges are found.
+     */
+    bool checkPrivileges(gsl::not_null<const void*> cookie,
+                         const EventuallyPersistentEngine& engine) const;
+
+    /**
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat,
@@ -168,7 +186,7 @@ public:
     }
 
     CollectionID front() const {
-        return *filter.begin();
+        return filter.begin()->first;
     }
 
     std::string getUid() const;
@@ -177,7 +195,7 @@ public:
         return streamId;
     }
 
-    using Container = ::std::unordered_set<CollectionID>;
+    using Container = ::std::unordered_map<CollectionID, ScopeID>;
     Container::const_iterator begin() const {
         return filter.begin();
     }
@@ -266,7 +284,7 @@ protected:
     /**
      * Insert the collection, will toggle defaultAllowed if found
      */
-    void insertCollection(CollectionID cid);
+    void insertCollection(CollectionID cid, ScopeID sid);
 
     Container filter;
     std::optional<ScopeID> scopeID;
