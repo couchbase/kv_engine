@@ -1008,7 +1008,7 @@ void item_flush_expired(struct default_engine *engine) {
         engine->config.oldest_live = now - 1;
     }
 
-    for (int ii = 0; ii < POWER_LARGEST; ii++) {
+    for (auto& head : engine->items.heads) {
         hash_item *iter, *next;
         /*
          * The LRU is sorted in decreasing time order, and an item's
@@ -1017,7 +1017,7 @@ void item_flush_expired(struct default_engine *engine) {
          * oldest_live time.
          * The oldest_live checking will auto-expire the remaining items.
          */
-        for (iter = engine->items.heads[ii]; iter != nullptr; iter = next) {
+        for (iter = head; iter != nullptr; iter = next) {
             if (iter->time >= engine->config.oldest_live) {
                 next = iter->next;
                 if ((iter->iflag & ITEM_SLABBED) == 0) {

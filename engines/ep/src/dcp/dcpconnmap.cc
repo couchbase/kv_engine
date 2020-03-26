@@ -260,8 +260,8 @@ void DcpConnMap::closeStreamsDueToRollback(Vbid vbucket) {
 bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
     bool ret = false;
     auto handle = connStore->getConnsForVBHandle(vbid);
-    for (auto itr = handle.begin(); itr != handle.end(); itr++) {
-        auto* producer = dynamic_cast<DcpProducer*>(&itr->connHandler);
+    for (auto itr : handle) {
+        auto* producer = dynamic_cast<DcpProducer*>(&itr.connHandler);
         if (producer && producer->handleSlowStream(vbid, cursor)) {
             return true;
         }
@@ -403,9 +403,9 @@ void DcpConnMap::manageConnections() {
                           "DcpConnMap::manageConnections::releaseLock",
                           SlowMutexThreshold);
 
-    for (auto it = toNotify.begin(); it != toNotify.end(); ++it) {
-        if ((*it).get() && (*it)->isReserved()) {
-            engine.notifyIOComplete((*it)->getCookie(), ENGINE_SUCCESS);
+    for (auto& it : toNotify) {
+        if (it.get() && it->isReserved()) {
+            engine.notifyIOComplete(it->getCookie(), ENGINE_SUCCESS);
         }
     }
 

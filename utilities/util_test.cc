@@ -427,8 +427,7 @@ TEST(ConfigParserTest, A) {
      *    SEH exception with code 0xc0000005 thrown in the test body
      */
     const ssize_t values[5] = { -1000, -1, 0, 1, 1000 };
-    for (int ii = 0; ii < 5; ++ii) {
-        const ssize_t test_val = values[ii];
+    for (const ssize_t test_val : values) {
         for (auto suffix : suffixes) {
             std::string config = "ssize_t=" +
                                  std::to_string(test_val) + suffix.first;

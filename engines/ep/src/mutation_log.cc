@@ -262,8 +262,8 @@ MutationLog::MutationLog(const std::string& path, const size_t bs)
       blockBuffer(new uint8_t[bs]()),
       syncConfig(DEFAULT_SYNC_CONF),
       readOnly(false) {
-    for (int ii = 0; ii < int(MutationLogType::NumberOfTypes); ++ii) {
-        itemsLogged[ii].store(0);
+    for (auto& ii : itemsLogged) {
+        ii.store(0);
     }
     logSize.store(0);
 
@@ -1112,8 +1112,8 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
 
 size_t MutationLogHarvester::total() {
     size_t rv(0);
-    for (int i = 0; i < int(MutationLogType::NumberOfTypes); ++i) {
-        rv += itemsSeen[i];
+    for (auto i : itemsSeen) {
+        rv += i;
     }
     return rv;
 }

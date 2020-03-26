@@ -1669,8 +1669,8 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
         cb_assert(r == 0);
     }
 
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_join_thread(threads[i]);
+    for (auto thread : threads) {
+        int r = cb_join_thread(thread);
         cb_assert(r == 0);
     }
 
@@ -1740,8 +1740,8 @@ static enum test_result test_multi_vb_compactions_with_workload(
         cb_assert(r == 0);
     }
 
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_join_thread(threads[i]);
+    for (auto thread : threads) {
+        int r = cb_join_thread(thread);
         cb_assert(r == 0);
     }
 
@@ -7921,9 +7921,9 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h) {
     const char* value = "somevalue";
 
     /* Write 2 keys */
-    for (int count = 0; count < num_items; count++){
+    for (const auto& count : key) {
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, key[count], value),
+                store(h, nullptr, OPERATION_SET, count, value),
                 "Error setting.");
     }
 

@@ -187,14 +187,13 @@ static enum test_result test_checkpoint_persistence(EngineIface* h) {
     const int  n_threads = 2;
     cb_thread_t threads[n_threads];
 
-    for (int i = 0; i < n_threads; ++i) {
-        int r = cb_create_thread(
-                &threads[i], checkpoint_persistence_thread, h, 0);
+    for (auto& thread : threads) {
+        int r = cb_create_thread(&thread, checkpoint_persistence_thread, h, 0);
         cb_assert(r == 0);
     }
 
-    for (int i = 0; i < n_threads; ++i) {
-        int r = cb_join_thread(threads[i]);
+    for (auto thread : threads) {
+        int r = cb_join_thread(thread);
         cb_assert(r == 0);
     }
 

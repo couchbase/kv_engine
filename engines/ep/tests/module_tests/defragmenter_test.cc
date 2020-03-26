@@ -121,19 +121,17 @@ void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
         }
 
         // Now remove all but one document from each page.
-        for (auto kv = page_to_keys.begin();
-             kv != page_to_keys.end();
-             kv++) {
+        for (auto& page_to_key : page_to_keys) {
             // Free all but one document on this page.
-            while (kv->second.size() > 1) {
-                auto doc_id = kv->second.back();
+            while (page_to_key.second.size() > 1) {
+                auto doc_id = page_to_key.second.back();
                 // Use DocKey to minimize heap pollution
                 snprintf(keyScratch, sizeof(keyScratch), keyPattern, doc_id);
                 auto res = vbucket->ht.findForWrite(
                         DocKey(keyScratch, DocKeyEncodesCollectionId::No));
                 ASSERT_TRUE(res.storedValue);
                 vbucket->ht.unlocked_del(res.lock, res.storedValue);
-                kv->second.pop_back();
+                page_to_key.second.pop_back();
                 num_remaining--;
             }
         }

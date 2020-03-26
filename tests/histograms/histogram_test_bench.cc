@@ -98,11 +98,11 @@ static uint64_t GetNextLogNormalValue() {
         // the values below should give an idea of the distribution which
         // modelled around an "ADD" op from stats.log p50:~84000ns |
         // p90:~489000ns |p99:3424000ns |p99.9:20185000ns | p99.99:41418000ns
-        for (size_t i = 0; i < valuesToAdd.size(); i++) {
+        for (auto& currentVal : valuesToAdd) {
             auto valToAdd = static_cast<uint64_t>(
                     LOG_NORMAL_MIN + std::round(distribution(randomNumGen) *
                                                 LOG_NORMAL_SCALE_UP_MULT));
-            valuesToAdd[i] = valToAdd;
+            currentVal = valToAdd;
         }
         initialised = true;
     }

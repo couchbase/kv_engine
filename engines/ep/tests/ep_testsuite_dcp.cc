@@ -3219,8 +3219,8 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
             get_int_stat(h, "unittest:items_remaining", "dcpagg _"),
             "aggregate total items remaining mismatch");
 
-    for (int j = 0; j < 5; ++j) {
-        testHarness->destroy_cookie(cookie[j]);
+    for (auto& c : cookie) {
+        testHarness->destroy_cookie(c);
     }
 
     return SUCCESS;
@@ -6066,9 +6066,9 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
     memset(&info, 0, sizeof(info));
 
     /* Set 3 items */
-    for (int count = 0; count < num_items; count++){
+    for (const auto& k : key) {
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, key[count], "somevalue"),
+                store(h, nullptr, OPERATION_SET, k, "somevalue"),
                 "Error setting.");
     }
 
@@ -6134,9 +6134,9 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
 
     /* Set 3 items */
-    for (int count = 0; count < num_items; count++){
+    for (const auto& k : key) {
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, key[count], "somevalue"),
+                store(h, nullptr, OPERATION_SET, k, "somevalue"),
                 "Error setting.");
     }
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");

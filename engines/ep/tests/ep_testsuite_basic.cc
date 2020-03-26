@@ -282,33 +282,27 @@ static enum test_result test_set(EngineIface* h) {
                                       "checkpoint_end",
                                       "key" };
 
-
-    for (int k = 0; k < num_keys; k++) {
+    for (auto& k : key_arr) {
         for (int j = 0; j < num_sets; j++) {
             memset(&info, 0, sizeof(info));
             vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
             high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
-            std::string err_str_store("Error setting " + key_arr[k]);
+            std::string err_str_store("Error setting " + k);
             checkeq(ENGINE_SUCCESS,
-                    store(h,
-                          nullptr,
-                          OPERATION_SET,
-                          key_arr[k].c_str(),
-                          "somevalue"),
+                    store(h, nullptr, OPERATION_SET, k.c_str(), "somevalue"),
                     err_str_store.c_str());
 
-            std::string err_str_get_item_info("Error getting " + key_arr[k]);
+            std::string err_str_get_item_info("Error getting " + k);
             checkeq(true,
-                    get_item_info(h, &info, key_arr[k].c_str()),
+                    get_item_info(h, &info, k.c_str()),
                     err_str_get_item_info.c_str());
 
-            std::string err_str_vb_uuid("Expected valid vbucket uuid for " +
-                                        key_arr[k]);
+            std::string err_str_vb_uuid("Expected valid vbucket uuid for " + k);
             checkeq(vb_uuid, info.vbucket_uuid, err_str_vb_uuid.c_str());
 
             std::string err_str_seqno("Expected valid sequence number for " +
-                                        key_arr[k]);
+                                      k);
             checkeq(high_seqno + 1, info.seqno, err_str_seqno.c_str());
         }
     }
@@ -352,13 +346,13 @@ static enum test_result test_conc_set(EngineIface* h) {
 
     wait_for_persisted_value(h, "key", "value1");
 
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_create_thread(&threads[i], conc_del_set_thread, h, 0);
+    for (auto& thread : threads) {
+        int r = cb_create_thread(&thread, conc_del_set_thread, h, 0);
         cb_assert(r == 0);
     }
 
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_join_thread(threads[i]);
+    for (auto thread : threads) {
+        int r = cb_join_thread(thread);
         cb_assert(r == 0);
     }
 

@@ -86,8 +86,8 @@ public:
 
     void update(Vbid vbid) {
         if (log != nullptr) {
-            for (auto it = accessed.begin(); it != accessed.end(); ++it) {
-                log->newItem(vbid, *it);
+            for (auto& it : accessed) {
+                log->newItem(vbid, it);
             }
         }
         accessed.clear();

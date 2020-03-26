@@ -255,8 +255,8 @@ public:
 
     size_t getMemFootPrint(void) {
         size_t mem = 0;
-        for (size_t i = 0; i < vbMap.shards.size(); i++) {
-            KVShard* shard = vbMap.shards[i].get();
+        for (auto& i : vbMap.shards) {
+            KVShard* shard = i.get();
             mem += shard->getRWUnderlying()->getMemFootPrint();
             mem += shard->getROUnderlying()->getMemFootPrint();
         }

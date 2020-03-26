@@ -147,13 +147,13 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
 #endif
 #endif
 
-        for (auto itr = checkpoint->begin(); itr != checkpoint->end(); ++itr) {
+        for (auto& itr : *checkpoint) {
             // Add the size of the item
-            expected_size += (*itr)->size();
+            expected_size += itr->size();
             // Add the size of adding to the queue
             expected_size += perElementOverhead;
             // Add to the emulated metaKeyIndex
-            metaKeyIndex.emplace((*itr)->getKey(), entry);
+            metaKeyIndex.emplace(itr->getKey(), entry);
         }
     }
 

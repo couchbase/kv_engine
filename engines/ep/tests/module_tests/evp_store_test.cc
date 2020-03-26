@@ -1037,17 +1037,17 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
 
     if (fullEviction()) {
         runBGFetcherTask();
-        for (size_t i = 0; i < testData.size(); i++) {
-            if (testData[i].actualStatus == cb::engine_errc::would_block) {
-                auto item = make_item(vbid, testData[i].key, "new_value");
+        for (auto& i : testData) {
+            if (i.actualStatus == cb::engine_errc::would_block) {
+                auto item = make_item(vbid, i.key, "new_value");
                 auto status = engine->storeIfInner(cookie,
                                                    item,
                                                    0 /*cas*/,
                                                    OPERATION_SET,
-                                                   testData[i].predicate,
+                                                   i.predicate,
                                                    false);
                 // The second run should result the same as VE
-                EXPECT_EQ(testData[i].expectedVEStatus, status.status);
+                EXPECT_EQ(i.expectedVEStatus, status.status);
             }
         }
     }

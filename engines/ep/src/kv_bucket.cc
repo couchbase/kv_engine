@@ -2307,8 +2307,8 @@ bool VBCBAdaptor::run() {
 
 void KVBucket::resetUnderlyingStats(void)
 {
-    for (size_t i = 0; i < vbMap.shards.size(); i++) {
-        KVShard *shard = vbMap.shards[i].get();
+    for (auto& i : vbMap.shards) {
+        KVShard* shard = i.get();
         shard->getRWUnderlying()->resetStats();
         shard->getROUnderlying()->resetStats();
     }
@@ -2322,7 +2322,7 @@ void KVBucket::resetUnderlyingStats(void)
 void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
                                const void* cookie,
                                const std::string& args) {
-    for (size_t i = 0; i < vbMap.shards.size(); i++) {
+    for (auto& shard : vbMap.shards) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
          * is because CouchKVStore has separate read only and read
@@ -2330,8 +2330,8 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
          * for both read write and read-only.
          */
         std::set<KVStore *> underlyingSet;
-        underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());
-        underlyingSet.insert(vbMap.shards[i]->getROUnderlying());
+        underlyingSet.insert(shard->getRWUnderlying());
+        underlyingSet.insert(shard->getROUnderlying());
 
         for (auto* store : underlyingSet) {
             store->addStats(add_stat, cookie, args);
@@ -2341,10 +2341,10 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
 
 void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
                                      const void* cookie) {
-    for (size_t i = 0; i < vbMap.shards.size(); i++) {
+    for (auto& shard : vbMap.shards) {
         std::set<KVStore*> underlyingSet;
-        underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());
-        underlyingSet.insert(vbMap.shards[i]->getROUnderlying());
+        underlyingSet.insert(shard->getRWUnderlying());
+        underlyingSet.insert(shard->getROUnderlying());
 
         for (auto* store : underlyingSet) {
             store->addTimingStats(add_stat, cookie);

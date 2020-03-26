@@ -626,8 +626,8 @@ std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
                     "Attempting to unregister taskable '" +
                     taskable.getName() + "' but taskLocator is not empty");
         }
-        for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
-            threadQ[tidx]->stop(false); // only set state to DEAD
+        for (auto& tidx : threadQ) {
+            tidx->stop(false); // only set state to DEAD
         }
 
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
@@ -636,9 +636,9 @@ std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
             sleepQ->doWake(wakeAll);
         }
 
-        for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
-            threadQ[tidx]->stop(/*wait for threads */);
-            delete threadQ[tidx];
+        for (auto& tidx : threadQ) {
+            tidx->stop(/*wait for threads */);
+            delete tidx;
         }
 
         for (size_t i = 0; i < numTaskSets; i++) {
@@ -764,9 +764,8 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
     NonBucketAllocationGuard guard;
     LockHolder lh(tMutex);
     //TODO: implement tracking per engine stats ..
-    for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
-        addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
-                     cookie, add_stat);
+    for (auto& tidx : threadQ) {
+        addWorkerStats(tidx->getName().c_str(), tidx, cookie, add_stat);
     }
 }
 

@@ -726,29 +726,29 @@ static bool operate_single_doc(SubdocCmdContext& context,
     auto& operations = context.getOperations();
 
     // 2. Perform each of the operations on document.
-    for (auto op = operations.begin(); op != operations.end(); op++) {
-        switch (op->traits.scope) {
+    for (auto& op : operations) {
+        switch (op.traits.scope) {
         case CommandScope::SubJSON:
             if (mcbp::datatype::is_json(doc_datatype)) {
                 // Got JSON, perform the operation.
-                op->status = subdoc_operate_one_path(context, *op, doc);
+                op.status = subdoc_operate_one_path(context, op, doc);
             } else {
                 // No good; need to have JSON.
-                op->status = cb::mcbp::Status::SubdocDocNotJson;
+                op.status = cb::mcbp::Status::SubdocDocNotJson;
             }
             break;
 
         case CommandScope::WholeDoc:
-            op->status = subdoc_operate_wholedoc(context, *op, doc);
+            op.status = subdoc_operate_wholedoc(context, op, doc);
         }
 
-        if (op->status == cb::mcbp::Status::Success) {
+        if (op.status == cb::mcbp::Status::Success) {
             if (context.traits.is_mutator) {
                 modified = true;
 
                 // Determine how much space we now need.
                 size_t new_doc_len = 0;
-                for (auto& loc : op->result.newdoc()) {
+                for (auto& loc : op.result.newdoc()) {
                     new_doc_len += loc.length;
                 }
 
@@ -764,7 +764,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 std::unique_ptr<char[]> temp(new char[new_doc_len]);
 
                 size_t offset = 0;
-                for (auto& loc : op->result.newdoc()) {
+                for (auto& loc : op.result.newdoc()) {
                     std::copy(loc.at, loc.at + loc.length, temp.get() + offset);
                     offset += loc.length;
                 }
@@ -775,7 +775,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 temp_buffer.swap(temp);
                 doc = {temp_buffer.get(), new_doc_len};
 
-                if (op->traits.scope == CommandScope::WholeDoc) {
+                if (op.traits.scope == CommandScope::WholeDoc) {
                     // the entire document has been replaced as part of a
                     // wholedoc op update the datatype to match
                     JSON_checker::Validator validator;
@@ -797,7 +797,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
             case SubdocPath::SINGLE:
                 // Failure of a (the only) op stops execution and returns an
                 // error to the client.
-                context.cookie.sendResponse(op->status);
+                context.cookie.sendResponse(op.status);
                 return false;
 
             case SubdocPath::MULTI:
@@ -1014,8 +1014,9 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
             {
                 // Mark all of them as failed..
                 auto& operations = context.getOperations();
-                for (auto op = operations.begin(); op != operations.end(); op++) {
-                    op->status = cb::mcbp::to_status(cb::engine_errc(access));
+                for (auto& operation : operations) {
+                    operation.status =
+                            cb::mcbp::to_status(cb::engine_errc(access));
                 }
             }
             return true;
