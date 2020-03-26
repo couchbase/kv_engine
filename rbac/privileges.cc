@@ -37,6 +37,7 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"AuditManagement", Privilege::AuditManagement},
         {"DcpConsumer", Privilege::DcpConsumer},
         {"DcpProducer", Privilege::DcpProducer},
+        {"DcpStream", Privilege::DcpStream},
         {"Tap", Privilege::Tap},
         {"MetaRead", Privilege::MetaRead},
         {"MetaWrite", Privilege::MetaWrite},
@@ -91,6 +92,7 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::Upsert:
     case Privilege::DcpConsumer:
     case Privilege::DcpProducer:
+    case Privilege::DcpStream:
     case Privilege::Tap:
     case Privilege::MetaRead:
     case Privilege::MetaWrite:
@@ -134,6 +136,7 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::SystemXattrRead:
     case Privilege::XattrWrite:
     case Privilege::SystemXattrWrite:
+    case Privilege::DcpStream:
         return true;
 
     case Privilege::DcpConsumer:

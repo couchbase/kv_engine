@@ -83,15 +83,19 @@ enum class Privilege {
      */
     AuditManagement,
     /**
-     * The `DcpConsumer` privilege allows for setting up a DCP stream in the
+     * The `DcpConsumer` privilege allows for setting up a DCP consumer in the
      * selected bucket to apply DCP mutations.
      */
     DcpConsumer,
     /**
-     * The `DcpProducer` privilege allows for setting up a DCP stream in the
+     * The `DcpProducer` privilege allows for setting up a DCP producer in the
      * selected bucket.
      */
     DcpProducer,
+    /**
+     * The `DcpStream` privilege allows for setting up a DCP producer stream.
+     */
+    DcpStream,
     /**
      * The `Tap` privilege allows for setting up a TAP stream
      */
