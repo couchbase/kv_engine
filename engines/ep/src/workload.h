@@ -55,26 +55,26 @@ public:
         }
     }
 
-    size_t getNumShards(void) {
+    size_t getNumShards() {
         return maxNumShards;
     }
 
-    bucket_priority_t getBucketPriority(void) {
+    bucket_priority_t getBucketPriority() {
         if (maxNumWorkers < HIGH_BUCKET_PRIORITY) {
             return LOW_BUCKET_PRIORITY;
         }
         return HIGH_BUCKET_PRIORITY;
     }
 
-    size_t getNumWorkers(void) {
+    size_t getNumWorkers() {
         return maxNumWorkers;
     }
 
-    workload_pattern_t getWorkLoadPattern(void) {
+    workload_pattern_t getWorkLoadPattern() {
         return workloadPattern.load();
     }
 
-    std::string stringOfWorkLoadPattern(void) {
+    std::string stringOfWorkLoadPattern() {
         switch (workloadPattern.load()) {
         case READ_HEAVY:
             return "read_heavy";

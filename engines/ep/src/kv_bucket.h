@@ -253,7 +253,7 @@ public:
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
-    size_t getMemFootPrint(void) {
+    size_t getMemFootPrint() {
         size_t mem = 0;
         for (auto& i : vbMap.shards) {
             KVShard* shard = i.get();

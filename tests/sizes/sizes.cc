@@ -23,7 +23,7 @@ static unsigned int count_used_opcodes() {
     return used_opcodes;
 }
 
-static void display_used_opcodes(void) {
+static void display_used_opcodes() {
     printf("ClientOpcode map:     (# = Used, . = Free)\n\n");
     printf("   0123456789abcdef");
     for (unsigned int opcode = 0; opcode < 256; opcode++) {

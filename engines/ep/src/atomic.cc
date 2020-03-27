@@ -26,12 +26,12 @@ SpinLock::SpinLock()
 
 SpinLock::~SpinLock() {}
 
-bool SpinLock::tryAcquire(void) {
+bool SpinLock::tryAcquire() {
     return !lck.test_and_set(std::memory_order_acquire);
 }
 
 
-void SpinLock::lock(void) {
+void SpinLock::lock() {
    int spin = 0;
    while (!tryAcquire()) {
       ++spin;
@@ -41,6 +41,6 @@ void SpinLock::lock(void) {
    }
 }
 
-void SpinLock::unlock(void) {
+void SpinLock::unlock() {
     lck.clear(std::memory_order_release);
 }

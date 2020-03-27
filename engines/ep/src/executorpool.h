@@ -101,7 +101,7 @@ public:
         return false;
     }
 
-    void woke(void) {
+    void woke() {
         numSleepers--;
     }
 
@@ -156,32 +156,32 @@ public:
                      const void* cookie,
                      const AddStatFn& add_stat);
 
-    size_t getNumWorkersStat(void) {
+    size_t getNumWorkersStat() {
         LockHolder lh(tMutex);
         return threadQ.size();
     }
 
-    size_t getNumReaders(void);
+    size_t getNumReaders();
 
-    size_t getNumWriters(void);
+    size_t getNumWriters();
 
-    size_t getNumAuxIO(void);
+    size_t getNumAuxIO();
 
-    size_t getNumNonIO(void);
+    size_t getNumNonIO();
 
-    size_t getMaxReaders(void) {
+    size_t getMaxReaders() {
         return numWorkers[READER_TASK_IDX];
     }
 
-    size_t getMaxWriters(void) {
+    size_t getMaxWriters() {
         return numWorkers[WRITER_TASK_IDX];
     }
 
-    size_t getMaxAuxIO(void) {
+    size_t getMaxAuxIO() {
         return numWorkers[AUXIO_TASK_IDX];
     }
 
-    size_t getMaxNonIO(void) {
+    size_t getMaxNonIO() {
         return numWorkers[NONIO_TASK_IDX];
     }
 
@@ -201,15 +201,15 @@ public:
         adjustWorkers(NONIO_TASK_IDX, v);
     }
 
-    size_t getNumReadyTasks(void) { return totReadyTasks; }
+    size_t getNumReadyTasks() { return totReadyTasks; }
 
-    size_t getNumSleepers(void) { return numSleepers; }
+    size_t getNumSleepers() { return numSleepers; }
 
     size_t schedule(ExTask task);
 
-    static ExecutorPool *get(void);
+    static ExecutorPool *get();
 
-    static void shutdown(void);
+    static void shutdown();
 
 protected:
     /**
@@ -231,12 +231,12 @@ protected:
                  size_t maxAuxIO,
                  size_t maxNonIO);
 
-    virtual ~ExecutorPool(void);
+    virtual ~ExecutorPool();
 
     TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
     bool _cancel(size_t taskId, bool eraseTask=false);
     bool _wake(size_t taskId);
-    virtual bool _startWorkers(void);
+    virtual bool _startWorkers();
 
     /**
      * Change the number of worked threads.

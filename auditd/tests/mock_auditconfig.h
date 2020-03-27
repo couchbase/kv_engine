@@ -22,7 +22,7 @@
 
 class MockAuditConfig : public AuditConfig {
 public:
-    MockAuditConfig(void)
+    MockAuditConfig()
         : AuditConfig(){
                   // Empty
           };

@@ -87,7 +87,7 @@ private:
     bool _doSleep(ExecutorThread &thread, std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t &numToWake);
     size_t _moveReadyTasks(const std::chrono::steady_clock::time_point tv);
-    ExTask _popReadyTask(void);
+    ExTask _popReadyTask();
 
     SyncObject mutex;
     const std::string name;

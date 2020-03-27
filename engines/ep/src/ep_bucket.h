@@ -185,7 +185,7 @@ public:
         return retainErroneousTombstones.load();
     }
 
-    Warmup* getWarmup(void) const override;
+    Warmup* getWarmup() const override;
 
     bool isWarmingUp() override;
 

@@ -57,7 +57,7 @@ bool Flusher::stop(bool isForceShutdown) {
     return ret;
 }
 
-void Flusher::wait(void) {
+void Flusher::wait() {
     auto startt = std::chrono::steady_clock::now();
     while (_state != State::Stopped) {
         if (!ExecutorPool::get()->wake(taskId)) {
@@ -74,11 +74,11 @@ void Flusher::wait(void) {
     }
 }
 
-bool Flusher::pause(void) {
+bool Flusher::pause() {
     return transitionState(State::Paused);
 }
 
-bool Flusher::resume(void) {
+bool Flusher::resume() {
     bool ret = transitionState(State::Running);
     wake();
     return ret;
@@ -172,7 +172,7 @@ void Flusher::start() {
     schedule_UNLOCKED();
 }
 
-void Flusher::wake(void) {
+void Flusher::wake() {
     // taskId becomes zero if the flusher were stopped
     if (taskId > 0) {
         ExecutorPool::get()->wake(taskId);

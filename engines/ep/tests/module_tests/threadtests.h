@@ -40,13 +40,13 @@ public:
 
     CountDownLatch(int n=1) : count(n) {}
 
-    void decr(void) {
+    void decr() {
         std::unique_lock<std::mutex> lh(so);
         --count;
         so.notify_all();
     }
 
-    void wait(void) {
+    void wait() {
         std::unique_lock<std::mutex> lh(so);
         so.wait(lh, [this] { return count == 0; });
     }
@@ -82,25 +82,25 @@ public:
         pistol(other.pistol),
         gen(other.gen) {}
 
-    void start(void) {
+    void start() {
         if (cb_create_thread(&thread, (CB_THREAD_MAIN)( launch_sync_test_thread<T> ), this, 0) != 0) {
             throw std::runtime_error("Error initializing thread");
         }
     }
 
-    void run(void) {
+    void run() {
         startingLine->decr();
         pistol->wait();
         result = (*gen)();
     }
 
-    void join(void) {
+    void join() {
         if (cb_join_thread(thread) != 0) {
             throw std::runtime_error("Failed to join.");
         }
     }
 
-    const T getResult(void) const { return result; };
+    const T getResult() const { return result; };
 
 private:
     CountDownLatch *startingLine;

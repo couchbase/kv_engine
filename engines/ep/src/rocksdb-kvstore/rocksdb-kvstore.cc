@@ -955,7 +955,7 @@ bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
     return false;
 }
 
-StorageProperties RocksDBKVStore::getStorageProperties(void) {
+StorageProperties RocksDBKVStore::getStorageProperties() {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,

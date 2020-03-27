@@ -396,12 +396,12 @@ public:
     /**
      * Get the number of hash table buckets this hash table has.
      */
-    size_t getSize(void) { return size; }
+    size_t getSize() { return size; }
 
     /**
      * Get the number of locks in this hash table.
      */
-    size_t getNumLocks(void) { return mutexes.size(); }
+    size_t getNumLocks() { return mutexes.size(); }
 
     /**
      * Get the number of in-memory non-resident and resident items within
@@ -478,7 +478,7 @@ public:
     /**
      * Get the number of items whose values are ejected from this hash table.
      */
-    size_t getNumEjects(void) { return numEjects; }
+    size_t getNumEjects() { return numEjects; }
 
     /**
      * Get the total cache size of this hash table.

@@ -273,7 +273,7 @@ public:
 
     void setFlowControlBufSize(uint32_t newSize);
 
-    static const std::string& getControlMsgKey(void);
+    static const std::string& getControlMsgKey();
 
     bool isStreamPresent(Vbid vbucket);
 

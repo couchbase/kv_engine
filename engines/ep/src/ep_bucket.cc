@@ -1821,7 +1821,7 @@ void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {
     }
 }
 
-Warmup* EPBucket::getWarmup(void) const {
+Warmup* EPBucket::getWarmup() const {
     return warmupTask.get();
 }
 
@@ -1951,7 +1951,7 @@ void EPBucket::warmupCompleted() {
     collectionsManager->warmupCompleted(*this);
 }
 
-void EPBucket::stopWarmup(void) {
+void EPBucket::stopWarmup() {
     // forcefully stop current warmup task
     if (isWarmingUp()) {
         EP_LOG_INFO(

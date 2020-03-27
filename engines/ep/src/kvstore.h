@@ -733,7 +733,7 @@ public:
     /**
      * Get a list of all persisted vbuckets (with their states).
      */
-    virtual std::vector<vbucket_state *> listPersistedVbuckets(void) = 0;
+    virtual std::vector<vbucket_state *> listPersistedVbuckets() = 0;
 
 
     /**
@@ -849,7 +849,7 @@ public:
         return readOnly;
     }
 
-    KVStoreStats& getKVStoreStat(void) {
+    KVStoreStats& getKVStoreStat() {
         return st;
     }
 

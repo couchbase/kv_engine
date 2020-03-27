@@ -32,7 +32,7 @@ public:
 
     HashtableResizerTask(KVBucketIface& s, double sleepTime);
 
-    bool run(void);
+    bool run();
 
     std::string getDescription() {
         return "Adjusting hash table sizes.";

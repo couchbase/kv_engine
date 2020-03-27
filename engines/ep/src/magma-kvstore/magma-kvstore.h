@@ -169,7 +169,7 @@ public:
 
     void delVBucket(Vbid vbucket, uint64_t fileRev) override;
 
-    std::vector<vbucket_state*> listPersistedVbuckets(void) override;
+    std::vector<vbucket_state*> listPersistedVbuckets() override;
 
     /**
      * Take a snapshot of the stats in the main DB.

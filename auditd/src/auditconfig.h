@@ -33,7 +33,7 @@ public:
                             /* event state defined as disabled */ disabled,
                             /* event state is not defined */ undefined };
 
-    AuditConfig(void) :
+    AuditConfig() :
         auditd_enabled(false),
         rotate_interval(900),
         rotate_size(20 * 1024 * 1024),
@@ -63,18 +63,18 @@ public:
     void initialize_config(const nlohmann::json& json);
 
     // methods to access the private parts
-    bool is_auditd_enabled(void) const;
+    bool is_auditd_enabled() const;
     void set_auditd_enabled(bool value);
     void set_rotate_size(size_t size);
-    size_t get_rotate_size(void) const;
+    size_t get_rotate_size() const;
     void set_rotate_interval(uint32_t interval);
-    uint32_t get_rotate_interval(void) const;
+    uint32_t get_rotate_interval() const;
     void set_buffered(bool enable);
-    bool is_buffered(void) const;
+    bool is_buffered() const;
     void set_log_directory(const std::string &directory);
-    std::string get_log_directory(void) const;
+    std::string get_log_directory() const;
     void set_descriptors_path(const std::string &directory);
-    std::string get_descriptors_path(void) const;
+    std::string get_descriptors_path() const;
     void set_version(uint32_t ver);
     uint32_t get_version() const;
     bool is_event_sync(uint32_t id);

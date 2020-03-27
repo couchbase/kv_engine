@@ -529,7 +529,7 @@ public:
 
     virtual const Flusher* getFlusher(uint16_t shardId) = 0;
 
-    virtual Warmup* getWarmup(void) const = 0;
+    virtual Warmup* getWarmup() const = 0;
 
     /**
      * Looks up the key stats for the given {vbucket, key}.
@@ -616,7 +616,7 @@ public:
 
     virtual EventuallyPersistentEngine& getEPEngine() = 0;
 
-    virtual size_t getExpiryPagerSleeptime(void) = 0;
+    virtual size_t getExpiryPagerSleeptime() = 0;
 
     virtual size_t getTransactionTimePerItem() = 0;
 
@@ -755,7 +755,7 @@ public:
     virtual bool isExpPagerEnabled() = 0;
 
     /// Check if there were any out-of-memory errors during warmup
-    virtual bool isWarmupOOMFailure(void) = 0;
+    virtual bool isWarmupOOMFailure() = 0;
 
     virtual bool maybeWaitForVBucketWarmup(const void* cookie) = 0;
 

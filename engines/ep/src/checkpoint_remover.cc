@@ -204,7 +204,7 @@ size_t ClosedUnrefCheckpointRemoverTask::attemptMemoryRecovery(
     return memoryCleared;
 }
 
-bool ClosedUnrefCheckpointRemoverTask::run(void) {
+bool ClosedUnrefCheckpointRemoverTask::run() {
     TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
     bool inverse = true;
     if (available.compare_exchange_strong(inverse, false)) {

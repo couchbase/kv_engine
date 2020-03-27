@@ -59,7 +59,7 @@ static volatile uint64_t memcached_monotonic_start = 0;
 static struct event_base* main_ev_base = nullptr;
 
 static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
-static void mc_gather_timing_samples(void);
+static void mc_gather_timing_samples();
 
 /*
  * Init internal state and start the timer event callback.
@@ -203,7 +203,7 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
  * Update a number of time keeping variables and account for system
  * clock changes.
  */
-void mc_time_clock_tick(void) {
+void mc_time_clock_tick() {
     static uint64_t check_system_time = 0;
     static bool previous_time_valid = false;
     static struct timeval previous_time = {0, 0};

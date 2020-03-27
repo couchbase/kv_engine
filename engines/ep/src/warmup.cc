@@ -610,7 +610,7 @@ static bool batchWarmupCallback(Vbid vbId,
     }
 }
 
-const char *WarmupState::toString(void) const {
+const char *WarmupState::toString() const {
     return getStateDescription(state.load());
 }
 

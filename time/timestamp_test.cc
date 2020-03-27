@@ -24,7 +24,7 @@
 
 static char env[80];
 
-int main(void)
+int main()
 {
     time_t now = 1426239360;
     std::string expected("2015-03-13T02:36:00.000000-07:00");

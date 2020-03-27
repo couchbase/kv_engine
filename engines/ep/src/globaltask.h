@@ -110,7 +110,7 @@ public:
     /**
      * test if a task is dead
      */
-     bool isdead(void) {
+     bool isdead() {
         return (state == TASK_DEAD);
      }
 
@@ -118,7 +118,7 @@ public:
     /**
      * Cancels this task by marking it dead.
      */
-    void cancel(void) {
+    void cancel() {
         state = TASK_DEAD;
     }
 
@@ -150,7 +150,7 @@ public:
      */
     EventuallyPersistentEngine* getEngine() { return engine; }
 
-    task_state_t getState(void) {
+    task_state_t getState() {
         return state.load();
     }
 

@@ -439,7 +439,7 @@ public:
     std::atomic<size_t> logSize;
 
 private:
-    void needWriteAccess(void) {
+    void needWriteAccess() {
         if (readOnly) {
             throw WriteException("Invalid access (file opened read only)");
         }
@@ -448,7 +448,7 @@ private:
 
     bool writeInitialBlock();
     void readInitialBlock();
-    void updateInitialBlock(void);
+    void updateInitialBlock();
 
     bool prepareWrites();
 

@@ -85,7 +85,7 @@ cb::sasl::Error parse_user_db(const std::string content, bool file) {
  * Let's just parse it and build up the JSON needed from the
  * new style password database as documented in CBSASL.md
  */
-static cb::sasl::Error load_isasl_user_db(void) {
+static cb::sasl::Error load_isasl_user_db() {
     const char* filename = getenv("ISASL_PWFILE");
 
     if (!filename) {
@@ -115,7 +115,7 @@ static cb::sasl::Error load_isasl_user_db(void) {
     return ret;
 }
 
-cb::sasl::Error load_user_db(void) {
+cb::sasl::Error load_user_db() {
     try {
         const char* filename = getenv("CBSASL_PWFILE");
 

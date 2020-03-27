@@ -101,7 +101,7 @@ std::string ISOTime::generatetimestamp(time_t now_t, uint32_t frac_of_second) {
     return std::string(buffer.data());
 }
 
-std::string ISOTime::generatetimestamp(void) {
+std::string ISOTime::generatetimestamp() {
     ISO8601String buffer;
     generatetimestamp(buffer);
     return std::string(buffer.data());

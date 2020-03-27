@@ -431,7 +431,7 @@ public:
     Vbid getId() const {
         return id;
     }
-    vbucket_state_t getState(void) const { return state.load(); }
+    vbucket_state_t getState() const { return state.load(); }
 
     /**
      * Sets the vbucket state to a desired state
@@ -457,7 +457,7 @@ public:
         return stateLock;
     }
 
-    vbucket_state_t getInitialState(void) { return initialState; }
+    vbucket_state_t getInitialState() { return initialState; }
 
     vbucket_transition_state getTransitionState() const;
 
@@ -742,7 +742,7 @@ public:
 
     virtual size_t getNumNonResidentItems() const = 0;
 
-    size_t getNumTempItems(void) {
+    size_t getNumTempItems() {
         return ht.getNumTempItems();
     }
 
@@ -755,7 +755,7 @@ public:
         rollbackItemCount.fetch_add(val, std::memory_order_relaxed);
     }
 
-    uint64_t getRollbackItemCount(void) {
+    uint64_t getRollbackItemCount() {
         return rollbackItemCount.load(std::memory_order_relaxed);
     }
 

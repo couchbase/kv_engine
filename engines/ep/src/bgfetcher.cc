@@ -58,7 +58,7 @@ void BgFetcher::stop() {
     ExecutorPool::get()->cancel(taskId);
 }
 
-void BgFetcher::notifyBGEvent(void) {
+void BgFetcher::notifyBGEvent() {
     ++stats.numRemainingBgItems;
     wakeUpTaskIfSnoozed();
 }

@@ -72,7 +72,7 @@ void VBucketMap::dropVBucketAndSetupDeferredDeletion(Vbid id,
     }
 }
 
-std::vector<Vbid> VBucketMap::getBuckets(void) const {
+std::vector<Vbid> VBucketMap::getBuckets() const {
     std::vector<Vbid> rv;
     for (size_t i = 0; i < size; ++i) {
         VBucketPtr b(getBucket(Vbid(i)));
@@ -83,7 +83,7 @@ std::vector<Vbid> VBucketMap::getBuckets(void) const {
     return rv;
 }
 
-std::vector<Vbid> VBucketMap::getBucketsSortedByState(void) const {
+std::vector<Vbid> VBucketMap::getBucketsSortedByState() const {
     std::vector<Vbid> rv;
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead; ++state) {

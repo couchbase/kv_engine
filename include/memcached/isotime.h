@@ -25,7 +25,7 @@
 
 class ISOTime {
 public:
-    static std::string generatetimestamp(void);
+    static std::string generatetimestamp();
     static std::string generatetimestamp(time_t now_t, uint32_t frac_of_second);
 
 

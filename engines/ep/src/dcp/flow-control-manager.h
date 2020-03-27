@@ -49,7 +49,7 @@ public:
     virtual void handleDisconnect(DcpConsumer *);
 
     /* Will indicate if flow control is enabled */
-    virtual bool isEnabled(void) const;
+    virtual bool isEnabled() const;
 
 protected:
     void setBufSizeWithinBounds(DcpConsumer *consumerConn, size_t &bufSize);
@@ -71,7 +71,7 @@ public:
 
     size_t newConsumerConn(DcpConsumer *consumerConn);
 
-    bool isEnabled(void) const;
+    bool isEnabled() const;
 };
 
 /**
@@ -91,7 +91,7 @@ public:
 
     void handleDisconnect(DcpConsumer *consumerConn);
 
-    bool isEnabled(void) const;
+    bool isEnabled() const;
 
 private:
     /* Total memory used by all DCP consumer buffers */
@@ -115,7 +115,7 @@ public:
 
     void handleDisconnect(DcpConsumer *consumerConn);
 
-    bool isEnabled(void) const;
+    bool isEnabled() const;
 
 private:
     /**

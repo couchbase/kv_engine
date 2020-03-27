@@ -95,9 +95,9 @@ public:
 
     ~ExecutorThread();
 
-    void start(void);
+    void start();
 
-    void run(void);
+    void run();
 
     void stop(bool wait=true);
 
@@ -123,7 +123,7 @@ public:
         return taskStart.getTimePoint();
     }
 
-    void updateTaskStart(void) {
+    void updateTaskStart() {
         const std::chrono::steady_clock::time_point& now =
                 std::chrono::steady_clock::now();
         taskStart.setTimePoint(now);
@@ -136,7 +136,7 @@ public:
         return now.getTimePoint();
     }
 
-    void updateCurrentTime(void) {
+    void updateCurrentTime() {
         now.setTimePoint(std::chrono::steady_clock::now());
     }
 

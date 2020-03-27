@@ -735,13 +735,13 @@ public:
      * Explicitly trigger the defragmenter task. Provided to facilitate
      * testing.
      */
-    void runDefragmenterTask(void);
+    void runDefragmenterTask();
 
     /*
      * Explicitly trigger the AccessScanner task. Provided to facilitate
      * testing.
      */
-    bool runAccessScannerTask(void);
+    bool runAccessScannerTask();
 
     /*
      * Explicitly trigger the VbStatePersist task. Provided to facilitate

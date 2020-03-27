@@ -40,7 +40,7 @@ bucket_priority_t MockTaskable::getWorkloadPriority() const {
 void MockTaskable::setWorkloadPriority(bucket_priority_t prio) {
 }
 
-WorkLoadPolicy& MockTaskable::getWorkLoadPolicy(void) {
+WorkLoadPolicy& MockTaskable::getWorkLoadPolicy() {
     return policy;
 }
 

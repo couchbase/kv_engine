@@ -203,7 +203,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run(void) {
+    bool run() {
         TRACE_EVENT1("ep-engine/task",
                      "PendingOpsNotification",
                      "vb",
@@ -246,7 +246,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run(void) {
+    bool run() {
         auto vbucket = weakVb.lock();
         if (!vbucket) {
             return false;
@@ -483,7 +483,7 @@ const Flusher* KVBucket::getFlusher(uint16_t shardId) {
     return vbMap.shards[shardId]->getFlusher();
 }
 
-Warmup* KVBucket::getWarmup(void) const {
+Warmup* KVBucket::getWarmup() const {
     return nullptr;
 }
 
@@ -2305,7 +2305,7 @@ bool VBCBAdaptor::run() {
     return false;
 }
 
-void KVBucket::resetUnderlyingStats(void)
+void KVBucket::resetUnderlyingStats()
 {
     for (auto& i : vbMap.shards) {
         KVShard* shard = i.get();
@@ -2372,11 +2372,11 @@ bool KVBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
     return success;
 }
 
-KVStore *KVBucket::getOneROUnderlying(void) {
+KVStore *KVBucket::getOneROUnderlying() {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }
 
-KVStore *KVBucket::getOneRWUnderlying(void) {
+KVStore *KVBucket::getOneRWUnderlying() {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 

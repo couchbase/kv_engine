@@ -256,7 +256,7 @@ public:
         vbucketId = to;
     }
 
-    size_t size(void) const {
+    size_t size() const {
         return sizeof(Item) + key.size() + getValMemSize();
     }
 
@@ -303,7 +303,7 @@ public:
         return queuedTime;
     }
 
-    queue_op getOperation(void) const {
+    queue_op getOperation() const {
         return op;
     }
 

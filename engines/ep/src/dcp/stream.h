@@ -124,9 +124,9 @@ protected:
     void pushToReadyQ(std::unique_ptr<DcpResponse> resp);
 
     /* To be called after getting streamMutex lock */
-    std::unique_ptr<DcpResponse> popFromReadyQ(void);
+    std::unique_ptr<DcpResponse> popFromReadyQ();
 
-    uint64_t getReadyQueueMemory(void);
+    uint64_t getReadyQueueMemory();
 
     std::string name_;
     const uint32_t flags_;

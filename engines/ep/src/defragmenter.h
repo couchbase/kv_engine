@@ -99,9 +99,9 @@ class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
-    bool run(void);
+    bool run();
 
-    void stop(void);
+    void stop();
 
     std::string getDescription();
 

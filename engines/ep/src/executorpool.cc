@@ -40,7 +40,7 @@ static const size_t EP_MIN_NONIO_THREADS = 2;
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
 
-size_t ExecutorPool::getNumNonIO(void) {
+size_t ExecutorPool::getNumNonIO() {
     // 1. compute: 30% of total threads
     size_t count = maxGlobalThreads * 0.3;
 
@@ -55,7 +55,7 @@ size_t ExecutorPool::getNumNonIO(void) {
     return count;
 }
 
-size_t ExecutorPool::getNumAuxIO(void) {
+size_t ExecutorPool::getNumAuxIO() {
     // 1. compute: ceil of 10% of total threads
     size_t count = maxGlobalThreads / 10;
     if (!count || maxGlobalThreads % 10) {
@@ -82,7 +82,7 @@ size_t ExecutorPool::getNumReaders() {
             ThreadPoolConfig::ThreadCount(numWorkers[READER_TASK_IDX].load()));
 }
 
-ExecutorPool *ExecutorPool::get(void) {
+ExecutorPool *ExecutorPool::get() {
     auto* tmp = instance.load();
     if (tmp == nullptr) {
         LockHolder lh(initGuard);
@@ -107,7 +107,7 @@ ExecutorPool *ExecutorPool::get(void) {
     return tmp;
 }
 
-void ExecutorPool::shutdown(void) {
+void ExecutorPool::shutdown() {
     std::lock_guard<std::mutex> lock(initGuard);
     auto* tmp = instance.load();
     if (tmp != nullptr) {
@@ -144,7 +144,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads,
     numWorkers[NONIO_TASK_IDX] = maxNonIO;
 }
 
-ExecutorPool::~ExecutorPool(void) {
+ExecutorPool::~ExecutorPool() {
     _stopAndJoinThreads();
 
     if (isHiPrioQset) {
@@ -554,7 +554,7 @@ void ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
     _adjustWorkers(type, newCount);
 }
 
-bool ExecutorPool::_startWorkers(void) {
+bool ExecutorPool::_startWorkers() {
     size_t numReaders = getNumReaders();
     size_t numWriters = getNumWriters();
     size_t numAuxIO = getNumAuxIO();

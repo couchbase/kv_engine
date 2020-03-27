@@ -58,11 +58,11 @@ public:
 
     ~BgFetcher();
 
-    void start(void);
-    void stop(void);
+    void start();
+    void stop();
     bool run(GlobalTask *task);
-    bool pendingJob(void) const;
-    void notifyBGEvent(void);
+    bool pendingJob() const;
+    void notifyBGEvent();
     void setTaskId(size_t newId) { taskId = newId; }
     void addPendingVB(Vbid vbId) {
         LockHolder lh(queueMutex);

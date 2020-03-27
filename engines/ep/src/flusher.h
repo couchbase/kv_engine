@@ -45,7 +45,7 @@ public:
     bool pause();
     bool resume();
     void start();
-    void wake(void);
+    void wake();
     bool step(GlobalTask *task);
 
     const char * stateName() const;

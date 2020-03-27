@@ -1952,7 +1952,7 @@ bool EventuallyPersistentEngine::validateSessionCas(const uint64_t cas) {
     return ret;
 }
 
-void EventuallyPersistentEngine::decrementSessionCtr(void) {
+void EventuallyPersistentEngine::decrementSessionCtr() {
     NonBucketAllocationGuard guard;
     serverApi->cookie->decrement_session_ctr();
 }
@@ -3548,7 +3548,7 @@ public:
           cookie(c),
           add_stat(a) {
     }
-    bool run(void) {
+    bool run() {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
         StatCheckpointVisitor scv(ep->getKVBucket(), cookie, add_stat);
         ep->getKVBucket()->visit(scv);
@@ -4341,11 +4341,11 @@ void EventuallyPersistentEngine::addLookupAllKeys(const void *cookie,
     allKeysLookups[cookie] = err;
 }
 
-void EventuallyPersistentEngine::runDefragmenterTask(void) {
+void EventuallyPersistentEngine::runDefragmenterTask() {
     kvBucket->runDefragmenterTask();
 }
 
-bool EventuallyPersistentEngine::runAccessScannerTask(void) {
+bool EventuallyPersistentEngine::runAccessScannerTask() {
     return kvBucket->runAccessScannerTask();
 }
 
@@ -6683,7 +6683,7 @@ void  EpEngineTaskable::setWorkloadPriority(bucket_priority_t prio) {
     myEngine->setWorkloadPriority(prio);
 }
 
-WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy(void) {
+WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy() {
     return myEngine->getWorkLoadPolicy();
 }
 

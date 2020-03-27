@@ -92,7 +92,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
     }
 }
 
-bool AuditConfig::is_auditd_enabled(void) const {
+bool AuditConfig::is_auditd_enabled() const {
     return auditd_enabled;
 }
 
@@ -111,7 +111,7 @@ void AuditConfig::set_rotate_size(size_t size) {
     rotate_size = size;
 }
 
-size_t AuditConfig::get_rotate_size(void) const {
+size_t AuditConfig::get_rotate_size() const {
     return rotate_size;
 }
 
@@ -129,7 +129,7 @@ void AuditConfig::set_rotate_interval(uint32_t interval) {
     rotate_interval = interval;
 }
 
-uint32_t AuditConfig::get_rotate_interval(void) const {
+uint32_t AuditConfig::get_rotate_interval() const {
     return rotate_interval;
 }
 
@@ -137,7 +137,7 @@ void AuditConfig::set_buffered(bool enable) {
     buffered = enable;
 }
 
-bool AuditConfig::is_buffered(void) const {
+bool AuditConfig::is_buffered() const {
     return buffered;
 }
 
@@ -156,7 +156,7 @@ void AuditConfig::set_log_directory(const std::string &directory) {
     }
 }
 
-std::string AuditConfig::get_log_directory(void) const {
+std::string AuditConfig::get_log_directory() const {
     std::lock_guard<std::mutex> guard(log_path_mutex);
     return log_path;
 }
@@ -183,7 +183,7 @@ void AuditConfig::set_descriptors_path(const std::string &directory) {
     fclose(fp);
 }
 
-std::string AuditConfig::get_descriptors_path(void) const {
+std::string AuditConfig::get_descriptors_path() const {
     std::lock_guard<std::mutex> guard(descriptor_path_mutex);
     return descriptors_path;
 }

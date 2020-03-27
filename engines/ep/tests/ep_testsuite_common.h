@@ -167,7 +167,7 @@ extern struct test_harness* testHarness;
 extern const char* default_dbname;
 
 enum test_result rmdb(const char* path);
-enum test_result rmdb(void);
+enum test_result rmdb();
 
 
 // Default testcase setup function

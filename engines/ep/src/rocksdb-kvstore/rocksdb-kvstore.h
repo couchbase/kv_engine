@@ -205,7 +205,7 @@ public:
     // the VBucket and returning to the caller.
     void delVBucket(Vbid vbucket, uint64_t vb_version) override;
 
-    std::vector<vbucket_state*> listPersistedVbuckets(void) override;
+    std::vector<vbucket_state*> listPersistedVbuckets() override;
 
     /**
      * Take a snapshot of the stats in the main DB.

@@ -41,7 +41,7 @@ public:
 
     void incrFreedBytes(uint32_t bytes);
 
-    uint32_t getFlowControlBufSize(void);
+    uint32_t getFlowControlBufSize();
 
     void setFlowControlBufSize(uint32_t newSize);
 

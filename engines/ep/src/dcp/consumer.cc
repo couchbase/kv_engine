@@ -1563,7 +1563,7 @@ void DcpConsumer::setFlowControlBufSize(uint32_t newSize)
     flowControl.setFlowControlBufSize(newSize);
 }
 
-const std::string& DcpConsumer::getControlMsgKey(void)
+const std::string& DcpConsumer::getControlMsgKey()
 {
     return connBufferCtrlMsg;
 }

@@ -31,7 +31,7 @@ ItemCompressorTask::ItemCompressorTask(EventuallyPersistentEngine* e,
       epstore_position(engine->getKVBucket()->startPosition()) {
 }
 
-bool ItemCompressorTask::run(void) {
+bool ItemCompressorTask::run() {
     TRACE_EVENT0("ep-engine/task", "ItemCompressorTask");
     if (engine->getCompressionMode() == BucketCompressionMode::Active) {
         // Get our pause/resume visitor. If we didn't finish the previous pass,
@@ -116,7 +116,7 @@ bool ItemCompressorTask::run(void) {
     return true;
 }
 
-void ItemCompressorTask::stop(void) {
+void ItemCompressorTask::stop() {
     if (uid) {
         ExecutorPool::get()->cancel(uid);
     }

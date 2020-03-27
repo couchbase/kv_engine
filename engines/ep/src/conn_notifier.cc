@@ -77,7 +77,7 @@ void ConnNotifier::stop() {
     ExecutorPool::get()->cancel(task);
 }
 
-void ConnNotifier::notifyMutationEvent(void) {
+void ConnNotifier::notifyMutationEvent() {
     bool inverse = false;
     if (pendingNotification.compare_exchange_strong(inverse, true)) {
         if (task > 0) {

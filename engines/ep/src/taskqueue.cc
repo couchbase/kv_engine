@@ -45,7 +45,7 @@ size_t TaskQueue::getFutureQueueSize() {
     return futureQueue.size();
 }
 
-ExTask TaskQueue::_popReadyTask(void) {
+ExTask TaskQueue::_popReadyTask() {
     ExTask t = readyQueue.top();
     readyQueue.pop();
     manager->lessWork(queueType);

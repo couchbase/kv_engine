@@ -41,7 +41,7 @@ public:
 
     void setWorkloadPriority(bucket_priority_t prio);
 
-    WorkLoadPolicy& getWorkLoadPolicy(void);
+    WorkLoadPolicy& getWorkLoadPolicy();
 
     void logQTime(TaskId id, const std::chrono::steady_clock::duration enqTime);
 

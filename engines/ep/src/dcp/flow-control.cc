@@ -93,7 +93,7 @@ void FlowControl::incrFreedBytes(uint32_t bytes)
     freedBytes.fetch_add(bytes);
 }
 
-uint32_t FlowControl::getFlowControlBufSize(void)
+uint32_t FlowControl::getFlowControlBufSize()
 {
     return bufferSize;
 }

@@ -48,7 +48,7 @@ public:
      */
     ItemPager(EventuallyPersistentEngine& e, EPStats& st);
 
-    bool run(void);
+    bool run();
 
     item_pager_phase getPhase() const {
         return phase;
@@ -111,7 +111,7 @@ public:
     ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
                      size_t stime, ssize_t taskTime = -1);
 
-    bool run(void);
+    bool run();
 
     std::string getDescription() {
         return "Paging expired items.";

@@ -86,7 +86,7 @@ void Stream::pushToReadyQ(std::unique_ptr<DcpResponse> resp) {
     }
 }
 
-std::unique_ptr<DcpResponse> Stream::popFromReadyQ(void) {
+std::unique_ptr<DcpResponse> Stream::popFromReadyQ() {
     /* expect streamMutex.ownsLock() == true */
     if (!readyQ.empty()) {
         auto front = std::move(readyQ.front());
