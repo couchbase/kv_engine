@@ -47,7 +47,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     mcd_env->getTestBucket().setUpBucket(bucketName, config, conn);
 
     // Create a document with an XATTR.
-    setBodyAndXattr("foobar", {{"_rbac", "{\"attribute\": \"read-only\"}"}});
+    setBodyAndXattr("foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
 
     // Delete the document
     conn.remove(name, Vbid(0));
@@ -137,11 +137,10 @@ TEST_P(RemoveTest, RemoveWithCas) {
  * document, and that the user attributes will be nuked off
  */
 TEST_P(RemoveTest, RemoveWithXattr) {
-    setBodyAndXattr(
-            document.value,
-            {{"meta",
-              "{\"content-type\": \"application/json; charset=utf-8\"}"},
-             {"_rbac", "{\"attribute\": \"read-only\"}"}});
+    setBodyAndXattr(document.value,
+                    {{"meta",
+                      R"({"content-type": "application/json; charset=utf-8"})"},
+                     {"_rbac", R"({"attribute": "read-only"})"}});
     getConnection().remove(name, Vbid(0), 0);
 
     // The system xattr should have been preserved

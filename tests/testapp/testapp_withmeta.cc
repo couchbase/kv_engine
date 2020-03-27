@@ -55,8 +55,8 @@ public:
      */
     void makeDocumentXattrValue() {
         cb::xattr::Blob blob;
-        blob.set("user", "{\"author\":\"bubba\"}");
-        blob.set("meta", "{\"content-type\":\"text\"}");
+        blob.set("user", R"({"author":"bubba"})");
+        blob.set("meta", R"({"content-type":"text"})");
 
         auto xattrValue = blob.finalize();
 

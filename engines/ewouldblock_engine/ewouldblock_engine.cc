@@ -1233,7 +1233,7 @@ private:
             : key("k") {
             cb::xattr::Blob builder;
             builder.set("_ewb", "{\"internal\":true}");
-            builder.set("meta", "{\"author\":\"jack\"}");
+            builder.set("meta", R"({"author":"jack"})");
             const auto blob = builder.finalize();
             std::copy(blob.begin(), blob.end(), std::back_inserter(value));
             // MB24971 - the body is large as it increases the probability of

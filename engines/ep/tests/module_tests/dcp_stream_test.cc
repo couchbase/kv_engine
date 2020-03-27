@@ -126,7 +126,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
             "{\"product\": \"car\",\"price\": \"100\"},"
             "{\"product\": \"bus\",\"price\": \"1000\"},"
             "{\"product\": \"Train\",\"price\": \"100000\"}");
-    std::string regularValue("{\"product\": \"car\",\"price\": \"100\"}");
+    std::string regularValue(R"({"product": "car","price": "100"})");
 
     std::string compressCtrlMsg("force_value_compression");
     std::string compressCtrlValue("true");

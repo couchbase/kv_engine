@@ -28,7 +28,7 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
             "{\"product\": \"Train\",\"price\": \"100000\"}");
 
     std::string nonCompressibleValue(
-            "{\"user\": \"scott\", \"password\": \"tiger\"}");
+            R"({"user": "scott", "password": "tiger"})");
 
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
@@ -100,7 +100,7 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
 // exceed the configured compression ratio
 TEST_P(ItemCompressorTest, testStoreUncompressedInActiveMode) {
     std::string nonCompressibleValue(
-            "{\"user\": \"scott\", \"user\": \"tiger\"}");
+            R"({"user": "scott", "user": "tiger"})");
 
     auto key = makeStoredDocKey("key");
     auto item = make_item(vbucket->getId(),

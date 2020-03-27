@@ -85,7 +85,7 @@ TEST(PreExpiry, DocumentWithJsonBodyAndXattrs) {
     auto xattr = blob.finalize();
 
     std::string body((const char*)xattr.data(), xattr.size());
-    body.append("{\"foo\":\"bar\"}");
+    body.append(R"({"foo":"bar"})");
 
     item_info info{};
     info.value[0].iov_base = const_cast<char*>(body.data());

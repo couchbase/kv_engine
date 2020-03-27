@@ -2640,7 +2640,7 @@ TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
 
     // If testing with system xattrs
     if (GetParam()) {
-        const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+        const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
         const std::string& sync_str = to_string(new_blob.get("_sync"));
 
         EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
@@ -2675,8 +2675,8 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     // Manually manage the xattr blob - later we will prune user keys
     cb::xattr::Blob blob;
 
-    blob.set("key1", "{\"author\":\"bubba\"}");
-    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+    blob.set("key1", R"({"author":"bubba"})");
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
 
     auto xattr_value = blob.finalize();
 
@@ -2925,7 +2925,7 @@ TEST_P(XattrSystemUserTest, MB_29040) {
 
     // If testing with system xattrs
     if (GetParam()) {
-        const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+        const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
         const std::string& sync_str = to_string(new_blob.get("_sync"));
 
         EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
@@ -3222,7 +3222,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
 
     // This is the only system key test_helpers::createXattrValue gives us
     cb::xattr::Blob blob;
-    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
 
     EXPECT_TRUE(gv.item->isDeleted());
     EXPECT_EQ(0, gv.item->getFlags());

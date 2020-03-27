@@ -45,9 +45,9 @@ static std::vector<char> createXattrValue(const std::string& body) {
     cb::xattr::Blob blob;
 
     //Add a few XAttrs
-    blob.set("user", "{\"author\":\"bubba\"}");
-    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
-    blob.set("meta", "{\"content-type\":\"text\"}");
+    blob.set("user", R"({"author":"bubba"})");
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
+    blob.set("meta", R"({"content-type":"text"})");
 
     auto xattr_value = blob.finalize();
 
@@ -451,7 +451,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
 
     if (isPersistentBucket(h)) {
         cb::xattr::Blob systemXattrBlob;
-        systemXattrBlob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+        systemXattrBlob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
         auto deletedValue = systemXattrBlob.finalize();
 
         checkeq(ENGINE_SUCCESS,

@@ -527,7 +527,7 @@ TEST_P(XattrTest, DictAdd_FullXattrSpec) {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "doc",
-                       "{\"author\": \"Bart\"}",
+                       R"({"author": "Bart"})",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -535,7 +535,7 @@ TEST_P(XattrTest, DictAdd_FullXattrSpec) {
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                   name,
                   "doc",
-                  "{\"author\": \"Bart\"}",
+                  R"({"author": "Bart"})",
                   SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 }
@@ -570,7 +570,7 @@ TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                        name,
                        "doc",
-                       "{\"author\": \"Bart\"}",
+                       R"({"author": "Bart"})",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -578,7 +578,7 @@ TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                   name,
                   "doc",
-                  "{\"author\": \"Jones\"}",
+                  R"({"author": "Jones"})",
                   SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -595,7 +595,7 @@ TEST_P(XattrTest, DictUpsert_PartialXattrSpec) {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                        name,
                        "doc",
-                       "{\"author\": \"Bart\"}",
+                       R"({"author": "Bart"})",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -619,7 +619,7 @@ TEST_P(XattrTest, Delete_FullXattrSpec) {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                        name,
                        "doc",
-                       "{\"author\": \"Bart\"}",
+                       R"({"author": "Bart"})",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDelete,
@@ -641,7 +641,7 @@ TEST_P(XattrTest, Delete_PartialXattrSpec) {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                        name,
                        "doc",
-                       "{\"author\":\"Bart\",\"ref\":0}",
+                       R"({"author":"Bart","ref":0})",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDelete,
@@ -665,21 +665,21 @@ TEST_P(XattrTest, Replace_FullXattrSpec) {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocReplace,
                        name,
                        "doc",
-                       "{\"author\":\"Bart\",\"ref\":0}",
+                       R"({"author":"Bart","ref":0})",
                        SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                   name,
                   "doc",
-                  "{\"author\": \"Bart\"}",
+                  R"({"author": "Bart"})",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocReplace,
                   name,
                   "doc",
-                  "{\"author\":\"Bart\",\"ref\":0}",
+                  R"({"author":"Bart","ref":0})",
                   SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -701,7 +701,7 @@ TEST_P(XattrTest, Replace_PartialXattrSpec) {
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                   name,
                   "doc",
-                  "{\"author\":\"Bart\",\"rev\":0}",
+                  R"({"author":"Bart","rev":0})",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 

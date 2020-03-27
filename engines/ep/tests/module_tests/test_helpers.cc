@@ -125,17 +125,17 @@ std::string createXattrValue(const std::string& body,
     cb::xattr::Blob blob;
 
     // Add enough XATTRs to be sure we would compress it if required
-    blob.set("ABCuser1", "{\"author\":\"bubba\"}");
-    blob.set("ABCuser2", "{\"author\":\"bubba\"}");
-    blob.set("ABCuser3", "{\"author\":\"bubba\"}");
-    blob.set("ABCuser4", "{\"author\":\"bubba\"}");
-    blob.set("ABCuser5", "{\"author\":\"bubba\"}");
-    blob.set("ABCuser6", "{\"author\":\"bubba\"}");
+    blob.set("ABCuser1", R"({"author":"bubba"})");
+    blob.set("ABCuser2", R"({"author":"bubba"})");
+    blob.set("ABCuser3", R"({"author":"bubba"})");
+    blob.set("ABCuser4", R"({"author":"bubba"})");
+    blob.set("ABCuser5", R"({"author":"bubba"})");
+    blob.set("ABCuser6", R"({"author":"bubba"})");
 
     if (withSystemKey) {
-        blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+        blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
     }
-    blob.set("meta", "{\"content-type\":\"text\"}");
+    blob.set("meta", R"({"content-type":"text"})");
 
     auto xattr_value = blob.finalize();
 

@@ -2896,7 +2896,7 @@ TEST_P(EPVBucketDurabilityTest,
 
     // (2) Re-add k via a SyncWrite. This will replace the Committed, Deleted,
     // Dirty SV with a Prepared, Dirty SV.
-    auto prepared = makePendingItem(key, "\"valueB\""s);
+    auto prepared = makePendingItem(key, R"("valueB")");
     prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
     VBQueueItemCtx ctx;
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};

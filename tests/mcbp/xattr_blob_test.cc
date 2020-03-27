@@ -30,9 +30,9 @@ TEST(XattrBlob, TestBlob) {
     EXPECT_TRUE(value.empty());
 
     // Add a couple of values
-    blob.set("user", "{\"author\":\"bubba\"}");
-    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
-    blob.set("meta", "{\"content-type\":\"text\"}");
+    blob.set("user", R"({"author":"bubba"})");
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
+    blob.set("meta", R"({"content-type":"text"})");
 
     // Validate the the blob is correctly built
     EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
@@ -47,7 +47,7 @@ TEST(XattrBlob, TestBlob) {
 
     // Change the order of some bytes (that should just do an in-place
     // replacement)
-    blob.set("_sync", "{\"cas\":\"0xcafefeeddeadbeef\"}");
+    blob.set("_sync", R"({"cas":"0xcafefeeddeadbeef"})");
     EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
 
     // Try to fetch all of the values
@@ -85,22 +85,22 @@ TEST(XattrBlob, TestPruneUser) {
     cb::xattr::Blob blob;
 
     // Add a single system xattr
-    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
-    blob.set("_rbac", "{\"foo\":\"bar\"}");
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
+    blob.set("_rbac", R"({"foo":"bar"})");
 
     const auto systemsize = blob.finalize().size();
     EXPECT_NE(0, systemsize);
 
     // Add a couple of user xattrs
-    blob.set("user", "{\"author\":\"bubba\"}");
-    blob.set("meta", "{\"content-type\":\"text\"}");
+    blob.set("user", R"({"author":"bubba"})");
+    blob.set("meta", R"({"content-type":"text"})");
 
     // And I know that when I change something that won't fit in the
     // current place it'll be moved to the end. Let's modify one of
     // the keys..
-    blob.set("_rbac", "{\"auth\":\"needed\"}");
+    blob.set("_rbac", R"({"auth":"needed"})");
     // and then set it back so that the size should be the same..
-    blob.set("_rbac", "{\"foo\":\"bar\"}");
+    blob.set("_rbac", R"({"foo":"bar"})");
     EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
     EXPECT_LT(systemsize, blob.finalize().size());
 
@@ -126,7 +126,7 @@ TEST(XattrBlob, TestToJson) {
     blob.set("_sync",
              "{\"cas\":\"0xdeadbeefcafefeed\", "
              "\"user\":\"trond\"}");
-    blob.set("_rbac", "{\"foo\":\"bar\"}");
+    blob.set("_rbac", R"({"foo":"bar"})");
 
     const std::string expected{
             "{\"_sync\":{\"cas\":\"0xdeadbeefcafefeed\","

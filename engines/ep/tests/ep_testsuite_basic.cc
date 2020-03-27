@@ -1098,7 +1098,7 @@ static enum test_result test_gat(EngineIface* h) {
             "Failed set.");
 
     check_key_value(
-            h, "mykey", "{\"some\":\"value\"}", strlen("{\"some\":\"value\"}"));
+            h, "mykey", R"({"some":"value"})", strlen(R"({"some":"value"})"));
 
     ret = gat(h, "mykey", Vbid(0), 10);
     checkeq(ENGINE_SUCCESS,
@@ -1122,7 +1122,7 @@ static enum test_result test_gat(EngineIface* h) {
 
     // The item should still exist
     check_key_value(
-            h, "mykey", "{\"some\":\"value\"}", strlen("{\"some\":\"value\"}"));
+            h, "mykey", R"({"some":"value"})", strlen(R"({"some":"value"})"));
 
     // time-travel 2 secs..
     testHarness->time_travel(2);

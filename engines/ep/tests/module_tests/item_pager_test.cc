@@ -1234,7 +1234,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     cb::xattr::Blob new_blob(value_buf, false);
 
     // expect sys attributes to remain
-    const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+    const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
     const std::string& sync_str = to_string(new_blob.get("_sync"));
 
     EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";

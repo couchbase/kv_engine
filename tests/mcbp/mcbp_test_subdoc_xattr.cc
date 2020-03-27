@@ -358,11 +358,11 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
-                         "{\"foo\" : \"bar\"}"});
+                         R"({"foo" : "bar"})"});
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_NONE,
                          "meta.author",
-                         "{\"name\" : \"Bubba\"}"});
+                         R"({"name" : "Bubba"})"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
@@ -370,11 +370,11 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_NONE,
                          "meta.author",
-                         "{\"name\" : \"Bubba\"}"});
+                         R"({"name" : "Bubba"})"});
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
-                         "{\"foo\" : \"bar\"}"});
+                         R"({"foo" : "bar"})"});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidXattrOrder, validate());
 }
 
@@ -385,7 +385,7 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "ThisIsASuperDuperLongPath",
-                         "{\"foo\" : \"bar\"}"});
+                         R"({"foo" : "bar"})"});
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate());
 }
 
@@ -425,7 +425,7 @@ TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
         request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                              SUBDOC_FLAG_XATTR_PATH,
                              "_sync.cas",
-                             "{\"foo\" : \"bar\"}"});
+                             R"({"foo" : "bar"})"});
     }
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
@@ -434,11 +434,11 @@ TEST_P(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
-                         "{\"foo\" : \"bar\"}"});
+                         R"({"foo" : "bar"})"});
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "foo.bar",
-                         "{\"foo\" : \"bar\"}"});
+                         R"({"foo" : "bar"})"});
     EXPECT_EQ(cb::mcbp::Status::SubdocXattrInvalidKeyCombo, validate());
 }
 
@@ -446,7 +446,7 @@ TEST_P(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
-                         "{\"foo\" : \"bar\"}"});
+                         R"({"foo" : "bar"})"});
     request.addMutation(
             {cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", ""});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());

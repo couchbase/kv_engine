@@ -1695,7 +1695,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWrite20SyncDelete20) {
     for (uint32_t i = 0; i < numberOfDocks; i++) {
         // prepare SyncWrite and commit.
         testCommittedSyncWriteFlushAfterCommit(
-                vb, keyName + std::to_string(i), "{ \"Hello\": \"World\" }");
+                vb, keyName + std::to_string(i), R"({ "Hello": "World" })");
 
         {
             SCOPED_TRACE("flush sync write: " + std::to_string(i));

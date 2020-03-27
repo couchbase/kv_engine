@@ -727,9 +727,9 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     cb::xattr::Blob blob;
 
     //Add a few XAttrs
-    blob.set("user", "{\"author\":\"bubba\"}");
-    blob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
-    blob.set("meta", "{\"content-type\":\"text\"}");
+    blob.set("user", R"({"author":"bubba"})");
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
+    blob.set("meta", R"({"content-type":"text"})");
 
     auto xattr_value = blob.finalize();
 
@@ -804,7 +804,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     checkeq(systemsize, new_blob.get_system_size(),
             "The size of the blob doesn't match the size of system attributes");
 
-    const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+    const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
     const std::string& sync_str = to_string(blob.get("_sync"));
 
     checkeq(cas_str, sync_str , "system xattr is invalid");
@@ -960,13 +960,13 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
 
     // Throw an xattr document in (and later compressed)
     cb::xattr::Blob builder;
-    builder.set("_ep", "{\"foo\":\"bar\"}");
-    builder.set("key", "{\"foo\":\"bar\"}");
-    builder.set("_sync", "{\"foo\":\"bar\"}");
-    builder.set("stuff", "{\"foo\":\"bar\"}");
-    builder.set("misc", "{\"foo\":\"bar\"}");
-    builder.set("things", "{\"foo\":\"bar\"}");
-    builder.set("that", "{\"foo\":\"bar\"}");
+    builder.set("_ep", R"({"foo":"bar"})");
+    builder.set("key", R"({"foo":"bar"})");
+    builder.set("_sync", R"({"foo":"bar"})");
+    builder.set("stuff", R"({"foo":"bar"})");
+    builder.set("misc", R"({"foo":"bar"})");
+    builder.set("things", R"({"foo":"bar"})");
+    builder.set("that", R"({"foo":"bar"})");
 
     auto blob = builder.finalize();
     std::string data;
@@ -3068,7 +3068,7 @@ static enum test_result test_datatype(EngineIface* h) {
     testHarness->set_datatype_support(cookie, true);
 
     item *itm = nullptr;
-    const std::string key("{\"foo\":\"bar\"}");
+    const std::string key(R"({"foo":"bar"})");
     const auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
     std::string value("x");
@@ -3084,7 +3084,7 @@ static enum test_result test_datatype(EngineIface* h) {
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON, info.datatype, "Invalid datatype");
 
     const char* key1 = "foo";
-    const char* val1 = "{\"foo1\":\"bar1\"}";
+    const char* val1 = R"({"foo1":"bar1"})";
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
     itm_meta.cas = info.cas;
@@ -3120,7 +3120,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     const void* cookie = testHarness->create_cookie(h);
     testHarness->set_datatype_support(cookie, true);
     const char* key = "foo";
-    const char* val = "{\"foo\":\"bar\"}";
+    const char* val = R"({"foo":"bar"})";
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     ItemMetaData itm_meta;
@@ -8065,7 +8065,7 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
     const auto vbid = Vbid(0);
 
     // Add a replica in topology. By doing that, no SW will ever be Committed
-    const char meta[] = "{\"topology\":[[\"active\", \"replica\"]]}";
+    const char meta[] = R"({"topology":[["active", "replica"]]})";
     check(set_vbucket_state(h, vbid, vbucket_state_active, {meta}),
           "set_vbucket_state failed");
 

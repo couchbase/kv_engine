@@ -63,19 +63,19 @@ TEST_F(XattrValidatorTest, TestEmptyXAttrBlob) {
 }
 
 TEST_F(XattrValidatorTest, TestXattrSingleKV) {
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
     EXPECT_TRUE(cb::xattr::validate(getBuffer()));
 }
 
 TEST_F(XattrValidatorTest, TestXattrMultipleKV) {
     for (int ii = 0; ii < 100; ++ii) {
-        addKvPair("_sync" + std::to_string(ii), "{ \"foo\" : \"bar\" }");
+        addKvPair("_sync" + std::to_string(ii), R"({ "foo" : "bar" })");
     }
     EXPECT_TRUE(cb::xattr::validate(getBuffer()));
 }
 
 TEST_F(XattrValidatorTest, TestXattrInvalidRootLength) {
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
     uint32_t len;
 
     // One byte too long
@@ -91,7 +91,7 @@ TEST_F(XattrValidatorTest, TestXattrInvalidRootLength) {
 }
 
 TEST_F(XattrValidatorTest, TestXattrInvalidKeyLength) {
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
     uint32_t len;
 
     // One byte too long
@@ -107,7 +107,7 @@ TEST_F(XattrValidatorTest, TestXattrInvalidKeyLength) {
 }
 
 TEST_F(XattrValidatorTest, TestXattrKeyNotTerminated) {
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
 
     // 4 byte header, 4 byte kv header, 5 characters keyname
     EXPECT_EQ(0, blob[13]);
@@ -116,7 +116,7 @@ TEST_F(XattrValidatorTest, TestXattrKeyNotTerminated) {
 }
 
 TEST_F(XattrValidatorTest, TestXattrValueNotTerminated) {
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
 
     EXPECT_EQ(0, blob.back());
     blob.back() = 'a';
@@ -124,8 +124,8 @@ TEST_F(XattrValidatorTest, TestXattrValueNotTerminated) {
 }
 
 TEST_F(XattrValidatorTest, TestXattrDuplicateKeysNotAllowed) {
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
-    addKvPair("_sync", "{ \"foo\" : \"bar\" }");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
+    addKvPair("_sync", R"({ "foo" : "bar" })");
 
     EXPECT_FALSE(cb::xattr::validate(getBuffer()));
 }
