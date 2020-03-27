@@ -478,11 +478,9 @@ protected:
     /**
      * Attempt to update the map of vb to stream(s) with the new stream
      *
-     * @returns true if the vb_conn_map should be updated
-     * @throws engine_error if an active stream already exists or logic_error
-     *         if the update is not possible.
+     * @throws logic_error if the update is not possible.
      */
-    bool updateStreamsMap(Vbid vbid,
+    void updateStreamsMap(Vbid vbid,
                           cb::mcbp::DcpStreamId sid,
                           std::shared_ptr<Stream>& stream);
 

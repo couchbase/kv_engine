@@ -365,6 +365,40 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         return ENGINE_DCP_STREAMID_INVALID;
     }
 
+    // Check if this vbid can be added to this producer connection, and if
+    // the vb connection map needs updating (if this is a new VB).
+    bool callAddVBConnByVBId = true;
+    auto found = streams.find(vbucket.get());
+    if (found != streams.end()) {
+        // vbid is already mapped. found.second is a shared_ptr<StreamContainer>
+        if (found->second) {
+            auto handle = found->second->wlock();
+            for (; !handle.end(); handle.next()) {
+                auto& sp = handle.get(); // get the shared_ptr<Stream>
+                if (sp->compareStreamId(filter.getStreamId())) {
+                    // Error if found and active
+                    if (sp->isActive()) {
+                        logger->warn(
+                                "({}) Stream ({}) request failed"
+                                " because a stream already exists for this "
+                                "vbucket",
+                                vbucket,
+                                filter.getStreamId().to_string());
+                        return ENGINE_KEY_EEXISTS;
+                    } else {
+                        // Found a 'dead' stream which can be replaced.
+                        handle.erase();
+
+                        // Don't need to add an entry to vbucket-to-conns map
+                        callAddVBConnByVBId = false;
+
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     // If we are a notify stream then we can't use the start_seqno supplied
     // since if it is greater than the current high seqno then it will always
     // trigger a rollback. As a result we should use the current high seqno for
@@ -446,6 +480,10 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         return ENGINE_ERANGE;
     }
 
+    // Take copy of Filter's streamID, given it will be moved-from when
+    // ActiveStream is constructed.
+    const auto streamID = filter.getStreamId();
+
     std::shared_ptr<Stream> s;
     if (notifyOnly) {
         s = std::make_shared<NotifierStream>(&engine_,
@@ -494,7 +532,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         }
     }
 
-    bool add_vb_conn_map = true;
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
@@ -519,7 +556,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
             static_cast<ActiveStream*>(s.get())->setActive();
         }
 
-        add_vb_conn_map = updateStreamsMap(vbucket, filter.getStreamId(), s);
+        updateStreamsMap(vbucket, streamID, s);
     }
 
     // See MB-25820:  Ensure that callback is called only after all other
@@ -541,7 +578,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
 
     notifyStreamReady(vbucket);
 
-    if (add_vb_conn_map) {
+    if (callAddVBConnByVBId) {
         engine_.getDcpConnMap().addVBConnByVBId(*this, vbucket);
     }
 
@@ -1836,7 +1873,7 @@ DcpProducer::findStreams(Vbid vbid) {
     return nullptr;
 }
 
-bool DcpProducer::updateStreamsMap(Vbid vbid,
+void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<Stream>& stream) {
     auto found = streams.find(vbid.get());
@@ -1848,23 +1885,17 @@ bool DcpProducer::updateStreamsMap(Vbid vbid,
             for (; !handle.end(); handle.next()) {
                 auto& sp = handle.get(); // get the shared_ptr<Stream>
                 if (sp->compareStreamId(sid)) {
-                    // Error if found and active
-                    if (sp->isActive()) {
-                        logger->warn(
-                                "({}) Stream ({}) request failed"
-                                " because a stream already exists for this "
-                                "vbucket",
-                                vbid,
-                                sid.to_string());
-                        throw cb::engine_error(
-                                cb::engine_errc::key_already_exists,
-                                "Stream already exists for " +
-                                        vbid.to_string());
-                    } else {
-                        // Found a 'dead' stream, we can swap it
-                        handle.swap(stream);
-                        return false; // Do not update vb_conns_map
-                    }
+                    // Error if found - given we just checked this
+                    // in the pre-flight checks for streamRequest.
+                    auto msg = fmt::format(
+                            "({}) Stream ({}) request failed"
+                            " because a stream unexpectedly exists in "
+                            "StreamContainer for this vbucket",
+                            vbid,
+                            sid.to_string());
+                    logger->warn(msg);
+                    throw std::logic_error("DcpProducer::updateStreamsMap " +
+                                           msg);
                 }
             }
 
@@ -1894,7 +1925,6 @@ bool DcpProducer::updateStreamsMap(Vbid vbid,
                 vbid.get(),
                 std::make_shared<StreamContainer<ContainerElement>>(stream)));
     }
-    return true; // Do update vb_conns_map
 }
 
 end_stream_status_t DcpProducer::mapEndStreamStatus(
