@@ -232,6 +232,24 @@ protected:
              Args... args) const;
 
     /**
+     * Log when the stream backs off or resumes processing items.
+     *
+     * Determines if the stream has backed off or resumed based on
+     * the passed status. Assumes no_memory indicates the stream will
+     * backoff, and that success indicates the stream has resumed
+     * processing.
+     *
+     * @param status last error code returned by the engine when processing
+     *               a message
+     * @param msgType string indicating the type of the last message processed
+     *                ("mutation", "deletion", "expiration", "prepare")
+     * @param seqno seqno of last message processed
+     */
+    void maybeLogMemoryState(cb::engine_errc status,
+                             const std::string& msgType,
+                             int64_t seqno);
+
+    /**
      * Notifies the consumer connection that the stream has items ready to be
      * pick up.
      */
@@ -317,4 +335,8 @@ protected:
      * messages in the buffer.
      */
     std::function<void()> processBufferedMessages_postFront_Hook;
+
+    // Flag indicating if the most recent call to processMessage
+    // backed off due to ENOMEM. Only used for limiting logging
+    std::atomic<bool> isNoMemory{false};
 };
