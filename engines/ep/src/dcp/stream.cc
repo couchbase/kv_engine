@@ -2506,16 +2506,23 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     }
 
     if (ret != ENGINE_SUCCESS) {
-        log(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16
-            " Got error '%s' while trying to process "
-            "mutation with seqno:%" PRId64,
-            vb_,
-            cb::to_string(cb::to_engine_errc(ret)).c_str(),
-            mutation->getItem()->getBySeqno());
+        // ENOMEM logging is handled by maybeLogMemoryState
+        if (ret != ENGINE_ENOMEM) {
+            log(EXTENSION_LOG_WARNING,
+                "vb:%" PRIu16
+                " Got error '%s' while trying to process "
+                "mutation with seqno:%" PRId64,
+                vb_,
+                cb::to_string(cb::to_engine_errc(ret)).c_str(),
+                mutation->getItem()->getBySeqno());
+        }
     } else {
         handleSnapshotEnd(vb, *mutation->getBySeqno());
     }
+
+    maybeLogMemoryState(cb::to_engine_errc(ret),
+                        "mutation",
+                        mutation->getItem()->getBySeqno());
 
     return ret;
 }
@@ -2588,16 +2595,22 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     if (ret != ENGINE_SUCCESS) {
-        log(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16
-            " Got error '%s' while trying to process "
-            "deletion with seqno:%" PRId64,
-            vb_,
-            cb::to_string(cb::to_engine_errc(ret)).c_str(),
-            *deletion->getBySeqno());
+        // ENOMEM logging is handled by maybeLogMemoryState
+        if (ret != ENGINE_ENOMEM) {
+            log(EXTENSION_LOG_WARNING,
+                "vb:%" PRIu16
+                " Got error '%s' while trying to process "
+                "deletion with seqno:%" PRId64,
+                vb_,
+                cb::to_string(cb::to_engine_errc(ret)).c_str(),
+                *deletion->getBySeqno());
+        }
     } else {
         handleSnapshotEnd(vb, *deletion->getBySeqno());
     }
+
+    maybeLogMemoryState(
+            cb::to_engine_errc(ret), "deletion", *deletion->getBySeqno());
 
     return ret;
 }
@@ -2914,6 +2927,27 @@ void PassiveStream::log(EXTENSION_LOG_LEVEL severity,
         defaultLogger.vlog(severity, fmt, va);
     }
     va_end(va);
+}
+
+void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
+                                        const std::string& msgType,
+                                        int64_t seqno) {
+    bool previousNoMem = isNoMemory.load();
+    if (status == cb::engine_errc::no_memory && !previousNoMem) {
+        log(EXTENSION_LOG_WARNING,
+            "vb:%" PRIu16
+            " Got error '%s' while trying to process %s with seqno:%" PRId64,
+            vb_,
+            cb::to_string(status).c_str(),
+            msgType.c_str(),
+            seqno);
+        isNoMemory.store(true);
+    } else if (status == cb::engine_errc::success && previousNoMem) {
+        log(EXTENSION_LOG_INFO,
+            "vb:%" PRIu16 " PassiveStream resuming after no-memory backoff",
+            vb_);
+        isNoMemory.store(false);
+    }
 }
 
 void PassiveStream::notifyStreamReady() {
