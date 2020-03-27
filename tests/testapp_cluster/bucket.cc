@@ -22,6 +22,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <iostream>
+#include <utility>
 
 namespace cb {
 namespace test {
@@ -34,7 +35,7 @@ Bucket::Bucket(const Cluster& cluster,
     : cluster(cluster),
       name(std::move(name)),
       uuid(::to_string(cb::uuid::random())),
-      packet_filter(packet_filter) {
+      packet_filter(std::move(packet_filter)) {
     auto nodes = cluster.size();
     vbucketmap.resize(vbuckets);
     int ii = 0;

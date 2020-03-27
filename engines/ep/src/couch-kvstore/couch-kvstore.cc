@@ -41,6 +41,7 @@
 #include <gsl/gsl>
 
 #include <shared_mutex>
+#include <utility>
 
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
@@ -221,7 +222,7 @@ struct GetMultiCbCtx {
 struct AllKeysCtx {
     AllKeysCtx(std::shared_ptr<Callback<const DiskDocKey&>> callback,
                uint32_t cnt)
-        : cb(callback), count(cnt) {
+        : cb(std::move(callback)), count(cnt) {
     }
 
     std::shared_ptr<Callback<const DiskDocKey&>> cb;
@@ -326,7 +327,7 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
     : KVStore(readOnly),
       configuration(config),
       dbname(config.getDBName()),
-      dbFileRevMap(dbFileRevMap),
+      dbFileRevMap(std::move(dbFileRevMap)),
       intransaction(false),
       logger(config.getLogger()),
       base_ops(ops) {

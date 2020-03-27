@@ -52,6 +52,7 @@
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 /**
  * Are we testing performance numbers, or just checking functionality?
@@ -673,7 +674,7 @@ struct Handle_args {
           h1(_h1),
           itemCount(_count),
           typeOfData(_type),
-          name(_name),
+          name(std::move(_name)),
           opaque(_opaque),
           vb(_vb),
           retrieveCompressed(_getCompressed) {
@@ -704,9 +705,9 @@ struct Handle_args {
  */
 class UniformCharacterDistribution {
 public:
-    UniformCharacterDistribution(const std::string& alphabet_)
-    : alphabet(alphabet_),
-      uid(0, alphabet.size()) {}
+    UniformCharacterDistribution(std::string alphabet_)
+        : alphabet(std::move(alphabet_)), uid(0, alphabet.size()) {
+    }
 
     template< class Generator >
     char operator()(Generator& g) {

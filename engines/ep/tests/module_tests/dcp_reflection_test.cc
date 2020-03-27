@@ -28,6 +28,8 @@
 #include <tests/mock/mock_stream.h>
 #include <tests/mock/mock_synchronous_ep_engine.h>
 
+#include <utility>
+
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
@@ -124,8 +126,8 @@ protected:
                  std::shared_ptr<MockDcpConsumer> consumer)
             : vbid(vbid),
               producerNode(producerNode),
-              producer(producer),
-              consumer(consumer) {
+              producer(std::move(producer)),
+              consumer(std::move(consumer)) {
         }
 
         ~DcpRoute() {

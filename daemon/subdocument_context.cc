@@ -30,6 +30,7 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
+#include <utility>
 
 using namespace std::string_literals;
 
@@ -40,8 +41,8 @@ SubdocCmdContext::OperationSpec::OperationSpec(
         std::string value_)
     : traits(traits_),
       flags(flags_),
-      path(path_),
-      value(value_),
+      path(std::move(path_)),
+      value(std::move(value_)),
       status(cb::mcbp::Status::Einternal) {
     if (flags & SUBDOC_FLAG_MKDIR_P) {
         traits.subdocCommand = Subdoc::Command(traits.subdocCommand |

@@ -29,6 +29,8 @@
 
 #include <phosphor/phosphor.h>
 
+#include <utility>
+
 static const size_t sleepTime = 1;
 
 class BackfillManagerTask : public GlobalTask {
@@ -41,7 +43,7 @@ public:
                      TaskId::BackfillManagerTask,
                      sleeptime,
                      completeBeforeShutdown),
-          weak_manager(mgr) {
+          weak_manager(std::move(mgr)) {
     }
 
     bool run();

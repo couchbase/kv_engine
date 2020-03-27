@@ -206,7 +206,7 @@ private:
  */
 class MutationLog {
 public:
-    MutationLog(const std::string& path, const size_t bs = MIN_LOG_HEADER_SIZE);
+    MutationLog(std::string path, const size_t bs = MIN_LOG_HEADER_SIZE);
 
     ~MutationLog();
 

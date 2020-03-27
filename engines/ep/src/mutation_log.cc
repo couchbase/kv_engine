@@ -251,8 +251,8 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     return true;
 }
 
-MutationLog::MutationLog(const std::string& path, const size_t bs)
-    : logPath(path),
+MutationLog::MutationLog(std::string path, const size_t bs)
+    : logPath(std::move(path)),
       blockSize(bs),
       blockPos(HEADER_RESERVED),
       file(INVALID_FILE_VALUE),

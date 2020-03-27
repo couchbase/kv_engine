@@ -24,6 +24,7 @@
 #include <nlohmann/json.hpp>
 
 #include <iostream>
+#include <utility>
 
 namespace Collections {
 
@@ -156,8 +157,8 @@ void OutputCouchFile::writeSupportsNamespaces(const std::string& vbs,
 }
 
 OutputCouchFile::BufferedOutputDocuments::Document::Document(
-        const std::string& newDocKey, const Doc* doc, const DocInfo& docInfo)
-    : newDocKey(newDocKey), newDocInfo(docInfo), doc(doc) {
+        std::string newDocKey, const Doc* doc, const DocInfo& docInfo)
+    : newDocKey(std::move(newDocKey)), newDocInfo(docInfo), doc(doc) {
     if (doc) {
         newDoc = *doc;
     }

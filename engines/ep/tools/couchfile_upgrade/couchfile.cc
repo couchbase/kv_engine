@@ -18,11 +18,15 @@
 #include "couchfile.h"
 
 #include <iostream>
+#include <utility>
 
 CouchFile::CouchFile(OptionsSet options,
-                     const std::string& filename,
+                     std::string filename,
                      couchstore_open_flags flags)
-    : db(nullptr), filename(filename), flags(flags), options(options) {
+    : db(nullptr),
+      filename(std::move(filename)),
+      flags(flags),
+      options(options) {
     open();
 }
 

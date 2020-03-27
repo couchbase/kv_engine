@@ -27,15 +27,17 @@
 #include <memcached/rbac.h>
 #include <utilities/logtags.h>
 
+#include <utility>
+
 SaslAuthTask::SaslAuthTask(Cookie& cookie_,
                            Connection& connection_,
-                           const std::string& mechanism_,
-                           const std::string& challenge_)
+                           std::string mechanism_,
+                           std::string challenge_)
     : cookie(cookie_),
       connection(connection_),
       serverContext(connection_.getSaslConn()),
-      mechanism(mechanism_),
-      challenge(challenge_) {
+      mechanism(std::move(mechanism_)),
+      challenge(std::move(challenge_)) {
     // no more init needed
 }
 

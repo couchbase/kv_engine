@@ -17,6 +17,8 @@
 
 #include "ephemeral_bucket_test.h"
 
+#include <utility>
+
 #include "checkpoint_manager.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
@@ -71,7 +73,7 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
 
     // Test visitor which pages out our key
     struct Visitor : public HashTableVisitor {
-        Visitor(VBucket& vb, StoredDocKey key) : vb(vb), key(key) {
+        Visitor(VBucket& vb, StoredDocKey key) : vb(vb), key(std::move(key)) {
         }
 
         bool visit(const HashTable::HashBucketLock& lh,

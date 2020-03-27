@@ -876,7 +876,7 @@ class BinprotSetParamCommand
 public:
     BinprotSetParamCommand(cb::mcbp::request::SetParamPayload::Type type_,
                            const std::string& key_,
-                           const std::string& value_);
+                           std::string value_);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

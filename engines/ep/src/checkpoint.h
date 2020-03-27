@@ -145,7 +145,7 @@ class CheckpointCursor {
     friend class CheckpointCursorIntrospector;
 
 public:
-    CheckpointCursor(const std::string& n,
+    CheckpointCursor(std::string n,
                      CheckpointList::iterator checkpoint,
                      ChkptQueueIterator pos);
 

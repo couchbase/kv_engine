@@ -28,6 +28,7 @@
 #include <gsl/gsl>
 #include <set>
 #include <stdexcept>
+#include <utility>
 
 /*
  * Implementation Details
@@ -230,12 +231,12 @@ struct tk_context {
                                 const topkey_item_t&,
                                 void*);
     tk_context(const void* c,
-               const AddStatFn& a,
+               AddStatFn a,
                rel_time_t t,
                nlohmann::json* arr,
                CallbackFn callbackFn)
         : cookie(c),
-          add_stat(a),
+          add_stat(std::move(a)),
           current_time(t),
           array(arr),
           callbackFunction(callbackFn) {

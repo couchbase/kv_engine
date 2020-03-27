@@ -19,6 +19,7 @@
 #include <folly/lang/Assume.h>
 #include <map>
 #include <string>
+#include <utility>
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore-config.h"
@@ -101,7 +102,7 @@ ByIdScanContext::ByIdScanContext(
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vb,
         std::unique_ptr<KVFileHandle> handle,
-        const std::vector<ByIdRange>& ranges,
+        std::vector<ByIdRange> ranges,
         DocumentFilter _docFilter,
         ValueFilter _valFilter,
         const std::vector<Collections::KVStore::DroppedCollection>&
@@ -113,7 +114,7 @@ ByIdScanContext::ByIdScanContext(
                   std::move(cb),
                   std::move(cl),
                   droppedCollections),
-      ranges(ranges) {
+      ranges(std::move(ranges)) {
 }
 
 void FileStats::reset() {

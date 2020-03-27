@@ -43,8 +43,8 @@ public:
 
     SaslAuthTask(Cookie& cookie_,
                  Connection& connection_,
-                 const std::string& mechanism_,
-                 const std::string& challenge_);
+                 std::string mechanism_,
+                 std::string challenge_);
 
     void notifyExecutionComplete() override;
 

@@ -56,6 +56,8 @@
 #include <list>
 #include <set>
 #include <string>
+#include <utility>
+
 #include <vector>
 
 using namespace std::string_literals;
@@ -224,9 +226,9 @@ VBucket::VBucket(Vbid i,
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
-      syncWriteResolvedCb(syncWriteResolvedCb),
-      syncWriteCompleteCb(syncWriteCb),
-      seqnoAckCb(seqnoAckCb),
+      syncWriteResolvedCb(std::move(syncWriteResolvedCb)),
+      syncWriteCompleteCb(std::move(syncWriteCb)),
+      seqnoAckCb(std::move(seqnoAckCb)),
       manifest(std::move(manifest)),
       mayContainXattrs(mightContainXattrs) {
     if (config.getConflictResolutionType().compare("lww") == 0) {

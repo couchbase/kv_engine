@@ -21,6 +21,7 @@
 #include "environment.h"
 
 #include <memory>
+#include <utility>
 
 /// A listener class to update KVStore related configs at runtime.
 class KVStoreConfig::ConfigChangeListener : public ValueChangedListener {
@@ -54,13 +55,13 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              uint16_t _maxShards,
-                             const std::string& _dbname,
-                             const std::string& _backend,
+                             std::string _dbname,
+                             std::string _backend,
                              uint16_t _shardId)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
-      dbname(_dbname),
-      backend(_backend),
+      dbname(std::move(_dbname)),
+      backend(std::move(_backend)),
       shardId(_shardId),
       logger(globalBucketLogger.get()) {
     auto env = Environment::get();

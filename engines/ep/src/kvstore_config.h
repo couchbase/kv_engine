@@ -39,8 +39,8 @@ public:
      */
     KVStoreConfig(uint16_t _maxVBuckets,
                   uint16_t _maxShards,
-                  const std::string& _dbname,
-                  const std::string& _backend,
+                  std::string _dbname,
+                  std::string _backend,
                   uint16_t _shardId);
 
     KVStoreConfig(const KVStoreConfig& other);

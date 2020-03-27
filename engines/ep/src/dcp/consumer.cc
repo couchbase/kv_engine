@@ -150,7 +150,7 @@ private:
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                          const void* cookie,
                          const std::string& name,
-                         const std::string& consumerName_)
+                         std::string consumerName_)
     : ConnHandler(engine, cookie, name),
       lastMessageTime(ep_current_time()),
       engine(engine),
@@ -161,7 +161,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       backoffs(0),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
       pendingSendStreamEndOnClientStreamClose(true),
-      consumerName(consumerName_),
+      consumerName(std::move(consumerName_)),
       producerIsVersion5orHigher(false),
       processorTaskRunning(false),
       flowControl(engine, this),

@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <limits>
 #include <string>
+#include <utility>
 
 EPStats global_stats;
 
@@ -250,9 +251,8 @@ TEST_F(HashTableTest, Resize) {
 
 class AccessGenerator : public Generator<bool> {
 public:
-
-    AccessGenerator(const std::vector<StoredDocKey> &k,
-                    HashTable &h) : keys(k), ht(h), size(10000) {
+    AccessGenerator(std::vector<StoredDocKey> k, HashTable& h)
+        : keys(std::move(k)), ht(h), size(10000) {
         std::random_device rd;
         std::mt19937 g(rd());
         std::shuffle(keys.begin(), keys.end(), g);

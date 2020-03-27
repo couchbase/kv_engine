@@ -49,7 +49,7 @@ public:
            Memory
     };
 
-    Stream(const std::string& name,
+    Stream(std::string name,
            uint32_t flags,
            uint32_t opaque,
            Vbid vb,

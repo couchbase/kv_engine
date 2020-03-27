@@ -16,13 +16,16 @@
  */
 
 #include "bucket_logger.h"
+
+#include <utility>
+
 #include "ep_engine.h"
 #include "objectregistry.h"
 
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
-BucketLogger::BucketLogger(const std::string& name, const std::string& p)
-    : spdlog::logger(name, nullptr), prefix(p) {
+BucketLogger::BucketLogger(const std::string& name, std::string p)
+    : spdlog::logger(name, nullptr), prefix(std::move(p)) {
     spdLogger = BucketLogger::loggerAPI.load(std::memory_order_relaxed)
                         ->get_spdlogger();
 

@@ -39,7 +39,7 @@ class VBucketVisitor {
 public:
     VBucketVisitor();
 
-    VBucketVisitor(const VBucketFilter& filter);
+    VBucketVisitor(VBucketFilter filter);
 
     virtual ~VBucketVisitor();
 

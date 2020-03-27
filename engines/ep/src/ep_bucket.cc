@@ -45,6 +45,8 @@
 
 #include <gsl.h>
 
+#include <utility>
+
 /**
  * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
@@ -1266,8 +1268,8 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
                                                    const AddStatFn& add_stat) {
     class DiskStatVisitor : public VBucketVisitor {
     public:
-        DiskStatVisitor(const void* c, const AddStatFn& a)
-            : cookie(c), add_stat(a) {
+        DiskStatVisitor(const void* c, AddStatFn a)
+            : cookie(c), add_stat(std::move(a)) {
         }
 
         void visitBucket(const VBucketPtr& vb) override {

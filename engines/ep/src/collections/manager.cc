@@ -26,6 +26,8 @@
 #include "vbucket.h"
 
 #include <boost/optional.hpp>
+#include <utility>
+
 #include <spdlog/fmt/ostr.h>
 
 Collections::Manager::Manager() {
@@ -271,8 +273,8 @@ public:
 
 class CollectionDetailedVBucketVisitor : public VBucketVisitor {
 public:
-    CollectionDetailedVBucketVisitor(const void* c, const AddStatFn& a)
-        : cookie(c), add_stat(a) {
+    CollectionDetailedVBucketVisitor(const void* c, AddStatFn a)
+        : cookie(c), add_stat(std::move(a)) {
     }
 
     void visitBucket(const VBucketPtr& vb) override {
@@ -293,8 +295,8 @@ private:
 
 class ScopeDetailedVBucketVisitor : public VBucketVisitor {
 public:
-    ScopeDetailedVBucketVisitor(const void* c, const AddStatFn& a)
-        : cookie(c), add_stat(a) {
+    ScopeDetailedVBucketVisitor(const void* c, AddStatFn a)
+        : cookie(c), add_stat(std::move(a)) {
     }
 
     void visitBucket(const VBucketPtr& vb) override {

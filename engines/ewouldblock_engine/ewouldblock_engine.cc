@@ -1110,7 +1110,7 @@ private:
          */
         ErrSequence(std::vector<cb::engine_errc> sequence_)
             : FaultInjectMode(ENGINE_SUCCESS),
-              sequence(sequence_),
+              sequence(std::move(sequence_)),
               pos(sequence.begin()) {
         }
 

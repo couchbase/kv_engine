@@ -51,6 +51,8 @@
 #include <kvstore.h>
 #include <thread>
 #include <unordered_map>
+#include <utility>
+
 #include <vector>
 
 using namespace std::string_literals;
@@ -175,8 +177,8 @@ private:
  */
 class CustomRBCallback : public RollbackCB {
 public:
-    CustomRBCallback(std::function<void(GetValue)> _cb)
-        : cb(_cb) {}
+    CustomRBCallback(std::function<void(GetValue)> _cb) : cb(std::move(_cb)) {
+    }
     CustomRBCallback()
         : cb([](GetValue val){}) {}
 
@@ -404,7 +406,7 @@ public:
 class CollectionsOfflineGetCallback : public StatusCallback<GetValue> {
 public:
     CollectionsOfflineGetCallback(std::pair<int, int> deletedRange)
-        : deletedRange(deletedRange) {
+        : deletedRange(std::move(deletedRange)) {
     }
 
     void callback(GetValue& result) {

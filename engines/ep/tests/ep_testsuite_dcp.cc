@@ -29,6 +29,7 @@
 #include <platform/platform_thread.h>
 #include <condition_variable>
 #include <thread>
+#include <utility>
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
@@ -170,11 +171,9 @@ class TestDcpConsumer {
  * messages from it.
  */
 public:
-    TestDcpConsumer(const std::string& _name,
-                    const void* _cookie,
-                    EngineIface* h)
+    TestDcpConsumer(std::string _name, const void* _cookie, EngineIface* h)
         : producers(h),
-          name(_name),
+          name(std::move(_name)),
           cookie(_cookie),
           opaque(0),
           total_bytes(0),

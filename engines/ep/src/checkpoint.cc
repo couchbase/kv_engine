@@ -53,10 +53,13 @@ std::string to_string(QueueDirtyStatus value) {
                                 std::to_string(int(value)));
 }
 
-CheckpointCursor::CheckpointCursor(const std::string& n,
+CheckpointCursor::CheckpointCursor(std::string n,
                                    CheckpointList::iterator checkpoint,
                                    ChkptQueueIterator pos)
-    : name(n), currentCheckpoint(checkpoint), currentPos(pos), numVisits(0) {
+    : name(std::move(n)),
+      currentCheckpoint(checkpoint),
+      currentPos(pos),
+      numVisits(0) {
     (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
 }
 

@@ -17,12 +17,14 @@
 
 #include "vb_visitors.h"
 
+#include <utility>
+
 #include "vbucket.h"
 
 VBucketVisitor::VBucketVisitor() = default;
 
-VBucketVisitor::VBucketVisitor(const VBucketFilter& filter)
-    : vBucketFilter(filter) {
+VBucketVisitor::VBucketVisitor(VBucketFilter filter)
+    : vBucketFilter(std::move(filter)) {
 }
 
 VBucketVisitor::~VBucketVisitor() = default;

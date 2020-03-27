@@ -35,7 +35,7 @@ public:
      * @throws runtime_error for any error returned from couchstore_open_db
      */
     CouchFile(OptionsSet options,
-              const std::string& filename,
+              std::string filename,
               couchstore_open_flags flags = 0);
 
     ~CouchFile();

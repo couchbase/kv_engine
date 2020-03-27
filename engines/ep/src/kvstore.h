@@ -317,7 +317,7 @@ public:
                     std::unique_ptr<StatusCallback<CacheLookup>> cl,
                     Vbid vb,
                     std::unique_ptr<KVFileHandle> handle,
-                    const std::vector<ByIdRange>& ranges,
+                    std::vector<ByIdRange> ranges,
                     DocumentFilter _docFilter,
                     ValueFilter _valFilter,
                     const std::vector<Collections::KVStore::DroppedCollection>&

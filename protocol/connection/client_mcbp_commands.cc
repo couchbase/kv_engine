@@ -20,6 +20,7 @@
 #include <memcached/tracer.h>
 #include <array>
 #include <gsl/gsl>
+#include <utility>
 
 /**
  * Append a 16 bit integer to the buffer in network byte order
@@ -1436,10 +1437,10 @@ void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
 BinprotSetParamCommand::BinprotSetParamCommand(
         cb::mcbp::request::SetParamPayload::Type type_,
         const std::string& key_,
-        const std::string& value_)
+        std::string value_)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetParam),
       type(type_),
-      value(value_) {
+      value(std::move(value_)) {
     setKey(key_);
 }
 

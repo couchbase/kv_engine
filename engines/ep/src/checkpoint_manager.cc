@@ -29,6 +29,8 @@
 #include "vbucket_state.h"
 
 #include <boost/optional/optional_io.hpp>
+#include <utility>
+
 #include <gsl.h>
 
 constexpr const char* CheckpointManager::pCursorName;
@@ -49,7 +51,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
       lastBySeqno(lastSeqno),
       maxVisibleSeqno(maxVisibleSeqno),
       pCursorPreCheckpointId(0),
-      flusherCB(cb) {
+      flusherCB(std::move(cb)) {
     LockHolder lh(queueLock);
 
     lastBySeqno.setLabel("CheckpointManager(" + vbucketId.to_string() +

@@ -23,6 +23,7 @@
 
 #include <engines/ep/src/bucket_logger.h>
 #include <memory>
+#include <utility>
 
 const char* to_string(Stream::Snapshot type) {
     switch (type) {
@@ -39,7 +40,7 @@ const char* to_string(Stream::Snapshot type) {
 
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 
-Stream::Stream(const std::string& name,
+Stream::Stream(std::string name,
                uint32_t flags,
                uint32_t opaque,
                Vbid vb,
@@ -48,7 +49,7 @@ Stream::Stream(const std::string& name,
                uint64_t vb_uuid,
                uint64_t snap_start_seqno,
                uint64_t snap_end_seqno)
-    : name_(name),
+    : name_(std::move(name)),
       flags_(flags),
       opaque_(opaque),
       vb_(vb),

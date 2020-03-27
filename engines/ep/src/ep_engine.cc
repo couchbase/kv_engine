@@ -83,6 +83,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
+
 #include <vector>
 
 using cb::tracing::Code;
@@ -3238,9 +3240,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
     public:
         StatVBucketVisitor(KVBucketIface* store,
                            const void* c,
-                           const AddStatFn& a,
+                           AddStatFn a,
                            VBucketStatsDetailLevel detail)
-            : eps(store), cookie(c), add_stat(a), detail(detail) {
+            : eps(store), cookie(c), add_stat(std::move(a)), detail(detail) {
         }
 
         void visitBucket(const VBucketPtr& vb) override {
@@ -3330,9 +3332,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(
     class StatVBucketVisitor : public VBucketVisitor {
     public:
         StatVBucketVisitor(const void* c,
-                           const AddStatFn& a,
+                           AddStatFn a,
                            BucketCompressionMode compressMode)
-            : cookie(c), add_stat(a), compressionMode(compressMode) {
+            : cookie(c), add_stat(std::move(a)), compressionMode(compressMode) {
         }
 
         void visitBucket(const VBucketPtr& vb) override {
@@ -3430,10 +3432,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(
  */
 class AddStatsStream : public std::ostream {
 public:
-    AddStatsStream(std::string key,
-                   const AddStatFn& callback,
-                   const void* cookie)
-        : std::ostream(&buf), key(key), callback(callback), cookie(cookie) {
+    AddStatsStream(std::string key, AddStatFn callback, const void* cookie)
+        : std::ostream(&buf),
+          key(std::move(key)),
+          callback(std::move(callback)),
+          cookie(cookie) {
     }
 
     ~AddStatsStream() {
@@ -3496,8 +3499,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDurabilityMonitorDump(
 
 class StatCheckpointVisitor : public VBucketVisitor {
 public:
-    StatCheckpointVisitor(KVBucketIface* kvs, const void* c, const AddStatFn& a)
-        : kvBucket(kvs), cookie(c), add_stat(a) {
+    StatCheckpointVisitor(KVBucketIface* kvs, const void* c, AddStatFn a)
+        : kvBucket(kvs), cookie(c), add_stat(std::move(a)) {
     }
 
     void visitBucket(const VBucketPtr& vb) override {
@@ -3542,11 +3545,11 @@ class StatCheckpointTask : public GlobalTask {
 public:
     StatCheckpointTask(EventuallyPersistentEngine* e,
                        const void* c,
-                       const AddStatFn& a)
+                       AddStatFn a)
         : GlobalTask(e, TaskId::StatCheckpointTask, 0, false),
           ep(e),
           cookie(c),
-          add_stat(a) {
+          add_stat(std::move(a)) {
     }
     bool run() {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
@@ -3984,8 +3987,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const void* c, const AddStatFn& a)
-            : cookie(c), add_stat(a) {
+        StatVBucketVisitor(const void* c, AddStatFn a)
+            : cookie(c), add_stat(std::move(a)) {
         }
 
         void visitBucket(const VBucketPtr& vb) override {
@@ -5973,7 +5976,7 @@ class FetchAllKeysTask : public GlobalTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine* e,
                      const void* c,
-                     const AddResponseFn& resp,
+                     AddResponseFn resp,
                      const DocKey start_key_,
                      Vbid vbucket,
                      uint32_t count_,
@@ -5982,7 +5985,7 @@ public:
           engine(e),
           cookie(c),
           description("Running the ALL_DOCS api on " + vbucket.to_string()),
-          response(resp),
+          response(std::move(resp)),
           start_key(start_key_),
           vbid(vbucket),
           count(count_),

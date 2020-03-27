@@ -135,7 +135,7 @@ protected:
 
     private:
         struct Document {
-            Document(const std::string& newDocKey,
+            Document(std::string newDocKey,
                      const Doc* doc,
                      const DocInfo& docInfo);
             ~Document();
