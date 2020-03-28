@@ -143,3 +143,7 @@ void rewriteCouchstoreVBState(Vbid vbucket,
                               const std::string& dbDir,
                               int revision,
                               bool namespacesSupported = true);
+
+// Return a string suitable for a database directory path, based on the
+// current running GoogleTest.
+std::string dbnameFromCurrentGTestInfo();

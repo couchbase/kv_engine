@@ -24,11 +24,14 @@
 #include <folly/portability/GTest.h>
 #include <libcouchstore/couch_db.h>
 #include <platform/compress.h>
+#include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <memory>
 #include <thread>
+
+using namespace std::string_literals;
 
 StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
     return StoredDocKey(string, ns);
@@ -208,4 +211,24 @@ void rewriteCouchstoreVBState(Vbid vbucket,
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to close file";
     err = couchstore_free_db(handle);
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to free db";
+}
+
+std::string dbnameFromCurrentGTestInfo() {
+#ifdef WIN32
+    // On Windows we quickly end up hitting up against the MAX_PATH or 260
+    // characters when attempting to uniqify the dbname. The issues include
+    // ones deep inside Magma (see MB-38577).
+    // As use a simpler (but less descriptive) name - simply use a temporary
+    // directory.
+    cb::io::mkdirp("ep_engine_ep_unit_tests.db");
+    return cb::io::mkdtemp("ep_engine_ep_unit_tests.db/test.XXXXXX");
+#else
+    auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+    Expects(info);
+    auto subdir = std::string(info->test_suite_name()) + "_" + info->name();
+    // To avoid having arbitrary levels of nested directories, replace any '/'
+    // (used to separate components of parameterized tests) with '_'.
+    std::replace(begin(subdir), end(subdir), '/', '_');
+    return "ep_engine_ep_unit_tests.db/"s + subdir;
+#endif
 }

@@ -36,6 +36,10 @@
 #include <chrono>
 #include <thread>
 
+EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
+    : test_dbname(dbnameFromCurrentGTestInfo()), bucketType("persistent") {
+}
+
 void EventuallyPersistentEngineTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
@@ -59,7 +63,7 @@ void EventuallyPersistentEngineTest::SetUp() {
     if (!config.empty()) {
         config += ";";
     }
-    config += "dbname=" + std::string(test_dbname);
+    config += "dbname=" + test_dbname;
 
     // Set the bucketType
     config += ";bucket_type=" + bucketType;
@@ -134,9 +138,6 @@ void EventuallyPersistentEngineTest::store_committed_item(
     EXPECT_EQ(ENGINE_SUCCESS,
               engine->storeInner(cookie, *item, cas, OPERATION_SET, false));
 }
-
-const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
-
 
 TEST_P(SetParamTest, requirements_bucket_type) {
     std::string bucketType = engine->getConfiguration().getBucketType();

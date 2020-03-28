@@ -35,8 +35,7 @@ using queued_item = SingleThreadedRCPtr<Item>;
 
 class EventuallyPersistentEngineTest : virtual public ::testing::Test {
 public:
-    EventuallyPersistentEngineTest() : bucketType("persistent") {
-    }
+    EventuallyPersistentEngineTest();
 
 protected:
     void SetUp() override;
@@ -77,7 +76,8 @@ protected:
 
     std::string config_string;
 
-    static const char test_dbname[];
+    // path for the test's database files.
+    const std::string test_dbname;
 
     const Vbid vbid = Vbid(0);
 

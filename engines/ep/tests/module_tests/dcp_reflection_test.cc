@@ -63,9 +63,9 @@ protected:
 
         // Paranoia - remove any previous replica disk files.
         try {
-            cb::io::rmrf(std::string(test_dbname) + "-node_1");
-            cb::io::rmrf(std::string(test_dbname) + "-node_2");
-            cb::io::rmrf(std::string(test_dbname) + "-node_3");
+            cb::io::rmrf(test_dbname + "-node_1");
+            cb::io::rmrf(test_dbname + "-node_2");
+            cb::io::rmrf(test_dbname + "-node_3");
         } catch (std::system_error& e) {
             if (e.code() != std::error_code(ENOENT, std::system_category())) {
                 throw e;
@@ -102,8 +102,7 @@ protected:
         if (!config.empty()) {
             config += ";";
         }
-        config += "dbname=" + std::string(test_dbname) + "-node_" +
-                  std::to_string(node);
+        config += "dbname=" + test_dbname + "-node_" + std::to_string(node);
         extraEngines.push_back(SynchronousEPEngine::build(config));
         engines[node] = extraEngines.back().get();
 
@@ -276,6 +275,20 @@ protected:
         cookie = nullptr;
 
         extraEngines.clear();
+
+        // Not all tests create all nodes, so don't fail if node directories
+        // don't exist.
+        // Paranoia - remove any previous replica disk files.
+        for (auto index : {1, 2, 3}) {
+            try {
+                cb::io::rmrf(test_dbname + "-node_" + std::to_string(index));
+            } catch (std::system_error& e) {
+                if (e.code() !=
+                    std::error_code(ENOENT, std::system_category())) {
+                    throw e;
+                }
+            }
+        }
 
         SingleThreadedKVBucketTest::TearDown();
     }

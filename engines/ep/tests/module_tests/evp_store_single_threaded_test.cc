@@ -17,6 +17,7 @@
 
 #include "evp_store_single_threaded_test.h"
 
+#include "../couchstore/src/internal.h"
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_conn_map.h"
@@ -55,8 +56,7 @@
 #include "vb_commit.h"
 #include "vbucket_state.h"
 
-#include "../couchstore/src/internal.h"
-
+#include <platform/dirutils.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -2400,8 +2400,12 @@ public:
     }
 
     void TearDown() override {
+        // Cannot use base class TearDown as this test has already partially
+        // destroyed the engine. Therefore manually call the parts we do need.
         engine.reset();
         ExecutorPool::shutdown();
+        // Cleanup any files we created.
+        cb::io::rmrf(test_dbname);
     }
 };
 

@@ -39,6 +39,7 @@
 #include <engines/ep/tests/mock/mock_ep_bucket.h>
 #include <engines/ep/tests/mock/mock_ephemeral_bucket.h>
 #include <engines/ep/tests/mock/mock_paging_visitor.h>
+#include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
@@ -2332,6 +2333,9 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         destroy_mock_cookie(cookie);
 
         ExecutorPool::shutdown();
+
+        // Cleanup any files we created.
+        cb::io::rmrf(test_dbname);
     }
 }
 

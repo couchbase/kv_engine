@@ -54,6 +54,8 @@ class Manager;
  */
 class KVBucketTest : virtual public ::testing::Test {
 public:
+    KVBucketTest();
+
     void SetUp() override;
 
     void TearDown() override;
@@ -199,7 +201,8 @@ public:
 
     static cb::mcbp::Status addResponseStatus;
 
-    static const char test_dbname[];
+    // path for the test's database files.
+    const std::string test_dbname;
 
     /**
      * The completeWarmup boolean is read by ::SetUp, if true the following

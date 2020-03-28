@@ -226,12 +226,11 @@ static void add_stat_callback(std::string_view key,
                                std::string(value.data(), value.size())));
 }
 
-KVStoreTest::KVStoreTest() : flush(manifest) {
+KVStoreTest::KVStoreTest()
+    : data_dir(dbnameFromCurrentGTestInfo()), flush(manifest) {
 }
 
 void KVStoreTest::SetUp() {
-    auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-    data_dir = std::string(info->test_case_name()) + "_" + info->name() + ".db";
     if (cb::io::isDirectory(data_dir)) {
         try {
             cb::io::rmrf(data_dir);

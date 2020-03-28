@@ -61,6 +61,9 @@
 #include <chrono>
 #include <thread>
 
+KVBucketTest::KVBucketTest() : test_dbname(dbnameFromCurrentGTestInfo()) {
+}
+
 void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
@@ -85,7 +88,7 @@ void KVBucketTest::initialise(std::string config) {
     if (!config.empty()) {
         config += ";";
     }
-    config += "dbname=" + std::string(test_dbname);
+    config += "dbname=" + test_dbname;
 
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
@@ -112,6 +115,8 @@ void KVBucketTest::TearDown() {
     // has been destroyed (to allow the tasks the engine has
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
+    // Cleanup any files we created.
+    cb::io::rmrf(test_dbname);
 }
 
 void KVBucketTest::destroy() {
@@ -1703,5 +1708,3 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          KVBucketParamTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
-
-const char KVBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";

@@ -1,3 +1,5 @@
+include(CouchbaseGoogleTest)
+
 add_compile_options_disable_optimization()
 
 ADD_LIBRARY(mock_dcp OBJECT mock/mock_dcp.cc)
@@ -167,7 +169,13 @@ TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
-ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
+gtest_discover_tests(ep-engine_ep_unit_tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        TEST_PREFIX ep-engine_ep_unit_tests.
+        ONE_CTEST_PER_SUITE
+        DISCOVERY_TIMEOUT 60
+        PROPERTIES TIMEOUT 300)
+
 ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
 ADD_EXECUTABLE(ep_testsuite
