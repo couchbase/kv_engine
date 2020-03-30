@@ -177,11 +177,7 @@ void Filter::addCollection(const nlohmann::json& object,
         }
     }
 
-    if (cid.isDefaultCollection()) {
-        enableDefaultCollection();
-    } else {
-        this->filter.insert(cid);
-    }
+    insertCollection(cid);
 }
 
 void Filter::addScope(const nlohmann::json& object,
@@ -201,11 +197,14 @@ void Filter::addScope(const nlohmann::json& object,
 
     scopeID = sid;
     for (const auto& cid : *collections) {
-        if (cid.isDefaultCollection()) {
-            enableDefaultCollection();
-        } else {
-            this->filter.insert(cid);
-        }
+        insertCollection(cid);
+    }
+}
+
+void Filter::insertCollection(CollectionID cid) {
+    this->filter.insert(cid);
+    if (cid.isDefaultCollection()) {
+        defaultAllowed = true;
     }
 }
 

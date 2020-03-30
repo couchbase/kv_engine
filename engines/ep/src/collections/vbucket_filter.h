@@ -263,6 +263,11 @@ protected:
      */
     void disableDefaultCollection();
 
+    /**
+     * Insert the collection, will toggle defaultAllowed if found
+     */
+    void insertCollection(CollectionID cid);
+
     Container filter;
     boost::optional<ScopeID> scopeID;
     bool scopeIsDropped = false;
