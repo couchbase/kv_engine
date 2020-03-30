@@ -32,8 +32,14 @@ class Bucket;
  * DcpReplicator.
  */
 struct ReplicationConfig {
-    ReplicationConfig(size_t producer, size_t consumer, bool syncRepl = true)
-        : producer(producer), consumer(consumer), syncRepl(syncRepl) {
+    ReplicationConfig(size_t producer,
+                      size_t consumer,
+                      bool syncRepl = true,
+                      uint32_t dcpOpenFlags = 0)
+        : producer(producer),
+          consumer(consumer),
+          syncRepl(syncRepl),
+          dcpOpenFlags(dcpOpenFlags) {
     }
 
     // Index in the Cluster::nodes vector of the producer
@@ -45,6 +51,8 @@ struct ReplicationConfig {
     // Should the connection support SyncReplication? Setting this to false can
     // be used to mimic legacy connections.
     bool syncRepl;
+
+    uint32_t dcpOpenFlags;
 };
 
 /**
