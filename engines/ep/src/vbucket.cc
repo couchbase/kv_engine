@@ -2661,10 +2661,11 @@ GetValue VBucket::getInternal(
             return GetValue(nullptr, ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS);
         }
 
-        // 1 If SV is deleted and user didn't request deleted items
+        // 1 If SV is deleted or expired and user didn't request deleted items
         // 2 (or) If collection says this key is gone.
         // then return ENOENT.
-        if ((v->isDeleted() && !getDeletedValue) ||
+        if (((v->isDeleted() || v->isExpired(ep_real_time())) &&
+             !getDeletedValue) ||
             cHandle.isLogicallyDeleted(v->getBySeqno())) {
             return GetValue();
         }

@@ -1375,6 +1375,43 @@ TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
    EXPECT_EQ(1, engine->getEpStats().numNotMyVBuckets);
 }
 
+// Test that GetReplica against an expired item correctly returns ENOENT.
+// Regression test for MB-38498.
+TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
+    // Create a document with TTL=10s, then advance clock by 20s so it is
+    // past it expiration.
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value", ep_real_time() + 10);
+    // Flush so item is clean and can be evicted.
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Evict the item (to check bgfetch logic)
+    if (GetParam() != "bucket_type=ephemeral") {
+        const char* msg = nullptr;
+        ASSERT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg))
+                << msg;
+    }
+
+    TimeTraveller hgWells(20);
+
+    // Change to replica so we can test getReplica()
+    store->setVBucketState(vbid, vbucket_state_replica);
+
+    // Same default options as getReplicaCmd
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    // Test: Attempt to read expired item.
+    if (engine->getConfiguration().getItemEvictionPolicy() == "full_eviction") {
+        auto result = store->getReplica(key, vbid, nullptr, options);
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+        runBGFetcherTask();
+    }
+
+    auto result = store->getReplica(key, vbid, nullptr, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
+}
+
 /***
  * Test class to expose the behaviour needed to create an ItemAccessVisitor
  */

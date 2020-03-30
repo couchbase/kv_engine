@@ -115,6 +115,6 @@ std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key) {
     os << "cid:0x" << std::hex << leb128.first << ":"
        << std::string(reinterpret_cast<const char*>(leb128.second.data()),
                       leb128.second.size());
-    os << ", size:" << key.size();
+    os << ", size:" << std::dec << key.size();
     return os;
 }
