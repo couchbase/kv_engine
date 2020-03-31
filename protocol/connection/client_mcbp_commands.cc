@@ -1310,15 +1310,16 @@ void append(std::vector<uint8_t>& buf, uint64_t value) {
 }
 
 void BinprotDcpOpenCommand::encode(std::vector<uint8_t>& buf) const {
+    const uint32_t reserved = 0;
     if (payload.empty()) {
         writeHeader(buf, 0, 8);
-        append(buf, seqno);
+        append(buf, reserved);
         append(buf, flags);
         buf.insert(buf.end(), key.begin(), key.end());
     } else {
         const auto json = payload.dump();
         writeHeader(buf, json.size(), 8);
-        append(buf, seqno);
+        append(buf, reserved);
         append(buf, flags);
         buf.insert(buf.end(), key.begin(), key.end());
         buf.insert(buf.end(), json.cbegin(), json.cend());
@@ -1332,10 +1333,8 @@ void BinprotDcpOpenCommand::setConsumerName(std::string name) {
 }
 
 BinprotDcpOpenCommand::BinprotDcpOpenCommand(const std::string& name,
-                                             uint32_t seqno_,
                                              uint32_t flags_)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpOpen, name, {}),
-      seqno(seqno_),
       flags(flags_) {
 }
 BinprotDcpOpenCommand& BinprotDcpOpenCommand::makeProducer() {
@@ -1370,7 +1369,7 @@ BinprotDcpOpenCommand& BinprotDcpOpenCommand::setFlags(uint32_t flags) {
 }
 
 void BinprotDcpStreamRequestCommand::encode(std::vector<uint8_t>& buf) const {
-    writeHeader(buf, 0, 48);
+    writeHeader(buf, value.size(), 48);
     append(buf, dcp_flags);
     append(buf, dcp_reserved);
     append(buf, dcp_start_seqno);
@@ -1378,6 +1377,7 @@ void BinprotDcpStreamRequestCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, dcp_vbucket_uuid);
     append(buf, dcp_snap_start_seqno);
     append(buf, dcp_snap_end_seqno);
+    buf.insert(buf.end(), value.begin(), value.end());
 }
 BinprotDcpStreamRequestCommand::BinprotDcpStreamRequestCommand()
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpStreamReq, {}, {}),
@@ -1389,6 +1389,47 @@ BinprotDcpStreamRequestCommand::BinprotDcpStreamRequestCommand()
       dcp_snap_start_seqno(std::numeric_limits<uint64_t>::min()),
       dcp_snap_end_seqno(std::numeric_limits<uint64_t>::max()) {
 }
+
+BinprotDcpStreamRequestCommand::BinprotDcpStreamRequestCommand(
+        Vbid vbid,
+        uint32_t flags,
+        uint64_t startSeq,
+        uint64_t endSeq,
+        uint64_t vbUuid,
+        uint64_t snapStart,
+        uint64_t snapEnd)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpStreamReq, {}, {}),
+      dcp_flags(flags),
+      dcp_reserved(0),
+      dcp_start_seqno(startSeq),
+      dcp_end_seqno(endSeq),
+      dcp_vbucket_uuid(vbUuid),
+      dcp_snap_start_seqno(snapStart),
+      dcp_snap_end_seqno(snapEnd) {
+    setVBucket(vbid);
+}
+
+BinprotDcpStreamRequestCommand::BinprotDcpStreamRequestCommand(
+        Vbid vbid,
+        uint32_t flags,
+        uint64_t startSeq,
+        uint64_t endSeq,
+        uint64_t vbUuid,
+        uint64_t snapStart,
+        uint64_t snapEnd,
+        const nlohmann::json& value)
+    : BinprotGenericCommand(
+              cb::mcbp::ClientOpcode::DcpStreamReq, {}, value.dump()),
+      dcp_flags(flags),
+      dcp_reserved(0),
+      dcp_start_seqno(startSeq),
+      dcp_end_seqno(endSeq),
+      dcp_vbucket_uuid(vbUuid),
+      dcp_snap_start_seqno(snapStart),
+      dcp_snap_end_seqno(snapEnd) {
+    setVBucket(vbid);
+}
+
 BinprotDcpStreamRequestCommand& BinprotDcpStreamRequestCommand::setDcpFlags(
         uint32_t value) {
     BinprotDcpStreamRequestCommand::dcp_flags = value;
@@ -1422,6 +1463,12 @@ BinprotDcpStreamRequestCommand::setDcpSnapStartSeqno(uint64_t value) {
 BinprotDcpStreamRequestCommand&
 BinprotDcpStreamRequestCommand::setDcpSnapEndSeqno(uint64_t value) {
     BinprotDcpStreamRequestCommand::dcp_snap_end_seqno = value;
+    return *this;
+}
+
+BinprotDcpStreamRequestCommand& BinprotDcpStreamRequestCommand::setValue(
+        const nlohmann::json& value) {
+    BinprotDcpStreamRequestCommand::value = value.dump();
     return *this;
 }
 
@@ -1688,6 +1735,10 @@ BinprotDcpAddStreamCommand::BinprotDcpAddStreamCommand(uint32_t flags)
 void BinprotDcpAddStreamCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(flags));
     append(buf, flags);
+}
+
+BinprotDcpControlCommand::BinprotDcpControlCommand()
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpControl) {
 }
 
 BinprotDelWithMetaCommand::BinprotDelWithMetaCommand(Document doc,

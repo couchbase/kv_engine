@@ -853,6 +853,24 @@ public:
 
     Document getRandomKey(Vbid vbid);
 
+    void dcpOpenProducer(std::string_view value);
+    void dcpControl(std::string_view key, std::string_view value);
+    void dcpStreamRequest(Vbid vbid,
+                          uint32_t flags,
+                          uint64_t startSeq,
+                          uint64_t endSeq,
+                          uint64_t vbUuid,
+                          uint64_t snapStart,
+                          uint64_t snapEnd);
+    void dcpStreamRequest(Vbid vbid,
+                          uint32_t flags,
+                          uint64_t startSeq,
+                          uint64_t endSeq,
+                          uint64_t vbUuid,
+                          uint64_t snapStart,
+                          uint64_t snapEnd,
+                          const nlohmann::json& value);
+
 protected:
     void read(Frame& frame, size_t bytes);
 

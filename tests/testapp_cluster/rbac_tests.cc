@@ -51,12 +51,12 @@ TEST_F(RbacTest, DcpOpenWithoutAccess) {
 
     auto rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithoutAccess",
-                                  0,
+
                                   cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
     rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithoutAccess",
-                                  0,
+
                                   cb::mcbp::request::DcpOpenPayload::Notifier});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 }
@@ -81,13 +81,13 @@ TEST_F(RbacTest, DcpOpenWithProducerAccess) {
     conn->selectBucket(bucket);
     auto rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithProducerAccess",
-                                  0,
+
                                   cb::mcbp::request::DcpOpenPayload::Notifier});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 
     rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithProducerAccess",
-                                  0,
+
                                   cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
 }
@@ -112,13 +112,13 @@ TEST_F(RbacTest, DcpOpenWithConsumerAccess) {
     conn->selectBucket(bucket);
     auto rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithConsumerAccess",
-                                  0,
+
                                   cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 
     rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithConsumerAccess",
-                                  0,
+
                                   cb::mcbp::request::DcpOpenPayload::Notifier});
     ASSERT_TRUE(rsp.isSuccess());
 }

@@ -771,11 +771,9 @@ public:
      * DCP Open
      *
      * @param name the name of the DCP stream to create
-     * @param seqno_ the sequence number for the stream
      * @param flags_ the open flags
      */
     explicit BinprotDcpOpenCommand(const std::string& name,
-                                   uint32_t seqno_ = 0,
                                    uint32_t flags_ = 0);
 
     void setConsumerName(std::string name);
@@ -820,7 +818,6 @@ public:
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
-    uint32_t seqno;
     uint32_t flags;
     nlohmann::json payload;
 };
@@ -828,6 +825,21 @@ private:
 class BinprotDcpStreamRequestCommand : public BinprotGenericCommand {
 public:
     BinprotDcpStreamRequestCommand();
+    BinprotDcpStreamRequestCommand(Vbid vbid,
+                                   uint32_t flags,
+                                   uint64_t startSeq,
+                                   uint64_t endSeq,
+                                   uint64_t vbUuid,
+                                   uint64_t snapStart,
+                                   uint64_t snapEnd);
+    BinprotDcpStreamRequestCommand(Vbid vbid,
+                                   uint32_t flags,
+                                   uint64_t startSeq,
+                                   uint64_t endSeq,
+                                   uint64_t vbUuid,
+                                   uint64_t snapStart,
+                                   uint64_t snapEnd,
+                                   const nlohmann::json& value);
 
     BinprotDcpStreamRequestCommand& setDcpFlags(uint32_t value);
 
@@ -842,6 +854,8 @@ public:
     BinprotDcpStreamRequestCommand& setDcpSnapStartSeqno(uint64_t value);
 
     BinprotDcpStreamRequestCommand& setDcpSnapEndSeqno(uint64_t value);
+
+    BinprotDcpStreamRequestCommand& setValue(const nlohmann::json& value);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -863,6 +877,11 @@ public:
 
 protected:
     uint32_t flags;
+};
+
+class BinprotDcpControlCommand : public BinprotGenericCommand {
+public:
+    BinprotDcpControlCommand();
 };
 
 class BinprotGetFailoverLogCommand : public BinprotGenericCommand {

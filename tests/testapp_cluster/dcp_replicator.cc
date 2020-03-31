@@ -240,7 +240,7 @@ void DcpReplicatorImpl::createDcpPipe(const Cluster& cluster,
 
     // Create and send a DCP open
     auto rsp = connection->execute(BinprotDcpOpenCommand{
-            name, 0, cb::mcbp::request::DcpOpenPayload::Producer});
+            name, cb::mcbp::request::DcpOpenPayload::Producer});
     if (!rsp.isSuccess()) {
         throw std::runtime_error(
                 "DcpReplicatorImpl::start: Failed to set up "

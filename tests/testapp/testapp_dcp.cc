@@ -41,7 +41,6 @@ TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
 
     conn.sendCommand(BinprotDcpOpenCommand{
             "ewb_internal:1",
-            0,
             cb::mcbp::request::DcpOpenPayload::Producer |
                     cb::mcbp::request::DcpOpenPayload::Notifier});
 
@@ -56,7 +55,6 @@ TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
 
     conn.sendCommand(BinprotDcpOpenCommand{
             "ewb_internal:1",
-            0,
             cb::mcbp::request::DcpOpenPayload::NoValue |
                     cb::mcbp::request::DcpOpenPayload::Notifier});
 
@@ -71,7 +69,6 @@ TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
 
     conn.sendCommand(BinprotDcpOpenCommand{
             "ewb_internal:1",
-            0,
             cb::mcbp::request::DcpOpenPayload::IncludeXattrs |
                     cb::mcbp::request::DcpOpenPayload::Notifier});
 
@@ -89,7 +86,7 @@ TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     auto& conn = getConnection();
 
     conn.sendCommand(BinprotDcpOpenCommand{
-            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
+            "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -121,7 +118,7 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     auto& conn = getConnection();
     conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
     conn.sendCommand(BinprotDcpOpenCommand{
-            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
+            "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -134,7 +131,7 @@ TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
     auto& conn = getAdminConnection();
     conn.selectBucket("default");
     auto rsp = conn.execute(BinprotDcpOpenCommand{
-            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
+            "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
 
     rsp = conn.execute(
@@ -148,7 +145,7 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
     auto& conn = getAdminConnection();
     conn.selectBucket("default");
     auto rsp = conn.execute(BinprotDcpOpenCommand{
-            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
+            "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
 
     rsp = conn.execute(

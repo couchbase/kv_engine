@@ -1372,6 +1372,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
                                        callback,
                                        json);
         } catch (const cb::engine_error& e) {
+            EP_LOG_WARN("EPE::stream_req exception {}", e.what());
             return ENGINE_ERROR_CODE(e.code().value());
         }
     }

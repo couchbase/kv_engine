@@ -1491,6 +1491,57 @@ Document MemcachedConnection::getRandomKey(Vbid vbucket) {
     return ret;
 }
 
+void MemcachedConnection::dcpOpenProducer(std::string_view name) {
+    BinprotDcpOpenCommand open{std::string{name},
+                               cb::mcbp::request::DcpOpenPayload::Producer};
+    const auto response = BinprotResponse(execute(open));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed dcpOpenProducer", response);
+    }
+}
+
+void MemcachedConnection::dcpControl(std::string_view key,
+                                     std::string_view value) {
+    BinprotDcpControlCommand control;
+    control.setKey(std::string{key});
+    control.setValue(std::string{value});
+    const auto response = BinprotResponse(execute(control));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed dcpControl", response);
+    }
+}
+
+void MemcachedConnection::dcpStreamRequest(Vbid vbid,
+                                           uint32_t flags,
+                                           uint64_t startSeq,
+                                           uint64_t endSeq,
+                                           uint64_t vbUuid,
+                                           uint64_t snapStart,
+                                           uint64_t snapEnd) {
+    BinprotDcpStreamRequestCommand stream(
+            vbid, flags, startSeq, endSeq, vbUuid, snapStart, snapEnd);
+    const auto response = BinprotResponse(execute(stream));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed dcpStreamRequest", response);
+    }
+}
+
+void MemcachedConnection::dcpStreamRequest(Vbid vbid,
+                                           uint32_t flags,
+                                           uint64_t startSeq,
+                                           uint64_t endSeq,
+                                           uint64_t vbUuid,
+                                           uint64_t snapStart,
+                                           uint64_t snapEnd,
+                                           const nlohmann::json& value) {
+    BinprotDcpStreamRequestCommand stream(
+            vbid, flags, startSeq, endSeq, vbUuid, snapStart, snapEnd, value);
+    const auto response = BinprotResponse(execute(stream));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed dcpStreamRequest", response);
+    }
+}
+
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     switch (mode) {
     case ExecutionMode::Ordered:
