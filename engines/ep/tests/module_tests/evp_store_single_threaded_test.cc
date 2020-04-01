@@ -48,6 +48,7 @@
 #include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
+#include "tests/module_tests/thread_gate.h"
 #include "tests/test_fileops.h"
 #include "vbucket_state.h"
 
@@ -443,6 +444,71 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
     mockConnMap.manageConnections();
 
     // DcpConnMapp.manageConnections() will reset our cookie so we need to
+    // recreate it for the normal test TearDown to work
+    cookie = create_mock_cookie();
+}
+
+TEST_P(STParameterizedBucketTest, ConcurrentProducerCloseAllStreams) {
+    MockDcpConnMap& mockConnMap =
+            static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    // 1) Store an item and ensure it isn't in the CheckpointManager so that our
+    // stream will enter backfilling state later
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    removeCheckpoint(*vb, 1);
+
+    // 2) Create Producer and ensure it is in the ConnMap so that we can emulate
+    // the shutdown
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    producer->createCheckpointProcessorTask();
+    mockConnMap.addConn(cookie, producer);
+
+    // Break in closeAllStreams after we have taken the lock
+    // of the first vBucket.
+    std::thread thread1;
+    ThreadGate tg1{2};
+
+    producer->setCloseAllStreamsPostLockHook(
+            [this, &producer, &mockConnMap, &thread1, &tg1]() {
+                if (!tg1.isComplete()) {
+                    producer->setCloseAllStreamsPreLockHook(
+                            [&tg1] { tg1.threadUp(); });
+
+                    // First hit of this will spawn a second thread that will
+                    // call disconnect and try to enter the same block of code
+                    // concurrently.
+                    thread1 = std::thread{[this, &mockConnMap]() {
+                        mockConnMap.disconnect(cookie);
+                    }};
+
+                    tg1.threadUp();
+                } else {
+                    // Before the fix we would fail here
+                    EXPECT_FALSE(producer->getBFMPtr());
+                }
+            });
+
+    // 3) Segfault would normally happen here as we exit
+    // DcpProducer::closeAllStreams (for the second time).
+    mockConnMap.shutdownAllConnections();
+
+    thread1.join();
+
+    // Reset the hook or we will call it again when we disconnect our cookie as
+    // part of TearDown
+    producer->setCloseAllStreamsPostLockHook([]() {});
+
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
+    mockConnMap.manageConnections();
+
+    // DcpConnMap.manageConnections() will reset our cookie so we need to
     // recreate it for the normal test TearDown to work
     cookie = create_mock_cookie();
 }

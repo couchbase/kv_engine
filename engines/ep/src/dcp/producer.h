@@ -626,8 +626,20 @@ protected:
      */
     MultipleStreamRequests multipleStreamRequests{MultipleStreamRequests::No};
 
+    /**
+     * Lock that prevent concurrent execution of closeAllStreams function. This
+     * is required as we have to atomically set our streams to dead (requires
+     * the backfillMgr) and reset the backfillMgr (to prevent lingering cyclic
+     * references).
+     */
+    std::mutex closeAllStreamsLock;
+
     // MB-37702: Test hook set via mock class.
     std::function<void()> closeAllStreamsHook;
+
+    // MB-38521: Test hook set via mock class.
+    std::function<void()> closeAllStreamsPreLockHook;
+    std::function<void()> closeAllStreamsPostLockHook;
 
     // MB-37827: Test hook set via mock class.
     std::function<void()> seqnoAckHook;

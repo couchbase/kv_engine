@@ -138,6 +138,10 @@ public:
         return *(backfillMgr.load());
     }
 
+    BackfillManager* getBFMPtr() {
+        return backfillMgr.load().get();
+    }
+
     size_t getBytesOutstanding() const {
         return log.getBytesOutstanding();
     }
@@ -205,6 +209,14 @@ public:
 
     void setCloseAllStreamsHook(std::function<void()> hook) {
         closeAllStreamsHook = hook;
+    }
+
+    void setCloseAllStreamsPostLockHook(std::function<void()> hook) {
+        closeAllStreamsPostLockHook = hook;
+    }
+
+    void setCloseAllStreamsPreLockHook(std::function<void()> hook) {
+        closeAllStreamsPreLockHook = hook;
     }
 
     void setSeqnoAckHook(std::function<void()> hook) {
