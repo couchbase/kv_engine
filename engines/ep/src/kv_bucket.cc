@@ -190,6 +190,12 @@ public:
         }
     }
 
+    virtual void stringValueChanged(const std::string& key, const char* value) {
+        if (key == "durability_min_level") {
+            store.setMinDurabilityLevel(cb::durability::to_level(value));
+        }
+    }
+
 private:
     KVBucket& store;
 };
@@ -428,6 +434,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     // up to the specific KVBucket subclasses.
     itemPagerTask = std::make_shared<ItemPager>(engine, stats);
     disableItemPager();
+
+    minDurabilityLevel =
+            cb::durability::to_level(config.getDurabilityMinLevel());
+    config.addValueChangedListener(
+            "durability_min_level",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
 bool KVBucket::initialize() {
@@ -2675,4 +2687,8 @@ void KVBucket::setRWRO(size_t shardId,
                        std::unique_ptr<KVStore> ro) {
     vbMap.shards[shardId]->setROUnderlying(std::move(ro));
     vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
+}
+
+void KVBucket::setMinDurabilityLevel(cb::durability::Level level) {
+    minDurabilityLevel = level;
 }

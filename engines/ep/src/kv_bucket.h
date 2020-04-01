@@ -679,6 +679,13 @@ public:
     /// set the buckets maxTtl
     void setMaxTtl(size_t max);
 
+    /**
+     * Set the Bucket Minimum Durability Level to the given level.
+     *
+     * @param level
+     */
+    void setMinDurabilityLevel(cb::durability::Level level);
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
@@ -832,6 +839,18 @@ protected:
      * purposes where we want a constant number as opposed to a random one.
      */
     std::function<long()> getRandom = std::rand;
+
+    /**
+     * The Minimum Durability Level enforced by this Bucket:
+     *
+     *  - if Level::None, then just use the Level provided in the SW's dur-reqs,
+     *   if any (Level::None actually disable the bucket durability level)
+     *  - if lower than the SW's level, again just enforce the SW's dur-reqs
+     *  - if higher than the SW's level, then up-level the SW
+     *
+     * Requires synchronization as it stores a dynamic configuration param.
+     */
+    std::atomic<cb::durability::Level> minDurabilityLevel;
 
     friend class KVBucketTest;
 

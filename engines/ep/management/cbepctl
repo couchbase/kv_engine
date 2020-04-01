@@ -207,6 +207,10 @@ Available params for "set":
                                    will be shipped as is by the DCP producer if value
                                    compression is enabled by the DCP consumer. Applies
                                    to all producers (Ideal range: 0.0 - 1.0)
+    durability_min_level         - Bucket Minimum Durability Level.
+                                   KVEngine upgrades any write request to this min-level,
+                                   if the min-level is higher than the write-level. May
+                                   upgrade a NormalWrite to SyncWrite.
     defragmenter_enabled         - Enable or disable the defragmenter
                                    (true/false).
     defragmenter_interval        - How often defragmenter task should be run

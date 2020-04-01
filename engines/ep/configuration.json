@@ -358,6 +358,20 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "durability_min_level": {
+            "default": "none",
+            "descr": "Bucket Minimum Durability Level. KVEngine upgrades any write request to this min-level, if the min-level is higher than the write-level. May upgrade a NormalWrite to SyncWrite.",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "none",
+                    "majority",
+                    "majority_and_persist_on_master",
+                    "persist_to_majority"
+                ]
+            }
+        },
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",
