@@ -29,6 +29,7 @@
 #include "kv_bucket.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
@@ -2058,8 +2059,132 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
 }
 
+class CollectionsDcpCloseAfterLosingPrivs
+    : public CollectionsDcpParameterizedTest {
+public:
+    void SetUp() override {
+        mock_reset_check_privilege_function();
+        mock_set_privilege_context_revision(0);
+        CollectionsDcpParameterizedTest::SetUp();
+    }
+    void TearDown() override {
+        mock_reset_check_privilege_function();
+        mock_set_privilege_context_revision(0);
+        CollectionsDcpParameterizedTest::TearDown();
+    }
+
+    void setNoAccess(CollectionID noaccess) {
+        mock_set_check_privilege_function(
+                [noaccess](gsl::not_null<const void*>,
+                           cb::rbac::Privilege priv,
+                           std::optional<ScopeID> sid,
+                           std::optional<CollectionID> cid)
+                        -> cb::rbac::PrivilegeAccess {
+                    if (cid && *cid == noaccess) {
+                        return cb::rbac::PrivilegeAccess::Fail;
+                    }
+                    return cb::rbac::PrivilegeAccess::Ok;
+                });
+        mock_set_privilege_context_revision(1);
+    }
+};
+
+TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    store->setCollections(std::string{cm});
+    createDcpObjects({{R"({"collections":["9"]})"}});
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    notifyAndStepToCheckpoint();
+    // SystemEvent createCollection
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(CollectionEntry::fruit.name, producers->last_key);
+
+    // Lose access.
+    setNoAccess(CollectionEntry::fruit.getId());
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(end_stream_status_t::END_STREAM_LOST_PRIVILEGES,
+              producers->last_flags);
+
+    // And no more
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    // Done... loss of privs has closed stream
+    EXPECT_FALSE(vb0Stream->isActive());
+}
+
+TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream_from_backfill) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    store->setCollections(std::string{cm});
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
+    store_item(vbid, StoredDocKey{"grape", CollectionEntry::fruit}, "red");
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
+    ensureDcpWillBackfill();
+
+    // Stream request and then drop access
+    createDcpObjects({{R"({"collections":["9"]})"}});
+
+    setNoAccess(CollectionEntry::fruit.getId());
+
+    // endStream clears the readyQueue so we won't see anything other than
+    // stream-end
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd,
+                              false /*in-memory = false*/);
+
+    EXPECT_EQ(end_stream_status_t::END_STREAM_LOST_PRIVILEGES,
+              producers->last_flags);
+}
+
+TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    store_item(vbid, StoredDocKey{"k", CollectionID::Default}, "v");
+
+    // Make cookie look like a non-collection client
+    mock_set_collections_support(cookieP, false);
+    mock_set_collections_support(cookieC, false);
+    // Setup legacy DCP, it only receives default collection mutation/deletion
+    // and should self-close if the default collection were to be deleted
+    createDcpObjects({});
+
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    EXPECT_TRUE(vb0Stream->isActive());
+
+    setNoAccess(CollectionID::Default);
+
+    // Expect a stream end marker
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(END_STREAM_OK, producers->last_flags);
+
+    // Done... collection deletion of default has closed the stream
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    // And no more
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
+                         CollectionsDcpCloseAfterLosingPrivs,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

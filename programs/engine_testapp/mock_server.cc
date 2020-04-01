@@ -210,6 +210,11 @@ void mock_reset_check_privilege_function() {
     checkPrivilegeFunction = nullptr;
 }
 
+static uint32_t privilege_context_revision = 0;
+void mock_set_privilege_context_revision(uint32_t rev) {
+    privilege_context_revision = rev;
+}
+
 struct MockServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
@@ -318,8 +323,7 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     uint32_t get_privilege_context_revision(
             gsl::not_null<const void*> cookie) override {
-        // @todo allow for mocking
-        return 0;
+        return privilege_context_revision;
     }
 
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,

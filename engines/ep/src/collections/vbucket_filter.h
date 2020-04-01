@@ -158,12 +158,12 @@ public:
     bool empty() const;
 
     /**
-     * Check the filter (what it permits) against the cookie's associated
-     * privileges (calling methods on engine).
+     * Check the privilege revision for any change. If changed update our copy
+     * of the revision and then evaluate the required privileges.
      * @return true if all required privileges are found.
      */
     bool checkPrivileges(gsl::not_null<const void*> cookie,
-                         const EventuallyPersistentEngine& engine) const;
+                         const EventuallyPersistentEngine& engine);
 
     /**
      * Add statistics for this filter, currently just depicts the object's state
@@ -287,14 +287,16 @@ protected:
     void insertCollection(CollectionID cid, ScopeID sid);
 
     Container filter;
-    std::optional<ScopeID> scopeID;
-    bool scopeIsDropped = false;
 
+    std::optional<Collections::ManifestUid> uid;
+    std::optional<ScopeID> scopeID;
+    // use an optional so we don't use any special values to mean unset
+    std::optional<uint32_t> lastCheckedPrivilegeRevision;
+    cb::mcbp::DcpStreamId streamId = {};
+    bool scopeIsDropped = false;
     bool defaultAllowed = false;
     bool passthrough = false;
     bool systemEventsAllowed = false;
-    std::optional<Collections::ManifestUid> uid;
-    cb::mcbp::DcpStreamId streamId;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 

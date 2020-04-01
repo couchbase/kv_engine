@@ -4718,6 +4718,14 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     }
 }
 
+/**
+ * @return the privilege revision, which changes when privileges do.
+ */
+uint32_t EventuallyPersistentEngine::getPrivilegeRevision(
+        const void* cookie) const {
+    return serverApi->cookie->get_privilege_context_revision(cookie);
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         const void* cookie,
         const cb::mcbp::Request& req,

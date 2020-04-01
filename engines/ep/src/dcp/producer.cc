@@ -1937,9 +1937,20 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
 
 end_stream_status_t DcpProducer::mapEndStreamStatus(
         const void* cookie, end_stream_status_t status) const {
-    if (status == END_STREAM_FILTER_EMPTY &&
-        !engine_.isCollectionsSupported(cookie)) {
-        return END_STREAM_OK;
+    if (!engine_.isCollectionsSupported(cookie)) {
+        switch (status) {
+        case END_STREAM_OK:
+        case END_STREAM_CLOSED:
+        case END_STREAM_STATE:
+        case END_STREAM_DISCONNECTED:
+        case END_STREAM_SLOW:
+        case END_STREAM_BACKFILL_FAIL:
+        case END_STREAM_ROLLBACK:
+            break;
+        case END_STREAM_FILTER_EMPTY:
+        case END_STREAM_LOST_PRIVILEGES:
+            status = END_STREAM_OK;
+        }
     }
     return status;
 }

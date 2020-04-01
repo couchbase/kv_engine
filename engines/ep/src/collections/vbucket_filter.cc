@@ -462,22 +462,28 @@ std::string Filter::getUid() const {
 }
 
 bool Filter::checkPrivileges(gsl::not_null<const void*> cookie,
-                             const EventuallyPersistentEngine& engine) const {
-    if (passthrough) {
-        // Must have access to the bucket
-        return engine.checkPrivilege(cookie, DcpStreamPrivilege, {}, {}) ==
-               cb::engine_errc::success;
-    } else if (scopeID) {
-        // Must have access to at least the scope
-        return engine.checkPrivilege(cookie, DcpStreamPrivilege, scopeID, {}) ==
-               cb::engine_errc::success;
-    } else {
-        // Must have access to the collections
-        for (const auto& c : filter) {
-            if (engine.checkPrivilege(
-                        cookie, DcpStreamPrivilege, c.second, c.first) !=
-                cb::engine_errc::success) {
-                return false;
+                             const EventuallyPersistentEngine& engine) {
+    const auto rev = engine.getPrivilegeRevision(cookie);
+    if (!lastCheckedPrivilegeRevision ||
+        lastCheckedPrivilegeRevision.value() != rev) {
+        lastCheckedPrivilegeRevision = rev;
+        if (passthrough) {
+            // Must have access to the bucket
+            return engine.checkPrivilege(cookie, DcpStreamPrivilege, {}, {}) ==
+                   cb::engine_errc::success;
+        } else if (scopeID) {
+            // Must have access to at least the scope
+            return engine.checkPrivilege(
+                           cookie, DcpStreamPrivilege, scopeID, {}) ==
+                   cb::engine_errc::success;
+        } else {
+            // Must have access to the at least collections
+            for (const auto& c : filter) {
+                if (engine.checkPrivilege(
+                            cookie, DcpStreamPrivilege, c.second, c.first) !=
+                    cb::engine_errc::success) {
+                    return false;
+                }
             }
         }
     }
@@ -501,6 +507,13 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
        << ", passthrough:" << filter.passthrough
        << ", systemEventsAllowed:" << filter.systemEventsAllowed
        << ", scopeIsDropped:" << filter.scopeIsDropped;
+    if (filter.scopeID) {
+        os << ", scopeID:" << filter.scopeID.value();
+    }
+    if (filter.lastCheckedPrivilegeRevision) {
+        os << ", lastCheckedPrivilegeRevision: "
+           << filter.lastCheckedPrivilegeRevision.value();
+    }
     if (filter.uid) {
         os << ", uid:" << *filter.uid;
     }

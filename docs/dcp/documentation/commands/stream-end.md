@@ -48,6 +48,10 @@ The flags field is used to specify to the consumer why the stream was closed and
 * *State Changed (0x02)* - The state of the VBucket that is being streamed has changed to state that the consumer does not want to receive.
 * *Disconnected (0x03)* - The stream is closing because the connection is being disconnected.
 * *Too Slow (0x04)* - The stream is closing because the client cannot read from the stream fast enough. This is done to prevent the server from running out of resources trying while trying to serve the client. When the client is ready to read from the stream again it should reconnect. This flag is available starting in Couchbase 4.5.
+* *Backfill Failed* (0x05) - The stream closed because of a failure during a backfill.
+* *Rollback* (0x06) - The stream closed because the vbucket is rolling back, client must reopen stream and follow rollback protocol.
+* *Filter Empty* (0x07) - The stream closed because all filtered collections or scope are now deleted and no more data is coming.
+* *Lost Privileges* (0x08) - The stream closed because the connection no longer has the required access for the stream's configuration (e.g. no DcpStream on a filtered collection).
 
 ### Returns
 

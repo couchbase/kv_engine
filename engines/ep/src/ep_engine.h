@@ -820,6 +820,11 @@ public:
                                    std::optional<ScopeID> sid,
                                    std::optional<CollectionID> cid) const;
 
+    /**
+     * @return the privilege revision, which changes when privileges do.
+     */
+    uint32_t getPrivilegeRevision(const void* cookie) const;
+
 protected:
     friend class EpEngineValueChangeListener;
 

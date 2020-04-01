@@ -256,7 +256,19 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
                                     uint64_t maxVisibleSeqno) {
     {
-        LockHolder lh(streamMutex);
+        std::unique_lock<std::mutex> lh(streamMutex);
+
+        {
+            auto producer = producerPtr.lock();
+            // Does this stream still  have the appropriate privileges to
+            // operate?
+            if (!filter.checkPrivileges(producer->getCookie(), *engine)) {
+                endStream(END_STREAM_LOST_PRIVILEGES);
+                lh.unlock();
+                notifyStreamReady();
+                return false;
+            }
+        }
         uint64_t chkCursorSeqno = endSeqno;
 
         if (!isBackfilling()) {
@@ -380,6 +392,18 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     }
 
     std::unique_lock<std::mutex> lh(streamMutex);
+
+    {
+        auto producer = producerPtr.lock();
+        // Does this stream still  have the appropriate privileges to operate?
+        if (!filter.checkPrivileges(producer->getCookie(), *engine)) {
+            endStream(END_STREAM_LOST_PRIVILEGES);
+            lh.unlock();
+            notifyStreamReady();
+            return false;
+        }
+    }
+
     if (isBackfilling() && filter.checkAndUpdate(*itm)) {
         queued_item qi(std::move(itm));
         // We need to send a mutation instead of a commit if this Item is a
@@ -968,6 +992,19 @@ void ActiveStream::nextCheckpointItemTask() {
 void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket) {
+        auto producer = producerPtr.lock();
+        if (!producer) {
+            return;
+        }
+
+        // Before processing the checkpoint, does this stream still have the
+        // appropriate privileges to operate?
+        if (!filter.checkPrivileges(producer->getCookie(), *engine)) {
+            endStream(END_STREAM_LOST_PRIVILEGES);
+            notifyStreamReady();
+            return;
+        }
+
         // MB-29369: only run the task's work if the stream is in an in-memory
         // phase (of which takeover is a variant).
         if (isInMemory() || isTakeoverSend()) {
@@ -1739,6 +1776,8 @@ std::string ActiveStream::getEndStreamStatusStr(end_stream_status_t status) {
     case END_STREAM_FILTER_EMPTY:
         return "The stream closed because all of the filtered collections "
                "were deleted";
+    case END_STREAM_LOST_PRIVILEGES:
+        return "The stream closed because required privileges were lost";
     }
     return std::string{"Status unknown: " + std::to_string(status) +
                        "; this should not have happened!"};
