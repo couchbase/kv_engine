@@ -873,12 +873,12 @@ bool Manifest::addScopeStats(Vbid vbid,
 }
 
 void Manifest::updateSummary(Summary& summary) const {
-    for (const auto& entry : map) {
-        auto s = summary.find(entry.first);
+    for (const auto& [cid, entry] : map) {
+        auto s = summary.find(cid);
         if (s == summary.end()) {
-            summary[entry.first] = entry.second.getDiskCount();
+            summary[cid] = entry.getStatsForSummary();
         } else {
-            s->second += entry.second.getDiskCount();
+            s->second += entry.getStatsForSummary();
         }
     }
 }

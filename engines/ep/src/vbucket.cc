@@ -2209,6 +2209,10 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         }
     }
 
+    if (ret == ENGINE_SUCCESS) {
+        cHandle.incrementOpsDelete();
+    }
+
     return ret;
 }
 

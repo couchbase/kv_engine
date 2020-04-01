@@ -143,6 +143,28 @@ public:
                   const void* cookie,
                   const AddStatFn& add_stat) const;
 
+    void incrementOpsStore() const {
+        numOpsStore++;
+    }
+    void incrementOpsDelete() const {
+        numOpsDelete++;
+    }
+    void incrementOpsGet() const {
+        numOpsGet++;
+    }
+    uint64_t getOpsStore() const {
+        return numOpsStore.load(std::memory_order_relaxed);
+    }
+    uint64_t getOpsDelete() const {
+        return numOpsDelete.load(std::memory_order_relaxed);
+    }
+    uint64_t getOpsGet() const {
+        return numOpsGet.load(std::memory_order_relaxed);
+    }
+    AccumulatedStats getStatsForSummary() const {
+        return {getDiskCount(), getOpsStore(), getOpsDelete(), getOpsGet()};
+    }
+
 private:
     /**
      * Return a string for use in throwException, returns:
@@ -219,6 +241,13 @@ private:
      *           The write lock is really for the Manifest map being changed.
      */
     mutable AtomicMonotonic<uint64_t, IgnorePolicy> persistedHighSeqno;
+
+    //! The number of basic store (add, set, arithmetic, touch, etc.) operations
+    mutable AtomicMonotonic<uint64_t, IgnorePolicy> numOpsStore;
+    //! The number of basic delete operations
+    mutable AtomicMonotonic<uint64_t, IgnorePolicy> numOpsDelete;
+    //! The number of basic get operations
+    mutable AtomicMonotonic<uint64_t, IgnorePolicy> numOpsGet;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

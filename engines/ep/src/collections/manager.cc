@@ -573,13 +573,15 @@ Collections::CachedStats Collections::Manager::getPerCollectionStats(
     CollectionCountVBucketVisitor visitor;
     bucket.visit(visitor);
 
-    return {std::move(memUsed), std::move(visitor.summary) /* diskCount */};
+    return {std::move(memUsed),
+            std::move(visitor.summary) /* accumulated collection stats */};
 }
 
 Collections::CachedStats::CachedStats(
         std::unordered_map<CollectionID, size_t>&& colMemUsed,
-        std::unordered_map<CollectionID, uint64_t>&& colDiskCount)
-    : colMemUsed(std::move(colMemUsed)), colDiskCount(std::move(colDiskCount)) {
+        std::unordered_map<CollectionID, AccumulatedStats>&& accumulatedStats)
+    : colMemUsed(std::move(colMemUsed)),
+      accumulatedStats(std::move(accumulatedStats)) {
 }
 void Collections::CachedStats::addStatsForCollection(
         const Scope& scope,
@@ -624,11 +626,11 @@ void Collections::CachedStats::addAggregatedCollectionStats(
         const AddStatFn& add_stat,
         const void* cookie) {
     size_t memUsed = 0;
-    uint64_t diskCount = 0;
+    AccumulatedStats stats;
 
     for (const auto& cid : cids) {
         memUsed += colMemUsed[cid];
-        diskCount += colDiskCount[cid];
+        stats += accumulatedStats[cid];
     }
 
     const auto addStat = [prefix, &add_stat, &cookie](const auto& statKey,
@@ -642,5 +644,9 @@ void Collections::CachedStats::addAggregatedCollectionStats(
     };
 
     addStat("mem_used", memUsed);
-    addStat("items", diskCount);
+    addStat("items", stats.itemCount);
+
+    addStat("ops_store", stats.opsStore);
+    addStat("ops_delete", stats.opsDelete);
+    addStat("ops_get", stats.opsGet);
 }

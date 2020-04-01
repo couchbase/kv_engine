@@ -666,6 +666,9 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
         cHandle.processExpiryTime(itm, getMaxTtl());
 
         result = vb->set(itm, cookie, engine, predicate, cHandle);
+        if (result == ENGINE_SUCCESS) {
+            cHandle.incrementOpsStore();
+        }
     }
 
     if (itm.isPending()) {
@@ -721,6 +724,9 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
         result = vb->add(itm, cookie, engine, cHandle);
+        if (result == ENGINE_SUCCESS) {
+            cHandle.incrementOpsStore();
+        }
     }
 
     if (itm.isPending()) {
@@ -766,6 +772,9 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
         result = vb->replace(itm, cookie, engine, predicate, cHandle);
+        if (result == ENGINE_SUCCESS) {
+            cHandle.incrementOpsStore();
+        }
     }
 
     if (itm.isPending()) {
@@ -1482,12 +1491,17 @@ GetValue KVBucket::getInternal(const DocKey& key,
             return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
         }
 
-        return vb->getInternal(cookie,
-                               engine,
-                               options,
-                               VBucket::GetKeyOnly::No,
-                               cHandle,
-                               getReplicaItem);
+        auto result = vb->getInternal(cookie,
+                                      engine,
+                                      options,
+                                      VBucket::GetKeyOnly::No,
+                                      cHandle,
+                                      getReplicaItem);
+
+        if (result.getStatus() != ENGINE_EWOULDBLOCK) {
+            cHandle.incrementOpsGet();
+        }
+        return result;
     }
 }
 
@@ -1712,11 +1726,17 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
-        return vb->getAndUpdateTtl(
+        auto result = vb->getAndUpdateTtl(
                 cookie,
                 engine,
                 cHandle.processExpiryTime(exptime, getMaxTtl()),
                 cHandle);
+
+        if (result.getStatus() == ENGINE_SUCCESS) {
+            cHandle.incrementOpsStore();
+            cHandle.incrementOpsGet();
+        }
+        return result;
     }
 }
 
@@ -1745,7 +1765,12 @@ GetValue KVBucket::getLocked(const DocKey& key,
         return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
     }
 
-    return vb->getLocked(currentTime, lockTimeout, cookie, engine, cHandle);
+    auto result =
+            vb->getLocked(currentTime, lockTimeout, cookie, engine, cHandle);
+    if (result.getStatus() == ENGINE_SUCCESS) {
+        cHandle.incrementOpsGet();
+    }
+    return result;
 }
 
 ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,

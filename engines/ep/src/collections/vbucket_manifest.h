@@ -449,6 +449,27 @@ public:
             return itr->second.getScopeID();
         }
 
+        void incrementOpsStore() const {
+            if (!valid()) {
+                return;
+            }
+            return itr->second.incrementOpsStore();
+        }
+
+        void incrementOpsDelete() const {
+            if (!valid()) {
+                return;
+            }
+            return itr->second.incrementOpsDelete();
+        }
+
+        void incrementOpsGet() const {
+            if (!valid()) {
+                return;
+            }
+            return itr->second.incrementOpsGet();
+        }
+
         /**
          * Dump this VB::Manifest to std::cerr
          */

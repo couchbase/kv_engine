@@ -58,8 +58,15 @@ const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
 using ManifestUid = WeaklyMonotonic<uint64_t>;
 
-// Map used in summary stats
-using Summary = std::unordered_map<CollectionID, uint64_t>;
+// Struct/Map used in summary stat collecting (where we do vb accumulation)
+struct AccumulatedStats {
+    AccumulatedStats& operator+=(const AccumulatedStats& other);
+    uint64_t itemCount{0};
+    uint64_t opsStore{0};
+    uint64_t opsDelete{0};
+    uint64_t opsGet{0};
+};
+using Summary = std::unordered_map<CollectionID, AccumulatedStats>;
 
 struct ManifestUidNetworkOrder {
     ManifestUidNetworkOrder(ManifestUid uid) : uid(htonll(uid)) {

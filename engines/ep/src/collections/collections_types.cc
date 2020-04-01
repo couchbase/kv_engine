@@ -82,4 +82,12 @@ ScopeID getScopeIDFromKey(const DocKey& key) {
     return SystemEventFactory::getScopeIDFromKey(key);
 }
 
+AccumulatedStats& AccumulatedStats::operator+=(const AccumulatedStats& other) {
+    itemCount += other.itemCount;
+    opsStore += other.opsStore;
+    opsDelete += other.opsDelete;
+    opsGet += other.opsGet;
+    return *this;
+}
+
 } // end namespace Collections
