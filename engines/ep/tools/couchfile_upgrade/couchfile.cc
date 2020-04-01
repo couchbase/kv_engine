@@ -58,7 +58,13 @@ void CouchFile::close() const {
                     "filename:" +
                     filename + " errcode:" + std::to_string(errcode));
         }
-        couchstore_free_db(db);
+        errcode = couchstore_free_db(db);
+        if (errcode) {
+            throw std::runtime_error(
+                    "CouchFile::close failed couchstore_free_db "
+                    "filename:" +
+                    filename + " errcode:" + std::to_string(errcode));
+        }
     }
     verbose("close success");
 }

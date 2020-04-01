@@ -140,8 +140,11 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
     case COUCHSTORE_ERROR_CORRUPT:
     case COUCHSTORE_ERROR_CHECKSUM_FAIL: {
         char buffer[256];
-        couchstore_last_internal_error(db, buffer, sizeof(buffer));
-        return std::string(buffer);
+        if (couchstore_last_internal_error(db, buffer, sizeof(buffer)) ==
+            COUCHSTORE_SUCCESS) {
+            return std::string(buffer);
+        }
+        return "<error retrieving last_internal_error>";
     }
     default:
         return "none";
@@ -1122,7 +1125,15 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
 
     couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
 
-    couchstore_db_info(compactdb, &info);
+    errCode = couchstore_db_info(compactdb, &info);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.warn("CouchKVStore::compactDB db_info error:{}, {}, fileRev:{}",
+                    couchstore_strerror(errCode),
+                    vbid,
+                    compactdb.getFileRev());
+        return false;
+    }
+
     hook_ctx->stats.pre = toFileInfo(info);
 
     /**

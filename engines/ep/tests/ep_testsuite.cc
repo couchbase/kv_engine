@@ -6323,9 +6323,12 @@ static void write_vb_state(std::string dbdir,
 
     err = couchstore_save_local_document(handle, &vbstate);
     checkeq(COUCHSTORE_SUCCESS, err, "Failed to write local document");
-    couchstore_commit(handle);
-    couchstore_close_file(handle);
-    couchstore_free_db(handle);
+    err = couchstore_commit(handle);
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to commit");
+    err = couchstore_close_file(handle);
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to close file");
+    err = couchstore_free_db(handle);
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to free db");
 }
 
 /**

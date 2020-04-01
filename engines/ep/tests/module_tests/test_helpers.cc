@@ -202,7 +202,10 @@ void rewriteCouchstoreVBState(Vbid vbucket,
 
     err = couchstore_save_local_document(handle, &vbstate);
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to write local document";
-    couchstore_commit(handle);
-    couchstore_close_file(handle);
-    couchstore_free_db(handle);
+    err = couchstore_commit(handle);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to commit";
+    err = couchstore_close_file(handle);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to close file";
+    err = couchstore_free_db(handle);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to free db";
 }
