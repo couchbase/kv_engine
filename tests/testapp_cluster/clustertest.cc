@@ -26,6 +26,8 @@
 
 std::unique_ptr<cb::test::Cluster> cb::test::ClusterTest::cluster;
 
+std::shared_ptr<cb::test::Bucket> cb::test::UpgradeTest::bucket;
+
 void cb::test::ClusterTest::SetUpTestCase() {
     cluster = Cluster::create(4);
     if (!cluster) {
@@ -105,4 +107,26 @@ std::string cb::test::ClusterTest::createKey(CollectionIDType cid,
     std::copy(leb.begin(), leb.end(), std::back_inserter(ret));
     ret.append(key);
     return ret;
+}
+
+void cb::test::UpgradeTest::SetUpTestCase() {
+    // Can't just use the ClusterTest::SetUp as we need to prevent it from
+    // creating replication streams so that we can create them as we like to
+    // mock upgrade scenarios.
+    cluster = Cluster::create(3);
+    if (!cluster) {
+        std::cerr << "Failed to create the cluster" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    try {
+        bucket = cluster->createBucket(
+                "default",
+                {{"replicas", 2}, {"max_vbuckets", 1}, {"max_num_shards", 1}},
+                {},
+                false /*No replication*/);
+    } catch (const std::runtime_error& error) {
+        std::cerr << error.what();
+        std::exit(EXIT_FAILURE);
+    }
 }
