@@ -22,6 +22,7 @@
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
 #include <spdlog/fmt/fmt.h>
+#include <spdlog/fmt/ostr.h>
 
 #include <atomic>
 #include <optional>
@@ -67,9 +68,9 @@ void add_casted_stat(std::string_view k,
                      const T& v,
                      const AddStatFn& add_stat,
                      const void* cookie) {
-    std::stringstream vals;
-    vals << v;
-    add_stat(k, vals.str(), cookie);
+    fmt::memory_buffer buf;
+    fmt::format_to(buf, "{}", v);
+    add_stat(k, {buf.data(), buf.size()}, cookie);
 }
 
 inline void add_casted_stat(std::string_view k,
