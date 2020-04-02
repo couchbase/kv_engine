@@ -2014,16 +2014,16 @@ static enum test_result test_dcp_noop(EngineIface* h) {
                     (int)producers.last_opaque,
                     "last_opaque != 10,000,001");
             const auto stat_name("eq_dcpq:" + name + ":noop_wait");
-            checkeq(1,
-                    get_int_stat(h, stat_name.c_str(), "dcp"),
+            checkeq(true,
+                    get_bool_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't send noop");
             sendDcpAck(h,
                        cookie,
                        cb::mcbp::ClientOpcode::DcpNoop,
                        cb::mcbp::Status::Success,
                        producers.last_opaque);
-            checkeq(0,
-                    get_int_stat(h, stat_name.c_str(), "dcp"),
+            checkeq(false,
+                    get_bool_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't ack noop");
         } else if (producers.last_op != cb::mcbp::ClientOpcode::Invalid) {
             abort();
@@ -2071,8 +2071,8 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
                     (int)producers.last_opaque,
                     "last_opaque != 10,000,001");
             const auto stat_name("eq_dcpq:" + name + ":noop_wait");
-            checkeq(1,
-                    get_int_stat(h, stat_name.c_str(), "dcp"),
+            checkeq(true,
+                    get_bool_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't send noop");
             testHarness->time_travel(201);
         } else if (producers.last_op != cb::mcbp::ClientOpcode::Invalid) {

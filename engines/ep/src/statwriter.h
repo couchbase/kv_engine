@@ -87,6 +87,14 @@ void add_casted_stat(std::string_view k,
     add_casted_stat(k, v.load(), add_stat, cookie);
 }
 
+template <typename T>
+void add_casted_stat(std::string_view k,
+                     const cb::RelaxedAtomic<T>& v,
+                     const AddStatFn& add_stat,
+                     const void* cookie) {
+    add_casted_stat(k, v.load(), add_stat, cookie);
+}
+
 /**
  * Convert a histogram into add stat calls for each bucket and for the mean.
  */
