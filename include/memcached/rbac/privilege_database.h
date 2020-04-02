@@ -108,7 +108,8 @@ public:
      * @return PrivilegeAccess::Ok if the privilege is held
      *         PrivilegeAccess::Fail otherwise
      */
-    PrivilegeAccess check(Privilege privilege, uint32_t collection) const;
+    PrivilegeAccess check(Privilege privilege,
+                          std::optional<uint32_t> collection) const;
 
     /// Check if this object is identical to another object
     bool operator==(const Scope& other) const;
@@ -147,8 +148,8 @@ public:
      *         PrivilegeAccess::Fail otherwise
      */
     PrivilegeAccess check(Privilege privilege,
-                          uint32_t scope,
-                          uint32_t collection) const;
+                          std::optional<uint32_t> scope,
+                          std::optional<uint32_t> collection) const;
 
     /// Check if this object is identical to another object
     bool operator==(const Bucket& other) const;
@@ -294,12 +295,12 @@ public:
      *
      * @param privilege the privilege to check
      * @param sid the scope id
-     * @param cid the collection id
+     * @param cid the collection id (if set, sid must also be set)
      * @return if access is granted or not.
      */
     PrivilegeAccess check(Privilege privilege,
-                          ScopeID sid,
-                          CollectionID cid) const;
+                          std::optional<ScopeID> sid,
+                          std::optional<CollectionID> cid) const;
 
     /**
      * Get the generation of the Privilege Database this context maps

@@ -495,7 +495,32 @@ public:
     /// for the provided scope collection identifier
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege,
                                              ScopeID sid,
-                                             CollectionID cid);
+                                             CollectionID cid) {
+        return doCheckPrivilege(privilege, sid, cid);
+    }
+
+    /**
+     * Check if the given privilege is part of the context - this is a check of
+     * bucket and then scope
+     *
+     * @param privilege the privilege to check
+     * @return if access is granted or not.
+     */
+    cb::rbac::PrivilegeAccess checkScopePrivilege(cb::rbac::Privilege privilege,
+                                                  ScopeID sid) {
+        return doCheckPrivilege(privilege, sid, {});
+    }
+
+    /**
+     * Check if the given privilege is part of the context for bucket only
+     *
+     * @param privilege the privilege to check
+     * @return if access is granted or not.
+     */
+    cb::rbac::PrivilegeAccess checkBucketPrivilege(
+            cb::rbac::Privilege privilege) {
+        return doCheckPrivilege(privilege, {}, {});
+    }
 
     /**
      * Set the effective user executing this command
@@ -528,8 +553,12 @@ protected:
     cb::rbac::PrivilegeAccess checkPrivilege(
             const cb::rbac::PrivilegeContext& ctx,
             cb::rbac::Privilege privilege,
-            ScopeID sid,
-            CollectionID cid);
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid);
+
+    cb::rbac::PrivilegeAccess doCheckPrivilege(cb::rbac::Privilege privilege,
+                                               std::optional<ScopeID> sid,
+                                               std::optional<CollectionID> cid);
 
     /**
      * Is OpenTracing enabled for this cookie or not. By querying the

@@ -166,13 +166,17 @@ nlohmann::json Scope::to_json() const {
     return ret;
 }
 
-PrivilegeAccess Scope::check(Privilege privilege, uint32_t collection) const {
-    if (collections.empty()) {
-        return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
-                                                      : PrivilegeAccess::Fail;
+PrivilegeAccess Scope::check(Privilege privilege,
+                             std::optional<uint32_t> collection) const {
+    if (privilegeMask.test(uint8_t(privilege))) {
+        return PrivilegeAccess::Ok;
     }
 
-    const auto iter = collections.find(collection);
+    if (collections.empty() || !collection) {
+        return PrivilegeAccess::Fail;
+    }
+
+    const auto iter = collections.find(*collection);
     if (iter == collections.end()) {
         // We don't have access to that collection
         return PrivilegeAccess ::Fail;
@@ -217,14 +221,17 @@ nlohmann::json Bucket::to_json() const {
 }
 
 PrivilegeAccess Bucket::check(Privilege privilege,
-                              uint32_t scope,
-                              uint32_t collection) const {
-    if (scopes.empty() || !is_collection_privilege(privilege)) {
-        return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
-                                                      : PrivilegeAccess::Fail;
+                              std::optional<uint32_t> scope,
+                              std::optional<uint32_t> collection) const {
+    if (privilegeMask.test(uint8_t(privilege))) {
+        return PrivilegeAccess::Ok;
     }
 
-    const auto iter = scopes.find(scope);
+    if (scopes.empty() || !scope || !is_collection_privilege(privilege)) {
+        return PrivilegeAccess::Fail;
+    }
+
+    const auto iter = scopes.find(*scope);
     if (iter == scopes.end()) {
         // We don't have access to that scope
         return PrivilegeAccess ::Fail;
@@ -381,14 +388,19 @@ bool PrivilegeContext::isStale() const {
 }
 
 PrivilegeAccess PrivilegeContext::check(Privilege privilege,
-                                        ScopeID sid,
-                                        CollectionID cid) const {
+                                        std::optional<ScopeID> sid,
+                                        std::optional<CollectionID> cid) const {
     const auto idx = size_t(privilege);
 #ifndef NDEBUG
     if (idx >= mask.size()) {
         throw std::invalid_argument("Invalid privilege passed for the check)");
     }
 #endif
+
+    if (cid && !sid) {
+        throw std::invalid_argument(
+                "PrivilegeContext::check: can't provide cid and no sid");
+    }
 
     // Check if the user dropped the privilege over the connection.
     if (!droppedPrivileges.empty()) {
@@ -399,15 +411,11 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
         }
     }
 
-    // Optimization.. Most requests will be for bucket privileges and not
-    // the other privileges.. Check the bucket privileges first, then
-    // the global privileges
-    if (bucket && is_bucket_privilege(privilege) &&
-        bucket->check(privilege, sid, cid) == PrivilegeAccess::Ok) {
+    if (mask.test(idx)) {
         return PrivilegeAccess::Ok;
     }
-
-    if (mask.test(idx)) {
+    if (bucket && is_bucket_privilege(privilege) &&
+        bucket->check(privilege, sid, cid) == PrivilegeAccess::Ok) {
         return PrivilegeAccess::Ok;
     }
 

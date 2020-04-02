@@ -602,9 +602,10 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
     return true;
 }
 
-cb::rbac::PrivilegeAccess Cookie::checkPrivilege(cb::rbac::Privilege privilege,
-                                                 ScopeID sid,
-                                                 CollectionID cid) {
+cb::rbac::PrivilegeAccess Cookie::doCheckPrivilege(
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) {
     using cb::rbac::PrivilegeAccess;
     auto ret = checkPrivilege(privilegeContext, privilege, sid, cid);
 
@@ -618,8 +619,8 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(cb::rbac::Privilege privilege,
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         const cb::rbac::PrivilegeContext& ctx,
         cb::rbac::Privilege privilege,
-        ScopeID sid,
-        CollectionID cid) {
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) {
     const auto ret = ctx.check(privilege, sid, cid);
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
         const auto opcode = getRequest().getClientOpcode();

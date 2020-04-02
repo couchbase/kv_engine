@@ -23,14 +23,21 @@ defined for the current user in that bucket.
 
 As part of the execution of a command the front-end checks if the
 connections privilege context contains the privileges required to perform
-the operation.
+the operation. The requested privilege is checked in the following
+order:
+
+0) "dropped privileges", if set return no access
+1) "global" privilege mask
+2) bucket privilege mask (for all bucket privileges)
+3) scope privilege mask (for all collection aware privileges)
+4) collection privilege mask
 
 Some operations may be executed with and without privileges (and the
 privileged version may perform more). In these cases the implementation
 of the command itself performs the privilege check by using the following
 part of the server API:
 
-    if (!sapi->cookie.check_privilege(cookie, Privilege::MetaRead)) {
+    if (!sapi->cookie.check_privilege(cookie, Privilege::MetaRead, sid, cid)) {
         return ENGINE_EACCESS;
     }
 
