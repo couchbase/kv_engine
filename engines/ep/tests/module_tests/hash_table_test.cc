@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "hash_table_test.h"
+#include "ep_time.h"
 #include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "item_freq_decayer_visitor.h"
@@ -114,6 +115,8 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
 }
 
 HashTableTest::HashTableTest() : defaultHtSize(Configuration().getHtSize()) {
+    // Need mock time functions to be able to time travel
+    initialize_time_functions(get_mock_server_api()->core);
 }
 
 bool HashTableTest::del(HashTable& ht, const DocKey& key) {
@@ -981,10 +984,12 @@ TEST_F(HashTableTest, LockAfterDelete) {
         auto toDelete = ht.findForWrite(key);
         sv = toDelete.storedValue;
         TimeTraveller toTheFuture(1985);
-        ht.unlocked_softDelete(toDelete.lock,
-                               *sv,
-                               /* onlyMarkDeleted */ false,
-                               DeleteSource::Explicit);
+        ASSERT_EQ(DeletionStatus::Success,
+                  ht.unlocked_softDelete(toDelete.lock,
+                                         *sv,
+                                         /* onlyMarkDeleted */ false,
+                                         DeleteSource::Explicit)
+                          .status);
     }
     ASSERT_EQ(1, ht.getNumItems());
     ASSERT_EQ(1, ht.getNumDeletedItems());
