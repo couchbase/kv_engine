@@ -41,6 +41,7 @@ protected:
     }
 
     void TearDown() override {
+        cb::ArenaMalloc::switchFromClient();
         cb::ArenaMalloc::unregisterClient(global_stats.arena);
     }
 
