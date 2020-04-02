@@ -27,6 +27,7 @@
 #include "vbucket_test.h"
 
 #include <folly/portability/GTest.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <thread>
 
 /**
@@ -452,6 +453,9 @@ class EphTombstoneTest : public EphemeralVBucketTest {
 protected:
     void SetUp() override {
         EphemeralVBucketTest::SetUp();
+
+        // Need mock time functions to be able to time travel
+        initialize_time_functions(get_mock_server_api()->core);
 
         // Store three items to work with.
         keys = generateKeys(3);

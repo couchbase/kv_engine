@@ -371,6 +371,9 @@ TEST_P(VBucketTest, Add) {
 }
 
 TEST_P(VBucketTest, AddExpiry) {
+    // Need mock time functions to be able to time travel
+    initialize_time_functions(get_mock_server_api()->core);
+
     if (getEvictionPolicy() != EvictionPolicy::Value) {
         return;
     }
