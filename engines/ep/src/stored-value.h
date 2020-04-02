@@ -246,9 +246,9 @@ public:
         }
 
         if (policy == EvictionPolicy::Value) {
-            return isResident() && !isDirty() && !isDeleted();
+            return isResident() && !isDirty();
         } else {
-            return !isDirty() && !isDeleted();
+            return !isDirty();
         }
     }
 
