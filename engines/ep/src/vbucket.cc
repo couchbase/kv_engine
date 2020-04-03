@@ -2059,12 +2059,9 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         mutation_descr_t& mutInfo,
         const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     if (durability && durability->isValid()) {
-        if (!isValidDurabilityLevel(durability->getLevel())) {
-            return ENGINE_DURABILITY_INVALID_LEVEL;
-        }
-
-        if (!getActiveDM().isDurabilityPossible()) {
-            return ENGINE_DURABILITY_IMPOSSIBLE;
+        auto ret = checkDurabilityRequirements(*durability);
+        if (ret != ENGINE_SUCCESS) {
+            return ret;
         }
     }
 
@@ -3937,15 +3934,19 @@ void VBucket::setFreqSaturatedCallback(std::function<void()> callbackFunction) {
 
 ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(const Item& item) {
     if (item.isPending()) {
-        if (!isValidDurabilityLevel(item.getDurabilityReqs().getLevel())) {
-            return ENGINE_DURABILITY_INVALID_LEVEL;
-        }
-
-        if (!getActiveDM().isDurabilityPossible()) {
-            return ENGINE_DURABILITY_IMPOSSIBLE;
-        }
+        return checkDurabilityRequirements(item.getDurabilityReqs());
     }
+    return ENGINE_SUCCESS;
+}
 
+ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(
+        const cb::durability::Requirements& reqs) {
+    if (!isValidDurabilityLevel(reqs.getLevel())) {
+        return ENGINE_DURABILITY_INVALID_LEVEL;
+    }
+    if (!getActiveDM().isDurabilityPossible()) {
+        return ENGINE_DURABILITY_IMPOSSIBLE;
+    }
     return ENGINE_SUCCESS;
 }
 
