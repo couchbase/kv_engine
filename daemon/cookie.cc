@@ -602,7 +602,7 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
     return true;
 }
 
-cb::rbac::PrivilegeAccess Cookie::doCheckPrivilege(
+cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         cb::rbac::Privilege privilege,
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) {

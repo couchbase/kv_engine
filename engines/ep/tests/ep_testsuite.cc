@@ -2483,17 +2483,17 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
 
     const void* cookie = testHarness->create_cookie(h);
 
-    mock_set_privilege_check_function(
+    mock_set_check_privilege_function(
             [](gsl::not_null<const void*>,
                cb::rbac::Privilege,
-               ScopeID,
-               CollectionID) -> cb::rbac::PrivilegeAccess {
+               std::optional<ScopeID>,
+               std::optional<CollectionID>) -> cb::rbac::PrivilegeAccess {
                 return cb::rbac::PrivilegeAccess::Fail;
             });
 
     const auto ret = h->get_stats(cookie, "key k1 0"sv, {}, add_stats);
     // Reset priv check function
-    mock_set_privilege_check_function({});
+    mock_set_check_privilege_function({});
     checkeq(ENGINE_EACCESS, ret, "Expected stats key to return no access");
 
     testHarness->destroy_cookie(cookie);

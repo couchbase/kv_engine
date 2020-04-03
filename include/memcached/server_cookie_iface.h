@@ -177,21 +177,21 @@ struct ServerCookieIface {
     virtual uint64_t get_connection_id(gsl::not_null<const void*> cookie) = 0;
 
     /**
-     * Check if the cookie have the specified privilege in it's
-     * active set.
+     * Check if the cookie have the specified privilege in it's active set.
      *
      * @param cookie the cookie sent to the engine for an operation
      * @param privilege the privilege to check for
-     * @param sid the scope id
-     * @param cid the collection id
-     * @return true if the cookie have the privilege in its active set,
-     *         false otherwise
+     * @param sid the scope id (optional for bucket tests)
+     * @param cid the collection id (optional for scope/bucket tests)
+     * @throws invalid_argument if cid defined but not sid
+     * @return PrivilegeAccess::Ok if the cookie have the privilege in its
+     *         active set PrivilegeAccess::Fail otherwise
      */
     virtual cb::rbac::PrivilegeAccess check_privilege(
             gsl::not_null<const void*> cookie,
             cb::rbac::Privilege privilege,
-            ScopeID sid,
-            CollectionID cid) = 0;
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) = 0;
 
     /// Get the revision number for the privilege context for the cookie to
     /// allow the engine to cache the result of a privilege check if locating

@@ -491,36 +491,18 @@ public:
                               currentCollectionInfo.second);
     }
 
-    /// Check if the current command have the requested privilege for
-    /// for the provided scope collection identifier
+    /**
+     * Check the privlege against the authorised user's access configuration.
+     * @param privilege The privilege to check
+     * @param sid If the privilege is not found for the bucket, try looking in
+     *            this scope.
+     * @param cid If the privilege is not found for the scope, try looking in
+     *            this collection.
+     * @throws invalid_argument if cid defined but not sid
+     */
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege,
-                                             ScopeID sid,
-                                             CollectionID cid) {
-        return doCheckPrivilege(privilege, sid, cid);
-    }
-
-    /**
-     * Check if the given privilege is part of the context - this is a check of
-     * bucket and then scope
-     *
-     * @param privilege the privilege to check
-     * @return if access is granted or not.
-     */
-    cb::rbac::PrivilegeAccess checkScopePrivilege(cb::rbac::Privilege privilege,
-                                                  ScopeID sid) {
-        return doCheckPrivilege(privilege, sid, {});
-    }
-
-    /**
-     * Check if the given privilege is part of the context for bucket only
-     *
-     * @param privilege the privilege to check
-     * @return if access is granted or not.
-     */
-    cb::rbac::PrivilegeAccess checkBucketPrivilege(
-            cb::rbac::Privilege privilege) {
-        return doCheckPrivilege(privilege, {}, {});
-    }
+                                             std::optional<ScopeID> sid,
+                                             std::optional<CollectionID> cid);
 
     /// Get the underlying privilege context
     const cb::rbac::PrivilegeContext& getPrivilegeContext() const {
@@ -560,10 +542,6 @@ protected:
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid);
-
-    cb::rbac::PrivilegeAccess doCheckPrivilege(cb::rbac::Privilege privilege,
-                                               std::optional<ScopeID> sid,
-                                               std::optional<CollectionID> cid);
 
     /**
      * Is OpenTracing enabled for this cookie or not. By querying the

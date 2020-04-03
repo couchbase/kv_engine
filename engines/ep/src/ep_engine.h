@@ -812,6 +812,14 @@ public:
 
     cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
 
+    /**
+     * Check the access for the given privilege for the bucket.scope.collection
+     */
+    cb::engine_errc checkPrivilege(const void* cookie,
+                                   cb::rbac::Privilege priv,
+                                   std::optional<ScopeID> sid,
+                                   std::optional<CollectionID> cid) const;
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -820,7 +828,7 @@ protected:
      */
     ENGINE_ERROR_CODE checkPrivilege(const void* cookie,
                                      cb::rbac::Privilege priv,
-                                     DocKey key);
+                                     DocKey key) const;
 
     void setMaxItemSize(size_t value) {
         maxItemSize = value;

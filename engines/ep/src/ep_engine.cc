@@ -4671,31 +4671,49 @@ void EventuallyPersistentEngine::resetStats() {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::checkPrivilege(
-        const void* cookie, cb::rbac::Privilege priv, DocKey key) {
-    try {
-        ScopeID sid;
-        if (key.getCollectionID().isDefaultCollection()) {
-            sid = ScopeID{ScopeID::Default};
-        } else {
-            auto res = get_scope_id(cookie, key);
-            if (!res.second) {
-                return ENGINE_UNKNOWN_COLLECTION;
-            }
-            sid = res.second.value();
+        const void* cookie, cb::rbac::Privilege priv, DocKey key) const {
+    ScopeID sid;
+    if (key.getCollectionID().isDefaultCollection()) {
+        sid = ScopeID{ScopeID::Default};
+    } else {
+        auto res = get_scope_id(cookie, key);
+        if (!res.second) {
+            return ENGINE_UNKNOWN_COLLECTION;
         }
+        sid = res.second.value();
+    }
 
-        const auto acc = serverApi->cookie->check_privilege(
-                cookie, priv, sid, key.getCollectionID());
-        return acc == cb::rbac::PrivilegeAccess::Ok ? ENGINE_SUCCESS
-                                                    : ENGINE_EACCESS;
+    auto status = checkPrivilege(cookie, priv, sid, key.getCollectionID());
+
+    if (status == cb::engine_errc::failed) {
+        EP_LOG_ERR(
+                "EPE::checkPrivilege: failed while checking "
+                "privilege for key {}",
+                cb::UserDataView(key.to_string()));
+    }
+    return ENGINE_ERROR_CODE(status);
+}
+
+cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
+        const void* cookie,
+        cb::rbac::Privilege priv,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
+    try {
+        const auto acc =
+                serverApi->cookie->check_privilege(cookie, priv, sid, cid);
+        return acc == cb::rbac::PrivilegeAccess::Ok
+                       ? cb::engine_errc::success
+                       : cb::engine_errc::no_access;
 
     } catch (const std::exception& e) {
         EP_LOG_ERR(
                 "EPE::checkPrivilege: received exception while checking "
-                "privilege for key {}: {}",
-                cb::UserDataView(key.to_string()),
+                "privilege for sid:{}: cid:{} {}",
+                sid ? sid->to_string() : "no-scope",
+                cid ? cid->to_string() : "no-collection",
                 e.what());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 }
 
