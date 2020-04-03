@@ -32,7 +32,7 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
 
 class MockDcpMessageProducers : public dcp_message_producers {
 public:
-    MockDcpMessageProducers(EngineIface* engine = nullptr);
+    explicit MockDcpMessageProducers(EngineIface* engine = nullptr);
 
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 
@@ -200,6 +200,8 @@ public:
     uint64_t last_commit_seqno;
     uint64_t last_abort_seqno;
     uint32_t last_oso_snapshot_flags;
+
+    bool isCollectionsSupported = false;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

@@ -16,7 +16,6 @@
  */
 
 #include <relaxed_atomic.h>
-#include <stdlib.h>
 
 #include "collections/collections_types.h"
 #include "item.h"
@@ -36,7 +35,7 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
         dcp_failover_log.clear();
     }
 
-    if(nentries > 0) {
+    if (nentries > 0) {
         for (size_t i = 0; i < nentries; i--) {
             std::pair<uint64_t, uint64_t> curr;
             curr.first = entry[i].uuid;
@@ -44,7 +43,7 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
             dcp_failover_log.push_back(curr);
         }
     }
-   return ENGINE_SUCCESS;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_failover_log(uint32_t opaque,
@@ -71,7 +70,9 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(
     last_start_seqno = start_seqno;
     last_end_seqno = end_seqno;
     last_vbucket_uuid = vbucket_uuid;
-    last_packet_size = 64;
+    last_packet_size = sizeof(cb::mcbp::Request) +
+                       sizeof(cb::mcbp::request::DcpStreamReqPayload) +
+                       request_value.size();
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;
     last_collection_filter = request_value;
@@ -85,7 +86,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::add_stream_rsp(
     last_opaque = opaque;
     last_stream_opaque = stream_opaque;
     last_status = status;
-    last_packet_size = 28;
+    last_packet_size = sizeof(cb::mcbp::Response) +
+                       sizeof(cb::mcbp::response::DcpAddStreamPayload);
     return ENGINE_SUCCESS;
 }
 
@@ -95,7 +97,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker_rsp(uint32_t opaque,
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
     last_opaque = opaque;
     last_status = status;
-    last_packet_size = 24;
+    last_packet_size = sizeof(cb::mcbp::Response);
     return ENGINE_SUCCESS;
 }
 
@@ -105,7 +107,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
     last_op = cb::mcbp::ClientOpcode::DcpSetVbucketState;
     last_opaque = opaque;
     last_status = status;
-    last_packet_size = 24;
+    last_packet_size = sizeof(cb::mcbp::Request);
     return ENGINE_SUCCESS;
 }
 
@@ -119,8 +121,12 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_flags = flags;
-    last_packet_size = 28;
-    last_stream_id = sid;
+    last_packet_size = sizeof(cb::mcbp::Request) +
+                       sizeof(cb::mcbp::request::DcpStreamEndPayload);
+    if (sid) {
+        last_stream_id = sid;
+        last_packet_size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -138,11 +144,23 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
     last_opaque = opaque;
     last_vbucket = vbucket;
-    last_packet_size = 44;
+    last_packet_size = sizeof(cb::mcbp::Request);
+    if (highCompletedSeqno || maxVisibleSeqno) {
+        last_packet_size +=
+                sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+                sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+    } else {
+        last_packet_size +=
+                sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
+    }
+
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;
     last_flags = flags;
-    last_stream_id = sid;
+    if (sid) {
+        last_packet_size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+        last_stream_id = sid;
+    }
     if (highCompletedSeqno) {
         last_high_completed_seqno = *highCompletedSeqno;
     }
@@ -157,6 +175,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint32_t lock_time,
                                                     uint8_t nru,
                                                     cb::mcbp::DcpStreamId sid) {
+    last_stream_id = sid;
     auto result = handleMutationOrPrepare(cb::mcbp::ClientOpcode::DcpMutation,
                                           opaque,
                                           std::move(itm),
@@ -166,7 +185,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                           lock_time,
                                           {},
                                           nru);
-    last_stream_id = sid;
     return result;
 }
 
@@ -193,14 +211,16 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
     last_value.assign(item->getData(), item->getNBytes());
     last_nru = nru;
 
-    // @todo: MB-24391: We are querying the header length with collections
-    // off, which if we extended our testapp tests to do collections may not be
-    // correct. For now collections testing is done via GTEST tests and isn't
-    // reliant on last_packet_size so this doesn't cause any problems.
-    last_packet_size = sizeof(cb::mcbp::Request) +
-                       sizeof(cb::mcbp::request::DcpMutationPayload);
-    last_packet_size = last_packet_size + last_key.length() +
-                       item->getNBytes() + meta.size();
+    last_packet_size =
+            sizeof(cb::mcbp::Request) +
+            (last_stream_id ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
+            sizeof(cb::mcbp::request::DcpMutationPayload) + item->getNBytes();
+    if (!isCollectionsSupported) {
+        last_packet_size +=
+                item->getKey().makeDocKeyWithoutCollectionID().size();
+    } else {
+        last_packet_size += item->getKey().size();
+    }
 
     last_datatype = item->getDataType();
     last_collection_id = item->getKey().getCollectionID();
@@ -232,10 +252,16 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
     last_byseqno = by_seqno;
     last_revseqno = rev_seqno;
 
-    // @todo: MB-24391 as above.
-    last_packet_size = sizeof(protocol_binary_request_header) +
-                       last_key.length() + item->getNBytes();
-    last_packet_size += extlen;
+    last_packet_size = sizeof(cb::mcbp::Request) +
+                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
+                       item->getNBytes() + extlen;
+
+    if (!isCollectionsSupported) {
+        last_packet_size +=
+                item->getKey().makeDocKeyWithoutCollectionID().size();
+    } else {
+        last_packet_size += item->getKey().size();
+    }
 
     last_value.assign(static_cast<const char*>(item->getData()),
                       item->getNBytes());
@@ -309,7 +335,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_vbucket_state = state;
-    last_packet_size = 25;
+    last_packet_size = sizeof(cb::mcbp::Response) +
+                       sizeof(cb::mcbp::request::DcpSetVBucketState);
     return ENGINE_SUCCESS;
 }
 
@@ -317,6 +344,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::noop(uint32_t opaque) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpNoop;
     last_opaque = opaque;
+    last_packet_size = sizeof(cb::mcbp::Request);
     return ENGINE_SUCCESS;
 }
 
@@ -326,6 +354,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::buffer_acknowledgement(
     last_op = cb::mcbp::ClientOpcode::DcpBufferAcknowledgement;
     last_opaque = opaque;
     last_vbucket = vbucket;
+    last_packet_size = (sizeof(cb::mcbp::Request) +
+                        sizeof(cb::mcbp::request::DcpBufferAckPayload));
     return ENGINE_SUCCESS;
 }
 
@@ -337,6 +367,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::control(uint32_t opaque,
     last_opaque = opaque;
     last_key.assign(key.data(), key.size());
     last_value.assign(value.data(), value.size());
+    last_packet_size = sizeof(cb::mcbp::Request) + key.size() + value.size();
     return ENGINE_SUCCESS;
 }
 
@@ -351,6 +382,9 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_byseqno = bySeqno;
     last_system_event = event;
     last_system_event_data.insert(
             last_system_event_data.begin(), eventData.begin(), eventData.end());
@@ -372,6 +406,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
                 reinterpret_cast<const Collections::DropEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
+    }
+
+    last_packet_size = sizeof(cb::mcbp::Request) +
+                       sizeof(cb::mcbp::request::DcpSystemEventPayload) +
+                       key.size() + eventData.size();
+    if (sid) {
+        last_packet_size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     }
 
     last_stream_id = sid;
@@ -400,10 +441,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(uint32_t opaque,
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_acknowledged(
         uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno) {
+    clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged;
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_prepared_seqno = prepared_seqno;
+    last_packet_size = (sizeof(cb::mcbp::Request) +
+                        sizeof(cb::mcbp::request::DcpBufferAckPayload));
     return ENGINE_SUCCESS;
 }
 
@@ -412,11 +456,20 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::commit(uint32_t opaque,
                                                   const DocKey& key,
                                                   uint64_t prepare_seqno,
                                                   uint64_t commit_seqno) {
+    clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpCommit;
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_prepared_seqno = prepare_seqno;
     last_commit_seqno = commit_seqno;
+    last_key.assign(key.to_string());
+    last_packet_size = sizeof(protocol_binary_request_header) +
+                       sizeof(cb::mcbp::request::DcpCommitPayload);
+    if (!isCollectionsSupported) {
+        last_packet_size += key.makeDocKeyWithoutCollectionID().size();
+    } else {
+        last_packet_size += key.size();
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -425,11 +478,20 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::abort(uint32_t opaque,
                                                  const DocKey& key,
                                                  uint64_t prepared_seqno,
                                                  uint64_t abort_seqno) {
+    clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpAbort;
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_prepared_seqno = prepared_seqno;
     last_abort_seqno = abort_seqno;
+    last_key.assign(key.to_string());
+    last_packet_size = sizeof(protocol_binary_request_header) +
+                       sizeof(cb::mcbp::request::DcpAbortPayload);
+    if (!isCollectionsSupported) {
+        last_packet_size += key.makeDocKeyWithoutCollectionID().size();
+    } else {
+        last_packet_size += key.size();
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -438,11 +500,16 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::oso_snapshot(
         Vbid vbucket,
         uint32_t flags,
         cb::mcbp::DcpStreamId sid) {
+    clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpOsoSnapshot;
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_oso_snapshot_flags = flags;
     last_stream_id = sid;
+    cb::mcbp::request::DcpOsoSnapshotPayload extras(flags);
+    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
+                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    last_packet_size = totalBytes;
     return ENGINE_SUCCESS;
 }
 
@@ -451,11 +518,16 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_advanced(
         Vbid vbucket,
         uint64_t seqno,
         cb::mcbp::DcpStreamId sid) {
+    clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSeqnoAdvanced;
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_byseqno = seqno;
     last_stream_id = sid;
+    cb::mcbp::request::DcpSeqnoAdvancedPayload extras(seqno);
+    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
+                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    last_packet_size = totalBytes;
     return ENGINE_SUCCESS;
 }
 
