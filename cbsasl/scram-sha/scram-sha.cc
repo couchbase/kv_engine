@@ -22,6 +22,7 @@
 #include <cbsasl/logging.h>
 #include <platform/base64.h>
 #include <platform/random.h>
+#include <platform/string_hex.h>
 #include <cstring>
 #include <gsl/gsl>
 #include <iomanip>
@@ -38,16 +39,6 @@ namespace mechanism {
 namespace scram {
 
 typedef std::map<char, std::string> AttributeMap;
-
-static std::string hex_encode_nonce(const std::array<char, 8>& nonce) {
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    for (const auto& c : nonce) {
-        ss << std::setw(2) << uint32_t(c);
-    }
-
-    return ss.str();
-}
 
 /**
  * Decode the attribute list into a set. The attribute list looks like:
@@ -299,7 +290,7 @@ ServerBackend::ServerBackend(server::ServerContext& ctx,
         throw std::bad_alloc();
     }
 
-    serverNonce = hex_encode_nonce(nonce);
+    serverNonce = cb::hex_encode({nonce.data(), nonce.size()});
 }
 
 std::pair<Error, std::string_view> ServerBackend::start(
@@ -495,7 +486,7 @@ ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
         throw std::bad_alloc();
     }
 
-    clientNonce = hex_encode_nonce(nonce);
+    clientNonce = cb::hex_encode({nonce.data(), nonce.size()});
 }
 
 std::pair<Error, std::string_view> ClientBackend::start() {
