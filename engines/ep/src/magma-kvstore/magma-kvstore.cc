@@ -1060,7 +1060,7 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
         std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
         if (!status) {
             logger->critical(
-                    "MagmaKVStore::prepareToCreateImpl SoftDeleteKVStore "
+                    "MagmaKVStore::prepareToDeleteImpl SoftDeleteKVStore "
                     "failed. {} status:{}",
                     vbid,
                     status.String());
