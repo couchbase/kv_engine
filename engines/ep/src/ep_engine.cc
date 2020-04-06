@@ -1396,7 +1396,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
         return ENGINE_EWOULDBLOCK;
     }
 
-    ConnHandler* conn = engine->getConnHandler(cookie);
+    ConnHandler* conn = engine->getConnHandler(cookie, false);
     // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
         auto* producer = dynamic_cast<DcpProducer*>(conn);
