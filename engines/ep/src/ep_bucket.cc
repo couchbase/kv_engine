@@ -1185,7 +1185,10 @@ bool EPBucket::doCompact(CompactionConfig& config,
      * the writer and compactor threads
      */
     if (concWriteCompact) {
-        compactInternal(config, purgeSeqno);
+        auto vb = getVBucket(vbid);
+        if (vb) {
+            compactInternal(config, purgeSeqno);
+        }
     } else {
         auto vb = getLockedVBucket(vbid, std::try_to_lock);
         if (!vb.owns_lock()) {

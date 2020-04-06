@@ -646,18 +646,13 @@ void MagmaKVStore::rollback() {
     }
 }
 
-// @TODO MB-38611: Correct ConcurrentWriteCompact so that BackgroundCompact is
-//  not necessary. We should allow explicit compactions and writes concurrently.
-//
-// Magma does not allow explicit (ns_server/kv_engine) compactions to run
-// concurrently with writes. It does however run implicit (background)
-// compactions.
+// @TODO MB-38611: Remove BackgroundCompact property
 StorageProperties MagmaKVStore::getStorageProperties() {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,
                          StorageProperties::EfficientGet::Yes,
-                         StorageProperties::ConcurrentWriteCompact::No,
+                         StorageProperties::ConcurrentWriteCompact::Yes,
                          StorageProperties::BackgroundCompact::Yes,
                          StorageProperties::ByIdScan::No);
     return rv;
@@ -1777,11 +1772,12 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
 
     auto diskState = readVBStateFromDisk(vbid);
     if (!diskState.status) {
-        throw std::runtime_error(
-                "MagmaKVStore::compactDBInternal: trying to run compaction "
-                "on " +
-                vbid.to_string() +
-                " but can't read vbstate. Status:" + diskState.status.String());
+        logger->warn(
+                "MagmaKVStore::compactDBInternal: trying to run "
+                "compaction on {} but can't read vbstate. Status:{}",
+                vbid,
+                diskState.status.String());
+        return false;
     }
     ctx->highCompletedSeqno = diskState.vbstate.persistedCompletedSeqno;
 
