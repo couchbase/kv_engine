@@ -731,21 +731,40 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     cancelAndPurgeTasks();
 }
 
-TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimit) {
+TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitLimitChange) {
     auto& bucket = getEPBucket();
-    auto shards = engine->getWorkLoadPolicy().getNumShards();
+    auto writers = ExecutorPool::get()->getNumWriters();
 
-    // Test is only valid with a non-1 number of shards
-    ASSERT_EQ(2, shards);
+    // This is the default value
+    ASSERT_EQ(4, writers);
 
     auto totalLimit = engine->getConfiguration().getFlusherTotalBatchLimit();
 
-    auto expected = totalLimit / shards;
+    auto expected = totalLimit / writers;
     EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
 
     totalLimit = 40000;
     bucket.setFlusherBatchSplitTrigger(totalLimit);
-    expected = totalLimit / shards;
+    expected = totalLimit / writers;
+    EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
+}
+
+TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitWritersChange) {
+    auto& bucket = getEPBucket();
+    auto writers = ExecutorPool::get()->getNumWriters();
+
+    // This is the default value
+    ASSERT_EQ(4, writers);
+
+    auto totalLimit = engine->getConfiguration().getFlusherTotalBatchLimit();
+
+    auto expected = totalLimit / writers;
+    EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
+
+    engine->set_num_writer_threads(ThreadPoolConfig::ThreadCount(writers * 2));
+    writers = ExecutorPool::get()->getNumWriters();
+
+    expected = totalLimit / writers;
     EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
 }
 

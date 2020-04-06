@@ -857,7 +857,7 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     // If limit is lower than the number of shards then we should run with a
     // limit of 1 as a 0 limit could cause us to fail to flush anything.
     flusherBatchSplitTrigger =
-            std::max(size_t(1), limit / vbMap.getNumShards());
+            std::max(size_t(1), limit / ExecutorPool::get()->getNumWriters());
 }
 
 size_t EPBucket::getFlusherBatchSplitTrigger() {

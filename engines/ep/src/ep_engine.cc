@@ -6773,6 +6773,14 @@ void EventuallyPersistentEngine::set_num_writer_threads(
         ThreadPoolConfig::ThreadCount num) {
     getConfiguration().setNumWriterThreads(static_cast<int>(num));
     ExecutorPool::get()->setNumWriters(num);
+
+    auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket());
+    if (epBucket) {
+        // We just changed number of writers so we also need to refresh the
+        // flusher batch split trigger to adjust our limits accordingly.
+        epBucket->setFlusherBatchSplitTrigger(
+                configuration.getFlusherTotalBatchLimit());
+    }
 }
 
 void EventuallyPersistentEngine::disconnect(gsl::not_null<const void*> cookie) {
