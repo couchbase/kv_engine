@@ -502,22 +502,6 @@ protected:
      */
     bool compactDBInternal(compaction_ctx* ctx);
 
-private:
-    MagmaKVStoreConfig& configuration;
-
-    /**
-     * Mamga instance for a shard
-     */
-    std::unique_ptr<magma::Magma> magma;
-
-    /**
-     * Container for pending Magma requests.
-     *
-     * Using deque as as the expansion behaviour is less aggressive compared to
-     * std::vector (MagmaRequest objects are ~176 bytes in size).
-     */
-    using PendingRequestQueue = std::deque<MagmaRequest>;
-
     /*
      * The DB for each VBucket is created in a separated subfolder of
      * `configuration.getDBName()`. This function returns the path of the DB
@@ -545,6 +529,66 @@ private:
 
     static ENGINE_ERROR_CODE magmaErr2EngineErr(magma::Status::Code err,
                                                 bool found = true);
+
+    /**
+     * @return a reference to the MagmaInfo for the vbid, created on demand
+     */
+    MagmaInfo& getMagmaInfo(Vbid vbid);
+
+    /// private getWithHeader shared with public get and getWithHeader
+    GetValue getWithHeader(const DiskDocKey& key,
+                           Vbid vbid,
+                           GetMetaOnly getMetaOnly);
+
+    struct MagmaCompactionCtx {
+        MagmaCompactionCtx(compaction_ctx* ctx) : ctx(ctx) {
+        }
+        compaction_ctx* ctx;
+    };
+
+    class MagmaCompactionCB : public magma::Magma::CompactionCallback {
+    public:
+        MagmaCompactionCB(MagmaKVStore& magmaKVStore);
+        ~MagmaCompactionCB() override;
+        bool operator()(const magma::Slice& keySlice,
+                        const magma::Slice& metaSlice,
+                        const magma::Slice& valueSlice) override {
+            return magmaKVStore.compactionCallBack(
+                    *this, keySlice, metaSlice, valueSlice);
+        }
+        MagmaKVStore& magmaKVStore;
+        bool initialized{false};
+        std::stringstream itemKeyBuf;
+        std::shared_ptr<MagmaCompactionCtx> magmaCompactionCtx;
+        compaction_ctx* ctx{nullptr};
+        Vbid vbid{};
+    };
+
+    /**
+     * Called for each item during compaction to determine whether we should
+     * keep or drop the item (and drive expiry).
+     *
+     * @return true if the item should be dropped
+     */
+    bool compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
+                            const magma::Slice& keySlice,
+                            const magma::Slice& metaSlice,
+                            const magma::Slice& valueSlice);
+
+    MagmaKVStoreConfig& configuration;
+
+    /**
+     * Mamga instance for a shard
+     */
+    std::unique_ptr<magma::Magma> magma;
+
+    /**
+     * Container for pending Magma requests.
+     *
+     * Using deque as as the expansion behaviour is less aggressive compared to
+     * std::vector (MagmaRequest objects are ~176 bytes in size).
+     */
+    using PendingRequestQueue = std::deque<MagmaRequest>;
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).
@@ -583,50 +627,11 @@ private:
     // This is used for testing only!
     bool useUpsertForSet{false};
 
-    struct MagmaCompactionCtx {
-        MagmaCompactionCtx(compaction_ctx* ctx) : ctx(ctx) {
-        }
-        compaction_ctx* ctx;
-    };
-
     // This needs to be a shared_ptr because its possible an implicit
     // compaction kicks off while an explicit compaction is happening
     // and we don't want to free it while the implicit compaction is working.
     std::vector<std::shared_ptr<MagmaCompactionCtx>> compaction_ctxList;
     std::mutex compactionCtxMutex;
-
-    class MagmaCompactionCB : public magma::Magma::CompactionCallback {
-    public:
-        MagmaCompactionCB(MagmaKVStore& magmaKVStore);
-        ~MagmaCompactionCB() override;
-        bool operator()(const magma::Slice& keySlice,
-                        const magma::Slice& metaSlice,
-                        const magma::Slice& valueSlice) override {
-            return magmaKVStore.compactionCallBack(
-                    *this, keySlice, metaSlice, valueSlice);
-        }
-        MagmaKVStore& magmaKVStore;
-        bool initialized{false};
-        std::stringstream itemKeyBuf;
-        std::shared_ptr<MagmaCompactionCtx> magmaCompactionCtx;
-        compaction_ctx* ctx{nullptr};
-        Vbid vbid{};
-    };
-
-    bool compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
-                            const magma::Slice& keySlice,
-                            const magma::Slice& metaSlice,
-                            const magma::Slice& valueSlice);
-
-    /**
-     * @return a reference to the MagmaInfo for the vbid, created on demand
-     */
-    MagmaInfo& getMagmaInfo(Vbid vbid);
-
-    /// private getWithHeader shared with public get and getWithHeader
-    GetValue getWithHeader(const DiskDocKey& key,
-                           Vbid vbid,
-                           GetMetaOnly getMetaOnly);
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;
