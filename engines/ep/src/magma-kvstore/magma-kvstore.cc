@@ -639,14 +639,12 @@ void MagmaKVStore::rollback() {
     }
 }
 
-// @TODO MB-38611: Remove BackgroundCompact property
 StorageProperties MagmaKVStore::getStorageProperties() {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,
                          StorageProperties::EfficientGet::Yes,
                          StorageProperties::ConcurrentWriteCompact::Yes,
-                         StorageProperties::BackgroundCompact::Yes,
                          StorageProperties::ByIdScan::No);
     return rv;
 }

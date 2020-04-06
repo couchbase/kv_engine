@@ -628,7 +628,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
     // not resident to ensure that we don't "expire" old versions of items.
     if (store->getROUnderlying(vbid)
                 ->getStorageProperties()
-                .hasBackgroundCompaction()) {
+                .hasConcWriteCompact()) {
         runBGFetcherTask();
     }
 
@@ -681,7 +681,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
 
     if (!store->getROUnderlying(vbid)
                  ->getStorageProperties()
-                 .hasBackgroundCompaction()) {
+                 .hasConcWriteCompact()) {
         EXPECT_EQ(1, vb->numExpiredItems);
         flushVBucketToDiskIfPersistent(vbid, 1);
         return;
@@ -704,7 +704,14 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
     // But it still exists on disk until we flush
     EXPECT_EQ(1, vb->getNumItems());
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(0, vb->getNumItems());
+
+    auto expectedItems = 0;
+    if (isRocksDB()) {
+        // RocksDB doesn't know if we insert or update so item counts are not
+        // correct
+        expectedItems = 1;
+    }
+    EXPECT_EQ(expectedItems, vb->getNumItems());
 }
 
 /**
@@ -758,7 +765,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     // immediately because they interlock writes and compaction
     if (!store->getROUnderlying(vbid)
                  ->getStorageProperties()
-                 .hasBackgroundCompaction()) {
+                 .hasConcWriteCompact()) {
         EXPECT_EQ(1, vb->numExpiredItems);
         flushVBucketToDiskIfPersistent(vbid, 1);
         return;
@@ -780,7 +787,14 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
 
     // Nothing to flush
     flushVBucketToDiskIfPersistent(vbid, 0);
-    EXPECT_EQ(1, vb->getNumItems());
+
+    auto expectedItems = 1;
+    if (isRocksDB()) {
+        // RocksDB doesn't know if we insert or update so item counts are not
+        // correct
+        expectedItems = 2;
+    }
+    EXPECT_EQ(expectedItems, vb->getNumItems());
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
@@ -815,7 +829,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     // immediately because they interlock writes and compaction
     if (!store->getROUnderlying(vbid)
                  ->getStorageProperties()
-                 .hasBackgroundCompaction()) {
+                 .hasConcWriteCompact()) {
         EXPECT_EQ(1, vb->numExpiredItems);
         flushVBucketToDiskIfPersistent(vbid, 1);
         return;
@@ -847,7 +861,14 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     // But it still exists on disk until we flush
     EXPECT_EQ(1, vb->getNumItems());
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_EQ(0, vb->getNumItems());
+
+    auto expectedItems = 0;
+    if (isRocksDB()) {
+        // RocksDB doesn't know if we insert or update so item counts are not
+        // correct
+        expectedItems = 1;
+    }
+    EXPECT_EQ(expectedItems, vb->getNumItems());
 
     EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
 }

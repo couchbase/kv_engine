@@ -2426,11 +2426,10 @@ void VBucket::deleteExpiredItem(const Item& it,
         // If this expiration is from the compactor then we may need to perform
         // a BGFetch to see if we need to expire the item depending on whether
         // or not the backend supports
-        if (source == ExpireBy::Compactor &&
-            getShard()
-                    ->getROUnderlying()
-                    ->getStorageProperties()
-                    .hasBackgroundCompaction()) {
+        if (source == ExpireBy::Compactor && getShard()
+                                                     ->getROUnderlying()
+                                                     ->getStorageProperties()
+                                                     .hasConcWriteCompact()) {
             // Need to bg fetch the latest copy from disk and only expire if it
             // is the same as this item (i.e. same cas). This is an issue as
             // magma background compaction can run whilst writes are happening

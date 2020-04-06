@@ -493,14 +493,6 @@ public:
      */
     enum class ConcurrentWriteCompact : bool { Yes, No };
 
-    /**
-     * Does the KVStore have a background compaction mechanism that can be run
-     * concurrently with writes? This is separate from ConcurrentWriteCompact
-     * as the KVStore may not allow externally driven compactions whilst doing
-     * writes but may allow for internally driven compactions whilst writing.
-     */
-    enum class BackgroundCompact : bool { Yes, No };
-
     enum class ByIdScan : bool { Yes, No };
 
     StorageProperties(EfficientVBDump evb,
@@ -508,14 +500,12 @@ public:
                       PersistedDeletion pd,
                       EfficientGet eget,
                       ConcurrentWriteCompact cwc,
-                      BackgroundCompact backgroundCompact,
                       ByIdScan byIdScan)
         : efficientVBDump(evb),
           efficientVBDeletion(evd),
           persistedDeletions(pd),
           efficientGet(eget),
           concWriteCompact(cwc),
-          backgroundCompact(backgroundCompact),
           byIdScan(byIdScan) {
     }
 
@@ -545,10 +535,6 @@ public:
         return (concWriteCompact == ConcurrentWriteCompact::Yes);
     }
 
-    bool hasBackgroundCompaction() const {
-        return (backgroundCompact == BackgroundCompact::Yes);
-    }
-
     bool hasByIdScan() const {
         return byIdScan == ByIdScan::Yes;
     }
@@ -559,7 +545,6 @@ private:
     PersistedDeletion persistedDeletions;
     EfficientGet efficientGet;
     ConcurrentWriteCompact concWriteCompact;
-    BackgroundCompact backgroundCompact;
     ByIdScan byIdScan;
 };
 
