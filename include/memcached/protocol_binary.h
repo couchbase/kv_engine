@@ -990,7 +990,7 @@ protected:
     const uint16_t nmeta = 0;
     uint8_t nru = 0;
 };
-static_assert(31, "Unexpected struct size");
+static_assert(sizeof(DcpMutationPayload) == 31, "Unexpected struct size");
 
 class DcpDeletionV1Payload {
 public:
