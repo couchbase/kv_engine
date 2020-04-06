@@ -843,6 +843,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                      vbid,
                      cb::UserData{makeDiskDocKey(keySlice).to_string()},
                      status.String());
+        st.numGetFailure++;
         return GetValue{NULL, magmaErr2EngineErr(status.ErrorCode())};
     }
 
@@ -969,6 +970,7 @@ void MagmaKVStore::getRange(Vbid vbid,
                 cb::UserData{makeDiskDocKey(startKeySlice).to_string()},
                 cb::UserData{makeDiskDocKey(endKeySlice).to_string()},
                 status.String());
+        st.numGetFailure++;
     }
 }
 
@@ -2291,6 +2293,8 @@ bool MagmaKVStore::getStat(const char* name, size_t& value) {
                        sizeof("write_cache_quota")) == 0) {
         magma->GetStats(magmaStats);
         value = static_cast<size_t>(magmaStats.WriteCacheQuota);
+    } else if (strcmp("failure_get", name) == 0) {
+        value = st.numGetFailure.load();
     } else {
         return false;
     }
