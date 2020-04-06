@@ -496,6 +496,12 @@ public:
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;
 
+protected:
+    /**
+     * CompactDB implementation. See comments on public compactDB.
+     */
+    bool compactDBInternal(compaction_ctx* ctx);
+
 private:
     MagmaKVStoreConfig& configuration;
 

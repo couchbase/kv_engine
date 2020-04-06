@@ -1847,12 +1847,23 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
 }
 
 bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
+    auto res = compactDBInternal(ctx);
+
+    if (!res) {
+        st.numCompactionFailure++;
+    }
+
+    return res;
+}
+
+bool MagmaKVStore::compactDBInternal(compaction_ctx* ctx) {
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
 
     logger->info(
-            "compactDB {} purge_before_ts:{} purge_before_seq:{}"
-            " drop_deletes:{} purgeSeq:{} retain_erroneous_tombstones:{}",
+            "MagmaKVStore::compactDBInternal: {} purge_before_ts:{} "
+            "purge_before_seq:{} drop_deletes:{} purgeSeq:{} "
+            "retain_erroneous_tombstones:{}",
             ctx->compactConfig.db_file_id,
             ctx->compactConfig.purge_before_ts,
             ctx->compactConfig.purge_before_seq,
@@ -1864,7 +1875,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
 
     auto status = magma->Sync(true);
     if (!status) {
-        logger->warn("MagmaKVStore::compactDB Sync failed. {}",
+        logger->warn("MagmaKVStore::compactDBInternal: Sync failed. {}",
                      ctx->compactConfig.db_file_id);
         return false;
     }
@@ -1882,8 +1893,8 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     auto diskState = readVBStateFromDisk(vbid);
     if (!diskState.status) {
         throw std::runtime_error(
-                "MagmaKVStore::compactDB trying to "
-                "run compaction on vbucket " +
+                "MagmaKVStore::compactDBInternal: trying to run compaction "
+                "on " +
                 vbid.to_string() +
                 " but can't read vbstate. Status:" + diskState.status.String());
     }
@@ -1896,7 +1907,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
         // Perform synchronous compaction.
         status = magma->CompactKVStore(vbid.get(), Magma::StoreType::Key);
         if (!status) {
-            logger->warn("MagmaKVStore::compactDB Sync failed. vbucket {} ",
+            logger->warn("MagmaKVStore::compactDBInternal: Sync failed for {} ",
                          vbid);
             return false;
         }
@@ -1908,9 +1919,11 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
 
             if (logger->should_log(spdlog::level::TRACE)) {
                 auto docKey = makeDiskDocKey(keySlice);
-                logger->TRACE("PurgeKVStore {} key:{}",
-                              vbid,
-                              cb::UserData{docKey.to_string()});
+                logger->TRACE(
+                        "MagmaKVStore::compactDBInternal: PurgeKVStore "
+                        "{} key:{}",
+                        vbid,
+                        cb::UserData{docKey.to_string()});
             }
 
             // This will find all the keys with a prefix of the collection ID
@@ -1919,8 +1932,8 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
                     vbid.get(), keySlice, keySlice, nullptr, true);
             if (!status) {
                 logger->warn(
-                        "MagmaKVStore::compactDB PurgeKVStore {} CID:{} failed "
-                        "status:{}",
+                        "MagmaKVStore::compactDBInternal: PurgeKVStore {} "
+                        "key:{} failed status:{}",
                         vbid,
                         cb::UserData{makeDiskDocKey(keySlice).to_string()},
                         status.String());
@@ -1937,8 +1950,8 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
             auto key = makeDiskDocKey(keySlice);
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
-                        "MagmaKVStore::compactDB processEndOfCollection {} "
-                        "key:{}",
+                        "MagmaKVStore::compactDBInternal: "
+                        "processEndOfCollection {} key:{}",
                         vbid,
                         cb::UserData{key.to_string()});
             }
@@ -1958,7 +1971,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
             static_cast<Magma::KVStoreRevision>(getMagmaInfo(vbid).kvstoreRev));
     if (!status) {
         logger->warn(
-                "MagmaKVStore::compactDB failed creating batch for {} "
+                "MagmaKVStore::compactDBInternal: failed creating batch for {} "
                 "status:{}",
                 vbid,
                 status.String());
@@ -1986,7 +1999,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
         status = deleteLocalDoc(*(batch.get()), droppedCollectionsKey);
         if (!status) {
             logger->warn(
-                    "MagmaKVStore::saveDocs: magma::deleteLocalDoc "
+                    "MagmaKVStore::compactDBInternal: magma::deleteLocalDoc "
                     "{} update dropped collections failed status:{}",
                     vbid,
                     status.String());
@@ -1997,7 +2010,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     status = magma->ExecuteCommitBatch(std::move(batch));
     if (!status) {
         logger->warn(
-                "MagmaKVStore::saveDocs: magma::ExecuteCommitBatch "
+                "MagmaKVStore::compactDBInternal: magma::ExecuteCommitBatch "
                 "{} status:{}",
                 vbid,
                 status.String());
@@ -2005,8 +2018,8 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
         status = magma->SyncCommitBatches(commitPointEveryBatch);
         if (!status) {
             logger->warn(
-                    "MagmaKVStore::saveDocs: magma::SyncCommitBatches {} "
-                    "status:{}",
+                    "MagmaKVStore::compactDBInternal: magma::SyncCommitBatches "
+                    "{} status:{}",
                     vbid,
                     status.String());
         }
@@ -2016,7 +2029,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
             std::chrono::steady_clock::now() - start));
 
     logger->TRACE(
-            "MagmaKVStore::compactDB max_purged_seq:{}"
+            "MagmaKVStore::compactDBInternal: max_purged_seq:{}"
             " collectionsItemsPurged:{}"
             " collectionsDeletedItemsPurged:{}"
             " tombstonesPurged:{}"
@@ -2295,6 +2308,8 @@ bool MagmaKVStore::getStat(const char* name, size_t& value) {
         value = static_cast<size_t>(magmaStats.WriteCacheQuota);
     } else if (strcmp("failure_get", name) == 0) {
         value = st.numGetFailure.load();
+    } else if (strcmp("failure_compaction", name) == 0) {
+        value = st.numCompactionFailure.load();
     } else {
         return false;
     }
