@@ -1571,12 +1571,22 @@ bool DcpProducer::setStreamDeadStatus(
 }
 
 void DcpProducer::closeAllStreams() {
+    if (closeAllStreamsPreLockHook) {
+        closeAllStreamsPreLockHook();
+    }
+
+    std::lock_guard<std::mutex> lg(closeAllStreamsLock);
+
+    if (closeAllStreamsPostLockHook) {
+        closeAllStreamsPostLockHook();
+    }
+
     lastReceiveTime = ep_current_time();
     std::vector<Vbid> vbvector;
     {
         std::for_each(streams.begin(),
                       streams.end(),
-                      [&vbvector](StreamsMap::value_type& vt) {
+                      [this, &vbvector](StreamsMap::value_type& vt) {
                           vbvector.push_back((Vbid)vt.first);
                           std::vector<std::shared_ptr<Stream>> streamPtrs;
                           // MB-35073: holding StreamContainer lock while
