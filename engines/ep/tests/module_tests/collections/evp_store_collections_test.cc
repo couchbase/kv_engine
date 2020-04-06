@@ -28,6 +28,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/test_manifest.h"
@@ -1334,6 +1335,39 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
     for (auto& i : items) {
         EXPECT_NE(key, i->getKey());
     }
+}
+
+TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
+    /**
+     * MB-38528: Test that setPersistedHighSeqno when called when persisting a
+     * collection creation event does not throw if the collection is not
+     * found.
+     * In the noted MB a replica received a collection creation and collection
+     * drop very quickly after. By the time the creation had persisted, the drop
+     * had already removed the collection from the vb manifest.
+     */
+    replaceCouchKVStoreWithMock();
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Add the dairy collection, but don't flush it just yet.
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(std::string{cm});
+
+    // set a hook to be called immediately before the flusher commits to disk.
+    // This is after items have been read from the checkpoint manager, but
+    // before the items are persisted - importantly in this case, before
+    // saveDocsCallback is invoked (which calls setPersistedHighSeqno())
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+    kvstore.setPreCommitHook([&cm, &vb] {
+        // now remove the collection. This will remove it from the vb manifest
+        // _before_ the creation event tries to call setPersistedHighSeqno()
+        cm.remove(CollectionEntry::dairy);
+        vb->updateFromManifest(std::string{cm});
+    });
+    // flushing the creation to disk should not throw, even though the
+    // collection was not found in the manifest
+    EXPECT_NO_THROW(flush_vbucket_to_disk(vbid, 1));
 }
 
 // Test the pager doesn't generate expired items for a dropped collection

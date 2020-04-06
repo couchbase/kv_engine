@@ -58,13 +58,13 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
     if (key.getCollectionID() == CollectionID::System) {
         auto eventType = SystemEventFactory::getSystemEventType(key);
         if (eventType.first == SystemEvent::Collection) {
-            CollectionID cid = SystemEventFactory::getCollectionIDFromKey(key);
-
-            // If this system event is a deletion, then it may be the case that
-            // we are the replica and we know nothing about the previous state
-            // of this collection. In this case, we do not want to throw if we
-            // cannot find the collection, we should simply do nothing.
-            manifest.lock().setPersistedHighSeqno(cid, value, deleted);
+            // this method is called from persistence, so the collection is not
+            // guaranteed to exist in the manifest anymore.
+            // CachingReadHandle::setPersistedHighSeqno(...) will silently
+            // return if the handle is not valid (i.e., the collection is not
+            // present)
+            auto handle = manifest.lock(key, /*allowSystem */ true);
+            handle.setPersistedHighSeqno(value);
         }
     }
     else {
