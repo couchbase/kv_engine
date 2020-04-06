@@ -147,6 +147,9 @@ protected:
                                       const void* cookie,
                                       const AddStatFn& add_stat) override;
 
+    bool isValidBucketDurabilityLevel(
+            cb::durability::Level level) const override;
+
     // Protected member variables /////////////////////////////////////////////
 
     /// Task responsible for purging in-memory tombstones.

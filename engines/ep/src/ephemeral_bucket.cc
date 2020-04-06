@@ -326,6 +326,20 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 #undef ARP_STAT
 }
 
+bool EphemeralBucket::isValidBucketDurabilityLevel(
+        cb::durability::Level level) const {
+    switch (level) {
+    case cb::durability::Level::None:
+    case cb::durability::Level::Majority:
+        return true;
+    case cb::durability::Level::MajorityAndPersistOnMaster:
+    case cb::durability::Level::PersistToMajority:
+        // No persistence on Ephemeral
+        return false;
+    }
+    folly::assume_unreachable();
+}
+
 EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
         EventuallyPersistentEngine& e)
     : GlobalTask(&e,

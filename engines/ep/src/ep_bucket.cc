@@ -1920,3 +1920,14 @@ void EPBucket::stopWarmup(void) {
         warmupTask->stop();
     }
 }
+
+bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
+    switch (level) {
+    case cb::durability::Level::None:
+    case cb::durability::Level::Majority:
+    case cb::durability::Level::MajorityAndPersistOnMaster:
+    case cb::durability::Level::PersistToMajority:
+        return true;
+    }
+    folly::assume_unreachable();
+}

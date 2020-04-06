@@ -336,6 +336,12 @@ protected:
      */
     void testReplaceAtPendingSW(DocState docState);
 
+    /**
+     * Test that the Bucket Min Durability Level provided is valid this Bucket
+     * instance (Persistent or Ephemeral).
+     */
+    void testSetMinDurabilityLevel(cb::durability::Level level);
+
     /// Member to store the default options for GET and GET_REPLICA ops
     static const get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -3846,6 +3852,66 @@ TEST_P(DurabilityBucketTest, ReplaceAtPendingSW_DocResident) {
 
 TEST_P(DurabilityBucketTest, ReplaceAtPendingSW_DocEjected) {
     testReplaceAtPendingSW(DocState::EJECTED);
+}
+
+TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_UnknownLevel) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setDurabilityMinLevel("non-existing-level");
+    } catch (const std::range_error& e) {
+        ASSERT_TRUE(std::string(e.what()).find(
+                            "Validation Error, durability_min_level") !=
+                    std::string::npos);
+        return;
+    }
+    FAIL();
+}
+
+void DurabilityBucketTest::testSetMinDurabilityLevel(
+        cb::durability::Level level) {
+    using namespace cb::durability;
+
+    ASSERT_EQ(Level::None, store->getMinDurabilityLevel());
+
+    const auto checkSuccessfulSet = [this, level]() -> void {
+        ASSERT_EQ(ENGINE_SUCCESS, store->setMinDurabilityLevel(level));
+        ASSERT_EQ(level, store->getMinDurabilityLevel());
+    };
+
+    switch (level) {
+    case Level::None:
+    case Level::Majority: {
+        checkSuccessfulSet();
+        break;
+    }
+    case Level::MajorityAndPersistOnMaster:
+    case Level::PersistToMajority: {
+        if (persistent()) {
+            checkSuccessfulSet();
+        } else {
+            ASSERT_EQ(ENGINE_DURABILITY_INVALID_LEVEL,
+                      store->setMinDurabilityLevel(level));
+        }
+        break;
+    }
+    }
+}
+
+TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_None) {
+    testSetMinDurabilityLevel(cb::durability::Level::None);
+}
+
+TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_Majority) {
+    testSetMinDurabilityLevel(cb::durability::Level::Majority);
+}
+
+TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_MajorityAndPersistOnMaster) {
+    testSetMinDurabilityLevel(
+            cb::durability::Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_PersistToMajority) {
+    testSetMinDurabilityLevel(cb::durability::Level::PersistToMajority);
 }
 
 // Test cases which run against couchstore

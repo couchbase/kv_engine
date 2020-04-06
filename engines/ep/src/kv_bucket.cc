@@ -192,7 +192,13 @@ public:
 
     virtual void stringValueChanged(const std::string& key, const char* value) {
         if (key == "durability_min_level") {
-            store.setMinDurabilityLevel(cb::durability::to_level(value));
+            const auto res = store.setMinDurabilityLevel(
+                    cb::durability::to_level(value));
+            if (res != ENGINE_SUCCESS) {
+                throw std::invalid_argument(
+                        "Failed to set durability_min_level: " +
+                        to_string(cb::to_engine_errc(res)));
+            }
         }
     }
 
@@ -2689,6 +2695,16 @@ void KVBucket::setRWRO(size_t shardId,
     vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
 }
 
-void KVBucket::setMinDurabilityLevel(cb::durability::Level level) {
+ENGINE_ERROR_CODE KVBucket::setMinDurabilityLevel(cb::durability::Level level) {
+    if (!isValidBucketDurabilityLevel(level)) {
+        return ENGINE_DURABILITY_INVALID_LEVEL;
+    }
+
     minDurabilityLevel = level;
+
+    return ENGINE_SUCCESS;
+}
+
+cb::durability::Level KVBucket::getMinDurabilityLevel() const {
+    return minDurabilityLevel;
 }
