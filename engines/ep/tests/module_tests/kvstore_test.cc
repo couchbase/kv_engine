@@ -25,6 +25,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
+#include "tests/mock/mock_couch_kvstore.h"
 #include "vb_commit.h"
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
@@ -1386,68 +1387,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
     }
     EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
-
-class MockCouchRequest : public CouchRequest {
-public:
-    class MetaData {
-    public:
-        MetaData()
-            : cas(0),
-              expiry(0),
-              flags(0),
-              ext1(0),
-              ext2(0),
-              legacyDeleted(0) {
-        }
-
-        uint64_t cas;
-        uint32_t expiry;
-        uint32_t flags;
-        uint8_t ext1;
-        uint8_t ext2;
-        uint8_t legacyDeleted; // allow testing via 19byte meta document
-
-        static const size_t sizeofV0 = 16;
-        static const size_t sizeofV1 = 18;
-        static const size_t sizeofV2 = 19;
-    };
-
-    MockCouchRequest(const queued_item it) : CouchRequest(it) {
-    }
-
-    // Update what will be written as 'metadata'
-    void writeMetaData(MetaData& meta, size_t size) {
-        std::memcpy(dbDocInfo.rev_meta.buf, &meta, size);
-        dbDocInfo.rev_meta.size = size;
-    }
-};
-
-class MockCouchKVStore : public CouchKVStore {
-public:
-    MockCouchKVStore(CouchKVStoreConfig& config) : CouchKVStore(config) {
-    }
-
-    /**
-     * Mocks original code but returns the IORequest for fuzzing.
-     *
-     * NOTE: Returned pointer is only valid until the next request is added to
-     * the pendingReqsQ.
-     */
-    MockCouchRequest* setAndReturnRequest(queued_item& itm) {
-        if (isReadOnly()) {
-            throw std::logic_error("MockCouchKVStore::set: Not valid on a read-only "
-                            "object.");
-        }
-        if (!intransaction) {
-            throw std::invalid_argument("MockCouchKVStore::set: intransaction must be "
-                            "true to perform a set operation.");
-        }
-
-        // each req will be de-allocated after commit
-        pendingReqsQ.emplace_back(itm);
-        return static_cast<MockCouchRequest*>(&pendingReqsQ.back());
-    }
-};
 
 //
 // Explicitly test couchstore (not valid for other KVStores)
