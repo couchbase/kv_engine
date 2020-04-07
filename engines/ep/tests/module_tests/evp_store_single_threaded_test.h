@@ -339,6 +339,16 @@ public:
                 std::make_tuple("persistent"s, "full_eviction"s));
     }
 
+#ifdef EP_USE_MAGMA
+    static auto magmaConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                std::make_tuple("persistentMagma"s, "value_only"s),
+                std::make_tuple("persistentMagma"s, "full_eviction"s)
+        );
+    }
+#endif
+
     static auto persistentAllBackendsConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(

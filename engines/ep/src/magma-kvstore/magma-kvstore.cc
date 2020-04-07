@@ -216,8 +216,7 @@ std::string MagmaRequest::to_string() {
     std::stringstream ss;
     ss << "Key:" << key.to_string() << " docMeta:" << docMeta.to_string()
        << " itemOldExists:" << (itemOldExists ? "true" : "false")
-       << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false")
-       << " reqFailed:" << (reqFailed ? "true" : "false");
+       << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false");
     return ss.str();
 }
 
@@ -539,68 +538,60 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
 
 void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
     for (const auto& req : *pendingReqs) {
-        if (errCode) {
-            ++st.numSetFailure;
-        }
-
         size_t mutationSize =
                 req.getRawKeyLen() + req.getBodySize() + req.getMetaSize();
         st.io_num_write++;
         st.io_document_write_bytes += mutationSize;
 
-        // Note:
-        // There are 3 cases for setting rv based on errCode
-        // MutationStatus::MutationSuccess
-        // MutationStatus::DocNotFound
-        // MutationStatus::MutationFailed - magma does not support this case
-        // because
-        //     we don't want to requeue the item.  If errCode is bad,
-        //     its most likely something fatal with the kvstore
-        //     or it might be the kvstore is pending being dropped.
-        auto rv = MutationStatus::DocNotFound;
-        if (req.oldItemExists() && !req.oldItemIsDelete()) {
-            rv = MutationStatus::Success;
-        }
-
         if (req.isDelete()) {
-            if (req.requestFailed()) {
-                st.numDelFailure++;
+            MutationStatus deleteState;
+            if (errCode != Status::Code::Ok) {
+                deleteState = MutationStatus::Failed;
+                ++st.numDelFailure;
             } else {
+                if (req.oldItemExists() && !req.oldItemIsDelete()) {
+                    // Delete for existing item.
+                    deleteState = MutationStatus::Success;
+                } else {
+                    // Delete but no doc found.
+                    deleteState = MutationStatus::DocNotFound;
+                }
                 st.delTimeHisto.add(req.getDelta());
             }
 
             logger->TRACE(
-                    "MagmaKVStore::commitCallback(Del) {} errCode:{} rv:{}",
+                    "MagmaKVStore::commitCallback(Delete) {} key:{} errCode:{} "
+                    "deleteState:{}",
                     pendingReqs->front().getVbID(),
+                    cb::UserData(req.getKey().to_string()),
                     errCode,
-                    to_string(rv));
+                    to_string(deleteState));
 
-            transactionCtx->deleteCallback(req.getItem(), rv);
+            transactionCtx->deleteCallback(req.getItem(), deleteState);
         } else {
-            auto mutationSetStatus = MutationSetResultState::Update;
-            if (req.oldItemIsDelete()) {
-                rv = MutationStatus::DocNotFound;
-            }
-
-            if (req.requestFailed()) {
-                st.numSetFailure++;
-                mutationSetStatus = MutationSetResultState::Failed;
+            MutationSetResultState setState;
+            if (errCode != Status::Code::Ok) {
+                ++st.numSetFailure;
+                setState = MutationSetResultState::Failed;
             } else {
+                if (req.oldItemExists() && !req.oldItemIsDelete()) {
+                    setState = MutationSetResultState::Update;
+                } else {
+                    setState = MutationSetResultState::Insert;
+                }
                 st.writeTimeHisto.add(req.getDelta());
                 st.writeSizeHisto.add(mutationSize);
             }
 
-            if (rv == MutationStatus::DocNotFound) {
-                mutationSetStatus = MutationSetResultState::Insert;
-            }
-            transactionCtx->setCallback(req.getItem(), mutationSetStatus);
             logger->TRACE(
-                    "MagmaKVStore::commitCallback(Set) {} errCode:{} rv:{} "
-                    "insertion:{}",
+                    "MagmaKVStore::commitCallback(Set) {} key:{} errCode:{} "
+                    "setState:{}",
                     pendingReqs->front().getVbID(),
+                    cb::UserData(req.getKey().to_string()),
                     errCode,
-                    to_string(rv),
-                    to_string(mutationSetStatus));
+                    to_string(setState));
+
+            transactionCtx->setCallback(req.getItem(), setState);
         }
     }
 }

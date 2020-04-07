@@ -49,6 +49,10 @@
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
+#ifdef EP_USE_MAGMA
+#include "../mock/mock_magma_kvstore.h"
+#endif
+
 #include <gmock/gmock-generated-matchers.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/dirutils.h>
@@ -403,6 +407,16 @@ void KVBucketTest::replaceCouchKVStore(CouchKVStoreConfig& config,
     auto rwro = store->takeRWRO(0);
     auto rw = std::make_unique<CouchKVStore>(config, ops);
     store->setRWRO(0, std::move(rw), std::move(rwro.ro));
+}
+
+void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
+    EXPECT_EQ(engine->getConfiguration().getBucketType(), "persistent");
+    EXPECT_EQ(engine->getConfiguration().getBackend(), "magma");
+#ifdef EP_USE_MAGMA
+    auto rwro = store->takeRWRO(0);
+    auto rw = std::make_unique<MockMagmaKVStore>(config);
+    store->setRWRO(0, std::move(rw), std::move(rwro.ro));
+#endif
 }
 
 unique_request_ptr KVBucketTest::createObserveRequest(

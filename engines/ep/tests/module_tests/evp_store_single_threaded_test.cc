@@ -47,6 +47,10 @@
 #include "fakes/fake_executorpool.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
+#ifdef EP_USE_MAGMA
+#include "../mock/mock_magma_kvstore.h"
+#include "magma-kvstore/magma-kvstore_config.h"
+#endif
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
@@ -5062,6 +5066,139 @@ TEST_P(STParamPersistentBucketTest,
     testAbortDoesNotIncrementOpsDelete(false /*flusherDedup*/);
 }
 
+#ifdef EP_USE_MAGMA
+class STParamMagmaBucketTest : public STParamPersistentBucketTest {};
+
+/**
+ * We flush if we have at least:
+ *  1) one non-meta item
+ *  2) or, one set-vbstate item in the write queue
+ * In the two cases we execute two different code paths that may both fail and
+ * trigger the reset of the persistence cursor.
+ * This test verifies scenario (1) by checking that we persist all the expected
+ * items when we re-attempt flush.
+ *
+ * @TODO MB-38377: With proper magma IO error injection we should turn off
+ * background threads and use the IO error injection instead of mock functions.
+ */
+TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig));
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Active receives PRE(keyA):1, M(keyB):2, D(keyB):3
+    // Note that the set of mutation is just functional to testing that we write
+    // to disk all the required vbstate entries at flush
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {cb::durability::Requirements()});
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    {
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyB"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {} /*dur-reqs*/,
+                   true /*deleted*/);
+    }
+
+    // M(keyB):2 deduplicated, just 2 items for cursor
+    const auto vb = engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_EQ(2, vb->checkpointManager->getNumItemsForPersistence());
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+
+    // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
+    //  cached vbstate for verifying persistence would invalidate the test.
+    //  Check the actual vbstate on disk instead.
+    auto& kvStore =
+            dynamic_cast<MockMagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const auto checkPersistedVBState = [this, &kvStore](
+                                               uint64_t lastSnapStart,
+                                               uint64_t lastSnapEnd,
+                                               uint64_t highSeqno,
+                                               CheckpointType type,
+                                               uint64_t hps,
+                                               uint64_t hcs,
+                                               uint64_t maxDelRevSeqno) {
+        const auto vbs = kvStore.readVBStateFromDisk(vbid).vbstate;
+        EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+        EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+        EXPECT_EQ(highSeqno, vbs.highSeqno);
+        EXPECT_EQ(type, vbs.checkpointType);
+        EXPECT_EQ(hps, vbs.highPreparedSeqno);
+        EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+        EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+    };
+
+    // This flush fails, we have not written anything to disk
+    kvStore.saveDocsErrorInjector = [](VB::Commit& cmt,
+                                       kvstats_ctx& ctx) -> int {
+        return magma::Status::IOError;
+    };
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(2, vb->dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        checkPersistedVBState(0 /*lastSnapStart*/,
+                              0 /*lastSnapEnd*/,
+                              0 /*highSeqno*/,
+                              CheckpointType::Memory,
+                              0 /*HPS*/,
+                              0 /*HCS*/,
+                              0 /*maxDelRevSeqno*/);
+    }
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    kvStore.saveDocsErrorInjector = nullptr;
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats updated
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    {
+        SCOPED_TRACE("");
+        // Notes: expected (snapStart = snapEnd) for complete snap flushed,
+        //  which is always the case at Active
+        checkPersistedVBState(3 /*lastSnapStart*/,
+                              3 /*lastSnapEnd*/,
+                              3 /*highSeqno*/,
+                              CheckpointType::Memory,
+                              1 /*HPS*/,
+                              0 /*HCS*/,
+                              2 /*maxDelRevSeqno*/);
+    }
+}
+#endif
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParamPersistentBucketTest,
                          STParameterizedBucketTest::persistentConfigValues(),
@@ -5076,3 +5213,10 @@ INSTANTIATE_TEST_SUITE_P(STParamCouchstoreBucketTest,
                          STParamCouchstoreBucketTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+#ifdef EP_USE_MAGMA
+INSTANTIATE_TEST_SUITE_P(STParamCouchstoreBucketTest,
+                         STParamMagmaBucketTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+#endif

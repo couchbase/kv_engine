@@ -537,7 +537,7 @@ protected:
                           const magma::Slice& valueSlice,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
 
-    int saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx);
+    virtual int saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx);
 
     void commitCallback(int status, kvstats_ctx& kvctx);
 

@@ -78,14 +78,6 @@ public:
         return itemOldIsDelete;
     }
 
-    void markRequestFailed() {
-        reqFailed = true;
-    }
-
-    bool requestFailed() const {
-        return reqFailed;
-    }
-
     std::string to_string();
 
 private:
@@ -93,5 +85,4 @@ private:
     value_t docBody;
     bool itemOldExists{false};
     bool itemOldIsDelete{false};
-    bool reqFailed{false};
 };
