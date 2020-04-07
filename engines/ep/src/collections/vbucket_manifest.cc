@@ -799,6 +799,8 @@ bool Manifest::addCollectionStats(Vbid vbid,
         checked_snprintf(
                 buffer, bsize, "vb_%d:manifest:default_exists", vbid.get());
         add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:uid", vbid.get());
+        add_casted_stat(buffer, manifestUid, add_stat, cookie);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "VB::Manifest::addCollectionStats {}, failed to build stats "
@@ -824,6 +826,8 @@ bool Manifest::addScopeStats(Vbid vbid,
     try {
         checked_snprintf(buffer, bsize, "vb_%d:manifest:scopes", vbid.get());
         add_casted_stat(buffer, scopes.size(), add_stat, cookie);
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:uid", vbid.get());
+        add_casted_stat(buffer, manifestUid, add_stat, cookie);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "VB::Manifest::addScopeStats {}, failed to build stats "
