@@ -302,6 +302,12 @@ bool EPBucket::initialize() {
     // Attempting to do this cause us to call a pure virtual function on
     // KVBucket as we've not finished constructing things yet. This is also a
     // bunch less code.
+    initializeShards();
+
+    return true;
+}
+
+void EPBucket::initializeShards() {
     vbMap.forEachShard([this](KVShard& shard) {
         shard.getRWUnderlying()->setMakeCompactionContextCallback(
                 std::bind(&EPBucket::makeCompactionContext,
@@ -309,8 +315,6 @@ bool EPBucket::initialize() {
                           std::placeholders::_1,
                           std::placeholders::_2));
     });
-
-    return true;
 }
 
 std::vector<ExTask> EPBucket::deinitialize() {

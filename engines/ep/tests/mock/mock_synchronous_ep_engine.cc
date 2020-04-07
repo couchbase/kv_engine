@@ -137,7 +137,9 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
         Configuration& config) {
     const auto bucketType = config.getBucketType();
     if (bucketType == "persistent") {
-        return std::make_unique<MockEPBucket>(*this);
+        auto bucket = std::make_unique<MockEPBucket>(*this);
+        bucket->initializeMockBucket();
+        return bucket;
     } else if (bucketType == "ephemeral") {
         EphemeralBucket::reconfigureForEphemeral(configuration);
         return std::make_unique<MockEphemeralBucket>(*this);

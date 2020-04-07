@@ -292,6 +292,11 @@ protected:
             cb::durability::Level level) const override;
 
     /**
+     * Setup shards.
+     */
+    void initializeShards();
+
+    /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
      * split Memory Checkpoints, a hard limit is only imposed for Disk

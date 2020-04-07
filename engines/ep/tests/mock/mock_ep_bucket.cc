@@ -22,6 +22,10 @@
 #include "mock_checkpoint_manager.h"
 #include "mock_item_freq_decayer.h"
 
+void MockEPBucket::initializeMockBucket() {
+    initializeShards();
+}
+
 void MockEPBucket::createItemFreqDecayerTask() {
     Configuration& config = engine.getConfiguration();
     itemFreqDecayerTask = std::make_shared<MockItemFreqDecayerTask>(

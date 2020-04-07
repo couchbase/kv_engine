@@ -29,6 +29,13 @@ public:
     MockEPBucket(EventuallyPersistentEngine& theEngine) : EPBucket(theEngine) {
     }
 
+    /**
+     * Mock specific initialization. Does not override initialize function as
+     * the general use of this mock requires avoiding the initialization of
+     * background tasks
+     */
+    void initializeMockBucket();
+
     void createItemFreqDecayerTask();
 
     void disableItemFreqDecayerTask();
