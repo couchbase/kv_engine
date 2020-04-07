@@ -2597,6 +2597,7 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     qi->setAbortSyncWrite();
     qi->setDeleted();
     qi->setPrepareSeqno(999);
+    qi->setBySeqno(1);
 
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
     kvstore->del(qi);
