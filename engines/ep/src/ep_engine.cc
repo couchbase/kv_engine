@@ -255,8 +255,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
         Vbid vbucket,
         const boost::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
+    // Maybe upgrade Durability Level
+    using namespace cb::durability;
+    boost::optional<Requirements> durReqs = durability;
+    const auto level = durReqs ? durReqs->getLevel() : Level::None;
+    const auto minLevel = kvBucket->getMinDurabilityLevel();
+    if (level < minLevel) {
+        // Transitioning from NormalWrite to SyncWrite?
+        if (level == Level::None) {
+            durReqs = Requirements(minLevel, Timeout());
+        } else {
+            durReqs->setLevel(minLevel);
+        }
+    }
+
     return acquireEngine(this)->itemDelete(
-            cookie, key, cas, vbucket, durability, mut_info);
+            cookie, key, cas, vbucket, durReqs, mut_info);
 }
 
 void EventuallyPersistentEngine::release(gsl::not_null<item*> itm) {
@@ -389,6 +403,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
     if (durability) {
         item.setPendingSyncWrite(durability.get());
     }
+
+    item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
+
     return acquireEngine(this)->storeInner(cookie, item, cas, operation);
 }
 
@@ -408,6 +425,9 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
     if (durability) {
         item.setPendingSyncWrite(durability.get());
     }
+
+    item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
+
     return acquireEngine(this)->storeIfInner(
             cookie, item, cas, operation, predicate);
 }

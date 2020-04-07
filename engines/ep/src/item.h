@@ -405,6 +405,16 @@ public:
     void setPendingSyncWrite(cb::durability::Requirements requirements);
 
     /**
+     * Set the new Durability Level, only if the new level is higher than the
+     * current level.
+     *
+     * Note: Leaves the Durability Timeout unchanged
+     *
+     * @param newLevel
+     */
+    void increaseDurabilityLevel(cb::durability::Level newLevel);
+
+    /**
      * Sets the item as being a prepared SyncWrite which maybe have already
      * been made visible (and hence shouldn't should allow clients to read
      * this key).

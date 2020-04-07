@@ -44,6 +44,14 @@ enum class Level : uint8_t {
     PersistToMajority = 3
 };
 
+constexpr bool operator<(Level lhs, Level rhs) {
+    return static_cast<uint8_t>(lhs) < static_cast<uint8_t>(rhs);
+}
+
+constexpr bool operator>(Level lhs, Level rhs) {
+    return static_cast<uint8_t>(lhs) > static_cast<uint8_t>(rhs);
+}
+
 /**
  * The timeout to use for this durability request. If the request cannot be
  * completed within the timeout (as measured by the Server once the request

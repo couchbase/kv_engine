@@ -342,6 +342,20 @@ protected:
      */
     void testSetMinDurabilityLevel(cb::durability::Level level);
 
+    enum class EngineOp : uint8_t { Store, StoreIf, Remove };
+
+    /**
+     * Test that the Durability Level of a write is upgraded to the Bucket Min
+     * Level.
+     *
+     * @param minLevel
+     * @param writeLevel (optional)
+     */
+    void testUpgradeToMinDurabilityLevel(
+            cb::durability::Level minLevel,
+            boost::optional<cb::durability::Level> writeLevel,
+            EngineOp engineOp);
+
     /// Member to store the default options for GET and GET_REPLICA ops
     static const get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -3912,6 +3926,220 @@ TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_MajorityAndPersistOnMaster) {
 
 TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_PersistToMajority) {
     testSetMinDurabilityLevel(cb::durability::Level::PersistToMajority);
+}
+
+void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
+        cb::durability::Level minLevel,
+        boost::optional<cb::durability::Level> writeLevel,
+        EngineOp engineOp) {
+    using namespace cb::durability;
+
+    // Do not execute Ephemeral for persistence levels
+    if (ephemeral()) {
+        if (minLevel > Level::Majority) {
+            return;
+        }
+        if (writeLevel && *writeLevel > Level::Majority) {
+            return;
+        }
+    }
+
+    // * SETUP *
+    // Avoid that Prepares are committed as soon as queued
+    setVBucketToActiveWithValidTopology();
+    // If we are testing Remove, the we need to add the document that is deleted
+    // later in the test.
+    // Need to perform this step before we set any MinLevel > None, the insert
+    // would be turned into a SyncWrite otherwise
+    const auto key = makeStoredDocKey("key");
+    if (engineOp == EngineOp::Remove) {
+        ASSERT_EQ(Level::None, store->getMinDurabilityLevel());
+        const auto item = makeCommittedItem(key, "value");
+        uint64_t cas = 0;
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  engine->store(cookie,
+                                item.get(),
+                                cas,
+                                OPERATION_SET,
+                                {} /*durReqs*/,
+                                DocumentState::Alive));
+    }
+    // Set the bucket min-level that we want to test
+    ASSERT_EQ(ENGINE_SUCCESS, store->setMinDurabilityLevel(minLevel));
+    ASSERT_EQ(minLevel, store->getMinDurabilityLevel());
+
+    // * PRE-CONDITIONS *
+    auto& vb = *store->getVBucket(vbid);
+    auto& ht = vb.ht;
+    {
+        const auto res = ht.findForUpdate(key);
+        ASSERT_EQ(engineOp != EngineOp::Remove, res.committed == nullptr);
+        ASSERT_FALSE(res.pending);
+    }
+
+    // * TEST - write the document *
+    const auto item = makeCommittedItem(key, "value");
+    // Durability Requirements for the write:
+    // - Reqs{writeLevel, some-timeout} if writeLevel provided
+    // - No reqs (ie, normal write) otherwise
+    const auto timeout = Timeout(54321);
+    const auto reqs =
+            writeLevel ? boost::optional<Requirements>({*writeLevel, timeout})
+                       : boost::optional<Requirements>();
+    switch (engineOp) {
+    case EngineOp::Store: {
+        uint64_t cas = 0;
+        ASSERT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->store(cookie,
+                                item.get(),
+                                cas,
+                                OPERATION_SET,
+                                reqs,
+                                DocumentState::Alive));
+        break;
+    }
+    case EngineOp::StoreIf: {
+        const cb::StoreIfPredicate predicate =
+                [](const boost::optional<item_info>&, cb::vbucket_info) {
+                    return cb::StoreIfStatus::Continue;
+                };
+        const auto res = engine->store_if(cookie,
+                                          item.get(),
+                                          0 /*cas*/,
+                                          OPERATION_SET,
+                                          predicate,
+                                          reqs,
+                                          DocumentState::Alive);
+        ASSERT_EQ(cb::engine_errc::would_block, res.status);
+        break;
+    }
+    case EngineOp::Remove: {
+        uint64_t cas = 0;
+        mutation_descr_t info;
+        ASSERT_EQ(ENGINE_EWOULDBLOCK,
+                  engine->remove(cookie, key, cas, vbid, reqs, info));
+        break;
+    }
+    }
+
+    // * POST-CONDITIONS - item must be queued in CM with the expected DurReqs *
+    ASSERT_TRUE(engine->getEngineSpecific(cookie));
+    {
+        const auto res = ht.findForUpdate(key);
+        ASSERT_EQ(engineOp != EngineOp::Remove, res.committed == nullptr);
+        ASSERT_TRUE(res.pending);
+    }
+
+    auto& manager = *vb.checkpointManager;
+    const auto expectedHighSeqno = engineOp != EngineOp::Remove ? 1 : 2;
+    ASSERT_EQ(expectedHighSeqno, manager.getHighSeqno());
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, ckptList.size());
+    const auto& ckpt = *ckptList.front();
+    ASSERT_EQ(2, ckpt.getNumMetaItems());
+    const auto expectedNumItems = engineOp != EngineOp::Remove ? 1 : 2;
+    ASSERT_EQ(expectedNumItems, ckpt.getNumItems());
+    // Skip empty-item, checkpoint-start and set-vbstate
+    auto it = ckpt.begin();
+    it++;
+    it++;
+    it++;
+    // We must have the committed from the insert if we are testing a deletion
+    if (engineOp == EngineOp::Remove) {
+        EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+        EXPECT_EQ(1, (*it)->getBySeqno());
+        EXPECT_FALSE((*it)->isDeleted());
+        it++;
+    }
+    EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
+    EXPECT_EQ(expectedHighSeqno, (*it)->getBySeqno());
+    EXPECT_EQ(engineOp == EngineOp::Remove, (*it)->isDeleted());
+
+    const auto& itemReqs = (*it)->getDurabilityReqs();
+
+    Level expectedLevel;
+    Timeout expectedTimeout;
+    if (!writeLevel) {
+        // NormalWrite -> minLevel >= writeLevel by logic, so we expect
+        // always whatever minLevel
+        expectedLevel = minLevel;
+        // No user-timeout for the original NormalWrite
+        expectedTimeout = Timeout();
+    } else {
+        // SyncWrite -> we expect the max(minLevel, writeLevel)
+        expectedLevel = (*writeLevel > minLevel ? *writeLevel : minLevel);
+        // Timeout unchanged
+        expectedTimeout = timeout;
+    }
+    EXPECT_EQ(expectedLevel, itemReqs.getLevel());
+    EXPECT_EQ(expectedTimeout.get(), itemReqs.getTimeout().get());
+}
+
+// Representative of any combination of {minLevel, writeLevel} with
+// (minLevel < writeLevel)
+// Note: In this scenario, by definition the write is a SyncWrite
+TEST_P(DurabilityBucketTest, UpgradeToMinLevel_None_Majority_Store) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(Level::None /*minLevel*/,
+                                    {Level::Majority} /*writeLevel*/,
+                                    EngineOp::Store);
+}
+TEST_P(DurabilityBucketTest,
+       UpgradeToMinLevel_None_MajorityAndPersistOnMaster_StoreIf) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(Level::None,
+                                    {Level::MajorityAndPersistOnMaster},
+                                    EngineOp::StoreIf);
+}
+TEST_P(DurabilityBucketTest,
+       UpgradeToMinLevel_MajorityAndPersistOnMaster_PersistToMajority_Remove) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(Level::MajorityAndPersistOnMaster,
+                                    {Level::PersistToMajority},
+                                    EngineOp::Remove);
+}
+
+// Representative of any combination of {minLevel, writeLevel} with
+// (minLevel > writeLevel) AND the write is a NormalWrite
+TEST_P(DurabilityBucketTest, UpgradeToMinLevel_Majority_None_Store) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(Level::Majority, {}, EngineOp::Store);
+}
+TEST_P(DurabilityBucketTest,
+       UpgradeToMinLevel_MajorityAndPersistOnMaster_None_StoreIf) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(
+            Level::MajorityAndPersistOnMaster, {}, EngineOp::StoreIf);
+}
+TEST_P(DurabilityBucketTest, UpgradeToMinLevel_PersistToMajority_None_Remove) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(
+            Level::PersistToMajority, {}, EngineOp::Remove);
+}
+
+// Representative of any combination of {minLevel, writeLevel} with
+// (minLevel > writeLevel) AND the write is a SyncWrite
+TEST_P(DurabilityBucketTest,
+       UpgradeToMinLevel_PersistToMajority_Majority_Store) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(Level::MajorityAndPersistOnMaster,
+                                    Level::Majority,
+                                    EngineOp::Store);
+}
+TEST_P(DurabilityBucketTest,
+       UpgradeToMinLevel_PersistToMajority_MajorityAndPersistOnMaster_StoreIf) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(Level::PersistToMajority,
+                                    Level::MajorityAndPersistOnMaster,
+                                    EngineOp::StoreIf);
+}
+TEST_P(DurabilityBucketTest,
+       UpgradeToMinLevel_PersistToMajority_Majority_Remove) {
+    using namespace cb::durability;
+    testUpgradeToMinDurabilityLevel(
+            Level::PersistToMajority, Level::Majority, EngineOp::Remove);
 }
 
 // Test cases which run against couchstore
