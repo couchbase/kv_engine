@@ -25,13 +25,13 @@
  * A Function class stores a function pointer for later storage in
  * a FunctionChain.
  *
- * ReturnType must be the function's return type.
- * ReturnType Success must be a value to be returned when the function is
- *  successful.
- * arguments are a variable pack of function args.
+ * @tparam ReturnType must be the function's return type.
+ * @tparam ReturnType Success() must be a function that returns a value which is
+ *                              considered to successful.
+ * @tparam arguments are a variable pack of function args.
  *
  */
-template<typename ReturnType, ReturnType Success, typename... arguments>
+template <typename ReturnType, ReturnType Success(), typename... arguments>
 class Function {
 public:
     /*
@@ -62,17 +62,18 @@ private:
 /*
  * Function == operator: required for std::find used in FunctionChain
  */
-template<typename ReturnType, ReturnType Success, typename... arguments>
-bool operator == (const Function<ReturnType, Success, arguments...> &a,
-                 const Function<ReturnType, Success, arguments...> &b) {
+template <typename ReturnType, ReturnType Success(), typename... arguments>
+bool operator==(const Function<ReturnType, Success, arguments...>& a,
+                const Function<ReturnType, Success, arguments...>& b) {
     return a.getAddress() == b.getAddress();
 }
 
 /*
  * Factory function to create a Function object from a function pointer
  */
-template<typename ReturnType, ReturnType Success, typename... arguments>
-Function<ReturnType, Success, arguments...> makeFunction(ReturnType(*f)(arguments...)) {
+template <typename ReturnType, ReturnType Success(), typename... arguments>
+Function<ReturnType, Success, arguments...> makeFunction(
+        ReturnType (*f)(arguments...)) {
     return Function<ReturnType, Success, arguments...>(f);
 }
 
@@ -89,7 +90,7 @@ Function<ReturnType, Success, arguments...> makeFunction(ReturnType(*f)(argument
  * arguments are a variable pack of function args.
  *
  */
-template<typename ReturnType, ReturnType Success, typename... arguments>
+template <typename ReturnType, ReturnType Success(), typename... arguments>
 class FunctionChain {
 public:
     /*
@@ -105,10 +106,10 @@ public:
      * Invoke the chain, stopping if a Function doesn't return Success.
      */
     ReturnType invoke(arguments... args) const {
-        ReturnType rval = Success;
+        ReturnType rval = Success();
 
         for (auto function : chain) {
-            if ((rval = function(args...)) != Success) {
+            if ((rval = function(args...)) != Success()) {
                 return rval;
             }
         }

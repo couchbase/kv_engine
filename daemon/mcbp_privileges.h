@@ -56,9 +56,12 @@ protected:
     void setup(cb::mcbp::ClientOpcode command,
                cb::rbac::PrivilegeAccess (*f)(Cookie&));
 
-    std::array<FunctionChain<cb::rbac::PrivilegeAccess,
-                             cb::rbac::PrivilegeAccess::Ok,
-                             Cookie&>,
-               0x100>
+    // @todo: remove this function and replace with a member of PrivilegeAccess
+    static cb::rbac::PrivilegeAccess getSuccessValue() {
+        return cb::rbac::PrivilegeAccess::Ok;
+    }
+    std::array<
+            FunctionChain<cb::rbac::PrivilegeAccess, getSuccessValue, Cookie&>,
+            0x100>
             commandChains;
 };

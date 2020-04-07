@@ -27,7 +27,7 @@ void McbpPrivilegeChains::setup(cb::mcbp::ClientOpcode command,
                                 cb::rbac::PrivilegeAccess (*f)(Cookie&)) {
     commandChains[std::underlying_type<cb::mcbp::ClientOpcode>::type(command)]
             .push_unique(makeFunction<cb::rbac::PrivilegeAccess,
-                                      cb::rbac::PrivilegeAccess::Ok,
+                                      getSuccessValue,
                                       Cookie&>(f));
 }
 
