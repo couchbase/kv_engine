@@ -131,9 +131,7 @@ public:
      *
      * @return optional scope-ID initialised if the lookup was successful
      */
-    std::pair<uint64_t, std::optional<ScopeID>> getScopeID(
-            const DocKey& key) const;
-
+    std::pair<uint64_t, std::optional<ScopeID>> getScopeID(CollectionID) const;
     /**
      * Update the vbucket's manifest with the current Manifest
      * The Manager is locked to prevent current changing whilst this update

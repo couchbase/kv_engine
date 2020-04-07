@@ -504,11 +504,11 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     EXPECT_EQ(ScopeEntry::shop2.getId(), rv.extras.data.scopeId.to_host());
 
     // Test the collection/vbucket lookup
-    auto sid = store->getScopeID(StoredDocKey{"milk", CollectionEntry::dairy});
+    auto sid = store->getScopeID(CollectionEntry::dairy);
     EXPECT_TRUE(sid.second.has_value());
     EXPECT_EQ(ScopeEntry::shop1.uid, sid.second.value());
 
-    sid = store->getScopeID(StoredDocKey{"apple", CollectionEntry::fruit});
+    sid = store->getScopeID(CollectionEntry::fruit);
     EXPECT_FALSE(sid.second.has_value());
 }
 

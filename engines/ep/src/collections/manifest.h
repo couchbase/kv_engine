@@ -215,6 +215,12 @@ public:
     std::optional<ScopeID> getScopeID(const DocKey& key) const;
 
     /**
+     * Attempt to lookup the scope-id of the "key" (using the collection-ID)
+     * @return an optional ScopeID, undefined if nothing found
+     */
+    std::optional<ScopeID> getScopeID(CollectionID cid) const;
+
+    /**
      * @returns this manifest as a std::string (JSON formatted)
      */
     std::string toJson() const;

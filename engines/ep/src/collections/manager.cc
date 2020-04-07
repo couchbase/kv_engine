@@ -187,11 +187,11 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
 }
 
 std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
-        const DocKey& key) const {
+        CollectionID cid) const {
     // 'shortcut' For the default collection, just return the default scope.
     // If the default collection was deleted the vbucket will have the final say
     // but for this interface allow this without taking the rlock.
-    if (key.getCollectionID().isDefaultCollection()) {
+    if (cid.isDefaultCollection()) {
         // Allow the default collection in the default scope...
         return std::make_pair<uint64_t, std::optional<ScopeID>>(
                 0, ScopeID{ScopeID::Default});
@@ -199,7 +199,7 @@ std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
 
     auto current = currentManifest.rlock();
     return std::make_pair<uint64_t, std::optional<ScopeID>>(
-            current->getUid(), current->getScopeID(key));
+            current->getUid(), current->getScopeID(cid));
 }
 
 void Collections::Manager::update(VBucket& vb) const {

@@ -2586,8 +2586,8 @@ cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
 }
 
 std::pair<uint64_t, std::optional<ScopeID>> KVBucket::getScopeID(
-        const DocKey& key) const {
-    return collectionsManager->getScopeID(key);
+        CollectionID cid) const {
+    return collectionsManager->getScopeID(cid);
 }
 
 const Collections::Manager& KVBucket::getCollectionsManager() const {

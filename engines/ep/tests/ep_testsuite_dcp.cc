@@ -7411,6 +7411,34 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     get_all_vb_seqnos(h, RequestedVBState::Pending, cookie, 9);
     verify_all_vb_seqnos(h, 0, -1, CollectionID(9));
 
+    // Priv checking
+    mock_set_check_privilege_function(
+            [](gsl::not_null<const void*> c,
+               cb::rbac::Privilege priv,
+               std::optional<ScopeID> sid,
+               std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
+                if (cid && cid.value() == 8) {
+                    return cb::rbac::PrivilegeAccess::Fail;
+                }
+                return cb::rbac::PrivilegeAccess::Ok;
+            });
+    get_all_vb_seqnos(
+            h, RequestedVBState::Active, cookie, 8, cb::engine_errc::no_access);
+    get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 9);
+    mock_set_check_privilege_function(
+            [](gsl::not_null<const void*> c,
+               cb::rbac::Privilege priv,
+               std::optional<ScopeID> sid,
+               std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
+                return cb::rbac::PrivilegeAccess::Fail;
+            });
+    get_all_vb_seqnos(h,
+                      RequestedVBState::Active,
+                      cookie,
+                      {},
+                      cb::engine_errc::no_access);
+
+    mock_reset_check_privilege_function();
     /*
      * What happens when we don't tell the server that we can talk collections?
      */

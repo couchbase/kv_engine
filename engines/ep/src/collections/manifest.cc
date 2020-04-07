@@ -459,6 +459,18 @@ std::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
     return {};
 }
 
+std::optional<ScopeID> Manifest::getScopeID(CollectionID cid) const {
+    if (cid.isDefaultCollection() && defaultCollectionExists) {
+        return ScopeID{ScopeID::Default};
+    } else {
+        auto itr = collections.find(cid);
+        if (itr != collections.end()) {
+            return itr->second.sid;
+        }
+    }
+    return {};
+}
+
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
 }

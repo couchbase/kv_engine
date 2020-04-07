@@ -146,8 +146,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* End VBucket commands */
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
-     * vbuckets on the node */
-    setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, require<Privilege::MetaRead>);
+     * vbuckets on the node  - handled by engine due to various encodings */
+    setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, empty);
 
     /* DCP */
     setup(cb::mcbp::ClientOpcode::DcpOpen, empty);

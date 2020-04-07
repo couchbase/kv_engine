@@ -1852,7 +1852,7 @@ std::pair<uint64_t, std::optional<ScopeID>>
 EventuallyPersistentEngine::get_scope_id(gsl::not_null<const void*>,
                                          const DocKey& key) const {
     auto engine = acquireEngine(this);
-    auto rv = engine->getKVBucket()->getScopeID(key);
+    auto rv = engine->getKVBucket()->getScopeID(key.getCollectionID());
     return rv;
 }
 
@@ -4673,26 +4673,33 @@ void EventuallyPersistentEngine::resetStats() {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::checkPrivilege(
         const void* cookie, cb::rbac::Privilege priv, DocKey key) const {
+    return ENGINE_ERROR_CODE(
+            checkPrivilege(cookie, priv, key.getCollectionID()));
+}
+
+cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
+        const void* cookie, cb::rbac::Privilege priv, CollectionID cid) const {
     ScopeID sid;
-    if (key.getCollectionID().isDefaultCollection()) {
+    if (cid.isDefaultCollection()) {
         sid = ScopeID{ScopeID::Default};
     } else {
-        auto res = get_scope_id(cookie, key);
+        auto res = getKVBucket()->getScopeID(cid);
         if (!res.second) {
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         }
         sid = res.second.value();
     }
 
-    auto status = checkPrivilege(cookie, priv, sid, key.getCollectionID());
+    auto status = checkPrivilege(cookie, priv, sid, cid);
 
     if (status == cb::engine_errc::failed) {
         EP_LOG_ERR(
                 "EPE::checkPrivilege: failed while checking "
-                "privilege for key {}",
-                cb::UserDataView(key.to_string()));
+                "privilege for cid {} sid {}",
+                cid.to_string(),
+                sid.to_string());
     }
-    return ENGINE_ERROR_CODE(status);
+    return status;
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
@@ -6416,7 +6423,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // By default allow any alive states. If reqState has been set then
     // filter on that specific state.
     auto reqState = aliveVBStates;
-    std::optional<CollectionIDType> reqCollection = {};
+    std::optional<CollectionID> reqCollection = {};
 
     // if extlen is non-zero, it limits the result to either only include the
     // vbuckets in the specified vbucket state, or in the specified vbucket
@@ -6458,6 +6465,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         reqCollection = CollectionID::Default;
     }
 
+    // Privilege check either for the collection or the bucket
+    auto accessStatus = cb::engine_errc::success;
+    if (reqCollection) {
+        // This will do the scope lookup
+        accessStatus = checkPrivilege(
+                cookie, cb::rbac::Privilege::MetaRead, reqCollection.value());
+    } else {
+        // Do a bucket privilege check
+        accessStatus =
+                checkPrivilege(cookie, cb::rbac::Privilege::MetaRead, {}, {});
+    }
+    if (accessStatus != cb::engine_errc::success) {
+        return ENGINE_ERROR_CODE(accessStatus);
+    }
+
     auto* connhandler = getConnHandler(cookie, false);
     bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
@@ -6471,17 +6493,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     try {
         payload.reserve(vbuckets.size() * (sizeof(uint16_t) + sizeof(uint64_t)));
     } catch (const std::bad_alloc&) {
-        return sendResponse(response,
-                            nullptr,
-                            0,
-                            nullptr,
-                            0,
-                            nullptr,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Enomem,
-                            0,
-                            cookie);
+        return ENGINE_ENOMEM;
     }
 
     for (auto id : vbuckets) {

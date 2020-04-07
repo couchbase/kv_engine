@@ -828,6 +828,10 @@ public:
 protected:
     friend class EpEngineValueChangeListener;
 
+    cb::engine_errc checkPrivilege(const void* cookie,
+                                   cb::rbac::Privilege priv,
+                                   CollectionID) const;
+
     /**
      * Check the access for the given privilege for the given key
      */

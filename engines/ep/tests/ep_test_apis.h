@@ -239,10 +239,12 @@ bool set_vbucket_state(EngineIface* h,
                        vbucket_state_t state,
                        std::string_view meta = {});
 
-bool get_all_vb_seqnos(EngineIface* h,
-                       std::optional<RequestedVBState> state,
-                       const void* cookie,
-                       std::optional<CollectionIDType> collection = {});
+bool get_all_vb_seqnos(
+        EngineIface* h,
+        std::optional<RequestedVBState> state,
+        const void* cookie,
+        std::optional<CollectionIDType> collection = {},
+        cb::engine_errc expectedStatus = cb::engine_errc::success);
 void verify_all_vb_seqnos(EngineIface* h,
                           int vb_start,
                           int vb_end,

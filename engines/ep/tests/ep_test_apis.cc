@@ -765,7 +765,8 @@ bool set_vbucket_state(EngineIface* h,
 bool get_all_vb_seqnos(EngineIface* h,
                        std::optional<RequestedVBState> state,
                        const void* cookie,
-                       std::optional<CollectionIDType> collection) {
+                       std::optional<CollectionIDType> collection,
+                       cb::engine_errc expectedStatus) {
     unique_request_ptr pkt;
 
     if (collection) {
@@ -796,7 +797,7 @@ bool get_all_vb_seqnos(EngineIface* h,
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
     }
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_ERROR_CODE(expectedStatus),
             h->unknown_command(cookie, *pkt, add_response),
             "Error in getting all vb info");
 
