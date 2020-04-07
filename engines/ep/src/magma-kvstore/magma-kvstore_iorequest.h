@@ -42,11 +42,11 @@ public:
         return Vbid(docMeta.vbid);
     }
 
-    size_t getKeyLen() const {
+    size_t getRawKeyLen() const {
         return key.size();
     }
 
-    const char* getKey() const {
+    const char* getRawKey() const {
         return reinterpret_cast<const char*>(key.data());
     }
 

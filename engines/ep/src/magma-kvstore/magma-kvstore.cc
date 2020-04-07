@@ -544,7 +544,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
         }
 
         size_t mutationSize =
-                req.getKeyLen() + req.getBodySize() + req.getMetaSize();
+                req.getRawKeyLen() + req.getBodySize() + req.getMetaSize();
         st.io_num_write++;
         st.io_document_write_bytes += mutationSize;
 
@@ -1138,7 +1138,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             lastSeqno = req.getDocMeta().bySeqno;
         }
         writeOps.emplace_back(Magma::WriteOperation::NewDocUpdate(
-                {req.getKey(), req.getKeyLen()},
+                {req.getRawKey(), req.getRawKeyLen()},
                 {reinterpret_cast<char*>(&docMeta), sizeof(magmakv::MetaData)},
                 valSlice,
                 &req));
