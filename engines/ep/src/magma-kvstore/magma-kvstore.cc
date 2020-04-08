@@ -20,6 +20,9 @@
 #include "ep_time.h"
 #include "item.h"
 #include "magma-kvstore_config.h"
+#include "magma-kvstore_iorequest.h"
+#include "magma-kvstore_metadata.h"
+#include "objectregistry.h"
 #include "statwriter.h"
 #include "vb_commit.h"
 #include "vbucket.h"
@@ -36,186 +39,8 @@
 
 class Snapshot;
 
-// Unfortunately, turning on logging for the tests is limited to debug
-// mode. While we are in the midst of dropping in magma, this provides
-// a simple way to change all the logging->trace calls to logging->debug
-// by changing trace to debug..
-// Once magma has been completed, we can remove this #define and change
-// all the logging calls back to trace.
-#define TRACE trace
-
 using namespace magma;
 using namespace std::chrono_literals;
-
-namespace magmakv {
-// MetaData is used to serialize and de-serialize metadata respectively when
-// writing a Document mutation request to Magma and when reading a Document
-// from Magma.
-
-// The `#pragma pack(1)` directive and the order of members are to keep
-// the size of MetaData as small as possible and uniform across different
-// platforms.
-#pragma pack(1)
-class MetaData {
-public:
-    // The Operation this represents - maps to queue_op types:
-    enum class Operation {
-        // A standard mutation (or deletion). Present in the 'normal'
-        // (committed) namespace.
-        Mutation,
-
-        // A prepared SyncWrite. `durability_level` field indicates the level
-        // Present in the DurabilityPrepare namespace.
-        PreparedSyncWrite,
-
-        // A committed SyncWrite.
-        // This exists so we can correctly backfill from disk a Committed
-        // mutation and sent out as a DCP_COMMIT to sync_replication
-        // enabled DCP clients.
-        // Present in the 'normal' (committed) namespace.
-        CommittedSyncWrite,
-
-        // An aborted SyncWrite.
-        // This exists so we can correctly backfill from disk an Aborted
-        // mutation and sent out as a DCP_ABORT to sync_replication
-        // enabled DCP clients.
-        // Present in the DurabilityPrepare namespace.
-        Abort,
-    };
-
-    MetaData() = default;
-
-    MetaData(const Item& it)
-        : metaDataVersion(0),
-          bySeqno(it.getBySeqno()),
-          cas(it.getCas()),
-          revSeqno(it.getRevSeqno()),
-          exptime(it.getExptime()),
-          flags(it.getFlags()),
-          valueSize(it.getNBytes()),
-          vbid(it.getVBucketId().get()),
-          datatype(it.getDataType()),
-          prepareSeqno(it.getPrepareSeqno()) {
-        if (it.isDeleted()) {
-            deleted = 1;
-            deleteSource = static_cast<uint8_t>(it.deletionSource());
-        } else {
-            deleted = 0;
-            deleteSource = 0;
-        }
-        operation = static_cast<uint8_t>(toOperation(it.getOperation()));
-        durabilityLevel =
-                static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
-    };
-
-    // Magma requires meta data for local documents. Rather than support 2
-    // different meta data versions, we simplify by using just 1.
-    MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
-        : metaDataVersion(0),
-          bySeqno(seqno),
-          cas(0),
-          revSeqno(0),
-          exptime(0),
-          flags(0),
-          valueSize(valueSize),
-          vbid(vbid.get()),
-          datatype(0),
-          operation(0),
-          durabilityLevel(0),
-          prepareSeqno(0) {
-        if (isDeleted) {
-            deleted = 1;
-            deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
-        } else {
-            deleted = 0;
-            deleteSource = 0;
-        }
-    };
-
-    Operation getOperation() const {
-        return static_cast<Operation>(operation);
-    }
-
-    cb::durability::Level getDurabilityLevel() const {
-        return static_cast<cb::durability::Level>(durabilityLevel);
-    }
-
-    std::string to_string(Operation op) const {
-        switch (op) {
-        case Operation::Mutation:
-            return "Mutation";
-        case Operation::PreparedSyncWrite:
-            return "PreparedSyncWrite";
-        case Operation::CommittedSyncWrite:
-            return "CommittedSyncWrite";
-        case Operation::Abort:
-            return "Abort";
-        }
-        return std::string{"Unknown:" +
-                           std::to_string(static_cast<uint8_t>(op))};
-    }
-
-    std::string to_string() const {
-        std::stringstream ss;
-        int vers = metaDataVersion;
-        int dt = datatype;
-        cb::durability::Requirements req(getDurabilityLevel(), {});
-        ss << "bySeqno:" << bySeqno << " cas:" << cas << " exptime:" << exptime
-           << " revSeqno:" << revSeqno << " flags:" << flags
-           << " valueSize:" << valueSize << " vbid:" << vbid
-           << " deleted:" << (deleted == 0 ? "false" : "true")
-           << " deleteSource:"
-           << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
-           << " version:" << vers << " datatype:" << dt
-           << " operation:" << to_string(getOperation())
-           << " durabilityLevel:" << cb::durability::to_string(req);
-        return ss.str();
-    }
-
-    uint8_t metaDataVersion;
-    int64_t bySeqno;
-    uint64_t cas;
-    uint64_t revSeqno;
-    uint32_t exptime;
-    uint32_t flags;
-    uint32_t valueSize;
-    uint16_t vbid;
-    uint8_t datatype;
-    uint8_t deleted : 1;
-    uint8_t deleteSource : 1;
-    uint8_t operation : 2;
-    uint8_t durabilityLevel : 2;
-    cb::uint48_t prepareSeqno;
-
-private:
-    static Operation toOperation(queue_op op) {
-        switch (op) {
-        case queue_op::mutation:
-        case queue_op::system_event:
-            return Operation::Mutation;
-        case queue_op::pending_sync_write:
-            return Operation::PreparedSyncWrite;
-        case queue_op::commit_sync_write:
-            return Operation::CommittedSyncWrite;
-        case queue_op::abort_sync_write:
-            return Operation::Abort;
-        case queue_op::flush:
-        case queue_op::empty:
-        case queue_op::checkpoint_start:
-        case queue_op::checkpoint_end:
-        case queue_op::set_vbucket_state:
-            break;
-        }
-        throw std::invalid_argument(
-                "magma::MetaData::toOperation: Unsupported op " +
-                std::to_string(static_cast<uint8_t>(op)));
-    }
-};
-#pragma pack()
-
-static_assert(sizeof(MetaData) == 47,
-              "magmakv::MetaData is not the expected size.");
-} // namespace magmakv
 
 // Keys to localdb docs
 static const std::string vbstateKey = "_vbstate";
@@ -224,95 +49,115 @@ static const std::string openCollectionsKey = "_collections/open";
 static const std::string openScopesKey = "_scopes/open";
 static const std::string droppedCollectionsKey = "_collections/dropped";
 
-/**
- * Class representing a document to be persisted in Magma.
- */
-class MagmaRequest : public IORequest {
-public:
-    /**
-     * Constructor
-     *
-     * @param item Item instance to be persisted
-     * @param callback Persistence Callback
-     * @param logger Used for logging
-     */
-    MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
-        : IORequest(std::move(it)),
-          docMeta(magmakv::MetaData(*item)),
-          docBody(item->getValue()) {
-        if (logger->should_log(spdlog::level::TRACE)) {
-            logger->TRACE("MagmaRequest:{}", to_string());
-        }
-    }
+// Unfortunately, turning on logging for the tests is limited to debug
+// mode. While we are in the midst of dropping in magma, this provides
+// a simple way to change all the logging->trace calls to logging->debug
+// by changing trace to debug..
+// Once magma has been completed, we can remove this #define and change
+// all the logging calls back to trace.
+#define TRACE trace
 
-    magmakv::MetaData& getDocMeta() {
-        return docMeta;
+namespace magmakv {
+MetaData::MetaData(const Item& it)
+    : metaDataVersion(0),
+      bySeqno(it.getBySeqno()),
+      cas(it.getCas()),
+      revSeqno(it.getRevSeqno()),
+      exptime(it.getExptime()),
+      flags(it.getFlags()),
+      valueSize(it.getNBytes()),
+      vbid(it.getVBucketId().get()),
+      datatype(it.getDataType()),
+      prepareSeqno(it.getPrepareSeqno()) {
+    if (it.isDeleted()) {
+        deleted = 1;
+        deleteSource = static_cast<uint8_t>(it.deletionSource());
+    } else {
+        deleted = 0;
+        deleteSource = 0;
     }
+    operation = static_cast<uint8_t>(toOperation(it.getOperation()));
+    durabilityLevel = static_cast<uint8_t>(it.getDurabilityReqs().getLevel());
+}
 
-    Vbid getVbID() const {
-        return Vbid(docMeta.vbid);
+MetaData::MetaData(bool isDeleted, uint32_t valueSize, int64_t seqno, Vbid vbid)
+    : metaDataVersion(0),
+      bySeqno(seqno),
+      cas(0),
+      revSeqno(0),
+      exptime(0),
+      flags(0),
+      valueSize(valueSize),
+      vbid(vbid.get()),
+      datatype(0),
+      operation(0),
+      durabilityLevel(0),
+      prepareSeqno(0) {
+    if (isDeleted) {
+        deleted = 1;
+        deleteSource = static_cast<uint8_t>(DeleteSource::Explicit);
+    } else {
+        deleted = 0;
+        deleteSource = 0;
     }
+}
 
-    size_t getKeyLen() const {
-        return key.size();
+cb::durability::Level MetaData::getDurabilityLevel() const {
+    return static_cast<cb::durability::Level>(durabilityLevel);
+}
+
+std::string MetaData::to_string(Operation op) const {
+    switch (op) {
+    case Operation::Mutation:
+        return "Mutation";
+    case Operation::PreparedSyncWrite:
+        return "PreparedSyncWrite";
+    case Operation::CommittedSyncWrite:
+        return "CommittedSyncWrite";
+    case Operation::Abort:
+        return "Abort";
     }
+    return std::string{"Unknown:" + std::to_string(static_cast<uint8_t>(op))};
+}
 
-    const char* getKey() const {
-        return reinterpret_cast<const char*>(key.data());
+std::string MetaData::to_string() const {
+    std::stringstream ss;
+    int vers = metaDataVersion;
+    int dt = datatype;
+    cb::durability::Requirements req(getDurabilityLevel(), {});
+    ss << "bySeqno:" << bySeqno << " cas:" << cas << " exptime:" << exptime
+       << " revSeqno:" << revSeqno << " flags:" << flags
+       << " valueSize:" << valueSize << " vbid:" << vbid
+       << " deleted:" << (deleted == 0 ? "false" : "true") << " deleteSource:"
+       << (deleted == 0 ? " " : deleteSource == 0 ? "Explicit" : "TTL")
+       << " version:" << vers << " datatype:" << dt
+       << " operation:" << to_string(getOperation())
+       << " durabilityLevel:" << cb::durability::to_string(req);
+    return ss.str();
+}
+
+MetaData::Operation MetaData::toOperation(queue_op op) {
+    switch (op) {
+    case queue_op::mutation:
+    case queue_op::system_event:
+        return Operation::Mutation;
+    case queue_op::pending_sync_write:
+        return Operation::PreparedSyncWrite;
+    case queue_op::commit_sync_write:
+        return Operation::CommittedSyncWrite;
+    case queue_op::abort_sync_write:
+        return Operation::Abort;
+    case queue_op::flush:
+    case queue_op::empty:
+    case queue_op::checkpoint_start:
+    case queue_op::checkpoint_end:
+    case queue_op::set_vbucket_state:
+        break;
     }
-
-    size_t getBodySize() const {
-        return docBody ? docBody->valueSize() : 0;
-    }
-
-    char* getBodyData() const {
-        return docBody ? const_cast<char*>(docBody->getData()) : nullptr;
-    }
-
-    size_t getMetaSize() const {
-        return sizeof(magmakv::MetaData);
-    }
-
-    void markOldItemExists() {
-        itemOldExists = true;
-    }
-
-    bool oldItemExists() const {
-        return itemOldExists;
-    }
-
-    void markOldItemIsDelete() {
-        itemOldIsDelete = true;
-    }
-
-    bool oldItemIsDelete() const {
-        return itemOldIsDelete;
-    }
-
-    void markRequestFailed() {
-        reqFailed = true;
-    }
-
-    bool requestFailed() const {
-        return reqFailed;
-    }
-
-    std::string to_string() {
-        std::stringstream ss;
-        ss << "Key:" << key.to_string() << " docMeta:" << docMeta.to_string()
-           << " itemOldExists:" << (itemOldExists ? "true" : "false")
-           << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false")
-           << " reqFailed:" << (reqFailed ? "true" : "false");
-        return ss.str();
-    }
-
-private:
-    magmakv::MetaData docMeta;
-    value_t docBody;
-    bool itemOldExists{false};
-    bool itemOldIsDelete{false};
-    bool reqFailed{false};
-};
+    throw std::invalid_argument(
+            "magma::MetaData::toOperation: Unsupported op " +
+            std::to_string(static_cast<uint8_t>(op)));
+}
 
 /**
  * Magma stores an item in 3 slices... key, metadata, value
@@ -321,53 +166,59 @@ private:
  * Helper functions to pull metadata stuff out of the metadata slice.
  * The are used down in magma and are passed in as part of the configuration.
  */
-static const uint64_t getSeqNum(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
-    return docMeta->bySeqno;
-}
-
-static const size_t getValueSize(const Slice& metaSlice) {
+static const MetaData& getDocMeta(const Slice& metaSlice) {
     const auto* docMeta =
-            reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
-    return docMeta->valueSize;
-}
-
-static const uint32_t getExpiryTime(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
-    return docMeta->exptime;
-}
-
-static const bool isDeleted(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
-    return docMeta->deleted > 0 ? true : false;
-}
-
-static const bool isCompressed(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
-    return mcbp::datatype::is_snappy(docMeta->datatype);
-}
-
-static const Vbid getVbid(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
-    return Vbid(docMeta->vbid);
-}
-
-static const magmakv::MetaData& getDocMeta(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
+            reinterpret_cast<MetaData*>(const_cast<char*>(metaSlice.Data()));
     return *docMeta;
 }
 
+static const uint64_t getSeqNum(const Slice& metaSlice) {
+    return getDocMeta(metaSlice).bySeqno;
+}
+
+static const size_t getValueSize(const Slice& metaSlice) {
+    return getDocMeta(metaSlice).valueSize;
+}
+
+static const uint32_t getExpiryTime(const Slice& metaSlice) {
+    return getDocMeta(metaSlice).exptime;
+}
+
+static const bool isDeleted(const Slice& metaSlice) {
+    return getDocMeta(metaSlice).deleted > 0;
+}
+
+static const bool isCompressed(const Slice& metaSlice) {
+    return mcbp::datatype::is_snappy(getDocMeta(metaSlice).datatype);
+}
+
+static const Vbid getVbid(const Slice& metaSlice) {
+    return Vbid(getDocMeta(metaSlice).vbid);
+}
+
 static const bool isPrepared(const Slice& metaSlice) {
-    magmakv::MetaData* docMeta = reinterpret_cast<magmakv::MetaData*>(
-            const_cast<char*>(metaSlice.Data()));
-    return static_cast<magmakv::MetaData::Operation>(docMeta->operation) ==
-           magmakv::MetaData::Operation::PreparedSyncWrite;
+    return static_cast<MetaData::Operation>(getDocMeta(metaSlice).operation) ==
+           MetaData::Operation::PreparedSyncWrite;
+}
+
+} // namespace magmakv
+
+MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
+    : IORequest(std::move(it)),
+      docMeta(magmakv::MetaData(*item)),
+      docBody(item->getValue()) {
+    if (logger->should_log(spdlog::level::TRACE)) {
+        logger->TRACE("MagmaRequest:{}", to_string());
+    }
+}
+
+std::string MagmaRequest::to_string() {
+    std::stringstream ss;
+    ss << "Key:" << key.to_string() << " docMeta:" << docMeta.to_string()
+       << " itemOldExists:" << (itemOldExists ? "true" : "false")
+       << " itemOldIsDelete:" << (itemOldIsDelete ? "true" : "false")
+       << " reqFailed:" << (reqFailed ? "true" : "false");
+    return ss.str();
 }
 
 static DiskDocKey makeDiskDocKey(const Slice& key) {
@@ -394,12 +245,12 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         itemString << "key:"
                    << cb::UserData{makeDiskDocKey(keySlice).to_string()};
         itemString << " ";
-        itemString << getDocMeta(metaSlice).to_string();
+        itemString << magmakv::getDocMeta(metaSlice).to_string();
         logger->TRACE("MagmaCompactionCB {}", itemString.str());
     }
 
     if (!cbCtx.initialized) {
-        cbCtx.vbid = getVbid(metaSlice);
+        cbCtx.vbid = magmakv::getVbid(metaSlice);
 
         // If we have a compaction_ctx, that means we are doing an
         // explicit compaction triggered by the kv_engine.
@@ -419,8 +270,8 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
     }
 
     if (cbCtx.ctx) {
-        auto seqno = getSeqNum(metaSlice);
-        auto exptime = getExpiryTime(metaSlice);
+        auto seqno = magmakv::getSeqNum(metaSlice);
+        auto exptime = magmakv::getExpiryTime(metaSlice);
         Status status;
 
         if (cbCtx.ctx->droppedKeyCb) {
@@ -434,10 +285,10 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         diskKey.getDocKey(), seqno)) {
                 // Inform vb that the key@seqno is dropped
                 cbCtx.ctx->droppedKeyCb(diskKey, seqno);
-                if (!isDeleted(metaSlice)) {
+                if (!magmakv::isDeleted(metaSlice)) {
                     cbCtx.ctx->stats.collectionsItemsPurged++;
                 } else {
-                    if (isPrepared(metaSlice)) {
+                    if (magmakv::isPrepared(metaSlice)) {
                         cbCtx.ctx->stats.preparesPurged++;
                     }
                     cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
@@ -446,7 +297,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             }
         }
 
-        if (isDeleted(metaSlice)) {
+        if (magmakv::isDeleted(metaSlice)) {
             uint64_t maxSeqno;
             status = magma->GetMaxSeqno(cbCtx.vbid.get(), maxSeqno);
             if (!status) {
@@ -484,7 +335,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             // because we send Mutations instead of Commits when streaming from
             // Disk so we do not need to send a Prepare message to keep things
             // consistent on a replica.
-            if (isPrepared(metaSlice)) {
+            if (magmakv::isPrepared(metaSlice)) {
                 if (cbCtx.ctx->max_purged_seq < seqno) {
                     cbCtx.ctx->stats.preparesPurged++;
                     return true;
@@ -492,7 +343,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             }
             time_t currTime = ep_real_time();
             if (exptime && exptime < currTime) {
-                auto docMeta = getDocMeta(metaSlice);
+                auto docMeta = magmakv::getDocMeta(metaSlice);
                 auto itm = std::make_unique<Item>(
                         makeDiskDocKey(keySlice).getDocKey(),
                         docMeta.flags,
@@ -504,7 +355,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                         docMeta.bySeqno,
                         cbCtx.vbid,
                         docMeta.revSeqno);
-                if (isCompressed(metaSlice)) {
+                if (magmakv::isCompressed(metaSlice)) {
                     itm->decompressValue();
                 }
                 itm->setDeleted(DeleteSource::TTL);
@@ -556,10 +407,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaExpiryFragThreshold();
     configuration.magmaCfg.TombstoneFragThreshold =
             configuration.getMagmaTombstoneFragThreshold();
-    configuration.magmaCfg.GetSeqNum = getSeqNum;
-    configuration.magmaCfg.GetExpiryTime = getExpiryTime;
-    configuration.magmaCfg.GetValueSize = getValueSize;
-    configuration.magmaCfg.IsTombstone = isDeleted;
+    configuration.magmaCfg.GetSeqNum = magmakv::getSeqNum;
+    configuration.magmaCfg.GetExpiryTime = magmakv::getExpiryTime;
+    configuration.magmaCfg.GetValueSize = magmakv::getValueSize;
+    configuration.magmaCfg.IsTombstone = magmakv::isDeleted;
     configuration.magmaCfg.EnableDirectIO =
             configuration.getMagmaEnableDirectIo();
     configuration.magmaCfg.EnableBlockCache =
@@ -837,7 +688,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                 cb::UserData{key.to_string()},
                 status.String(),
                 found,
-                found ? isDeleted(metaSlice) : false);
+                found ? magmakv::isDeleted(metaSlice) : false);
     }
 
     if (!status) {
@@ -889,7 +740,7 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
                     status.String(),
                     found,
-                    found ? isDeleted(metaSlice) : false);
+                    found ? magmakv::isDeleted(metaSlice) : false);
         }
 
         auto errCode = magmaErr2EngineErr(status.ErrorCode(), found);
@@ -945,11 +796,11 @@ void MagmaKVStore::getRange(Vbid vbid,
                     "deleted:{}",
                     vbid,
                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
-                    getSeqNum(metaSlice),
-                    isDeleted(metaSlice));
+                    magmakv::getSeqNum(metaSlice),
+                    magmakv::isDeleted(metaSlice));
         }
 
-        if (isDeleted(metaSlice)) {
+        if (magmakv::isDeleted(metaSlice)) {
             return;
         }
         auto rv = makeGetValue(vbid, keySlice, metaSlice, valueSlice);
@@ -1499,7 +1350,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
 
         auto diskKey = makeDiskDocKey(keySlice);
 
-        if (isDeleted(metaSlice) &&
+        if (magmakv::isDeleted(metaSlice) &&
             ctx.docFilter == DocumentFilter::NO_DELETES) {
             logger->TRACE(
                     "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} seqno:{}",
@@ -1558,9 +1409,9 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
                 ctx.vbid,
                 diskKey.to_string(),
                 seqno,
-                isDeleted(metaSlice),
-                getExpiryTime(metaSlice),
-                isCompressed(metaSlice));
+                magmakv::isDeleted(metaSlice),
+                magmakv::getExpiryTime(metaSlice),
+                magmakv::isCompressed(metaSlice));
 
         auto itm =
                 makeItem(ctx.vbid, keySlice, metaSlice, valSlice, isMetaOnly);
@@ -1568,7 +1419,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         // When we are suppose to return the values as compressed AND
         // the value isn't compressed, we need to compress the value.
         if (ctx.valFilter == ValueFilter::VALUES_COMPRESSED &&
-            !isCompressed(metaSlice)) {
+            !magmakv::isCompressed(metaSlice)) {
             if (!itm->compressValue(true)) {
                 logger->warn(
                         "MagmaKVStore::scan failed to compress value - {} "
@@ -1776,11 +1627,11 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
                     "deleted:{}",
                     vbid,
                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
-                    getSeqNum(metaSlice),
-                    isDeleted(metaSlice));
+                    magmakv::getSeqNum(metaSlice),
+                    magmakv::isDeleted(metaSlice));
         }
 
-        if (isDeleted(metaSlice)) {
+        if (magmakv::isDeleted(metaSlice)) {
             return;
         }
         auto retKey = makeDiskDocKey(keySlice);
