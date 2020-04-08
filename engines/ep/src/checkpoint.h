@@ -107,7 +107,7 @@ using checkpoint_index = std::unordered_map<
         StoredDocKey,
         index_entry,
         std::hash<StoredDocKey>,
-        std::equal_to<StoredDocKey>,
+        std::equal_to<>,
         MemoryTrackingAllocator<std::pair<const StoredDocKey, index_entry>>>;
 
 class Checkpoint;
