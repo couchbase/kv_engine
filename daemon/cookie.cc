@@ -610,7 +610,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     using cb::rbac::PrivilegeAccess;
     auto ret = checkPrivilege(privilegeContext, privilege, sid, cid);
 
-    if (ret == PrivilegeAccess::Ok && euidPrivilegeContext) {
+    if (ret.success() && euidPrivilegeContext) {
         return checkPrivilege(*euidPrivilegeContext, privilege, sid, cid);
     }
 
@@ -623,7 +623,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) {
     const auto ret = ctx.check(privilege, sid, cid);
-    if (ret == cb::rbac::PrivilegeAccess::Fail) {
+    if (ret.failed()) {
         const auto opcode = getRequest().getClientOpcode();
         const auto command(to_string(opcode));
         const auto privilege_string = cb::rbac::to_string(privilege);
@@ -646,7 +646,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
                     privilege_string,
                     context);
 
-            return cb::rbac::PrivilegeAccess::Ok;
+            return cb::rbac::PrivilegeAccessOk;
         } else {
             LOG_INFO(
                     "{} RBAC {} missing privilege {} for {} in bucket:[{}] "
@@ -680,8 +680,8 @@ cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
 
 bool Cookie::fetchEuidPrivilegeSet() {
     if (checkPrivilege(
-                privilegeContext, cb::rbac::Privilege::Impersonate, {}, {}) ==
-        cb::rbac::PrivilegeAccess::Fail) {
+                privilegeContext, cb::rbac::Privilege::Impersonate, {}, {})
+                .failed()) {
         setErrorContext(
                 "You need the Impersonate privilege in order to impersonate "
                 "users");

@@ -71,15 +71,16 @@ Privilege to_privilege(const std::string& str) {
     return it->second;
 }
 
-std::string to_string(PrivilegeAccess privilegeAccess) {
-    switch (privilegeAccess) {
-    case PrivilegeAccess::Ok:
+std::string PrivilegeAccess::to_string() const {
+    switch (status) {
+    case Status::Ok:
         return "Ok";
-    case PrivilegeAccess::Fail:
+    case Status::Fail:
         return "Fail";
     }
-    throw std::invalid_argument("to_string(PrivilegeAccess): Unknown value: " +
-                                std::to_string(int(privilegeAccess)));
+    throw std::invalid_argument(
+            "PrivilegeAccess::to_string(): Unknown status: " +
+            std::to_string(int(status)));
 }
 
 /// is this a privilege related to a bucket or not

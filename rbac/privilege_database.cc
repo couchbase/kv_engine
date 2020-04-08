@@ -132,8 +132,8 @@ nlohmann::json Collection::to_json() const {
 }
 
 PrivilegeAccess Collection::check(Privilege privilege) const {
-    return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccess::Ok
-                                                  : PrivilegeAccess::Fail;
+    return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccessOk
+                                                  : PrivilegeAccessFail;
 }
 
 bool Scope::operator==(const Scope& other) const {
@@ -168,17 +168,17 @@ nlohmann::json Scope::to_json() const {
 PrivilegeAccess Scope::check(Privilege privilege,
                              std::optional<uint32_t> collection) const {
     if (privilegeMask.test(uint8_t(privilege))) {
-        return PrivilegeAccess::Ok;
+        return PrivilegeAccessOk;
     }
 
     if (collections.empty() || !collection) {
-        return PrivilegeAccess::Fail;
+        return PrivilegeAccessFail;
     }
 
     const auto iter = collections.find(*collection);
     if (iter == collections.end()) {
         // We don't have access to that collection
-        return PrivilegeAccess ::Fail;
+        return PrivilegeAccessFail;
     }
 
     // delegate the check to the collections
@@ -223,17 +223,17 @@ PrivilegeAccess Bucket::check(Privilege privilege,
                               std::optional<uint32_t> scope,
                               std::optional<uint32_t> collection) const {
     if (privilegeMask.test(uint8_t(privilege))) {
-        return PrivilegeAccess::Ok;
+        return PrivilegeAccessOk;
     }
 
     if (scopes.empty() || !scope || !is_collection_privilege(privilege)) {
-        return PrivilegeAccess::Fail;
+        return PrivilegeAccessFail;
     }
 
     const auto iter = scopes.find(*scope);
     if (iter == scopes.end()) {
         // We don't have access to that scope
-        return PrivilegeAccess ::Fail;
+        return PrivilegeAccessFail;
     }
 
     // Delegate the check to the scopes
@@ -406,19 +406,19 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
         if (std::find(droppedPrivileges.begin(),
                       droppedPrivileges.end(),
                       privilege) != droppedPrivileges.end()) {
-            return PrivilegeAccess::Fail;
+            return PrivilegeAccessFail;
         }
     }
 
     if (mask.test(idx)) {
-        return PrivilegeAccess::Ok;
-    }
-    if (bucket && is_bucket_privilege(privilege) &&
-        bucket->check(privilege, sid, cid) == PrivilegeAccess::Ok) {
-        return PrivilegeAccess::Ok;
+        return PrivilegeAccessOk;
     }
 
-    return PrivilegeAccess::Fail;
+    if (bucket && is_bucket_privilege(privilege)) {
+        return bucket->check(privilege, sid, cid);
+    }
+
+    return PrivilegeAccessFail;
 }
 
 std::string PrivilegeContext::to_string() const {

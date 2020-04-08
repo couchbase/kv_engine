@@ -26,9 +26,10 @@ using cb::rbac::PrivilegeAccess;
 void McbpPrivilegeChains::setup(cb::mcbp::ClientOpcode command,
                                 cb::rbac::PrivilegeAccess (*f)(Cookie&)) {
     commandChains[std::underlying_type<cb::mcbp::ClientOpcode>::type(command)]
-            .push_unique(makeFunction<cb::rbac::PrivilegeAccess,
-                                      getSuccessValue,
-                                      Cookie&>(f));
+            .push_unique(
+                    makeFunction<cb::rbac::PrivilegeAccess,
+                                 cb::rbac::PrivilegeAccess::getSuccessValue,
+                                 Cookie&>(f));
 }
 
 PrivilegeAccess McbpPrivilegeChains::invoke(cb::mcbp::ClientOpcode command,
@@ -37,7 +38,7 @@ PrivilegeAccess McbpPrivilegeChains::invoke(cb::mcbp::ClientOpcode command,
             commandChains[std::underlying_type<cb::mcbp::ClientOpcode>::type(
                     command)];
     if (chain.empty()) {
-        return cb::rbac::PrivilegeAccess::Fail;
+        return cb::rbac::PrivilegeAccessFail;
     } else {
         try {
             return chain.invoke(cookie);
@@ -61,16 +62,15 @@ static PrivilegeAccess require(Cookie& cookie) {
 }
 
 static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
-    auto ret = cookie.checkPrivilege(Privilege::Insert);
-    if (ret == PrivilegeAccess::Ok) {
-        return PrivilegeAccess::Ok;
+    if (cookie.checkPrivilege(Privilege::Insert).success()) {
+        return cb::rbac::PrivilegeAccessOk;
     } else {
         return cookie.checkPrivilege(Privilege::Upsert);
     }
 }
 
 static PrivilegeAccess empty(Cookie& cookie) {
-    return PrivilegeAccess::Ok;
+    return cb::rbac::PrivilegeAccessOk;
 }
 
 McbpPrivilegeChains::McbpPrivilegeChains() {

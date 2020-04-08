@@ -44,9 +44,9 @@ TEST(CollectionTest, ParseLegalConfig) {
     for (size_t ii = 0; ii < mask.size(); ++ii) {
         auto priv = Privilege(ii);
         if (is_bucket_privilege(priv)) {
-            EXPECT_EQ(PrivilegeAccess::Ok, collection.check(priv));
+            EXPECT_TRUE(collection.check(priv).success());
         } else {
-            EXPECT_EQ(PrivilegeAccess::Fail, collection.check(priv));
+            EXPECT_TRUE(collection.check(priv).failed());
         }
     }
 }
@@ -74,11 +74,11 @@ TEST(ScopeTest, ParseLegalConfigWithCollections) {
     ASSERT_TRUE(scope.getPrivileges().none());
 
     // Check that we can access the collection!
-    EXPECT_EQ(PrivilegeAccess::Ok, scope.check(Privilege::Read, 32));
+    EXPECT_TRUE(scope.check(Privilege::Read, 32).success());
     // but only with the desired access
-    EXPECT_EQ(PrivilegeAccess::Fail, scope.check(Privilege::Upsert, 32));
+    EXPECT_TRUE(scope.check(Privilege::Upsert, 32).failed());
     // but not an unknown collection
-    EXPECT_EQ(PrivilegeAccess::Fail, scope.check(Privilege::Read, 33));
+    EXPECT_TRUE(scope.check(Privilege::Read, 33).failed());
 }
 
 TEST(ScopeTest, ParseLegalConfigWithoutCollections) {
@@ -91,9 +91,9 @@ TEST(ScopeTest, ParseLegalConfigWithoutCollections) {
 
     for (int ii = 0; ii < 10; ++ii) {
         // Check that we can access all collections
-        EXPECT_EQ(PrivilegeAccess::Ok, scope.check(Privilege::Read, ii));
+        EXPECT_TRUE(scope.check(Privilege::Read, ii).success());
         // but only with the desired access
-        EXPECT_EQ(PrivilegeAccess::Fail, scope.check(Privilege::Upsert, ii));
+        EXPECT_TRUE(scope.check(Privilege::Upsert, ii).failed());
     }
 }
 
@@ -123,11 +123,11 @@ TEST(BucketTest, ParseLegalConfigWithScopes) {
     ASSERT_TRUE(bucket.getPrivileges().none());
 
     // Check that we can access the scope!
-    EXPECT_EQ(PrivilegeAccess::Ok, bucket.check(Privilege::Read, 32, 23));
+    EXPECT_TRUE(bucket.check(Privilege::Read, 32, 23).success());
     // but only with the desired access
-    EXPECT_EQ(PrivilegeAccess::Fail, bucket.check(Privilege::Upsert, 32, 23));
+    EXPECT_TRUE(bucket.check(Privilege::Upsert, 32, 23).failed());
     // but not an unknown scope
-    EXPECT_EQ(PrivilegeAccess::Fail, bucket.check(Privilege::Read, 33, 23));
+    EXPECT_TRUE(bucket.check(Privilege::Read, 33, 23).failed());
 }
 
 TEST(BucketTest, ParseLegalConfigWithoutScopes) {
@@ -142,10 +142,9 @@ TEST(BucketTest, ParseLegalConfigWithoutScopes) {
 
     for (int ii = 0; ii < 10; ++ii) {
         // Check that we can access all scopes and collctions
-        EXPECT_EQ(PrivilegeAccess::Ok, bucket.check(Privilege::Read, ii, ii));
+        EXPECT_TRUE(bucket.check(Privilege::Read, ii, ii).success());
         // but only with the desired access
-        EXPECT_EQ(PrivilegeAccess::Fail,
-                  bucket.check(Privilege::Upsert, ii, ii));
+        EXPECT_TRUE(bucket.check(Privilege::Upsert, ii, ii).failed());
     }
 }
 

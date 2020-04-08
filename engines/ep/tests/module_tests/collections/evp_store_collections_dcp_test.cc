@@ -2081,9 +2081,9 @@ public:
                            std::optional<CollectionID> cid)
                         -> cb::rbac::PrivilegeAccess {
                     if (cid && *cid == noaccess) {
-                        return cb::rbac::PrivilegeAccess::Fail;
+                        return cb::rbac::PrivilegeAccessFail;
                     }
-                    return cb::rbac::PrivilegeAccess::Ok;
+                    return cb::rbac::PrivilegeAccessOk;
                 });
         mock_set_privilege_context_revision(1);
     }

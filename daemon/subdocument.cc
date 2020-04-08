@@ -830,29 +830,13 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context,
         // In the xtoc case we want to see which privileges the connection has
         // to determine which XATTRs we tell the user about
 
-        bool xattrRead = false;
-        auto access =
-                context.cookie.checkPrivilege(cb::rbac::Privilege::XattrRead);
-        switch (access) {
-        case cb::rbac::PrivilegeAccess::Ok:
-            xattrRead = true;
-            break;
-        case cb::rbac::PrivilegeAccess::Fail:
-            xattrRead = false;
-            break;
-        }
-
-        bool xattrSysRead = false;
-        access = context.cookie.checkPrivilege(
-                cb::rbac::Privilege::SystemXattrRead);
-        switch (access) {
-        case cb::rbac::PrivilegeAccess::Ok:
-            xattrSysRead = true;
-            break;
-        case cb::rbac::PrivilegeAccess::Fail:
-            xattrSysRead = false;
-            break;
-        }
+        bool xattrRead =
+                context.cookie.checkPrivilege(cb::rbac::Privilege::XattrRead)
+                        .success();
+        bool xattrSysRead =
+                context.cookie
+                        .checkPrivilege(cb::rbac::Privilege::SystemXattrRead)
+                        .success();
 
         if (xattrRead && xattrSysRead) {
             context.xtocSemantics = XtocSemantics::All;
@@ -900,16 +884,8 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
         }
     }
 
-    auto access = context.cookie.checkPrivilege(privilege);
-    switch (access) {
-    case cb::rbac::PrivilegeAccess::Ok:
-        return ENGINE_SUCCESS;
-    case cb::rbac::PrivilegeAccess::Fail:
-        return ENGINE_EACCESS;
-    }
-
-    throw std::logic_error(
-        "validate_xattr_privilege: invalid return value from checkPrivilege");
+    return context.cookie.checkPrivilege(privilege).success() ? ENGINE_SUCCESS
+                                                              : ENGINE_EACCESS;
 }
 
 /**

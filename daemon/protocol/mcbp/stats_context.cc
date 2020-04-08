@@ -401,8 +401,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
     }
 
     if (fd == -1 || fd != int64_t(cookie.getConnection().getId())) {
-        if (cookie.checkPrivilege(cb::rbac::Privilege::Stats) ==
-            cb::rbac::PrivilegeAccess::Fail) {
+        if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).failed()) {
             if (fd != -1) {
                 // The client asked for a given file descriptor.
                 return ENGINE_EACCESS;

@@ -7411,9 +7411,9 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
                 if (cid && cid.value() == 8) {
-                    return cb::rbac::PrivilegeAccess::Fail;
+                    return cb::rbac::PrivilegeAccessFail;
                 }
-                return cb::rbac::PrivilegeAccess::Ok;
+                return cb::rbac::PrivilegeAccessOk;
             });
     get_all_vb_seqnos(
             h, RequestedVBState::Active, cookie, 8, cb::engine_errc::no_access);
@@ -7423,7 +7423,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
-                return cb::rbac::PrivilegeAccess::Fail;
+                return cb::rbac::PrivilegeAccessFail;
             });
     get_all_vb_seqnos(h,
                       RequestedVBState::Active,

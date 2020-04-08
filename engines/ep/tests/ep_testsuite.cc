@@ -2488,7 +2488,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
                cb::rbac::Privilege,
                std::optional<ScopeID>,
                std::optional<CollectionID>) -> cb::rbac::PrivilegeAccess {
-                return cb::rbac::PrivilegeAccess::Fail;
+                return cb::rbac::PrivilegeAccessFail;
             });
 
     const auto ret = h->get_stats(cookie, "key k1 0"sv, {}, add_stats);

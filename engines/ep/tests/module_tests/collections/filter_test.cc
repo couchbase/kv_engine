@@ -1223,10 +1223,11 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
                 EXPECT_FALSE(cid);
                 EXPECT_FALSE(sid);
+
                 if (priv == DcpStreamPrivilege) {
-                    return cb::rbac::PrivilegeAccess::Fail;
+                    return cb::rbac::PrivilegeAccessFail;
                 }
-                return cb::rbac::PrivilegeAccess::Ok;
+                return cb::rbac::PrivilegeAccessOk;
             });
 
     Collections::Manifest m(cm);
@@ -1252,10 +1253,11 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
                 EXPECT_FALSE(cid);
                 EXPECT_FALSE(sid);
+
                 if (priv == DcpStreamPrivilege) {
-                    return cb::rbac::PrivilegeAccess::Ok;
+                    return cb::rbac::PrivilegeAccessOk;
                 }
-                return cb::rbac::PrivilegeAccess::Fail;
+                return cb::rbac::PrivilegeAccessFail;
             });
 
     Collections::Manifest m(cm);
@@ -1281,9 +1283,9 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
                          std::optional<CollectionID> cid)
                     -> cb::rbac::PrivilegeAccess {
                 if (cid && cid.value() == noAccessTo) {
-                    return cb::rbac::PrivilegeAccess::Fail;
+                    return cb::rbac::PrivilegeAccessFail;
                 }
-                return cb::rbac::PrivilegeAccess::Ok;
+                return cb::rbac::PrivilegeAccessOk;
             });
 
     cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
@@ -1322,9 +1324,9 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collections) {
                          std::optional<CollectionID> cid)
                     -> cb::rbac::PrivilegeAccess {
                 if (cid && cid.value() == noAccessTo) {
-                    return cb::rbac::PrivilegeAccess::Fail;
+                    return cb::rbac::PrivilegeAccessFail;
                 }
-                return cb::rbac::PrivilegeAccess::Ok;
+                return cb::rbac::PrivilegeAccessOk;
             });
 
     cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
@@ -1361,9 +1363,9 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
                          std::optional<CollectionID> cid)
                     -> cb::rbac::PrivilegeAccess {
                 if (sid && sid.value() == noAccessTo) {
-                    return cb::rbac::PrivilegeAccess::Fail;
+                    return cb::rbac::PrivilegeAccessFail;
                 }
-                return cb::rbac::PrivilegeAccess::Ok;
+                return cb::rbac::PrivilegeAccessOk;
             });
 
     cm.add(ScopeEntry::shop1).add(ScopeEntry::shop2);

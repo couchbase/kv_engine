@@ -318,7 +318,7 @@ struct MockServerCookieApi : public ServerCookieIface {
             return checkPrivilegeFunction(cookie, privilege, sid, cid);
         }
 
-        return cb::rbac::PrivilegeAccess::Ok;
+        return cb::rbac::PrivilegeAccessOk;
     }
 
     uint32_t get_privilege_context_revision(

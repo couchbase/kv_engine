@@ -25,15 +25,8 @@
 namespace mcbp {
 static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,
                                                cb::rbac::Privilege privilege) {
-    switch (cookie.checkPrivilege(privilege)) {
-    case cb::rbac::PrivilegeAccess::Ok:
-        return ENGINE_SUCCESS;
-    case cb::rbac::PrivilegeAccess::Fail:
-        return ENGINE_EACCESS;
-    }
-
-    // Just to satisfy our commit validator.
-    throw std::logic_error("checkPrivilege: internal error");
+    return cookie.checkPrivilege(privilege).success() ? ENGINE_SUCCESS
+                                                      : ENGINE_EACCESS;
 }
 
 static inline ENGINE_ERROR_CODE haveDcpPrivilege(Cookie& cookie) {

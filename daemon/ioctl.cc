@@ -114,8 +114,8 @@ ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
                                   const StrToStrMap& arguments,
                                   std::string& value,
                                   cb::mcbp::Datatype& datatype) {
-    if (cookie.checkPrivilege(cb::rbac::Privilege::SecurityManagement) !=
-        cb::rbac::PrivilegeAccess::Ok) {
+    if (cookie.checkPrivilege(cb::rbac::Privilege::SecurityManagement)
+                .failed()) {
         return ENGINE_EACCESS;
     }
 

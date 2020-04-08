@@ -834,13 +834,12 @@ void execute_client_request_packet(Cookie& cookie,
     static McbpPrivilegeChains privilegeChains;
 
     const auto opcode = request.getClientOpcode();
-    auto res = cb::rbac::PrivilegeAccess::Ok;
+    auto res = cb::rbac::PrivilegeAccessOk;
     if (!cookie.isAuthorized()) {
         res = privilegeChains.invoke(opcode, cookie);
     }
 
-    switch (res) {
-    case cb::rbac::PrivilegeAccess::Fail:
+    if (res.failed()) {
         LOG_WARNING("{} {}: no access to command {}",
                     c->getId(),
                     c->getDescription(),
@@ -853,19 +852,11 @@ void execute_client_request_packet(Cookie& cookie,
             cookie.sendResponse(cb::mcbp::Status::Eaccess);
         }
         return;
-    case cb::rbac::PrivilegeAccess::Ok:
-        cookie.setAuthorized();
-        handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
-                cookie);
-        return;
     }
 
-    LOG_WARNING(
-            "{}: execute_request_packet: res (which is {}) is not a valid "
-            "AuthResult - closing connection",
-            c->getId(),
-            uint32_t(res));
-    c->shutdown();
+    cookie.setAuthorized();
+    handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
+            cookie);
 }
 
 void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {

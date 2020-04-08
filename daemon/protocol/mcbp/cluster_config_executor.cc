@@ -34,28 +34,21 @@ static bool check_access_to_global_config(Cookie& cookie) {
     auto& conn = cookie.getConnection();
     const auto xerror = conn.isXerrorSupport();
 
-    switch (cookie.checkPrivilege(Privilege::SystemSettings)) {
-    case PrivilegeAccess::Ok:
+    if (cookie.checkPrivilege(Privilege::SystemSettings).success()) {
         return true;
-
-    case PrivilegeAccess::Fail:
-        LOG_WARNING("{} {}: no access to Global Cluster Config.{}",
-                    conn.getId(),
-                    conn.getDescription(),
-                    xerror ? "" : " XError not enabled, closing connection");
-        audit_command_access_failed(cookie);
-        if (xerror) {
-            cookie.sendResponse(cb::mcbp::Status::Eaccess);
-        } else {
-            conn.shutdown();
-        }
-
-        return false;
+    }
+    LOG_WARNING("{} {}: no access to Global Cluster Config.{}",
+                conn.getId(),
+                conn.getDescription(),
+                xerror ? "" : " XError not enabled, closing connection");
+    audit_command_access_failed(cookie);
+    if (xerror) {
+        cookie.sendResponse(cb::mcbp::Status::Eaccess);
+    } else {
+        conn.shutdown();
     }
 
-    throw std::invalid_argument(
-            "check_access_to_global_config(): Invalid value returned from "
-            "checkPrivilege)");
+    return false;
 }
 
 void get_cluster_config_executor(Cookie& cookie) {

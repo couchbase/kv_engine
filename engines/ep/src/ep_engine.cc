@@ -4484,12 +4484,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
         const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
-    switch (getServerApi()->cookie->check_privilege(
-            cookie, cb::rbac::Privilege::Stats, {}, {})) {
-    case cb::rbac::PrivilegeAccess::Fail:
-        return ENGINE_EACCESS;
+    const auto acc = getServerApi()->cookie->check_privilege(
+            cookie, cb::rbac::Privilege::Stats, {}, {});
 
-    case cb::rbac::PrivilegeAccess::Ok:
+    if (acc.success()) {
         if (cb_isPrefix(key, "_checkpoint-dump")) {
             const size_t keyLen = strlen("_checkpoint-dump");
             std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
@@ -4510,9 +4508,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
 
         return ENGINE_KEY_ENOENT;
     }
-
-    throw std::runtime_error(
-            "doPrivilegedStats(): Invalid value returned from check_privilege");
+    return ENGINE_EACCESS;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
@@ -4710,9 +4706,8 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     try {
         const auto acc =
                 serverApi->cookie->check_privilege(cookie, priv, sid, cid);
-        return acc == cb::rbac::PrivilegeAccess::Ok
-                       ? cb::engine_errc::success
-                       : cb::engine_errc::no_access;
+        return acc.success() ? cb::engine_errc::success
+                             : cb::engine_errc::no_access;
 
     } catch (const std::exception& e) {
         EP_LOG_ERR(

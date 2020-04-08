@@ -178,12 +178,65 @@ enum class Privilege {
      */
 };
 
-enum class PrivilegeAccess { Ok, Fail };
-
 /**
- * Get a textual representation of the privilege access
+ * Return type of privilege checks
  */
-std::string to_string(PrivilegeAccess privilegeAccess);
+class PrivilegeAccess {
+public:
+    enum class Status {
+        // Requested privilege was found
+        Ok,
+        // Requested privilege was not found
+        Fail
+    };
+
+    explicit PrivilegeAccess(Status s) : status(s) {
+    }
+
+    /// @return if the object represents a successful check
+    bool success() const {
+        switch (status) {
+        case Status::Ok:
+            return true;
+        case Status::Fail:
+            return false;
+        }
+        return false;
+    }
+
+    /// @return if the object represents a failed check
+    bool failed() const {
+        return !success();
+    }
+
+    bool operator==(const PrivilegeAccess& other) const {
+        return status == other.status;
+    }
+
+    bool operator!=(const PrivilegeAccess& other) const {
+        return status != other.status;
+    }
+
+    /// @return the current Status
+    Status getStatus() const {
+        return status;
+    }
+
+    /// @return string of the status
+    std::string to_string() const;
+
+    /// @return Status::Ok, required for FunctionChain
+    static PrivilegeAccess getSuccessValue() {
+        return PrivilegeAccess{Status::Ok};
+    }
+
+private:
+    Status status{Status::Fail};
+};
+
+// declare these to reduce the boilerplate needed due to explicit constructor
+const PrivilegeAccess PrivilegeAccessOk{PrivilegeAccess::Status::Ok};
+const PrivilegeAccess PrivilegeAccessFail{PrivilegeAccess::Status::Fail};
 
 /// is this a privilege related to a bucket or not
 bool is_bucket_privilege(Privilege);
