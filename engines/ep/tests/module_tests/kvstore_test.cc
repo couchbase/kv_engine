@@ -1798,54 +1798,6 @@ static int testCompactionUpgradeHook(DocInfo** info, const sized_buf* item) {
     return 0;
 }
 
-TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
-    // Ensure CAS, exptime and flags are set to something.
-    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero
-    StoredDocKey key = makeStoredDocKey("key");
-    queued_item item(std::make_unique<Item>(key,
-                                            0x01020304 /*flags*/,
-                                            0xaa00bb11, /*expiry*/
-                                            "value",
-                                            5,
-                                            datatype,
-                                            0xf00fcafe11225566ull));
-
-    EXPECT_NE(0, datatype); // make sure we writing non-zero values
-
-    // Write an item with forced (valid) V0 meta
-    MockCouchRequest::MetaData meta;
-    meta.cas = 0xf00fcafe11225566ull;
-    meta.expiry = 0xaa00bb11;
-    meta.flags = 0x01020304;
-
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
-    auto* request = kvstore->setAndReturnRequest(item);
-
-    // Force the meta to be V0
-    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV0);
-
-    // Commit it
-    kvstore->commit(flush);
-
-    CompactionConfig config;
-    compaction_ctx cctx(config, 0);
-    cctx.expiryCallback = std::make_shared<ExpiryCallback>();
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
-
-    // Now use the test dhook
-    EXPECT_TRUE(kvstore->compactDBInternal(&cctx, testCompactionUpgradeHook));
-
-    // Read back successful, the extra byte will of been dropped.
-    MockedGetCallback<GetValue> gc;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
-    EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
-    EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
-    EXPECT_CALL(gc, flags(0x01020304));
-    EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    gc.callback(gv);
-}
-
 TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     // Ensure CAS, exptime and flags are set to something.
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON; // lies, but non-zero

@@ -787,80 +787,6 @@ static std::string getDBFileName(const std::string& dbname,
            std::to_string(rev);
 }
 
-static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
-    // Examine the metadata of the doc
-    auto documentMetaData = MetaDataFactory::createMetaData((*info)->rev_meta);
-    // Allocate latest metadata
-    std::unique_ptr<MetaData> metadata;
-    if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V0) {
-        // Metadata doesn't have flex_meta_code/datatype. Provision space for
-        // these paramenters.
-
-        // If the document is compressed we need to inflate it to
-        // determine if it is json or not.
-        cb::compression::Buffer inflated;
-        std::string_view data{item->buf, item->size};
-        if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
-                (*info)->content_meta) {
-            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                          data, inflated)) {
-                throw std::runtime_error(
-                    "edit_docinfo_hook: failed to inflate document with seqno: " +
-                    std::to_string((*info)->db_seq) + " revno: " +
-                    std::to_string((*info)->rev_seq));
-            }
-            data = inflated;
-        }
-
-        auto datatype = PROTOCOL_BINARY_RAW_BYTES;
-        if (checkUTF8JSON(reinterpret_cast<const uint8_t*>(data.data()),
-                          data.size())) {
-            datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        }
-
-        // Now create a blank latest metadata.
-        metadata = MetaDataFactory::createMetaData();
-        // Copy the metadata this will pull across available V0 fields.
-        *metadata = *documentMetaData;
-
-        // Setup flex code and datatype
-        metadata->setFlexCode();
-        metadata->setDataType(datatype);
-    } else {
-        // The metadata in the document is V1 and needs no changes.
-        return 0;
-    }
-
-    // the docInfo pointer includes the DocInfo and the data it points to.
-    // this must be a pointer which cb_free() can deallocate
-    char* buffer = static_cast<char*>(cb_calloc(1, sizeof(DocInfo) +
-                             (*info)->id.size +
-                             MetaData::getMetaDataSize(MetaData::Version::V1)));
-
-
-    auto* docInfo = reinterpret_cast<DocInfo*>(buffer);
-
-    // Deep-copy the incoming DocInfo, then we'll fix the pointers/buffer data
-    *docInfo = **info;
-
-    // Correct the id buffer
-    docInfo->id.buf = buffer + sizeof(DocInfo);
-    std::memcpy(docInfo->id.buf, (*info)->id.buf, docInfo->id.size);
-
-    // Correct the rev_meta pointer and fill it in.
-    docInfo->rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V1);
-    docInfo->rev_meta.buf = buffer + sizeof(DocInfo) + docInfo->id.size;
-    metadata->copyToBuf(docInfo->rev_meta);
-
-    // Free the orginal
-    couchstore_free_docinfo(*info);
-
-    // Return the newly allocated docinfo with corrected metadata
-    *info = docInfo;
-
-    return 1;
-}
-
 /**
  * Notify the expiry callback that a document has expired
  *
@@ -1060,7 +986,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     bool result = false;
 
     try {
-        result = compactDBInternal(hook_ctx, edit_docinfo_hook);
+        result = compactDBInternal(hook_ctx, nullptr);
     } catch(std::logic_error& le) {
         EP_LOG_WARN(
                 "CouchKVStore::compactDB: exception while performing "
