@@ -9283,8 +9283,7 @@ BaseTestCase testsuite_testcases[] = {
                     module test 'EphTombstoneTest' to test tombstone purging */
                  // TODO RDB: Needs RocksDBKVStore to implement manual
                  // compaction and item expiration on compaction.
-                 // TODO Magma: Disabled test while MB-37400 is open.
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
 
         TestCase("test_MB-20697",
