@@ -8312,8 +8312,7 @@ BaseTestCase testsuite_testcases[] = {
                  // opened, in a way we do not fully control yet.
                  // That makes this test to fail depending on the size of the
                  // pre-allocation.
-                 // TODO magma: similar issue for magma
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("warmup conf",
                  test_warmup_conf,
