@@ -573,12 +573,12 @@ Collections::CachedStats Collections::Manager::getPerCollectionStats(
     CollectionCountVBucketVisitor visitor;
     bucket.visit(visitor);
 
-    return {memUsed, visitor.summary /* diskCount */};
+    return {std::move(memUsed), std::move(visitor.summary) /* diskCount */};
 }
 
 Collections::CachedStats::CachedStats(
-        std::unordered_map<CollectionID, size_t> colMemUsed,
-        std::unordered_map<CollectionID, uint64_t> colDiskCount)
+        std::unordered_map<CollectionID, size_t>&& colMemUsed,
+        std::unordered_map<CollectionID, uint64_t>&& colDiskCount)
     : colMemUsed(std::move(colMemUsed)), colDiskCount(std::move(colDiskCount)) {
 }
 void Collections::CachedStats::addStatsForCollection(

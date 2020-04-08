@@ -38,8 +38,12 @@ namespace Collections {
  */
 class CachedStats {
 public:
-    CachedStats(std::unordered_map<CollectionID, size_t> colMemUsed,
-                std::unordered_map<CollectionID, uint64_t> colDiskCount);
+    /**
+     * @param colMemUsed a map of collection to mem_used, object takes ownership
+     * @param colDiskCount a map of collection to item#, object takes ownership
+     */
+    CachedStats(std::unordered_map<CollectionID, size_t>&& colMemUsed,
+                std::unordered_map<CollectionID, uint64_t>&& colDiskCount);
     /**
      * Add stats for a single collection.
      * @param scope
