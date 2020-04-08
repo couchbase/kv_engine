@@ -1811,7 +1811,7 @@ void write_items(EngineIface* h,
                  Vbid vb,
                  DocumentState docState) {
     int j = 0;
-    while (1) {
+    while (true) {
         if (j == num_items) {
             break;
         }
@@ -1842,7 +1842,7 @@ int write_items_upto_mem_perc(EngineIface* h,
             static_cast<float>(get_int_stat(h, "ep_max_size", "memory"));
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
     int num_items = 0;
-    while (1) {
+    while (true) {
         /* Load items into server until mem_thresh_perc of the mem quota
          is used. Getting stats is expensive, only check every 100
          iterations. */

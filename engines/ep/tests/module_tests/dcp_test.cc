@@ -2724,7 +2724,7 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
         (engine->getConfiguration().getEphemeralFullPolicy()) ==
                 "fail_new_data") {
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        while (1) {
+        while (true) {
             /* Keep sending items till the memory usage goes above the
                threshold and the connection is disconnected */
             if (ENGINE_DISCONNECT ==

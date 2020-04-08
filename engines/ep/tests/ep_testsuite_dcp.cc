@@ -2205,7 +2205,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h) {
             dcp_waiting_step, h, cookie, 0, num_items, std::ref(tdc.producers));
 
     /* We need to wait till the 'dcp_waiting_step' thread begins its wait */
-    while (1) {
+    while (true) {
         /* Busy wait is ok here. To do a non busy wait we must use
          another condition variable which is an overkill here */
         testHarness->lock_cookie(cookie);

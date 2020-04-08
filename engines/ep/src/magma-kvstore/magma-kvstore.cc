@@ -1162,7 +1162,7 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
     return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, getMetaOnly),
                     ENGINE_SUCCESS,
                     -1,
-                    0);
+                    false);
 }
 
 int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {

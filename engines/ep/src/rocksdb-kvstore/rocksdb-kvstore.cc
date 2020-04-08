@@ -1092,7 +1092,7 @@ GetValue RocksDBKVStore::makeGetValue(Vbid vb,
                                       const rocksdb::Slice& value,
                                       GetMetaOnly getMetaOnly) {
     return GetValue(
-            makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, 0);
+            makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, false);
 }
 
 RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(

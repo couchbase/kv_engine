@@ -34,7 +34,7 @@ public:
     /**
      * Create an empty Blob
      */
-    Blob() : Blob({nullptr, 0}, default_allocator, 0) {}
+    Blob() : Blob({nullptr, 0}, default_allocator, false) {}
 
     /**
      * Create an empty Blob

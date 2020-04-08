@@ -103,7 +103,7 @@ private:
 class StatSnap : public GlobalTask {
 public:
     StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false,
-             bool sleeptime = 0, bool completeBeforeShutdown = false)
+             bool sleeptime = false, bool completeBeforeShutdown = false)
         : GlobalTask(e, TaskId::StatSnap, sleeptime, completeBeforeShutdown),
           runOnce(runOneTimeOnly) {}
 

@@ -122,7 +122,7 @@ void BloomFilter::addKey(const DocKey& key) {
             if (overlap && bitArray[result % filterSize] == 0) {
                 overlap = false;
             }
-            bitArray[result % filterSize] = 1;
+            bitArray[result % filterSize] = true;
         }
         if (!overlap) {
             keyCounter++;
