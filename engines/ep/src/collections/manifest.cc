@@ -355,27 +355,34 @@ void Manifest::addCollectionStats(const void* cookie,
 void Manifest::addScopeStats(const void* cookie,
                              const AddStatFn& add_stat) const {
     try {
-        const int bsize = 512;
-        char buffer[bsize];
-        checked_snprintf(buffer, bsize, "scopes");
-        add_casted_stat(buffer, scopes.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "uid");
-        add_casted_stat(buffer, uid, add_stat, cookie);
+        fmt::memory_buffer buf;
+        add_casted_stat("scopes", scopes.size(), add_stat, cookie);
+        add_casted_stat("uid", uid, add_stat, cookie);
 
         for (const auto& entry : scopes) {
-            const auto name = entry.second.name.c_str();
-            checked_snprintf(buffer, bsize, "%s:id", name);
-            add_casted_stat(
-                    buffer, entry.first.to_string().c_str(), add_stat, cookie);
-            checked_snprintf(buffer, bsize, "%s:collections", name);
-            add_casted_stat<unsigned long>(
-                    buffer, entry.second.collections.size(), add_stat, cookie);
+            const auto name = entry.second.name;
+
+            buf.resize(0);
+            fmt::format_to(buf, "{}:id", name);
+            add_casted_stat({buf.data(), buf.size()},
+                            entry.first.to_string(),
+                            add_stat,
+                            cookie);
+
+            buf.resize(0);
+            fmt::format_to(buf, "{}:collections", name);
+            add_casted_stat<unsigned long>({buf.data(), buf.size()},
+                                           entry.second.collections.size(),
+                                           add_stat,
+                                           cookie);
             // add each collection name and id
             for (const auto& colEntry : entry.second.collections) {
                 auto colName = findCollection(colEntry.id)->second.name;
-                checked_snprintf(buffer, bsize, "%s:%s", name, colName.c_str());
-                add_casted_stat(buffer,
-                                colEntry.id.to_string().c_str(),
+
+                buf.resize(0);
+                fmt::format_to(buf, "{}:{}", name, colName);
+                add_casted_stat({buf.data(), buf.size()},
+                                colEntry.id.to_string(),
                                 add_stat,
                                 cookie);
             }
