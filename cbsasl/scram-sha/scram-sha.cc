@@ -33,10 +33,7 @@
 #include <sstream>
 #include <string>
 
-namespace cb {
-namespace sasl {
-namespace mechanism {
-namespace scram {
+namespace cb::sasl::mechanism::scram {
 
 typedef std::map<char, std::string> AttributeMap;
 
@@ -619,7 +616,4 @@ bool ClientBackend::generateSaltedPassword(const std::string& secret) {
     }
 }
 
-} // namespace scram
-} // namespace mechanism
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::mechanism::scram

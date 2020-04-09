@@ -21,8 +21,7 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 nlohmann::json Response::toJSON(bool validated) const {
     if (!validated && !isValid()) {
@@ -66,5 +65,4 @@ bool Response::isValid() const {
             size_t(getBodylen()));
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

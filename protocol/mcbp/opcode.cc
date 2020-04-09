@@ -23,8 +23,7 @@
 #include <ostream>
 #include <stdexcept>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 bool is_valid_opcode(ClientOpcode opcode) {
     switch (opcode) {
@@ -917,8 +916,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
             cb::to_hex(uint8_t(opcode)));
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::ClientOpcode opcode) {
     using namespace cb::mcbp;

@@ -21,8 +21,7 @@
 #include <event2/event.h>
 #include <memcached/protocol_binary.h>
 
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 class MutationWithMetaTest : public ::testing::WithParamInterface<
                                      std::tuple<cb::mcbp::ClientOpcode, bool>>,
@@ -97,5 +96,4 @@ INSTANTIATE_TEST_SUITE_P(
                                   cb::mcbp::ClientOpcode::DelWithMeta,
                                   cb::mcbp::ClientOpcode::DelqWithMeta),
                 ::testing::Bool()));
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

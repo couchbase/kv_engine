@@ -26,8 +26,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace cb {
-namespace xattr {
+namespace cb::xattr {
 
 Blob::Blob(const Blob& other)
     : allocator(default_allocator),
@@ -326,5 +325,4 @@ nlohmann::json Blob::to_json() const {
     return ret;
 }
 
-} // namespace xattr
-} // namespace cb
+} // namespace cb::xattr

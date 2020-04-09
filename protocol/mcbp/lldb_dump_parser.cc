@@ -21,9 +21,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace cb {
-namespace mcbp {
-namespace lldb {
+namespace cb::mcbp::lldb {
 
 std::vector<uint8_t> parseDump(cb::const_byte_buffer blob) {
     std::vector<uint8_t> ret;
@@ -61,6 +59,4 @@ std::vector<uint8_t> parseDump(cb::const_byte_buffer blob) {
     return ret;
 }
 
-} // namespace lldb
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::lldb

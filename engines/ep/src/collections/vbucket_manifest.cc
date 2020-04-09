@@ -29,8 +29,7 @@
 
 #include <memory>
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 
 Manifest::Manifest()
     : scopes({{ScopeID::Default}}), defaultCollectionExists(true) {
@@ -986,5 +985,4 @@ std::string to_string(Manifest::UpdateStatus status) {
     return "Unknown " + std::to_string(int(status));
 }
 
-} // end namespace VB
-} // end namespace Collections
+} // namespace Collections::VB

@@ -19,8 +19,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 
 EraserContext::EraserContext(
         const std::vector<Collections::KVStore::DroppedCollection>&
@@ -56,5 +55,4 @@ std::ostream& operator<<(std::ostream& os, const EraserContext& eraserContext) {
     return os;
 }
 
-} // namespace VB
-} // namespace Collections
+} // namespace Collections::VB

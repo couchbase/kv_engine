@@ -24,8 +24,7 @@
 
 #include <unordered_set>
 
-namespace cb {
-namespace xattr {
+namespace cb::xattr {
 
 /**
  * Small utility function to trim the blob object into a '\0' terminated
@@ -173,5 +172,4 @@ std::pair<size_t, size_t> get_size_and_system_xattr_size(uint8_t datatype,
               ::mcbp::datatype::is_snappy(datatype));
     return {blob.size(), blob.get_system_size()};
 }
-}
-}
+} // namespace cb::xattr

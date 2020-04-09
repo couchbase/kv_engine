@@ -21,8 +21,7 @@
 #include <iterator>
 #include <vector>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 
 Mechanism selectMechanism(const std::string& mechanisms) {
     std::string avail;
@@ -89,5 +88,4 @@ Mechanism selectMechanism(const std::string& mech,
     throw unknown_mechanism(mech);
 }
 
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl

@@ -31,8 +31,7 @@
 
 // This file contains the functionality to generate a packet dump
 // of a memcached frame
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 void dumpBytes(cb::const_byte_buffer buffer, std::ostream& out, size_t offset) {
     out << std::hex;
@@ -62,8 +61,7 @@ void dumpBytes(cb::const_byte_buffer buffer, std::ostream& out, size_t offset) {
     out << std::dec << std::setfill(' ');
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * The Frame class represents a complete frame as it is being sent on the

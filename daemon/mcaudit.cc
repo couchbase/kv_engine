@@ -280,9 +280,7 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
     });
 }
 
-namespace cb {
-namespace audit {
-namespace document {
+namespace cb::audit::document {
 
 void add(const Cookie& cookie, Operation operation) {
     uint32_t id = 0;
@@ -340,9 +338,7 @@ void add(const Cookie& cookie, Operation operation) {
     }
 }
 
-} // namespace documnent
-} // namespace audit
-} // namespace cb
+} // namespace cb::audit::document
 
 static void event_state_listener(uint32_t id, bool enabled) {
     setEnabled(id, enabled);

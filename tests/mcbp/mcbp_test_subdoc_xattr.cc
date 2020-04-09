@@ -22,8 +22,7 @@
 #include <gsl/gsl>
 #include <vector>
 
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 /**
  * Test the extra checks needed for XATTR access in subdoc
@@ -461,5 +460,4 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

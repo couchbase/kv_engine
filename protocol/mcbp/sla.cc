@@ -30,9 +30,7 @@
 #include <iostream>
 #include <unordered_map>
 
-namespace cb {
-namespace mcbp {
-namespace sla {
+namespace cb::mcbp::sla {
 
 /**
  * Merge the content of document 2 into document 1 by overwriting
@@ -343,6 +341,4 @@ static void merge_docs(nlohmann::json& doc1, const nlohmann::json& doc2) {
     }
 }
 
-} // namespace sla
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::sla

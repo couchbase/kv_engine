@@ -24,8 +24,7 @@
 #include <iostream>
 #include <utility>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 Bucket::Bucket(const Cluster& cluster,
                std::string name,
@@ -105,5 +104,4 @@ void Bucket::setCollectionManifest(nlohmann::json next) {
     manifest = std::move(next);
 }
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

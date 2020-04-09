@@ -22,9 +22,7 @@
 #include <utilities/logtags.h>
 #include <iterator>
 
-namespace cb {
-namespace sasl {
-namespace plain {
+namespace cb::sasl::plain {
 
 /**
  * ns_server generates a (salted) password hash by generating a 16 bytes
@@ -81,6 +79,4 @@ Error check_password(Context* context,
     return Error::PASSWORD_ERROR;
 }
 
-}
-}
-}
+} // namespace cb::sasl::plain

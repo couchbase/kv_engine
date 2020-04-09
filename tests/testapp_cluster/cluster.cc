@@ -24,8 +24,7 @@
 #include <iostream>
 #include <vector>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 Cluster::~Cluster() = default;
 
@@ -278,5 +277,4 @@ std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
     return std::make_unique<ClusterImpl>(nodes, clusterdir);
 }
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

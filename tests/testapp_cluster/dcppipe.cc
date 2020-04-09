@@ -25,8 +25,7 @@
 #include <memcached/vbucket.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 DcpPipe::DcpPipe(event_base* base,
                  DcpPacketFilter& packet_filter,
@@ -203,5 +202,4 @@ void DcpPipe::EventDeleter::operator()(bufferevent* ev) {
     bufferevent_free(ev);
 }
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

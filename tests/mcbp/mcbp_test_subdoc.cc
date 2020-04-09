@@ -25,8 +25,7 @@
  * Sub-document API validator tests
  */
 
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 // Single-path subdocument API commands
 class SubdocSingleTest : public ::testing::WithParamInterface<bool>,
@@ -1004,5 +1003,4 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

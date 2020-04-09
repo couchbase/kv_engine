@@ -18,8 +18,7 @@
 #include <cbsasl/context.h>
 #include <platform/uuid.h>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 
 std::string Context::getUuid() {
     if (uuid.empty()) {
@@ -28,5 +27,4 @@ std::string Context::getUuid() {
 
     return uuid;
 }
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl

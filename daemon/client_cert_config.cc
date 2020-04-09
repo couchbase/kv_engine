@@ -22,8 +22,7 @@
 #include <utilities/json_utilities.h>
 #include <optional>
 
-namespace cb {
-namespace x509 {
+namespace cb::x509 {
 
 struct CommonNameMapping : public ClientCertConfig::Mapping {
     CommonNameMapping(std::string& path, const nlohmann::json& obj)
@@ -314,5 +313,4 @@ std::string ClientCertMapper::to_string() const {
     return config->to_string();
 }
 
-} // namespace x509
-} // namespace cb
+} // namespace cb::x509

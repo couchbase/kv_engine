@@ -16,8 +16,7 @@
  */
 
 #include "dcp_snapshot_marker_codec.h"
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
@@ -96,5 +95,4 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
     }
 }
 
-} // end namespace mcbp
-} // end namespace cb
+} // namespace cb::mcbp

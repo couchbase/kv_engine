@@ -26,8 +26,7 @@
 
 using namespace std::string_view_literals;
 
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 class DcpOpenValidatorTest : public ::testing::WithParamInterface<bool>,
                              public ValidatorTest {
@@ -912,5 +911,4 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DcpControlValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

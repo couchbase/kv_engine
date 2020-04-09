@@ -20,9 +20,7 @@
 #include <relaxed_atomic.h>
 #include <iostream>
 
-namespace cb {
-namespace sasl {
-namespace logging {
+namespace cb::sasl::logging {
 
 cb::RelaxedAtomic<LogCallback> callback;
 
@@ -54,6 +52,4 @@ void log(Level level, const std::string& message) {
 
     callback.load()(level, message);
 }
-} // namespace logging
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::logging

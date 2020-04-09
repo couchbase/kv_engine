@@ -20,9 +20,7 @@
 #include <cbsasl/scram-sha/scram-sha.h>
 #include <memory>
 
-namespace cb {
-namespace sasl {
-namespace client {
+namespace cb::sasl::client {
 ClientContext::ClientContext(GetUsernameCallback user_cb,
                              GetPasswordCallback password_cb,
                              const std::string& mechanisms) {
@@ -51,6 +49,4 @@ ClientContext::ClientContext(GetUsernameCallback user_cb,
     }
 }
 
-} // namespace client
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::client

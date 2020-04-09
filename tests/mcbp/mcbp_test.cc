@@ -32,8 +32,7 @@
  * catch broken packets. There is still a high number of commands we
  * don't have any command validators for...
  */
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 static FrontEndThread thread;
 
@@ -3190,5 +3189,4 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

@@ -29,8 +29,7 @@
 #include <iostream>
 #include <thread>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 Node::~Node() = default;
 Node::Node(std::string directory) : directory(std::move(directory)) {
@@ -277,5 +276,4 @@ std::unique_ptr<Node> Node::create(const std::string& directory,
     return ret;
 }
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

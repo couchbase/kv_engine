@@ -24,8 +24,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 class DurabilityUpgradeTest : public UpgradeTest {};
 
@@ -94,5 +93,4 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
     conn->close();
 }
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

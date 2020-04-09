@@ -28,9 +28,7 @@
 #include <platform/checked_snprintf.h>
 #include <memory>
 
-namespace Collections {
-
-namespace VB {
+namespace Collections::VB {
 
 Filter::Filter(std::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest,
@@ -526,5 +524,4 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     return os;
 }
 
-} // end namespace VB
-} // end namespace Collections
+} // namespace Collections::VB

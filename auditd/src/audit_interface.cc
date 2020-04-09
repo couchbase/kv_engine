@@ -28,8 +28,7 @@
 #include "auditd_audit_events.h"
 #include "event.h"
 
-namespace cb {
-namespace audit {
+namespace cb::audit {
 
 static std::string gethostname() {
     char host[128];
@@ -61,5 +60,4 @@ UniqueAuditPtr create_audit_daemon(const std::string& config_file,
     return {};
 }
 
-} // namespace audit
-} // namespace cb
+} // namespace cb::audit

@@ -25,8 +25,7 @@
 #include <arpa/inet.h>
 #endif
 
-namespace cb {
-namespace durability {
+namespace cb::durability {
 
 bool operator==(const Timeout& lhs, const Timeout& rhs) {
     return lhs.get() == rhs.get();
@@ -113,5 +112,4 @@ nlohmann::json Requirements::to_json() const {
     return obj;
 }
 
-} // namespace durability
-} // namespace cb
+} // namespace cb::durability

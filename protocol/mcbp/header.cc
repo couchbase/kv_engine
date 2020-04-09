@@ -18,8 +18,7 @@
 #include <mcbp/mcbp.h>
 #include <nlohmann/json.hpp>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 bool Header::isValid() const {
     if (is_legal(Magic(magic))) {
@@ -60,5 +59,4 @@ std::ostream& operator<<(std::ostream& os, const Header& header) {
     return os;
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

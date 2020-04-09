@@ -28,9 +28,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace cb {
-namespace sasl {
-namespace pwdb {
+namespace cb::sasl::pwdb {
 
 std::atomic<int> IterationCount(4096);
 
@@ -393,6 +391,4 @@ const User::PasswordMetaData& User::getPassword(const Mechanism& mech) const {
     }
 }
 
-} // namespace pwdb
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::pwdb

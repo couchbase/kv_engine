@@ -41,8 +41,7 @@ std::string to_string(cb::mcbp::Magic magic) {
             std::to_string(uint8_t(magic)));
 }
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 bool is_legal(Magic magic) {
     switch (magic) {
@@ -105,5 +104,4 @@ bool is_alternative_encoding(Magic magic) {
             cb::to_hex(uint8_t(magic)));
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

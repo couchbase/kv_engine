@@ -20,8 +20,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-namespace cb {
-namespace rbac {
+namespace cb::rbac {
 
 static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Read", Privilege::Read},
@@ -164,5 +163,4 @@ bool is_collection_privilege(Privilege priv) {
             cb::to_hex(uint8_t(priv)));
 }
 
-} // namespace rbac
-} // namespace cb
+} // namespace cb::rbac

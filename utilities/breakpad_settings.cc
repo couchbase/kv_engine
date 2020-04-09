@@ -21,8 +21,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace cb {
-namespace breakpad {
+namespace cb::breakpad {
 
 Settings::Settings(const nlohmann::json& json) {
     enabled = cb::jsonGet<bool>(json, "enabled");
@@ -42,8 +41,7 @@ Settings::Settings(const nlohmann::json& json) {
                 R"("breakpad:content" settings must set to "default")");
     }
 }
-} // namespace breakpad
-} // namespace cb
+} // namespace cb::breakpad
 
 std::string to_string(cb::breakpad::Content content) {
     switch (content) {

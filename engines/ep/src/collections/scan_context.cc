@@ -19,8 +19,7 @@
 
 #include "collections/kvstore.h"
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 
 ScanContext::ScanContext(
         const std::vector<Collections::KVStore::DroppedCollection>&
@@ -61,5 +60,4 @@ std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext) {
     return os;
 }
 
-} // namespace VB
-} // namespace Collections
+} // namespace Collections::VB

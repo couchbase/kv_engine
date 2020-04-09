@@ -20,9 +20,7 @@
 #include <event2/event.h>
 #include <memcached/protocol_binary.h>
 
-namespace mcbp {
-namespace test {
-
+namespace mcbp::test {
 
 // Test the validators for GAT, GATQ, GATK, GATKQ, GAT_META and GATQ_META
 class GATValidatorTest
@@ -79,5 +77,4 @@ INSTANTIATE_TEST_SUITE_P(
                                              cb::mcbp::ClientOpcode::Gatq,
                                              cb::mcbp::ClientOpcode::Touch),
                            ::testing::Bool()));
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

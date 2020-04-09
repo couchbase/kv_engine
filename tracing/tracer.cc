@@ -28,8 +28,7 @@ std::chrono::microseconds to_micros(
             .time_since_epoch();
 }
 
-namespace cb {
-namespace tracing {
+namespace cb::tracing {
 
 SpanId Tracer::begin(Code tracecode,
                      std::chrono::steady_clock::time_point startTime) {
@@ -102,8 +101,7 @@ void Tracer::clear() {
     vecSpans.clear();
 }
 
-} // end namespace tracing
-} // end namespace cb
+} // namespace cb::tracing
 
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer) {

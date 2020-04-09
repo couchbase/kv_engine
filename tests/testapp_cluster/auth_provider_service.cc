@@ -26,8 +26,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <iostream>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 AuthProviderService::AuthProviderService(Cluster& cluster) : cluster(cluster) {
     base.reset(event_base_new());
@@ -350,5 +349,4 @@ void AuthProviderService::sendResponse(bufferevent* bev,
                 "response");
     }
 }
-} // namespace test
-} // namespace cb
+} // namespace cb::test

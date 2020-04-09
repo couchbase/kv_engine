@@ -22,8 +22,7 @@
 #include <nlohmann/json.hpp>
 #include <cctype>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 void Request::setKeylen(uint16_t value) {
     if (is_alternative_encoding(getMagic())) {
@@ -405,8 +404,7 @@ bool Request::isValid() const {
     return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::request::FrameInfoId id) {
     using cb::mcbp::request::FrameInfoId;

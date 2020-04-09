@@ -25,15 +25,11 @@
 #include <cbsasl/logging.h>
 #include <relaxed_atomic.h>
 
-namespace cb {
-namespace sasl {
-namespace logging {
+namespace cb::sasl::logging {
 
 extern cb::RelaxedAtomic<LogCallback> callback;
 
 void set_log_callback(LogCallback logCallback) {
     callback.store(logCallback);
 }
-} // namespace logging
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::logging

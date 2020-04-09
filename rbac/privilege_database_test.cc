@@ -19,8 +19,7 @@
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 
-namespace cb {
-namespace rbac {
+namespace cb::rbac {
 class MockCollection : public Collection {
 public:
     explicit MockCollection(const nlohmann::json& json) : Collection(json) {
@@ -150,5 +149,4 @@ TEST(BucketTest, ParseLegalConfigWithoutScopes) {
     }
 }
 
-} // namespace rbac
-} // namespace cb
+} // namespace cb::rbac

@@ -21,8 +21,7 @@
 /**
  * Test commands which are handled by the collections interface
  */
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 class SetCollectionsValidator : public ValidatorTest {
 public:
@@ -77,5 +76,4 @@ TEST_F(SetCollectionsValidator, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

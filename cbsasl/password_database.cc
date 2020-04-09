@@ -20,9 +20,7 @@
 #include <memory>
 #include <string>
 
-namespace cb {
-namespace sasl {
-namespace pwdb {
+namespace cb::sasl::pwdb {
 
 PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
     nlohmann::json json;
@@ -82,6 +80,4 @@ std::string PasswordDatabase::to_string() const {
     return to_json().dump();
 }
 
-} // namespace pwdb
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::pwdb

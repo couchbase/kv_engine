@@ -19,8 +19,7 @@
 #include "collections/kvstore_generated.h"
 #include <sstream>
 
-namespace Collections {
-namespace KVStore {
+namespace Collections::KVStore {
 
 template <class T>
 static void verifyFlatbuffersData(cb::const_byte_buffer buf,
@@ -293,5 +292,4 @@ flatbuffers::DetachedBuffer encodeScopes(
     return builder.Release();
 }
 
-} // namespace KVStore
-} // namespace Collections
+} // namespace Collections::KVStore

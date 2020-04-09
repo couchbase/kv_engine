@@ -19,8 +19,7 @@
 
 #include <mcbp/protocol/unsigned_leb128.h>
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 PersistedStats::PersistedStats(const char* buf, size_t size) {
     std::pair<uint64_t, cb::const_byte_buffer> decoded = {
             0, {reinterpret_cast<uint8_t*>(const_cast<char*>(buf)), size}};
@@ -46,5 +45,4 @@ std::string PersistedStats::getLebEncodedStats() const {
 
     return data;
 }
-} // end namespace VB
-} // end namespace Collections
+} // namespace Collections::VB

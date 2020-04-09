@@ -19,8 +19,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace cb {
-namespace logger {
+namespace cb::logger {
 
 Config::Config(const nlohmann::json& json) {
     filename = json.value("filename", filename);
@@ -42,5 +41,4 @@ bool Config::operator!=(const Config& other) const {
     return !(*this == other);
 }
 
-} // namespace logger
-} // namespace cb
+} // namespace cb::logger

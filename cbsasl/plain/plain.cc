@@ -23,10 +23,7 @@
 #include <platform/dirutils.h>
 #include <cstring>
 
-namespace cb {
-namespace sasl {
-namespace mechanism {
-namespace plain {
+namespace cb::sasl::mechanism::plain {
 
 /**
  * ns_server creates a legacy bucket user as part of the upgrade
@@ -125,7 +122,4 @@ Error authenticate(const std::string& username, const std::string& passwd) {
     return cb::sasl::plain::check_password(nullptr, user, passwd);
 }
 
-} // namespace plain
-} // namespace mechanism
-} // namespace sasl
-}
+} // namespace cb::sasl::mechanism::plain

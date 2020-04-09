@@ -28,9 +28,7 @@
 #include <memory>
 #include <string>
 
-namespace cb {
-namespace sasl {
-namespace server {
+namespace cb::sasl::server {
 
 std::string listmech() {
     std::string ret;
@@ -107,6 +105,4 @@ void set_scramsha_fallback_salt(const std::string& salt) {
     pwdb::UserFactory::setScramshaFallbackSalt(salt);
 }
 
-} // namespace server
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::server

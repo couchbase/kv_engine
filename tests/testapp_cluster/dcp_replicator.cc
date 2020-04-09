@@ -32,9 +32,7 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
-namespace cb {
-
-namespace test {
+namespace cb::test {
 
 DcpReplicator::~DcpReplicator() = default;
 
@@ -298,5 +296,4 @@ std::unique_ptr<DcpReplicator> DcpReplicator::create(
     return ret;
 }
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

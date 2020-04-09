@@ -22,8 +22,7 @@
 #include <gsl/gsl>
 #include <memory>
 
-namespace mcbp {
-namespace test {
+namespace mcbp::test {
 
 using namespace cb::mcbp;
 
@@ -196,5 +195,4 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 
-} // namespace test
-} // namespace mcbp
+} // namespace mcbp::test

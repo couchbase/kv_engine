@@ -18,8 +18,7 @@
 #include <mcbp/protocol/status.h>
 #include <ostream>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 bool isStatusSuccess(Status status) {
     switch (status) {
@@ -111,8 +110,7 @@ const std::error_category& error_category() NOEXCEPT {
     return category_instance;
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::Status status) {
     using namespace cb::mcbp;

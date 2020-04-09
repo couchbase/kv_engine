@@ -29,8 +29,7 @@
 #include <streambuf>
 #include <string>
 
-namespace cb {
-namespace rbac {
+namespace cb::rbac {
 
 nlohmann::json UserIdent::to_json() const {
     nlohmann::json ret;
@@ -559,5 +558,4 @@ std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
     }
 }
 
-} // namespace rbac
-} // namespace cb
+} // namespace cb::rbac
