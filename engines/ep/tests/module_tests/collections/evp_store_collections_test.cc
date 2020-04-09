@@ -1605,9 +1605,10 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
                                  const CollectionEntry::Entry& collection) {
         // scope name is present in all collection stats, arbitrarily check the
         // ID stat exists and contains the scope name.
-        return std::make_pair(
-                fmt::format("{}:{}:id", scope.name, collection.name),
-                collection.getId().to_string());
+        return std::make_pair(fmt::format("{}:{}:scope_name",
+                                          scope.getId().to_string(),
+                                          collection.getId().to_string()),
+                              scope.name);
     };
 
     std::map<std::string, std::string> expected{

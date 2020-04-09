@@ -334,12 +334,13 @@ void Manifest::addCollectionStats(const void* cookie,
                 const auto cid = entry.id.to_string();
 
                 fmt::memory_buffer key;
-                format_to(key, "{}:{}:id", scope.second.name, name);
-                addStat({key.data(), key.size()}, cid);
+                format_to(key, "{}:{}:name", scope.first.to_string(), cid);
+                addStat({key.data(), key.size()}, name);
 
                 if (entry.maxTtl) {
                     key.resize(0);
-                    format_to(key, "{}:{}:maxTTL", scope.second.name, name);
+                    format_to(
+                            key, "{}:{}:maxTTL", scope.first.to_string(), cid);
                     addStat({key.data(), key.size()}, entry.maxTtl->count());
                 }
             }
@@ -360,17 +361,15 @@ void Manifest::addScopeStats(const void* cookie,
         add_casted_stat("uid", uid, add_stat, cookie);
 
         for (const auto& entry : scopes) {
+            const auto sid = entry.first.to_string();
             const auto name = entry.second.name;
 
             buf.resize(0);
-            fmt::format_to(buf, "{}:id", name);
-            add_casted_stat({buf.data(), buf.size()},
-                            entry.first.to_string(),
-                            add_stat,
-                            cookie);
+            fmt::format_to(buf, "{}:name", sid);
+            add_casted_stat({buf.data(), buf.size()}, name, add_stat, cookie);
 
             buf.resize(0);
-            fmt::format_to(buf, "{}:collections", name);
+            fmt::format_to(buf, "{}:collections", sid);
             add_casted_stat<unsigned long>({buf.data(), buf.size()},
                                            entry.second.collections.size(),
                                            add_stat,
@@ -380,11 +379,9 @@ void Manifest::addScopeStats(const void* cookie,
                 auto colName = findCollection(colEntry.id)->second.name;
 
                 buf.resize(0);
-                fmt::format_to(buf, "{}:{}", name, colName);
-                add_casted_stat({buf.data(), buf.size()},
-                                colEntry.id.to_string(),
-                                add_stat,
-                                cookie);
+                fmt::format_to(buf, "{}:{}:name", sid, colEntry.id.to_string());
+                add_casted_stat(
+                        {buf.data(), buf.size()}, colName, add_stat, cookie);
             }
         }
     } catch (const std::exception& e) {

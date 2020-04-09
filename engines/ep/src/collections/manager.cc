@@ -589,16 +589,22 @@ void Collections::CachedStats::addStatsForCollection(
         const Manifest::Collection& collection,
         const AddStatFn& add_stat,
         const void* cookie) {
+    auto scopeID = collection.sid;
     fmt::memory_buffer buf;
     // format prefix
-    format_to(buf, "{}:{}", scope.name, collection.name);
+    format_to(buf, "{}:{}", scopeID.to_string(), cid.to_string());
     addAggregatedCollectionStats(
             {cid}, {buf.data(), buf.size()}, add_stat, cookie);
 
-    // add collection ID stat
+    // add collection name stat
     buf.resize(0);
-    format_to(buf, "{}:{}:id", scope.name, collection.name);
-    add_stat({buf.data(), buf.size()}, cid.to_string(), cookie);
+    format_to(buf, "{}:{}:name", scopeID.to_string(), cid.to_string());
+    add_stat({buf.data(), buf.size()}, collection.name, cookie);
+
+    // add scope name stat
+    buf.resize(0);
+    format_to(buf, "{}:{}:scope_name", scopeID.to_string(), cid.to_string());
+    add_stat({buf.data(), buf.size()}, scope.name, cookie);
 }
 
 void Collections::CachedStats::addStatsForScope(const ScopeID& sid,
@@ -612,12 +618,13 @@ void Collections::CachedStats::addStatsForScope(const ScopeID& sid,
     for (const auto& entry : scope.collections) {
         collections.push_back(entry.id);
     }
-    addAggregatedCollectionStats(collections, scope.name, add_stat, cookie);
+    addAggregatedCollectionStats(
+            collections, /* prefix */ sid.to_string(), add_stat, cookie);
 
-    // add scope id
+    // add scope name
     fmt::memory_buffer buf;
-    format_to(buf, "{}:id", scope.name);
-    add_stat({buf.data(), buf.size()}, sid.to_string(), cookie);
+    format_to(buf, "{}:name", sid.to_string());
+    add_stat({buf.data(), buf.size()}, scope.name, cookie);
 }
 
 void Collections::CachedStats::addAggregatedCollectionStats(
