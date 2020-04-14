@@ -396,7 +396,10 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     {
         auto producer = producerPtr.lock();
         // Does this stream still  have the appropriate privileges to operate?
-        if (!filter.checkPrivileges(producer->getCookie(), *engine)) {
+        // If the producer has gone away then we'll reset/return a little
+        // further on.
+        if (producer &&
+            !filter.checkPrivileges(producer->getCookie(), *engine)) {
             endStream(END_STREAM_LOST_PRIVILEGES);
             lh.unlock();
             notifyStreamReady();
