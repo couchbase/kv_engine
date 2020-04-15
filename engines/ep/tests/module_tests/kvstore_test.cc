@@ -1447,11 +1447,6 @@ public:
         pendingReqsQ.emplace_back(itm);
         return static_cast<MockCouchRequest*>(&pendingReqsQ.back());
     }
-
-    bool compactDBInternal(compaction_ctx* hook_ctx,
-                           couchstore_docinfo_hook dhook) {
-        return CouchKVStore::compactDBInternal(hook_ctx, dhook);
-    }
 };
 
 //
