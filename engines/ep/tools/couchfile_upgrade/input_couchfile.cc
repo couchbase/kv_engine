@@ -142,7 +142,7 @@ std::optional<bool> InputCouchFile::getSupportsNamespaces() const {
     try {
         auto supported = json.at(NamespacesSupportedKey);
         rv = supported.get<bool>();
-    } catch (const nlohmann::json::exception) {
+    } catch (const nlohmann::json::exception&) {
         // no entry - we will return rv uninitialised
     }
     return rv;
