@@ -1213,8 +1213,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     if (!readState.status.IsOK()) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} failed to read "
-                "vbstate "
-                "from disk. Status:{}",
+                "vbstate from disk. Status:{}",
                 vbid,
                 readState.status.String());
         return nullptr;
@@ -1450,8 +1449,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
 }
 
 scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) {
-    throw std::runtime_error(
-            "MagmaKVStore::initScanContext (id scan) unimplemented");
+    throw std::runtime_error("MagmaKVStore::scan (by id scan) unimplemented");
     return scan_failed;
 }
 
