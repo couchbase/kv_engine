@@ -823,9 +823,10 @@ static int notify_expired_item(DocInfo& info,
     return COUCHSTORE_SUCCESS;
 }
 
-static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
-    auto* ctx = static_cast<compaction_ctx*>(ctx_p);
-
+static int time_purge_hook(Db* d,
+                           DocInfo* info,
+                           sized_buf item,
+                           compaction_ctx* ctx) {
     if (info == nullptr) {
         // Compaction finished
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
@@ -969,7 +970,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     bool result = false;
 
     try {
-        result = compactDBInternal(hook_ctx, nullptr);
+        result = compactDBInternal(hook_ctx, {});
     } catch (const std::exception& le) {
         EP_LOG_WARN(
                 "CouchKVStore::compactDB: exception while performing "
@@ -989,15 +990,14 @@ FileInfo CouchKVStore::toFileInfo(const DbInfo& info) {
             info.doc_count, info.deleted_count, info.file_size, info.purge_seq};
 }
 
-bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
-                                     couchstore_docinfo_hook docinfo_hook) {
+bool CouchKVStore::compactDBInternal(
+        compaction_ctx* hook_ctx,
+        cb::couchstore::CompactRewriteDocInfoCallback docinfo_hook) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
     }
-    couchstore_compact_hook       hook = time_purge_hook;
-    couchstore_docinfo_hook dhook = docinfo_hook;
-    FileOpsInterface         *def_iops = statCollectingFileOpsCompaction.get();
+    auto* def_iops = statCollectingFileOpsCompaction.get();
     DbHolder compactdb(*this);
     DbHolder targetDb(*this);
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
@@ -1076,13 +1076,15 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     hook_ctx->highCompletedSeqno = vbState->persistedCompletedSeqno;
 
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
-    errCode = couchstore_compact_db_ex(compactdb,
-                                       compact_file.c_str(),
-                                       flags,
-                                       hook,
-                                       dhook,
-                                       hook_ctx,
-                                       def_iops);
+    errCode = cb::couchstore::compact(
+            *compactdb,
+            compact_file.c_str(),
+            flags,
+            [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
+                return time_purge_hook(&db, docInfo, value, hook_ctx);
+            },
+            std::move(docinfo_hook),
+            def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::compactDB:couchstore_compact_db_ex "

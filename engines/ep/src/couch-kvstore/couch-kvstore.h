@@ -715,7 +715,7 @@ protected:
      * @return true indicating the compaction was successful.
      */
     bool compactDBInternal(compaction_ctx* hook_ctx,
-                           couchstore_docinfo_hook dhook);
+                           cb::couchstore::CompactRewriteDocInfoCallback dhook);
 
     /// Copy relevant DbInfo stats to the common FileStats struct
     static FileInfo toFileInfo(const DbInfo& info);
