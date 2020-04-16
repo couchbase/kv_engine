@@ -670,6 +670,28 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     return ret;
 }
 
+cb::rbac::PrivilegeAccess Cookie::testPrivilege(
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) {
+    using cb::rbac::PrivilegeAccess;
+    auto ret = testPrivilege(privilegeContext, privilege, sid, cid);
+
+    if (ret.success() && euidPrivilegeContext) {
+        return testPrivilege(*euidPrivilegeContext, privilege, sid, cid);
+    }
+
+    return ret;
+}
+
+cb::rbac::PrivilegeAccess Cookie::testPrivilege(
+        const cb::rbac::PrivilegeContext& ctx,
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) {
+    return ctx.check(privilege, sid, cid);
+}
+
 cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
     if (e.name.empty()) {
         setErrorContext("Username must be at least one character");

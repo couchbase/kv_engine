@@ -320,6 +320,17 @@ struct MockServerCookieApi : public ServerCookieIface {
 
         return cb::rbac::PrivilegeAccessOk;
     }
+    cb::rbac::PrivilegeAccess test_privilege(
+            gsl::not_null<const void*> cookie,
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) override {
+        if (checkPrivilegeFunction) {
+            return checkPrivilegeFunction(cookie, privilege, sid, cid);
+        }
+
+        return cb::rbac::PrivilegeAccessOk;
+    }
 
     uint32_t get_privilege_context_revision(
             gsl::not_null<const void*> cookie) override {

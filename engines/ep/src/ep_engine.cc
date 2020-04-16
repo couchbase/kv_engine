@@ -1820,6 +1820,20 @@ EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
                                               std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollectionID(path);
+
+    if (rv.result == cb::engine_errc::success) {
+        // Test for any privilege, we are testing if we have visibility which
+        // means at least 1 privilege in the bucket.scope.collection 'path'
+        auto status = testPrivilege(cookie,
+                                    cb::rbac::Privilege::Read,
+                                    rv.getScopeId(),
+                                    rv.getCollectionId());
+        if (status == cb::engine_errc::no_access) {
+            // This is fine, still visible - back to success
+            status = cb::engine_errc::success;
+        }
+        rv.result = status;
+    }
     if (rv.result == cb::engine_errc::unknown_collection ||
         rv.result == cb::engine_errc::unknown_scope) {
         engine->setUnknownCollectionErrorContext(cookie,
@@ -1832,6 +1846,18 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
         gsl::not_null<const void*> cookie, std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
+    if (rv.result == cb::engine_errc::success) {
+        // Test for any privilege, we are testing if we have visibility which
+        // means at least 1 privilege in the bucket.scope 'path'
+        auto status = testPrivilege(
+                cookie, cb::rbac::Privilege::Read, rv.getScopeId(), {});
+        if (status == cb::engine_errc::no_access) {
+            // This is fine, still visible - back to success
+            status = cb::engine_errc::success;
+        }
+        rv.result = status;
+    }
+
     if (rv.result == cb::engine_errc::unknown_scope) {
         engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
@@ -4721,6 +4747,33 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     } catch (const std::exception& e) {
         EP_LOG_ERR(
                 "EPE::checkPrivilege: received exception while checking "
+                "privilege for sid:{}: cid:{} {}",
+                sid ? sid->to_string() : "no-scope",
+                cid ? cid->to_string() : "no-collection",
+                e.what());
+    }
+    return cb::engine_errc::failed;
+}
+
+cb::engine_errc EventuallyPersistentEngine::testPrivilege(
+        const void* cookie,
+        cb::rbac::Privilege priv,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
+    try {
+        switch (serverApi->cookie->test_privilege(cookie, priv, sid, cid)
+                        .getStatus()) {
+        case cb::rbac::PrivilegeAccess::Status::Ok:
+            return cb::engine_errc::success;
+        case cb::rbac::PrivilegeAccess::Status::Fail:
+            return cb::engine_errc::no_access;
+        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+            return cid ? cb::engine_errc::unknown_collection
+                       : cb::engine_errc::unknown_scope;
+        }
+    } catch (const std::exception& e) {
+        EP_LOG_ERR(
+                "EPE::testPrivilege: received exception while checking "
                 "privilege for sid:{}: cid:{} {}",
                 sid ? sid->to_string() : "no-scope",
                 cid ? cid->to_string() : "no-collection",

@@ -430,12 +430,12 @@ public:
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
             gsl::not_null<const void*> cookie, std::string_view path) override {
-        return {cb::engine_errc::no_bucket, 0, 0};
+        return cb::EngineErrorGetCollectionIDResult{cb::engine_errc::no_bucket};
     }
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie, std::string_view path) override {
-        return {cb::engine_errc::no_bucket, 0, 0};
+        return cb::EngineErrorGetScopeIDResult{cb::engine_errc::no_bucket};
     }
 
     std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(

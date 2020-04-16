@@ -825,6 +825,16 @@ public:
                                    std::optional<CollectionID> cid) const;
 
     /**
+     * Test the access for the given privilege for the bucket.scope.collection
+     * This differs from checkPrivilege in that the error case has no side
+     * effect, such as setting error extras/logging
+     */
+    cb::engine_errc testPrivilege(const void* cookie,
+                                  cb::rbac::Privilege priv,
+                                  std::optional<ScopeID> sid,
+                                  std::optional<CollectionID> cid) const;
+
+    /**
      * @return the privilege revision, which changes when privileges do.
      */
     uint32_t getPrivilegeRevision(const void* cookie) const;

@@ -2571,7 +2571,8 @@ cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(
     try {
         return collectionsManager->getCollectionID(path);
     } catch (const cb::engine_error& e) {
-        return {cb::engine_errc(e.code().value()), 0, 0};
+        return cb::EngineErrorGetCollectionIDResult{
+                cb::engine_errc(e.code().value())};
     }
 }
 
@@ -2580,7 +2581,8 @@ cb::EngineErrorGetScopeIDResult KVBucket::getScopeID(
     try {
         return collectionsManager->getScopeID(path);
     } catch (const cb::engine_error& e) {
-        return {cb::engine_errc(e.code().value()), 0, 0};
+        return cb::EngineErrorGetScopeIDResult{
+                cb::engine_errc(e.code().value())};
     }
 }
 

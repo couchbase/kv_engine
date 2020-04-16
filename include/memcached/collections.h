@@ -23,67 +23,102 @@
 #include "dockey.h"
 #include "engine_common.h"
 #include "engine_error.h"
+#include "protocol_binary.h"
+
 namespace cb {
 
 struct EngineErrorGetCollectionIDResult {
-    EngineErrorGetCollectionIDResult(engine_errc result,
-                                     uint64_t manifestId,
+    /// special case constructor which allows for success with no other data
+    /// used in stats path only
+    struct allowSuccess {};
+    EngineErrorGetCollectionIDResult(engine_errc result, allowSuccess)
+        : result(result) {
+    }
+
+    /// construct for an error
+    explicit EngineErrorGetCollectionIDResult(engine_errc result)
+        : result(result) {
+        Expects(result != cb::engine_errc::success);
+    }
+
+    /// construct for unknown collection or unknown scope error
+    EngineErrorGetCollectionIDResult(engine_errc result, uint64_t manifestId)
+        : result(result), manifestId(manifestId) {
+        Expects(result == cb::engine_errc::unknown_collection ||
+                result == cb::engine_errc::unknown_scope);
+    }
+
+    /// construct for successful get
+    EngineErrorGetCollectionIDResult(uint64_t manifestId,
+                                     ScopeID scopeId,
                                      CollectionID collectionId)
-        : result(result), extras(manifestId, collectionId) {
+        : result(cb::engine_errc::success),
+          manifestId(manifestId),
+          scopeId(scopeId),
+          collectionId(collectionId) {
     }
 
     uint64_t getManifestId() const {
-        return htonll(extras.data.manifestId);
+        return manifestId;
     }
 
     CollectionID getCollectionId() const {
-        return extras.data.collectionId.to_host();
-    }
-
-    engine_errc result;
-    union _extras {
-        _extras(uint64_t manifestId, CollectionID collectionId)
-            : data(manifestId, collectionId) {
-        }
-        struct _data {
-            _data(uint64_t manifestId, CollectionID collectionId)
-                : manifestId(ntohll(manifestId)), collectionId(collectionId) {
-            }
-            uint64_t manifestId{0};
-            CollectionIDNetworkOrder collectionId{0};
-        } data;
-        char bytes[sizeof(uint64_t) + sizeof(CollectionIDNetworkOrder)];
-    } extras;
-};
-
-struct EngineErrorGetScopeIDResult {
-    EngineErrorGetScopeIDResult(engine_errc result,
-                                uint64_t manifestId,
-                                ScopeID scopeId)
-        : result(result), extras(manifestId, scopeId) {
-    }
-
-    uint64_t getManifestId() const {
-        return htonll(extras.data.manifestId);
+        return collectionId;
     }
 
     ScopeID getScopeId() const {
-        return extras.data.scopeId.to_host();
+        return scopeId;
+    }
+
+    mcbp::request::GetCollectionIDPayload getPayload() const {
+        return {manifestId, collectionId};
     }
 
     engine_errc result;
-    union _extras {
-        _extras(uint64_t manifestId, ScopeID scopeId)
-            : data(manifestId, scopeId) {
-        }
-        struct _data {
-            _data(uint64_t manifestId, ScopeID scopeId)
-                : manifestId(ntohll(manifestId)), scopeId(scopeId) {
-            }
-            uint64_t manifestId{0};
-            ScopeIDNetworkOrder scopeId{0};
-        } data;
-        char bytes[sizeof(uint64_t) + sizeof(ScopeIDNetworkOrder)];
-    } extras;
+    uint64_t manifestId{0};
+    ScopeID scopeId{ScopeID::Default};
+    CollectionID collectionId{CollectionID::Default};
+};
+
+struct EngineErrorGetScopeIDResult {
+    /// special case constructor which allows for success with no other data
+    /// used in stats path only
+    struct allowSuccess {};
+    EngineErrorGetScopeIDResult(engine_errc result, allowSuccess)
+        : result(result) {
+    }
+
+    /// construct for an error
+    explicit EngineErrorGetScopeIDResult(engine_errc result) : result(result) {
+        Expects(result != cb::engine_errc::success);
+    }
+
+    /// construct for an unknown_scope
+    explicit EngineErrorGetScopeIDResult(uint64_t manifestId)
+        : result(cb::engine_errc::unknown_scope), manifestId(manifestId) {
+    }
+
+    /// construct for successful get
+    EngineErrorGetScopeIDResult(uint64_t manifestId, ScopeID scopeId)
+        : result(cb::engine_errc::success),
+          manifestId(manifestId),
+          scopeId(scopeId) {
+    }
+
+    uint64_t getManifestId() const {
+        return manifestId;
+    }
+
+    ScopeID getScopeId() const {
+        return scopeId;
+    }
+
+    mcbp::request::GetScopeIDPayload getPayload() const {
+        return {manifestId, scopeId};
+    }
+
+    engine_errc result;
+    uint64_t manifestId{0};
+    ScopeID scopeId{ScopeID::Default};
 };
 }

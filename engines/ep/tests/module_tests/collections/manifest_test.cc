@@ -852,15 +852,12 @@ TEST(ManifestTest, getCollectionID) {
                   cb::engine_errc(e.code().value()));
     }
 
-    // unknown scope as first param
-    try {
-        cm.getCollectionID(ScopeID{22}, "_default.meat");
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::unknown_scope,
-                  cb::engine_errc(e.code().value()));
-    }
+    // unknown scope as first param is invalid
+    EXPECT_THROW(cm.getCollectionID(ScopeID{22}, "_default.meat"),
+                 std::invalid_argument);
 
-    // illegal scope name isn't checked here, getScopeID is always called first
+    // illegal scope name isn't checked here, getScopeID is expected to have
+    // been called first and the given ScopeID is what is used in the lookup
     EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "*#illegal.meat").value());
 
     // Unknown names

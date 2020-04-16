@@ -185,9 +185,26 @@ struct ServerCookieIface {
      * @param cid the collection id (optional for scope/bucket tests)
      * @throws invalid_argument if cid defined but not sid
      * @return PrivilegeAccess::Ok if the cookie have the privilege in its
-     *         active set PrivilegeAccess::Fail otherwise
+     *         active set. PrivilegeAccess::Fail/FailNoPrivileges otherwise
      */
     virtual cb::rbac::PrivilegeAccess check_privilege(
+            gsl::not_null<const void*> cookie,
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) = 0;
+
+    /**
+     * Test if the cookie have the specified privilege in it's active set.
+     *
+     * @param cookie the cookie sent to the engine for an operation
+     * @param privilege the privilege to check for
+     * @param sid the scope id (optional for bucket tests)
+     * @param cid the collection id (optional for scope/bucket tests)
+     * @throws invalid_argument if cid defined but not sid
+     * @return PrivilegeAccess::Ok if the cookie have the privilege in its
+     *         active set. PrivilegeAccess::Fail/FailNoPrivileges otherwise
+     */
+    virtual cb::rbac::PrivilegeAccess test_privilege(
             gsl::not_null<const void*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,

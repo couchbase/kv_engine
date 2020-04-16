@@ -408,39 +408,33 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     // Success cases next
     rv = store->getCollectionID(".");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(CollectionEntry::defaultC.getId(),
-              rv.extras.data.collectionId.to_host());
+    EXPECT_EQ(5, rv.getManifestId());
+    EXPECT_EQ(CollectionEntry::defaultC.getId(), rv.getCollectionId());
 
     rv = store->getCollectionID("_default.");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(CollectionEntry::defaultC.getId(),
-              rv.extras.data.collectionId.to_host());
+    EXPECT_EQ(5, rv.getManifestId());
+    EXPECT_EQ(CollectionEntry::defaultC.getId(), rv.getCollectionId());
 
     rv = store->getCollectionID("_default._default");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(CollectionEntry::defaultC.getId(),
-              rv.extras.data.collectionId.to_host());
+    EXPECT_EQ(5, rv.getManifestId());
+    EXPECT_EQ(CollectionEntry::defaultC.getId(), rv.getCollectionId());
 
     rv = store->getCollectionID(".dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(CollectionEntry::dairy.getId(),
-              rv.extras.data.collectionId.to_host());
+    EXPECT_EQ(5, rv.getManifestId());
+    EXPECT_EQ(CollectionEntry::dairy.getId(), rv.getCollectionId());
 
     rv = store->getCollectionID("_default.dairy");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(CollectionEntry::dairy.getId(),
-              rv.extras.data.collectionId.to_host());
+    EXPECT_EQ(5, rv.getManifestId());
+    EXPECT_EQ(CollectionEntry::dairy.getId(), rv.getCollectionId());
 
     rv = store->getCollectionID("minimart.meat");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(5, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(CollectionEntry::meat.getId(),
-              rv.extras.data.collectionId.to_host());
+    EXPECT_EQ(5, rv.getManifestId());
+    EXPECT_EQ(CollectionEntry::meat.getId(), rv.getCollectionId());
 
     // Now we should fail getting _default
     cm.remove(CollectionEntry::defaultC);
@@ -485,23 +479,23 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     // Success cases next
     rv = store->getScopeID(""); // no dot = _default
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.extras.data.scopeId.to_host());
+    EXPECT_EQ(6, rv.getManifestId());
+    EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.getScopeId());
 
     rv = store->getScopeID("."); // 1 dot = _default
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.extras.data.scopeId.to_host());
+    EXPECT_EQ(6, rv.getManifestId());
+    EXPECT_EQ(ScopeEntry::defaultS.getId(), rv.getScopeId());
 
     rv = store->getScopeID(ScopeEntry::shop1.name);
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(ScopeEntry::shop1.getId(), rv.extras.data.scopeId.to_host());
+    EXPECT_EQ(6, rv.getManifestId());
+    EXPECT_EQ(ScopeEntry::shop1.getId(), rv.getScopeId());
 
     rv = store->getScopeID(ScopeEntry::shop2.name);
     EXPECT_EQ(cb::engine_errc::success, rv.result);
-    EXPECT_EQ(6, ntohll(rv.extras.data.manifestId));
-    EXPECT_EQ(ScopeEntry::shop2.getId(), rv.extras.data.scopeId.to_host());
+    EXPECT_EQ(6, rv.getManifestId());
+    EXPECT_EQ(ScopeEntry::shop2.getId(), rv.getScopeId());
 
     // Test the collection/vbucket lookup
     auto sid = store->getScopeID(CollectionEntry::dairy);

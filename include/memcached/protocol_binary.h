@@ -1078,9 +1078,6 @@ public:
     void setDeleteTime(uint32_t delete_time) {
         DcpDeletionV2Payload::delete_time = htonl(delete_time);
     }
-    uint8_t getCollectionLen() const {
-        return collection_len;
-    }
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
@@ -1089,7 +1086,7 @@ protected:
     uint64_t by_seqno = 0;
     uint64_t rev_seqno = 0;
     uint32_t delete_time = 0;
-    const uint8_t collection_len = 0;
+    const uint8_t unused = 0;
 };
 static_assert(sizeof(DcpDeletionV2Payload) == 21, "Unexpected struct size");
 
@@ -2205,3 +2202,57 @@ namespace cas {
 const uint64_t Wildcard = 0x0;
 } // namespace cas
 } // namespace mcbp
+
+namespace cb::mcbp::request {
+#pragma pack(1)
+
+// Payload for get_collection_id opcode 0xbb, data stored in network byte order
+class GetCollectionIDPayload {
+public:
+    GetCollectionIDPayload() = default;
+    GetCollectionIDPayload(uint64_t manifestId, CollectionID collectionId)
+        : manifestId(htonll(manifestId)), collectionId(htonl(collectionId)) {
+    }
+
+    CollectionID getCollectionId() const {
+        return ntohl(collectionId);
+    }
+
+    uint64_t getManifestId() const {
+        return ntohll(manifestId);
+    }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t manifestId{0};
+    uint32_t collectionId{0};
+};
+
+// Payload for get_scope_id opcode 0xbc, data stored in network byte order
+class GetScopeIDPayload {
+public:
+    GetScopeIDPayload() = default;
+    GetScopeIDPayload(uint64_t manifestId, ScopeID scopeId)
+        : manifestId(htonll(manifestId)), scopeId(htonl(scopeId)) {
+    }
+    ScopeID getScopeId() const {
+        return ntohl(scopeId);
+    }
+
+    uint64_t getManifestId() const {
+        return ntohll(manifestId);
+    }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t manifestId{0};
+    uint32_t scopeId{0};
+};
+#pragma pack()
+} // namespace cb::mcbp::request

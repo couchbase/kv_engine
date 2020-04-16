@@ -922,7 +922,7 @@ Document MemcachedConnection::get(
 
     const auto response = BinprotGetResponse(execute(command));
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed to get: " + id, response.getStatus());
+        throw ConnectionError("Failed to get: " + id, response);
     }
 
     Document ret;
@@ -1032,8 +1032,7 @@ MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
 
     const auto response = BinprotMutationResponse(execute(command));
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed to store " + info.id,
-                              response.getStatus());
+        throw ConnectionError("Failed to store " + info.id, response);
     }
 
     return response.getMutationInfo();
@@ -1542,6 +1541,46 @@ void MemcachedConnection::dcpStreamRequest(Vbid vbid,
     }
 }
 
+cb::mcbp::request::GetCollectionIDPayload MemcachedConnection::getCollectionId(
+        std::string_view path) {
+    BinprotGenericCommand command(
+            cb::mcbp::ClientOpcode::CollectionsGetID, std::string(path), {});
+    const auto response = BinprotResponse(execute(command));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed dcpStreamRequest", response);
+    }
+
+    if (response.getExtlen() !=
+        sizeof(cb::mcbp::request::GetCollectionIDPayload)) {
+        throw std::logic_error("getCollectionId invalid extra length");
+    }
+    cb::mcbp::request::GetCollectionIDPayload payload;
+    auto extras = response.getResponse().getExtdata();
+    std::copy_n(
+            extras.data(), extras.size(), reinterpret_cast<uint8_t*>(&payload));
+    return payload;
+}
+
+cb::mcbp::request::GetScopeIDPayload MemcachedConnection::getScopeId(
+        std::string_view path) {
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::CollectionsGetScopeID,
+                                  std::string(path),
+                                  {});
+    const auto response = BinprotResponse(execute(command));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed getScopeId", response);
+    }
+
+    if (response.getExtlen() != sizeof(cb::mcbp::request::GetScopeIDPayload)) {
+        throw std::logic_error("getScopeId invalid extra length");
+    }
+    cb::mcbp::request::GetScopeIDPayload payload;
+    auto extras = response.getResponse().getExtdata();
+    std::copy_n(
+            extras.data(), extras.size(), reinterpret_cast<uint8_t*>(&payload));
+    return payload;
+}
+
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     switch (mode) {
     case ExecutionMode::Ordered:
@@ -1704,4 +1743,8 @@ ConnectionError::ConnectionError(const std::string& prefix,
 std::string ConnectionError::getErrorContext() const {
     const auto decoded = nlohmann::json::parse(payload);
     return decoded["error"]["context"];
+}
+
+nlohmann::json ConnectionError::getErrorJsonContext() const {
+    return nlohmann::json::parse(payload);
 }

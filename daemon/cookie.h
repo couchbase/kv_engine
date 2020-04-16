@@ -513,6 +513,20 @@ public:
                                              std::optional<ScopeID> sid,
                                              std::optional<CollectionID> cid);
 
+    /**
+     * Very similar to checkPrivilege but will not log or update the cookie
+     * error context for failure
+     * @param privilege The privilege to check
+     * @param sid If the privilege is not found for the bucket, try looking in
+     *            this scope.
+     * @param cid If the privilege is not found for the scope, try looking in
+     *            this collection.
+     * @throws invalid_argument if cid defined but not sid
+     */
+    cb::rbac::PrivilegeAccess testPrivilege(cb::rbac::Privilege privilege,
+                                            std::optional<ScopeID> sid,
+                                            std::optional<CollectionID> cid);
+
     /// Get the underlying privilege context
     const cb::rbac::PrivilegeContext& getPrivilegeContext() const {
         return privilegeContext;
@@ -547,6 +561,12 @@ protected:
     /// Check if the current command have the requested privilege for
     /// for the provided scope collection identifier
     cb::rbac::PrivilegeAccess checkPrivilege(
+            const cb::rbac::PrivilegeContext& ctx,
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid);
+
+    cb::rbac::PrivilegeAccess testPrivilege(
             const cb::rbac::PrivilegeContext& ctx,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,

@@ -135,6 +135,13 @@ public:
             std::optional<CollectionID> cid) override {
         return wrapped->check_privilege(cookie, privilege, sid, cid);
     }
+    cb::rbac::PrivilegeAccess test_privilege(
+            gsl::not_null<const void*> cookie,
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) override {
+        return wrapped->test_privilege(cookie, privilege, sid, cid);
+    }
     uint32_t get_privilege_context_revision(
             gsl::not_null<const void*> cookie) override {
         return wrapped->get_privilege_context_revision(cookie);

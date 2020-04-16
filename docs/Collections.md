@@ -288,6 +288,16 @@ collection in the `_default` scope.
 * `App1.c1` will lookup the unique ID of the `c1` collection in the `App1`
 scope.
 
+### Extras
+
+Successful response includes an extras payload with two values.
+
+* Offset 0: u64 manifest ID
+* Offset 8: u32 collection ID
+
+The returned manifest ID is the ID of the manifest that the lookup was performed
+against.
+
 ### Errors
 
 #### No collections manifest
@@ -347,6 +357,16 @@ Example keys:
 
 Note: Get Scope ID can accept a complete path `scope.collection` it ignores the
 the `.collection` part and only examines the scope.
+
+### Extras
+
+Successful response includes an extras payload with two values.
+
+* Offset 0: u64 manifest ID
+* Offset 8: u32 scope ID
+
+The returned manifest ID is the ID of the manifest that the lookup was performed
+against.
 
 ### Errors
 

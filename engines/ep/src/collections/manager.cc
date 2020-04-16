@@ -155,35 +155,37 @@ bool Collections::Manager::validateGetScopeIDPath(std::string_view path) {
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
         std::string_view path) const {
     if (!validateGetCollectionIDPath(path)) {
-        return {cb::engine_errc::invalid_arguments, 0, 0};
+        return cb::EngineErrorGetCollectionIDResult{
+                cb::engine_errc::invalid_arguments};
     }
 
     auto current = currentManifest.rlock();
     auto scope = current->getScopeID(path);
     if (!scope) {
-        return {cb::engine_errc::unknown_scope, current->getUid(), 0};
+        return {cb::engine_errc::unknown_scope, current->getUid()};
     }
 
     auto collection = current->getCollectionID(scope.value(), path);
     if (!collection) {
-        return {cb::engine_errc::unknown_collection, current->getUid(), 0};
+        return {cb::engine_errc::unknown_collection, current->getUid()};
     }
 
-    return {cb::engine_errc::success, current->getUid(), collection.value()};
+    return {current->getUid(), scope.value(), collection.value()};
 }
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         std::string_view path) const {
     if (!validateGetScopeIDPath(path)) {
-        return {cb::engine_errc::invalid_arguments, 0, 0};
+        return cb::EngineErrorGetScopeIDResult{
+                cb::engine_errc::invalid_arguments};
     }
     auto current = currentManifest.rlock();
     auto scope = current->getScopeID(path);
     if (!scope) {
-        return {cb::engine_errc::unknown_scope, current->getUid(), 0};
+        return cb::EngineErrorGetScopeIDResult{current->getUid()};
     }
 
-    return {cb::engine_errc::success, current->getUid(), scope.value()};
+    return {current->getUid(), scope.value()};
 }
 
 std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
@@ -344,13 +346,15 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
                         "Collections::Manager::doCollectionStats invalid "
                         "vbid:{}, exception:{}",
                         *arg, e.what());
-                return {cb::engine_errc::invalid_arguments, 0, 0};
+                return cb::EngineErrorGetCollectionIDResult{
+                        cb::engine_errc::invalid_arguments};
             }
 
             Vbid vbid = Vbid(id);
             VBucketPtr vb = bucket.getVBucket(vbid);
             if (!vb) {
-                return {cb::engine_errc::not_my_vbucket, 0, 0};
+                return cb::EngineErrorGetCollectionIDResult{
+                        cb::engine_errc::not_my_vbucket};
             }
 
             success = vb->lockCollections().addCollectionStats(
@@ -377,7 +381,8 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
                             "collection id:{}, exception:{}",
                             *arg,
                             e.what());
-                    return {cb::engine_errc::invalid_arguments, 0, 0};
+                    return cb::EngineErrorGetCollectionIDResult{
+                            cb::engine_errc::invalid_arguments};
                 }
             } else {
                 // provided argument should be a collection path
@@ -403,9 +408,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
                         "Collections::Manager::doCollectionStats unknown "
                         "collection id:{}",
                         *arg);
-                return {cb::engine_errc::unknown_collection,
-                        current->getUid(),
-                        0};
+                return {cb::engine_errc::unknown_collection, current->getUid()};
             }
 
             // collection was specified, do stats for that collection only
@@ -436,7 +439,8 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
         }
     }
 
-    return {success ? cb::engine_errc::success : cb::engine_errc::failed, 0, 0};
+    return {success ? cb::engine_errc::success : cb::engine_errc::failed,
+            cb::EngineErrorGetCollectionIDResult::allowSuccess{}};
 }
 
 // scopes-details
@@ -469,13 +473,15 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
                         "Collections::Manager::doScopeStats invalid "
                         "vbid:{}, exception:{}",
                         *arg, e.what());
-                return {cb::engine_errc::invalid_arguments, 0, 0};
+                return cb::EngineErrorGetScopeIDResult{
+                        cb::engine_errc::invalid_arguments};
             }
 
             Vbid vbid = Vbid(id);
             VBucketPtr vb = bucket.getVBucket(vbid);
             if (!vb) {
-                return {cb::engine_errc::not_my_vbucket, 0, 0};
+                return cb::EngineErrorGetScopeIDResult{
+                        cb::engine_errc::not_my_vbucket};
             }
             success =
                     vb->lockCollections().addScopeStats(vbid, cookie, add_stat);
@@ -500,7 +506,8 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
                             "scope id:{}, exception:{}",
                             *arg,
                             e.what());
-                    return {cb::engine_errc::invalid_arguments, 0, 0};
+                    return cb::EngineErrorGetScopeIDResult{
+                            cb::engine_errc::invalid_arguments};
                 }
             } else {
                 // provided argument should be a scope name
@@ -524,7 +531,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
                         "Collections::Manager::doScopeStats unknown "
                         "scope id:{}",
                         *arg);
-                return {cb::engine_errc::unknown_scope, current->getUid(), 0};
+                return cb::EngineErrorGetScopeIDResult{current->getUid()};
             }
 
             const auto& scope = scopeItr->second;
@@ -552,7 +559,8 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
         }
     }
 
-    return {success ? cb::engine_errc::success : cb::engine_errc::failed, 0, 0};
+    return {success ? cb::engine_errc::success : cb::engine_errc::failed,
+            cb::EngineErrorGetScopeIDResult::allowSuccess{}};
 }
 
 void Collections::Manager::dump() const {

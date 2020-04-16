@@ -410,9 +410,11 @@ std::optional<CollectionID> Manifest::getCollectionID(
 
     auto scopeItr = scopes.find(scope);
     if (scopeItr == scopes.end()) {
-        throw cb::engine_error(
-                cb::engine_errc::unknown_scope,
-                "Manifest::getCollectionID unknown scope:" + scope.to_string());
+        // Assumption is that a valid scope will be given because it was looked
+        // up first via getScopeId(path) - so it is invalid to give a bad scope.
+        throw std::invalid_argument(
+                "Manifest::getCollectionID given unknown scope:" +
+                scope.to_string());
     }
     for (const auto& c : scopeItr->second.collections) {
         auto cItr = collections.find(c.id);

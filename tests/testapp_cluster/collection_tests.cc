@@ -133,6 +133,9 @@ TEST_F(CollectionsTests, TestBasicRbac) {
         // No privileges so we would get unknown collection error
         ASSERT_TRUE(error.isUnknownCollection())
                 << to_string(error.getReason());
+        EXPECT_EQ(
+                "1",
+                error.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 
     // I'm only allowed to write in Fruit
@@ -151,8 +154,35 @@ TEST_F(CollectionsTests, TestBasicRbac) {
             } else {
                 // Nothing at all in vegetable, so unknown
                 ASSERT_TRUE(error.isUnknownCollection());
+                EXPECT_EQ("1",
+                          error.getErrorJsonContext()["manifest_uid"]
+                                  .get<std::string>());
             }
         }
+    }
+
+    auto fruit = conn->getCollectionId("_default.fruit");
+    EXPECT_EQ(8, fruit.getCollectionId());
+    auto defaultScope = conn->getScopeId("_default");
+    EXPECT_EQ(0, defaultScope.getScopeId());
+    // Now failure, we have no privs in customer_scope
+    try {
+        conn->getCollectionId("customer_scope.customer_collection1");
+        FAIL() << "Expected an error";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isUnknownCollection());
+        EXPECT_EQ(
+                "1",
+                error.getErrorJsonContext()["manifest_uid"].get<std::string>());
+    }
+    try {
+        conn->getScopeId("customer_scope");
+        FAIL() << "Expected an error";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isUnknownScope());
+        EXPECT_EQ(
+                "1",
+                error.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 
     cluster->getAuthProviderService().removeUser(username);

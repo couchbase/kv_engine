@@ -36,8 +36,9 @@ void collections_get_collection_id_executor(Cookie& cookie) {
     }
 
     if (remapErr == cb::engine_errc::success) {
+        auto payload = rv.getPayload();
         cookie.sendResponse(cb::mcbp::Status::Success,
-                            {rv.extras.bytes, sizeof(rv.extras.bytes)},
+                            payload.getBuffer(),
                             {},
                             {},
                             cb::mcbp::Datatype::Raw,

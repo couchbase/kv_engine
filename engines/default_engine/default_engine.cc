@@ -1002,15 +1002,17 @@ cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
         cb::engine_errc error = cb::engine_errc::unknown_scope;
         if (path == "_default._default" || path == "._default" || path == "." ||
             path == "_default.") {
-            return {cb::engine_errc::success, 0, CollectionID::Default};
+            return {0, ScopeID::Default, CollectionID::Default};
         } else if (path.find(default_scope_path) == 0) {
             // path starts with "_default." so collection part is unknown
             error = cb::engine_errc::unknown_collection;
         }
         generate_unknown_collection_response(cookie);
-        return {error, 0, {}};
+        // Return the manifest-uid of 0 and unknown scope or collection error
+        return {error, 0};
     }
-    return {cb::engine_errc::invalid_arguments, {}, {}};
+    return cb::EngineErrorGetCollectionIDResult{
+            cb::engine_errc::invalid_arguments};
 }
 
 // permit lookup of the default scope only
@@ -1023,12 +1025,13 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
         auto scope = dotCount ? path.substr(0, path.find(dot)) : path;
 
         if (scope.empty() || path == "_default") {
-            return {cb::engine_errc::success, 0, ScopeID::Default};
+            return {0, ScopeID::Default};
         }
         generate_unknown_collection_response(cookie);
-        return {cb::engine_errc::unknown_scope, 0, {}};
+        // Return just the manifest-uid of 0 which sets error to unknown_scope
+        return cb::EngineErrorGetScopeIDResult{0};
     }
-    return {cb::engine_errc::invalid_arguments, {}, {}};
+    return cb::EngineErrorGetScopeIDResult{cb::engine_errc::invalid_arguments};
 }
 
 // permit lookup of the default scope only

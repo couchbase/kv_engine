@@ -219,6 +219,8 @@ public:
 
     std::string getErrorContext() const;
 
+    nlohmann::json getErrorJsonContext() const;
+
 private:
     const cb::mcbp::Status reason;
     const std::string payload;
@@ -878,6 +880,10 @@ public:
                           uint64_t snapStart,
                           uint64_t snapEnd,
                           const nlohmann::json& value);
+
+    cb::mcbp::request::GetCollectionIDPayload getCollectionId(
+            std::string_view path);
+    cb::mcbp::request::GetScopeIDPayload getScopeId(std::string_view path);
 
 protected:
     void read(Frame& frame, size_t bytes);
