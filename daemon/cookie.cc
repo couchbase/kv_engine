@@ -494,6 +494,7 @@ void Cookie::reset() {
     event_id.clear();
     error_context.clear();
     json_message.clear();
+    error_extra_json.clear();
     packet = {};
     validated = false;
     cas = 0;
