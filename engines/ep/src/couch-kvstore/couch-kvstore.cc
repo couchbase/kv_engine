@@ -970,7 +970,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
 
     try {
         result = compactDBInternal(hook_ctx, nullptr);
-    } catch(std::logic_error& le) {
+    } catch (const std::exception& le) {
         EP_LOG_WARN(
                 "CouchKVStore::compactDB: exception while performing "
                 "compaction for {}"
