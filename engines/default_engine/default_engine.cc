@@ -1035,13 +1035,16 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
 }
 
 // permit lookup of the default scope only
-std::pair<uint64_t, std::optional<ScopeID>> default_engine::get_scope_id(
-        gsl::not_null<const void*> cookie, const DocKey& key) const {
+cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        std::optional<Vbid> vbid) const {
     if (key.getCollectionID().isDefaultCollection()) {
-        return std::make_pair<uint64_t, std::optional<ScopeID>>(
-                0, ScopeID{ScopeID::Default});
+        return cb::EngineErrorGetScopeIDResult(
+                cb::engine_errc::success, 0, ScopeID{ScopeID::Default});
     }
-    return std::make_pair<uint64_t, std::optional<ScopeID>>(0, {});
+    return cb::EngineErrorGetScopeIDResult(
+            cb::engine_errc::unknown_collection, 0, {});
 }
 
 void default_engine::generate_unknown_collection_response(

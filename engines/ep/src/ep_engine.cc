@@ -1864,12 +1864,35 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     return rv;
 }
 
-std::pair<uint64_t, std::optional<ScopeID>>
-EventuallyPersistentEngine::get_scope_id(gsl::not_null<const void*>,
-                                         const DocKey& key) const {
+cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
+        gsl::not_null<const void*>,
+        const DocKey& key,
+        std::optional<Vbid> vbid) const {
     auto engine = acquireEngine(this);
-    auto rv = engine->getKVBucket()->getScopeID(key.getCollectionID());
-    return rv;
+    if (vbid) {
+        auto vbucket = engine->getVBucket(*vbid);
+        if (vbucket) {
+            auto cHandle = vbucket->lockCollections(key);
+            if (cHandle.valid()) {
+                return cb::EngineErrorGetScopeIDResult(cb::engine_errc::success,
+                                                       cHandle.getManifestUid(),
+                                                       cHandle.getScopeID());
+            }
+        } else {
+            return cb::EngineErrorGetScopeIDResult(
+                    cb::engine_errc::not_my_vbucket, 0, 0);
+        }
+    } else {
+        auto scopIdInfo =
+                engine->getKVBucket()->getScopeID(key.getCollectionID());
+        if (*scopIdInfo.second) {
+            return cb::EngineErrorGetScopeIDResult(cb::engine_errc::success,
+                                                   scopIdInfo.first,
+                                                   ScopeID(*scopIdInfo.second));
+        }
+    }
+    return cb::EngineErrorGetScopeIDResult(
+            cb::engine_errc::unknown_collection, 0, 0);
 }
 
 cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
@@ -4972,7 +4995,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                         cookie);
 }
 
-VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) {
+VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
     return kvBucket->getVBucket(vbucket);
 }
 

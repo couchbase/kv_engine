@@ -1740,6 +1740,69 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
     }
 }
 
+// Test to ensure we use the vbuckets manifest when passing a vbid to
+// EventuallyPersistentEngine::get_scope_id()
+TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection to vbid(0)
+    CollectionsManifest cmDairyVb;
+    cmDairyVb.add(ScopeEntry::shop1)
+            .add(CollectionEntry::dairy, ScopeEntry::shop1);
+    vb->updateFromManifest(std::string{cmDairyVb});
+
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 2);
+
+    StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
+    StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
+
+    auto result = engine->get_scope_id(cookie, keyDairy, vbid);
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
+    EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
+
+    result = engine->get_scope_id(cookie, keyMeat, vbid);
+    EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
+    EXPECT_EQ(0, result.getManifestId());
+
+    StoredDocKey keyFruit{"fruit:apple", CollectionEntry::fruit};
+    // Add the meat collection to vbid(1)
+    Vbid meatVbid(1);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(meatVbid, vbucket_state_replica));
+    auto replicaVb = store->getVBucket(meatVbid);
+
+    result = engine->get_scope_id(cookie, keyDairy, meatVbid);
+    EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
+    EXPECT_EQ(0, result.getManifestId());
+
+    replicaVb->checkpointManager->createSnapshot(
+            0, 2, std::nullopt, CheckpointType::Memory, 3);
+    replicaVb->replicaAddScope(1, ScopeUid::shop1, ScopeName::shop1, 1);
+    replicaVb->replicaAddCollection(
+            2,
+            {ScopeUid::shop1, CollectionEntry::meat.getId()},
+            CollectionEntry::meat.name,
+            {},
+            2);
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(meatVbid, 2);
+
+    result = engine->get_scope_id(cookie, keyMeat, meatVbid);
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(2, result.getManifestId());
+    EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
+
+    result = engine->get_scope_id(cookie, keyFruit, meatVbid);
+    EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
+    EXPECT_EQ(0, result.getManifestId());
+
+    // check vbucket that doesnt exist
+    result = engine->get_scope_id(cookie, keyDairy, Vbid(10));
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, result.result);
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),

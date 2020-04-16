@@ -426,9 +426,11 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
     return the_engine->get_scope_id(cookie, path);
 }
 
-std::pair<uint64_t, std::optional<ScopeID>> MockEngine::get_scope_id(
-        gsl::not_null<const void*> cookie, const DocKey& key) const {
-    return the_engine->get_scope_id(cookie, key);
+cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        std::optional<Vbid> vbid) const {
+    return the_engine->get_scope_id(cookie, key, vbid);
 }
 
 ENGINE_ERROR_CODE MockEngine::step(

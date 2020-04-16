@@ -674,9 +674,10 @@ public:
             gsl::not_null<const void*> cookie, std::string_view path) override;
     cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie, std::string_view path) override;
-    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
+    cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie,
-            const DocKey& key) const override;
+            const DocKey& key,
+            std::optional<Vbid> vbid) const override;
 
     cb::engine::FeatureSet getFeatures() override {
         return real_engine->getFeatures();
@@ -2015,9 +2016,11 @@ void EWB_Engine::initiate_shutdown() {
     }
 }
 
-std::pair<uint64_t, std::optional<ScopeID>> EWB_Engine::get_scope_id(
-        gsl::not_null<const void*> cookie, const DocKey& key) const {
-    return real_engine->get_scope_id(cookie, key);
+cb::EngineErrorGetScopeIDResult EWB_Engine::get_scope_id(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        std::optional<Vbid> vbid) const {
+    return real_engine->get_scope_id(cookie, key, std::optional<Vbid>());
 }
 
 void BlockMonitorThread::run() {

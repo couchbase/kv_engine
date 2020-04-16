@@ -139,9 +139,10 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie, std::string_view path) override;
 
-    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
+    cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie,
-            const DocKey& key) const override;
+            const DocKey& key,
+            std::optional<Vbid> vbid) const override;
 
     bool isXattrEnabled() override {
         return the_engine->isXattrEnabled();

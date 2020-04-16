@@ -610,9 +610,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return pair with the manifest UID and if found the scope where the key
      *              belongs.
      */
-    virtual std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
-            gsl::not_null<const void*> cookie, const DocKey& key) const {
-        return {};
+    virtual cb::EngineErrorGetScopeIDResult get_scope_id(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            std::optional<Vbid> vbid = std::nullopt) const {
+        return cb::EngineErrorGetScopeIDResult(
+                cb::engine_errc::not_supported, 0, 0);
     }
 
     /**

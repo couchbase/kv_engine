@@ -438,10 +438,12 @@ public:
         return cb::EngineErrorGetScopeIDResult{cb::engine_errc::no_bucket};
     }
 
-    std::pair<uint64_t, std::optional<ScopeID>> get_scope_id(
+    cb::EngineErrorGetScopeIDResult get_scope_id(
             gsl::not_null<const void*> cookie,
-            const DocKey& key) const override {
-        return {0, ScopeID{0}};
+            const DocKey& key,
+            std::optional<Vbid> vbid) const override {
+        return cb::EngineErrorGetScopeIDResult(
+                cb::engine_errc::no_bucket, 0, 0);
     }
 };
 

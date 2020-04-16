@@ -474,7 +474,7 @@ public:
          * Dump this VB::Manifest to std::cerr
          */
         void dump() {
-            std::cerr << manifest << std::endl;
+            std::cerr << *manifest << std::endl;
         }
 
     protected:
@@ -513,7 +513,7 @@ public:
         }
 
         void dump() {
-            std::cerr << manifest << std::endl;
+            std::cerr << *manifest << std::endl;
         }
 
     protected:

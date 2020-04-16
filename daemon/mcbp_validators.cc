@@ -363,16 +363,20 @@ Status McbpValidator::verify_header(Cookie& cookie,
         if (key.getCollectionID().isDefaultCollection()) {
             sid = ScopeID{ScopeID::Default};
         } else {
-            auto res = connection.getBucket().getEngine().get_scope_id(&cookie,
-                                                                       key);
-            if (!res.second) {
+            auto vbid = request.getVBucket();
+            auto res = connection.getBucket().getEngine().get_scope_id(
+                    &cookie, key, vbid);
+            if (res.result == cb::engine_errc::success) {
+                manifestUid = res.getManifestId();
+                sid = res.getScopeId();
+            } else if (res.result == cb::engine_errc::unknown_collection) {
                 // Could not get the collection's scope - an unknown collection
                 // against the manifest with id stored in res.first.
-                cookie.setUnknownCollectionErrorContext(res.first);
+                cookie.setUnknownCollectionErrorContext(res.getManifestId());
                 return Status::UnknownCollection;
+            } else {
+                return cb::mcbp::Status(res.result);
             }
-            manifestUid = res.first;
-            sid = res.second.value();
         }
         cookie.setCurrentCollectionInfo(
                 sid, key.getCollectionID(), manifestUid);

@@ -834,18 +834,18 @@ TEST_F(CollectionsTest, ScopeIDLookup) {
 // Can only ever get to the default scope (DocKey lookup)
 TEST_F(CollectionsTest, ScopeIDLookup2) {
     auto rv = engine->get_scope_id(cookie.get(), key1);
-    EXPECT_EQ(0, rv.first);
-    EXPECT_TRUE(rv.second);
-    EXPECT_EQ(ScopeID::Default, rv.second.value());
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), key2);
-    EXPECT_EQ(0, rv.first);
-    EXPECT_TRUE(rv.second);
-    EXPECT_EQ(ScopeID::Default, rv.second.value());
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
+    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), key3);
-    EXPECT_EQ(0, rv.first);
-    EXPECT_FALSE(rv.second);
+    EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
+    EXPECT_EQ(0, rv.getManifestId());
 }
 
 // Cannot change collections
