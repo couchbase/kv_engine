@@ -74,7 +74,7 @@ public:
     uint8_t metaDataVersion;
     int64_t bySeqno;
     uint64_t cas;
-    uint64_t revSeqno;
+    cb::uint48_t revSeqno;
     uint32_t exptime;
     uint32_t flags;
     uint32_t valueSize;
@@ -91,6 +91,6 @@ private:
 };
 #pragma pack()
 
-static_assert(sizeof(MetaData) == 47,
+static_assert(sizeof(MetaData) == 45,
               "magmakv::MetaData is not the expected size.");
 } // namespace magmakv
