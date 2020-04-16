@@ -41,6 +41,37 @@ part of the server API:
         return ENGINE_EACCESS;
     }
 
+### PrvilegeAccess::Status
+
+The privilege database provides a privilege check method that returns a status
+for the requested privilege, in general a check is either successful or a
+failure. However the PrivilegeAccess::Status is not a boolean type, it has
+3 states, of which only one means success.
+
+* Status::Ok - returned for a successful check
+* Status::Fail
+* Status::FailNoPrivileges
+
+Fail - This status is returned for a failure, the user does not have the
+requested privilege.
+
+FailNoPrivileges - This status is returned for a failure, the user does not have
+the requested privilege, they also have no privileges for the search "path".
+
+This failure distinction is important for scope/collection privilege checks
+where the user effectively provides a path to search, "bucket.scope.collection".
+The caller of the privilege check can use the different failure status to fail
+the request with the correct protocol error.
+
+Fail maps to "no access". The user does not have the requested privilege but
+does have some other privilege for the scope/collection - i.e. you can read but
+not write, so the scope/collection is not invisible.
+
+FailNoPrivileges maps to an error making the scope/collection invisible,
+"unknown collection/scope". The user does not have the requested privilege and
+has 0 privileges for the scope/collection - i.e. you can do nothing against the
+scope/collection, so the scope/collection is invisible.
+
 ## Updating the privilege database
 
 Updates to the privilege database is signalled to memcached by a

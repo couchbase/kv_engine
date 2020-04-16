@@ -77,6 +77,8 @@ std::string PrivilegeAccess::to_string() const {
         return "Ok";
     case Status::Fail:
         return "Fail";
+    case Status::FailNoPrivileges:
+        return "FailNoPrivileges";
     }
     throw std::invalid_argument(
             "PrivilegeAccess::to_string(): Unknown status: " +

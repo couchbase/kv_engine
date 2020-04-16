@@ -22,6 +22,7 @@
 
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
 #include <optional>
@@ -160,10 +161,10 @@ public:
     /**
      * Check the privilege revision for any change. If changed update our copy
      * of the revision and then evaluate the required privileges.
-     * @return true if all required privileges are found.
+     * @return engine status - success/no_access/unknown_scope|collection
      */
-    bool checkPrivileges(gsl::not_null<const void*> cookie,
-                         const EventuallyPersistentEngine& engine);
+    cb::engine_errc checkPrivileges(gsl::not_null<const void*> cookie,
+                                    const EventuallyPersistentEngine& engine);
 
     /**
      * Add statistics for this filter, currently just depicts the object's state

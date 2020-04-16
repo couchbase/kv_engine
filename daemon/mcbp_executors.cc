@@ -827,6 +827,39 @@ void initialize_mbcp_lookup_map() {
                   adjust_timeofday_executor);
 }
 
+static ENGINE_ERROR_CODE getEngineErrorCode(
+        const cb::rbac::PrivilegeAccess& access) {
+    switch (access.getStatus()) {
+    case cb::rbac::PrivilegeAccess::Status::Ok:
+        return ENGINE_SUCCESS;
+    case cb::rbac::PrivilegeAccess::Status::Fail:
+        return ENGINE_EACCESS;
+    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+        // No scope specific commands are being checked here, privilege fail
+        // with no scope, collection privs is ENGINE_UNKNOWN_COLLECTION
+        return ENGINE_UNKNOWN_COLLECTION;
+    }
+    throw std::invalid_argument(
+            "getEngineErrorCode(PrivilegeAccess) unknown status:" +
+            std::to_string(uint32_t(access.getStatus())));
+}
+
+static cb::mcbp::Status getStatusCode(const cb::rbac::PrivilegeAccess& access) {
+    switch (access.getStatus()) {
+    case cb::rbac::PrivilegeAccess::Status::Ok:
+        return cb::mcbp::Status::Success;
+    case cb::rbac::PrivilegeAccess::Status::Fail:
+        return cb::mcbp::Status::Eaccess;
+    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+        // No scope specific commands are being checked here, privilege fail
+        // with no scope, collection privs is UnknownCollection
+        return cb::mcbp::Status::UnknownCollection;
+    }
+    throw std::invalid_argument(
+            "getStatusCode(PrivilegeAccess) unknown status" +
+            std::to_string(uint32_t(access.getStatus())));
+}
+
 void execute_client_request_packet(Cookie& cookie,
                                    const cb::mcbp::Request& request) {
     auto* c = &cookie.getConnection();
@@ -844,12 +877,18 @@ void execute_client_request_packet(Cookie& cookie,
                     c->getId(),
                     c->getDescription(),
                     to_string(opcode));
+
         audit_command_access_failed(cookie);
 
-        if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
+        if (c->remapErrorCode(getEngineErrorCode(res)) == ENGINE_DISCONNECT) {
             c->shutdown();
         } else {
-            cookie.sendResponse(cb::mcbp::Status::Eaccess);
+            auto status = getStatusCode(res);
+            if (status == cb::mcbp::Status::UnknownCollection) {
+                cookie.setupForUnknownCollectionResponse();
+            }
+
+            cookie.sendResponse(status);
         }
         return;
     }

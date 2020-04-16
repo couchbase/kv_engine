@@ -126,14 +126,20 @@ TEST_F(CollectionsRbacBucket, BucketAccessFail) {
     try {
         connNoStream->dcpStreamRequest(
                 Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"scope":"0"})"_json);
+        FAIL() << "Expected a throw";
     } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
+        // No access and 0 privs == unknown scope
+        EXPECT_TRUE(e.isUnknownScope());
+        // todo: MB-38762 - json value check
     }
     try {
         connNoStream->dcpStreamRequest(
                 Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["8"]})"_json);
+        FAIL() << "Expected a throw";
     } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
+        // No access and 0 privs == unknown collection
+        EXPECT_TRUE(e.isUnknownCollection());
+        // todo: MB-38762 - json value check
     }
 }
 
@@ -207,7 +213,7 @@ public:
     void SetUp() override {
         CollectionsDcpTests::SetUp();
 
-        // Load a user that has DcpProducer/Stream privs for the scope:0 only
+        // Load a user that has DcpProducer/Stream privs for the collection:0
         // @todo: Change the 'Read' to 'DcpStream' - test will fail when
         //        ep-engine makes the change.
         cluster->getAuthProviderService().upsertUser({username, password, R"({
@@ -222,6 +228,15 @@ public:
             "0": {
               "privileges": [
                 "Read"
+              ]
+            }
+          }
+        },
+        "8": {
+          "collections": {
+            "10": {
+              "privileges": [
+                "Upsert"
               ]
             }
           }
@@ -271,12 +286,29 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionSuccess) {
             Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
 }
 
-TEST_F(CollectionsRbacCollection, CollectionAccessCollection2Eaccess) {
+TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
     try {
         conn->dcpStreamRequest(
                 Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["8"]})"_json);
     } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
+        EXPECT_TRUE(e.isUnknownCollection());
+    }
+}
+
+TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown2) {
+    try {
+        // Even though we can see collection 0, this test checks we get unknown
+        // collection because of the 0 privs on collection 8
+        conn->dcpStreamRequest(Vbid(0),
+                               0,
+                               0,
+                               ~0,
+                               0,
+                               0,
+                               0,
+                               R"({"collections":["0", "8", "a"]})"_json);
+    } catch (const ConnectionError& e) {
+        EXPECT_TRUE(e.isUnknownCollection());
     }
 }
 
@@ -303,7 +335,6 @@ TEST_F(CollectionsDcpTests, TestBasicRbacCollectionsSuccess) {
     conn->dcpControl("enable_noop", "true");
     conn->dcpStreamRequest(
             Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
-    ;
     cluster->getAuthProviderService().removeUser(username);
 }
 
@@ -323,19 +354,18 @@ TEST_F(CollectionsDcpTests, TestBasicRbacFail) {
 })"_json});
 
     auto conn = getConnection();
-    // I'm allowed to read from the default collection and read and writedcp_
-    // to the fruit collection
     conn->authenticate(username, password);
     conn->selectBucket("default");
     conn->dcpOpenProducer("TestBasicRbacFail");
-    EXPECT_THROW(conn->dcpStreamRequest(Vbid(0),
-                                        0,
-                                        0,
-                                        ~0,
-                                        0,
-                                        0,
-                                        0,
-                                        R"({"collections":["0"]})"_json),
-                 ConnectionError);
+    conn->dcpControl("enable_noop", "true");
+    try {
+        conn->dcpStreamRequest(
+                Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
+        FAIL() << "Expected dcpStreamRequest to throw";
+    } catch (const ConnectionError& error) {
+        // No privs associated with the collection, so it's unknown
+        EXPECT_TRUE(error.isUnknownCollection())
+                << to_string(error.getReason());
+    }
     cluster->getAuthProviderService().removeUser(username);
 }

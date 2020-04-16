@@ -480,15 +480,24 @@ public:
     /// is a legal scope (and return an error if it isn't) and to avoid having
     /// to redo the check as part of privilege checks (as the lookup needs
     /// a lock for the manifest) we'll keep the the result in the cookie
-    void setCurrentCollectionInfo(std::pair<ScopeID, CollectionID> collection) {
-        currentCollectionInfo = std::move(collection);
+    void setCurrentCollectionInfo(ScopeID sid,
+                                  CollectionID cid,
+                                  uint64_t manifestUid) {
+        currentCollectionInfo = CurrentCollectionInfo(sid, cid, manifestUid);
     }
+
+    /// Set the JSON extras to return the manifestId which is located in
+    /// currentCollectionInfo.
+    void setupForUnknownCollectionResponse();
+
+    /// Set the JSON extras to return the manifestId
+    void setupForUnknownCollectionResponse(uint64_t manifestUid);
 
     /// Check if the current command have the requested privilege
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege) {
         return checkPrivilege(privilege,
-                              currentCollectionInfo.first,
-                              currentCollectionInfo.second);
+                              currentCollectionInfo.sid,
+                              currentCollectionInfo.cid);
     }
 
     /**
@@ -652,8 +661,23 @@ protected:
     cb::compression::Buffer inflated_input_payload;
 
     /// The Scope and Collection information for the current command picked
-    /// out from the incomming packet as part of packet validation
-    std::pair<ScopeID, CollectionID> currentCollectionInfo;
+    /// out from the incoming packet as part of packet validation. This stores
+    /// the collection from the operation, it's scope and the unique-id of the
+    /// collection manifest that mapped cid to sid.
+    struct CurrentCollectionInfo {
+        CurrentCollectionInfo(ScopeID sid, CollectionID cid, uint64_t uid)
+            : sid(sid), cid(cid), manifestUid(uid) {
+        }
+        CurrentCollectionInfo() = default;
+        void reset() {
+            sid.reset();
+            cid.reset();
+            manifestUid = 0;
+        }
+        std::optional<ScopeID> sid;
+        std::optional<CollectionID> cid;
+        uint64_t manifestUid{0};
+    } currentCollectionInfo;
 
     /// The privilege context the command should use for evaluating commands
     cb::rbac::PrivilegeContext privilegeContext;

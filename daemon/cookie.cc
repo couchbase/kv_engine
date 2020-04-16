@@ -506,7 +506,7 @@ void Cookie::reset() {
     preserveTtl = false;
     reorder = connection.allowUnorderedExecution();
     inflated_input_payload.reset();
-    currentCollectionInfo = {};
+    currentCollectionInfo.reset();
     privilegeContext = connection.getPrivilegeContext();
     euid.reset();
     euidPrivilegeContext.reset();
@@ -737,4 +737,15 @@ bool Cookie::fetchEuidPrivilegeSet() {
     }
 
     return true;
+}
+
+void Cookie::setupForUnknownCollectionResponse() {
+    setupForUnknownCollectionResponse(currentCollectionInfo.manifestUid);
+}
+
+void Cookie::setupForUnknownCollectionResponse(uint64_t manifestUid) {
+    nlohmann::json json;
+    // return the uid without the 0x prefix
+    json["manifest_uid"] = cb::to_hex(manifestUid).substr(2);
+    setErrorJsonExtras(json);
 }

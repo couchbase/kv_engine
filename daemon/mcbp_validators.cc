@@ -358,6 +358,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         // unit tests easier lets go through the connection
         auto key = cookie.getRequestKey();
         ScopeID sid;
+        uint64_t manifestUid = 0;
 
         if (key.getCollectionID().isDefaultCollection()) {
             sid = ScopeID{ScopeID::Default};
@@ -365,15 +366,16 @@ Status McbpValidator::verify_header(Cookie& cookie,
             auto res = connection.getBucket().getEngine().get_scope_id(&cookie,
                                                                        key);
             if (!res.second) {
-                nlohmann::json json;
-                // return the uid without the 0x prefix
-                json["manifest_uid"] = cb::to_hex(res.first).substr(2);
-                cookie.setErrorJsonExtras(json);
+                // Could not get the collection's scope - an unknown collection
+                // against the manifest with id stored in res.first.
+                cookie.setupForUnknownCollectionResponse(res.first);
                 return Status::UnknownCollection;
             }
+            manifestUid = res.first;
             sid = res.second.value();
         }
-        cookie.setCurrentCollectionInfo({sid, key.getCollectionID()});
+        cookie.setCurrentCollectionInfo(
+                sid, key.getCollectionID(), manifestUid);
     }
 
     return Status::Success;

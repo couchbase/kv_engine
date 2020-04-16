@@ -69,10 +69,10 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
     }
 
     // Now use checkPrivileges to check if the user has the required access
-    if (!checkPrivileges(cookie, engine)) {
+    auto status = checkPrivileges(cookie, engine);
+    if (status != cb::engine_errc::success) {
         throw cb::engine_error(
-                cb::engine_errc::no_access,
-                "Filter::Filter no_access - incorrect privileges");
+                status, "Filter::Filter no_access - incorrect privileges");
     }
 }
 
@@ -459,34 +459,55 @@ std::string Filter::getUid() const {
     return "none";
 }
 
-bool Filter::checkPrivileges(gsl::not_null<const void*> cookie,
-                             const EventuallyPersistentEngine& engine) {
+cb::engine_errc Filter::checkPrivileges(
+        gsl::not_null<const void*> cookie,
+        const EventuallyPersistentEngine& engine) {
     const auto rev = engine.getPrivilegeRevision(cookie);
     if (!lastCheckedPrivilegeRevision ||
         lastCheckedPrivilegeRevision.value() != rev) {
         lastCheckedPrivilegeRevision = rev;
         if (passthrough) {
             // Must have access to the bucket
-            return engine.checkPrivilege(cookie, DcpStreamPrivilege, {}, {}) ==
-                   cb::engine_errc::success;
+            return engine.checkPrivilege(cookie, DcpStreamPrivilege, {}, {});
         } else if (scopeID) {
             // Must have access to at least the scope
             return engine.checkPrivilege(
-                           cookie, DcpStreamPrivilege, scopeID, {}) ==
-                   cb::engine_errc::success;
+                    cookie, DcpStreamPrivilege, scopeID, {});
         } else {
-            // Must have access to the at least collections
+            // Must have access to the collections
+            bool unknownCollection = false;
+            bool accessError = false;
+
+            // Check all collections
             for (const auto& c : filter) {
-                if (engine.checkPrivilege(
-                            cookie, DcpStreamPrivilege, c.second, c.first) !=
-                    cb::engine_errc::success) {
-                    return false;
+                const auto status = engine.checkPrivilege(
+                        cookie, DcpStreamPrivilege, c.second, c.first);
+                switch (status) {
+                case cb::engine_errc::success:
+                    continue;
+                case cb::engine_errc::unknown_collection:
+                    unknownCollection = true;
+                    break;
+                case cb::engine_errc::no_access:
+                    accessError = true;
+                    break;
+                default:
+                    throw std::logic_error(
+                            "Filter::checkPrivileges: unexpected error:" +
+                            to_string(status));
                 }
+            }
+            // Ordering here is important - 1 unknown collection in a sea of
+            // success/no_access dominates and shall be what is seen
+            if (unknownCollection) {
+                return cb::engine_errc::unknown_collection;
+            } else if (accessError) {
+                return cb::engine_errc::no_access;
             }
         }
     }
 
-    return true;
+    return cb::engine_errc::success;
 }
 
 void Filter::dump() const {

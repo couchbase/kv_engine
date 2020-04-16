@@ -73,6 +73,15 @@ void cb::test::ClusterTest::createDefaultBucket() {
           "uid": "9"
         }
       ]
+    },
+    {
+      "name" : "customer_scope",
+      "uid" : "8",
+      "collections": [
+        {
+          "name": "customer_collection1",
+          "uid": "a"
+        }]
     }
   ]
 })"_json);

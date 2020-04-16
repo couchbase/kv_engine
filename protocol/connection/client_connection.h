@@ -209,6 +209,14 @@ public:
         return reason == cb::mcbp::Status::E2big;
     }
 
+    bool isUnknownCollection() const {
+        return reason == cb::mcbp::Status::UnknownCollection;
+    }
+
+    bool isUnknownScope() const {
+        return reason == cb::mcbp::Status::UnknownScope;
+    }
+
     std::string getErrorContext() const;
 
 private:

@@ -124,11 +124,15 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     conn->get(createKey(Collection::Default, "TestBasicRbac"), Vbid{0});
     conn->get(createKey(Collection::Fruit, "TestBasicRbac"), Vbid{0});
+
+    // I cannot get from the vegetable collection
     try {
         conn->get(createKey(Collection::Vegetable, "TestBasicRbac"), Vbid{0});
         FAIL() << "Should not be able to fetch in vegetable collection";
     } catch (const ConnectionError& error) {
-        ASSERT_TRUE(error.isAccessDenied());
+        // No privileges so we would get unknown collection error
+        ASSERT_TRUE(error.isUnknownCollection())
+                << to_string(error.getReason());
     }
 
     // I'm only allowed to write in Fruit
@@ -141,7 +145,13 @@ TEST_F(CollectionsTests, TestBasicRbac) {
             mutate(*conn, createKey(c, "TestBasicRbac"), MutationType::Set);
             FAIL() << "Should only be able to store in the fruit collection";
         } catch (const ConnectionError& error) {
-            ASSERT_TRUE(error.isAccessDenied());
+            if (c == Collection::Default) {
+                // Default: we have read, but not write so access denied
+                ASSERT_TRUE(error.isAccessDenied());
+            } else {
+                // Nothing at all in vegetable, so unknown
+                ASSERT_TRUE(error.isUnknownCollection());
+            }
         }
     }
 

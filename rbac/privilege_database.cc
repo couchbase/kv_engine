@@ -124,6 +124,16 @@ Collection::Collection(const nlohmann::json& json) {
     auto iter = json.find("privileges");
     if (iter != json.end()) {
         privilegeMask = parsePrivileges(*iter, true);
+    } else {
+        throw std::invalid_argument(
+                "rbac::Collection(json) \"collections\" with no \"privileges\" "
+                "key is invalid");
+    }
+
+    if (privilegeMask.none()) {
+        throw std::invalid_argument(
+                "rbac::Collection(json) \"collections\" with empty "
+                "\"privileges\" is invalid");
     }
 }
 
@@ -153,6 +163,13 @@ Scope::Scope(const nlohmann::json& json) {
             collections.emplace(cid, Collection(it.value()));
         }
     }
+
+    // scopes can only have no/empty privileges if there are collections
+    if (collections.empty() && privilegeMask.count() == 0) {
+        throw std::invalid_argument(
+                "rbac::Scope(json) \"scopes\" with no \"privileges\" and no "
+                "\"collections\" is invalid");
+    }
 }
 
 nlohmann::json Scope::to_json() const {
@@ -166,19 +183,24 @@ nlohmann::json Scope::to_json() const {
 }
 
 PrivilegeAccess Scope::check(Privilege privilege,
-                             std::optional<uint32_t> collection) const {
+                             std::optional<uint32_t> collection,
+                             bool parentHasCollectionPrivileges) const {
     if (privilegeMask.test(uint8_t(privilege))) {
         return PrivilegeAccessOk;
     }
 
-    if (collections.empty() || !collection) {
+    // No collection-ID, cannot go deeper - so fail
+    if (!collection) {
         return PrivilegeAccessFail;
     }
 
     const auto iter = collections.find(*collection);
     if (iter == collections.end()) {
-        // We don't have access to that collection
-        return PrivilegeAccessFail;
+        // Collection is not found, but to determine the failure, check if any
+        // collection privileges exist in the search
+        return privilegeMask.any() || parentHasCollectionPrivileges
+                       ? PrivilegeAccessFail
+                       : PrivilegeAccessFailNoPrivileges;
     }
 
     // delegate the check to the collections
@@ -207,6 +229,13 @@ Bucket::Bucket(const nlohmann::json& json) {
             }
         }
     }
+
+    // Count how many privileges at the bucket are applicable to collections
+    for (std::size_t ii = 0; ii < privilegeMask.size(); ++ii) {
+        if (is_collection_privilege(Privilege(ii)) && privilegeMask.test(ii)) {
+            collectionPrivilegeCount++;
+        }
+    }
 }
 
 nlohmann::json Bucket::to_json() const {
@@ -226,18 +255,25 @@ PrivilegeAccess Bucket::check(Privilege privilege,
         return PrivilegeAccessOk;
     }
 
-    if (scopes.empty() || !scope || !is_collection_privilege(privilege)) {
-        return PrivilegeAccessFail;
+    PrivilegeAccess status(PrivilegeAccess::Status::Fail);
+    // We don't have any scope to search the next level or it's not a privilege
+    // that would be permissible at a lower level
+    if (scope && is_collection_privilege(privilege)) {
+        const auto iter = scopes.find(*scope);
+        if (iter != scopes.end()) {
+            // Delegate the check to the scopes
+            status = iter->second.check(
+                    privilege, collection, collectionPrivilegeCount != 0);
+        } else {
+            // They don't have that scope at all, but do they have any
+            // collection privileges which will determine  the error code.
+            status = collectionPrivilegeCount != 0
+                             ? PrivilegeAccessFail
+                             : PrivilegeAccessFailNoPrivileges;
+        }
     }
 
-    const auto iter = scopes.find(*scope);
-    if (iter == scopes.end()) {
-        // We don't have access to that scope
-        return PrivilegeAccessFail;
-    }
-
-    // Delegate the check to the scopes
-    return iter->second.check(privilege, collection);
+    return status;
 }
 
 bool UserEntry::operator==(const UserEntry& other) const {

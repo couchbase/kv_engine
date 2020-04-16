@@ -105,11 +105,14 @@ public:
      *
      * @param privilege The privilege to check for
      * @param collection The requested collection id
+     * @param parentHasCollectionPrivileges True/false if the parent of this
+     *        object (the Bucket) has >0 collection privileges.
      * @return PrivilegeAccess::Ok if the privilege is held
      *         PrivilegeAccess::Fail otherwise
      */
     PrivilegeAccess check(Privilege privilege,
-                          std::optional<uint32_t> collection) const;
+                          std::optional<uint32_t> collection,
+                          bool parentHasCollectionPrivileges) const;
 
     /// Check if this object is identical to another object
     bool operator==(const Scope& other) const;
@@ -165,6 +168,10 @@ protected:
     /// The privilege mask describing the access to this scope IFF no
     /// scopes is configured
     PrivilegeMask privilegeMask;
+
+    /// Count of how many privileges are applicable to collections.
+    uint32_t collectionPrivilegeCount{0};
+
     /// All of the scopes the bucket contains
     std::unordered_map<uint32_t, Scope> scopes;
 };

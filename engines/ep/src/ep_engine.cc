@@ -1967,7 +1967,7 @@ void EventuallyPersistentEngine::setErrorContext(const void* cookie,
 }
 
 void EventuallyPersistentEngine::setErrorJsonExtras(
-        const void* cookie, const nlohmann::json& json) {
+        const void* cookie, const nlohmann::json& json) const {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_error_json_extras(const_cast<void*>(cookie), json);
 }
@@ -4675,25 +4675,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::checkPrivilege(
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         const void* cookie, cb::rbac::Privilege priv, CollectionID cid) const {
-    ScopeID sid;
-    if (cid.isDefaultCollection()) {
-        sid = ScopeID{ScopeID::Default};
-    } else {
+    ScopeID sid{ScopeID::Default};
+    uint64_t manifestUid{0};
+    cb::engine_errc status = cb::engine_errc::success;
+
+    if (!cid.isDefaultCollection()) {
         auto res = getKVBucket()->getScopeID(cid);
+        manifestUid = res.first;
         if (!res.second) {
-            return cb::engine_errc::unknown_collection;
+            status = cb::engine_errc::unknown_collection;
         }
         sid = res.second.value();
     }
 
-    auto status = checkPrivilege(cookie, priv, sid, cid);
+    if (status == cb::engine_errc::success) {
+        status = checkPrivilege(cookie, priv, sid, cid);
+    }
 
-    if (status == cb::engine_errc::failed) {
-        EP_LOG_ERR(
-                "EPE::checkPrivilege: failed while checking "
-                "privilege for cid {} sid {}",
-                cid.to_string(),
-                sid.to_string());
+    switch (status) {
+    case cb::engine_errc::success:
+        break;
+    case cb::engine_errc::unknown_collection:
+        setErrorJsonExtras(
+                cookie,
+                Collections::getUnknownCollectionErrorContext(manifestUid));
+        break;
+    default:
+        EP_LOG_ERR("EPE::checkPrivilege: unexpected status cid:{} status:{}",
+                   cid.to_string(),
+                   to_string(status));
     }
     return status;
 }
@@ -4704,11 +4714,16 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        const auto acc =
-                serverApi->cookie->check_privilege(cookie, priv, sid, cid);
-        return acc.success() ? cb::engine_errc::success
-                             : cb::engine_errc::no_access;
-
+        switch (serverApi->cookie->check_privilege(cookie, priv, sid, cid)
+                        .getStatus()) {
+        case cb::rbac::PrivilegeAccess::Status::Ok:
+            return cb::engine_errc::success;
+        case cb::rbac::PrivilegeAccess::Status::Fail:
+            return cb::engine_errc::no_access;
+        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+            return cid ? cb::engine_errc::unknown_collection
+                       : cb::engine_errc::unknown_scope;
+        }
     } catch (const std::exception& e) {
         EP_LOG_ERR(
                 "EPE::checkPrivilege: received exception while checking "
@@ -4716,8 +4731,8 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
                 sid ? sid->to_string() : "no-scope",
                 cid ? cid->to_string() : "no-collection",
                 e.what());
-        return cb::engine_errc::failed;
     }
+    return cb::engine_errc::failed;
 }
 
 /**

@@ -187,7 +187,10 @@ public:
         // Requested privilege was found
         Ok,
         // Requested privilege was not found
-        Fail
+        Fail,
+        // Requested privilege was not found and the user has no privileges
+        // relevant to the requested check, e.g. no privileges for a collection
+        FailNoPrivileges
     };
 
     explicit PrivilegeAccess(Status s) : status(s) {
@@ -199,6 +202,7 @@ public:
         case Status::Ok:
             return true;
         case Status::Fail:
+        case Status::FailNoPrivileges:
             return false;
         }
         return false;
@@ -237,6 +241,8 @@ private:
 // declare these to reduce the boilerplate needed due to explicit constructor
 const PrivilegeAccess PrivilegeAccessOk{PrivilegeAccess::Status::Ok};
 const PrivilegeAccess PrivilegeAccessFail{PrivilegeAccess::Status::Fail};
+const PrivilegeAccess PrivilegeAccessFailNoPrivileges{
+        PrivilegeAccess::Status::FailNoPrivileges};
 
 /// is this a privilege related to a bucket or not
 bool is_bucket_privilege(Privilege);

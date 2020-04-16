@@ -2013,7 +2013,7 @@ bool ActiveStream::collectionAllowed(CollectionID cid) const {
 void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
     std::unique_lock lh(streamMutex);
     // Does this stream still have the appropriate privileges to operate?
-    if (!filter.checkPrivileges(cookie, *engine)) {
+    if (filter.checkPrivileges(cookie, *engine) != cb::engine_errc::success) {
         endStream(END_STREAM_LOST_PRIVILEGES);
         lh.unlock();
         notifyStreamReady();

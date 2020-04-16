@@ -553,7 +553,8 @@ public:
 
     void setErrorContext(const void* cookie, std::string_view message);
 
-    void setErrorJsonExtras(const void* cookie, const nlohmann::json& json);
+    void setErrorJsonExtras(const void* cookie,
+                            const nlohmann::json& json) const;
 
     template <typename T>
     void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status);
