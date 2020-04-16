@@ -1336,8 +1336,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
             // is being called with.
             using ::testing::Sequence;
             InSequence s;
-            // 2 bytes - detect block type
-            EXPECT_CALL(ops, pread(_, _, _, 2, _));
+            // 1 byte - detect block type
+            EXPECT_CALL(ops, pread(_, _, _, 1, _));
             // 8 bytes - file header
             EXPECT_CALL(ops, pread(_, _, _, 8, _));
             // <variable> - byId tree root
