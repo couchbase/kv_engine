@@ -296,14 +296,6 @@ struct DropScopeEventDcpData {
 };
 
 /**
- * All unknown_collection errors should be accompanied by a error context
- * value which includes the manifest ID which was what the collection lookup
- * failed against.
- * @return json for use in setErrorJsonExtras
- */
-nlohmann::json getUnknownCollectionErrorContext(uint64_t manifestUid);
-
-/**
  * For creation of collection SystemEvents - The SystemEventFactory
  * glues the CollectionID into the event key (so create of x doesn't
  * collide with create of y). This method yields the 'keyExtra' parameter

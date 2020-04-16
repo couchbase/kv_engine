@@ -739,13 +739,22 @@ bool Cookie::fetchEuidPrivilegeSet() {
     return true;
 }
 
-void Cookie::setupForUnknownCollectionResponse() {
-    setupForUnknownCollectionResponse(currentCollectionInfo.manifestUid);
+void Cookie::setUnknownCollectionErrorContext() {
+    setUnknownCollectionErrorContext(currentCollectionInfo.manifestUid);
 }
 
-void Cookie::setupForUnknownCollectionResponse(uint64_t manifestUid) {
+void Cookie::setUnknownCollectionErrorContext(uint64_t manifestUid) {
     nlohmann::json json;
     // return the uid without the 0x prefix
-    json["manifest_uid"] = cb::to_hex(manifestUid).substr(2);
+    json["manifest_uid"] = fmt::format("{0:x}", manifestUid);
     setErrorJsonExtras(json);
+    // For simplicity set one error message for either unknown scope or
+    // collection. This message is only here to ensure we don't also send
+    // back a privilege violation message when collection visibility checks
+    // occur.
+    setErrorContext("Unknown scope or collection in operation");
+
+    // ensure that a valid collection which is 'invisible' from a priv check
+    // doesn't expose the priv check failure via an event_id
+    event_id.clear();
 }

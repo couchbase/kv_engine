@@ -134,6 +134,11 @@ public:
                                const nlohmann::json& json) override {
         throw std::runtime_error("set_error_json_extras not implemented");
     }
+    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
+                                              uint64_t manifestUid) override {
+        throw std::runtime_error(
+                "set_unknown_collection_error_context not implemented");
+    }
     std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) override {

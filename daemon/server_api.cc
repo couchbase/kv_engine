@@ -362,6 +362,11 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).setErrorJsonExtras(json);
     }
 
+    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
+                                              uint64_t manifestUid) override {
+        getCookie(cookie).setUnknownCollectionErrorContext(manifestUid);
+    }
+
     std::string_view get_inflated_payload(gsl::not_null<const void*> cookie,
                                           const cb::mcbp::Request&) override {
         return getCookie(cookie).getInflatedInputPayload();

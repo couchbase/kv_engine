@@ -556,6 +556,9 @@ public:
     void setErrorJsonExtras(const void* cookie,
                             const nlohmann::json& json) const;
 
+    void setUnknownCollectionErrorContext(const void* cookie,
+                                          uint64_t manifestUid) const;
+
     template <typename T>
     void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status);
 

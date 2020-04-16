@@ -885,7 +885,7 @@ void execute_client_request_packet(Cookie& cookie,
         } else {
             auto status = getStatusCode(res);
             if (status == cb::mcbp::Status::UnknownCollection) {
-                cookie.setupForUnknownCollectionResponse();
+                cookie.setUnknownCollectionErrorContext();
             }
 
             cookie.sendResponse(status);

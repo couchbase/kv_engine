@@ -162,6 +162,10 @@ public:
                                const nlohmann::json& json) override {
         wrapped->set_error_json_extras(cookie, json);
     }
+    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
+                                              uint64_t manifestUid) override {
+        wrapped->set_unknown_collection_error_context(cookie, manifestUid);
+    }
     std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) override {

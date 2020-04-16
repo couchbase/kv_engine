@@ -368,7 +368,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
             if (!res.second) {
                 // Could not get the collection's scope - an unknown collection
                 // against the manifest with id stored in res.first.
-                cookie.setupForUnknownCollectionResponse(res.first);
+                cookie.setUnknownCollectionErrorContext(res.first);
                 return Status::UnknownCollection;
             }
             manifestUid = res.first;

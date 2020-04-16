@@ -1827,10 +1827,8 @@ EventuallyPersistentEngine::get_collection_id(gsl::not_null<const void*> cookie,
     auto rv = engine->getKVBucket()->getCollectionID(path);
     if (rv.result == cb::engine_errc::unknown_collection ||
         rv.result == cb::engine_errc::unknown_scope) {
-        engine->setErrorJsonExtras(
-                cookie,
-                Collections::getUnknownCollectionErrorContext(
-                        rv.getManifestId()));
+        engine->setUnknownCollectionErrorContext(cookie,
+                                                 rv.getManifestId());
     }
     return rv;
 }
@@ -1840,10 +1838,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
     if (rv.result == cb::engine_errc::unknown_scope) {
-        engine->setErrorJsonExtras(
-                cookie,
-                Collections::getUnknownCollectionErrorContext(
-                        rv.getManifestId()));
+        engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
     return rv;
 }
@@ -1970,6 +1965,13 @@ void EventuallyPersistentEngine::setErrorJsonExtras(
         const void* cookie, const nlohmann::json& json) const {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_error_json_extras(const_cast<void*>(cookie), json);
+}
+
+void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
+        const void* cookie, uint64_t manifestUid) const {
+    NonBucketAllocationGuard guard;
+    serverApi->cookie->set_unknown_collection_error_context(
+            const_cast<void*>(cookie), manifestUid);
 }
 
 template <typename T>
@@ -4358,9 +4360,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCollectionStats(
             *kvBucket, cookie, add_stat, statKey);
     if (res.result == cb::engine_errc::unknown_collection ||
         res.result == cb::engine_errc::unknown_scope) {
-        setErrorJsonExtras(cookie,
-                           Collections::getUnknownCollectionErrorContext(
-                                   res.getManifestId()));
+        setUnknownCollectionErrorContext(cookie,
+                                         res.getManifestId());
     }
     return ENGINE_ERROR_CODE(res.result);
 }
@@ -4372,9 +4373,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
     auto res = Collections::Manager::doScopeStats(
             *kvBucket, cookie, add_stat, statKey);
     if (res.result == cb::engine_errc::unknown_scope) {
-        setErrorJsonExtras(cookie,
-                           Collections::getUnknownCollectionErrorContext(
-                                   res.getManifestId()));
+        setUnknownCollectionErrorContext(cookie,
+                                         res.getManifestId());
     }
     return ENGINE_ERROR_CODE(res.result);
 }
@@ -4696,9 +4696,8 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     case cb::engine_errc::success:
         break;
     case cb::engine_errc::unknown_collection:
-        setErrorJsonExtras(
-                cookie,
-                Collections::getUnknownCollectionErrorContext(manifestUid));
+        setUnknownCollectionErrorContext(cookie,
+                                         manifestUid);
         break;
     default:
         EP_LOG_ERR("EPE::checkPrivilege: unexpected status cid:{} status:{}",

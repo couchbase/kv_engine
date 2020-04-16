@@ -1043,10 +1043,8 @@ std::pair<uint64_t, std::optional<ScopeID>> default_engine::get_scope_id(
 
 void default_engine::generate_unknown_collection_response(
         const void* cookie) const {
-    using nlohmann::json;
     // Default engine does not support collection changes, so is always
     // reporting 'unknown collection' against the epoch manifest (uid 0)
-    static const auto error_context = R"({"manifest_uid":"0"})"_json;
-    server.cookie->set_error_json_extras(const_cast<void*>(cookie),
-                                         error_context);
+    server.cookie->set_unknown_collection_error_context(
+            const_cast<void*>(cookie), 0);
 }

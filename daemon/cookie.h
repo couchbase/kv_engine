@@ -488,10 +488,10 @@ public:
 
     /// Set the JSON extras to return the manifestId which is located in
     /// currentCollectionInfo.
-    void setupForUnknownCollectionResponse();
+    void setUnknownCollectionErrorContext();
 
     /// Set the JSON extras to return the manifestId
-    void setupForUnknownCollectionResponse(uint64_t manifestUid);
+    void setUnknownCollectionErrorContext(uint64_t manifestUid);
 
     /// Check if the current command have the requested privilege
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege) {

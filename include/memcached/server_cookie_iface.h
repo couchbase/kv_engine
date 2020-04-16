@@ -276,6 +276,24 @@ struct ServerCookieIface {
                                        const nlohmann::json& json) = 0;
 
     /**
+     * Set the cookie state ready for an unknown collection (scope)
+     * response. This ensures the manifestUid is added as extra state
+     * to the response in a consistent format.
+     *
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
+     * @param cookie the client cookie (to look up client connection)
+     * @param manifestUid id to include in response
+     */
+    virtual void set_unknown_collection_error_context(
+            gsl::not_null<void*> cookie, uint64_t manifestUid) = 0;
+
+    /**
      * Get the inflated payload associated with this command
      * @param cookie The cookie representing this command
      * param request The request (only used by the mock test framework

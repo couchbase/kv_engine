@@ -361,6 +361,10 @@ struct MockServerCookieApi : public ServerCookieIface {
                                const nlohmann::json& json) override {
     }
 
+    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
+                                              uint64_t manifestUid) override {
+    }
+
     std::string_view get_inflated_payload(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Request& request) override {

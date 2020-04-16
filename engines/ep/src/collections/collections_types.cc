@@ -52,16 +52,6 @@ ManifestUid makeUid(const char* uid, size_t len) {
     return std::strtoul(uid, nullptr, 16);
 }
 
-// Just return the manifest-uid as it is encoded in the JSON manifest
-// base-16 with no 0x prefix.
-nlohmann::json getUnknownCollectionErrorContext(uint64_t manifestUid) {
-    std::stringstream ss;
-    ss << std::hex << manifestUid;
-    nlohmann::json json;
-    json["manifest_uid"] = ss.str();
-    return json;
-}
-
 std::string makeCollectionIdIntoString(CollectionID collection) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(collection);
     return std::string(reinterpret_cast<const char*>(leb128.data()),
