@@ -1136,7 +1136,7 @@ void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
 
     KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();
-    bool result = store->compactDB(ctx.get());
+    bool result = store->compactDB(ctx);
 
     VBucketPtr vb = getVBucket(config.db_file_id);
     if (vb) {

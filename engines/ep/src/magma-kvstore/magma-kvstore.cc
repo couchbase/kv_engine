@@ -257,7 +257,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             std::lock_guard<std::mutex> lock(compactionCtxMutex);
             if (compaction_ctxList[cbCtx.vbid.get()]) {
                 cbCtx.magmaCompactionCtx = compaction_ctxList[cbCtx.vbid.get()];
-                cbCtx.ctx = cbCtx.magmaCompactionCtx->ctx;
+                cbCtx.ctx = cbCtx.magmaCompactionCtx.get();
             }
         }
         if (!cbCtx.ctx) {
@@ -1658,8 +1658,8 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
     return ENGINE_SUCCESS;
 }
 
-bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
-    auto res = compactDBInternal(ctx);
+bool MagmaKVStore::compactDB(std::shared_ptr<compaction_ctx> ctx) {
+    auto res = compactDBInternal(std::move(ctx));
 
     if (!res) {
         st.numCompactionFailure++;
@@ -1668,7 +1668,7 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     return res;
 }
 
-bool MagmaKVStore::compactDBInternal(compaction_ctx* ctx) {
+bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
 
@@ -1694,8 +1694,7 @@ bool MagmaKVStore::compactDBInternal(compaction_ctx* ctx) {
 
     {
         std::lock_guard<std::mutex> lock(compactionCtxMutex);
-        compaction_ctxList[vbid.get()] =
-                std::make_shared<MagmaCompactionCtx>(ctx);
+        compaction_ctxList[vbid.get()] = ctx;
     }
 
     auto dropped = getDroppedCollections(vbid);

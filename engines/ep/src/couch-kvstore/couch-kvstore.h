@@ -249,15 +249,7 @@ public:
      */
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
-    /**
-    * Compact a database file in the underlying storage system.
-    *
-    * @param ctx - compaction context that holds the identifier of the
-                   underlying database file, options and callbacks
-                   that need to invoked.
-    * @return true if successful
-    */
-    bool compactDB(compaction_ctx *ctx) override;
+    bool compactDB(std::shared_ptr<compaction_ctx> ctx) override;
 
     /**
      * Return the database file id from the compaction request

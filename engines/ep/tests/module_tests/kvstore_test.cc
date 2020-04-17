@@ -335,9 +335,9 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     compactionConfig.purge_before_ts = 0;
     compactionConfig.drop_deletes = 0;
     compactionConfig.db_file_id = Vbid(0);
-    compaction_ctx cctx(compactionConfig, 0);
+    auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
 
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    EXPECT_TRUE(kvstore->compactDB(cctx));
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
     kvstore->addStats(add_stat_callback, &stats, "");
@@ -944,7 +944,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     config.purge_before_ts = 0;
     config.drop_deletes = 0;
     config.db_file_id = Vbid(0);
-    compaction_ctx cctx(config, 0);
+    auto cctx = std::make_shared<compaction_ctx>(config, 0);
 
     {
         /* Establish Logger expectation */
@@ -959,7 +959,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
         EXPECT_CALL(ops, open(_, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE)).RetiresOnSaturation();
         EXPECT_CALL(ops, open(_, _, _, _)).Times(1).RetiresOnSaturation();
-        kvstore->compactDB(&cctx);
+        kvstore->compactDB(cctx);
     }
 }
 
@@ -1302,14 +1302,14 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
     populate_items(1);
 
     CompactionConfig config;
-    compaction_ctx cctx(config, 0);
+    auto cctx = std::make_shared<compaction_ctx>(config, 0);
 
     {
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, open(_, _, _, _)).WillOnce(
                 Return(COUCHSTORE_ERROR_OPEN_FILE)).RetiresOnSaturation();
         EXPECT_CALL(ops, open(_, _, _, _)).Times(1).RetiresOnSaturation();
-        kvstore->compactDB(&cctx);
+        kvstore->compactDB(cctx);
     }
 
     // Check the fail compaction statistic is correct.
@@ -2215,9 +2215,9 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
 
         config.drop_deletes = 0;
         config.db_file_id = Vbid(0);
-        compaction_ctx cctx(config, 0);
+        auto cctx = std::make_shared<compaction_ctx>(config, 0);
         for (int i = 0; i < 10; i++) {
-            EXPECT_TRUE(kvstore->compactDB(&cctx));
+            EXPECT_TRUE(kvstore->compactDB(cctx));
         }
     };
 
@@ -2475,9 +2475,9 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     compactionConfig.purge_before_ts = 0;
     compactionConfig.drop_deletes = 0;
     compactionConfig.db_file_id = vbid;
-    compaction_ctx cctx(compactionConfig, 0);
+    auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
 
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    EXPECT_TRUE(kvstore->compactDB(cctx));
 
     kvstore->scan(*scanCtx);
 

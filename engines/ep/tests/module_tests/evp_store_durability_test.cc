@@ -2541,9 +2541,9 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    compaction_ctx cctx(config, 0);
+    auto cctx = std::make_shared<compaction_ctx>(config, 0);
 
-    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
+    cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     // Jump slightly forward, to ensure the new current time
     // is > expiry time of the delete
@@ -2552,7 +2552,7 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     auto* kvstore = store->getOneRWUnderlying();
 
     // Compact. Nothing should be expired
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    EXPECT_TRUE(kvstore->compactDB(cctx));
 
     // Check the committed item on disk.
     auto gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -2587,8 +2587,8 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    compaction_ctx cctx(config, 0);
-    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
+    auto cctx = std::make_shared<compaction_ctx>(config, 0);
+    cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     auto* kvstore = store->getOneRWUnderlying();
 
@@ -2599,7 +2599,7 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
     EXPECT_EQ(2, kvstore->getItemCount(vbid));
 
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    EXPECT_TRUE(kvstore->compactDB(cctx));
 
     // Check the committed item on disk.
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -2652,9 +2652,9 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
 
     CompactionConfig config;
-    compaction_ctx cctx(config, 0);
-    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    auto cctx = std::make_shared<compaction_ctx>(config, 0);
+    cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
+    EXPECT_TRUE(kvstore->compactDB(cctx));
 
     // Check the Abort on disk. We won't remove it until the purge interval has
     // passed because we need it to ensure we can resume a replica that had an
@@ -2663,8 +2663,8 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
-    cctx.compactConfig.purge_before_ts = std::numeric_limits<uint64_t>::max();
-    EXPECT_TRUE(kvstore->compactDB(&cctx));
+    cctx->compactConfig.purge_before_ts = std::numeric_limits<uint64_t>::max();
+    EXPECT_TRUE(kvstore->compactDB(cctx));
 
     // Now the Abort should be gone
     gv = kvstore->get(prefixedKey, Vbid(0));

@@ -252,10 +252,7 @@ public:
     //    need to support a synchronous call. When compactDB is called, it will
     //    save the compaction_ctx passed in to compactDB and will use it
     //    to perform compaction.
-    //
-    // For DP, we will support only Level and Sychronous compaction. This
-    // alleviates the need for a callback to pick up compaction_ctx.
-    bool compactDB(compaction_ctx*) override;
+    bool compactDB(std::shared_ptr<compaction_ctx> ctx) override;
 
     Vbid getDBFileId(const cb::mcbp::Request&) override;
 
@@ -514,7 +511,7 @@ protected:
     /**
      * CompactDB implementation. See comments on public compactDB.
      */
-    bool compactDBInternal(compaction_ctx* ctx);
+    bool compactDBInternal(std::shared_ptr<compaction_ctx> ctx);
 
     /*
      * The DB for each VBucket is created in a separated subfolder of
@@ -554,12 +551,6 @@ protected:
                            Vbid vbid,
                            GetMetaOnly getMetaOnly);
 
-    struct MagmaCompactionCtx {
-        MagmaCompactionCtx(compaction_ctx* ctx) : ctx(ctx) {
-        }
-        compaction_ctx* ctx;
-    };
-
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
     public:
         MagmaCompactionCB(MagmaKVStore& magmaKVStore);
@@ -573,7 +564,7 @@ protected:
         MagmaKVStore& magmaKVStore;
         bool initialized{false};
         std::stringstream itemKeyBuf;
-        std::shared_ptr<MagmaCompactionCtx> magmaCompactionCtx;
+        std::shared_ptr<compaction_ctx> magmaCompactionCtx;
         compaction_ctx* ctx{nullptr};
         Vbid vbid{};
     };
@@ -644,7 +635,7 @@ protected:
     // This needs to be a shared_ptr because its possible an implicit
     // compaction kicks off while an explicit compaction is happening
     // and we don't want to free it while the implicit compaction is working.
-    std::vector<std::shared_ptr<MagmaCompactionCtx>> compaction_ctxList;
+    std::vector<std::shared_ptr<compaction_ctx>> compaction_ctxList;
     std::mutex compactionCtxMutex;
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>

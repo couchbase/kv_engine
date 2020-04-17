@@ -781,8 +781,12 @@ public:
 
     /**
      * Compact a database file.
+     *
+     * @param c shared_ptr to the compaction_ctx that includes various callbacks
+     *          and compaction parameters
+     * @return true if the compaction was successful
      */
-    virtual bool compactDB(compaction_ctx *c) = 0;
+    virtual bool compactDB(std::shared_ptr<compaction_ctx> c) = 0;
 
     /**
      * Return the database file id from the compaction request
