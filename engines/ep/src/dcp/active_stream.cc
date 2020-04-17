@@ -258,17 +258,6 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
-        {
-            auto producer = producerPtr.lock();
-            // Does this stream still  have the appropriate privileges to
-            // operate?
-            if (!filter.checkPrivileges(producer->getCookie(), *engine)) {
-                endStream(END_STREAM_LOST_PRIVILEGES);
-                lh.unlock();
-                notifyStreamReady();
-                return false;
-            }
-        }
         uint64_t chkCursorSeqno = endSeqno;
 
         if (!isBackfilling()) {
@@ -392,20 +381,6 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     }
 
     std::unique_lock<std::mutex> lh(streamMutex);
-
-    {
-        auto producer = producerPtr.lock();
-        // Does this stream still  have the appropriate privileges to operate?
-        // If the producer has gone away then we'll reset/return a little
-        // further on.
-        if (producer &&
-            !filter.checkPrivileges(producer->getCookie(), *engine)) {
-            endStream(END_STREAM_LOST_PRIVILEGES);
-            lh.unlock();
-            notifyStreamReady();
-            return false;
-        }
-    }
 
     if (isBackfilling() && filter.checkAndUpdate(*itm)) {
         queued_item qi(std::move(itm));
@@ -997,14 +972,6 @@ void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
     if (vbucket) {
         auto producer = producerPtr.lock();
         if (!producer) {
-            return;
-        }
-
-        // Before processing the checkpoint, does this stream still have the
-        // appropriate privileges to operate?
-        if (!filter.checkPrivileges(producer->getCookie(), *engine)) {
-            endStream(END_STREAM_LOST_PRIVILEGES);
-            notifyStreamReady();
             return;
         }
 
@@ -2041,4 +2008,14 @@ std::string ActiveStream::to_string(StreamState st) {
 
 bool ActiveStream::collectionAllowed(CollectionID cid) const {
     return filter.check(cid);
+}
+
+void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
+    std::unique_lock lh(streamMutex);
+    // Does this stream still have the appropriate privileges to operate?
+    if (!filter.checkPrivileges(cookie, *engine)) {
+        endStream(END_STREAM_LOST_PRIVILEGES);
+        lh.unlock();
+        notifyStreamReady();
+    }
 }

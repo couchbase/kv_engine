@@ -109,6 +109,8 @@ public:
      */
     void seqnoAck(int64_t seqno);
 
+    void closeIfRequiredPrivilegesLost(const void* cookie) override;
+
     static std::string to_string(StreamState st);
 
     static const size_t batchSize;

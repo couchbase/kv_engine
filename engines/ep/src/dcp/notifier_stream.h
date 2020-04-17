@@ -56,6 +56,10 @@ public:
 
     static std::string to_string(StreamState type);
 
+    void closeIfRequiredPrivilegesLost(const void* cookie) override {
+        // @todo: MB-38829 require bucket DcpStream privilege
+    }
+
 private:
     void transitionState(StreamState newState);
 
