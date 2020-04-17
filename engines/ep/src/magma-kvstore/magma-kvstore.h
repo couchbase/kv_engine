@@ -48,29 +48,6 @@ struct kvstats_ctx;
 struct vbucket_state;
 
 /**
- * Magma info is used to mimic info that is stored internally in couchstore.
- * This info is stored with vbucket_state every time vbucket_state is stored.
- */
-class MagmaInfo {
-public:
-    MagmaInfo() = default;
-
-    // Note: we don't want to reset the kvstoreRev because it tracks
-    // the kvstore revision which is a monotonically increasing
-    // value each time the kvstore is created.
-    void reset() {
-        docCount = 0;
-        persistedDeletes = 0;
-    }
-
-    cb::NonNegativeCounter<uint64_t> docCount{0};
-    cb::NonNegativeCounter<uint64_t> persistedDeletes{0};
-
-    // Magma API takes a 32bit KVStoreRevision
-    Monotonic<uint32_t> kvstoreRev{1};
-};
-
-/**
  * MagmaDbStats are a set of stats maintained within the Magma KVStore
  * rather than on the vbucket_state. This is because compaction is unable
  * to update the vbstate since it runs in a different thread than the
@@ -82,26 +59,32 @@ class MagmaDbStats : public magma::UserStats {
 public:
     explicit MagmaDbStats() = default;
 
-    MagmaDbStats(const MagmaDbStats& other)
-        : docCount(other.docCount),
-          onDiskPrepares(other.onDiskPrepares),
-          highSeqno(other.highSeqno),
-          purgeSeqno(other.purgeSeqno) {
+    MagmaDbStats(int64_t docCount,
+                 int64_t onDiskPrepares,
+                 uint64_t highSeqno,
+                 uint64_t purgeSeqno) {
+        auto locked = stats.wlock();
+        locked->reset(docCount, onDiskPrepares, highSeqno, purgeSeqno);
+    }
+
+    MagmaDbStats(const MagmaDbStats& other) {
+        *this = other;
     }
 
     MagmaDbStats& operator=(const MagmaDbStats& other) {
-        docCount = other.docCount;
-        onDiskPrepares = other.onDiskPrepares;
-        highSeqno = other.highSeqno;
-        purgeSeqno = other.purgeSeqno;
+        auto locked = stats.wlock();
+        auto otherLocked = other.stats.rlock();
+        *locked = *otherLocked;
         return *this;
     }
 
     void reset(const MagmaDbStats& other) {
-        docCount = other.docCount;
-        onDiskPrepares = other.onDiskPrepares;
-        highSeqno.reset(other.highSeqno);
-        purgeSeqno.reset(other.purgeSeqno);
+        auto locked = stats.wlock();
+        auto otherLocked = other.stats.rlock();
+        locked->reset(otherLocked->docCount,
+                      otherLocked->onDiskPrepares,
+                      otherLocked->highSeqno,
+                      otherLocked->purgeSeqno);
     }
 
     /**
@@ -137,10 +120,33 @@ public:
      */
     magma::Status Unmarshal(const std::string& encoded) override;
 
-    int64_t docCount{0};
-    int64_t onDiskPrepares{0};
-    Monotonic<uint64_t> highSeqno{0};
-    Monotonic<uint64_t> purgeSeqno{0};
+    struct Stats {
+        Stats() = default;
+
+        Stats(const Stats& other) {
+            docCount = other.docCount;
+            onDiskPrepares = other.onDiskPrepares;
+            highSeqno = other.highSeqno;
+            purgeSeqno = other.purgeSeqno;
+        }
+
+        void reset(int64_t docCount,
+                   int64_t onDiskPrepares,
+                   uint64_t highSeqno,
+                   uint64_t purgeSeqno) {
+            this->docCount = docCount;
+            this->onDiskPrepares = onDiskPrepares;
+            this->highSeqno.reset(highSeqno);
+            this->purgeSeqno.reset(purgeSeqno);
+        }
+
+        int64_t docCount{0};
+        int64_t onDiskPrepares{0};
+        Monotonic<uint64_t> highSeqno{0};
+        Monotonic<uint64_t> purgeSeqno{0};
+    };
+
+    folly::Synchronized<Stats> stats;
 };
 
 /**
@@ -213,6 +219,13 @@ public:
      * @param writeOps vector of Magma::WriteOperations's
      */
     void addLocalDbReqs(const LocalDbReqs& localDbReqs, WriteOps& writeOps);
+
+    /**
+     * Add MagmaDbStats to the WriteOps vector to be inserted into the kvstore.
+     * @param stats The MagmaDbStats object
+     * @param writeOps vector of Magma::WriteOperations
+     */
+    void addStatUpdateToWriteOps(MagmaDbStats& stats, WriteOps& writeOps) const;
 
     MagmaKVStore(MagmaKVStoreConfig& config);
 
@@ -506,38 +519,37 @@ public:
             Vbid vbid, const magma::Slice& keySlice);
 
     /**
-     * Encode the cached vbucket_state and magmaInfo into a nlohmann json struct
+     * Encode the cached vbucket_state into a nlohmann json struct
      */
     nlohmann::json encodeVBState(const vbucket_state& vbstate,
-                                 const MagmaInfo& magmaInfo) const;
+                                 uint64_t kvstoreRev) const;
 
     /**
      * Read the vbstate from disk and load into cache
      */
-    magma::Status loadVBStateCache(Vbid vbid);
+    magma::Status loadVBStateCache(Vbid vbid, bool resetKVStoreRev = false);
 
     /**
-     * Write the vbucket_state and MagmaInfo to disk.
+     * Write the vbucket_state to disk.
      * This is done outside an atomic batch so we need to
-     * create a batch to write it.
+     * create a WriteDocs batch to write it.
      *
      * @param vbid vbucket id
      * @param vbstate vbucket state
-     * @param minfo MagmaInfo
      * @return status
      */
-    magma::Status writeVBStateToDisk(Vbid vbid,
-                                     const vbucket_state& vbstate,
-                                     const MagmaInfo& minfo);
+    magma::Status writeVBStateToDisk(Vbid vbid, const vbucket_state& vbstate);
 
     /**
-     * Return value of readVBStateFromDisk. Would have problems assigning
-     * MagmaInfo otherwise as it include a Monotonic.
+     * Return value of readVBStateFromDisk.
      */
     struct DiskState {
         magma::Status status;
         vbucket_state vbstate;
-        MagmaInfo magmaInfo;
+
+        // Revision number of the vBucket/kvstore that we store in the
+        // vbucket_state local doc for magma vBuckets
+        uint64_t kvstoreRev;
     };
 
     /**
@@ -546,19 +558,25 @@ public:
     DiskState readVBStateFromDisk(Vbid vbid);
 
     /**
-     * Write the encoded vbstate + docCount to the local db.
+     * Write the encoded vbstate to localDb.
      */
     void addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
                                        const vbucket_state& vbs,
-                                       const MagmaInfo& minfo);
+                                       uint64_t kvstoreRev);
+
+    /**
+     * Whenever we go to cachedVBStates, we need to merge in
+     * the MagmaDbStats stats to make the vbstate current. We read
+     * the MagmaDbStats stats from magma which are kept on the state file.
+     */
+    void mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate, Vbid vbid);
 
     /**
      * Get vbstate from cache. If cache not populated, read it from disk
      * and populate cache. If not on disk, return nullptr;
      *
-     * vbstate and magmaInfo always go together, we should never have a
-     * case where only 1 of them is initialized. So, if vbstate is
-     * uninitilized, assume magmaInfo is as well.
+     * Note: When getting the vbstate, we merge in the MagmaDbStats stats.
+     * See mergeMagmaDbStatsIntoVBState() above.
      */
     vbucket_state* getVBucketState(Vbid vbucketId) override;
 
@@ -615,11 +633,6 @@ protected:
     static ENGINE_ERROR_CODE magmaErr2EngineErr(magma::Status::Code err,
                                                 bool found = true);
 
-    /**
-     * @return a reference to the MagmaInfo for the vbid, created on demand
-     */
-    MagmaInfo& getMagmaInfo(Vbid vbid);
-
     /// private getWithHeader shared with public get and getWithHeader
     GetValue getWithHeader(const DiskDocKey& key,
                            Vbid vbid,
@@ -641,6 +654,13 @@ protected:
         std::shared_ptr<compaction_ctx> magmaCompactionCtx;
         compaction_ctx* ctx{nullptr};
         Vbid vbid{};
+
+        const magma::UserStats* GetUserStats() override {
+            return &magmaDbStats;
+        }
+
+    private:
+        MagmaDbStats magmaDbStats;
     };
 
     /**
@@ -653,6 +673,14 @@ protected:
                             const magma::Slice& keySlice,
                             const magma::Slice& metaSlice,
                             const magma::Slice& valueSlice);
+
+    /**
+     * Get the MagmaDbStats from the Magma::KVStore
+     * @param vbid
+     * @return The MagmaDbStats (default constructed if they don't exist in
+     * magma yet)
+     */
+    MagmaDbStats getMagmaDbStats(Vbid vbid);
 
     MagmaKVStoreConfig& configuration;
 
@@ -693,10 +721,8 @@ protected:
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 
-    // Magma does not keep track of docCount, # of persistedDeletes or
-    // revFile internal so we need a mechanism to do that. We use magmaInfo
-    // as the structure to store that and we save magmaInfo with the vbstate.
-    std::vector<std::unique_ptr<MagmaInfo>> cachedMagmaInfo;
+    // Keep track of the vbucket revision
+    std::vector<Monotonic<uint64_t>> kvstoreRevList;
 
     // For testing, we need to simulate couchstore where every batch
     // is a potential rollback point.
