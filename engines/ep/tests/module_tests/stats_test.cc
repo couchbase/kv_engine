@@ -39,6 +39,7 @@
 #include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <statistics/stat_units.h>
 
 #include <functional>
 #include <thread>
@@ -260,6 +261,78 @@ TEST_F(StatTest, HdrHistogramStatExpansion) {
     add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), cookie);
 
     destroy_mock_cookie(cookie);
+}
+
+TEST_F(StatTest, UnitNormalisation) {
+    // check that metric units simplify the given value to the
+    // expected "base" representation
+    // e.g., if a stat has the value `456`, and is tracking nanoseconds,
+    // units::nanoseconds should normalise that to
+    // 0.000000456 - like so
+    using namespace cb::stats;
+    EXPECT_NEAR(0.000000456, units::nanoseconds.toBaseUnit(456), 0.000000001);
+    // This will be used to ensure stats are exposed to Prometheus
+    // in consistent base units, as recommended by their best practices
+    // https://prometheus.io/docs/practices/naming/#base-units
+
+    // Generic units do not encode a scaling, they're
+    // just a stand-in where no better unit applies
+    EXPECT_EQ(1, units::none.toBaseUnit(1));
+    EXPECT_EQ(1, units::count.toBaseUnit(1));
+
+    // Percent normalises [0,100] to [0.0,1.0]
+    EXPECT_EQ(0.5, units::percent.toBaseUnit(50));
+    EXPECT_EQ(0.5, units::ratio.toBaseUnit(0.5));
+
+    // time units normalise to seconds
+    EXPECT_EQ(1.0 / 1000000000, units::nanoseconds.toBaseUnit(1));
+    EXPECT_EQ(1.0 / 1000000, units::microseconds.toBaseUnit(1));
+    EXPECT_EQ(1.0 / 1000, units::milliseconds.toBaseUnit(1));
+    EXPECT_EQ(1, units::seconds.toBaseUnit(1));
+    EXPECT_EQ(60, units::minutes.toBaseUnit(1));
+    EXPECT_EQ(60 * 60, units::hours.toBaseUnit(1));
+    EXPECT_EQ(60 * 60 * 24, units::days.toBaseUnit(1));
+
+    // bits normalise to bytes, as do all byte units
+    EXPECT_EQ(0.5, units::bits.toBaseUnit(4));
+    EXPECT_EQ(1, units::bits.toBaseUnit(8));
+    EXPECT_EQ(1, units::bytes.toBaseUnit(1));
+    EXPECT_EQ(1000, units::kilobytes.toBaseUnit(1));
+    EXPECT_EQ(1000000, units::megabytes.toBaseUnit(1));
+    EXPECT_EQ(1000000000, units::gigabytes.toBaseUnit(1));
+}
+
+TEST_F(StatTest, UnitSuffix) {
+    // check that metric units report the correct suffix for their
+    // base unit, matching Prometheus recommendations in
+    // https://prometheus.io/docs/practices/naming/#metric-names
+
+    using namespace cb::stats;
+
+    for (const auto& unit : {units::none, units::count}) {
+        EXPECT_EQ("", unit.getSuffix());
+    }
+
+    for (const auto& unit : {units::percent, units::ratio}) {
+        EXPECT_EQ("_ratio", unit.getSuffix());
+    }
+
+    for (const auto& unit : {units::microseconds,
+                             units::milliseconds,
+                             units::seconds,
+                             units::minutes,
+                             units::hours,
+                             units::days}) {
+        EXPECT_EQ("_seconds", unit.getSuffix());
+    }
+
+    for (const auto& unit : {units::bits,
+                             units::bytes,
+                             units::kilobytes,
+                             units::megabytes,
+                             units::gigabytes}) {
+        EXPECT_EQ("_bytes", unit.getSuffix());
+    }
 }
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
