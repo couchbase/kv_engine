@@ -1,4 +1,5 @@
 add_library(statistics STATIC
+        definitions.cc
         collector.cc
         )
 

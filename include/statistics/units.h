@@ -23,6 +23,7 @@
 #include <array>
 #include <ratio>
 #include <string>
+#include <string_view>
 
 namespace cb::stats {
 
