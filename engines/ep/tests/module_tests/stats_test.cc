@@ -347,7 +347,9 @@ TEST_F(StatTest, CollectorAddsLabel) {
     // create a collector to which stats will be added
     NiceMock<MockStatCollector> collector;
 
-    auto key = "stat_key"sv;
+    // arbitrary stat key selected which does not have hardcoded labels
+    // in stats.def.h
+    auto key = cb::stats::Key::bg_wait;
     auto value = 12345.0;
 
     // helper to check that addStat was called with a particular set of labels
@@ -358,7 +360,7 @@ TEST_F(StatTest, CollectorAddsLabel) {
                 // explicitly specified matcher required to disabiguate the
                 // addStat method
                 EXPECT_CALL(collector,
-                            addStat(key,
+                            addStat(_,
                                     Matcher<double>(value),
                                     ContainerEq(labels)));
             };

@@ -29,7 +29,12 @@ LabelledStatCollector StatCollector::withLabels(const Labels& labels) {
     return {*this, labels};
 }
 
-void StatCollector::addStat(std::string_view k,
+const cb::stats::StatDef& StatCollector::lookup(cb::stats::Key key) {
+    Expects(size_t(key) < size_t(cb::stats::Key::enum_max));
+    return cb::stats::statDefinitions[size_t(key)];
+}
+
+void StatCollector::addStat(const cb::stats::StatDef& k,
                             const HdrHistogram& v,
                             const Labels& labels) {
     if (v.getValueCount() > 0) {
@@ -53,20 +58,20 @@ void StatCollector::addStat(std::string_view k,
     }
 }
 
-void CBStatCollector::addStat(std::string_view k,
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               std::string_view v,
                               const Labels&) {
     // CBStats has no concept of labels, and so they are unused
-    addStatFn(k, v, cookie);
+    addStatFn(k.uniqueKey, v, cookie);
 }
 
-void CBStatCollector::addStat(std::string_view k,
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               bool v,
                               const Labels& labels) {
     addStat(k, v ? "true"sv : "false"sv, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k,
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               int64_t v,
                               const Labels& labels) {
     fmt::memory_buffer buf;
@@ -74,7 +79,7 @@ void CBStatCollector::addStat(std::string_view k,
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k,
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               uint64_t v,
                               const Labels& labels) {
     fmt::memory_buffer buf;
@@ -82,7 +87,7 @@ void CBStatCollector::addStat(std::string_view k,
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k,
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               double v,
                               const Labels& labels) {
     fmt::memory_buffer buf;
@@ -90,16 +95,22 @@ void CBStatCollector::addStat(std::string_view k,
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k,
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HistogramData& hist,
                               const Labels& labels) {
     fmt::memory_buffer buf;
-    format_to(buf, "{}_mean", k);
-    addStat({buf.data(), buf.size()}, hist.mean, labels);
+    format_to(buf, "{}_mean", k.uniqueKey);
+    addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);
 
     for (const auto& bucket : hist.buckets) {
         buf.resize(0);
-        format_to(buf, "{}_{},{}", k, bucket.lowerBound, bucket.upperBound);
-        addStat({buf.data(), buf.size()}, bucket.count, labels);
+        format_to(buf,
+                  "{}_{},{}",
+                  k.uniqueKey,
+                  bucket.lowerBound,
+                  bucket.upperBound);
+        addStat(cb::stats::StatDef({buf.data(), buf.size()}),
+                bucket.count,
+                labels);
     }
 }

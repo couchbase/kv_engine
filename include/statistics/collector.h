@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "definitions.h"
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
 #include <spdlog/fmt/fmt.h>
@@ -107,11 +108,14 @@ class LabelledStatCollector;
 /**
  * Interface implemented by stats backends.
  *
- * Allows stats to be added in a key-value manner. Keys may also have
- * labels, but not all backends need support these.
+ * Allows stats to be added in a key-value manner. Keys may also have a metric
+ * family name and labels, but not all backends need support these.
  *
  * Users may call addStat with a key and value to be formatted
  * appropriately by the backend.
+ *
+ * Implementations which do not support labels should use the uniqueKey.
+ * These keys should be unique per-bucket.
  *
  * Stats are often organised in related blocks, for example all stats for a
  * particular bucket. Rather than repeating the bucket label for every stat,
@@ -180,13 +184,15 @@ public:
      *
      * Try to use other type specific overloads where possible.
      */
-    virtual void addStat(std::string_view k,
+    virtual void addStat(const cb::stats::StatDef& k,
                          std::string_view v,
                          const Labels& labels) = 0;
     /**
      * Add a boolean stat to the collector.
      */
-    virtual void addStat(std::string_view k, bool v, const Labels& labels) = 0;
+    virtual void addStat(const cb::stats::StatDef& k,
+                         bool v,
+                         const Labels& labels) = 0;
 
     /**
      * Add a numeric stat to the collector.
@@ -196,13 +202,13 @@ public:
      * cause narrowing, loss of precision, so backends are responsible
      * for handling each appropriately.
      */
-    virtual void addStat(std::string_view k,
+    virtual void addStat(const cb::stats::StatDef& k,
                          int64_t v,
                          const Labels& labels) = 0;
-    virtual void addStat(std::string_view k,
+    virtual void addStat(const cb::stats::StatDef& k,
                          uint64_t v,
                          const Labels& labels) = 0;
-    virtual void addStat(std::string_view k,
+    virtual void addStat(const cb::stats::StatDef& k,
                          double v,
                          const Labels& labels) = 0;
 
@@ -212,7 +218,7 @@ public:
      * HistogramData is an intermediate type to which multiple
      * histogram types are converted.
      */
-    virtual void addStat(std::string_view k,
+    virtual void addStat(const cb::stats::StatDef& k,
                          const HistogramData& hist,
                          const Labels& labels) = 0;
 
@@ -235,7 +241,7 @@ public:
      * uint64_t,and double.
      */
     template <class T, class = std::enable_if_t<std::is_arithmetic_v<T>>>
-    void addStat(std::string_view k, T v, const Labels& labels) {
+    void addStat(const cb::stats::StatDef& k, T v, const Labels& labels) {
         /* Converts the value to uint64_t/int64_t/double
          * based on if it is a signed/unsigned type.
          */
@@ -255,7 +261,7 @@ public:
      * Used to adapt histogram types to a single common type
      * for backends to support.
      */
-    void addStat(std::string_view k,
+    void addStat(const cb::stats::StatDef& k,
                  const HdrHistogram& v,
                  const Labels& labels);
 
@@ -267,7 +273,7 @@ public:
      * for backends to support.
      */
     template <typename T, template <class> class Limits>
-    void addStat(std::string_view k,
+    void addStat(const cb::stats::StatDef& k,
                  const Histogram<T, Limits>& hist,
                  const Labels& labels) {
         HistogramData histData{};
@@ -305,10 +311,26 @@ public:
      *
      */
     template <typename T>
-    auto addStat(std::string_view k, const T& v, const Labels& labels)
+    auto addStat(const cb::stats::StatDef& k, const T& v, const Labels& labels)
             -> std::enable_if_t<std::is_arithmetic_v<decltype(v.load())>,
                                 void> {
-        addStat(k, v.load());
+        addStat(k, v.load(), labels);
+    }
+
+    /**
+     * Look up the given stat key enum in the static StatDefs array.
+     */
+    static const cb::stats::StatDef& lookup(cb::stats::Key key);
+
+    /**
+     * Look up the stat definition (see stats.def.h) for the provided
+     * key, then call addStat with that StatDef.
+     *
+     * Used to lookup the unit and labels associated with the stat.
+     */
+    template <typename T>
+    void addStat(cb::stats::Key k, T&& v, const Labels& labels) {
+        addStat(lookup(k), std::forward<T>(v), labels);
     }
 
     /**
@@ -316,9 +338,11 @@ public:
      * Avoids default args on the other addStat overloads, as they are not
      * recommended for virtual methods.
      */
-    template <typename T>
-    void addStat(std::string_view k, T&& v) {
-        addStat(k, std::forward<T>(v), {/* no labels */});
+    template <typename Key, typename Value>
+    void addStat(Key&& k, Value&& v) {
+        addStat(std::forward<Key>(k),
+                std::forward<Value>(v),
+                {/* no labels */});
     }
 
     virtual ~StatCollector() = default;
@@ -346,14 +370,22 @@ public:
     // They would otherwise be shadowed
     using StatCollector::addStat;
 
-    void addStat(std::string_view k,
+    void addStat(const cb::stats::StatDef& k,
                  std::string_view v,
                  const Labels& labels) override;
-    void addStat(std::string_view k, bool v, const Labels& labels) override;
-    void addStat(std::string_view k, int64_t v, const Labels& labels) override;
-    void addStat(std::string_view k, uint64_t v, const Labels& labels) override;
-    void addStat(std::string_view k, double v, const Labels& labels) override;
-    void addStat(std::string_view k,
+    void addStat(const cb::stats::StatDef& k,
+                 bool v,
+                 const Labels& labels) override;
+    void addStat(const cb::stats::StatDef& k,
+                 int64_t v,
+                 const Labels& labels) override;
+    void addStat(const cb::stats::StatDef& k,
+                 uint64_t v,
+                 const Labels& labels) override;
+    void addStat(const cb::stats::StatDef& k,
+                 double v,
+                 const Labels& labels) override;
+    void addStat(const cb::stats::StatDef& k,
                  const HistogramData& hist,
                  const Labels& labels) override;
 
