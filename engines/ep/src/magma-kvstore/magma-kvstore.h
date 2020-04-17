@@ -502,7 +502,7 @@ public:
      * Construct a compaction context for use with implicit compactions. Calls
      * back up to the bucket to do so as we need certain callbacks and config.
      */
-    compaction_ctx makeCompactionContext(Vbid vbid);
+    std::shared_ptr<compaction_ctx> makeCompactionContext(Vbid vbid);
 
     const KVStoreConfig& getConfig() const override;
 

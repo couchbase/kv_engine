@@ -216,8 +216,8 @@ public:
 
     void warmupCompleted();
 
-    compaction_ctx makeCompactionContext(CompactionConfig& config,
-                                         uint64_t purgeSeqno);
+    std::shared_ptr<compaction_ctx> makeCompactionContext(
+            CompactionConfig& config, uint64_t purgeSeqno);
 
     // implemented by querying StorageProperties for the buckets KVStore
     bool isByIdScanSupported() const override;

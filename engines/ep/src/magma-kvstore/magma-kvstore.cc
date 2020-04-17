@@ -2115,7 +2115,7 @@ void MagmaKVStore::pendingTasks() {
     }
 }
 
-compaction_ctx MagmaKVStore::makeCompactionContext(Vbid vbid) {
+std::shared_ptr<compaction_ctx> MagmaKVStore::makeCompactionContext(Vbid vbid) {
     if (!makeCompactionContextCallback) {
         throw std::runtime_error(
                 "MagmaKVStore::makeCompactionContext: Have not set "
@@ -2126,7 +2126,7 @@ compaction_ctx MagmaKVStore::makeCompactionContext(Vbid vbid) {
     config.db_file_id = vbid;
     auto ctx = makeCompactionContextCallback(config, 0 /*purgeSeqno*/);
 
-    ctx.eraserContext = std::make_unique<Collections::VB::EraserContext>(
+    ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
             getDroppedCollections(vbid));
 
     auto readState = readVBStateFromDisk(vbid);
@@ -2137,7 +2137,7 @@ compaction_ctx MagmaKVStore::makeCompactionContext(Vbid vbid) {
            << readState.status.String();
         throw std::runtime_error(ss.str());
     } else {
-        ctx.highCompletedSeqno = readState.vbstate.persistedCompletedSeqno;
+        ctx->highCompletedSeqno = readState.vbstate.persistedCompletedSeqno;
     }
     return ctx;
 }

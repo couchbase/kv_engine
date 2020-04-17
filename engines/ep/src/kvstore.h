@@ -145,7 +145,8 @@ struct compaction_ctx {
 };
 
 using MakeCompactionContextCallback =
-        std::function<compaction_ctx(CompactionConfig&, uint64_t)>;
+        std::function<std::shared_ptr<compaction_ctx>(CompactionConfig&,
+                                                      uint64_t)>;
 
 struct kvstats_ctx {
     kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {

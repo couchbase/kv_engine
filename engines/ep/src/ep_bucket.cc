@@ -1094,28 +1094,28 @@ void EPBucket::dropKey(Vbid vbid, const DiskDocKey& diskKey, int64_t bySeqno) {
     }
 }
 
-compaction_ctx EPBucket::makeCompactionContext(CompactionConfig& config,
-                                               uint64_t purgeSeqno) {
+std::shared_ptr<compaction_ctx> EPBucket::makeCompactionContext(
+        CompactionConfig& config, uint64_t purgeSeqno) {
     // @TODO When we have compaction metadata purge interval in the engine we
     // may need to manually set purge_before_ts in config
 
-    auto ctx = compaction_ctx(config, purgeSeqno);
+    auto ctx = std::make_shared<compaction_ctx>(config, purgeSeqno);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
-    ctx.bloomFilterCallback = filter;
+    ctx->bloomFilterCallback = filter;
 
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
-    ctx.expiryCallback = expiry;
+    ctx->expiryCallback = expiry;
 
-    ctx.droppedKeyCb = std::bind(&EPBucket::dropKey,
-                                 this,
-                                 config.db_file_id,
-                                 std::placeholders::_1,
-                                 std::placeholders::_2);
+    ctx->droppedKeyCb = std::bind(&EPBucket::dropKey,
+                                  this,
+                                  config.db_file_id,
+                                  std::placeholders::_1,
+                                  std::placeholders::_2);
 
-    ctx.completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
-                                       this,
-                                       std::placeholders::_1);
+    ctx->completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
+                                        this,
+                                        std::placeholders::_1);
 
     return ctx;
 }
@@ -1136,7 +1136,7 @@ void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
 
     KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
     KVStore* store = shard->getRWUnderlying();
-    bool result = store->compactDB(&ctx);
+    bool result = store->compactDB(ctx.get());
 
     VBucketPtr vb = getVBucket(config.db_file_id);
     if (vb) {
@@ -1155,18 +1155,18 @@ void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
             "post{{{}, {}, {}, {}}}",
             config.db_file_id,
             result ? "ok" : "failed",
-            ctx.stats.tombstonesPurged,
-            ctx.stats.preparesPurged,
-            ctx.stats.collectionsItemsPurged,
-            ctx.stats.collectionsDeletedItemsPurged,
-            ctx.stats.pre.size,
-            ctx.stats.pre.items,
-            ctx.stats.pre.deletedItems,
-            ctx.stats.pre.purgeSeqno,
-            ctx.stats.post.size,
-            ctx.stats.post.items,
-            ctx.stats.post.deletedItems,
-            ctx.stats.post.purgeSeqno);
+            ctx->stats.tombstonesPurged,
+            ctx->stats.preparesPurged,
+            ctx->stats.collectionsItemsPurged,
+            ctx->stats.collectionsDeletedItemsPurged,
+            ctx->stats.pre.size,
+            ctx->stats.pre.items,
+            ctx->stats.pre.deletedItems,
+            ctx->stats.pre.purgeSeqno,
+            ctx->stats.post.size,
+            ctx->stats.post.items,
+            ctx->stats.post.deletedItems,
+            ctx->stats.post.purgeSeqno);
 }
 
 bool EPBucket::doCompact(CompactionConfig& config,
