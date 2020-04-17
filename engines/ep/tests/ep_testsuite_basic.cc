@@ -853,8 +853,6 @@ static enum test_result test_add(EngineIface* h) {
     uint64_t vb_uuid = 0;
     uint64_t high_seqno = 0;
 
-    memset(&info, 0, sizeof(info));
-
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
@@ -950,8 +948,6 @@ static enum test_result test_replace(EngineIface* h) {
     item_info info;
     uint64_t vb_uuid = 0;
     uint64_t high_seqno = 0;
-
-    memset(&info, 0, sizeof(info));
 
     checkne(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_REPLACE, "key", "somevalue"),

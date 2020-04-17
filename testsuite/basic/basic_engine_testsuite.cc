@@ -503,7 +503,6 @@ TEST_F(BasicEngineTestsuite, Datatype) {
     DocKey key("{foo:1}", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     item_info ii;
-    memset(&ii, 0, sizeof(ii));
 
     auto ret = engine->allocate(cookie.get(), key, 1, 0, 0, 1, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);

@@ -6218,8 +6218,6 @@ static enum test_result test_hlc_cas(EngineIface* h) {
     item_info info;
     uint64_t curr_cas = 0, prev_cas = 0;
 
-    memset(&info, 0, sizeof(info));
-
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_ADD, key, "data1"),
             "Failed to store an item");
@@ -7774,7 +7772,6 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
     }
 
     item_info info;
-    memset(&info, 0, sizeof(info));
 
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_ADD, "mykey", "data1"),

@@ -6068,14 +6068,11 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
 }
 
 static enum test_result test_dcp_last_items_purged(EngineIface* h) {
-    item_info info;
-    mutation_descr_t mut_info;
+    mutation_descr_t mut_info = {};
     uint64_t cas = 0;
     uint32_t high_seqno = 0;
     const int num_items = 3;
     const char* key[3] = {"k1", "k2", "k3"};
-
-    memset(&info, 0, sizeof(info));
 
     /* Set 3 items */
     for (const auto& k : key) {
@@ -6083,8 +6080,6 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
                 store(h, nullptr, OPERATION_SET, k, "somevalue"),
                 "Error setting.");
     }
-
-    memset(&mut_info, 0, sizeof(mut_info));
 
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
@@ -6140,8 +6135,6 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     uint32_t high_seqno = 0;
     const int num_items = 3;
     const char* key[3] = {"k1", "k2", "k3"};
-
-    memset(&info, 0, sizeof(info));
 
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
 
