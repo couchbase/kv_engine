@@ -71,6 +71,79 @@ public:
 };
 
 /**
+ * MagmaDbStats are a set of stats maintained within the Magma KVStore
+ * rather than on the vbucket_state. This is because compaction is unable
+ * to update the vbstate since it runs in a different thread than the
+ * BG Flusher thread. Whenver we retrieve vbstate, we read the MagmaDbStats
+ * which is stored in  magma (in the latest state file) and replace them
+ * overtop the vbstate values.
+ */
+class MagmaDbStats : public magma::UserStats {
+public:
+    explicit MagmaDbStats() = default;
+
+    MagmaDbStats(const MagmaDbStats& other)
+        : docCount(other.docCount),
+          onDiskPrepares(other.onDiskPrepares),
+          highSeqno(other.highSeqno),
+          purgeSeqno(other.purgeSeqno) {
+    }
+
+    MagmaDbStats& operator=(const MagmaDbStats& other) {
+        docCount = other.docCount;
+        onDiskPrepares = other.onDiskPrepares;
+        highSeqno = other.highSeqno;
+        purgeSeqno = other.purgeSeqno;
+        return *this;
+    }
+
+    void reset(const MagmaDbStats& other) {
+        docCount = other.docCount;
+        onDiskPrepares = other.onDiskPrepares;
+        highSeqno.reset(other.highSeqno);
+        purgeSeqno.reset(other.purgeSeqno);
+    }
+
+    /**
+     * Merge the stats with existing stats.
+     * For docCount and onDiskPrepares, we add the delta.
+     * For highSeqno and purgeSeqno, we set them if the new
+     * value is higher than the old value.
+     *
+     * @param other should be a MagmaDbStats instance
+     */
+    void Merge(const magma::UserStats& other) override;
+
+    /**
+     * clone the stats
+     *
+     * @return MagmaDbStats
+     */
+    std::unique_ptr<magma::UserStats> Clone() override;
+
+    /**
+     * Marshal the stats into a json string
+     *
+     * @return string MagmaDbStats in a json string format
+     * @throws logic_error if unable to parse json
+     */
+    std::string Marshal() override;
+
+    /**
+     * Unmarshal the json string into DbStats
+     *
+     * @return Status potential error code; for magma wrapper we throw
+     *                errors rather than return status.
+     */
+    magma::Status Unmarshal(const std::string& encoded) override;
+
+    int64_t docCount{0};
+    int64_t onDiskPrepares{0};
+    Monotonic<uint64_t> highSeqno{0};
+    Monotonic<uint64_t> purgeSeqno{0};
+};
+
+/**
  * MagmaScanContext is BySeqnoScanContext with the magma
  * iterator added.
  */
