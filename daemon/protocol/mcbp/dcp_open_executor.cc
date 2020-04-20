@@ -69,10 +69,14 @@ void dcp_open_executor(Cookie& cookie) {
         const bool dcpXattrAware =
                 (flags & DcpOpenPayload::IncludeXattrs) != 0 &&
                 connection.selectedBucketIsXattrEnabled();
+        const bool dcpDeletedUserXattr =
+                (flags & DcpOpenPayload::IncludeDeletedUserXattrs) != 0 &&
+                connection.selectedBucketIsXattrEnabled();
         const bool dcpNoValue = (flags & DcpOpenPayload::NoValue) != 0;
         const bool dcpDeleteTimes =
                 (flags & DcpOpenPayload::IncludeDeleteTimes) != 0;
         connection.setDcpXattrAware(dcpXattrAware);
+        connection.setDcpDeletedUserXattr(dcpDeletedUserXattr);
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
         connection.setDCP(true);

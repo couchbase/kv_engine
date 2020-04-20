@@ -602,6 +602,12 @@ public:
      */
     static const uint32_t NoValueWithUnderlyingDatatype = 64;
 
+    /**
+     * Indicates that the server includes the document UserXattrs within
+     * deletion values.
+     */
+    static const uint32_t IncludeDeletedUserXattrs = 256;
+
 protected:
     uint32_t seqno = 0;
     uint32_t flags = 0;

@@ -118,6 +118,15 @@ enum class IncludeDeleteTime : bool {
     No,
 };
 
+/*
+ * IncludeDeletedUserXattrs is used to state whether an active stream needs to
+ * send the UserXattrs (if any) in the message for normal and sync DCP delete.
+ */
+enum class IncludeDeletedUserXattrs : bool {
+    Yes,
+    No,
+};
+
 /**
  * SnappyEnabled is used to state whether an active stream supports snappy
  * compressed documents.

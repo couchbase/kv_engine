@@ -370,7 +370,8 @@ static Status dcp_open_validator(Cookie& cookie) {
     const auto mask = DcpOpenPayload::Producer | DcpOpenPayload::Notifier |
                       DcpOpenPayload::IncludeXattrs | DcpOpenPayload::NoValue |
                       DcpOpenPayload::IncludeDeleteTimes |
-                      DcpOpenPayload::NoValueWithUnderlyingDatatype;
+                      DcpOpenPayload::NoValueWithUnderlyingDatatype |
+                      DcpOpenPayload::IncludeDeletedUserXattrs;
 
     auto ext = cookie.getHeader().getExtdata();
     const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
@@ -407,6 +408,19 @@ static Status dcp_open_validator(Cookie& cookie) {
         cookie.setErrorContext(
                 "Request contains invalid flags combination (NO_VALUE && "
                 "NO_VALUE_WITH_UNDERLYING_DATATYPE)");
+        return Status::Einval;
+    }
+
+    if ((flags & DcpOpenPayload::IncludeDeletedUserXattrs) &&
+        !(flags & DcpOpenPayload::IncludeXattrs)) {
+        LOG_INFO(
+                "Invalid DcpOpen flags combination ({:x}) specified for {} - "
+                "Must specify IncludeXattrs for IncludeDeletedUserXattrs",
+                flags,
+                get_peer_description(cookie));
+        cookie.setErrorContext(
+                "Request contains invalid flags combination - "
+                "IncludeDeletedUserXattrs but not IncludeXattrs");
         return Status::Einval;
     }
 

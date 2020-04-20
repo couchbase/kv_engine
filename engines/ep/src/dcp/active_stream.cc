@@ -42,6 +42,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
                            IncludeDeleteTime includeDeleteTime,
+                           IncludeDeletedUserXattrs includeDeletedUserXattrs,
                            Collections::VB::Filter f)
     : Stream(n,
              flags,
@@ -71,6 +72,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
+      includeDeletedUserXattrs(includeDeletedUserXattrs),
       includeCollectionID(f.isLegacyFilter() ? DocKeyEncodesCollectionId::No
                                              : DocKeyEncodesCollectionId::Yes),
       enableExpiryOutput(p->isDCPExpiryEnabled() ? EnableExpiryOutput::Yes

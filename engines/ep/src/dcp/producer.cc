@@ -178,6 +178,12 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
               ((flags & cb::mcbp::request::DcpOpenPayload::IncludeXattrs) != 0)
                       ? IncludeXattrs::Yes
                       : IncludeXattrs::No),
+      includeDeletedUserXattrs(
+              ((flags &
+                cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs) !=
+               0)
+                      ? IncludeDeletedUserXattrs::Yes
+                      : IncludeDeletedUserXattrs::No),
       includeDeleteTime(
               ((flags &
                 cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes) != 0)
@@ -508,6 +514,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                                                includeValue,
                                                includeXattrs,
                                                includeDeleteTime,
+                                               includeDeletedUserXattrs,
                                                std::move(filter));
         } catch (const cb::engine_error& e) {
             logger->warn(

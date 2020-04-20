@@ -102,6 +102,7 @@ public:
                  IncludeValue includeVal,
                  IncludeXattrs includeXattrs,
                  IncludeDeleteTime includeDeleteTime,
+                 IncludeDeletedUserXattrs includeDeletedUserXattrs,
                  Collections::VB::Filter filter);
 
     virtual ~ActiveStream();
@@ -236,15 +237,16 @@ public:
      */
     bool handleSlowStream();
 
-    /// @return true if both includeValue and includeXattributes are set to No,
-    /// otherwise return false.
+    /// @return true if IncludeValue/IncludeXattrs/IncludeDeletedUserXattrs are
+    /// set to No, otherwise return false.
     bool isKeyOnly() const {
         // IncludeValue::NoWithUnderlyingDatatype doesn't allow key-only,
         // as we need to fetch the datatype also (which is not present in
         // revmeta for V0 documents, so in general still requires fetching
         // the body).
         return (includeValue == IncludeValue::No) &&
-               (includeXattributes == IncludeXattrs::No);
+               (includeXattributes == IncludeXattrs::No) &&
+               (includeDeletedUserXattrs == IncludeDeletedUserXattrs::No);
     }
 
     const Cursor& getCursor() const override {
@@ -589,6 +591,10 @@ private:
 
     // Will the stream send dcp deletions with delete-times?
     const IncludeDeleteTime includeDeleteTime;
+
+    // Will the stream include user-xattrs (if any) at sending dcp (normal/sync)
+    // deletions?
+    const IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
     // Will the stream encode the CollectionID in the key?
     const DocKeyEncodesCollectionId includeCollectionID;
