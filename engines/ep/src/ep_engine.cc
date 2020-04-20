@@ -4090,77 +4090,54 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(
-        const void* cookie, const AddStatFn& add_stat) {
-    add_casted_stat("bg_wait", stats.bgWaitHisto, add_stat, cookie);
-    add_casted_stat("bg_load", stats.bgLoadHisto, add_stat, cookie);
-    add_casted_stat("set_with_meta", stats.setWithMetaHisto, add_stat, cookie);
-    add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
+void EventuallyPersistentEngine::doTimingStats(StatCollector& collector) {
+    using namespace cb::stats;
+    collector.addStat(Key::bg_wait, stats.bgWaitHisto);
+    collector.addStat(Key::bg_load, stats.bgLoadHisto);
+    collector.addStat(Key::set_with_meta, stats.setWithMetaHisto);
+    collector.addStat(Key::pending_ops, stats.pendingOpsHisto);
 
     // Vbucket visitors
-    add_casted_stat(
-            "access_scanner", stats.accessScannerHisto, add_stat, cookie);
-    add_casted_stat("checkpoint_remover",
-                    stats.checkpointRemoverHisto,
-                    add_stat,
-                    cookie);
-    add_casted_stat("item_pager", stats.itemPagerHisto, add_stat, cookie);
-    add_casted_stat("expiry_pager", stats.expiryPagerHisto, add_stat, cookie);
-
-    add_casted_stat("storage_age", stats.dirtyAgeHisto, add_stat, cookie);
+    collector.addStat(Key::checkpoint_remover, stats.checkpointRemoverHisto);
+    collector.addStat(Key::item_pager, stats.itemPagerHisto);
+    collector.addStat(Key::expiry_pager, stats.expiryPagerHisto);
+    collector.addStat(Key::storage_age, stats.dirtyAgeHisto);
 
     // Regular commands
-    add_casted_stat("get_cmd", stats.getCmdHisto, add_stat, cookie);
-    add_casted_stat("store_cmd", stats.storeCmdHisto, add_stat, cookie);
-    add_casted_stat("arith_cmd", stats.arithCmdHisto, add_stat, cookie);
-    add_casted_stat("get_stats_cmd", stats.getStatsCmdHisto, add_stat, cookie);
+    collector.addStat(Key::get_cmd, stats.getCmdHisto);
+    collector.addStat(Key::store_cmd, stats.storeCmdHisto);
+    collector.addStat(Key::arith_cmd, stats.arithCmdHisto);
+    collector.addStat(Key::get_stats_cmd, stats.getStatsCmdHisto);
+
     // Admin commands
-    add_casted_stat("get_vb_cmd", stats.getVbucketCmdHisto, add_stat, cookie);
-    add_casted_stat("set_vb_cmd", stats.setVbucketCmdHisto, add_stat, cookie);
-    add_casted_stat("del_vb_cmd", stats.delVbucketCmdHisto, add_stat, cookie);
-    add_casted_stat(
-            "chk_persistence_cmd", stats.chkPersistenceHisto, add_stat, cookie);
+    collector.addStat(Key::get_vb_cmd, stats.getVbucketCmdHisto);
+    collector.addStat(Key::set_vb_cmd, stats.setVbucketCmdHisto);
+    collector.addStat(Key::del_vb_cmd, stats.delVbucketCmdHisto);
+
     // Misc
-    add_casted_stat("notify_io", stats.notifyIOHisto, add_stat, cookie);
-    add_casted_stat("batch_read", stats.getMultiHisto, add_stat, cookie);
+    collector.addStat(Key::notify_io, stats.notifyIOHisto);
+    collector.addStat(Key::batch_read, stats.getMultiHisto);
 
     // Disk stats
-    add_casted_stat("disk_insert", stats.diskInsertHisto, add_stat, cookie);
-    add_casted_stat("disk_update", stats.diskUpdateHisto, add_stat, cookie);
-    add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
-    add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
-    add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
-
-    add_casted_stat(
-            "item_alloc_sizes", stats.itemAllocSizeHisto, add_stat, cookie);
-    add_casted_stat(
-            "bg_batch_size", stats.getMultiBatchSizeHisto, add_stat, cookie);
+    collector.addStat(Key::disk_insert, stats.diskInsertHisto);
+    collector.addStat(Key::disk_update, stats.diskUpdateHisto);
+    collector.addStat(Key::disk_del, stats.diskDelHisto);
+    collector.addStat(Key::disk_vb_del, stats.diskVBDelHisto);
+    collector.addStat(Key::disk_commit, stats.diskCommitHisto);
 
     // Checkpoint cursor stats
-    add_casted_stat("persistence_cursor_get_all_items",
-                    stats.persistenceCursorGetItemsHisto,
-                    add_stat,
-                    cookie);
-    add_casted_stat("dcp_cursors_get_all_items",
-                    stats.dcpCursorsGetItemsHisto,
-                    add_stat,
-                    cookie);
+    collector.addStat(Key::persistence_cursor_get_all_items,
+                      stats.persistenceCursorGetItemsHisto);
+    collector.addStat(Key::dcp_cursors_get_all_items,
+                      stats.dcpCursorsGetItemsHisto);
 
     // SyncWrite stats
-    add_casted_stat("sync_write_commit_majority",
-                    stats.syncWriteCommitTimes.at(0),
-                    add_stat,
-                    cookie);
-    add_casted_stat("sync_write_commit_majority_and_persist_on_master",
-                    stats.syncWriteCommitTimes.at(1),
-                    add_stat,
-                    cookie);
-    add_casted_stat("sync_write_commit_persist_to_majority",
-                    stats.syncWriteCommitTimes.at(2),
-                    add_stat,
-                    cookie);
-
-    return ENGINE_SUCCESS;
+    collector.addStat(Key::sync_write_commit_majority,
+                      stats.syncWriteCommitTimes.at(0));
+    collector.addStat(Key::sync_write_commit_majority_and_persist_on_master,
+                      stats.syncWriteCommitTimes.at(1));
+    collector.addStat(Key::sync_write_commit_persist_to_majority,
+                      stats.syncWriteCommitTimes.at(2));
 }
 
 static std::string getTaskDescrForStats(TaskId id) {
@@ -4739,7 +4716,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
                 cookie, add_stat, key.data(), key.size());
     }
     if (key == "timings"sv) {
-        return doTimingStats(cookie, add_stat);
+        CBStatCollector collector{add_stat, cookie};
+        doTimingStats(collector);
+        return ENGINE_SUCCESS;
     }
     if (key == "dispatcher"sv) {
         return doDispatcherStats(cookie, add_stat);

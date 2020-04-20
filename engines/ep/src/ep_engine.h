@@ -46,6 +46,7 @@ class DcpConnMap;
 class DcpFlowControlManager;
 class ItemMetaData;
 class KVBucket;
+class StatCollector;
 class StoredValue;
 class VBucketCountVisitor;
 
@@ -945,8 +946,7 @@ protected:
     ENGINE_ERROR_CODE doConnAggStats(const void* cookie,
                                      const AddStatFn& add_stat,
                                      std::string_view sep);
-    ENGINE_ERROR_CODE doTimingStats(const void* cookie,
-                                    const AddStatFn& add_stat);
+    void doTimingStats(StatCollector& collector);
     ENGINE_ERROR_CODE doSchedulerStats(const void* cookie,
                                        const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doRunTimeStats(const void* cookie,
