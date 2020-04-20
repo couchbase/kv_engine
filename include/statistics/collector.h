@@ -399,6 +399,14 @@ public:
                  const HistogramData& hist,
                  const Labels& labels) override;
 
+    /**
+     * Get the wrapped cookie and addStatFn. Useful while code is
+     * being transitioned to the StatCollector interface.
+     */
+    std::pair<const void*, const AddStatFn&> getCookieAndAddFn() {
+        return {cookie, addStatFn};
+    }
+
 private:
     const AddStatFn& addStatFn;
     const void* cookie;

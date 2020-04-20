@@ -2722,222 +2722,140 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
-        const void* cookie, const AddStatFn& add_stat) {
-    CBStatCollector collector{add_stat, cookie};
-
+        StatCollector& collector) {
     configuration.addStats(collector);
 
     EPStats &epstats = getEpStats();
-    add_casted_stat("ep_storage_age",
-                    epstats.dirtyAge, add_stat, cookie);
-    add_casted_stat("ep_storage_age_highwat",
-                    epstats.dirtyAgeHighWat, add_stat, cookie);
-    add_casted_stat("ep_num_workers", ExecutorPool::get()->getNumWorkersStat(),
-                    add_stat, cookie);
+
+    using namespace cb::stats;
+    collector.addStat(Key::ep_storage_age, epstats.dirtyAge);
+    collector.addStat(Key::ep_storage_age_highwat, epstats.dirtyAgeHighWat);
+    collector.addStat(Key::ep_num_workers,
+                      ExecutorPool::get()->getNumWorkersStat());
 
     if (getWorkloadPriority() == HIGH_BUCKET_PRIORITY) {
-        add_casted_stat("ep_bucket_priority", "HIGH", add_stat, cookie);
+        collector.addStat(Key::ep_bucket_priority, "HIGH");
     } else if (getWorkloadPriority() == LOW_BUCKET_PRIORITY) {
-        add_casted_stat("ep_bucket_priority", "LOW", add_stat, cookie);
+        collector.addStat(Key::ep_bucket_priority, "LOW");
     }
 
-    add_casted_stat("ep_total_enqueued",
-                    epstats.totalEnqueued, add_stat, cookie);
-    add_casted_stat("ep_total_deduplicated",
-                    epstats.totalDeduplicated,
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_expired_access", epstats.expired_access,
-                    add_stat, cookie);
-    add_casted_stat("ep_expired_compactor", epstats.expired_compactor,
-                    add_stat, cookie);
-    add_casted_stat("ep_expired_pager", epstats.expired_pager,
-                    add_stat, cookie);
-    add_casted_stat("ep_queue_size",
-                    epstats.diskQueueSize, add_stat, cookie);
-    add_casted_stat("ep_diskqueue_items",
-                    epstats.diskQueueSize, add_stat, cookie);
+    collector.addStat(Key::ep_total_enqueued, epstats.totalEnqueued);
+    collector.addStat(Key::ep_total_deduplicated, epstats.totalDeduplicated);
+    collector.addStat(Key::ep_expired_access, epstats.expired_access);
+    collector.addStat(Key::ep_expired_compactor, epstats.expired_compactor);
+    collector.addStat(Key::ep_expired_pager, epstats.expired_pager);
+    collector.addStat(Key::ep_queue_size, epstats.diskQueueSize);
+    collector.addStat(Key::ep_diskqueue_items, epstats.diskQueueSize);
     auto* flusher = kvBucket->getFlusher(EP_PRIMARY_SHARD);
     if (flusher) {
-        add_casted_stat("ep_commit_num", epstats.flusherCommits,
-                        add_stat, cookie);
-        add_casted_stat("ep_commit_time",
-                        epstats.commit_time, add_stat, cookie);
-        add_casted_stat("ep_commit_time_total",
-                        epstats.cumulativeCommitTime, add_stat, cookie);
-        add_casted_stat("ep_item_begin_failed",
-                        epstats.beginFailed, add_stat, cookie);
-        add_casted_stat("ep_item_commit_failed",
-                        epstats.commitFailed, add_stat, cookie);
-        add_casted_stat("ep_item_flush_expired",
-                        epstats.flushExpired, add_stat, cookie);
-        add_casted_stat("ep_item_flush_failed",
-                        epstats.flushFailed, add_stat, cookie);
-        add_casted_stat("ep_flusher_state",
-                        flusher->stateName(), add_stat, cookie);
-        add_casted_stat("ep_flusher_todo",
-                        epstats.flusher_todo, add_stat, cookie);
-        add_casted_stat("ep_total_persisted",
-                        epstats.totalPersisted, add_stat, cookie);
-        add_casted_stat("ep_uncommitted_items",
-                        epstats.flusher_todo, add_stat, cookie);
-        add_casted_stat("ep_chk_persistence_timeout",
-                        VBucket::getCheckpointFlushTimeout().count(),
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_commit_num, epstats.flusherCommits);
+        collector.addStat(Key::ep_commit_time, epstats.commit_time);
+        collector.addStat(Key::ep_commit_time_total,
+                          epstats.cumulativeCommitTime);
+        collector.addStat(Key::ep_item_begin_failed, epstats.beginFailed);
+        collector.addStat(Key::ep_item_commit_failed, epstats.commitFailed);
+        collector.addStat(Key::ep_item_flush_expired, epstats.flushExpired);
+        collector.addStat(Key::ep_item_flush_failed, epstats.flushFailed);
+        collector.addStat(Key::ep_flusher_state, flusher->stateName());
+        collector.addStat(Key::ep_flusher_todo, epstats.flusher_todo);
+        collector.addStat(Key::ep_total_persisted, epstats.totalPersisted);
+        collector.addStat(Key::ep_uncommitted_items, epstats.flusher_todo);
+        collector.addStat(Key::ep_chk_persistence_timeout,
+                          VBucket::getCheckpointFlushTimeout().count());
     }
-    add_casted_stat("ep_vbucket_del",
-                    epstats.vbucketDeletions, add_stat, cookie);
-    add_casted_stat("ep_vbucket_del_fail",
-                    epstats.vbucketDeletionFail, add_stat, cookie);
-    add_casted_stat("ep_flush_duration_total",
-                    epstats.cumulativeFlushTime, add_stat, cookie);
+    collector.addStat(Key::ep_vbucket_del, epstats.vbucketDeletions);
+    collector.addStat(Key::ep_vbucket_del_fail, epstats.vbucketDeletionFail);
+    collector.addStat(Key::ep_flush_duration_total,
+                      epstats.cumulativeFlushTime);
 
     kvBucket->getAggregatedVBucketStats(collector);
 
     kvBucket->getFileStats(collector);
 
-    add_casted_stat("ep_persist_vbstate_total",
-                    epstats.totalPersistVBState, add_stat, cookie);
+    collector.addStat(Key::ep_persist_vbstate_total,
+                      epstats.totalPersistVBState);
 
     size_t memUsed = stats.getPreciseTotalMemoryUsed();
-    add_casted_stat("mem_used", memUsed, add_stat, cookie);
-    add_casted_stat("mem_used_estimate",
-                    stats.getEstimatedTotalMemoryUsed(),
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_mem_low_wat_percent",
-                    stats.mem_low_wat_percent,
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_mem_high_wat_percent",
-                    stats.mem_high_wat_percent,
-                    add_stat,
-                    cookie);
-    add_casted_stat("bytes", memUsed, add_stat, cookie);
-    add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
-    add_casted_stat("ep_blob_num", stats.getNumBlob(), add_stat, cookie);
+    collector.addStat(Key::mem_used, memUsed);
+    collector.addStat(Key::mem_used_estimate,
+                      stats.getEstimatedTotalMemoryUsed());
+    collector.addStat(Key::ep_mem_low_wat_percent, stats.mem_low_wat_percent);
+    collector.addStat(Key::ep_mem_high_wat_percent, stats.mem_high_wat_percent);
+    collector.addStat(Key::bytes, memUsed);
+    collector.addStat(Key::ep_kv_size, stats.getCurrentSize());
+    collector.addStat(Key::ep_blob_num, stats.getNumBlob());
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat(
-            "ep_blob_overhead", stats.getBlobOverhead(), add_stat, cookie);
+    collector.addStat(Key::ep_blob_overhead, stats.getBlobOverhead());
 #else
-    add_casted_stat("ep_blob_overhead", "unknown", add_stat, cookie);
+    collector.addStat(Key::ep_blob_overhead, "unknown");
 #endif
-    add_casted_stat(
-            "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);
-    add_casted_stat(
-            "ep_storedval_size", stats.getStoredValSize(), add_stat, cookie);
+    collector.addStat(Key::ep_value_size, stats.getTotalValueSize());
+    collector.addStat(Key::ep_storedval_size, stats.getStoredValSize());
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    add_casted_stat(
-            "ep_storedval_overhead", stats.getBlobOverhead(), add_stat, cookie);
+    collector.addStat(Key::ep_storedval_overhead, stats.getBlobOverhead());
 #else
-    add_casted_stat("ep_storedval_overhead", "unknown", add_stat, cookie);
+    collector.addStat(Key::ep_storedval_overhead, "unknown");
 #endif
-    add_casted_stat(
-            "ep_storedval_num", stats.getNumStoredVal(), add_stat, cookie);
-    add_casted_stat("ep_overhead", stats.getMemOverhead(), add_stat, cookie);
-    add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
+    collector.addStat(Key::ep_storedval_num, stats.getNumStoredVal());
+    collector.addStat(Key::ep_overhead, stats.getMemOverhead());
+    collector.addStat(Key::ep_item_num, stats.getNumItem());
 
-    add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
-    add_casted_stat(
-            "ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
-    add_casted_stat("ep_mem_tracker_enabled",
-                    EPStats::isMemoryTrackingEnabled(),
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_bg_fetched", epstats.bg_fetched,
-                    add_stat, cookie);
-    add_casted_stat("ep_bg_meta_fetched", epstats.bg_meta_fetched,
-                    add_stat, cookie);
-    add_casted_stat("ep_bg_remaining_items", epstats.numRemainingBgItems,
-                    add_stat, cookie);
-    add_casted_stat("ep_bg_remaining_jobs", epstats.numRemainingBgJobs,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_pager_runs", epstats.pagerRuns,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_expiry_pager_runs", epstats.expiryPagerRuns,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_freq_decayer_runs",
-                    epstats.freqDecayerRuns,
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_items_expelled_from_checkpoints",
-                    epstats.itemsExpelledFromCheckpoints,
-                    add_stat, cookie);
-    add_casted_stat("ep_items_rm_from_checkpoints",
-                    epstats.itemsRemovedFromCheckpoints,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_value_ejects", epstats.numValueEjects,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_eject_failures", epstats.numFailedEjects,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_not_my_vbuckets", epstats.numNotMyVBuckets,
-                    add_stat, cookie);
+    collector.addStat(Key::ep_oom_errors, stats.oom_errors);
+    collector.addStat(Key::ep_tmp_oom_errors, stats.tmp_oom_errors);
+    collector.addStat(Key::ep_mem_tracker_enabled,
+                      EPStats::isMemoryTrackingEnabled());
+    collector.addStat(Key::ep_bg_fetched, epstats.bg_fetched);
+    collector.addStat(Key::ep_bg_meta_fetched, epstats.bg_meta_fetched);
+    collector.addStat(Key::ep_bg_remaining_items, epstats.numRemainingBgItems);
+    collector.addStat(Key::ep_bg_remaining_jobs, epstats.numRemainingBgJobs);
+    collector.addStat(Key::ep_num_pager_runs, epstats.pagerRuns);
+    collector.addStat(Key::ep_num_expiry_pager_runs, epstats.expiryPagerRuns);
+    collector.addStat(Key::ep_num_freq_decayer_runs, epstats.freqDecayerRuns);
+    collector.addStat(Key::ep_items_expelled_from_checkpoints,
+                      epstats.itemsExpelledFromCheckpoints);
+    collector.addStat(Key::ep_items_rm_from_checkpoints,
+                      epstats.itemsRemovedFromCheckpoints);
+    collector.addStat(Key::ep_num_value_ejects, epstats.numValueEjects);
+    collector.addStat(Key::ep_num_eject_failures, epstats.numFailedEjects);
+    collector.addStat(Key::ep_num_not_my_vbuckets, epstats.numNotMyVBuckets);
 
-    add_casted_stat("ep_pending_ops", epstats.pendingOps, add_stat, cookie);
-    add_casted_stat("ep_pending_ops_total", epstats.pendingOpsTotal,
-                    add_stat, cookie);
-    add_casted_stat("ep_pending_ops_max", epstats.pendingOpsMax,
-                    add_stat, cookie);
-    add_casted_stat("ep_pending_ops_max_duration",
-                    epstats.pendingOpsMaxDuration,
-                    add_stat, cookie);
+    collector.addStat(Key::ep_pending_ops, epstats.pendingOps);
+    collector.addStat(Key::ep_pending_ops_total, epstats.pendingOpsTotal);
+    collector.addStat(Key::ep_pending_ops_max, epstats.pendingOpsMax);
+    collector.addStat(Key::ep_pending_ops_max_duration,
+                      epstats.pendingOpsMaxDuration);
 
-    add_casted_stat("ep_pending_compactions", epstats.pendingCompactions,
-                    add_stat, cookie);
-    add_casted_stat("ep_rollback_count", epstats.rollbackCount,
-                    add_stat, cookie);
+    collector.addStat(Key::ep_pending_compactions, epstats.pendingCompactions);
+    collector.addStat(Key::ep_rollback_count, epstats.rollbackCount);
 
     size_t vbDeletions = epstats.vbucketDeletions.load();
     if (vbDeletions > 0) {
-        add_casted_stat("ep_vbucket_del_max_walltime",
-                        epstats.vbucketDelMaxWalltime,
-                        add_stat, cookie);
-        add_casted_stat("ep_vbucket_del_avg_walltime",
-                        epstats.vbucketDelTotWalltime / vbDeletions,
-                        add_stat, cookie);
+        collector.addStat(Key::ep_vbucket_del_max_walltime,
+                          epstats.vbucketDelMaxWalltime);
+        collector.addStat(Key::ep_vbucket_del_avg_walltime,
+                          epstats.vbucketDelTotWalltime / vbDeletions);
     }
 
     size_t numBgOps = epstats.bgNumOperations.load();
     if (numBgOps > 0) {
-        add_casted_stat("ep_bg_num_samples", epstats.bgNumOperations,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_min_wait",
-                        epstats.bgMinWait,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_max_wait",
-                        epstats.bgMaxWait,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_wait_avg",
-                        epstats.bgWait / numBgOps,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_min_load",
-                        epstats.bgMinLoad,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_max_load",
-                        epstats.bgMaxLoad,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_load_avg",
-                        epstats.bgLoad / numBgOps,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_wait",
-                        epstats.bgWait,
-                        add_stat, cookie);
-        add_casted_stat("ep_bg_load",
-                        epstats.bgLoad,
-                        add_stat, cookie);
+        collector.addStat(Key::ep_bg_num_samples, epstats.bgNumOperations);
+        collector.addStat(Key::ep_bg_min_wait, epstats.bgMinWait);
+        collector.addStat(Key::ep_bg_max_wait, epstats.bgMaxWait);
+        collector.addStat(Key::ep_bg_wait_avg, epstats.bgWait / numBgOps);
+        collector.addStat(Key::ep_bg_min_load, epstats.bgMinLoad);
+        collector.addStat(Key::ep_bg_max_load, epstats.bgMaxLoad);
+        collector.addStat(Key::ep_bg_load_avg, epstats.bgLoad / numBgOps);
+        collector.addStat(Key::ep_bg_wait, epstats.bgWait);
+        collector.addStat(Key::ep_bg_load, epstats.bgLoad);
     }
 
-    add_casted_stat("ep_degraded_mode", isDegradedMode(), add_stat, cookie);
+    collector.addStat(Key::ep_degraded_mode, isDegradedMode());
 
-    add_casted_stat("ep_num_access_scanner_runs", epstats.alogRuns,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_access_scanner_skips",
-                    epstats.accessScannerSkips, add_stat, cookie);
-    add_casted_stat("ep_access_scanner_last_runtime", epstats.alogRuntime,
-                    add_stat, cookie);
-    add_casted_stat("ep_access_scanner_num_items", epstats.alogNumItems,
-                    add_stat, cookie);
+    collector.addStat(Key::ep_num_access_scanner_runs, epstats.alogRuns);
+    collector.addStat(Key::ep_num_access_scanner_skips,
+                      epstats.accessScannerSkips);
+    collector.addStat(Key::ep_access_scanner_last_runtime, epstats.alogRuntime);
+    collector.addStat(Key::ep_access_scanner_num_items, epstats.alogNumItems);
 
     if (kvBucket->isAccessScannerEnabled() && epstats.alogTime.load() != 0)
     {
@@ -2945,16 +2863,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         struct tm alogTim;
         hrtime_t alogTime = epstats.alogTime.load();
         if (cb_gmtime_r((time_t *)&alogTime, &alogTim) == -1) {
-            add_casted_stat("ep_access_scanner_task_time", "UNKNOWN", add_stat,
-                            cookie);
+            collector.addStat(Key::ep_access_scanner_task_time, "UNKNOWN");
         } else {
             strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &alogTim);
-            add_casted_stat("ep_access_scanner_task_time", timestr, add_stat,
-                            cookie);
+            collector.addStat(Key::ep_access_scanner_task_time, timestr);
         }
     } else {
-        add_casted_stat("ep_access_scanner_task_time", "NOT_SCHEDULED",
-                        add_stat, cookie);
+        collector.addStat(Key::ep_access_scanner_task_time, "NOT_SCHEDULED");
     }
 
     if (kvBucket->isExpPagerEnabled()) {
@@ -2962,19 +2877,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         struct tm expPagerTim;
         hrtime_t expPagerTime = epstats.expPagerTime.load();
         if (cb_gmtime_r((time_t *)&expPagerTime, &expPagerTim) == -1) {
-            add_casted_stat("ep_expiry_pager_task_time", "UNKNOWN", add_stat,
-                            cookie);
+            collector.addStat(Key::ep_expiry_pager_task_time, "UNKNOWN");
         } else {
             strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &expPagerTim);
-            add_casted_stat("ep_expiry_pager_task_time", timestr, add_stat,
-                            cookie);
+            collector.addStat(Key::ep_expiry_pager_task_time, timestr);
         }
     } else {
-        add_casted_stat("ep_expiry_pager_task_time", "NOT_SCHEDULED",
-                        add_stat, cookie);
+        collector.addStat(Key::ep_expiry_pager_task_time, "NOT_SCHEDULED");
     }
 
-    add_casted_stat("ep_startup_time", startupTime.load(), add_stat, cookie);
+    collector.addStat(Key::ep_startup_time, startupTime.load());
 
     if (getConfiguration().getBucketType() == "persistent" &&
         getConfiguration().isWarmup()) {
@@ -2983,71 +2895,52 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
         }
         if (!kvBucket->isWarmingUp()) {
-            add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
+            collector.addStat(Key::ep_warmup_thread, "complete");
         } else {
-            add_casted_stat("ep_warmup_thread", "running", add_stat, cookie);
+            collector.addStat(Key::ep_warmup_thread, "running");
         }
         if (wp->getTime() > wp->getTime().zero()) {
-            add_casted_stat(
-                    "ep_warmup_time",
+            collector.addStat(
+                    Key::ep_warmup_time,
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             wp->getTime())
-                            .count(),
-                    add_stat,
-                    cookie);
+                            .count());
         }
-        add_casted_stat("ep_warmup_oom", epstats.warmOOM, add_stat, cookie);
-        add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
+        collector.addStat(Key::ep_warmup_oom, epstats.warmOOM);
+        collector.addStat(Key::ep_warmup_dups, epstats.warmDups);
     }
 
-    add_casted_stat("ep_num_ops_get_meta", epstats.numOpsGetMeta,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_ops_set_meta", epstats.numOpsSetMeta,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_ops_del_meta", epstats.numOpsDelMeta,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_ops_set_meta_res_fail",
-                    epstats.numOpsSetMetaResolutionFailed, add_stat, cookie);
-    add_casted_stat("ep_num_ops_del_meta_res_fail",
-                    epstats.numOpsDelMetaResolutionFailed, add_stat, cookie);
-    add_casted_stat("ep_num_ops_set_ret_meta", epstats.numOpsSetRetMeta,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_ops_del_ret_meta", epstats.numOpsDelRetMeta,
-                    add_stat, cookie);
-    add_casted_stat("ep_num_ops_get_meta_on_set_meta",
-                    epstats.numOpsGetMetaOnSetWithMeta, add_stat, cookie);
-    add_casted_stat("ep_workload_pattern",
-                    workload->stringOfWorkLoadPattern(),
-                    add_stat, cookie);
+    collector.addStat(Key::ep_num_ops_get_meta, epstats.numOpsGetMeta);
+    collector.addStat(Key::ep_num_ops_set_meta, epstats.numOpsSetMeta);
+    collector.addStat(Key::ep_num_ops_del_meta, epstats.numOpsDelMeta);
+    collector.addStat(Key::ep_num_ops_set_meta_res_fail,
+                      epstats.numOpsSetMetaResolutionFailed);
+    collector.addStat(Key::ep_num_ops_del_meta_res_fail,
+                      epstats.numOpsDelMetaResolutionFailed);
+    collector.addStat(Key::ep_num_ops_set_ret_meta, epstats.numOpsSetRetMeta);
+    collector.addStat(Key::ep_num_ops_del_ret_meta, epstats.numOpsDelRetMeta);
+    collector.addStat(Key::ep_num_ops_get_meta_on_set_meta,
+                      epstats.numOpsGetMetaOnSetWithMeta);
+    collector.addStat(Key::ep_workload_pattern,
+                      workload->stringOfWorkLoadPattern());
 
-    add_casted_stat("ep_defragmenter_num_visited", epstats.defragNumVisited,
-                    add_stat, cookie);
-    add_casted_stat("ep_defragmenter_num_moved", epstats.defragNumMoved,
-                    add_stat, cookie);
-    add_casted_stat("ep_defragmenter_sv_num_moved",
-                    epstats.defragStoredValueNumMoved,
-                    add_stat,
-                    cookie);
+    collector.addStat(Key::ep_defragmenter_num_visited,
+                      epstats.defragNumVisited);
+    collector.addStat(Key::ep_defragmenter_num_moved, epstats.defragNumMoved);
+    collector.addStat(Key::ep_defragmenter_sv_num_moved,
+                      epstats.defragStoredValueNumMoved);
 
-    add_casted_stat("ep_item_compressor_num_visited",
-                    epstats.compressorNumVisited,
-                    add_stat,
-                    cookie);
-    add_casted_stat("ep_item_compressor_num_compressed",
-                    epstats.compressorNumCompressed,
-                    add_stat,
-                    cookie);
+    collector.addStat(Key::ep_item_compressor_num_visited,
+                      epstats.compressorNumVisited);
+    collector.addStat(Key::ep_item_compressor_num_compressed,
+                      epstats.compressorNumCompressed);
 
-    add_casted_stat("ep_cursor_dropping_lower_threshold",
-                    epstats.cursorDroppingLThreshold, add_stat, cookie);
-    add_casted_stat("ep_cursor_dropping_upper_threshold",
-                    epstats.cursorDroppingUThreshold, add_stat, cookie);
-    add_casted_stat("ep_cursors_dropped",
-                    epstats.cursorsDropped, add_stat, cookie);
-    add_casted_stat("ep_cursor_memory_freed",
-                    epstats.cursorMemoryFreed,
-                    add_stat,
-                    cookie);
+    collector.addStat(Key::ep_cursor_dropping_lower_threshold,
+                      epstats.cursorDroppingLThreshold);
+    collector.addStat(Key::ep_cursor_dropping_upper_threshold,
+                      epstats.cursorDroppingUThreshold);
+    collector.addStat(Key::ep_cursors_dropped, epstats.cursorsDropped);
+    collector.addStat(Key::ep_cursor_memory_freed, epstats.cursorMemoryFreed);
 
     // Note: These are also reported per-shard in 'kvstore' stats, however
     // we want to be able to graph these over time, and hence need to expose
@@ -3057,20 +2950,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                                  KVBucketIface::KVSOption::BOTH)) {
         // Total data write failures is compaction failures plus commit failures
         auto writeFailure = value + epstats.commitFailed;
-        add_casted_stat("ep_data_write_failed", writeFailure, add_stat, cookie);
+        collector.addStat(Key::ep_data_write_failed, writeFailure);
     }
     if (kvBucket->getKVStoreStat("failure_get", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_data_read_failed",  value, add_stat, cookie);
+        collector.addStat(Key::ep_data_read_failed, value);
     }
     if (kvBucket->getKVStoreStat("io_document_write_bytes",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_io_document_write_bytes", value, add_stat, cookie);
+        collector.addStat(Key::ep_io_document_write_bytes, value);
 
         // Lambda to print a Write Amplification stat for the given bytes
         // written counter.
-        auto printWriteAmpStat = [this, add_stat, cookie, docBytes = value](
+        auto printWriteAmpStat = [this, &collector, docBytes = value](
                                          const char* writeBytesStat,
                                          const char* writeAmpStat) {
             double writeAmp = std::numeric_limits<double>::infinity();
@@ -3081,7 +2974,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                                          KVBucketIface::KVSOption::RW)) {
                 writeAmp = double(bytesWritten) / docBytes;
             }
-            add_casted_stat(writeAmpStat, writeAmp, add_stat, cookie);
+            collector.addStat(writeAmpStat, writeAmp);
         };
 
         printWriteAmpStat("io_flusher_write_bytes",
@@ -3092,25 +2985,25 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
 
     if (kvBucket->getKVStoreStat("io_total_read_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_io_total_read_bytes",  value, add_stat, cookie);
+        collector.addStat(Key::ep_io_total_read_bytes, value);
     }
     if (kvBucket->getKVStoreStat("io_total_write_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_io_total_write_bytes",  value, add_stat, cookie);
+        collector.addStat(Key::ep_io_total_write_bytes, value);
     }
     if (kvBucket->getKVStoreStat("io_compaction_read_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_io_compaction_read_bytes",  value, add_stat, cookie);
+        collector.addStat(Key::ep_io_compaction_read_bytes, value);
     }
     if (kvBucket->getKVStoreStat("io_compaction_write_bytes", value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_io_compaction_write_bytes",  value, add_stat, cookie);
+        collector.addStat(Key::ep_io_compaction_write_bytes, value);
     }
 
     if (kvBucket->getKVStoreStat("io_bg_fetch_read_count",
                                  value,
                                  KVBucketIface::KVSOption::BOTH)) {
-        add_casted_stat("ep_io_bg_fetch_read_count", value, add_stat, cookie);
+        collector.addStat(Key::ep_io_bg_fetch_read_count, value);
         // Calculate read amplication (RA) in terms of disk reads:
         // ratio of number of reads performed, compared to how many docs
         // fetched.
@@ -3122,10 +3015,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         // would give very large values.
         auto fetched = epstats.bg_fetched + epstats.bg_meta_fetched;
         double readAmp = fetched ? double(value) / double(fetched) : 0.0;
-        add_casted_stat("ep_bg_fetch_avg_read_amplification",
-                        readAmp,
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_bg_fetch_avg_read_amplification, readAmp);
     }
 
     // Specific to RocksDB. Cumulative ep-engine stats.
@@ -3133,36 +3023,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
     // Memory Usage
     if (kvBucket->getKVStoreStat(
                 "kMemTableTotal", value, KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_kMemTableTotal", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_kMemTableTotal, value);
     }
     if (kvBucket->getKVStoreStat(
                 "kMemTableUnFlushed", value, KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_kMemTableUnFlushed", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_kMemTableUnFlushed, value);
     }
     if (kvBucket->getKVStoreStat(
                 "kTableReadersTotal", value, KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_kTableReadersTotal", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_kTableReadersTotal, value);
     }
     if (kvBucket->getKVStoreStat(
                 "kCacheTotal", value, KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_kCacheTotal", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_kCacheTotal, value);
     }
     // MemTable Size per-CF
     if (kvBucket->getKVStoreStat("default_kSizeAllMemTables",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_default_kSizeAllMemTables",
-                        value,
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_rocksdb_default_kSizeAllMemTables, value);
     }
     if (kvBucket->getKVStoreStat("seqno_kSizeAllMemTables",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_seqno_kSizeAllMemTables", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_seqno_kSizeAllMemTables, value);
     }
     // BlockCache Hit Ratio
     size_t hit = 0;
@@ -3176,10 +3060,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         (hit + miss) != 0) {
         const auto ratio =
                 gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        add_casted_stat("ep_rocksdb_block_cache_data_hit_ratio",
-                        ratio,
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_rocksdb_block_cache_data_hit_ratio, ratio);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit",
                                  hit,
@@ -3190,10 +3071,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         (hit + miss) != 0) {
         const auto ratio =
                 gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        add_casted_stat("ep_rocksdb_block_cache_index_hit_ratio",
-                        ratio,
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_rocksdb_block_cache_index_hit_ratio, ratio);
     }
     if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit",
                                  hit,
@@ -3204,36 +3082,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         (hit + miss) != 0) {
         const auto ratio =
                 gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        add_casted_stat("ep_rocksdb_block_cache_filter_hit_ratio",
-                        ratio,
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_rocksdb_block_cache_filter_hit_ratio, ratio);
     }
     // Disk Usage per-CF
     if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat("ep_rocksdb_default_kTotalSstFilesSize",
-                        value,
-                        add_stat,
-                        cookie);
+        collector.addStat(Key::ep_rocksdb_default_kTotalSstFilesSize, value);
     }
     if (kvBucket->getKVStoreStat("seqno_kTotalSstFilesSize",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_seqno_kTotalSstFilesSize", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_seqno_kTotalSstFilesSize, value);
     }
     // Scan stats
     if (kvBucket->getKVStoreStat(
                 "scan_totalSeqnoHits", value, KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_scan_totalSeqnoHits", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_scan_totalSeqnoHits, value);
     }
     if (kvBucket->getKVStoreStat(
                 "scan_oldSeqnoHits", value, KVBucketIface::KVSOption::RW)) {
-        add_casted_stat(
-                "ep_rocksdb_scan_oldSeqnoHits", value, add_stat, cookie);
+        collector.addStat(Key::ep_rocksdb_scan_oldSeqnoHits, value);
     }
 
     return ENGINE_SUCCESS;
@@ -4666,7 +4535,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     }
 
     if (key.empty()) {
-        return doEngineStats(cookie, add_stat);
+        CBStatCollector collector{add_stat, cookie};
+        return doEngineStats(collector);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
         return doConnAggStats(cookie, add_stat, key.substr(7));

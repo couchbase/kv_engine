@@ -910,8 +910,7 @@ protected:
 
     bool enableTraffic(bool enable);
 
-    ENGINE_ERROR_CODE doEngineStats(const void* cookie,
-                                    const AddStatFn& add_stat);
+    ENGINE_ERROR_CODE doEngineStats(StatCollector& collector);
     ENGINE_ERROR_CODE doMemoryStats(const void* cookie,
                                     const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void* cookie,
