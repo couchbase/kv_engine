@@ -133,6 +133,10 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         ${LIBEVENT_LIBRARIES}
         ${FOLLY_LIBRARIES})
 
+if (NUMA_FOUND)
+    target_link_libraries(ep-engine_ep_unit_tests ${NUMA_LIBRARIES})
+endif()
+
 add_sanitizers(ep-engine_ep_unit_tests)
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
