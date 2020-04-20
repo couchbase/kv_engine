@@ -345,6 +345,12 @@ For introductory information on stats within Couchbase, start with the
 |                                       | features like xattrs/collections        |
 | ep_retain_erroneous_tombstones        | If True, compactor will retain erroneous|
 |                                       | tombstones.                             |
+| ep_pitr_enabled                       | If True Point in Time Recovery is       |
+|                                       | enabled                                 |
+| ep_pitr_max_history_age               | The number of seconds of the oldest     |
+|                                       | entry to keep as part of compaction     |
+| ep_pitr_granularity                   | The granularity (in seconds) for the    |
+|                                       | point in time recovery.                 |
 
 CouchRocks specific
 | Stat                                    | Description                       |

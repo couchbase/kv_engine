@@ -88,6 +88,30 @@ public:
         return maxFileDescriptors;
     }
 
+    bool isPitrEnabled() const {
+        return pitrEnabled;
+    }
+
+    void setPitrEnabled(bool enabled) {
+        pitrEnabled = enabled;
+    }
+
+    std::chrono::seconds getPitrMaxHistoryAge() const {
+        return pitrMaxHistoryAge;
+    }
+
+    void setPitrMaxHistoryAge(std::chrono::seconds age) {
+        pitrMaxHistoryAge = age;
+    }
+
+    void setPitrGranularity(std::chrono::seconds granularity) {
+        pitrGranularity = granularity;
+    }
+
+    std::chrono::seconds getPitrGranularity() const {
+        return pitrGranularity;
+    }
+
 protected:
     class ConfigChangeListener;
 
@@ -113,4 +137,8 @@ protected:
      * N bytes written.
      */
     std::atomic<uint64_t> periodicSyncBytes;
+
+    std::atomic_bool pitrEnabled{false};
+    std::atomic<std::chrono::seconds> pitrMaxHistoryAge;
+    std::atomic<std::chrono::seconds> pitrGranularity;
 };

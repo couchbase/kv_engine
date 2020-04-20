@@ -760,6 +760,36 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "pitr_enabled" : {
+            "default": "false",
+            "descr": "Is PiTR enabled or not",
+            "dynamic": true,
+            "type": "bool"
+        },
+        "pitr_max_history_age": {
+            "default":  "86400",
+            "descr": "The number of seconds of the oldest entry to keep as part of compaction (up to 48 hours)",
+            "dynamic" : true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 172800,
+                    "min": 1
+                }
+            }
+        },
+        "pitr_granularity": {
+            "default":  "600",
+            "descr": "The granularity (interval between each rollback point) in seconds (up to 5 hours)",
+            "dynamic" : true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 18000,
+                    "min": 1
+                }
+            }
+        },
         "replication_throttle_cap_pcnt": {
             "default": "10",
             "descr": "Percentage of total items in write queue at which we throttle replication input",

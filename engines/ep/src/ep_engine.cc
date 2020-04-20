@@ -734,6 +734,22 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setCouchstoreMprotect(cb_stob(val));
         } else if (key == "allow_del_with_meta_prune_user_data") {
             getConfiguration().setAllowDelWithMetaPruneUserData(cb_stob(val));
+        } else if (key == "pitr_enabled") {
+            getConfiguration().setPitrEnabled(cb_stob(val));
+        } else if (key == "pitr_max_history_age") {
+            uint32_t value;
+            if (safe_strtoul(val.c_str(), value)) {
+                getConfiguration().setPitrMaxHistoryAge(value);
+            } else {
+                rv = cb::mcbp::Status::Einval;
+            }
+        } else if (key == "pitr_granularity") {
+            uint32_t value;
+            if (safe_strtoul(val.c_str(), value)) {
+                getConfiguration().setPitrGranularity(value);
+            } else {
+                rv = cb::mcbp::Status::Einval;
+            }
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;

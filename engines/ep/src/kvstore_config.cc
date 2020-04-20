@@ -26,12 +26,22 @@
 /// A listener class to update KVStore related configs at runtime.
 class KVStoreConfig::ConfigChangeListener : public ValueChangedListener {
 public:
-    ConfigChangeListener(KVStoreConfig& c) : config(c) {
+    explicit ConfigChangeListener(KVStoreConfig& c) : config(c) {
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
         if (key == "fsync_after_every_n_bytes_written") {
             config.setPeriodicSyncBytes(value);
+        } else if (key == "pitr_max_history_age") {
+            config.setPitrMaxHistoryAge(std::chrono::seconds{value});
+        } else if (key == "pitr_granularity") {
+            config.setPitrGranularity(std::chrono::seconds{value});
+        }
+    }
+
+    void booleanValueChanged(const std::string& key, bool b) override {
+        if (key == "pitr_enabled") {
+            config.setPitrEnabled(b);
         }
     }
 
@@ -51,6 +61,17 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "fsync_after_every_n_bytes_written",
             std::make_unique<ConfigChangeListener>(*this));
+
+    setPitrEnabled(config.isPitrEnabled());
+    setPitrGranularity(std::chrono::seconds{config.getPitrGranularity()});
+    setPitrMaxHistoryAge(std::chrono::hours{config.getPitrMaxHistoryAge()});
+    config.addValueChangedListener(
+            "pitr_enabled", std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "pitr_max_history_age",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "pitr_granularity", std::make_unique<ConfigChangeListener>(*this));
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

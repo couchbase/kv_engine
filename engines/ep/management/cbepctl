@@ -267,6 +267,11 @@ Available params for "set":
                                    a per core memory counter is accumulated into a global
                                    memory used counter. This configuration parameter generates
                                    a value which is n% of max_size / number of CPUs.
+    pitr_enabled                 - Enable/Disable Point in Time Recovery
+    pitr_max_history_age         - The number of seconds of the oldest entry to
+                                   keep as part of compaction
+    pitr_granularity             - The granularity (in seconds) for the point
+                                   in time recovery
 
   Available params for "set replication_param":
     replication_throttle_queue_cap   - Max disk write queue size to throttle
