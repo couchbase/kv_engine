@@ -703,71 +703,78 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     return makeGetValue(vbid, keySlice, metaSlice, valueSlice, getMetaOnly);
 }
 
-void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
+using GetOperations = magma::OperationsList<Magma::GetOperation>;
 
+void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
+    // Convert the vb_bgfetch_queue_t (which is a std::unordered_map
+    // under the covers) to a vector of GetOperations.
+    // Note: We can't pass vb_bgfetch_queue_t to GetDocs because GetDocs
+    // requires a list type which can be broken up for use by coroutines
+    // and a std::map doesn't support a numeric 'at' index.
+    GetOperations getOps;
     for (auto& it : itms) {
         auto& key = it.first;
-        Slice keySlice = {reinterpret_cast<const char*>(key.data()),
-                          key.size()};
-        Slice metaSlice;
-        Slice valueSlice;
-        Magma::FetchBuffer idxBuf;
-        Magma::FetchBuffer seqBuf;
-        bool found;
+        getOps.Add(Magma::GetOperation(
+                {reinterpret_cast<const char*>(key.data()), key.size()},
+                &it.second));
+    }
 
-        Status status = magma->Get(vbid.get(),
-                                   keySlice,
-                                   idxBuf,
-                                   seqBuf,
-                                   metaSlice,
-                                   valueSlice,
-                                   found);
-
+    auto cb = [this, &vbid](bool found,
+                            Status status,
+                            const Magma::GetOperation& op,
+                            const Slice& metaSlice,
+                            const Slice& valueSlice) {
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::getMulti {} key:{} status:{} found:{} "
                     "deleted:{}",
                     vbid,
-                    cb::UserData{makeDiskDocKey(keySlice).to_string()},
+                    cb::UserData{makeDiskDocKey(op.Key).to_string()},
                     status.String(),
                     found,
                     found ? magmakv::isDeleted(metaSlice) : false);
         }
-
         auto errCode = magmaErr2EngineErr(status.ErrorCode(), found);
-        vb_bgfetch_item_ctx_t& bg_itm_ctx = it.second;
-        bg_itm_ctx.value.setStatus(errCode);
-
+        auto* bg_itm_ctx =
+                reinterpret_cast<vb_bgfetch_item_ctx_t*>(op.UserContext);
+        bg_itm_ctx->value.setStatus(errCode);
         if (found) {
-            it.second.value = makeGetValue(vbid,
-                                           keySlice,
-                                           metaSlice,
-                                           valueSlice,
-                                           it.second.isMetaOnly);
-            GetValue* rv = &it.second.value;
+            bg_itm_ctx->value = makeGetValue(vbid,
+                                             op.Key,
+                                             metaSlice,
+                                             valueSlice,
+                                             bg_itm_ctx->isMetaOnly);
+            GetValue* rv = &bg_itm_ctx->value;
 
-            for (auto& fetch : bg_itm_ctx.bgfetched_list) {
+            for (auto& fetch : bg_itm_ctx->bgfetched_list) {
                 fetch->value = rv;
                 st.readTimeHisto.add(
                         std::chrono::duration_cast<std::chrono::microseconds>(
                                 std::chrono::steady_clock::now() -
                                 fetch->initTime));
-                st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
-                                     bg_itm_ctx.value.item->getNBytes());
+                st.readSizeHisto.add(bg_itm_ctx->value.item->getKey().size() +
+                                     bg_itm_ctx->value.item->getNBytes());
             }
         } else {
             if (!status) {
                 logger->critical(
-                        "MagmaKVStore::getMulti: {} key:{} status:{}, ",
+                        "MagmaKVStore::getMulti::GetDocs {} key:{} status:{}, ",
                         vbid,
-                        cb::UserData{makeDiskDocKey(keySlice).to_string()},
+                        cb::UserData{makeDiskDocKey(op.Key).to_string()},
                         status.String());
                 st.numGetFailure++;
             }
-            for (auto& fetch : bg_itm_ctx.bgfetched_list) {
+            for (auto& fetch : bg_itm_ctx->bgfetched_list) {
                 fetch->value->setStatus(errCode);
             }
         }
+    };
+
+    auto status = magma->GetDocs(vbid.get(), getOps, cb);
+    if (!status) {
+        logger->warn("MagmaKVStore::getMulti::GetDocs {} failed. Status:{}",
+                     vbid,
+                     status.String());
     }
 }
 
