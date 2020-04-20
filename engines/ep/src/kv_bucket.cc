@@ -2562,8 +2562,9 @@ cb::engine_error KVBucket::setCollections(std::string_view manifest) {
     return status;
 }
 
-std::pair<cb::mcbp::Status, std::string> KVBucket::getCollections() const {
-    return collectionsManager->getManifest();
+std::pair<cb::mcbp::Status, nlohmann::json> KVBucket::getCollections(
+        const Collections::IsVisibleFunction& isVisible) const {
+    return collectionsManager->getManifest(isVisible);
 }
 
 cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(

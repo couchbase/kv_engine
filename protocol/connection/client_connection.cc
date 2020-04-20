@@ -1581,6 +1581,16 @@ cb::mcbp::request::GetScopeIDPayload MemcachedConnection::getScopeId(
     return payload;
 }
 
+nlohmann::json MemcachedConnection::getCollectionsManifest() {
+    BinprotGenericCommand command(
+            cb::mcbp::ClientOpcode::CollectionsGetManifest, {}, {});
+    const auto response = BinprotResponse(execute(command));
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed getCollectionsManifest", response);
+    }
+    return nlohmann::json::parse(response.getDataString());
+}
+
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     switch (mode) {
     case ExecutionMode::Ordered:

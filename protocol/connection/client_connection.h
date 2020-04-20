@@ -885,6 +885,8 @@ public:
             std::string_view path);
     cb::mcbp::request::GetScopeIDPayload getScopeId(std::string_view path);
 
+    nlohmann::json getCollectionsManifest();
+
 protected:
     void read(Frame& frame, size_t bytes);
 

@@ -221,9 +221,10 @@ public:
     std::optional<ScopeID> getScopeID(CollectionID cid) const;
 
     /**
-     * @returns this manifest as a std::string (JSON formatted)
+     * @returns this manifest as nlohmann::json object
      */
-    std::string toJson() const;
+    nlohmann::json toJson(
+            const Collections::IsVisibleFunction& isVisible) const;
 
     void addCollectionStats(const void* cookie,
                             const AddStatFn& add_stat) const;

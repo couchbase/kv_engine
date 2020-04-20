@@ -92,10 +92,14 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
         // The new manifest has a uid:0, we tolerate an update where current and
         // new have a uid:0, but expect that the manifests are equal.
         // So this else case catches when the manifests aren't equal
+        Collections::IsVisibleFunction isVisible =
+                [](ScopeID, std::optional<CollectionID>) -> bool {
+            return true;
+        };
         EP_LOG_WARN(
                 "Collections::Manager::update error. The new manifest does not "
                 "match and we think it should. current:{}, new:{}",
-                current->toJson(),
+                current->toJson(isVisible),
                 std::string(manifest));
         return cb::engine_error(
                 cb::engine_errc::cannot_apply_collections_manifest,
@@ -139,9 +143,10 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
     return {};
 }
 
-std::pair<cb::mcbp::Status, std::string> Collections::Manager::getManifest()
-        const {
-    return {cb::mcbp::Status::Success, currentManifest.rlock()->toJson()};
+std::pair<cb::mcbp::Status, nlohmann::json> Collections::Manager::getManifest(
+        const Collections::IsVisibleFunction& isVisible) const {
+    return {cb::mcbp::Status::Success,
+            currentManifest.rlock()->toJson(isVisible)};
 }
 
 bool Collections::Manager::validateGetCollectionIDPath(std::string_view path) {

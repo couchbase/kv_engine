@@ -327,4 +327,10 @@ ScopeID getScopeIDFromKey(const DocKey& key);
  */
 using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
 
+/**
+ * A function for determining if a collection is visible
+ */
+using IsVisibleFunction =
+        std::function<bool(ScopeID, std::optional<CollectionID>)>;
+
 } // end namespace Collections

@@ -535,6 +535,9 @@ TEST(ManifestTest, toJson) {
                 ScopeEntry::shop2,
                 std::chrono::seconds(0)}}}}};
 
+    Collections::IsVisibleFunction isVisible =
+            [](ScopeID, std::optional<CollectionID>) -> bool { return true; };
+
     for (auto& manifest : input) {
         CollectionsManifest cm(NoDefault{});
         std::unordered_set<ScopeID> scopesAdded;
@@ -550,13 +553,8 @@ TEST(ManifestTest, toJson) {
 
         Collections::Manifest m(cm);
 
-        nlohmann::json output, input;
-        try {
-            output = nlohmann::json::parse(m.toJson());
-        } catch (const nlohmann::json::exception& e) {
-            FAIL() << "Cannot nlohmann::json::parse output " << m.toJson()
-                   << " " << e.what();
-        }
+        nlohmann::json input;
+        auto output = m.toJson(isVisible);
         std::string s(cm);
         try {
             input = nlohmann::json::parse(s);

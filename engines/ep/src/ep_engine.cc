@@ -1792,12 +1792,25 @@ cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
 cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
         gsl::not_null<const void*> cookie, const AddResponseFn& response) {
     auto engine = acquireEngine(this);
-    auto rv = engine->getKVBucket()->getCollections();
+    Collections::IsVisibleFunction isVisible =
+            [&engine, &cookie](ScopeID sid,
+                               std::optional<CollectionID> cid) -> bool {
+        const auto status = engine->testPrivilege(
+                cookie, cb::rbac::Privilege::Read, sid, cid);
+        return status != cb::engine_errc::unknown_collection &&
+               status != cb::engine_errc::unknown_scope;
+    };
+    auto rv = engine->getKVBucket()->getCollections(isVisible);
+
+    std::string manifest;
+    if (rv.first == cb::mcbp::Status::Success) {
+        manifest = rv.second.dump();
+    }
     return cb::engine_errc(
             sendResponse(makeExitBorderGuard(std::cref(response)),
                          {}, // key
                          {}, // extra
-                         rv.second, // body
+                         manifest, // body
                          PROTOCOL_BINARY_DATATYPE_JSON,
                          rv.first,
                          0,

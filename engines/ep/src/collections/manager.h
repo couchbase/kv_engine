@@ -104,10 +104,13 @@ public:
 
     /**
      * Retrieve the current manifest
-     * @return pair with status and if success JSON version of the current
+     * @param isVisible function for determining what parts of the manifest the
+     *        caller is allowed to see.
+     * @return pair with status and if success JSON object of the current
      *         manifest
      */
-    std::pair<cb::mcbp::Status, std::string> getManifest() const;
+    std::pair<cb::mcbp::Status, nlohmann::json> getManifest(
+            const Collections::IsVisibleFunction& isVisible) const;
 
     /**
      * Lookup collection id from path

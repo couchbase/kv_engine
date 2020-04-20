@@ -640,7 +640,8 @@ public:
      * Method to handle get_collections commands
      * @return a pair with the status and JSON as a std::string
      */
-    std::pair<cb::mcbp::Status, std::string> getCollections() const;
+    std::pair<cb::mcbp::Status, nlohmann::json> getCollections(
+            const Collections::IsVisibleFunction& isVisible) const;
 
     /**
      * Method to handle get_collection_id command

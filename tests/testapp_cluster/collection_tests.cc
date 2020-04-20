@@ -185,5 +185,27 @@ TEST_F(CollectionsTests, TestBasicRbac) {
                 error.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 
+    // Check we get a restricted view of the manifest, only have access to
+    // two collections
+    auto json = conn->getCollectionsManifest();
+    ASSERT_EQ(1, json["scopes"].size());
+    EXPECT_EQ("_default", json["scopes"][0]["name"]);
+    EXPECT_EQ("0", json["scopes"][0]["uid"]);
+    EXPECT_EQ(2, json["scopes"][0]["collections"].size());
+    EXPECT_EQ(1,
+              std::count_if(json["scopes"][0]["collections"].begin(),
+                            json["scopes"][0]["collections"].end(),
+                            [](nlohmann::json entry) {
+                                return entry["name"] == "_default" &&
+                                       entry["uid"] == "0";
+                            }));
+    EXPECT_EQ(1,
+              std::count_if(json["scopes"][0]["collections"].begin(),
+                            json["scopes"][0]["collections"].end(),
+                            [](nlohmann::json entry) {
+                                return entry["name"] == "fruit" &&
+                                       entry["uid"] == "8";
+                            }));
+
     cluster->getAuthProviderService().removeUser(username);
 }

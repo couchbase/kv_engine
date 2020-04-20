@@ -275,43 +275,39 @@ bool Manifest::invalidCollectionID(CollectionID identifier) {
     return identifier == CollectionID::System;
 }
 
-std::string Manifest::toJson() const {
-    std::stringstream json;
-    json << R"({"uid":")" << std::hex << uid << R"(","scopes":[)";
-    size_t nScopes = 0;
-    for (const auto& scope : scopes) {
-        json << R"({"name":")" << scope.second.name << R"(","uid":")"
-             << std::hex << scope.first << R"(")";
-        // Add the collections if this scope has any
-        if (!scope.second.collections.empty()) {
-            json << R"(,"collections":[)";
-            // Add all collections
-            size_t nCollections = 0;
-            for (const auto& collection : scope.second.collections) {
-                json << R"({"name":")" << collections.at(collection.id).name
-                     << R"(","uid":")" << std::hex << collection.id << "\"";
-                if (collection.maxTtl) {
-                    json << R"(,"maxTTL":)" << std::dec
-                         << collection.maxTtl.value().count();
+nlohmann::json Manifest::toJson(
+        const Collections::IsVisibleFunction& isVisible) const {
+    nlohmann::json manifest;
+    manifest["uid"] = fmt::format("{0:x}", uid);
+    manifest["scopes"] = nlohmann::json::array();
+
+    // scope check is correct to see an empty scope
+    // collection check is correct as well, if you have no visible collections
+    // and no access to the scope - no scope
+
+    for (const auto& s : scopes) {
+        nlohmann::json scope;
+        scope["collections"] = nlohmann::json::array();
+        bool visible = isVisible(s.first, {});
+        for (const auto& c : s.second.collections) {
+            // Include if the collection is visible
+            if (isVisible(s.first, c.id)) {
+                nlohmann::json collection;
+                collection["name"] = collections.at(c.id).name;
+                collection["uid"] = fmt::format("{0:x}", c.id);
+                if (c.maxTtl) {
+                    collection["maxTTL"] = c.maxTtl.value().count();
                 }
-                json << "}";
-                if (nCollections != scope.second.collections.size() - 1) {
-                    json << ",";
-                }
-                nCollections++;
+                scope["collections"].push_back(collection);
             }
-            json << "]";
-        } else {
-            json << R"(,"collections":[])";
         }
-        json << R"(})";
-        if (nScopes != scopes.size() - 1) {
-            json << ",";
+        if (!scope["collections"].empty() || visible) {
+            scope["name"] = s.second.name;
+            scope["uid"] = fmt::format("{0:x}", s.first);
+            manifest["scopes"].push_back(scope);
         }
-        nScopes++;
     }
-    json << "]}";
-    return json.str();
+    return manifest;
 }
 
 void Manifest::addCollectionStats(const void* cookie,
