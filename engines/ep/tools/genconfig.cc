@@ -194,11 +194,7 @@ static void initialize() {
 // ###########################################
 )";
 
-    prototypes << header << R"(
-#pragma once
-
-#include <string>
-)";
+    prototypes << header;
 
     implementation << header << R"(
 #include "configuration.h"
