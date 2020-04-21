@@ -2975,6 +2975,13 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
          * HashTable - the SV may have already been replaced (e.g. with
          * a pending SyncWrite). We "know" the delete happened on disk thus
          * should decrement the total number of items.
+         *
+         * @todo: About "the SV may have already been replaced (e.g. with
+         * a pending SyncWrite)" above.. Need to check if that is true. If it
+         * is, that shouldn't happen as we may end up with this at FullEviction:
+         *  - deleted key queued for persistence and removed from the HT
+         *  - deletion not persisted yet
+         *  - frontend read bg-fecthes a previous alive state (if any) from disk
          */
         if (queuedItem.isCommitted()) {
             decrNumTotalItems();

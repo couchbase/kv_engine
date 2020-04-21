@@ -38,12 +38,12 @@ public:
 };
 
 struct WriteCallback {
-    void operator()(TransactionContext&, KVStore::MutationSetResultState) {
+    void operator()(TransactionContext&, KVStore::FlushStateMutation) {
     }
 };
 
 struct DeleteCallback {
-    void operator()(TransactionContext&, KVStore::MutationStatus) {
+    void operator()(TransactionContext&, KVStore::FlushStateDeletion) {
     }
 };
 

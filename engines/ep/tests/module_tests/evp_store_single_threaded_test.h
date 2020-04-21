@@ -23,6 +23,7 @@
 
 #include "fakes/fake_executorpool.h"
 #include "kv_bucket_test.h"
+#include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
 
 struct dcp_message_producers;
@@ -338,4 +339,18 @@ protected:
 class STParamPersistentBucketTest : public STParameterizedBucketTest {
 protected:
     void testAbortDoesNotIncrementOpsDelete(bool flusherDedup);
+
+    /**
+     * All the tests below check that we don't lose any item, any vbstate and
+     * that we update flush-stats properly when flush fails and we re-attemt the
+     * flush later.
+     *
+     * @param failureCode How the flush fails, this is the injected error-code
+     *  return by KVStore::commit in our tests
+     */
+    void testFlushFailureAtPersistNonMetaItems(couchstore_error_t failureCode);
+    void testFlushFailureAtPersistVBStateOnly(couchstore_error_t failureCode);
+    void testFlushFailureStatsAtDedupedNonMetaItems(
+            couchstore_error_t failureCode);
+    void testFlushFailureAtPersistDelete(couchstore_error_t failureCode);
 };

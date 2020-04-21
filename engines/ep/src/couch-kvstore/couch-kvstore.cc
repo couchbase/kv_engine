@@ -98,23 +98,6 @@ static void discoverDbFiles(const std::string &dir,
     }
 }
 
-static KVStore::MutationStatus getMutationStatus(couchstore_error_t errCode) {
-    switch (errCode) {
-    case COUCHSTORE_SUCCESS:
-        return KVStore::MutationStatus::Success;
-    case COUCHSTORE_ERROR_NO_HEADER:
-    case COUCHSTORE_ERROR_NO_SUCH_FILE:
-    case COUCHSTORE_ERROR_DOC_NOT_FOUND:
-        // this return causes ep engine to drop the failed flush
-        // of an item since it does not know about the itme any longer
-        return KVStore::MutationStatus::DocNotFound;
-    default:
-        // this return causes ep engine to keep requeuing the failed
-        // flush of an item
-        return KVStore::MutationStatus::Failed;
-    }
-}
-
 static bool allDigit(std::string &input) {
     size_t numchar = input.length();
     for(size_t i = 0; i < numchar; ++i) {
@@ -2364,57 +2347,49 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                                   kvstats_ctx& kvctx,
                                   couchstore_error_t errCode) {
+    const auto flushSuccess = (errCode == COUCHSTORE_SUCCESS);
     for (auto& committed : committedReqs) {
         const auto docLogicalSize =
                 calcLogicalDataSize(*committed.getDbDocInfo());
-        /* update ep stats */
         ++st.io_num_write;
         st.io_document_write_bytes += docLogicalSize;
 
+        const auto& key = committed.getKey();
         if (committed.isDelete()) {
-            auto mutationStatus = getMutationStatus(errCode);
-            if (mutationStatus != MutationStatus::Failed) {
-                const auto& key = committed.getKey();
+            FlushStateDeletion state;
+            if (flushSuccess) {
                 if (kvctx.keyStats.find(key) != kvctx.keyStats.end()) {
-                    mutationStatus =
-                            MutationStatus::Success; // Deletion is for an
-                                                     // existing item on
-                                                     // DB file.
+                    // Deletion is for an existing item on disk
+                    state = FlushStateDeletion::Delete;
                 } else {
-                    mutationStatus =
-                            MutationStatus::DocNotFound; // Deletion is for a
-                                                         // non-existing item on
-                                                         // DB file.
+                    // Deletion is for a non-existing item on disk
+                    state = FlushStateDeletion::DocNotFound;
                 }
-            }
-            if (errCode) {
-                ++st.numDelFailure;
-            } else {
                 st.delTimeHisto.add(committed.getDelta());
-            }
-            transactionCtx->deleteCallback(committed.getItem(), mutationStatus);
-        } else {
-            auto mutationStatus = getMutationStatus(errCode);
-            const auto& key = committed.getKey();
-            bool insertion = kvctx.keyStats.find(key) == kvctx.keyStats.end();
-            if (errCode) {
-                ++st.numSetFailure;
             } else {
-                st.writeTimeHisto.add(committed.getDelta());
-                st.writeSizeHisto.add(docLogicalSize);
+                state = FlushStateDeletion::Failed;
+                ++st.numDelFailure;
             }
 
-            auto setState = MutationSetResultState::Failed;
-            if (mutationStatus == MutationStatus::Success) {
-                if (insertion) {
-                    setState = MutationSetResultState::Insert;
+            transactionCtx->deleteCallback(committed.getItem(), state);
+        } else {
+            FlushStateMutation state;
+            if (flushSuccess) {
+                if (kvctx.keyStats.find(key) != kvctx.keyStats.end()) {
+                    // Mutation is for an existing item on disk
+                    state = FlushStateMutation::Update;
                 } else {
-                    setState = MutationSetResultState::Update;
+                    // Mutation is for a non-existing item on disk
+                    state = FlushStateMutation::Insert;
                 }
-            } else if (mutationStatus == MutationStatus::DocNotFound) {
-                setState = MutationSetResultState::DocNotFound;
+                st.writeTimeHisto.add(committed.getDelta());
+                st.writeSizeHisto.add(docLogicalSize);
+            } else {
+                state = FlushStateMutation::Failed;
+                ++st.numSetFailure;
             }
-            transactionCtx->setCallback(committed.getItem(), setState);
+
+            transactionCtx->setCallback(committed.getItem(), state);
         }
     }
 }

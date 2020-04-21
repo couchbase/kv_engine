@@ -104,13 +104,13 @@ private:
 };
 
 struct WriteCallback {
-    void operator()(TransactionContext, KVStore::MutationSetResultState) {
+    void operator()(TransactionContext, KVStore::FlushStateMutation) {
     }
 };
 
 struct DeleteCallback {
 public:
-    void operator()(TransactionContext&, KVStore::MutationStatus) {
+    void operator()(TransactionContext&, KVStore::FlushStateDeletion) {
     }
 };
 
@@ -2156,31 +2156,30 @@ public:
     // GMock cannot mock these directly, so instead provide named 'callback'
     // methods which these functions call.
     void operator()(TransactionContext& txCtx,
-                    KVStore::MutationSetResultState result) {
-        callback(txCtx, result);
+                    KVStore::FlushStateMutation state) {
+        callback(txCtx, state);
     }
-    void operator()(TransactionContext& txCtx, KVStore::MutationStatus value) {
-        callback(txCtx, value);
+    void operator()(TransactionContext& txCtx,
+                    KVStore::FlushStateDeletion state) {
+        callback(txCtx, state);
     }
 
     // SET callback.
-    virtual void callback(TransactionContext& txCtx,
-                          KVStore::MutationSetResultState& result) = 0;
+    virtual void callback(TransactionContext&,
+                          KVStore::FlushStateMutation&) = 0;
 
     // DEL callback.
     // @param value number of items that the underlying storage has deleted
     virtual void callback(TransactionContext& txCtx,
-                          KVStore::MutationStatus& result) = 0;
+                          KVStore::FlushStateDeletion&) = 0;
 };
 
 class MockPersistenceCallbacks : public PersistenceCallbacks {
 public:
     MOCK_METHOD2(callback,
-                 void(TransactionContext& txCtx,
-                      KVStore::MutationSetResultState& result));
+                 void(TransactionContext&, KVStore::FlushStateMutation&));
     MOCK_METHOD2(callback,
-                 void(TransactionContext& txCtx,
-                      KVStore::MutationStatus& value));
+                 void(TransactionContext&, KVStore::FlushStateDeletion&));
 };
 
 class MockTransactionContext : public TransactionContext {
@@ -2189,10 +2188,9 @@ public:
     }
 
     MOCK_METHOD2(setCallback,
-                 void(const queued_item& item,
-                      KVStore::MutationSetResultState result));
+                 void(const queued_item&, KVStore::FlushStateMutation));
     MOCK_METHOD2(deleteCallback,
-                 void(const queued_item& item, KVStore::MutationStatus value));
+                 void(const queued_item&, KVStore::FlushStateDeletion));
 };
 
 void KVStoreParamTest::SetUp() {
@@ -2258,7 +2256,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     // in KVStore::begin but our raw pointer will remain.
     std::unique_ptr<TransactionContext> tc =
             std::make_unique<MockTransactionContext>(Vbid(0));
-    auto mutationStatus = KVStore::MutationSetResultState::Insert;
+    auto mutationStatus = KVStore::FlushStateMutation::Insert;
     auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
 
     kvstore->begin(std::move(tc));
@@ -2297,7 +2295,7 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
 
     kvstore->begin(std::move(tc));
     // Expect that the DEL callback will not be called just after `del`
-    auto status = KVStore::MutationStatus::Success;
+    auto status = KVStore::FlushStateDeletion::Delete;
     EXPECT_CALL(*mockTC, deleteCallback(_, status)).Times(0);
 
     qi->setDeleted();

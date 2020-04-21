@@ -37,16 +37,16 @@ public:
 
     // This callback is invoked for set only.
     void operator()(TransactionContext&,
-                    queued_item item,
-                    KVStore::MutationSetResultState mutationResult);
+                    queued_item,
+                    KVStore::FlushStateMutation);
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
     void operator()(TransactionContext&,
-                    queued_item item,
-                    KVStore::MutationStatus deleteStatus);
+                    queued_item,
+                    KVStore::FlushStateDeletion);
 
 private:
     void redirty(EPStats& stats, VBucket& vbucket, queued_item item);
@@ -59,12 +59,12 @@ struct EPTransactionContext : public TransactionContext {
     }
 
     void setCallback(const queued_item& item,
-                     KVStore::MutationSetResultState mutationStatus) override {
+                     KVStore::FlushStateMutation mutationStatus) override {
         cb(*this, item, mutationStatus);
     }
 
     void deleteCallback(const queued_item& item,
-                        KVStore::MutationStatus mutationStatus) override {
+                        KVStore::FlushStateDeletion mutationStatus) override {
         cb(*this, item, mutationStatus);
     }
 

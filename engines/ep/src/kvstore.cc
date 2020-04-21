@@ -659,28 +659,26 @@ void KVStore::delSystemEvent(const queued_item item) {
     del(item);
 }
 
-std::string to_string(KVStore::MutationStatus status) {
-    switch (status) {
-    case KVStore::MutationStatus::Success:
-        return "MutationStatus::Success";
-    case KVStore::MutationStatus::DocNotFound:
-        return "MutationStatus::DocNotFound";
-    case KVStore::MutationStatus::Failed:
-        return "MutationStatus::Failed";
+std::string to_string(KVStore::FlushStateDeletion state) {
+    switch (state) {
+    case KVStore::FlushStateDeletion::Delete:
+        return "FlushStateDeletion::Delete";
+    case KVStore::FlushStateDeletion::DocNotFound:
+        return "FlushStateDeletion::DocNotFound";
+    case KVStore::FlushStateDeletion::Failed:
+        return "FlushStateDeletion::Failed";
     }
     folly::assume_unreachable();
 }
 
-std::string to_string(KVStore::MutationSetResultState status) {
-    switch (status) {
-    case KVStore::MutationSetResultState::DocNotFound:
-        return "MutationSetResultState::DocNotFound";
-    case KVStore::MutationSetResultState::Failed:
-        return "MutationSetResultState::Failed";
-    case KVStore::MutationSetResultState::Insert:
-        return "MutationSetResultState::Insert";
-    case KVStore::MutationSetResultState::Update:
-        return "MutationSetResultState::Update";
+std::string to_string(KVStore::FlushStateMutation state) {
+    switch (state) {
+    case KVStore::FlushStateMutation::Failed:
+        return "FlushStateMutation::Failed";
+    case KVStore::FlushStateMutation::Insert:
+        return "FlushStateMutation::Insert";
+    case KVStore::FlushStateMutation::Update:
+        return "FlushStateMutation::Update";
     }
     folly::assume_unreachable();
 }

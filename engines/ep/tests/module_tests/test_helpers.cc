@@ -34,9 +34,11 @@ StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
     return StoredDocKey(string, ns);
 }
 
-DiskDocKey makeDiskDocKey(const std::string& string, CollectionID ns) {
+DiskDocKey makeDiskDocKey(const std::string& string,
+                          bool prepare,
+                          CollectionID ns) {
     StoredDocKey sdk(string, ns);
-    return DiskDocKey(sdk);
+    return DiskDocKey(sdk, prepare);
 }
 
 Item make_item(Vbid vbid,

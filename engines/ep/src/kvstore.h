@@ -476,21 +476,11 @@ struct KVFileHandleDeleter {
  */
 class KVStore {
 public:
-    /**
-     * Enum to provide a implementation independent mutation status code of
-     * a mutation result at the storage layer. Storage engines should re-map
-     * their status codes to a KVStore::MutationStatus. When calling the
-     * persistence callbacks. To inform it of the result of the mutation.
-     */
-    enum class MutationStatus { Success, DocNotFound, Failed };
+    /// Result of flushing a Deletion, passed to the PersistenceCallback.
+    enum class FlushStateDeletion { Delete, DocNotFound, Failed };
 
-    /**
-     * Enum to represent the state of a resulting set mutation performed by
-     * the storage engine. This is used to inform the set persistence callback
-     * of the given mutation and is re-mapped from the KVStore::MutationStatus
-     * returned from the given storage engine.
-     */
-    enum class MutationSetResultState { DocNotFound, Failed, Insert, Update };
+    /// Result of flushing a Mutation, passed to the PersistenceCallback.
+    enum class FlushStateMutation { Insert, Update, Failed };
 
     KVStore(KVStoreConfig& config, bool read_only = false);
 
@@ -952,8 +942,8 @@ protected:
     void resetCachedVBState(Vbid vbid);
 };
 
-std::string to_string(KVStore::MutationStatus status);
-std::string to_string(KVStore::MutationSetResultState status);
+std::string to_string(KVStore::FlushStateDeletion status);
+std::string to_string(KVStore::FlushStateMutation state);
 
 /**
  * Structure holding the read/write and read only instances of the KVStore.
@@ -1022,8 +1012,7 @@ struct TransactionContext {
      * default as a subclass should provide functionality but we want to allow
      * simple tests to run without doing so.
      */
-    virtual void setCallback(const queued_item& item,
-                             KVStore::MutationSetResultState mutationStatus) {
+    virtual void setCallback(const queued_item&, KVStore::FlushStateMutation) {
     }
 
     /**
@@ -1031,8 +1020,8 @@ struct TransactionContext {
      * default as a subclass should provide functionality but we want to allow
      * simple tests to run without doing so.
      */
-    virtual void deleteCallback(const queued_item& item,
-                                KVStore::MutationStatus mutationStatus) {
+    virtual void deleteCallback(const queued_item&,
+                                KVStore::FlushStateDeletion) {
     }
 
     const Vbid vbid;

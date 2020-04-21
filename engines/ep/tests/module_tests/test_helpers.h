@@ -73,6 +73,7 @@ StoredDocKey makeStoredDocKey(const std::string& string,
  * CollectionID::Default.
  */
 DiskDocKey makeDiskDocKey(const std::string& string,
+                          bool prepare = false,
                           CollectionID ns = CollectionID::Default);
 
 // Creates a new item with the given key and queues it into the given VBucket.

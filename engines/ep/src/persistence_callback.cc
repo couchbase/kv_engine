@@ -30,28 +30,32 @@ PersistenceCallback::~PersistenceCallback() = default;
 void PersistenceCallback::operator()(
         TransactionContext& txCtx,
         queued_item queuedItem,
-        KVStore::MutationSetResultState mutationResult) {
+        KVStore::FlushStateMutation mutationResult) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
-    bool isInHashTable = false;
-    int64_t hashTableSeqno = -1;
 
-    { // scope for hashtable lock
+    {
         auto res = vbucket.ht.findItem(*queuedItem);
         auto* v = res.storedValue;
         if (v) {
-            isInHashTable = true;
-            hashTableSeqno = v->getBySeqno();
             if (v->getCas() == queuedItem->getCas()) {
                 // mark this item clean only if current and stored cas
                 // value match
                 v->markClean();
             }
         }
-    } // end of hashtable lock scope
+    }
+
+    const auto doGeneralFlushStats = [&vbucket, &queuedItem, &epCtx]() -> void {
+        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
+        --epCtx.stats.diskQueueSize;
+        epCtx.stats.totalPersisted++;
+    };
 
     switch (mutationResult) {
-    case KVStore::MutationSetResultState::Insert: {
+    case KVStore::FlushStateMutation::Insert: {
+        doGeneralFlushStats();
+
         // Only count Committed items in numTotalItems.
         if (queuedItem->isCommitted()) {
             ++vbucket.opsCreate;
@@ -61,48 +65,25 @@ void PersistenceCallback::operator()(
         // All items which are actually flushed to disk (Mutations, prepares,
         // commits, and system events) take up space on disk so increment
         // metadata stat.
-
         vbucket.incrMetaDataDisk(*queuedItem);
-        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
-        --epCtx.stats.diskQueueSize;
-        epCtx.stats.totalPersisted++;
         return;
     }
-    case KVStore::MutationSetResultState::Update: {
+    case KVStore::FlushStateMutation::Update: {
+        doGeneralFlushStats();
+
         if (queuedItem->isCommitted()) {
             // ops_update should only count committed, not prepared items.
             ++vbucket.opsUpdate;
         }
 
-        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
-        --epCtx.stats.diskQueueSize;
-        epCtx.stats.totalPersisted++;
         return;
     }
-    case KVStore::MutationSetResultState::DocNotFound: {
-        if (isInHashTable) {
-            EP_LOG_WARN(
-                    "PersistenceCallback::callback: Persisting on "
-                    "{}, seqno:{} returned: {}",
-                    queuedItem->getVBucketId(),
-                    hashTableSeqno,
-                    to_string(mutationResult));
-        } else {
-            EP_LOG_WARN(
-                    "PersistenceCallback::callback: Error persisting, a key"
-                    "is missing from {}",
-                    queuedItem->getVBucketId());
-        }
-
-        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
-        --epCtx.stats.diskQueueSize;
-        return;
-    }
-    case KVStore::MutationSetResultState::Failed:
+    case KVStore::FlushStateMutation::Failed:
         EP_LOG_WARN(
-                "PersistenceCallback::callback: Fatal error in persisting "
-                "SET on {}",
-                queuedItem->getVBucketId());
+                "PersistenceCallback::set: Fatal error in persisting "
+                "SET on {} seqno:{}",
+                queuedItem->getVBucketId(),
+                queuedItem->getBySeqno());
         redirty(epCtx.stats, vbucket, queuedItem);
         return;
     }
@@ -115,24 +96,25 @@ void PersistenceCallback::operator()(
 // successfully deleted the item.
 void PersistenceCallback::operator()(TransactionContext& txCtx,
                                      queued_item queuedItem,
-                                     KVStore::MutationStatus deleteStatus) {
+                                     KVStore::FlushStateDeletion state) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
-    switch (deleteStatus) {
-    case KVStore::MutationStatus::Success:
-    case KVStore::MutationStatus::DocNotFound: {
+    switch (state) {
+    case KVStore::FlushStateDeletion::Delete:
+    case KVStore::FlushStateDeletion::DocNotFound: {
         // We have successfully removed an item from the disk, we
         // may now remove it from the hash table.
-        bool deleted = deleteStatus == KVStore::MutationStatus::Success;
+        const bool deleted = (state == KVStore::FlushStateDeletion::Delete);
         vbucket.deletedOnDiskCbk(*queuedItem, deleted);
         return;
     }
-    case KVStore::MutationStatus::Failed:
+    case KVStore::FlushStateDeletion::Failed:
         EP_LOG_WARN(
-                "PersistenceCallback::callback: Fatal error in persisting "
-                "DELETE on {}",
-                queuedItem->getVBucketId());
+                "PersistenceCallback::del: Fatal error in persisting "
+                "DELETE on {} seqno:{}",
+                queuedItem->getVBucketId(),
+                queuedItem->getBySeqno());
         redirty(epCtx.stats, vbucket, queuedItem);
         return;
     }
