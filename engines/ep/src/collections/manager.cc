@@ -329,118 +329,145 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    bool success = true;
     std::optional<std::string> arg;
-
     if (auto pos = statKey.find_first_of(' '); pos != std::string::npos) {
         arg = statKey.substr(pos + 1);
     }
+
     if (cb_isPrefix(statKey, "collections-details")) {
-        if (arg) {
-            // VB may be encoded in statKey
-            uint16_t id;
-            try {
-                id = std::stoi(*arg);
-            } catch (const std::logic_error& e) {
-                EP_LOG_WARN(
-                        "Collections::Manager::doCollectionStats invalid "
-                        "vbid:{}, exception:{}",
-                        *arg, e.what());
-                return cb::EngineErrorGetCollectionIDResult{
-                        cb::engine_errc::invalid_arguments};
-            }
-
-            Vbid vbid = Vbid(id);
-            VBucketPtr vb = bucket.getVBucket(vbid);
-            if (!vb) {
-                return cb::EngineErrorGetCollectionIDResult{
-                        cb::engine_errc::not_my_vbucket};
-            }
-
-            success = vb->lockCollections().addCollectionStats(
-                    vbid, cookie, add_stat);
-
-        } else {
-            bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
-            CollectionDetailedVBucketVisitor visitor(cookie, add_stat);
-            bucket.visit(visitor);
-            success = visitor.getSuccess();
-        }
-    } else {
-        auto cachedStats = getPerCollectionStats(bucket);
-        // if an argument was provided, look up the collection
-        if (arg) {
-            CollectionIDType cid;
-            if (cb_isPrefix(statKey, "collections-byid")) {
-                // provided argument should be a hex collection ID N, 0xN or 0XN
-                try {
-                    cid = std::stoi(*arg, nullptr, 16);
-                } catch (const std::logic_error& e) {
-                    EP_LOG_WARN(
-                            "Collections::Manager::doCollectionStats invalid "
-                            "collection id:{}, exception:{}",
-                            *arg,
-                            e.what());
-                    return cb::EngineErrorGetCollectionIDResult{
-                            cb::engine_errc::invalid_arguments};
-                }
-            } else {
-                // provided argument should be a collection path
-                auto res = bucket.getCollectionsManager().getCollectionID(*arg);
-                if (res.result != cb::engine_errc::success) {
-                    EP_LOG_WARN(
-                            "Collections::Manager::doCollectionStats could not "
-                            "find "
-                            "collection name:{} error:{}",
-                            *arg,
-                            res.result);
-                    return res;
-                }
-                cid = res.getCollectionId();
-            }
-
-            auto current =
-                    bucket.getCollectionsManager().currentManifest.rlock();
-            auto collectionItr = current->findCollection(cid);
-
-            if (collectionItr == current->end()) {
-                EP_LOG_WARN(
-                        "Collections::Manager::doCollectionStats unknown "
-                        "collection id:{}",
-                        *arg);
-                return {cb::engine_errc::unknown_collection, current->getUid()};
-            }
-
-            // collection was specified, do stats for that collection only
-            const auto& collection = collectionItr->second;
-            const auto scopeItr = current->findScope(collection.sid);
-            Expects(scopeItr != current->endScopes());
-
-            cachedStats.addStatsForCollection(
-                    scopeItr->second, cid, collection, add_stat, cookie);
-        } else {
-            // no collection ID was provided
-
-            // Do the high level stats (includes global count)
-            bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
-
-            auto current =
-                    bucket.getCollectionsManager().currentManifest.rlock();
-            // do stats for every collection
-            for (const auto& entry : *current) {
-                const auto scopeItr = current->findScope(entry.second.sid);
-                Expects(scopeItr != current->endScopes());
-                cachedStats.addStatsForCollection(scopeItr->second,
-                                                  entry.first,
-                                                  entry.second,
-                                                  add_stat,
-                                                  cookie);
-            }
-        }
+        return doCollectionDetailStats(bucket, cookie, add_stat, arg);
     }
 
+    if (!arg) {
+        return doAllCollectionsStats(bucket, cookie, add_stat);
+    }
+    return doOneCollectionStats(bucket, cookie, add_stat, arg.value(), statKey);
+}
+
+// handle key "collections-details"
+cb::EngineErrorGetCollectionIDResult
+Collections::Manager::doCollectionDetailStats(KVBucket& bucket,
+                                              const void* cookie,
+                                              const AddStatFn& add_stat,
+                                              std::optional<std::string> arg) {
+    bool success = false;
+    if (arg) {
+        // VB may be encoded in statKey
+        uint16_t id;
+        try {
+            id = std::stoi(*arg);
+        } catch (const std::logic_error& e) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doCollectionStats invalid "
+                    "vbid:{}, exception:{}",
+                    *arg,
+                    e.what());
+            return cb::EngineErrorGetCollectionIDResult{
+                    cb::engine_errc::invalid_arguments};
+        }
+
+        Vbid vbid = Vbid(id);
+        VBucketPtr vb = bucket.getVBucket(vbid);
+        if (!vb) {
+            return cb::EngineErrorGetCollectionIDResult{
+                    cb::engine_errc::not_my_vbucket};
+        }
+
+        success = vb->lockCollections().addCollectionStats(
+                vbid, cookie, add_stat);
+
+    } else {
+        bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
+        CollectionDetailedVBucketVisitor visitor(cookie, add_stat);
+        bucket.visit(visitor);
+        success = visitor.getSuccess();
+    }
     return {success ? cb::engine_errc::success : cb::engine_errc::failed,
             cb::EngineErrorGetCollectionIDResult::allowSuccess{}};
+}
+
+// handle key "collections"
+cb::EngineErrorGetCollectionIDResult
+Collections::Manager::doAllCollectionsStats(KVBucket& bucket,
+                                            const void* cookie,
+                                            const AddStatFn& add_stat) {
+    // no collection ID was provided
+
+    // Do the high level stats (includes global count)
+    bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
+    auto cachedStats = getPerCollectionStats(bucket);
+    auto current = bucket.getCollectionsManager().currentManifest.rlock();
+    // do stats for every collection
+    for (const auto& entry : *current) {
+        const auto scopeItr = current->findScope(entry.second.sid);
+        Expects(scopeItr != current->endScopes());
+        cachedStats.addStatsForCollection(
+                scopeItr->second, entry.first, entry.second, add_stat, cookie);
+    }
+    return {cb::engine_errc::success,
+            cb::EngineErrorGetCollectionIDResult::allowSuccess{}};
+}
+
+// handle key "collections <path>" or "collections-byid"
+cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
+        KVBucket& bucket,
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const std::string& arg,
+        const std::string& statKey) {
+    auto cachedStats = getPerCollectionStats(bucket);
+
+    // An argument was provided, maybe an id or a 'path'
+    CollectionID cid;
+    if (cb_isPrefix(statKey, "collections-byid")) {
+        // provided argument should be a hex collection ID N, 0xN or 0XN
+        try {
+            cid = std::stoi(arg, nullptr, 16);
+        } catch (const std::logic_error& e) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doCollectionStats invalid "
+                    "collection arg:{}, exception:{}",
+                    arg,
+                    e.what());
+            return cb::EngineErrorGetCollectionIDResult{
+                    cb::engine_errc::invalid_arguments};
+        }
+    } else {
+        // provided argument should be a collection path
+        auto res = bucket.getCollectionsManager().getCollectionID(arg);
+        if (res.result != cb::engine_errc::success) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doCollectionStats could not "
+                    "find "
+                    "collection arg:{} error:{}",
+                    arg,
+                    res.result);
+            return res;
+        }
+        cid = res.getCollectionId();
+    }
+
+    auto current = bucket.getCollectionsManager().currentManifest.rlock();
+    auto collectionItr = current->findCollection(cid);
+
+    if (collectionItr == current->end()) {
+        EP_LOG_WARN(
+                "Collections::Manager::doCollectionStats unknown "
+                "collection arg:{} cid:{}",
+                arg,
+                cid.to_string());
+        return {cb::engine_errc::unknown_collection, current->getUid()};
+    }
+
+    // collection was specified, do stats for that collection only
+    const auto& collection = collectionItr->second;
+    const auto scopeItr = current->findScope(collection.sid);
+    Expects(scopeItr != current->endScopes());
+
+    cachedStats.addStatsForCollection(
+            scopeItr->second, cid, collection, add_stat, cookie);
+
+    return {current->getUid(), collection.sid, cid};
 }
 
 // scopes-details
@@ -456,111 +483,134 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    bool success = true;
     std::optional<std::string> arg;
-
     if (auto pos = statKey.find_first_of(' '); pos != std::string_view::npos) {
         arg = statKey.substr(pos + 1);
     }
     if (cb_isPrefix(statKey, "scopes-details")) {
-        if (arg) {
-            // VB may be encoded in statKey
-            uint16_t id;
-            try {
-                id = std::stoi(*arg);
-            } catch (const std::logic_error& e) {
-                EP_LOG_WARN(
-                        "Collections::Manager::doScopeStats invalid "
-                        "vbid:{}, exception:{}",
-                        *arg, e.what());
-                return cb::EngineErrorGetScopeIDResult{
-                        cb::engine_errc::invalid_arguments};
-            }
-
-            Vbid vbid = Vbid(id);
-            VBucketPtr vb = bucket.getVBucket(vbid);
-            if (!vb) {
-                return cb::EngineErrorGetScopeIDResult{
-                        cb::engine_errc::not_my_vbucket};
-            }
-            success =
-                    vb->lockCollections().addScopeStats(vbid, cookie, add_stat);
-        } else {
-            bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
-            ScopeDetailedVBucketVisitor visitor(cookie, add_stat);
-            bucket.visit(visitor);
-            success = visitor.getSuccess();
-        }
-    } else {
-        auto cachedStats = getPerCollectionStats(bucket);
-        // if an argument was provided, look up the scope
-        if (arg) {
-            ScopeIDType scopeID;
-            if (cb_isPrefix(statKey, "scopes-byid")) {
-                // provided argument should be a hex scope ID N, 0xN or 0XN
-                try {
-                    scopeID = std::stoi(*arg, nullptr, 16);
-                } catch (const std::logic_error& e) {
-                    EP_LOG_WARN(
-                            "Collections::Manager::doScopeStats invalid "
-                            "scope id:{}, exception:{}",
-                            *arg,
-                            e.what());
-                    return cb::EngineErrorGetScopeIDResult{
-                            cb::engine_errc::invalid_arguments};
-                }
-            } else {
-                // provided argument should be a scope name
-                auto res = bucket.getCollectionsManager().getScopeID(*arg);
-                if (res.result != cb::engine_errc::success) {
-                    EP_LOG_WARN(
-                            "Collections::Manager::doScopeStats unknown "
-                            "scope name:{} error:{}",
-                            *arg,
-                            res.result);
-                    return res;
-                }
-                scopeID = res.getScopeId();
-            }
-            auto current =
-                    bucket.getCollectionsManager().currentManifest.rlock();
-            auto scopeItr = current->findScope(scopeID);
-
-            if (scopeItr == current->endScopes()) {
-                EP_LOG_WARN(
-                        "Collections::Manager::doScopeStats unknown "
-                        "scope id:{}",
-                        *arg);
-                return cb::EngineErrorGetScopeIDResult{current->getUid()};
-            }
-
-            const auto& scope = scopeItr->second;
-            cachedStats.addStatsForScope(scopeID, scope, add_stat, cookie);
-            // add stats for each collection in the scope
-            for (const auto& entry : scope.collections) {
-                auto itr = current->findCollection(entry.id);
-                Expects(itr != current->end());
-                const auto& [cid, collection] = *itr;
-                cachedStats.addStatsForCollection(
-                        scope, cid, collection, add_stat, cookie);
-            }
-        } else {
-            // no scope ID given, add stats for all scopes
-
-            // Do the high level stats (includes number of collections)
-            bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
-            auto current =
-                    bucket.getCollectionsManager().currentManifest.rlock();
-            for (auto itr = current->beginScopes(); itr != current->endScopes();
-                 ++itr) {
-                cachedStats.addStatsForScope(
-                        itr->first, itr->second, add_stat, cookie);
-            }
-        }
+        return doScopeDetailStats(bucket, cookie, add_stat, arg);
     }
 
+    if (!arg) {
+        return doAllScopesStats(bucket, cookie, add_stat);
+    }
+
+    return doOneScopeStats(bucket, cookie, add_stat, arg.value(), statKey);
+}
+
+// handler for "scope-details"
+cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeDetailStats(
+        KVBucket& bucket,
+        const void* cookie,
+        const AddStatFn& add_stat,
+        std::optional<std::string> arg) {
+    bool success = true;
+    if (arg) {
+        // VB may be encoded in statKey
+        uint16_t id;
+        try {
+            id = std::stoi(*arg);
+        } catch (const std::logic_error& e) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doScopeStats invalid "
+                    "vbid:{}, exception:{}",
+                    *arg,
+                    e.what());
+            return cb::EngineErrorGetScopeIDResult{
+                    cb::engine_errc::invalid_arguments};
+        }
+
+        Vbid vbid = Vbid(id);
+        VBucketPtr vb = bucket.getVBucket(vbid);
+        if (!vb) {
+            return cb::EngineErrorGetScopeIDResult{
+                    cb::engine_errc::not_my_vbucket};
+        }
+        success = vb->lockCollections().addScopeStats(vbid, cookie, add_stat);
+    } else {
+        bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+        ScopeDetailedVBucketVisitor visitor(cookie, add_stat);
+        bucket.visit(visitor);
+        success = visitor.getSuccess();
+    }
     return {success ? cb::engine_errc::success : cb::engine_errc::failed,
             cb::EngineErrorGetScopeIDResult::allowSuccess{}};
+}
+
+// handler for "scopes"
+cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
+        KVBucket& bucket, const void* cookie, const AddStatFn& add_stat) {
+    auto cachedStats = getPerCollectionStats(bucket);
+
+    // Do the high level stats (includes number of collections)
+    bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+    auto current = bucket.getCollectionsManager().currentManifest.rlock();
+    for (auto itr = current->beginScopes(); itr != current->endScopes();
+         ++itr) {
+        cachedStats.addStatsForScope(itr->first, itr->second, add_stat, cookie);
+    }
+    return {cb::engine_errc::success,
+            cb::EngineErrorGetScopeIDResult::allowSuccess{}};
+}
+
+// handler for "scopes name" or "scopes byid id"
+cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
+        KVBucket& bucket,
+        const void* cookie,
+        const AddStatFn& add_stat,
+        const std::string& arg,
+        const std::string& statKey) {
+    auto cachedStats = getPerCollectionStats(bucket);
+    ScopeID scopeID;
+    if (cb_isPrefix(statKey, "scopes-byid")) {
+        // provided argument should be a hex scope ID N, 0xN or 0XN
+        try {
+            scopeID = std::stoi(arg, nullptr, 16);
+        } catch (const std::logic_error& e) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doScopeStats invalid "
+                    "scope arg:{}, exception:{}",
+                    arg,
+                    e.what());
+            return cb::EngineErrorGetScopeIDResult{
+                    cb::engine_errc::invalid_arguments};
+        }
+    } else {
+        // provided argument should be a scope name
+        auto res = bucket.getCollectionsManager().getScopeID(arg);
+        if (res.result != cb::engine_errc::success) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doScopeStats unknown "
+                    "scope arg:{} error:{}",
+                    arg,
+                    res.result);
+            return res;
+        }
+        scopeID = res.getScopeId();
+    }
+    auto current = bucket.getCollectionsManager().currentManifest.rlock();
+    auto scopeItr = current->findScope(scopeID);
+
+    if (scopeItr == current->endScopes()) {
+        EP_LOG_WARN(
+                "Collections::Manager::doScopeStats unknown "
+                "scope arg:{} sid:{}",
+                arg,
+                scopeID.to_string());
+        return cb::EngineErrorGetScopeIDResult{current->getUid()};
+    }
+
+    const auto& scope = scopeItr->second;
+    cachedStats.addStatsForScope(scopeID, scope, add_stat, cookie);
+    // add stats for each collection in the scope
+    for (const auto& entry : scope.collections) {
+        auto itr = current->findCollection(entry.id);
+        Expects(itr != current->end());
+        const auto& [cid, collection] = *itr;
+        cachedStats.addStatsForCollection(
+                scope, cid, collection, add_stat, cookie);
+    }
+    return {current->getUid(), scopeID};
 }
 
 void Collections::Manager::dump() const {

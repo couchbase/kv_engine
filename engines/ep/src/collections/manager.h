@@ -231,6 +231,44 @@ private:
      */
     static bool validateGetScopeIDPath(std::string_view path);
 
+    // handler for "collection-details"
+    static cb::EngineErrorGetCollectionIDResult doCollectionDetailStats(
+            KVBucket& bucket,
+            const void* cookie,
+            const AddStatFn& add_stat,
+            std::optional<std::string> arg);
+
+    // handler for "collections"
+    static cb::EngineErrorGetCollectionIDResult doAllCollectionsStats(
+            KVBucket& bucket, const void* cookie, const AddStatFn& add_stat);
+
+    // handler for "collections name" or "collections byid id"
+    static cb::EngineErrorGetCollectionIDResult doOneCollectionStats(
+            KVBucket& bucket,
+            const void* cookie,
+            const AddStatFn& add_stat,
+            const std::string& arg,
+            const std::string& statKey);
+
+    // handler for "scope-details"
+    static cb::EngineErrorGetScopeIDResult doScopeDetailStats(
+            KVBucket& bucket,
+            const void* cookie,
+            const AddStatFn& add_stat,
+            std::optional<std::string> arg);
+
+    // handler for "scopes"
+    static cb::EngineErrorGetScopeIDResult doAllScopesStats(
+            KVBucket& bucket, const void* cookie, const AddStatFn& add_stat);
+
+    // handler for "scopes name" or "scopes byid id"
+    static cb::EngineErrorGetScopeIDResult doOneScopeStats(
+            KVBucket& bucket,
+            const void* cookie,
+            const AddStatFn& add_stat,
+            const std::string& arg,
+            const std::string& statKey);
+
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 
     /// Store the most recent (current) manifest received
