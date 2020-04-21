@@ -422,7 +422,7 @@ void Filter::addStats(const AddStatFn& add_stat,
                              "%s:filter_%d_scope_id",
                              prefix.c_str(),
                              vb.get());
-            add_casted_stat(buffer, *scopeID, add_stat, c);
+            add_casted_stat(buffer, scopeID->to_string(), add_stat, c);
             checked_snprintf(buffer,
                              bsize,
                              "%s:filter_%d_scope_dropped",
