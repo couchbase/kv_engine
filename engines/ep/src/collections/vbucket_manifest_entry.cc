@@ -68,7 +68,7 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                          "vb_%d:collection:%s:entry:scope",
                          vbid.get(),
                          cid.c_str());
-        add_casted_stat(buffer, getScopeID(), add_stat, cookie);
+        add_casted_stat(buffer, getScopeID().to_string(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
                          "vb_%d:collection:%s:entry:start_seqno",
