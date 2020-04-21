@@ -468,11 +468,12 @@ cb::engine_errc Filter::checkPrivileges(
         lastCheckedPrivilegeRevision = rev;
         if (passthrough) {
             // Must have access to the bucket
-            return engine.checkPrivilege(cookie, DcpStreamPrivilege, {}, {});
+            return engine.checkPrivilege(
+                    cookie, cb::rbac::Privilege::DcpStream, {}, {});
         } else if (scopeID) {
             // Must have access to at least the scope
             return engine.checkPrivilege(
-                    cookie, DcpStreamPrivilege, scopeID, {});
+                    cookie, cb::rbac::Privilege::DcpStream, scopeID, {});
         } else {
             // Must have access to the collections
             bool unknownCollection = false;
@@ -480,8 +481,11 @@ cb::engine_errc Filter::checkPrivileges(
 
             // Check all collections
             for (const auto& c : filter) {
-                const auto status = engine.checkPrivilege(
-                        cookie, DcpStreamPrivilege, c.second, c.first);
+                const auto status =
+                        engine.checkPrivilege(cookie,
+                                              cb::rbac::Privilege::DcpStream,
+                                              c.second,
+                                              c.first);
                 switch (status) {
                 case cb::engine_errc::success:
                     continue;

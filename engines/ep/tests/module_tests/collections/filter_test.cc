@@ -1224,7 +1224,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
                 EXPECT_FALSE(cid);
                 EXPECT_FALSE(sid);
 
-                if (priv == DcpStreamPrivilege) {
+                if (priv == cb::rbac::Privilege::DcpStream) {
                     return cb::rbac::PrivilegeAccessFail;
                 }
                 return cb::rbac::PrivilegeAccessOk;
@@ -1254,7 +1254,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
                 EXPECT_FALSE(cid);
                 EXPECT_FALSE(sid);
 
-                if (priv == DcpStreamPrivilege) {
+                if (priv == cb::rbac::Privilege::DcpStream) {
                     return cb::rbac::PrivilegeAccessOk;
                 }
                 return cb::rbac::PrivilegeAccessFail;

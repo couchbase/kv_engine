@@ -44,13 +44,11 @@ public:
         CollectionsDcpTests::SetUp();
 
         // Load a user that has DcpProducer/Stream privs for the entire bucket
-        // @todo: Change the 'Read' to 'DcpStream' - test will fail when
-        //        ep-engine makes the change.
         cluster->getAuthProviderService().upsertUser({username, password, R"({
   "buckets": {
     "default": {
       "privileges": [
-        "DcpProducer", "Read"
+        "DcpProducer", "DcpStream"
       ]
     }
   },
@@ -150,8 +148,6 @@ public:
         CollectionsDcpTests::SetUp();
 
         // Load a user that has DcpProducer/Stream privs for the scope:0 only
-        // @todo: Change the 'Read' to 'DcpStream' - test will fail when
-        //        ep-engine makes the change.
         cluster->getAuthProviderService().upsertUser({username, password, R"({
   "buckets": {
     "default": {
@@ -159,7 +155,7 @@ public:
       "scopes": {
         "0": {
           "privileges": [
-            "Read"
+            "DcpStream"
           ]
         }
       }
@@ -214,8 +210,6 @@ public:
         CollectionsDcpTests::SetUp();
 
         // Load a user that has DcpProducer/Stream privs for the collection:0
-        // @todo: Change the 'Read' to 'DcpStream' - test will fail when
-        //        ep-engine makes the change.
         cluster->getAuthProviderService().upsertUser({username, password, R"({
   "buckets": {
     "default": {
@@ -227,7 +221,7 @@ public:
           "collections": {
             "0": {
               "privileges": [
-                "Read"
+                "DcpStream"
               ]
             }
           }
@@ -315,12 +309,11 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown2) {
 TEST_F(CollectionsDcpTests, TestBasicRbacCollectionsSuccess) {
     const std::string username{"TestBasicRbacCollectionsSuccess"};
     const std::string password{"TestBasicRbacCollectionsSuccess"};
-    // todo: Change Read to DcpStream
     cluster->getAuthProviderService().upsertUser({username, password, R"({
   "buckets": {
     "default": {
       "privileges": [
-        "DcpProducer", "Read"
+        "DcpProducer", "DcpStream"
       ]
     }
   },

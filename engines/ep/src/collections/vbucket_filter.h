@@ -32,9 +32,6 @@
 class EventuallyPersistentEngine;
 class SystemEventMessage;
 
-// Switch over to DcpStream only when it is being added to rbac.json
-const auto DcpStreamPrivilege = cb::rbac::Privilege::Read;
-
 namespace Collections {
 namespace VB {
 
