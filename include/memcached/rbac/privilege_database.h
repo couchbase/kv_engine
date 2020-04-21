@@ -169,8 +169,8 @@ protected:
     /// scopes is configured
     PrivilegeMask privilegeMask;
 
-    /// Count of how many privileges are applicable to collections.
-    uint32_t collectionPrivilegeCount{0};
+    /// true if any collection privilege exists
+    bool collectionPrivilegeExists{false};
 
     /// All of the scopes the bucket contains
     std::unordered_map<uint32_t, Scope> scopes;

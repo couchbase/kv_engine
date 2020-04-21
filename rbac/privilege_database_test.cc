@@ -105,8 +105,8 @@ public:
     const PrivilegeMask& getPrivileges() const {
         return privilegeMask;
     }
-    int getCollectionPrivilegeCount() const {
-        return collectionPrivilegeCount;
+    bool doesCollectionPrivilegeExists() const {
+        return collectionPrivilegeExists;
     }
 };
 
@@ -165,7 +165,7 @@ void BucketPrivCollectionVisibility::test(std::optional<nlohmann::json> scope) {
         bucketAccess["scopes"] = scope.value();
     }
     MockBucket bucket(bucketAccess);
-    EXPECT_EQ(1, bucket.getCollectionPrivilegeCount());
+    EXPECT_TRUE(bucket.doesCollectionPrivilegeExists());
 
     // Can Read everything
     EXPECT_TRUE(bucket.check(Privilege::Read, {}, {}).success());
@@ -239,7 +239,7 @@ void ScopePrivCollectionVisibility::test(
         scopeAccess["collections"] = collection.value();
     }
     MockBucket bucket(scopeAccess);
-    EXPECT_EQ(0, bucket.getCollectionPrivilegeCount());
+    EXPECT_FALSE(bucket.doesCollectionPrivilegeExists());
 
     // Cannot Read the bucket
     auto status = bucket.check(Privilege::Read, {}, {});
@@ -326,7 +326,7 @@ TEST_F(CollectionPrivVisibility, can_read_32_only) {
     // Read for collection 32 only
     // access["collections"] = {{"32", {{"privileges", {"Read"}}}}};
     MockBucket bucket(access);
-    EXPECT_EQ(0, bucket.getCollectionPrivilegeCount());
+    EXPECT_FALSE(bucket.doesCollectionPrivilegeExists());
 
     // Cannot Read the bucket
     auto status = bucket.check(Privilege::Read, {}, {});

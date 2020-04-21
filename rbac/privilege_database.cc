@@ -165,7 +165,7 @@ Scope::Scope(const nlohmann::json& json) {
     }
 
     // scopes can only have no/empty privileges if there are collections
-    if (collections.empty() && privilegeMask.count() == 0) {
+    if (collections.empty() && privilegeMask.none()) {
         throw std::invalid_argument(
                 "rbac::Scope(json) \"scopes\" with no \"privileges\" and no "
                 "\"collections\" is invalid");
@@ -231,9 +231,11 @@ Bucket::Bucket(const nlohmann::json& json) {
     }
 
     // Count how many privileges at the bucket are applicable to collections
-    for (std::size_t ii = 0; ii < privilegeMask.size(); ++ii) {
+    for (std::size_t ii = 0;
+         ii < privilegeMask.size() && !collectionPrivilegeExists;
+         ++ii) {
         if (is_collection_privilege(Privilege(ii)) && privilegeMask.test(ii)) {
-            collectionPrivilegeCount++;
+            collectionPrivilegeExists = true;
         }
     }
 }
@@ -263,11 +265,11 @@ PrivilegeAccess Bucket::check(Privilege privilege,
         if (iter != scopes.end()) {
             // Delegate the check to the scopes
             status = iter->second.check(
-                    privilege, collection, collectionPrivilegeCount != 0);
+                    privilege, collection, collectionPrivilegeExists);
         } else {
             // They don't have that scope at all, but do they have any
             // collection privileges which will determine  the error code.
-            status = collectionPrivilegeCount != 0
+            status = collectionPrivilegeExists
                              ? PrivilegeAccessFail
                              : PrivilegeAccessFailNoPrivileges;
         }
