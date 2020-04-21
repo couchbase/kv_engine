@@ -147,7 +147,11 @@ public:
         return *this;
     }
 
-    operator T() const {
+    operator T() const noexcept {
+        return load();
+    }
+
+    [[nodiscard]] T load() const noexcept {
         return val;
     }
 
