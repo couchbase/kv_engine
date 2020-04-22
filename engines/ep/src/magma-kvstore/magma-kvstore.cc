@@ -247,7 +247,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
     auto vbid = magmakv::getVbid(metaSlice);
     auto& itemString = cbCtx.itemKeyBuf;
     if (logger->should_log(spdlog::level::TRACE)) {
-        itemString.clear();
+        itemString.str(std::string());
         itemString << "key:"
                    << cb::UserData{makeDiskDocKey(keySlice).to_string()};
         itemString << " ";

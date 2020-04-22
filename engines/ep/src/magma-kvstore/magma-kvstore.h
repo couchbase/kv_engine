@@ -670,6 +670,11 @@ protected:
             return &magmaDbStats;
         }
         MagmaKVStore& magmaKVStore;
+
+        // The only usage of this is is in compactionCallback and it could be a
+        // local variable instead but it's less expensive to reset the contents
+        // of the stringstream than it is to destroy/recreate the stringstream
+        // for each key we visit.
         std::stringstream itemKeyBuf;
 
         std::shared_ptr<compaction_ctx> ctx;
@@ -716,11 +721,6 @@ protected:
     // unique_ptr for pimpl.
     std::unique_ptr<PendingRequestQueue> pendingReqs;
 
-    // Magma does *not* need additional synchronisation around
-    // db->Write, but we need to prevent delVBucket racing with
-    // commit, potentially losing data.
-    std::mutex writeLock;
-
     // This variable is used to verify that the KVStore API is used correctly
     // when Magma is used as store. "Correctly" means that the caller must
     // use the API in the following way:
@@ -748,6 +748,4 @@ protected:
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;
-
-    friend class MagmaCompactionCB;
 };
