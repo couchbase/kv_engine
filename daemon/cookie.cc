@@ -462,15 +462,17 @@ cb::mcbp::Status Cookie::validate() {
 
             auto result = packetValidator.validate(opcode, *this);
             if (result != cb::mcbp::Status::Success) {
-                LOG_WARNING(
-                        "{}: Packet validation failed for \"{}\" - Status: "
-                        "\"{}\" - Packet:[{}] - Returned payload:[{}]",
-                        connection.getId(),
-                        to_string(opcode),
-                        to_string(result),
-                        request.toJSON(false).dump(),
-                        getErrorJson());
-                audit_invalid_packet(getConnection(), getPacket());
+                if (result != cb::mcbp::Status::UnknownCollection) {
+                    LOG_WARNING(
+                            "{}: Packet validation failed for \"{}\" - Status: "
+                            "\"{}\" - Packet:[{}] - Returned payload:[{}]",
+                            connection.getId(),
+                            to_string(opcode),
+                            to_string(result),
+                            request.toJSON(false).dump(),
+                            getErrorJson());
+                    audit_invalid_packet(getConnection(), getPacket());
+                }
                 return result;
             }
         } else {
