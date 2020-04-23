@@ -151,8 +151,7 @@ protected:
                                       VBucketCountVisitor& replica,
                                       VBucketCountVisitor& pending,
                                       VBucketCountVisitor& dead,
-                                      const void* cookie,
-                                      const AddStatFn& add_stat) override;
+                                      StatCollector& collector) override;
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

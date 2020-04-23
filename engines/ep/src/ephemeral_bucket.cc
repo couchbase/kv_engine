@@ -291,8 +291,7 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                                                    VBucketCountVisitor& replica,
                                                    VBucketCountVisitor& pending,
                                                    VBucketCountVisitor& dead,
-                                                   const void* cookie,
-                                                   const AddStatFn& add_stat) {
+                                                   StatCollector& collector) {
     // The CountVisitors passed in are expected to all be Ephemeral subclasses.
     auto& ephActive = dynamic_cast<EphemeralVBucket::CountVisitor&>(active);
     auto& ephReplica = dynamic_cast<EphemeralVBucket::CountVisitor&>(replica);
@@ -300,16 +299,16 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 
     // Add stats for the base class:
     KVBucket::appendAggregatedVBucketStats(
-            active, replica, pending, dead, cookie, add_stat);
+            active, replica, pending, dead, collector);
 
     // Add Ephemeral-specific stats - add stats for each of active, replica
     // and pending vBuckets.
 
-#define ARP_STAT(k, v)                                                    \
-    do {                                                                  \
-        add_casted_stat("vb_active_" k, ephActive.v, add_stat, cookie);   \
-        add_casted_stat("vb_replica_" k, ephReplica.v, add_stat, cookie); \
-        add_casted_stat("vb_pending_" k, ephPending.v, add_stat, cookie); \
+#define ARP_STAT(k, v)                                    \
+    do {                                                  \
+        collector.addStat("vb_active_" k, ephActive.v);   \
+        collector.addStat("vb_replica_" k, ephReplica.v); \
+        collector.addStat("vb_pending_" k, ephPending.v); \
     } while (0)
 
     ARP_STAT("auto_delete_count", autoDeleteCount);

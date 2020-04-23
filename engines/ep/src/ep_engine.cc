@@ -2791,9 +2791,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
     add_casted_stat("ep_flush_duration_total",
                     epstats.cumulativeFlushTime, add_stat, cookie);
 
-    kvBucket->getAggregatedVBucketStats(cookie, add_stat);
-
     CBStatCollector collector{add_stat, cookie};
+
+    kvBucket->getAggregatedVBucketStats(collector);
 
     kvBucket->getFileStats(collector);
 

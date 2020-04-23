@@ -371,8 +371,7 @@ public:
      * Get summarized vBucket stats for this bucket - total for all
      * active,replica buckets.
      */
-    virtual void getAggregatedVBucketStats(const void* cookie,
-                                           const AddStatFn& add_stat) = 0;
+    virtual void getAggregatedVBucketStats(StatCollector& collector) = 0;
 
     /**
      * Get file statistics

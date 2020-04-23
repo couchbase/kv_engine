@@ -193,8 +193,7 @@ public:
 
     void snapshotStats() override;
 
-    void getAggregatedVBucketStats(const void* cookie,
-                                   const AddStatFn& add_stat) override;
+    void getAggregatedVBucketStats(StatCollector& collector) override;
 
     void completeBGFetchMulti(Vbid vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,
@@ -746,8 +745,7 @@ protected:
                                               VBucketCountVisitor& replica,
                                               VBucketCountVisitor& pending,
                                               VBucketCountVisitor& dead,
-                                              const void* cookie,
-                                              const AddStatFn& add_stat);
+                                              StatCollector& collector);
 
     /**
      * Returns the callback function to be invoked when SyncWrite(s) have been
