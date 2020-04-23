@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <folly/portability/Unistd.h>
+#include <folly/portability/Windows.h>
+#include <sys/types.h>
 #include <memory>
 #include <string>
 
@@ -32,7 +35,7 @@ class Node {
 public:
     virtual ~Node();
 
-    virtual bool isRunning() const = 0;
+    bool isRunning() const;
 
     virtual std::unique_ptr<MemcachedConnection> getConnection() = 0;
 
@@ -50,6 +53,12 @@ public:
 
 protected:
     explicit Node(std::string dir);
+
+#ifdef WIN32
+    mutable HANDLE child = INVALID_HANDLE_VALUE;
+#else
+    mutable pid_t child = 0;
+#endif
 };
 
 } // namespace test

@@ -41,19 +41,12 @@ public:
     ~NodeImpl() override;
     void startMemcachedServer();
 
-    bool isRunning() const override;
-
     std::unique_ptr<MemcachedConnection> getConnection() override;
 
 protected:
     void parsePortnumberFile();
 
     std::string configfile;
-#ifdef WIN32
-    mutable HANDLE child = INVALID_HANDLE_VALUE;
-#else
-    mutable pid_t child = 0;
-#endif
     nlohmann::json config;
     ConnectionMap connectionMap;
     const std::string id;
@@ -215,7 +208,7 @@ void NodeImpl::parsePortnumberFile() {
 }
 
 #ifdef WIN32
-bool NodeImpl::isRunning() const {
+bool Node::isRunning() const {
     if (child != INVALID_HANDLE_VALUE) {
         DWORD status;
 
@@ -240,7 +233,7 @@ bool NodeImpl::isRunning() const {
     return false;
 }
 #else
-bool NodeImpl::isRunning() const {
+bool Node::isRunning() const {
     if (child != 0) {
         int status;
         auto next = waitpid(child, &status, WNOHANG);
