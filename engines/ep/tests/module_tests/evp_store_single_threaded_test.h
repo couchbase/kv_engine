@@ -141,11 +141,6 @@ public:
         return ops;
     }
 
-    /**
-     * Replaces the rw store for shard 0 with a MockCouchKVStore.
-     */
-    void replaceCouchKVStoreWithMock();
-
 protected:
     void SetUp() override;
 

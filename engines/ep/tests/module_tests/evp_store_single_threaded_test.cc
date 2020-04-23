@@ -19,7 +19,6 @@
 
 #include "../couchstore/src/internal.h"
 #include "../mock/mock_checkpoint_manager.h"
-#include "../mock/mock_couch_kvstore.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
@@ -352,16 +351,6 @@ void SingleThreadedKVBucketTest::runCollectionsEraser() {
         auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
         evb->purgeStaleItems();
     }
-}
-
-void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
-    ASSERT_EQ(engine->getConfiguration().getBucketType(), "persistent");
-    ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
-    auto rwro = store->takeRWRO(0);
-    auto& config = const_cast<CouchKVStoreConfig&>(
-            dynamic_cast<const CouchKVStoreConfig&>(rwro.rw->getConfig()));
-    auto rw = std::make_unique<MockCouchKVStore>(config);
-    store->setRWRO(0, std::move(rw), std::move(rwro.ro));
 }
 
 void STParameterizedBucketTest::SetUp() {
