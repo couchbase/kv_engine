@@ -22,6 +22,7 @@ add_executable(cluster_test
                durability_tests.cc
                durability_upgrade_tests.cc
                main.cc
+               misc_tests.cc
                out_of_order_tests.cc
                rbac_tests.cc)
 target_link_libraries(cluster_test cluster_framework)
