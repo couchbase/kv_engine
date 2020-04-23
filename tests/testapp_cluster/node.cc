@@ -159,10 +159,24 @@ NodeImpl::~NodeImpl() {
     if (isRunning()) {
 #ifdef WIN32
         // @todo This should be made a bit more robust
-        TerminateProcess(child, 0);
-        WaitForSingleObject(child, 60000);
+        if (!TerminateProcess(child, 0)) {
+            std::cerr << "TerminateProcess failed!" << std::endl;
+            std::cerr.flush();
+            _exit(EXIT_FAILURE);
+        }
         DWORD status;
-        GetExitCodeProcess(child, &status);
+        if ((status = WaitForSingleObject(child, 60000)) != WAIT_OBJECT_0) {
+            std::cerr << "Unexpected return value from WaitForSingleObject: "
+                      << status << std::endl;
+            std::cerr.flush();
+            _exit(EXIT_FAILURE);
+        }
+        if (!GetExitCodeProcess(child, &status)) {
+            std::cerr << "GetExitCodeProcess failed: " << GetLastError()
+                      << std::endl;
+            std::cerr.flush();
+            _exit(EXIT_FAILURE);
+        }
 #else
         // Start by giving it a slow and easy start...
         const auto timeout =
