@@ -194,8 +194,13 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     // connections and recreate them with the consumer name.
     pendingSendConsumerName = !consumerName.empty();
     syncReplNegotiation.state =
-            pendingSendConsumerName ? SyncReplNegotiation::State::PendingRequest
-                                    : SyncReplNegotiation::State::Completed;
+            pendingSendConsumerName
+                    ? BlockingDcpControlNegotiation::State::PendingRequest
+                    : BlockingDcpControlNegotiation::State::Completed;
+
+    // Consumer needs to know if the Producer supports IncludeDeletedUserXattrs
+    deletedUserXattrsNegotiation.state =
+            BlockingDcpControlNegotiation::State::PendingRequest;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -843,6 +848,10 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
+    if ((ret = handleDeletedUserXattrs(producers)) != ENGINE_FAILED) {
+        return ret;
+    }
+
     auto resp = getNextItem();
     if (resp == nullptr) {
         return ENGINE_EWOULDBLOCK;
@@ -987,10 +996,19 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         // Note that a pre-6.5 Producer sends EINVAL as it does not recognize
         // the Sync Replication negotiation-key.
         if (resp->response.getOpaque() == syncReplNegotiation.opaque) {
-            syncReplNegotiation.state = SyncReplNegotiation::State::Completed;
+            syncReplNegotiation.state =
+                    BlockingDcpControlNegotiation::State::Completed;
             if (resp->response.getStatus() == cb::mcbp::Status::Success) {
                 supportsSyncReplication.store(SyncReplication::SyncReplication);
             }
+        } else if (resp->response.getOpaque() ==
+                   deletedUserXattrsNegotiation.opaque) {
+            deletedUserXattrsNegotiation.state =
+                    BlockingDcpControlNegotiation::State::Completed;
+            includeDeletedUserXattrs =
+                    (resp->response.getStatus() == cb::mcbp::Status::Success
+                             ? IncludeDeletedUserXattrs::Yes
+                             : IncludeDeletedUserXattrs::No);
         }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
@@ -1523,18 +1541,19 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     // different variables as in the future non-replication consumers may wish
     // to stream prepares and commits.
     switch (syncReplNegotiation.state) {
-    case SyncReplNegotiation::State::PendingRequest: {
+    case BlockingDcpControlNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
         ENGINE_ERROR_CODE ret =
                 producers->control(opaque, "enable_sync_writes", "true");
-        syncReplNegotiation.state = SyncReplNegotiation::State::PendingResponse;
+        syncReplNegotiation.state =
+                BlockingDcpControlNegotiation::State::PendingResponse;
         syncReplNegotiation.opaque = opaque;
         return ret;
     }
-    case SyncReplNegotiation::State::PendingResponse:
+    case BlockingDcpControlNegotiation::State::PendingResponse:
         // We have to wait for the response before proceeding
         return ENGINE_EWOULDBLOCK;
-    case SyncReplNegotiation::State::Completed:
+    case BlockingDcpControlNegotiation::State::Completed:
         break;
     }
 
@@ -1548,6 +1567,28 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     }
 
     return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::handleDeletedUserXattrs(
+        dcp_message_producers* producers) {
+    switch (deletedUserXattrsNegotiation.state) {
+    case BlockingDcpControlNegotiation::State::PendingRequest: {
+        uint32_t opaque = ++opaqueCounter;
+        NonBucketAllocationGuard guard;
+        // Note: the protocol requires a value in the payload, make it happy
+        ENGINE_ERROR_CODE ret = producers->control(
+                opaque, "include_deleted_user_xattrs", "true");
+        deletedUserXattrsNegotiation.state =
+                BlockingDcpControlNegotiation::State::PendingResponse;
+        deletedUserXattrsNegotiation.opaque = opaque;
+        return ret;
+    }
+    case BlockingDcpControlNegotiation::State::PendingResponse:
+        return ENGINE_EWOULDBLOCK;
+    case BlockingDcpControlNegotiation::State::Completed:
+        return ENGINE_FAILED;
+    }
+    folly::assume_unreachable();
 }
 
 uint64_t DcpConsumer::incrOpaqueCounter()

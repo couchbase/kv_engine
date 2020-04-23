@@ -105,8 +105,12 @@ public:
      * @return the entire SyncReplNegotiation struct used to send DCP_CONTROL
      *         messages for testing.
      */
-    SyncReplNegotiation public_getSyncReplNegotiation() const {
+    BlockingDcpControlNegotiation public_getSyncReplNegotiation() const {
         return syncReplNegotiation;
+    }
+
+    bool public_getPendingSendConsumerName() const {
+        return pendingSendConsumerName;
     }
 
     /**
@@ -139,5 +143,14 @@ public:
                                const uint8_t* body,
                                uint32_t bodylen) {
         streamAccepted(opaque, status, body, bodylen);
+    }
+
+    BlockingDcpControlNegotiation public_getDeletedUserXattrsNegotiation()
+            const {
+        return deletedUserXattrsNegotiation;
+    }
+
+    IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
+        return includeDeletedUserXattrs;
     }
 };

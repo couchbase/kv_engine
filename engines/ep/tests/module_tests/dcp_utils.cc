@@ -41,22 +41,24 @@ void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
         consumer.handleResponse(&resp);
     }
 
-    // The Consumer-Producer negotiation for Sync Replication happens over
-    // DCP_CONTROL and introduces a blocking step.
+    // Part of the Consumer-Producer negotiation happens over DCP_CONTROL and
+    // introduces a blocking step.
     // The blocking DCP_CONTROL request is signed at Consumer by tracking the
     // opaque value sent to the Producer.
     // We need to simulate the Producer response (with the proper opaque),
-    // the next calls to step() would block forever in
-    // DcpConsumer::enableSynchronousReplication() otherwise.
-    if (producers.last_op == cb::mcbp::ClientOpcode::DcpControl &&
-        producers.last_opaque ==
-                consumer.public_getSyncReplNegotiationOpaque()) {
-        protocol_binary_response_header resp{};
-        resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-        resp.response.setStatus(cb::mcbp::Status::Success);
-        resp.response.setOpaque(producers.last_opaque);
-        consumer.handleResponse(&resp);
+    // the next calls to step() would block forever otherwise.
+    if (producers.last_op == cb::mcbp::ClientOpcode::DcpControl) {
+        if (producers.last_opaque ==
+                    consumer.public_getSyncReplNegotiationOpaque() ||
+            producers.last_opaque ==
+                    consumer.public_getDeletedUserXattrsNegotiation().opaque) {
+            protocol_binary_response_header resp{};
+            resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+            resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+            resp.response.setStatus(cb::mcbp::Status::Success);
+            resp.response.setOpaque(producers.last_opaque);
+            consumer.handleResponse(&resp);
+        }
     }
 }
 

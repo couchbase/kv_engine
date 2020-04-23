@@ -178,12 +178,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
               ((flags & cb::mcbp::request::DcpOpenPayload::IncludeXattrs) != 0)
                       ? IncludeXattrs::Yes
                       : IncludeXattrs::No),
-      includeDeletedUserXattrs(
-              ((flags &
-                cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs) !=
-               0)
-                      ? IncludeDeletedUserXattrs::Yes
-                      : IncludeDeletedUserXattrs::No),
       includeDeleteTime(
               ((flags &
                 cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes) != 0)
@@ -258,6 +252,12 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     } else {
         supportsCursorDropping = true;
     }
+
+    includeDeletedUserXattrs =
+            ((flags &
+              cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs) != 0)
+                    ? IncludeDeletedUserXattrs::Yes
+                    : IncludeDeletedUserXattrs::No;
 }
 
 DcpProducer::~DcpProducer() {
