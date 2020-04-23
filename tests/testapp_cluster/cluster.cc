@@ -258,7 +258,12 @@ ClusterImpl::~ClusterImpl() {
     nodes.clear();
     // @todo I should make this configurable?
     if (cleanup && cb::io::isDirectory(directory)) {
-        cb::io::rmrf(directory);
+        try {
+            cb::io::rmrf(directory);
+        } catch (const std::exception& e) {
+            std::cerr << "WARNING: Failed to remove \"" << directory
+                      << "\": " << e.what() << std::endl;
+        }
     }
 }
 

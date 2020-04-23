@@ -199,7 +199,12 @@ NodeImpl::~NodeImpl() {
     }
 
     if (!configfile.empty()) {
-        cb::io::rmrf(configfile);
+        try {
+            cb::io::rmrf(configfile);
+        } catch (const std::exception& e) {
+            std::cerr << "WARNING: Failed to remove \"" << configfile
+                      << "\": " << e.what() << std::endl;
+        }
     }
 }
 
