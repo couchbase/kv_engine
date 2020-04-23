@@ -243,6 +243,16 @@ void ClusterImpl::deleteBucket(const std::string& name) {
 size_t ClusterImpl::size() const {
     return nodes.size();
 }
+
+std::pair<bool, std::string> rmrf_nothrow(const std::string& path) {
+    try {
+        cb::io::rmrf(path);
+    } catch (const std::exception& e) {
+        return {false, std::string{e.what()}};
+    }
+    return {true, {}};
+}
+
 ClusterImpl::~ClusterImpl() {
     buckets.clear();
     bool cleanup = true;
@@ -258,11 +268,23 @@ ClusterImpl::~ClusterImpl() {
     nodes.clear();
     // @todo I should make this configurable?
     if (cleanup && cb::io::isDirectory(directory)) {
-        try {
-            cb::io::rmrf(directory);
-        } catch (const std::exception& e) {
-            std::cerr << "WARNING: Failed to remove \"" << directory
-                      << "\": " << e.what() << std::endl;
+        // I'm seeing a lot of failures on windows where file removal returns
+        // EINVAL (when using ::remove) and EIO (when using DeleteFile).
+        // From the looks of it EIO could be that someone else is holding
+        // the file open.
+        // As part of testing this patch it would typically fail every
+        // now and then, and when it failed it would typically succeed within
+        // 1-4 times of retrying.. Allow a few more to avoid failures if the
+        // server is loaded and slow...
+        for (int retry = 0; retry < 100; ++retry) {
+            auto [success, msg] = rmrf_nothrow(directory);
+            if (success) {
+                break;
+            }
+            std::cerr << "WARNING: Failed to delete directory. " << msg
+                      << std::endl
+                      << "         Sleep 20ms before retry" << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }
