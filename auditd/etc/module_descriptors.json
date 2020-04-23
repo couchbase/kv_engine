@@ -58,6 +58,13 @@
                                "startid" : 40960,
                                "file" : "couchdb/src/couch_audit/etc/audit_descriptor.json"
                               }
+                },
+                {
+                  "backup" : {
+                               "startid" : 45056,
+                               "file" : "cbbs/audit/audit_descriptor.json",
+                               "enterprise": true
+                              }
                 }
              ]
 }
