@@ -66,6 +66,10 @@
 #define STAT(...)
 #endif
 
+// EPBucket::getFileStats
+STAT(ep_db_data_size, bytes, , , )
+STAT(ep_db_file_size, bytes, , , )
+
 // Timing stats
 STAT(bg_wait, microseconds, , , )
 STAT(bg_load, microseconds, , , )

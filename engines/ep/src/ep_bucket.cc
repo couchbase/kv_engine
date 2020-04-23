@@ -1256,8 +1256,7 @@ std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,
-                                         const AddStatFn& add_stat) {
+ENGINE_ERROR_CODE EPBucket::getFileStats(StatCollector& collector) {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 
@@ -1268,8 +1267,9 @@ ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,
         totalInfo.fileSize += dbInfo.fileSize;
     }
 
-    add_casted_stat("ep_db_data_size", totalInfo.spaceUsed, add_stat, cookie);
-    add_casted_stat("ep_db_file_size", totalInfo.fileSize, add_stat, cookie);
+    using namespace cb::stats;
+    collector.addStat(Key::ep_db_data_size, totalInfo.spaceUsed);
+    collector.addStat(Key::ep_db_file_size, totalInfo.fileSize);
 
     return ENGINE_SUCCESS;
 }

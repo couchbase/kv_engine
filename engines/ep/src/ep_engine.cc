@@ -2793,7 +2793,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
 
     kvBucket->getAggregatedVBucketStats(cookie, add_stat);
 
-    kvBucket->getFileStats(cookie, add_stat);
+    CBStatCollector collector{add_stat, cookie};
+
+    kvBucket->getFileStats(collector);
 
     add_casted_stat("ep_persist_vbstate_total",
                     epstats.totalPersistVBState, add_stat, cookie);
@@ -4605,7 +4607,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
         const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 8) {
-        return kvBucket->getFileStats(cookie, add_stat);
+        CBStatCollector collector{add_stat, cookie};
+        return kvBucket->getFileStats(collector);
     }
     if ((key.size() == 15) &&
         (statKey.compare(std::string("diskinfo").length() + 1,

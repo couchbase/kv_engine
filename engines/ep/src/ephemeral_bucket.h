@@ -51,8 +51,7 @@ public:
     }
 
     /// File stats not supported for Ephemeral buckets.
-    ENGINE_ERROR_CODE getFileStats(const void* cookie,
-                                   const AddStatFn& add_stat) override {
+    ENGINE_ERROR_CODE getFileStats(StatCollector& collector) override {
         return ENGINE_KEY_ENOENT;
     }
 
