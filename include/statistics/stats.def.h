@@ -66,6 +66,9 @@
 #define STAT(...)
 #endif
 
+// include generated config STAT declarations
+#include "stats_config.def.h" // NOLINT(*)
+
 // EPBucket::getFileStats
 STAT(ep_db_data_size, bytes, , , )
 STAT(ep_db_file_size, bytes, , , )

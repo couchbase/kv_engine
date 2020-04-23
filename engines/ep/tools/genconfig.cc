@@ -29,6 +29,7 @@
 std::stringstream prototypes;
 std::stringstream initialization;
 std::stringstream implementation;
+std::stringstream stat_definitions;
 
 typedef std::string (*getValidatorCode)(const std::string&,
                                         const nlohmann::json&);
@@ -174,7 +175,7 @@ static std::string getEnumValidatorCode(const std::string& key,
 
 static void initialize() {
     const char* header = R"(/*
- *     Copyright 2019 Couchbase, Inc
+ *     Copyright 2020 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -205,6 +206,8 @@ static void initialize() {
 using namespace std::string_literals;
 
 )";
+
+    stat_definitions << header;
 
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
@@ -449,22 +452,39 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                        << std::endl
                        << "}" << std::endl;
     }
+
+    // generate the stat definition for inclusion in stats.def.h
+    stat_definitions << "STAT(ep_" << key
+                     << ", "
+                     // TODO MB-39505: units should be included for use in
+                     // Prometheus for now, use unit "none"
+                     << "none, , , )" << std::endl;
+
+    if (hasAliases(json)) {
+        for (std::string alias : getAliases(json)) {
+            stat_definitions << "STAT(ep_" << alias << ", none, , , )"
+                             << std::endl;
+        }
+    }
 }
 
 /**
  * Read "configuration.json" and generate getters and setters
- * for the parameters in there
+ * for the parameters in there, and generate stat_config.def.h
+ * to provide stat definitions.
  */
 int main(int argc, char **argv) {
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " "
-                  << "<input config file> <header> <source>\n";
+    if (argc < 5) {
+        std::cerr
+                << "Usage: " << argv[0] << " "
+                << "<input config file> <header> <source> <stat definitions>\n";
         return 1;
     }
 
     const char* file = argv[1];
     const char* header = argv[2];
     const char* source = argv[3];
+    const char* stats = argv[4];
 
     initialize();
 
@@ -503,5 +523,14 @@ int main(int argc, char **argv) {
              << "void Configuration::initialize() {" << std::endl
              << initialization.str() << "}" << std::endl;
     implfile.close();
+
+    std::ofstream statsfile(stats);
+    if (!statsfile.is_open()) {
+        std::cerr << "Unable to create stat definition file : " << stats
+                  << std::endl;
+        return 1;
+    }
+    statsfile << stat_definitions.str() << std::endl;
+    statsfile.close();
     return 0;
 }

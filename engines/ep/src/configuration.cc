@@ -303,22 +303,28 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
     }
 }
 
-void Configuration::addStats(const AddStatFn& add_stat, const void* c) const {
+void Configuration::addStats(StatCollector& collector) const {
     LockHolder lh(mutex);
-    for (const auto& attribute :  attributes) {
-        if (!requirementsMet(*attribute.second)) {
-            continue;
-        }
-        // Use fmtlib to format key with stack-local (non-heap) buffer to
-        // minimise the cost of constructing keys & values.
-        fmt::memory_buffer key;
-        format_to(key, "ep_{}", attribute.first);
 
-        // Note: fmt::memory_buffer is not null-terminated.
-        add_stat({key.data(), key.size()},
-                 to_string(attribute.second->value),
-                 c);
-    }
+    const auto lookupAttr = [this](const std::string& keyStr) {
+        // remove the "ep_" prefix from the stat key
+        return attributes.at(keyStr.substr(3));
+    };
+
+    using namespace cb::stats;
+    const auto addStat = [this, &collector](Key key, const auto& attribute) {
+        if (!requirementsMet(*attribute)) {
+            return;
+        }
+        std::visit([&collector,
+                    &key](auto&& elem) { collector.addStat(key, elem); },
+                   attribute->value);
+    };
+
+#define STAT(name, unit, family, label, labelValue) \
+    addStat(Key::name, lookupAttr(#name));
+#include <stats_config.def.h>
+#undef STAT
 }
 
 /**

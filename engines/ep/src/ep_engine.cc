@@ -2723,7 +2723,9 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
         const void* cookie, const AddStatFn& add_stat) {
-    configuration.addStats(add_stat, cookie);
+    CBStatCollector collector{add_stat, cookie};
+
+    configuration.addStats(collector);
 
     EPStats &epstats = getEpStats();
     add_casted_stat("ep_storage_age",
@@ -2790,8 +2792,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
                     epstats.vbucketDeletionFail, add_stat, cookie);
     add_casted_stat("ep_flush_duration_total",
                     epstats.cumulativeFlushTime, add_stat, cookie);
-
-    CBStatCollector collector{add_stat, cookie};
 
     kvBucket->getAggregatedVBucketStats(collector);
 
@@ -4770,7 +4770,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return ENGINE_SUCCESS;
     }
     if (key == "config"sv) {
-        configuration.addStats(add_stat, cookie);
+        CBStatCollector collector(add_stat, cookie);
+        configuration.addStats(collector);
         return ENGINE_SUCCESS;
     }
     if (key.size() > 15 && cb_isPrefix(key, "dcp-vbtakeover")) {

@@ -138,10 +138,11 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
 ADD_CUSTOM_COMMAND(OUTPUT
                      src/generated_configuration.cc.temp
                      src/generated_configuration.h.temp
+                     src/stats_config.def.h.temp
                   COMMAND
                      ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/src
                   COMMAND
-                     genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json src/generated_configuration.h.temp src/generated_configuration.cc.temp
+                     genconfig ${CMAKE_CURRENT_SOURCE_DIR}/configuration.json src/generated_configuration.h.temp src/generated_configuration.cc.temp src/stats_config.def.h.temp
                   DEPENDS
                         configuration.json
                         genconfig
@@ -150,13 +151,17 @@ ADD_CUSTOM_COMMAND(OUTPUT
 ADD_CUSTOM_COMMAND(OUTPUT
                      src/generated_configuration.cc
                      src/generated_configuration.h
+                     src/stats_config.def.h
                   COMMAND
                      ${CMAKE_COMMAND} -E copy_if_different src/generated_configuration.cc.temp src/generated_configuration.cc
                   COMMAND
                      ${CMAKE_COMMAND} -E copy_if_different src/generated_configuration.h.temp src/generated_configuration.h
+                  COMMAND
+                    ${CMAKE_COMMAND} -E copy_if_different src/stats_config.def.h.temp src/stats_config.def.h
                   DEPENDS
                      src/generated_configuration.cc.temp
                      src/generated_configuration.h.temp
+                     src/stats_config.def.h.temp
                   COMMENT "Copying code for configuration class")
 
 # Generate the flatbuffers data used by at least couchstore for storing the collection manifest
@@ -191,6 +196,7 @@ add_custom_target(generated_source_files
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
             src/generated_configuration.cc
             src/generated_configuration.h
+            src/stats_config.def.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h

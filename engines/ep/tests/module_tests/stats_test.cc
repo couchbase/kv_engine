@@ -449,6 +449,81 @@ TEST_F(StatTest, CollectorMapsTypesCorrectly) {
     testTypes(float(), double());
 }
 
+MATCHER_P(StatDefNameMatcher,
+          expectedName,
+          "Check the unique name of the StatDef matches") {
+    return arg.uniqueKey == expectedName;
+}
+
+TEST_F(StatTest, ConfigStatDefinitions) {
+    // Confirm that Configuration.addStats(...) looks up stat definitions
+    // and adds the expected value, mapped to the appropriate StatCollector
+    // supported type
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<MockStatCollector> collector;
+
+    // ignore the rest of the calls that we are not specifically interested in.
+    // A representative stat will be checked for each config type
+    EXPECT_CALL(collector, addStat(_, Matcher<int64_t>(_), _))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(collector, addStat(_, Matcher<uint64_t>(_), _))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(collector, addStat(_, Matcher<double>(_), _))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(collector, addStat(_, Matcher<bool>(_), _)).Times(AnyNumber());
+
+    EXPECT_CALL(collector, addStat(_, Matcher<std::string_view>(_), _))
+            .Times(AnyNumber());
+
+    auto& config = engine->getConfiguration();
+    // confirm that specific stats known to be generated from the config
+    // are definitely present
+
+    // test a ssize_t stat
+    auto readerThreads = config.getNumReaderThreads();
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ep_num_reader_threads"),
+                        Matcher<int64_t>(readerThreads),
+                        _));
+
+    auto maxSize = config.getMaxSize();
+    // test a sssize_t stat
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ep_max_size"),
+                        Matcher<uint64_t>(maxSize),
+                        _));
+
+    // test a float stat
+    auto threshold = config.getBfilterResidencyThreshold();
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ep_bfilter_residency_threshold"),
+                        Matcher<double>(threshold),
+                        _));
+
+    // test a bool stat
+    auto noop = config.isDcpEnableNoop();
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ep_dcp_enable_noop"),
+                        Matcher<bool>(noop),
+                        _));
+
+    // test a string stat
+    auto policy = config.getDcpFlowControlPolicy();
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ep_dcp_flow_control_policy"),
+                        Matcher<std::string_view>(policy),
+                        _));
+
+    config.addStats(collector);
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);

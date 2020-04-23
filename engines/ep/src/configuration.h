@@ -167,6 +167,7 @@ public:
     virtual ~ValueChangedValidator() { }
 };
 
+class StatCollector;
 class Requirement;
 
 /**
@@ -194,10 +195,9 @@ public:
 
     /**
      * Add all of the configuration variables as stats
-     * @param add_stat the callback to add statistics
-     * @param c the cookie for the connection who wants the stats
+     * @param collector where to store collected statistics
      */
-    void addStats(const AddStatFn& add_stat, const void* c) const;
+    void addStats(StatCollector& collector) const;
 
     using Visitor = std::function<void(
             const std::string& key, bool isDynamic, std::string value)>;
