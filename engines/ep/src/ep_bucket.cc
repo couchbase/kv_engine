@@ -1183,7 +1183,9 @@ bool EPBucket::doCompact(CompactionConfig& config,
      * be held in order to serialize access to the database file between
      * the writer and compactor threads
      */
-    if (concWriteCompact == false) {
+    if (concWriteCompact) {
+        compactInternal(config, purgeSeqno);
+    } else {
         auto vb = getLockedVBucket(vbid, std::try_to_lock);
         if (!vb.owns_lock()) {
             // VB currently locked; try again later.
@@ -1201,8 +1203,6 @@ bool EPBucket::doCompact(CompactionConfig& config,
         if (vb) {
             compactInternal(config, purgeSeqno);
         }
-    } else {
-        compactInternal(config, purgeSeqno);
     }
 
     updateCompactionTasks(vbid);
