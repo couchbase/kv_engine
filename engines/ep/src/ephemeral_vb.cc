@@ -912,17 +912,29 @@ void EphemeralVBucket::dropKey(
         int64_t bySeqno,
         Collections::VB::Manifest::CachingReadHandle& cHandle) {
     const auto& key = cHandle.getKey();
-    // dropKey must not generate expired items as it's used for erasing a
-    // collection.
-    auto res = fetchValidValue(
-            WantsDeleted::Yes, TrackReference::No, QueueExpired::No, cHandle);
 
-    if (res.storedValue && res.storedValue->getBySeqno() == bySeqno &&
-        !key.getCollectionID().isSystem()) {
-        // The found key is the correct one to remove from the HT, we only
-        // release but do not free at this point, the staleItem remover will
-        // now proceed to erase the element from the seq list and free the SV
-        ht.unlocked_release(res.lock, res.storedValue).release();
+    // The system event doesn't get dropped here (tombstone purger will deal)
+    if (key.getCollectionID().isSystem()) {
+        return;
+    }
+
+    auto res = ht.findForUpdate(key);
+    auto releaseAndMarkStale = [this](const HashTable::HashBucketLock& hbl,
+                                      StoredValue* sv) {
+        auto ownedSV = ht.unlocked_release(hbl, sv);
+        {
+            std::lock_guard<std::mutex> listWriteLg(
+                    seqList->getListWriteLock());
+            // Mark the item stale, with no replacement item
+            seqList->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
+        }
+    };
+
+    if (res.pending) {
+        releaseAndMarkStale(res.getHBL(), res.pending.release());
+    }
+    if (res.committed) {
+        releaseAndMarkStale(res.getHBL(), res.committed);
     }
     return;
 }

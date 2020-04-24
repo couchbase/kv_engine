@@ -511,8 +511,108 @@ TEST_P(CollectionsEraserTest, MB_38313) {
                 "Compact DB file 0"); // would fault (gsl exception)
 }
 
+class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {
+public:
+    void SetUp() override {
+        CollectionsEraserTest::SetUp();
+    }
+
+    void TearDown() override {
+        CollectionsEraserTest::TearDown();
+    }
+
+    /**
+     * Run a test which drops a collection that has a sync write in it
+     * @param commit true if the test should commit the sync-write
+     */
+    void basicDropWithSyncWrite(bool commit);
+};
+
+void CollectionsEraserSyncWriteTest::basicDropWithSyncWrite(bool commit) {
+    // For now only run this test on ephemeral - it was written to exercise an
+    // ephemeral path that was crashing (MB-38856). Overall sync-writes and
+    // collection drop don't work yet (MB-34217) and if we run this test with
+    // persistence a few other checks fail (and one exception is seen)
+    if (persistent()) {
+        return;
+    }
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto key = makeStoredDocKey("key", CollectionEntry::dairy);
+    auto item = makePendingItem(key, "value");
+
+    int flushed = 1;
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+
+    if (commit) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vb->commit(key,
+                             2 /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
+        flushed++;
+
+        EXPECT_EQ(3, vb->ht.getNumInMemoryItems());
+
+    } else {
+        EXPECT_EQ(2, vb->ht.getNumInMemoryItems());
+    }
+    flushVBucketToDiskIfPersistent(vbid, flushed);
+
+    if (!persistent()) {
+        auto pending = vb->ht.findForUpdate(key).pending;
+        ASSERT_TRUE(pending);
+        EXPECT_EQ(commit, pending->isCompleted());
+        if (commit) {
+            EXPECT_EQ(pending->getCommitted(),
+                      CommittedState::PrepareCommitted);
+            EXPECT_EQ(3, vb->ht.getNumInMemoryItems());
+        } else {
+            EXPECT_EQ(2, vb->ht.getNumInMemoryItems());
+        }
+    }
+
+    if (commit) {
+        EXPECT_EQ(1, vb->getNumItems());
+    }
+
+    cm.remove(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    // persistent won't purge until drop is flushed
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    runCollectionsEraser();
+    // sys event remains
+    int finalCount = persistent() ? 0 : 1;
+    EXPECT_EQ(finalCount, vb->ht.getNumInMemoryItems());
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, BasicDropWithCommittedSyncWrite) {
+    basicDropWithSyncWrite(true /*commit*/);
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, BasicDropWithPendingSyncWrite) {
+    basicDropWithSyncWrite(false /*commit*/);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsEraserSyncWriteTests,
+                         CollectionsEraserSyncWriteTest,
+                         // @todo: run with persistence - disabled persistence
+                         // tests to save on wasted start/stop time
+                         STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
