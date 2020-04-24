@@ -1086,23 +1086,18 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     case ENGINE_NOT_MY_VBUCKET:
         --stats.pendingCompactions;
         EP_LOG_WARN(
-                "Compaction of {} failed "
-                "because the db file doesn't exist!!!",
+                "Compaction of {} failed because the db file doesn't exist!!!",
                 compactionConfig.db_file_id);
         return ENGINE_NOT_MY_VBUCKET;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
-        EP_LOG_WARN(
-                "Compaction of {} failed "
-                "because of an invalid argument",
-                compactionConfig.db_file_id);
+        EP_LOG_WARN("Compaction of {} failed because of an invalid argument",
+                    compactionConfig.db_file_id);
         return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
-                "Compaction of {}, purge_before_ts:{}"
-                ", purge_before_seq:{}"
-                ", drop_deletes:{} scheduled "
-                "(awaiting completion).",
+                "Compaction of {}, purge_before_ts:{}, purge_before_seq:{}, "
+                "drop_deletes:{} scheduled (awaiting completion).",
                 compactionConfig.db_file_id,
                 compactionConfig.purge_before_ts,
                 compactionConfig.purge_before_seq,
@@ -1113,8 +1108,8 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
         EP_LOG_WARN(
-                "Request to compact {} hit"
-                " a temporary failure and may need to be retried",
+                "Request to compact {} hit a temporary failure and may need to "
+                "be retried",
                 compactionConfig.db_file_id);
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         return ENGINE_TMPFAIL;
