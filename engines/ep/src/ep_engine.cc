@@ -140,27 +140,17 @@ static inline ConstEPHandle acquireEngine(const EngineIface* handle) {
  * the core knows what to do..
  */
 static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
-                                      const void* key,
-                                      uint16_t keylen,
-                                      const void* ext,
-                                      uint8_t extlen,
-                                      const void* body,
-                                      uint32_t bodylen,
+                                      std::string_view key,
+                                      std::string_view ext,
+                                      std::string_view body,
                                       uint8_t datatype,
                                       cb::mcbp::Status status,
                                       uint64_t cas,
                                       const void* cookie) {
-    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
-    if (response({reinterpret_cast<const char*>(key), size_t(keylen)},
-                 {reinterpret_cast<const char*>(ext), size_t(extlen)},
-                 {reinterpret_cast<const char*>(body), size_t(bodylen)},
-                 datatype,
-                 status,
-                 cas,
-                 cookie)) {
-        rv = ENGINE_SUCCESS;
+    if (response(key, ext, body, datatype, status, cas, cookie)) {
+        return ENGINE_SUCCESS;
     }
-    return rv;
+    return ENGINE_FAILED;
 }
 
 /**
@@ -169,25 +159,23 @@ static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
  */
 static ENGINE_ERROR_CODE sendResponse(const AddResponseFn& response,
                                       const DocKey& key,
-                                      const void* ext,
-                                      uint8_t extlen,
-                                      const void* body,
-                                      uint32_t bodylen,
+                                      std::string_view ext,
+                                      std::string_view body,
                                       uint8_t datatype,
                                       cb::mcbp::Status status,
                                       uint64_t cas,
                                       const void* cookie) {
-    ENGINE_ERROR_CODE rv = ENGINE_FAILED;
-    if (response({reinterpret_cast<const char*>(key.data()), key.size()},
-                 {reinterpret_cast<const char*>(ext), extlen},
-                 {reinterpret_cast<const char*>(body), bodylen},
+    if (response(std::string_view(key),
+                 ext,
+                 body,
                  datatype,
                  status,
                  cas,
                  cookie)) {
-        rv = ENGINE_SUCCESS;
+        return ENGINE_SUCCESS;
     }
-    return rv;
+
+    return ENGINE_FAILED;
 }
 
 template <typename T>
@@ -923,17 +911,15 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
         return ENGINE_NOT_MY_VBUCKET;
     } else {
         const auto state = static_cast<vbucket_state_t>(ntohl(vb->getState()));
-        return sendResponse(response,
-                            nullptr,
-                            0,
-                            nullptr,
-                            0,
-                            &state,
-                            sizeof(state),
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Success,
-                            0,
-                            cookie);
+        return sendResponse(
+                response,
+                {}, // key
+                {}, // extra
+                {reinterpret_cast<const char*>(&state), sizeof(state)}, // body
+                PROTOCOL_BINARY_RAW_BYTES,
+                cb::mcbp::Status::Success,
+                0,
+                cookie);
     }
 }
 
@@ -996,12 +982,9 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     auto error = e->deleteVBucket(vbucket, sync, cookie);
     if (error == ENGINE_SUCCESS) {
         return sendResponse(response,
-                            nullptr,
-                            0,
-                            nullptr,
-                            0,
-                            nullptr,
-                            0,
+                            {}, // key
+                            {}, // extra
+                            {}, // body
                             PROTOCOL_BINARY_RAW_BYTES,
                             cb::mcbp::Status::Success,
                             req.getCas(),
@@ -1032,17 +1015,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
                 cookie, cb::audit::document::Operation::Read);
-        return sendResponse(response,
-                            static_cast<const void*>(rv.item->getKey().data()),
-                            rv.item->getKey().size(),
-                            (const void*)&flags,
-                            sizeof(uint32_t),
-                            static_cast<const void*>(rv.item->getData()),
-                            rv.item->getNBytes(),
-                            rv.item->getDataType(),
-                            cb::mcbp::Status::Success,
-                            rv.item->getCas(),
-                            cookie);
+        return sendResponse(
+                response,
+                rv.item->getKey(), // key
+                {reinterpret_cast<const char*>(&flags), sizeof(flags)}, // extra
+                {rv.item->getData(), rv.item->getNBytes()}, // body
+                rv.item->getDataType(),
+                cb::mcbp::Status::Success,
+                rv.item->getCas(),
+                cookie);
     } else if (error_code == ENGINE_TMPFAIL) {
         return ENGINE_KEY_ENOENT;
     }
@@ -1125,12 +1106,9 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     }
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         res,
                         cas,
@@ -1252,12 +1230,9 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
 
     msg_size = (msg_size > 0 || msg == nullptr) ? msg_size : strlen(msg);
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        msg,
-                        static_cast<uint16_t>(msg_size),
+                        {}, // key
+                        {}, // extra
+                        {msg, msg_size}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         res,
                         0,
@@ -1802,17 +1777,15 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
         gsl::not_null<const void*> cookie, const AddResponseFn& response) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollections();
-    return cb::engine_errc(sendResponse(makeExitBorderGuard(std::cref(response)),
-                                        nullptr,
-                                        0,
-                                        nullptr,
-                                        0,
-                                        rv.second.data(),
-                                        gsl::narrow<uint32_t>(rv.second.size()),
-                                        PROTOCOL_BINARY_DATATYPE_JSON,
-                                        rv.first,
-                                        0,
-                                        cookie));
+    return cb::engine_errc(
+            sendResponse(makeExitBorderGuard(std::cref(response)),
+                         {}, // key
+                         {}, // extra
+                         rv.second, // body
+                         PROTOCOL_BINARY_DATATYPE_JSON,
+                         rv.first,
+                         0,
+                         cookie));
 }
 
 cb::EngineErrorGetCollectionIDResult
@@ -4905,12 +4878,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
     const auto result_string = result.str();
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        result_string.data(),
-                        gsl::narrow<uint32_t>(result_string.length()),
+                        {}, // key
+                        {}, // extra
+                        result_string, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         persist_time,
@@ -4980,12 +4950,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     }
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        0,
-                        0,
-                        result.str().data(),
-                        gsl::narrow<uint32_t>(result.str().length()),
+                        {}, // key
+                        {}, // extra
+                        result.str(), // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
@@ -5007,17 +4974,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleLastClosedCheckpoint(
 
     const uint64_t id =
             htonll(vb->checkpointManager->getLastClosedCheckpointId());
-    return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        &id,
-                        sizeof(id),
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Success,
-                        0,
-                        cookie);
+    return sendResponse(
+            response,
+            {}, // key
+            {}, // extra
+            {reinterpret_cast<const char*>(&id), sizeof(id)}, // body
+            PROTOCOL_BINARY_RAW_BYTES,
+            cb::mcbp::Status::Success,
+            0,
+            cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
@@ -5045,12 +5010,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
                &persistedChkId,
                sizeof(persistedChkId));
         return sendResponse(response,
-                            nullptr,
-                            0,
-                            nullptr,
-                            0,
-                            val,
-                            sizeof(val),
+                            {}, // key
+                            {}, // extra
+                            {val, sizeof(val)}, // body
                             PROTOCOL_BINARY_RAW_BYTES,
                             cb::mcbp::Status::Success,
                             0,
@@ -5058,12 +5020,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
     }
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
@@ -5130,12 +5089,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
     }
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         0,
@@ -5196,12 +5152,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::handleSeqnoPersistence(
     }
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         0,
@@ -5846,12 +5799,9 @@ EventuallyPersistentEngine::handleTrafficControlCmd(
     }
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
@@ -6008,19 +5958,16 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         return ret;
     }
 
-    uint8_t meta[16];
+    std::array<char, 16> meta;
     exp = htonl(exp);
-    memcpy(meta, &flags, 4);
-    memcpy(meta + 4, &exp, 4);
-    memcpy(meta + 8, &seqno, 8);
+    memcpy(meta.data(), &flags, 4);
+    memcpy(meta.data() + 4, &exp, 4);
+    memcpy(meta.data() + 8, &seqno, 8);
 
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        (const void*)meta,
-                        16,
-                        nullptr,
-                        0,
+                        {}, // key
+                        {meta.data(), meta.size()}, // extra
+                        {}, // body
                         datatype,
                         cb::mcbp::Status::Success,
                         cas,
@@ -6127,12 +6074,9 @@ public:
             // Returning an empty packet with a SUCCESS response as
             // there aren't any keys during the vbucket file creation.
             err = sendResponse(response,
-                               NULL,
-                               0,
-                               NULL,
-                               0,
-                               NULL,
-                               0,
+                               {}, // key
+                               {}, // extra
+                               {}, // body
                                PROTOCOL_BINARY_RAW_BYTES,
                                cb::mcbp::Status::Success,
                                0,
@@ -6144,12 +6088,10 @@ public:
             if (err == ENGINE_SUCCESS) {
                 err = sendResponse(
                         response,
-                        NULL,
-                        0,
-                        NULL,
-                        0,
-                        ((AllKeysCallback*)cb.get())->getAllKeysPtr(),
-                        ((AllKeysCallback*)cb.get())->getAllKeysLen(),
+                        {}, // key
+                        {}, // extra
+                        {((AllKeysCallback*)cb.get())->getAllKeysPtr(),
+                         ((AllKeysCallback*)cb.get())->getAllKeysLen()},
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
@@ -6256,10 +6198,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(
                 isCollectionsSupported(cookie)
                         ? DocKey{it->getKey()}
                         : it->getKey().makeDocKeyWithoutCollectionID(),
-                (const void*)&flags,
-                sizeof(uint32_t),
-                static_cast<const void*>(it->getData()),
-                it->getNBytes(),
+                std::string_view{reinterpret_cast<const char*>(&flags),
+                                 sizeof(flags)},
+                std::string_view{it->getData(), it->getNBytes()},
                 it->getDataType(),
                 cb::mcbp::Status::Success,
                 it->getCas(),
@@ -6560,7 +6501,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     auto* connhandler = getConnHandler(cookie, false);
     bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
-    std::vector<uint8_t> payload;
+    std::vector<char> payload;
     auto vbuckets = kvBucket->getVBuckets().getBuckets();
 
     /* Reserve a buffer that's big enough to hold all of them (we might
@@ -6621,12 +6562,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     }
 
     return sendResponse(response,
-                        0,
-                        0, /* key */
-                        0,
-                        0, /* ext field */
-                        payload.data(),
-                        gsl::narrow<uint32_t>(payload.size()), /* value */
+                        {}, /* key */
+                        {}, /* ext field */
+                        {payload.data(), payload.size()}, /* value */
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
@@ -6650,13 +6588,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
         const void* cookie) {
     // no body/ext data for the error
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        nullptr,
-                        0,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
+                        PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         cas,
                         cookie);
@@ -6676,16 +6611,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
     }
     const uint64_t uuid = htonll(vb->failovers->getLatestUUID());
     bySeqno = htonll(bySeqno);
-    uint8_t meta[16];
-    memcpy(meta, &uuid, sizeof(uuid));
-    memcpy(meta + sizeof(uuid), &bySeqno, sizeof(bySeqno));
+    std::array<char, 16> meta;
+    memcpy(meta.data(), &uuid, sizeof(uuid));
+    memcpy(meta.data() + sizeof(uuid), &bySeqno, sizeof(bySeqno));
     return sendResponse(response,
-                        nullptr,
-                        0,
-                        (const void*)meta,
-                        sizeof(meta),
-                        nullptr,
-                        0,
+                        {}, // key
+                        {meta.data(), meta.size()}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         cas,
@@ -6723,12 +6655,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
     }
 
     return sendResponse(response,
-                        NULL,
-                        0,
-                        NULL,
-                        0,
-                        NULL,
-                        0,
+                        {}, // key
+                        {}, // extra
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         serverApi->cookie->engine_error2mcbp(cookie, status),
                         cas,
