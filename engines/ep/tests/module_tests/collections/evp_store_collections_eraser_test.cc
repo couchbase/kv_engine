@@ -515,20 +515,106 @@ class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {
 public:
     void SetUp() override {
         CollectionsEraserTest::SetUp();
+        setVBucketStateAndRunPersistTask(
+                vbid,
+                vbucket_state_active,
+                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
     }
 
     void TearDown() override {
+        EXPECT_EQ(expectedItemsInHashTable, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(expectedItemsInVBucket, vb->getNumItems());
         CollectionsEraserTest::TearDown();
     }
+
+    enum class TestMode { Abort, Pending, Commit };
 
     /**
      * Run a test which drops a collection that has a sync write in it
      * @param commit true if the test should commit the sync-write
      */
     void basicDropWithSyncWrite(bool commit);
+
+protected:
+    void addCollection() {
+        cm.add(CollectionEntry::dairy);
+        vb->updateFromManifest({cm});
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        if (!persistent()) {
+            expectedItemsInHashTable++;
+        }
+        EXPECT_EQ(expectedItemsInHashTable, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(expectedItemsInVBucket, vb->getNumItems());
+    }
+
+    void dropCollection() {
+        cm.remove(CollectionEntry::dairy);
+        vb->updateFromManifest({cm});
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_EQ(expectedItemsInHashTable, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(expectedItemsInVBucket, vb->getNumItems());
+    }
+
+    void createPendingWrite() {
+        auto item = makePendingItem(key, "value");
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        expectedItemsInHashTable++;
+        EXPECT_EQ(expectedItemsInHashTable, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(expectedItemsInVBucket, vb->getNumItems());
+    }
+
+    void commit() {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vb->commit(key,
+                             2 /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
+
+        if (!persistent()) {
+            // ep bucket will replace, ephmeral keeps a second item (tested
+            // below)
+            expectedItemsInHashTable++;
+        }
+        expectedItemsInVBucket++;
+        EXPECT_EQ(expectedItemsInHashTable, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(expectedItemsInVBucket, vb->getNumItems());
+        if (!persistent()) {
+            auto pending = vb->ht.findForUpdate(key).pending;
+            ASSERT_TRUE(pending);
+            EXPECT_EQ(pending->getCommitted(),
+                      CommittedState::PrepareCommitted);
+        }
+    }
+
+    void abort() {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  vb->abort(key,
+                            2 /*prepareSeqno*/,
+                            {} /*commitSeqno*/,
+                            vb->lockCollections(key)));
+        EXPECT_EQ(expectedItemsInHashTable, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(expectedItemsInVBucket, vb->getNumItems());
+    }
+
+    void runCollectionsEraser(bool commitWrite) {
+        CollectionsEraserTest::runCollectionsEraser();
+
+        if (commitWrite) {
+            expectedItemsInVBucket--;
+            expectedItemsInHashTable -= 2;
+        } else {
+            expectedItemsInHashTable--;
+        }
+    }
+
+    CollectionsManifest cm{};
+    StoredDocKey key = makeStoredDocKey("key", CollectionEntry::dairy);
+    int expectedItemsInHashTable = 0;
+    int expectedItemsInVBucket = 0;
 };
 
-void CollectionsEraserSyncWriteTest::basicDropWithSyncWrite(bool commit) {
+void CollectionsEraserSyncWriteTest::basicDropWithSyncWrite(bool commitWrite) {
     // For now only run this test on ephemeral - it was written to exercise an
     // ephemeral path that was crashing (MB-38856). Overall sync-writes and
     // collection drop don't work yet (MB-34217) and if we run this test with
@@ -537,63 +623,26 @@ void CollectionsEraserSyncWriteTest::basicDropWithSyncWrite(bool commit) {
         return;
     }
 
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    auto key = makeStoredDocKey("key", CollectionEntry::dairy);
-    auto item = makePendingItem(key, "value");
-
-    int flushed = 1;
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
-
-    if (commit) {
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  vb->commit(key,
-                             2 /*prepareSeqno*/,
-                             {} /*commitSeqno*/,
-                             vb->lockCollections(key)));
-        flushed++;
-
-        EXPECT_EQ(3, vb->ht.getNumInMemoryItems());
-
-    } else {
-        EXPECT_EQ(2, vb->ht.getNumInMemoryItems());
+    addCollection();
+    createPendingWrite();
+    if (commitWrite) {
+        commit();
     }
-    flushVBucketToDiskIfPersistent(vbid, flushed);
 
     if (!persistent()) {
         auto pending = vb->ht.findForUpdate(key).pending;
         ASSERT_TRUE(pending);
-        EXPECT_EQ(commit, pending->isCompleted());
-        if (commit) {
-            EXPECT_EQ(pending->getCommitted(),
-                      CommittedState::PrepareCommitted);
-            EXPECT_EQ(3, vb->ht.getNumInMemoryItems());
-        } else {
-            EXPECT_EQ(2, vb->ht.getNumInMemoryItems());
-        }
+        EXPECT_EQ(commitWrite, pending->isCompleted());
     }
 
-    if (commit) {
+    if (commitWrite) {
         EXPECT_EQ(1, vb->getNumItems());
     }
 
-    cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest({cm});
+    dropCollection();
 
     // persistent won't purge until drop is flushed
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    runCollectionsEraser();
-    // sys event remains
-    int finalCount = persistent() ? 0 : 1;
-    EXPECT_EQ(finalCount, vb->ht.getNumInMemoryItems());
-    EXPECT_EQ(0, vb->getNumItems());
+    runCollectionsEraser(commitWrite);
 }
 
 TEST_P(CollectionsEraserSyncWriteTest, BasicDropWithCommittedSyncWrite) {
@@ -602,6 +651,23 @@ TEST_P(CollectionsEraserSyncWriteTest, BasicDropWithCommittedSyncWrite) {
 
 TEST_P(CollectionsEraserSyncWriteTest, BasicDropWithPendingSyncWrite) {
     basicDropWithSyncWrite(false /*commit*/);
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, DropBeforeAbort) {
+    addCollection();
+    createPendingWrite();
+    dropCollection();
+    abort(); // MB-38979: would of thrown an exception
+    expectedItemsInHashTable++; // MB-34217: vb->abort put one item in the ht
+    runCollectionsEraser(false);
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
+    addCollection();
+    createPendingWrite();
+    abort();
+    dropCollection();
+    runCollectionsEraser(false);
 }
 
 // Test cases which run for persistent and ephemeral buckets

@@ -378,6 +378,11 @@ public:
          * higher
          */
         void setHighSeqno(uint64_t value) const {
+            // We may be flushing keys written to a dropped collection so can
+            // have an invalid iterator or the id is not mapped (system)
+            if (!valid()) {
+                return;
+            }
             manifest->setHighSeqno(itr, value);
         }
 
