@@ -26,6 +26,8 @@
 #include "collections/collections_types.h"
 #include "memcached/engine_common.h"
 
+class KVBucket;
+
 namespace Collections {
 
 static const size_t MaxCollectionNameSize = 30;
@@ -226,10 +228,26 @@ public:
     nlohmann::json toJson(
             const Collections::IsVisibleFunction& isVisible) const;
 
-    void addCollectionStats(const void* cookie,
+    /**
+     * Add stats for collection. Each collection is tested for
+     * Privilege::SimpleStats and 'added' if the user has the privilege.
+     * @param bucket The bucket so we can call engine::testPrivilege
+     * @param cookie The cookie so for the connection
+     * @param function to call to add stats
+     */
+    void addCollectionStats(KVBucket& bucket,
+                            const void* cookie,
                             const AddStatFn& add_stat) const;
-
-    void addScopeStats(const void* cookie, const AddStatFn& add_stat) const;
+    /**
+     * Add stats for scopes. Each scope is tested for
+     * Privilege::SimpleStats and 'added' if the user has the privilege.
+     * @param bucket The bucket so we can call engine::testPrivilege
+     * @param cookie The cookie so for the connection
+     * @param function to call to add stats
+     */
+    void addScopeStats(KVBucket& bucket,
+                       const void* cookie,
+                       const AddStatFn& add_stat) const;
 
     /**
      * Write to std::cerr this

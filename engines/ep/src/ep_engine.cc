@@ -4759,15 +4759,21 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
 
     switch (status) {
     case cb::engine_errc::success:
+    case cb::engine_errc::no_access:
         break;
     case cb::engine_errc::unknown_collection:
         setUnknownCollectionErrorContext(cookie,
                                          manifestUid);
         break;
     default:
-        EP_LOG_ERR("EPE::checkPrivilege: unexpected status cid:{} status:{}",
-                   cid.to_string(),
-                   to_string(status));
+        EP_LOG_ERR(
+                "EPE::checkPrivilege(priv:{}, cid:{}): sid:{} unexpected "
+                "status:{}",
+                int(priv),
+                cid.to_string(),
+                sid.to_string(),
+
+                to_string(status));
     }
     return status;
 }

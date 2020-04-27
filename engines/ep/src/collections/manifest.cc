@@ -18,6 +18,8 @@
 #include "collections/manifest.h"
 #include "bucket_logger.h"
 #include "collections/collections_types.h"
+#include "ep_engine.h"
+#include "kv_bucket.h"
 #include "statwriter.h"
 #include "utility.h"
 
@@ -310,7 +312,8 @@ nlohmann::json Manifest::toJson(
     return manifest;
 }
 
-void Manifest::addCollectionStats(const void* cookie,
+void Manifest::addCollectionStats(KVBucket& bucket,
+                                  const void* cookie,
                                   const AddStatFn& add_stat) const {
     const auto addStat = [&cookie, &add_stat](std::string_view key,
                                               const auto& value) {
@@ -320,12 +323,21 @@ void Manifest::addCollectionStats(const void* cookie,
     };
 
     try {
-        addStat("collections", collections.size());
-        addStat("default_exists", defaultCollectionExists);
-        addStat("uid", uid);
-
+        // manifest_uid is always permitted (e.g. get_collections_manifest
+        // exposes this too). It reveals nothing about scopes or collections but
+        // is useful for assisting in access failures
+        addStat("manifest_uid", uid);
         for (const auto& scope : scopes) {
             for (const auto& entry : scope.second.collections) {
+                // The inclusion of each collection requires an appropriate
+                // privilege
+                if (bucket.getEPEngine().testPrivilege(
+                            cookie,
+                            cb::rbac::Privilege::SimpleStats,
+                            scope.first,
+                            entry.id) != cb::engine_errc::success) {
+                    continue; // skip this collection
+                }
                 const auto& name = collections.at(entry.id).name;
                 const auto cid = entry.id.to_string();
 
@@ -349,14 +361,26 @@ void Manifest::addCollectionStats(const void* cookie,
     }
 }
 
-void Manifest::addScopeStats(const void* cookie,
+void Manifest::addScopeStats(KVBucket& bucket,
+                             const void* cookie,
                              const AddStatFn& add_stat) const {
     try {
         fmt::memory_buffer buf;
-        add_casted_stat("scopes", scopes.size(), add_stat, cookie);
-        add_casted_stat("uid", uid, add_stat, cookie);
+        // manifest_uid is always permitted (e.g. get_collections_manifest
+        // exposes this too). It reveals nothing about scopes or collections but
+        // is useful for assisting in access failures
+        add_casted_stat("manifest_uid", uid, add_stat, cookie);
 
         for (const auto& entry : scopes) {
+            // The inclusion of each scope requires an appropriate
+            // privilege
+            if (bucket.getEPEngine().testPrivilege(
+                        cookie,
+                        cb::rbac::Privilege::SimpleStats,
+                        entry.first,
+                        {}) != cb::engine_errc::success) {
+                continue; // skip this scope
+            }
             const auto sid = entry.first.to_string();
             const auto name = entry.second.name;
 

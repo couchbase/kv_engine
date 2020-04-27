@@ -616,6 +616,7 @@ public:
     virtual const VBucketMap &getVBuckets() = 0;
 
     virtual EventuallyPersistentEngine& getEPEngine() = 0;
+    virtual const EventuallyPersistentEngine& getEPEngine() const = 0;
 
     virtual size_t getExpiryPagerSleeptime() = 0;
 

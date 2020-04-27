@@ -147,13 +147,16 @@ public:
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary collection stats
      */
-    void addCollectionStats(const void* cookie,
+    void addCollectionStats(KVBucket& bucket,
+                            const void* cookie,
                             const AddStatFn& add_stat) const;
 
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary scope stats
      */
-    void addScopeStats(const void* cookie, const AddStatFn& add_stat) const;
+    void addScopeStats(KVBucket& bucket,
+                       const void* cookie,
+                       const AddStatFn& add_stat) const;
 
     /**
      * Perform actions for a completed warmup - currently check if any

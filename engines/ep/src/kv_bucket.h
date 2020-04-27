@@ -466,6 +466,10 @@ public:
         return engine;
     }
 
+    const EventuallyPersistentEngine& getEPEngine() const override {
+        return engine;
+    }
+
     size_t getExpiryPagerSleeptime() override {
         LockHolder lh(expiryPager.mutex);
         return expiryPager.sleeptime;

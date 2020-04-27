@@ -139,13 +139,13 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::XattrWrite:
     case Privilege::SystemXattrWrite:
     case Privilege::DcpStream:
+    case Privilege::SimpleStats:
         return true;
 
     case Privilege::DcpConsumer:
     case Privilege::DcpProducer:
     case Privilege::Tap:
     case Privilege::Settings:
-    case Privilege::SimpleStats:
     case Privilege::Select:
     case Privilege::BucketManagement:
     case Privilege::NodeManagement:

@@ -96,10 +96,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
             }
           }
         }
-      },
-      "privileges": [
-        "SimpleStats"
-      ]
+      }
     }
   },
   "privileges": [],

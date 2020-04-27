@@ -254,14 +254,16 @@ void Collections::Manager::logAll(KVBucket& bucket) const {
     }
 }
 
-void Collections::Manager::addCollectionStats(const void* cookie,
+void Collections::Manager::addCollectionStats(KVBucket& bucket,
+                                              const void* cookie,
                                               const AddStatFn& add_stat) const {
-    currentManifest.rlock()->addCollectionStats(cookie, add_stat);
+    currentManifest.rlock()->addCollectionStats(bucket, cookie, add_stat);
 }
 
-void Collections::Manager::addScopeStats(const void* cookie,
+void Collections::Manager::addScopeStats(KVBucket& bucket,
+                                         const void* cookie,
                                          const AddStatFn& add_stat) const {
-    currentManifest.rlock()->addScopeStats(cookie, add_stat);
+    currentManifest.rlock()->addScopeStats(bucket, cookie, add_stat);
 }
 
 /**
@@ -398,7 +400,8 @@ Collections::Manager::doCollectionDetailStats(KVBucket& bucket,
                 vbid, cookie, add_stat);
 
     } else {
-        bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
+        bucket.getCollectionsManager().addCollectionStats(
+                bucket, cookie, add_stat);
         CollectionDetailedVBucketVisitor visitor(cookie, add_stat);
         bucket.visit(visitor);
         success = visitor.getSuccess();
@@ -415,11 +418,20 @@ Collections::Manager::doAllCollectionsStats(KVBucket& bucket,
     // no collection ID was provided
 
     // Do the high level stats (includes global count)
-    bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
+    bucket.getCollectionsManager().addCollectionStats(bucket, cookie, add_stat);
     auto cachedStats = getPerCollectionStats(bucket);
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
     // do stats for every collection
     for (const auto& entry : *current) {
+        // Access check for SimpleStats. Use testPrivilege as it won't log
+        if (bucket.getEPEngine().testPrivilege(cookie,
+                                               cb::rbac::Privilege::SimpleStats,
+                                               entry.second.sid,
+                                               entry.first) !=
+            cb::engine_errc::success) {
+            continue; // skip this collection
+        }
+
         const auto scopeItr = current->findScope(entry.second.sid);
         Expects(scopeItr != current->endScopes());
         cachedStats.addStatsForCollection(
@@ -437,10 +449,10 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         const std::string& arg,
         const std::string& statKey) {
     auto cachedStats = getPerCollectionStats(bucket);
-
+    cb::EngineErrorGetCollectionIDResult res{cb::engine_errc::failed};
     // An argument was provided, maybe an id or a 'path'
-    CollectionID cid;
     if (cb_isPrefix(statKey, "collections-byid")) {
+        CollectionID cid;
         // provided argument should be a hex collection ID N, 0xN or 0XN
         try {
             cid = std::stoi(arg, nullptr, 16);
@@ -453,9 +465,16 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
             return cb::EngineErrorGetCollectionIDResult{
                     cb::engine_errc::invalid_arguments};
         }
+        // Collection's scope is needed for privilege check
+        auto scope = bucket.getCollectionsManager().getScopeID(cid);
+        if (scope.second) {
+            res = {scope.first, scope.second.value(), cid};
+        } else {
+            return {cb::engine_errc::unknown_collection, scope.first};
+        }
     } else {
         // provided argument should be a collection path
-        auto res = bucket.getCollectionsManager().getCollectionID(arg);
+        res = bucket.getCollectionsManager().getCollectionID(arg);
         if (res.result != cb::engine_errc::success) {
             EP_LOG_WARN(
                     "Collections::Manager::doOneCollectionStats could not "
@@ -465,18 +484,27 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
                     res.result);
             return res;
         }
-        cid = res.getCollectionId();
+    }
+
+    // Access check for SimpleStats
+    res.result = bucket.getEPEngine().checkPrivilege(
+            cookie,
+            cb::rbac::Privilege::SimpleStats,
+            res.getScopeId(),
+            res.getCollectionId());
+    if (res.result != cb::engine_errc::success) {
+        return res;
     }
 
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
-    auto collectionItr = current->findCollection(cid);
+    auto collectionItr = current->findCollection(res.getCollectionId());
 
     if (collectionItr == current->end()) {
         EP_LOG_WARN(
                 "Collections::Manager::doOneCollectionStats unknown "
                 "collection arg:{} cid:{}",
                 arg,
-                cid.to_string());
+                res.getCollectionId().to_string());
         return {cb::engine_errc::unknown_collection, current->getUid()};
     }
 
@@ -485,10 +513,13 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
     const auto scopeItr = current->findScope(collection.sid);
     Expects(scopeItr != current->endScopes());
 
-    cachedStats.addStatsForCollection(
-            scopeItr->second, cid, collection, add_stat, cookie);
+    cachedStats.addStatsForCollection(scopeItr->second,
+                                      res.getCollectionId(),
+                                      collection,
+                                      add_stat,
+                                      cookie);
 
-    return {current->getUid(), collection.sid, cid};
+    return res;
 }
 
 // scopes-details
@@ -549,7 +580,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeDetailStats(
         }
         success = vb->lockCollections().addScopeStats(vbid, cookie, add_stat);
     } else {
-        bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+        bucket.getCollectionsManager().addScopeStats(bucket, cookie, add_stat);
         ScopeDetailedVBucketVisitor visitor(cookie, add_stat);
         bucket.visit(visitor);
         success = visitor.getSuccess();
@@ -564,10 +595,16 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
     auto cachedStats = getPerCollectionStats(bucket);
 
     // Do the high level stats (includes number of collections)
-    bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+    bucket.getCollectionsManager().addScopeStats(bucket, cookie, add_stat);
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
     for (auto itr = current->beginScopes(); itr != current->endScopes();
          ++itr) {
+        // Access check for SimpleStats. Use testPrivilege as it won't log
+        if (bucket.getEPEngine().testPrivilege(
+                    cookie, cb::rbac::Privilege::SimpleStats, itr->first, {}) !=
+            cb::engine_errc::success) {
+            continue; // skip this collection
+        }
         cachedStats.addStatsForScope(itr->first, itr->second, add_stat, cookie);
     }
     return {cb::engine_errc::success,
@@ -582,8 +619,9 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         const std::string& arg,
         const std::string& statKey) {
     auto cachedStats = getPerCollectionStats(bucket);
-    ScopeID scopeID;
+    cb::EngineErrorGetScopeIDResult res{cb::engine_errc::failed};
     if (cb_isPrefix(statKey, "scopes-byid")) {
+        ScopeID scopeID;
         // provided argument should be a hex scope ID N, 0xN or 0XN
         try {
             scopeID = std::stoi(arg, nullptr, 16);
@@ -596,9 +634,10 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
             return cb::EngineErrorGetScopeIDResult{
                     cb::engine_errc::invalid_arguments};
         }
+        res = cb::EngineErrorGetScopeIDResult{scopeID};
     } else {
         // provided argument should be a scope name
-        auto res = bucket.getCollectionsManager().getScopeID(arg);
+        res = bucket.getCollectionsManager().getScopeID(arg);
         if (res.result != cb::engine_errc::success) {
             EP_LOG_WARN(
                     "Collections::Manager::doOneScopeStats unknown "
@@ -607,22 +646,29 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
                     res.result);
             return res;
         }
-        scopeID = res.getScopeId();
     }
+
+    // Access check for SimpleStats
+    res.result = bucket.getEPEngine().checkPrivilege(
+            cookie, cb::rbac::Privilege::SimpleStats, res.getScopeId(), {});
+    if (res.result != cb::engine_errc::success) {
+        return res;
+    }
+
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
-    auto scopeItr = current->findScope(scopeID);
+    auto scopeItr = current->findScope(res.getScopeId());
 
     if (scopeItr == current->endScopes()) {
         EP_LOG_WARN(
                 "Collections::Manager::doOneScopeStats unknown "
                 "scope arg:{} sid:{}",
                 arg,
-                scopeID.to_string());
+                res.getScopeId().to_string());
         return cb::EngineErrorGetScopeIDResult{current->getUid()};
     }
 
     const auto& scope = scopeItr->second;
-    cachedStats.addStatsForScope(scopeID, scope, add_stat, cookie);
+    cachedStats.addStatsForScope(res.getScopeId(), scope, add_stat, cookie);
     // add stats for each collection in the scope
     for (const auto& entry : scope.collections) {
         auto itr = current->findCollection(entry.id);
@@ -631,7 +677,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         cachedStats.addStatsForCollection(
                 {}, cid, collection, add_stat, cookie);
     }
-    return {current->getUid(), scopeID};
+    return res;
 }
 
 void Collections::Manager::dump() const {

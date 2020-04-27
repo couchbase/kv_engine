@@ -585,6 +585,19 @@ static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
     return bucket_get_stats(cookie, arg, value, appendStatsFn);
 }
 
+// handler for scopes/collections - engine needs the key for processing
+static ENGINE_ERROR_CODE stat_bucket_collections_stats(const std::string&,
+                                                       Cookie& cookie) {
+    auto value = cookie.getRequest().getValue();
+    const auto key = cookie.getRequest().getKey();
+    return bucket_get_stats(
+            cookie,
+            std::string_view{reinterpret_cast<const char*>(key.data()),
+                             key.size()},
+            value,
+            appendStatsFn);
+}
+
 static ENGINE_ERROR_CODE stat_allocator_executor(const std::string&,
                                                  Cookie& cookie) {
     std::vector<char> lineBuffer;
@@ -635,6 +648,9 @@ struct command_stat_handler {
     /// Is this a bucket related stat?
     bool bucket;
 
+    /// Is the privilege checked by StatsCommandContext::checkPrivilege?
+    bool checkPrivilege;
+
     /**
      * The callback function to handle the stat request
      */
@@ -647,19 +663,32 @@ struct command_stat_handler {
  */
 static std::unordered_map<std::string, struct command_stat_handler>
         stat_handlers = {
-                {"", {false, true, stat_all_stats}},
-                {"reset", {true, true, stat_reset_executor}},
-                {"worker_thread_info", {true, false, stat_sched_executor}},
-                {"audit", {true, false, stat_audit_executor}},
-                {"bucket_details", {true, false, stat_bucket_details_executor}},
-                {"aggregate", {false, true, stat_aggregate_executor}},
-                {"connections", {false, false, stat_connections_executor}},
-                {"topkeys", {false, true, stat_topkeys_executor}},
-                {"topkeys_json", {false, true, stat_topkeys_json_executor}},
-                {"subdoc_execute", {false, true, stat_subdoc_execute_executor}},
-                {"responses", {false, true, stat_responses_json_executor}},
-                {"tracing", {true, false, stat_tracing_executor}},
-                {"allocator", {true, false, stat_allocator_executor}}};
+                {"", {false, true, true, stat_all_stats}},
+                {"reset", {true, true, true, stat_reset_executor}},
+                {"worker_thread_info",
+                 {true, false, true, stat_sched_executor}},
+                {"audit", {true, false, true, stat_audit_executor}},
+                {"bucket_details",
+                 {true, false, true, stat_bucket_details_executor}},
+                {"aggregate", {false, true, true, stat_aggregate_executor}},
+                {"connections",
+                 {false, false, true, stat_connections_executor}},
+                {"topkeys", {false, true, true, stat_topkeys_executor}},
+                {"topkeys_json",
+                 {false, true, true, stat_topkeys_json_executor}},
+                {"subdoc_execute",
+                 {false, true, true, stat_subdoc_execute_executor}},
+                {"responses",
+                 {false, true, true, stat_responses_json_executor}},
+                {"tracing", {true, false, true, stat_tracing_executor}},
+                {"allocator", {true, false, true, stat_allocator_executor}},
+                {"scopes", {false, true, false, stat_bucket_collections_stats}},
+                {"scopes-byid",
+                 {false, true, false, stat_bucket_collections_stats}},
+                {"collections",
+                 {false, true, false, stat_bucket_collections_stats}},
+                {"collections-byid",
+                 {false, true, false, stat_bucket_collections_stats}}};
 
 /**
  * For a given key, try and return the handler for it
@@ -672,7 +701,8 @@ static std::pair<command_stat_handler, bool> getStatHandler(
     auto iter = stat_handlers.find(key);
     if (iter == stat_handlers.end()) {
         return std::make_pair(
-                command_stat_handler{false, true, stat_bucket_stats}, false);
+                command_stat_handler{false, true, true, stat_bucket_stats},
+                false);
     } else {
         return std::make_pair(iter->second, true);
     }
@@ -740,12 +770,15 @@ ENGINE_ERROR_CODE StatsCommandContext::checkPrivilege() {
 
     auto handler = getStatHandler(command).first;
 
-    if (handler.privileged) {
-        ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
-    }
+    if (handler.checkPrivilege) {
+        if (handler.privileged) {
+            ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
+        }
 
-    if (ret == ENGINE_SUCCESS && handler.bucket) {
-        ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::SimpleStats);
+        if (ret == ENGINE_SUCCESS && handler.bucket) {
+            ret = mcbp::checkPrivilege(cookie,
+                                       cb::rbac::Privilege::SimpleStats);
+        }
     }
 
     switch (ret) {
