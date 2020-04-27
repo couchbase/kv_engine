@@ -461,16 +461,6 @@ public:
 };
 
 /**
- * Type of vbucket map.
- *
- * key is the vbucket identifier.
- * value is a pair of string representation of the vbucket state and
- * its latest checkpoint Id persisted.
- */
-struct vbucket_state;
-typedef std::map<Vbid, vbucket_state> vbucket_map_t;
-
-/**
  * Properties of the storage layer.
  *
  * If concurrent filesystem access is possible, maxConcurrency() will
