@@ -442,8 +442,7 @@ public:
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             std::optional<Vbid> vbid) const override {
-        return cb::EngineErrorGetScopeIDResult(
-                cb::engine_errc::no_bucket, 0, 0);
+        return cb::EngineErrorGetScopeIDResult(cb::engine_errc::no_bucket);
     }
 };
 

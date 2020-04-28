@@ -1874,25 +1874,22 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
         if (vbucket) {
             auto cHandle = vbucket->lockCollections(key);
             if (cHandle.valid()) {
-                return cb::EngineErrorGetScopeIDResult(cb::engine_errc::success,
-                                                       cHandle.getManifestUid(),
+                return cb::EngineErrorGetScopeIDResult(cHandle.getManifestUid(),
                                                        cHandle.getScopeID());
             }
         } else {
             return cb::EngineErrorGetScopeIDResult(
-                    cb::engine_errc::not_my_vbucket, 0, 0);
+                    cb::engine_errc::not_my_vbucket);
         }
     } else {
         auto scopIdInfo =
                 engine->getKVBucket()->getScopeID(key.getCollectionID());
         if (*scopIdInfo.second) {
-            return cb::EngineErrorGetScopeIDResult(cb::engine_errc::success,
-                                                   scopIdInfo.first,
+            return cb::EngineErrorGetScopeIDResult(scopIdInfo.first,
                                                    ScopeID(*scopIdInfo.second));
         }
     }
-    return cb::EngineErrorGetScopeIDResult(
-            cb::engine_errc::unknown_collection, 0, 0);
+    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);
 }
 
 cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {

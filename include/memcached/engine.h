@@ -614,8 +614,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             std::optional<Vbid> vbid = std::nullopt) const {
-        return cb::EngineErrorGetScopeIDResult(
-                cb::engine_errc::not_supported, 0, 0);
+        return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_supported);
     }
 
     /**

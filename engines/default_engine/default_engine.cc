@@ -1040,11 +1040,9 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
         const DocKey& key,
         std::optional<Vbid> vbid) const {
     if (key.getCollectionID().isDefaultCollection()) {
-        return cb::EngineErrorGetScopeIDResult(
-                cb::engine_errc::success, 0, ScopeID{ScopeID::Default});
+        return cb::EngineErrorGetScopeIDResult(0, ScopeID{ScopeID::Default});
     }
-    return cb::EngineErrorGetScopeIDResult(
-            cb::engine_errc::unknown_collection, 0, {});
+    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);
 }
 
 void default_engine::generate_unknown_collection_response(
