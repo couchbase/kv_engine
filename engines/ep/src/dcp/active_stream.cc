@@ -474,11 +474,10 @@ void ActiveStream::completeBackfill() {
          */
         auto vb = engine->getVBucket(vb_);
         if (vb) {
-            auto info = vb->checkpointManager->getSnapshotInfo();
             if (isCurrentSnapshotCompleted() ||
                 (vb->getState() == vbucket_state_replica &&
-                 info.range.getStart() >= lastBackfilledSeqno &&
-                 info.range.getStart() == info.range.getEnd())) {
+                 maxScanSeqno > lastBackfilledSeqno &&
+                 maxScanSeqno == lastSentSnapEndSeqno.load())) {
                 queueSeqnoAdvancedIfNeeded();
             }
         } else {
@@ -486,6 +485,8 @@ void ActiveStream::completeBackfill() {
                 "{} completeBackfill for vbucket which does not exist",
                 logPrefix);
         }
+        // reset last seqno seen by backfill
+        maxScanSeqno = 0;
 
         if (isBackfilling()) {
             log(spdlog::level::level_enum::info,

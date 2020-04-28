@@ -150,6 +150,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_success;
     }
 
+    stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
+
     transitionState(backfill_state_completing);
 
     return backfill_success;

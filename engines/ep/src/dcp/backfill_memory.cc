@@ -286,6 +286,8 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
         ++rangeItr;
     }
 
+    stream->setBackfillScanLastRead(endSeqno);
+
     /* Backfill has ran to completion */
     complete(false);
 

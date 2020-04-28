@@ -331,6 +331,22 @@ public:
 
     bool isTakeoverStream() const;
 
+    /**
+     * Used to set the last read seqno from a scan of the data store layer.
+     * (This is for external use only and ensures that
+     * maxScanSeqno is zero prior to being set).
+     * @param seqno last read seqno during a data store layer scan
+     */
+    void setBackfillScanLastRead(uint64_t seqno) {
+        std::unique_lock<std::mutex> lh(streamMutex);
+        /*
+         * maxScanSeqno should only be modified once per
+         * backfill
+         */
+        Expects(maxScanSeqno == 0);
+        maxScanSeqno = seqno;
+    }
+
 protected:
     /**
      * @param vb reference to the associated vbucket
@@ -627,6 +643,15 @@ private:
 
     //! Last snapshot end seqno sent to the DCP client
     std::atomic<uint64_t> lastSentSnapEndSeqno;
+
+    /*
+     * This is the highest seqno seen by KVStore when performing a scan
+     * for the current snapshot we are back filling for. This is regardless of
+     * collection or visibility. This used inform completeBackfill() of the last
+     * read seqno from disk, to help make a decision on if we should enqueue an
+     * SeqnoAdvanced op (see ::completeBackfill() for more info).
+     */
+    uint64_t maxScanSeqno{0};
 
     /* Flag used by checkpointCreatorTask that is set before all items are
        extracted for given checkpoint cursor, and is unset after all retrieved
