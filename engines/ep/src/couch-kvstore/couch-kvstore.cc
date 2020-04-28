@@ -44,13 +44,7 @@
 #include <utility>
 
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
-
-extern "C" {
-    static int getMultiCbC(Db *db, DocInfo *docinfo, void *ctx)
-    {
-        return CouchKVStore::getMultiCb(db, docinfo, ctx);
-    }
-}
+static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
 static std::string getStrError(Db *db) {
     const size_t max_msg_len = 256;
@@ -588,7 +582,7 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
     GetMultiCbCtx ctx(*this, vb, itms);
 
     errCode = couchstore_docinfos_by_id(
-            db, ids.data(), itms.size(), 0, getMultiCbC, &ctx);
+            db, ids.data(), itms.size(), 0, getMultiCallback, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
         st.numGetFailure += numItems;
         logger.warn(
@@ -2658,13 +2652,15 @@ std::optional<Collections::VB::PersistedStats> CouchKVStore::getCollectionStats(
                                            lDoc.getLocalDoc()->json.size);
 }
 
-int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
+static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     if (docinfo == nullptr) {
-        throw std::invalid_argument("CouchKVStore::getMultiCb: docinfo "
+        throw std::invalid_argument(
+                "getMultiCallback: docinfo "
                 "must be non-NULL");
     }
     if (ctx == nullptr) {
-        throw std::invalid_argument("CouchKVStore::getMultiCb: ctx must "
+        throw std::invalid_argument(
+                "getMultiCallback: ctx must "
                 "be non-NULL");
     }
 
@@ -2676,11 +2672,9 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     if (qitr == cbCtx->fetches.end()) {
         // this could be a serious race condition in couchstore,
         // log a warning message and continue
-        cbCtx->cks.logger.warn(
-                "CouchKVStore::getMultiCb: Couchstore returned "
-                "invalid docinfo, no pending bgfetch has been "
-                "issued for a key in {}, "
-                "seqno:{}",
+        cbCtx->cks.getLogger().warn(
+                "getMultiCallback: Couchstore returned invalid docinfo, no "
+                "pending bgfetch has been issued for a key in {}, seqno:{}",
                 cbCtx->vbId,
                 docinfo->rev_seq);
         return 0;
@@ -2712,16 +2706,15 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         }
     }
     if (!return_val_ownership_transferred) {
-        cbCtx->cks.logger.warn(
-                "CouchKVStore::getMultiCb called with zero"
-                "items in bgfetched_list, {}, seqno:{}",
+        cbCtx->cks.getLogger().warn(
+                "getMultiCallback called with zero items in bgfetched_list, "
+                "{}, seqno:{}",
                 cbCtx->vbId,
                 docinfo->rev_seq);
     }
 
     return 0;
 }
-
 
 void CouchKVStore::closeDatabaseHandle(Db *db) {
     couchstore_error_t ret = couchstore_close_file(db);

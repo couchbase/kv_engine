@@ -320,8 +320,6 @@ public:
 
     bool getStat(const char* name, size_t& value) override;
 
-    static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-
     couchstore_error_t fetchDoc(Db* db,
                                 DocInfo* docinfo,
                                 GetValue& docValue,
@@ -394,6 +392,11 @@ public:
      * @return the persisted vbstate
      */
     vbucket_state readVBState(Vbid vbid);
+
+    /// Get the logger used by this bucket
+    BucketLogger& getLogger() {
+        return logger;
+    }
 
 protected:
     /**
