@@ -683,14 +683,6 @@ protected:
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Db& db);
 
-    /**
-     * read local document to get the count of dropped collections from an
-     * already open db handle
-     * @param db The database handle to read from
-     * @return number of collections still to be fully purged.
-     */
-    size_t getDroppedCollectionCount(Db& db);
-
     void closeDatabaseHandle(Db *db);
 
     /**

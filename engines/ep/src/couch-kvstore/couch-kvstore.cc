@@ -3265,17 +3265,6 @@ CouchKVStore::getDroppedCollections(Db& db) {
     return Collections::KVStore::decodeDroppedCollections(dropped.getBuffer());
 }
 
-size_t CouchKVStore::getDroppedCollectionCount(Db& db) {
-    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
-
-    if (!dropped.getLocalDoc()) {
-        return {};
-    }
-
-    return Collections::KVStore::decodeDroppedCollections(dropped.getBuffer())
-            .size();
-}
-
 couchstore_error_t CouchKVStore::updateCollectionsMeta(
         Db& db, Collections::VB::Flush& collectionsFlush) {
     auto err = updateManifestUid(db);
