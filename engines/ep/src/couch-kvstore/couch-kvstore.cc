@@ -3073,10 +3073,10 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
     }
 }
 
-void CouchKVStore::removeCompactFile(const std::string& dbname, Vbid vbid) {
-    std::string dbfile =
-            getDBFileName(dbname, vbid, (*dbFileRevMap)[vbid.get()]);
-    std::string compact_file = dbfile + ".compact";
+void CouchKVStore::removeCompactFile(const std::string& filename, Vbid vbid) {
+    const auto compact_file =
+            getDBFileName(filename, vbid, (*dbFileRevMap)[vbid.get()]) +
+            ".compact";
 
     if (!isReadOnly()) {
         removeCompactFile(compact_file);
