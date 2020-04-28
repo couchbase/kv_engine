@@ -320,8 +320,6 @@ public:
 
     bool getStat(const char* name, size_t& value) override;
 
-    static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
-
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
 
     couchstore_error_t fetchDoc(Db* db,
