@@ -1660,39 +1660,6 @@ void CouchKVStore::close() {
     intransaction = false;
 }
 
-uint64_t CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile) {
-    uint64_t newrev = 0;
-    std::string nameKey;
-
-    if (!newFile) {
-        // extract out the file revision number first
-        size_t secondDot = dbFileName.rfind(".");
-        nameKey = dbFileName.substr(0, secondDot);
-    } else {
-        nameKey = dbFileName;
-    }
-    nameKey.append(".");
-    const auto files = cb::io::findFilesWithPrefix(nameKey);
-    std::vector<std::string>::const_iterator itor;
-    // found file(s) whoes name has the same key name pair with different
-    // revision number
-    for (itor = files.begin(); itor != files.end(); ++itor) {
-        const std::string &filename = *itor;
-        if (endWithCompact(filename)) {
-            continue;
-        }
-
-        size_t secondDot = filename.rfind(".");
-        char *ptr = NULL;
-        uint64_t revnum = strtoull(filename.substr(secondDot + 1).c_str(), &ptr, 10);
-        if (newrev < revnum) {
-            newrev = revnum;
-            dbFileName = filename;
-        }
-    }
-    return newrev;
-}
-
 void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
     if (vbucketId.get() >= numDbFiles) {
         logger.warn(

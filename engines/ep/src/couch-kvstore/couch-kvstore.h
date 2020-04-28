@@ -526,7 +526,6 @@ protected:
     void close();
     bool commit2couchstore(VB::Commit& commitData);
 
-    uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string>& filenames,
                              std::vector<Vbid>* vbids);
     void updateDbFileMap(Vbid vbucketId, uint64_t newFileRev);
