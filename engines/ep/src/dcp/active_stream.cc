@@ -444,12 +444,18 @@ void ActiveStream::completeBackfill() {
          * So check that we don't have an in memory range to stream from.
          */
         auto vb = engine->getVBucket(vb_);
-        auto info = vb->checkpointManager->getSnapshotInfo();
-        if (isCurrentSnapshotCompleted() ||
-            (vb->getState() == vbucket_state_replica &&
-             info.range.getStart() >= lastBackfilledSeqno &&
-             info.range.getStart() == info.range.getEnd())) {
-            queueSeqnoAdvancedIfNeeded();
+        if (vb) {
+            auto info = vb->checkpointManager->getSnapshotInfo();
+            if (isCurrentSnapshotCompleted() ||
+                (vb->getState() == vbucket_state_replica &&
+                 info.range.getStart() >= lastBackfilledSeqno &&
+                 info.range.getStart() == info.range.getEnd())) {
+                queueSeqnoAdvancedIfNeeded();
+            }
+        } else {
+            log(spdlog::level::level_enum::warn,
+                "{} completeBackfill for vbucket which does not exist",
+                logPrefix);
         }
 
         if (isBackfilling()) {
