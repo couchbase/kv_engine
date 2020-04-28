@@ -52,12 +52,9 @@ static std::string getStrError(Db *db) {
 }
 
 static bool endWithCompact(const std::string &filename) {
-    size_t pos = filename.find(".compact");
-    if (pos == std::string::npos ||
-                        (filename.size() - sizeof(".compact")) != pos) {
-        return false;
-    }
-    return true;
+    const std::string suffix{".compact"};
+    const auto pos = filename.rfind(suffix);
+    return pos != std::string::npos && (pos + suffix.size()) == filename.size();
 }
 
 static void discoverDbFiles(const std::string &dir,
