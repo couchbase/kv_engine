@@ -779,6 +779,11 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
+    // Create a new checkpoint here to ensure that we always remove the correct
+    // number of items from the checkpoints that we remove at the end of this
+    // function.
+    vb->checkpointManager->createNewCheckpoint();
+
     // Seqno 5 - A prepare to dedupe the prepare at seqno 3.
     EXPECT_EQ(mutationResult, public_processSet(*vb, *item, ctx));
     flushVBucketToDiskIfPersistent(vbid, 1);
