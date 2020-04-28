@@ -42,25 +42,25 @@ class EventuallyPersistentEngine;
  * this helper avoids duplicating code to handle different
  * instantiations.
  */
-template <typename T, template <class> class Limits>
-uint64_t getBucketMin(const typename Histogram<T, Limits>::value_type& bin) {
-    return bin->start();
+template <typename HistValueType>
+uint64_t getBucketMin(const HistValueType& bucket) {
+    return bucket->start();
 }
 
-inline uint64_t getBucketMin(const MicrosecondHistogram::value_type& bin) {
-    return bin->start().count();
+inline uint64_t getBucketMin(const MicrosecondHistogram::value_type& bucket) {
+    return bucket->start().count();
 }
 
 /**
  * Helper method to get a Histogram bucket upper bound as a uint64_t.
  */
-template <typename T, template <class> class Limits>
-uint64_t getBucketMax(const typename Histogram<T, Limits>::value_type& bin) {
-    return bin->end();
+template <typename HistValueType>
+uint64_t getBucketMax(const HistValueType& bucket) {
+    return bucket->end();
 }
 
-inline uint64_t getBucketMax(const MicrosecondHistogram::value_type& bin) {
-    return bin->end().count();
+inline uint64_t getBucketMax(const MicrosecondHistogram::value_type& bucket) {
+    return bucket->end().count();
 }
 
 template <typename T>
