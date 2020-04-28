@@ -18,8 +18,6 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
-#include "collections/kvstore_generated.h"
-#include "common.h"
 #include "couch-kvstore-config.h"
 #include "diskdockey.h"
 #include "ep_time.h"
@@ -48,11 +46,9 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
 static std::string getStrError(Db *db) {
-    const size_t max_msg_len = 256;
-    char msg[max_msg_len];
-    couchstore_last_os_error(db, msg, max_msg_len);
-    std::string errorStr(msg);
-    return errorStr;
+    std::array<char, 256> msg;
+    couchstore_last_os_error(db, msg.data(), msg.size());
+    return msg.data();
 }
 
 static bool endWithCompact(const std::string &filename) {
@@ -112,10 +108,10 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
 
     case COUCHSTORE_ERROR_CORRUPT:
     case COUCHSTORE_ERROR_CHECKSUM_FAIL: {
-        char buffer[256];
-        if (couchstore_last_internal_error(db, buffer, sizeof(buffer)) ==
+        std::array<char, 256> buffer;
+        if (couchstore_last_internal_error(db, buffer.data(), buffer.size()) ==
             COUCHSTORE_SUCCESS) {
-            return std::string(buffer);
+            return buffer.data();
         }
         return "<error retrieving last_internal_error>";
     }
@@ -1586,7 +1582,7 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
 
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
     for (const auto& range : ctx.ranges) {
-        sized_buf ids[2];
+        std::array<sized_buf, 2> ids;
         ids[0] = sized_buf{const_cast<char*>(reinterpret_cast<const char*>(
                                    range.startKey.data())),
                            range.startKey.size()};
@@ -1595,7 +1591,7 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
                            range.endKey.size()};
 
         errorCode = couchstore_docinfos_by_id(db,
-                                              ids,
+                                              ids.data(),
                                               2,
                                               RANGES,
                                               bySeqnoScanCallback,
@@ -1783,7 +1779,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
         size_t firstSlash = nameKey.rfind(cb::io::DirectorySeparator);
 
         std::string revNumStr = filename.substr(secondDot + 1);
-        char *ptr = NULL;
+        char* ptr = nullptr;
         uint64_t revNum = strtoull(revNumStr.c_str(), &ptr, 10);
 
         std::string vbIdStr = nameKey.substr(firstSlash + 1,
