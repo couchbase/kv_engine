@@ -77,6 +77,9 @@ enum class Feature : uint16_t {
     /// Additionally, is non-existence of a VATTR flagged with
     /// SubdocXattrUnknownVattr instead of disconnecting the client?
     VAttr = 0x15,
+
+    // Does the server support Point in Time Recovery
+    PiTR = 0x16,
 };
 
 } // namespace mcbp

@@ -82,6 +82,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::AltRequestSupport:
         case cb::mcbp::Feature::SyncReplication:
         case cb::mcbp::Feature::VAttr:
+        case cb::mcbp::Feature::PiTR:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -113,6 +114,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::Collections:
         case cb::mcbp::Feature::OpenTracing:
         case cb::mcbp::Feature::PreserveTtl:
+        case cb::mcbp::Feature::PiTR:
             // No other dependency
             break;
 
@@ -344,8 +346,9 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
 
+        case cb::mcbp::Feature::PiTR:
         case cb::mcbp::Feature::VAttr:
-            // VAttr is only informative
+            // VAttr and PiTR is only informative
             added = true;
             break;
         } // end switch

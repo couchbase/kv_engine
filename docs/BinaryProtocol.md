@@ -1820,6 +1820,7 @@ The following features is defined:
 | 0x0013 | OpenTracing |
 | 0x0014 | PreserveTtl |
 | 0x0015 | VAttr |
+| 0x0016 | PiTR |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1892,6 +1893,9 @@ The following features is defined:
           the server). It may be used from the client to determine if the server
           supports VATTRs in a generic way (can request $<VATTR> and will either
           succeed or fail with SubdocXattrUnknownVattr). Requires XATTR.
+* `PiTR` This is purely information (it does not enable / disable anything on
+          the server). It may be used from the client to determine if the server
+          supports Point in Time Recovery.
 
 Response:
 

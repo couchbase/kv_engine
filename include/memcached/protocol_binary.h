@@ -686,6 +686,9 @@ public:
      */
     static const uint32_t NoValueWithUnderlyingDatatype = 64;
 
+    /// Requst PiTR for the connection (only legal for Producers)
+    static const uint32_t PiTR = 128;
+
 protected:
     uint32_t seqno = 0;
     uint32_t flags = 0;

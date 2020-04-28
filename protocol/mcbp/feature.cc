@@ -63,6 +63,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "PreserveTtl";
     case cb::mcbp::Feature::VAttr:
         return "VAttr";
+    case cb::mcbp::Feature::PiTR:
+        return "PiTR";
     }
 
     throw std::invalid_argument(

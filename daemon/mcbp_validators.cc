@@ -461,7 +461,8 @@ static Status dcp_open_validator(Cookie& cookie) {
     const auto mask = DcpOpenPayload::Producer | DcpOpenPayload::Notifier |
                       DcpOpenPayload::IncludeXattrs | DcpOpenPayload::NoValue |
                       DcpOpenPayload::IncludeDeleteTimes |
-                      DcpOpenPayload::NoValueWithUnderlyingDatatype;
+                      DcpOpenPayload::NoValueWithUnderlyingDatatype |
+                      DcpOpenPayload::PiTR;
 
     auto ext = cookie.getHeader().getExtdata();
     const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
