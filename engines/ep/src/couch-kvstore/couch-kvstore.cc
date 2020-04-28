@@ -40,6 +40,7 @@
 #include <platform/dirutils.h>
 #include <gsl/gsl>
 
+#include <memory>
 #include <shared_mutex>
 #include <utility>
 
@@ -2519,9 +2520,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
         Db* db, Vbid vbid) {
     auto res = readVBState(db, vbid);
     if (res.status == ReadVBStateStatus::Success) {
-        // Cannot use make_unique here as it doesn't support
-        // brace-initialization until C++20.
-        cachedVBStates[vbid.get()].reset(new vbucket_state(res.state));
+        cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(res.state);
     }
     return res;
 }
