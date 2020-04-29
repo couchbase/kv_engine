@@ -45,12 +45,6 @@
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
-static std::string getStrError(Db *db) {
-    std::array<char, 256> msg;
-    couchstore_last_os_error(db, msg.data(), msg.size());
-    return msg.data();
-}
-
 static bool endWithCompact(const std::string &filename) {
     const std::string suffix{".compact"};
     const auto pos = filename.rfind(suffix);
@@ -96,24 +90,28 @@ static bool allDigit(std::string &input) {
 }
 
 static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
+    std::array<char, 256> msg;
     switch (err) {
     case COUCHSTORE_ERROR_OPEN_FILE:
     case COUCHSTORE_ERROR_READ:
     case COUCHSTORE_ERROR_WRITE:
     case COUCHSTORE_ERROR_FILE_CLOSE:
-        return getStrError(db);
+        if (couchstore_last_os_error(db, msg.data(), msg.size()) ==
+            COUCHSTORE_SUCCESS) {
+            return {msg.data()};
+        }
+        return {"<error retrieving last_os_error>"};
 
     case COUCHSTORE_ERROR_CORRUPT:
-    case COUCHSTORE_ERROR_CHECKSUM_FAIL: {
-        std::array<char, 256> buffer;
-        if (couchstore_last_internal_error(db, buffer.data(), buffer.size()) ==
+    case COUCHSTORE_ERROR_CHECKSUM_FAIL:
+        if (couchstore_last_internal_error(db, msg.data(), msg.size()) ==
             COUCHSTORE_SUCCESS) {
-            return buffer.data();
+            return {msg.data()};
         }
-        return "<error retrieving last_internal_error>";
-    }
+        return {"<error retrieving last_internal_error>"};
+
     default:
-        return "none";
+        return {"none"};
     }
 }
 
