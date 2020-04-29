@@ -59,7 +59,7 @@ public:
                                    uint32_t flags,
                                    cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD8(marker,
+    MOCK_METHOD9(marker,
                  ENGINE_ERROR_CODE(uint32_t opaque,
                                    Vbid vbucket,
                                    uint64_t start_seqno,
@@ -67,6 +67,7 @@ public:
                                    uint32_t flags,
                                    std::optional<uint64_t> high_completed_seqno,
                                    std::optional<uint64_t> maxVisibleSeqno,
+                                   std::optional<uint64_t> timestamp,
                                    cb::mcbp::DcpStreamId sid));
 
     MOCK_METHOD8(mutation,

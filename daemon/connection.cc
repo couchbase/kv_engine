@@ -1549,6 +1549,7 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
                                      uint32_t flags,
                                      std::optional<uint64_t> hcs,
                                      std::optional<uint64_t> mvs,
+                                     std::optional<uint64_t> timestamp,
                                      cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
@@ -1576,7 +1577,7 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     }
 
     cb::mcbp::encodeDcpSnapshotMarker(
-            builder, start_seqno, end_seqno, flags, hcs, mvs);
+            builder, start_seqno, end_seqno, flags, hcs, mvs, timestamp);
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

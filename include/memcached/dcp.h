@@ -107,6 +107,8 @@ struct dcp_message_producers {
      * @param flags snapshot marker flags (DISK/MEMORY/CHK/ACK).
      * @param highCompletedSeqno the SyncRepl high completed seqno
      * @param maxVisibleSeqno highest committed seqno (ignores prepare/abort)
+     * @param timestamp for the data in the snapshot marker (only valid for
+     *                  disk type and represents the disk commit time)
      * @param sid The stream-ID the marker applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
@@ -118,6 +120,7 @@ struct dcp_message_producers {
                                      uint32_t flags,
                                      std::optional<uint64_t> highCompletedSeqno,
                                      std::optional<uint64_t> maxVisibleSeqno,
+                                     std::optional<uint64_t> timestamp,
                                      cb::mcbp::DcpStreamId sid) = 0;
 
     /**

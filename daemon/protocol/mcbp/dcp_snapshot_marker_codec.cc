@@ -58,17 +58,32 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
                              uint64_t end,
                              uint32_t flags,
                              std::optional<uint64_t> highCompletedSeqno,
-                             std::optional<uint64_t> maxVisibleSeqno) {
+                             std::optional<uint64_t> maxVisibleSeqno,
+                             std::optional<uint64_t> timestamp) {
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_1Value;
     using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
     using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
 
-    if (highCompletedSeqno) {
+    if (highCompletedSeqno || timestamp) {
         Expects(flags & uint32_t(DcpSnapshotMarkerFlag::Disk));
     }
-    if (maxVisibleSeqno || highCompletedSeqno) {
+
+    if (timestamp) {
+        DcpSnapshotMarkerV2xPayload extras(DcpSnapshotMarkerV2xVersion::One);
+        frame.setExtras(extras.getBuffer());
+
+        DcpSnapshotMarkerV2_1Value value;
+        value.setStartSeqno(start);
+        value.setEndSeqno(end);
+        value.setFlags(flags);
+        value.setMaxVisibleSeqno(maxVisibleSeqno.value_or(0));
+        value.setHighCompletedSeqno(highCompletedSeqno.value_or(0));
+        value.setTimestamp(*timestamp);
+        frame.setValue(value.getBuffer());
+    } else if (maxVisibleSeqno || highCompletedSeqno) {
         // V2.0: sending the maxVisibleSeqno and maybe the highCompletedSeqno.
         // The highCompletedSeqno is expected to only be defined when flags has
         // the disk bit set.

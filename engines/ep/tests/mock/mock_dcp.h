@@ -68,6 +68,7 @@ public:
                              uint32_t flags,
                              std::optional<uint64_t> high_completed_seqno,
                              std::optional<uint64_t> maxVisibleSeqno,
+                             std::optional<uint64_t> timestamp,
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
@@ -197,6 +198,7 @@ public:
     std::string last_collection_filter;
     uint64_t last_prepared_seqno;
     uint64_t last_high_completed_seqno;
+    std::optional<uint64_t> last_timestamp;
     uint64_t last_commit_seqno;
     uint64_t last_abort_seqno;
     uint32_t last_oso_snapshot_flags;

@@ -21,8 +21,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <optional>
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 class Request;
 
@@ -43,6 +42,9 @@ public:
     std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
+    std::optional<uint64_t> getTimestamp() const {
+        return timestamp;
+    }
 
     void setStartSeqno(uint64_t value) {
         startSeqno = value;
@@ -59,6 +61,9 @@ public:
     void setMaxVisibleSeqno(uint64_t value) {
         maxVisibleSeqno = value;
     }
+    void setTimestamp(uint64_t value) {
+        timestamp = value;
+    }
 
 protected:
     uint64_t startSeqno;
@@ -66,6 +71,7 @@ protected:
     uint32_t flags;
     std::optional<uint64_t> highCompletedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
+    std::optional<uint64_t> timestamp;
 };
 
 /**
@@ -86,7 +92,7 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
                              uint64_t end,
                              uint32_t flags,
                              std::optional<uint64_t> highCompletedSeqno,
-                             std::optional<uint64_t> maxVisibleSeqno);
+                             std::optional<uint64_t> maxVisibleSeqno,
+                             std::optional<uint64_t> timestamp);
 
-} // end namespace mcbp
-} // end namespace cb
+} // end namespace cb::mcbp

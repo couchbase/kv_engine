@@ -66,7 +66,7 @@ public:
                              uint32_t flags,
                              std::optional<uint64_t> highCompletedSeqno,
                              std::optional<uint64_t> maxVisibleSeqno,
-
+                             std::optional<uint64_t> timestamp,
                              cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,

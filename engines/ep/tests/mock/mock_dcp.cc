@@ -139,6 +139,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(
         uint32_t flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
@@ -164,6 +165,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(
     if (highCompletedSeqno) {
         last_high_completed_seqno = *highCompletedSeqno;
     }
+    last_timestamp = timestamp;
     return ENGINE_SUCCESS;
 }
 

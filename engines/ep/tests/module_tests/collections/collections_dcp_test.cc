@@ -398,6 +398,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
         uint32_t flags,
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid) {
     auto ret = ENGINE_SUCCESS;
     if (consumer) {
@@ -418,6 +419,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
                                     flags,
                                     high_completed_seqno,
                                     maxVisibleSeqno,
+                                    timestamp,
                                     sid);
 
     return ret;

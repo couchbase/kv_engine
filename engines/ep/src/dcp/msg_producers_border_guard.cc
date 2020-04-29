@@ -84,6 +84,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
         uint32_t flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
     return guarded.marker(opaque,
@@ -93,6 +94,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
                           flags,
                           highCompletedSeqno,
                           maxVisibleSeqno,
+                          timestamp,
                           sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(

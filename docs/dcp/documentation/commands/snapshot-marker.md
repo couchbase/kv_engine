@@ -10,25 +10,34 @@ There are more than one version of this message, which differ in the definition 
 
 For V2 the following version codes are defined and determines the rest of the message encoding.
 
-version byte values:
-
-* `0x0`: _V2.0_ the value contains `start seqno`, `end seqno`, `snapshot-type`, `max visible seqno` and `high completed seqno`.
-The `high completed seqno` should only be considered valid for use when the flags field has the `disk` flag set.
-
-Snapshot Type is a bit field and stores the following flags:
-
-* 0x01 (memory) - Specifies that the snapshot contains in-memory items only.
-* 0x02 (disk) - Specifies that the snapshot contains on-disk items only.
-* 0x04 (checkpoint) - An internally used flag for intra-cluster replication to help to keep in-memory datastructures look similar.
-* 0x08 (ack) - Specifies that this snapshot marker should return a response once the entire snapshot is received.
-
-
 The request:
 * Must have extras
 * Must not have key
 * Can only have a value if V2 format is in use (extra_len = 1)
 
 The client should not send a reply to this command unless the ack flag is set.
+
+#### Version byte values:
+
+##### 0x00
+
+_V2.0_ the value contains `start seqno`, `end seqno`, `snapshot-type`, `max visible seqno` and `high completed seqno`.
+The `high completed seqno` should only be considered valid for use when the flags field has the `disk` flag set.
+
+Snapshot Type is a bit field and stores the following flags:
+
+| Type |   | Description |
+|------|---|------------|
+| 0x01 | (memory) | Specifies that the snapshot contains in-memory items only. |
+| 0x02 | (disk) | Specifies that the snapshot contains on-disk items only. |
+| 0x04 | (checkpoint) | An internally used flag for intra-cluster replication to help to keep in-memory datastructures look similar. |
+| 0x08 | (ack) | Specifies that this snapshot marker should return a response once the entire snapshot is received |
+
+##### 0x01
+
+_V2.1_ is an extension to V2.0, but the type _must_ be set to disk, and it
+adds a 64 bit timestamp which is the timestamp for when the disk snapshot was
+committed.
 
 ### Encoding Examples
 
