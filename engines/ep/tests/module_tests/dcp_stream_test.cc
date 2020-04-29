@@ -1923,6 +1923,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
                                   {});
     stream->processMarker(&snapshotMarker);
 
@@ -2328,6 +2329,7 @@ void SingleThreadedPassiveStreamTest::
                           dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           0 /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          {}, // timestamp
                           {} /*streamId*/);
 
     stream->processMarker(&marker);
@@ -2392,6 +2394,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                               flags,
                               0 /*HCS*/,
                               {} /*maxVisibleSeqno*/,
+                              {}, // timestamp
                               streamId);
         stream->processMarker(&marker);
 
@@ -2872,6 +2875,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
                                   dcp_marker_flag_t::MARKER_FLAG_DISK,
                                   std::optional<uint64_t>(1) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
 
@@ -2979,6 +2983,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
                                   dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     // M:1

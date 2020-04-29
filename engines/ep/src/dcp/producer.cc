@@ -799,7 +799,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                     s->getFlags(),
                                     s->getHighCompletedSeqno(),
                                     s->getMaxVisibleSeqno(),
-                                    {}, // @todo MB-37319 - Add PiTR information
+                                    s->getTimestamp(),
                                     resp->getStreamId());
             break;
         }

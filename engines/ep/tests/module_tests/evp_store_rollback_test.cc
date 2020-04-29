@@ -1273,6 +1273,7 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            {}, // timestamp
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1311,6 +1312,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            {}, // timestamp
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1355,6 +1357,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key) {
             dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            {}, // timestamp
             {} /*streamID*/);
     stream->processMarker(&marker);
 

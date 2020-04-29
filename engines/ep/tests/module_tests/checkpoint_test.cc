@@ -1247,6 +1247,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   flags,
                                   0 /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
                                   {});
     passiveStream->processMarker(&snapshotMarker);
 
@@ -1281,6 +1282,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    dcp_marker_flag_t::MARKER_FLAG_CHK,
                                    {} /*HCS*/,
                                    {} /*maxVisibleSeqno*/,
+                                   {}, // timestamp
                                    {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker2);
     EXPECT_EQ(ckptList.size(), 2);
@@ -1377,6 +1379,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       flags,
                                       0 /*HCS*/,
                                       {} /*maxVisibleSeqno*/,
+                                      {}, // timestamp
                                       {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
         processMutations(*passiveStream, snapshotStart, diskSnapshotEnd);
@@ -1396,6 +1399,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                   flags,
                                   0 /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  {}, // timestamp
                                   {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker);
 
