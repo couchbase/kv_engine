@@ -519,7 +519,7 @@ protected:
     /*
      * Returns the DbInfo for the given vbucket database.
      */
-    DbInfo getDbInfo(Vbid vbid);
+    cb::couchstore::Header getDbInfo(Vbid vbid);
 
     bool writeVBucketState(Vbid vbucketId, const vbucket_state& vbstate);
 

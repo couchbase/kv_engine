@@ -392,18 +392,8 @@ void CouchKVStore::initialize() {
         }
 
         // Setup cachedDocCount
-        DbInfo info;
-        errorCode = couchstore_db_info(db, &info);
-        if (errorCode != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::initialize: couchstore_db_info"
-                    " error:{}, name:{}/{}.couch.{}",
-                    couchstore_strerror(errorCode),
-                    dbname,
-                    id.get(),
-                    db.getFileRev());
-        }
-        cachedDocCount[id.get()] = info.doc_count;
+        cachedDocCount[id.get()] =
+                cb::couchstore::getHeader(*db.getDb()).docCount;
 
         if (!isReadOnly()) {
             removeCompactFile(dbname, id);
@@ -813,14 +803,6 @@ static int time_purge_hook(Db* d,
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
-    DbInfo infoDb;
-    auto err = couchstore_db_info(d, &infoDb);
-    if (err != COUCHSTORE_SUCCESS) {
-        EP_LOG_WARN("time_purge_hook: couchstore_db_info() failed: {}",
-                    couchstore_strerror(err));
-        return err;
-    }
-
     if (info->rev_meta.size >= MetaData::getMetaDataSize(MetaData::Version::V0)) {
         auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
         uint32_t exptime = metadata->getExptime();
@@ -852,7 +834,8 @@ static int time_purge_hook(Db* d,
         }
 
         if (info->deleted) {
-            if (info->db_seq != infoDb.last_sequence) {
+            const auto infoDb = cb::couchstore::getHeader(*d);
+            if (info->db_seq != infoDb.updateSeqNum) {
                 if (ctx->compactConfig.drop_deletes) { // all deleted items must
                                                        // be dropped ...
                     if (ctx->max_purged_seq < info->db_seq) {
@@ -966,9 +949,9 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     return result;
 }
 
-static FileInfo toFileInfo(const DbInfo& info) {
+static FileInfo toFileInfo(const cb::couchstore::Header& info) {
     return FileInfo{
-            info.doc_count, info.deleted_count, info.file_size, info.purge_seq};
+            info.docCount, info.deletedCount, info.fileSize, info.purgeSeqNum};
 }
 
 bool CouchKVStore::compactDBInternal(
@@ -987,7 +970,6 @@ bool CouchKVStore::compactDBInternal(
     std::string                 dbfile;
     std::string           compact_file;
     std::string               new_file;
-    DbInfo                        info;
     Vbid vbid = hook_ctx->compactConfig.db_file_id;
     hook_ctx->config = &configuration;
 
@@ -1015,16 +997,8 @@ bool CouchKVStore::compactDBInternal(
 
     couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
 
-    errCode = couchstore_db_info(compactdb, &info);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn("CouchKVStore::compactDB db_info error:{}, {}, fileRev:{}",
-                    couchstore_strerror(errCode),
-                    vbid,
-                    compactdb.getFileRev());
-        return false;
-    }
-
-    hook_ctx->stats.pre = toFileInfo(info);
+    hook_ctx->stats.pre =
+            toFileInfo(cb::couchstore::getHeader(*compactdb.getDb()));
 
     /**
      * This flag disables IO buffering in couchstore which means
@@ -1129,24 +1103,19 @@ bool CouchKVStore::compactDBInternal(
         }
     }
 
-    errCode = couchstore_db_info(targetDb.getDb(), &info);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn("CouchKVStore::compactDB: couchstore_db_info errCode:{}",
-                    couchstore_strerror(errCode));
-    }
-
+    auto info = cb::couchstore::getHeader(*targetDb.getDb());
     hook_ctx->stats.post = toFileInfo(info);
 
-    cachedFileSize[vbid.get()] = info.file_size;
-    cachedSpaceUsed[vbid.get()] = info.space_used;
+    cachedFileSize[vbid.get()] = info.fileSize;
+    cachedSpaceUsed[vbid.get()] = info.spaceUsed;
 
     // also update cached state with dbinfo
     vbucket_state* state = getVBucketState(vbid);
     if (state) {
-        state->highSeqno = info.last_sequence;
-        state->purgeSeqno = info.purge_seq;
-        cachedDeleteCount[vbid.get()] = info.deleted_count;
-        cachedDocCount[vbid.get()] = info.doc_count;
+        state->highSeqno = info.updateSeqNum;
+        state->purgeSeqno = info.purgeSeqNum;
+        cachedDeleteCount[vbid.get()] = info.deletedCount;
+        cachedDocCount[vbid.get()] = info.docCount;
         state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
         // Must sync the modified state back
         saveVBState(targetDb.getDb(), *state);
@@ -1230,18 +1199,9 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
         return false;
     }
 
-    DbInfo info;
-    errorCode = couchstore_db_info(db, &info);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::writeVBucketState: couchstore_db_info "
-                "error:{}, {}",
-                couchstore_strerror(errorCode),
-                vbucketId);
-    } else {
-        cachedSpaceUsed[vbucketId.get()] = info.space_used;
-        cachedFileSize[vbucketId.get()] = info.file_size;
-    }
+    const auto info = cb::couchstore::getHeader(*db.getDb());
+    cachedSpaceUsed[vbucketId.get()] = info.spaceUsed;
+    cachedFileSize[vbucketId.get()] = info.fileSize;
 
     return true;
 }
@@ -1388,25 +1348,9 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
     auto& db = couchKvHandle.getDbHolder();
 
-    DbInfo info;
-    auto errorCode = couchstore_db_info(db, &info);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::initBySeqnoScanContext: couchstore_db_info "
-                "error:{}",
-                couchstore_strerror(errorCode));
-        EP_LOG_WARN(
-                "CouchKVStore::initBySeqnoScanContext: Failed to read DB info "
-                "for "
-                "backfill. {} rev:{} error: {}",
-                vbid,
-                db.getFileRev(),
-                couchstore_strerror(errorCode));
-        return nullptr;
-    }
-
+    const auto info = cb::couchstore::getHeader(*db.getDb());
     uint64_t count = 0;
-    errorCode = couchstore_changes_count(
+    auto errorCode = couchstore_changes_count(
             db, startSeqno, std::numeric_limits<uint64_t>::max(), &count);
     if (errorCode != COUCHSTORE_SUCCESS) {
         EP_LOG_WARN(
@@ -1435,8 +1379,8 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
                                                      vbid,
                                                      std::move(handle),
                                                      startSeqno,
-                                                     info.last_sequence,
-                                                     info.purge_seq,
+                                                     info.updateSeqNum,
+                                                     info.purgeSeqNum,
                                                      options,
                                                      valOptions,
                                                      count,
@@ -1466,22 +1410,6 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
     auto& db = couchKvHandle.getDbHolder();
 
-    DbInfo info;
-    auto errorCode = couchstore_db_info(db, &info);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::initByIdScanContext: couchstore_db_info "
-                "error:{}",
-                couchstore_strerror(errorCode));
-        EP_LOG_WARN(
-                "CouchKVStore::initByIdScanContext: Failed to read DB info for "
-                "backfill. {} rev:{} error: {}",
-                vbid,
-                db.getFileRev(),
-                couchstore_strerror(errorCode));
-        return {};
-    }
-
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
         EP_LOG_WARN(
@@ -1491,6 +1419,7 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
         return {};
     }
 
+    const auto info = cb::couchstore::getHeader(*db.getDb());
     auto collectionsManifest = getDroppedCollections(*db);
 
     auto sctx = std::make_unique<ByIdScanContext>(std::move(cb),
@@ -1501,7 +1430,7 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
                                                   options,
                                                   valOptions,
                                                   collectionsManifest,
-                                                  info.last_sequence);
+                                                  info.updateSeqNum);
     sctx->logger = &logger;
     return sctx;
 }
@@ -1613,23 +1542,11 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
     return scan_success;
 }
 
-DbInfo CouchKVStore::getDbInfo(Vbid vbid) {
+cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode == COUCHSTORE_SUCCESS) {
-        DbInfo info;
-        errCode = couchstore_db_info(db, &info);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            return info;
-        } else {
-            throw std::runtime_error(
-                    "CouchKVStore::getDbInfo: failed "
-                    "to read database info for " +
-                    vbid.to_string() + " revision " +
-                    std::to_string(db.getFileRev()) +
-                    " - couchstore returned error: " +
-                    couchstore_strerror(errCode));
-        }
+        return cb::couchstore::getHeader(*db.getDb());
     } else {
         // open failed - map couchstore error code to exception.
         std::errc ec;
@@ -2156,7 +2073,6 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                                           std::vector<DocInfo*>& docinfos,
                                           kvstats_ctx& kvctx) {
     couchstore_error_t errCode;
-    DbInfo info;
     DbHolder db(*this);
     errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_CREATE);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -2267,30 +2183,23 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         }
 
         // retrieve storage system stats for file fragmentation computation
-        errCode = couchstore_db_info(db, &info);
-        if (errCode) {
-            logger.warn(
-                    "CouchKVStore::saveDocs: couchstore_db_info error:{} [{}]",
-                    couchstore_strerror(errCode),
-                    couchkvstore_strerrno(db, errCode));
-            return errCode;
-        }
-        cachedSpaceUsed[vbid.get()] = info.space_used;
-        cachedFileSize[vbid.get()] = info.file_size;
-        cachedDeleteCount[vbid.get()] = info.deleted_count;
-        cachedDocCount[vbid.get()] = info.doc_count;
+        const auto info = cb::couchstore::getHeader(*db.getDb());
+        cachedSpaceUsed[vbid.get()] = info.spaceUsed;
+        cachedFileSize[vbid.get()] = info.fileSize;
+        cachedDeleteCount[vbid.get()] = info.deletedCount;
+        cachedDocCount[vbid.get()] = info.docCount;
 
         // Check seqno if we wrote documents
-        if (!docs.empty() && maxDBSeqno != info.last_sequence) {
+        if (!docs.empty() && maxDBSeqno != info.updateSeqNum) {
             logger.warn(
                     "CouchKVStore::saveDocs: Seqno in db header ({})"
                     " is not matched with what was persisted ({})"
                     " for {}",
-                    info.last_sequence,
+                    info.updateSeqNum,
                     maxDBSeqno,
                     vbid);
         }
-        state.highSeqno = info.last_sequence;
+        state.highSeqno = info.updateSeqNum;
     }
 
     /* update stat */
@@ -2407,25 +2316,15 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
     int64_t highSeqno = 0;
     uint64_t purgeSeqno = 0;
     snapshot_info_t snapshot{0, {0, 0}};
-    DbInfo info;
-    auto couchStoreStatus = couchstore_db_info(db, &info);
-    if (couchStoreStatus == COUCHSTORE_SUCCESS) {
-        highSeqno = info.last_sequence;
-        purgeSeqno = info.purge_seq;
-    } else {
-        logger.warn(
-                "CouchKVStore::readVBState: couchstore_db_info error:{}"
-                ", {}",
-                couchstore_strerror(couchStoreStatus),
-                vbId);
-        return {ReadVBStateStatus::CouchstoreError, {}};
-    }
+    const auto info = cb::couchstore::getHeader(*db);
+    highSeqno = info.updateSeqNum;
+    purgeSeqno = info.purgeSeqNum;
 
     vbucket_state vbState;
 
     id.buf = (char *)"_local/vbstate";
     id.size = sizeof("_local/vbstate") - 1;
-    couchStoreStatus =
+    auto couchStoreStatus =
             couchstore_open_local_document(db, (void*)id.buf, id.size, &ldoc);
 
     if (couchStoreStatus == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
@@ -2720,19 +2619,9 @@ size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode == COUCHSTORE_SUCCESS) {
-        DbInfo info;
-        errCode = couchstore_db_info(db, &info);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            cachedDeleteCount[vbid.get()] = info.deleted_count;
-            return info.deleted_count;
-        } else {
-            throw std::runtime_error(
-                    "CouchKVStore::getNumPersistedDeletes:"
-                    "Failed to read database info for " +
-                    vbid.to_string() +
-                    " rev = " + std::to_string(db.getFileRev()) +
-                    " with error:" + couchstore_strerror(errCode));
-        }
+        const auto info = cb::couchstore::getHeader(*db.getDb());
+        cachedDeleteCount[vbid.get()] = info.deletedCount;
+        return info.deletedCount;
     } else {
         // open failed - map couchstore error code to exception.
         std::errc ec;
@@ -2754,8 +2643,8 @@ size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
 }
 
 DBFileInfo CouchKVStore::getDbFileInfo(Vbid vbid) {
-    DbInfo info = getDbInfo(vbid);
-    return DBFileInfo{info.file_size, info.space_used};
+    const auto info = getDbInfo(vbid);
+    return DBFileInfo{info.fileSize, info.spaceUsed};
 }
 
 DBFileInfo CouchKVStore::getAggrDbFileInfo() {
@@ -2776,18 +2665,16 @@ size_t CouchKVStore::getItemCount(Vbid vbid) {
     if (!isReadOnly()) {
         return cachedDocCount.at(vbid.get());
     }
-    return getDbInfo(vbid).doc_count;
+    return getDbInfo(vbid).docCount;
 }
 
 RollbackResult CouchKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackSeqno,
                                       std::unique_ptr<RollbackCB> cb) {
     DbHolder db(*this);
-    DbInfo info;
-    couchstore_error_t errCode;
 
     // Open the vbucket's file and determine the latestSeqno persisted.
-    errCode = openDB(vbid, db, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY);
+    auto errCode = openDB(vbid, db, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY);
     const auto dbFileName = getDBFileName(dbname, vbid, db.getFileRev());
 
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -2797,16 +2684,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    errCode = couchstore_db_info(db, &info);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::rollback: couchstore_db_info error:{}, "
-                "name:{}",
-                couchstore_strerror(errCode),
-                dbFileName);
-        return RollbackResult(false);
-    }
-    uint64_t latestSeqno = info.last_sequence;
+    auto info = cb::couchstore::getHeader(*db.getDb());
+    uint64_t latestSeqno = info.updateSeqNum;
 
     // Count how many updates are in the vbucket's file. We'll later compare
     // this with how many items must be discarded and hence decide if it is
@@ -2837,7 +2716,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    while (info.last_sequence > rollbackSeqno) {
+    while (info.updateSeqNum > rollbackSeqno) {
         errCode = couchstore_rewind_db_header(newdb->getDbHolder());
         if (errCode != COUCHSTORE_SUCCESS) {
             // rewind_db_header cleans up (frees DB) on error; so
@@ -2855,15 +2734,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
             //as a previous header wasn't found.
             return RollbackResult(false);
         }
-        errCode = couchstore_db_info(newdb->getDbHolder(), &info);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::rollback: couchstore_db_info error:{}, "
-                    "name:{}",
-                    couchstore_strerror(errCode),
-                    dbFileName);
-            return RollbackResult(false);
-        }
+        info = cb::couchstore::getHeader(*newdb->getDbHolder().getDb());
     }
 
     // Count how many updates we need to discard to rollback to the Rollback
@@ -2871,13 +2742,13 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     // have to patch up a large amount of in-memory data).
     uint64_t rollbackSeqCount = 0;
     errCode = couchstore_changes_count(
-            db, info.last_sequence, latestSeqno, &rollbackSeqCount);
+            db, info.updateSeqNum, latestSeqno, &rollbackSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::rollback: "
                 "couchstore_changes_count#2({}, {}) "
                 "error:{} [{}], {}, rev:{}",
-                info.last_sequence,
+                info.updateSeqNum,
                 latestSeqno,
                 couchstore_strerror(errCode),
                 cb_strerror(),
@@ -2912,7 +2783,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     auto ctx = initBySeqnoScanContext(std::move(cb),
                                       std::move(cl),
                                       vbid,
-                                      info.last_sequence + 1,
+                                      info.updateSeqNum + 1,
                                       DocumentFilter::ALL_ITEMS,
                                       ValueFilter::KEYS_ONLY);
     if (!ctx) {
@@ -2935,8 +2806,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         ReadVBStateStatus::Success) {
         return RollbackResult(false);
     }
-    cachedDeleteCount[vbid.get()] = info.deleted_count;
-    cachedDocCount[vbid.get()] = info.doc_count;
+    cachedDeleteCount[vbid.get()] = info.deletedCount;
+    cachedDocCount[vbid.get()] = info.docCount;
 
     // Append the rewinded header to the database file
     errCode = couchstore_commit(handle->getDbHolder());
