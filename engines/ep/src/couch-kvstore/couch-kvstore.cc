@@ -2773,20 +2773,20 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     std::stringstream dbFileName;
     dbFileName << dbname << "/" << vbid.get() << ".couch." << db.getFileRev();
 
-    if (errCode == COUCHSTORE_SUCCESS) {
-        errCode = couchstore_db_info(db, &info);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::rollback: couchstore_db_info error:{}, "
-                    "name:{}",
-                    couchstore_strerror(errCode),
-                    dbFileName.str());
-            return RollbackResult(false);
-        }
-    } else {
+    if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB error:{}, name:{}",
                     couchstore_strerror(errCode),
                     dbFileName.str());
+        return RollbackResult(false);
+    }
+
+    errCode = couchstore_db_info(db, &info);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::rollback: couchstore_db_info error:{}, "
+                "name:{}",
+                couchstore_strerror(errCode),
+                dbFileName.str());
         return RollbackResult(false);
     }
     uint64_t latestSeqno = info.last_sequence;
