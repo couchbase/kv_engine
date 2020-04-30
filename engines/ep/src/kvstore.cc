@@ -54,7 +54,8 @@ ScanContext::ScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections)
+                droppedCollections,
+        int64_t maxSeqno)
     : vbid(vbid),
       handle(std::move(handle)),
       docFilter(docFilter),
@@ -62,7 +63,8 @@ ScanContext::ScanContext(
       callback(std::move(cb)),
       lookup(std::move(cl)),
       logger(globalBucketLogger.get()),
-      collectionsContext(droppedCollections) {
+      collectionsContext(droppedCollections),
+      maxSeqno(maxSeqno) {
     Expects(callback != nullptr);
     Expects(lookup != nullptr);
 }
@@ -88,9 +90,9 @@ BySeqnoScanContext::BySeqnoScanContext(
                   _valFilter,
                   std::move(cb),
                   std::move(cl),
-                  droppedCollections),
+                  droppedCollections,
+                  end),
       startSeqno(start),
-      maxSeqno(end),
       purgeSeqno(purgeSeqno),
       documentCount(_documentCount),
       maxVisibleSeqno(vbucketState.maxVisibleSeqno),
@@ -106,14 +108,16 @@ ByIdScanContext::ByIdScanContext(
         DocumentFilter _docFilter,
         ValueFilter _valFilter,
         const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections)
+                droppedCollections,
+        int64_t maxSeqno)
     : ScanContext(vb,
                   std::move(handle),
                   _docFilter,
                   _valFilter,
                   std::move(cb),
                   std::move(cl),
-                  droppedCollections),
+                  droppedCollections,
+                  maxSeqno),
       ranges(std::move(ranges)) {
 }
 

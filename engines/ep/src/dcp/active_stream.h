@@ -191,7 +191,7 @@ public:
      * Queues a single "Out of Seqno Order" marker with the 'start' flag
      * into the ready queue
      */
-    bool markOSODiskSnapshot();
+    bool markOSODiskSnapshot(uint64_t endSeqno);
 
     bool backfillReceived(std::unique_ptr<Item> itm,
                           backfill_source_t backfill_source,
@@ -326,6 +326,10 @@ public:
      * @param cookie Producer's cookie
      */
     void closeIfRequiredPrivilegesLost(const void* cookie) override;
+
+    bool isDiskOnly() const;
+
+    bool isTakeoverStream() const;
 
 protected:
     /**

@@ -1484,7 +1484,8 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
                                                   ranges,
                                                   options,
                                                   valOptions,
-                                                  collectionsManifest);
+                                                  collectionsManifest,
+                                                  info.last_sequence);
     sctx->logger = &logger;
     return sctx;
 }

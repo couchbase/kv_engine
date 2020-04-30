@@ -224,7 +224,8 @@ public:
                 std::unique_ptr<StatusCallback<GetValue>> cb,
                 std::unique_ptr<StatusCallback<CacheLookup>> cl,
                 const std::vector<Collections::KVStore::DroppedCollection>&
-                        droppedCollections);
+                        droppedCollections,
+                int64_t maxSeqno);
 
     virtual ~ScanContext() {
     }
@@ -254,6 +255,7 @@ public:
     std::unique_ptr<StatusCallback<CacheLookup>> lookup;
     BucketLogger* logger;
     const Collections::VB::ScanContext collectionsContext;
+    int64_t maxSeqno;
 };
 
 class BySeqnoScanContext : public ScanContext {
@@ -274,7 +276,6 @@ public:
                     droppedCollections);
 
     const int64_t startSeqno;
-    const int64_t maxSeqno;
     const uint64_t purgeSeqno;
     const uint64_t documentCount;
 
@@ -323,7 +324,8 @@ public:
                     DocumentFilter _docFilter,
                     ValueFilter _valFilter,
                     const std::vector<Collections::KVStore::DroppedCollection>&
-                            droppedCollections);
+                            droppedCollections,
+                    int64_t maxSeqno);
     const std::vector<ByIdRange> ranges;
 };
 

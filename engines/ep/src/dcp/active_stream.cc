@@ -84,7 +84,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       filter(std::move(f)),
       sid(filter.getStreamId()) {
     const char* type = "";
-    if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+    if (isTakeoverStream()) {
         type = "takeover ";
         end_seqno_ = dcpMaxSeqno;
     }
@@ -358,7 +358,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
-        if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
+        if (!isDiskOnly()) {
             // Only re-register the cursor if we still need to get memory
             // snapshots
             registerCursor(*vb->checkpointManager, chkCursorSeqno);
@@ -368,8 +368,35 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
     return true;
 }
 
-bool ActiveStream::markOSODiskSnapshot() {
-    pushToReadyQ(std::make_unique<OSOSnapshot>(opaque_, vb_, sid));
+bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
+    {
+        std::unique_lock<std::mutex> lh(streamMutex);
+
+        if (!isDiskOnly()) {
+            VBucketPtr vb = engine->getVBucket(vb_);
+            if (!vb) {
+                log(spdlog::level::level_enum::warn,
+                    "{} "
+                    "ActiveStream::markOSODiskSnapshot, vbucket "
+                    "does not exist",
+                    logPrefix);
+                return false;
+            }
+            registerCursor(*vb->checkpointManager, endSeqno);
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::markOSODiskSnapshot: Sent snapshot "
+                "begin marker, cursor requested:{} curChkSeqno:{}",
+                logPrefix,
+                endSeqno,
+                curChkSeqno.load());
+        } else {
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::markOSODiskSnapshot: Sent snapshot "
+                "begin marker",
+                logPrefix);
+        }
+        pushToReadyQ(std::make_unique<OSOSnapshot>(opaque_, vb_, sid));
+    }
     notifyStreamReady();
     return true;
 }
@@ -499,7 +526,14 @@ void ActiveStream::completeBackfill() {
 void ActiveStream::completeOSOBackfill() {
     {
         LockHolder lh(streamMutex);
-        lastReadSeqno.store(lastBackfilledSeqno);
+
+        // backfills can be scheduled and return nothing (e.g. collection
+        // dropped), leaving lastBackfilledSeqno to be behind lastReadSeqno.
+        // Only update when greater.
+        if (lastBackfilledSeqno > lastReadSeqno) {
+            lastReadSeqno.store(lastBackfilledSeqno);
+        }
+
         if (isBackfilling()) {
             log(spdlog::level::level_enum::info,
                 "{} OSO Backfill complete, {} items read from disk, {}"
@@ -660,9 +694,9 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         } else {
             if (lastReadSeqno.load() >= end_seqno_) {
                 endStream(END_STREAM_OK);
-            } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+            } else if (isTakeoverStream()) {
                 transitionState(StreamState::TakeoverSend);
-            } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+            } else if (isDiskOnly()) {
                 endStream(END_STREAM_OK);
             } else {
                 if (backfillRemaining && *backfillRemaining != 0) {
@@ -1575,7 +1609,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     uint64_t backfillEnd;
     bool tryBackfill;
 
-    if (flags_ & static_cast<uint64_t>(DCP_ADD_STREAM_FLAG_DISKONLY)) {
+    if (isDiskOnly()) {
         // if disk only, always backfill to the requested end seqno
         backfillEnd = end_seqno_;
         tryBackfill = true;
@@ -1663,10 +1697,9 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         backfillRemaining.reset();
     } else {
         // backfill not needed
-        if (flags_ & static_cast<uint64_t>(DCP_ADD_STREAM_FLAG_DISKONLY)) {
+        if (isDiskOnly()) {
             endStream(END_STREAM_OK);
-        } else if (flags_ &
-                   static_cast<uint64_t>(DCP_ADD_STREAM_FLAG_TAKEOVER)) {
+        } else if (isTakeoverStream()) {
             transitionState(StreamState::TakeoverSend);
         } else {
             transitionState(StreamState::InMemory);
@@ -2115,4 +2148,12 @@ bool ActiveStream::queueSeqnoAdvancedIfNeeded() {
     }
 
     return false;
+}
+
+bool ActiveStream::isDiskOnly() const {
+    return flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
+}
+
+bool ActiveStream::isTakeoverStream() const {
+    return flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER;
 }
