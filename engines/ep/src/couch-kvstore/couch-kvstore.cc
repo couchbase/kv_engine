@@ -966,7 +966,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     return result;
 }
 
-FileInfo CouchKVStore::toFileInfo(const DbInfo& info) {
+static FileInfo toFileInfo(const DbInfo& info) {
     return FileInfo{
             info.doc_count, info.deleted_count, info.file_size, info.purge_seq};
 }

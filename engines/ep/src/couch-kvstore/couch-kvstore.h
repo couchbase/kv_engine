@@ -709,9 +709,6 @@ protected:
     bool compactDBInternal(compaction_ctx* hook_ctx,
                            cb::couchstore::CompactRewriteDocInfoCallback dhook);
 
-    /// Copy relevant DbInfo stats to the common FileStats struct
-    static FileInfo toFileInfo(const DbInfo& info);
-
     enum class ReadVBStateStatus {
         Success,
         JsonInvalid,
