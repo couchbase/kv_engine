@@ -1466,22 +1466,6 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
     auto& db = couchKvHandle.getDbHolder();
 
-    DbInfo info;
-    auto errorCode = couchstore_db_info(db, &info);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::initByIdScanContext: couchstore_db_info "
-                "error:{}",
-                couchstore_strerror(errorCode));
-        EP_LOG_WARN(
-                "CouchKVStore::initByIdScanContext: Failed to read DB info for "
-                "backfill. {} rev:{} error: {}",
-                vbid,
-                db.getFileRev(),
-                couchstore_strerror(errorCode));
-        return {};
-    }
-
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
         EP_LOG_WARN(
