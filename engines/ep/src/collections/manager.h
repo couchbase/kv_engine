@@ -54,7 +54,7 @@ public:
      * @param add_stat memcached callback which will be called with each stat
      * @param cookie
      */
-    void addStatsForCollection(const Scope& scope,
+    void addStatsForCollection(const std::optional<Scope>& scope,
                                const CollectionID& cid,
                                const Manifest::Collection& collection,
                                const AddStatFn& add_stat,
