@@ -1776,28 +1776,29 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
             } else { // stale file found (revision id has rolled over)
                 old_rev_num = revNum;
             }
-            std::stringstream old_file;
-            old_file << dbname << "/" << vbId << ".couch." << old_rev_num;
-            if (cb::io::isFile(old_file.str())) {
+
+            const auto old_file =
+                    getDBFileName(dbname, Vbid(uint16_t(vbId)), old_rev_num);
+            if (cb::io::isFile(old_file)) {
                 if (!isReadOnly()) {
-                    if (remove(old_file.str().c_str()) == 0) {
+                    if (remove(old_file.c_str()) == 0) {
                         logger.debug(
                                 "CouchKVStore::populateFileNameMap: Removed "
                                 "stale file:{}",
-                                old_file.str());
+                                old_file);
                     } else {
                         logger.warn(
                                 "CouchKVStore::populateFileNameMap: remove "
                                 "error:{}, file:{}",
                                 cb_strerror(),
-                                old_file.str());
+                                old_file);
                     }
                 } else {
                     logger.warn(
                             "CouchKVStore::populateFileNameMap: A read-only "
                             "instance of the underlying store "
                             "was not allowed to delete a stale file:{}",
-                            old_file.str());
+                            old_file);
                 }
             }
         } else {
@@ -2771,13 +2772,12 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
 
     // Open the vbucket's file and determine the latestSeqno persisted.
     errCode = openDB(vbid, db, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY);
-    std::stringstream dbFileName;
-    dbFileName << dbname << "/" << vbid.get() << ".couch." << db.getFileRev();
+    const auto dbFileName = getDBFileName(dbname, vbid, db.getFileRev());
 
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB error:{}, name:{}",
                     couchstore_strerror(errCode),
-                    dbFileName.str());
+                    dbFileName);
         return RollbackResult(false);
     }
 
@@ -2787,7 +2787,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                 "CouchKVStore::rollback: couchstore_db_info error:{}, "
                 "name:{}",
                 couchstore_strerror(errCode),
-                dbFileName.str());
+                dbFileName);
         return RollbackResult(false);
     }
     uint64_t latestSeqno = info.last_sequence;
@@ -2817,7 +2817,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB#2 error:{}, name:{}",
                     couchstore_strerror(errCode),
-                    dbFileName.str());
+                    dbFileName);
         return RollbackResult(false);
     }
 
@@ -2845,7 +2845,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                     "CouchKVStore::rollback: couchstore_db_info error:{}, "
                     "name:{}",
                     couchstore_strerror(errCode),
-                    dbFileName.str());
+                    dbFileName);
             return RollbackResult(false);
         }
     }
