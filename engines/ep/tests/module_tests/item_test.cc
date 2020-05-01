@@ -43,7 +43,7 @@ public:
 TEST_P(ItemNoValuePruneTest, testPrune) {
     IncludeValue includeValue = std::get<0>(GetParam());
     IncludeXattrs includeXattrs = std::get<1>(GetParam());
-    item->pruneValueAndOrXattrs(includeValue, includeXattrs);
+    item->removeBodyAndOrXattrs(includeValue, includeXattrs);
 
     auto datatype = item->getDataType();
     EXPECT_FALSE(mcbp::datatype::is_json(datatype));
@@ -169,7 +169,7 @@ TEST_F(ItemTest, retainInfoUponItemCopy) {
 }
 
 TEST_F(ItemPruneTest, testPruneNothing) {
-    item->pruneValueAndOrXattrs(IncludeValue::Yes, IncludeXattrs::Yes);
+    item->removeBodyAndOrXattrs(IncludeValue::Yes, IncludeXattrs::Yes);
 
     auto datatype = item->getDataType();
     EXPECT_TRUE(mcbp::datatype::is_json(datatype));
@@ -185,7 +185,7 @@ TEST_F(ItemPruneTest, testPruneNothing) {
 }
 
 TEST_F(ItemPruneTest, testPruneXattrs) {
-    item->pruneValueAndOrXattrs(IncludeValue::Yes, IncludeXattrs::No);
+    item->removeBodyAndOrXattrs(IncludeValue::Yes, IncludeXattrs::No);
 
     auto datatype = item->getDataType();
     EXPECT_TRUE(mcbp::datatype::is_json(datatype));
@@ -201,7 +201,7 @@ TEST_F(ItemPruneTest, testPruneXattrs) {
 }
 
 TEST_F(ItemPruneTest, testPruneValue) {
-    item->pruneValueAndOrXattrs(IncludeValue::No, IncludeXattrs::Yes);
+    item->removeBodyAndOrXattrs(IncludeValue::No, IncludeXattrs::Yes);
 
     auto datatype = item->getDataType();
     EXPECT_FALSE(mcbp::datatype::is_json(datatype));
@@ -216,7 +216,7 @@ TEST_F(ItemPruneTest, testPruneValue) {
 }
 
 TEST_F(ItemPruneTest, testPruneValueUnderlyingDatatype) {
-    item->pruneValueAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
+    item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::Yes);
 
     auto datatype = item->getDataType();
@@ -233,7 +233,7 @@ TEST_F(ItemPruneTest, testPruneValueUnderlyingDatatype) {
 }
 
 TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
-    item->pruneValueAndOrXattrs(IncludeValue::No, IncludeXattrs::No);
+    item->removeBodyAndOrXattrs(IncludeValue::No, IncludeXattrs::No);
 
     auto datatype = item->getDataType();
     EXPECT_FALSE(mcbp::datatype::is_json(datatype));
@@ -246,7 +246,7 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
 }
 
 TEST_F(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
-    item->pruneValueAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
+    item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::No);
 
     auto datatype = item->getDataType();
@@ -272,7 +272,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
             valueData.size(),
             datatype);
 
-    item->pruneValueAndOrXattrs(IncludeValue::No, IncludeXattrs::Yes);
+    item->removeBodyAndOrXattrs(IncludeValue::No, IncludeXattrs::Yes);
 
     auto dtype = item->getDataType();
     EXPECT_FALSE(mcbp::datatype::is_json(dtype));
@@ -295,7 +295,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
                                   valueData.size(),
                                   datatype);
 
-    item->pruneValueAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
+    item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::Yes);
 
     auto dtype = item->getDataType();

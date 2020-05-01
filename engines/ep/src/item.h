@@ -160,7 +160,10 @@ public:
      */
     bool compressValue(bool force = false);
 
-    /* Snappy uncompress value and update datatype */
+    /**
+     * Snappy uncompress value and update datatype.
+     * No-op if value is already uncompressed.
+     */
     bool decompressValue();
 
     const char *getData() const {
@@ -492,13 +495,26 @@ public:
     item_info toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const;
 
     /**
-     * Removes the value and / or the xattributes from the item if they
-     * are not to be sent over the wire to the consumer.
+     * Remove the Body of this item's value.
+     * No-op if no Value or no Body present.
+     * Keeps the Xattrs chunk intact, if any.
+     */
+    void removeBody();
+
+    /**
+     * Remove the Xattrs chunk of this item's value.
+     * No-op if no Value or no Xattr present.
+     * Keeps the Body intact, if any.
+     */
+    void removeXattrs();
+
+    /**
+     * Removes Body and/or Xattrs from the item depending on the given params
      *
-     * @param includeVal states whether the item should include value, or not
-     * @param includeXattrs states whether the item should include xattrs or not
-     **/
-    void pruneValueAndOrXattrs(IncludeValue includeVal,
+     * @param includeVal states whether the item should include body
+     * @param includeXattrs states whether the item should include xattrs
+     */
+    void removeBodyAndOrXattrs(IncludeValue includeVal,
                                IncludeXattrs includeXattrs);
 
     /// Returns if this item is a system event
