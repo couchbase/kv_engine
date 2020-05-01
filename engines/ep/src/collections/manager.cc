@@ -207,13 +207,29 @@ std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
     Collections::VB::Manifest::UpdateStatus status;
-    currentManifest.withRLock([&vb, &status](const auto& manifest) {
+    uint64_t uid = 0;
+    currentManifest.withRLock([&vb, &status, &uid](const auto& manifest) {
         status = vb.updateFromManifest(manifest);
+        uid = manifest.getUid();
     });
-    if (status != Collections::VB::Manifest::UpdateStatus::Success) {
+    switch (status) {
+    case Collections::VB::Manifest::UpdateStatus::EqualUidWithDifferences:
+        [[fallthrough]];
+    case Collections::VB::Manifest::UpdateStatus::Behind:
+        if (status == Collections::VB::Manifest::UpdateStatus::Behind &&
+            uid == 0) {
+            // We don't log for uid of 0, because that happens on all warmups
+            // when the warmup completes before we receive any state from
+            // ns_server. Our in-memory manifest is still the default state and
+            // it lags behind what was loaded from warmup.
+            break;
+        }
         EP_LOG_WARN("Collections::Manager::update error:{} {}",
                     to_string(status),
                     vb.getId());
+
+    case Collections::VB::Manifest::UpdateStatus::Success:
+        break;
     }
 }
 
