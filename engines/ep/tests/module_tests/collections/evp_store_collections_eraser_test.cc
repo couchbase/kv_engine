@@ -486,6 +486,80 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 }
 
+/*
+ * Test to ensure we don't self assign highestPurgedDeletedSeqno when we purge a
+ * seqno less than highestPurgedDeletedSeqno in BasicLinkedList::purgeListElem()
+ * as this would break the monotonic property of highestPurgedDeletedSeqno.
+ *
+ * To do this, this test performs the following steps:
+ * 1. Create collection 1
+ * 2. Create items for collection 1
+ * 3. Create collection 2
+ * 4. Create items for collection 2
+ * 5. Mark some items of collection 2 as deleted
+ * 6. Mark some items of collection 1 as deleted
+ * 7. Remove collection 1 from the manifest
+ * 8. Purge all items from collection 1
+ * 9. Remove collection 2 from the manifest
+ * 10. Purge all items from collection 2
+ * At this point we would expect the monotonic to throw as we will purge an
+ * item with a seqno less than the highest seqno seen in the first purge run.
+ */
+TEST_P(CollectionsEraserTest, MB_39113) {
+    // This is an ephemeral only test.
+    if (!ephemeral()) {
+        return;
+    }
+    // add two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+
+    // add some items
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+
+    vb->updateFromManifest({cm.add(CollectionEntry::fruit)});
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
+               "lovely");
+
+    EXPECT_EQ(4, vb->getNumItems());
+
+    delete_item(vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit});
+    delete_item(vbid, StoredDocKey{"fruit:apricot", CollectionEntry::fruit});
+
+    delete_item(vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy});
+    delete_item(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // delete the collections
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    // Purge deleted items with higher seqnos
+    EXPECT_NO_THROW(runCollectionsEraser());
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+
+    // Purge deleted items with lower seqnos
+    EXPECT_NO_THROW(runCollectionsEraser());
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+}
+
 // MB found that if compaction is scheduled for a collection drop and the
 // vbucket is remove, a gsl not_null exception occurs as we enter some code
 // that expects a cookie, but the collection purge trigger has no cookie.

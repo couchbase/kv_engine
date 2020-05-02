@@ -518,9 +518,9 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
         --numDeletedItems;
     }
 
-    if (purged->isDeleted()) {
-        highestPurgedDeletedSeqno = std::max(seqno_t(highestPurgedDeletedSeqno),
-                                             purged->getBySeqno());
+    if (purged->isDeleted() &&
+        purged->getBySeqno() > highestPurgedDeletedSeqno.load()) {
+        highestPurgedDeletedSeqno = purged->getBySeqno();
     }
     return it;
 }
