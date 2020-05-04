@@ -318,3 +318,51 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     EXPECT_EQ("e", producers->last_key);
     EXPECT_EQ(5, producers->last_byseqno);
 }
+
+// OSO doesn't support ephemeral - this one test checks it falls back to normal
+// snapshots
+class CollectionsOSOEphemeralTest : public CollectionsDcpParameterizedTest {
+public:
+    std::pair<CollectionsManifest, uint64_t> setupTwoCollections();
+};
+
+// Run through how we expect OSO to work, this is a minimal test which will
+// use the default collection
+TEST_P(CollectionsOSOEphemeralTest, basic) {
+    // Write to default collection and deliberately not in lexicographical order
+    store_item(vbid, makeStoredDocKey("b"), "q");
+    store_item(vbid, makeStoredDocKey("d"), "a");
+    store_item(vbid, makeStoredDocKey("a"), "w");
+    store_item(vbid, makeStoredDocKey("c"), "y");
+
+    ensureDcpWillBackfill();
+
+    // Filter on default collection (this will request from seqno:0)
+    createDcpObjects({{R"({"collections":["0"]})"}}, true /* enable oso */);
+
+    runBackfill();
+
+    // OSO snapshots are never really used in KV to KV replication, but this
+    // test is using KV to KV test code, hence we need to set a snapshot so
+    // that any transferred items don't trigger a snapshot exception.
+    consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
+
+    // Manually step the producer and inspect all callbacks
+    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+
+    std::array<std::pair<std::string, uint64_t>, 4> keys = {
+            {{"b", 1}, {"d", 2}, {"a", 3}, {"c", 4}}};
+    for (const auto& [k, s] : keys) {
+        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+        EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+        EXPECT_EQ(k, producers->last_key);
+        EXPECT_EQ(s, producers->last_byseqno);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOSOEphemeralTests,
+                         CollectionsOSOEphemeralTest,
+                         STParameterizedBucketTest::ephConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

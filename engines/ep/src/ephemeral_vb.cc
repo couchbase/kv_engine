@@ -306,7 +306,9 @@ std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
         std::shared_ptr<ActiveStream> stream,
         CollectionID cid) {
     (void)cid;
-    return createDCPBackfill(e, stream, 0, ~0);
+    throw std::runtime_error(
+            "Unexpected call to EphemeralVBucket::createDCPBackfill (id "
+            "variant)");
 }
 
 std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
