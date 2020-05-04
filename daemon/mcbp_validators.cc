@@ -477,6 +477,12 @@ static Status dcp_open_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
+    if ((flags & DcpOpenPayload::Producer) == 0 &&
+        (flags & DcpOpenPayload::PiTR) == DcpOpenPayload::PiTR) {
+        cookie.setErrorContext("PiTR require Producer to be set");
+        return Status::Einval;
+    }
+
     if ((flags & DcpOpenPayload::Notifier) &&
         (flags & ~DcpOpenPayload::Notifier)) {
         LOG_INFO(

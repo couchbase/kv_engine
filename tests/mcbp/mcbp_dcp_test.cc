@@ -85,6 +85,33 @@ TEST_P(DcpOpenValidatorTest, MB34280_NameTooLongKeylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+TEST_P(DcpOpenValidatorTest, Pitr) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    using cb::mcbp::request::DcpOpenPayload;
+    DcpOpenPayload payload;
+
+    // It is not allowed for consumers to use PiTR
+    payload.setFlags(DcpOpenPayload::PiTR);
+    builder.setExtras(
+            {reinterpret_cast<const char*>(&payload), sizeof(payload)});
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate())
+            << "Consumer can't use PiTR";
+
+    // Neither should Notifiers
+    payload.setFlags(DcpOpenPayload::PiTR | DcpOpenPayload::Notifier);
+    builder.setExtras(
+            {reinterpret_cast<const char*>(&payload), sizeof(payload)});
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate())
+            << "Notifier can't use PiTR";
+
+    // Producers should be able to use PiTR
+    payload.setFlags(DcpOpenPayload::PiTR | DcpOpenPayload::Producer);
+    builder.setExtras(
+            {reinterpret_cast<const char*>(&payload), sizeof(payload)});
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate())
+            << "Producer should be able to use PiTR";
+}
+
 class DcpAddStreamValidatorTest : public ::testing::WithParamInterface<bool>,
                                   public ValidatorTest {
 public:
