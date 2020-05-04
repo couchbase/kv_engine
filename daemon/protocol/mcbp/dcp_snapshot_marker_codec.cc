@@ -16,7 +16,27 @@
  */
 
 #include "dcp_snapshot_marker_codec.h"
+#include <nlohmann/json.hpp>
+#include <platform/string_hex.h>
+
 namespace cb::mcbp {
+
+nlohmann::json DcpSnapshotMarker::to_json() const {
+    nlohmann::json ret;
+    ret["start"] = startSeqno;
+    ret["end"] = endSeqno;
+    ret["flags"] = cb::to_hex(flags);
+    if (highCompletedSeqno) {
+        ret["high_completed_seqno"] = *highCompletedSeqno;
+    }
+    if (maxVisibleSeqno) {
+        ret["max_visible_seqno"] = *maxVisibleSeqno;
+    }
+    if (timestamp) {
+        ret["timestamp"] = *timestamp;
+    }
+    return ret;
+}
 
 DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
@@ -29,10 +49,15 @@ DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {
     return marker;
 }
 
-DcpSnapshotMarker decodeDcpSnapshotMarkerV2xValue(cb::const_byte_buffer value) {
+static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
+        cb::const_byte_buffer value) {
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
-    using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
+
+    if (value.size() != sizeof(DcpSnapshotMarkerV2_0Value)) {
+        throw std::runtime_error(
+                "decodeDcpSnapshotMarkerV21Value: Invalid size");
+    }
 
     DcpSnapshotMarker marker;
 
@@ -51,6 +76,48 @@ DcpSnapshotMarker decodeDcpSnapshotMarkerV2xValue(cb::const_byte_buffer value) {
         marker.setHighCompletedSeqno(payload2_0->getHighCompletedSeqno());
     }
     return marker;
+}
+
+static DcpSnapshotMarker decodeDcpSnapshotMarkerV21Value(
+        cb::const_byte_buffer value) {
+    using cb::mcbp::request::DcpSnapshotMarkerV2_1Value;
+
+    if (value.size() != sizeof(DcpSnapshotMarkerV2_1Value)) {
+        throw std::runtime_error(
+                "decodeDcpSnapshotMarkerV21Value: Invalid size");
+    }
+
+    // V2.1 is an extension to 2.0 by adding a timestamp.. use the 2.0 decode
+    // method
+    auto base = cb::const_byte_buffer{value.data(),
+                                      value.size() - sizeof(uint64_t)};
+    DcpSnapshotMarker marker = decodeDcpSnapshotMarkerV20Value(base);
+    const auto* payload =
+            reinterpret_cast<const DcpSnapshotMarkerV2_1Value*>(value.data());
+    marker.setTimestamp(payload->getTimestamp());
+    return marker;
+}
+
+DcpSnapshotMarker decodeDcpSnapshotMarker(cb::const_byte_buffer extras,
+                                          cb::const_byte_buffer value) {
+    using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
+    if (extras.size() == sizeof(DcpSnapshotMarkerV2xVersion)) {
+        switch (extras[0]) {
+        case 0:
+            return decodeDcpSnapshotMarkerV20Value(value);
+        case 1:
+            return decodeDcpSnapshotMarkerV21Value(value);
+        }
+        throw std::runtime_error(
+                "decodeDcpSnapshotMarker: Unknown snapshot marker version");
+    }
+    if (extras.size() ==
+        sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload)) {
+        return decodeDcpSnapshotMarkerV1Extra(extras);
+    }
+
+    throw std::runtime_error(
+            "decodeDcpSnapshotMarker: Invalid extras encoding");
 }
 
 void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,

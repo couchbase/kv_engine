@@ -28,24 +28,12 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto& request = cookie.getRequest();
-        using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
-        using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
-        auto extra = request.getExtdata();
-
-        cb::mcbp::DcpSnapshotMarker snapshot;
-        if (extra.size() == sizeof(DcpSnapshotMarkerV2xPayload)) {
-            // Validators will have checked that version is 0, the only version
-            // this code can receive.
-            snapshot = cb::mcbp::decodeDcpSnapshotMarkerV2xValue(
-                    request.getValue());
-        } else {
-            snapshot = cb::mcbp::decodeDcpSnapshotMarkerV1Extra(extra);
-        }
-
+        auto& req = cookie.getRequest();
+        const auto snapshot = cb::mcbp::decodeDcpSnapshotMarker(
+                req.getExtdata(), req.getValue());
         ret = dcpSnapshotMarker(cookie,
-                                request.getOpaque(),
-                                request.getVBucket(),
+                                req.getOpaque(),
+                                req.getVBucket(),
                                 snapshot.getStartSeqno(),
                                 snapshot.getEndSeqno(),
                                 snapshot.getFlags(),

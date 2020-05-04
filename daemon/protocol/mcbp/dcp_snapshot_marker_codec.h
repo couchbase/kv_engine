@@ -20,7 +20,9 @@
 #include <mcbp/protocol/framebuilder.h>
 
 #include <memcached/protocol_binary.h>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
+
 namespace cb::mcbp {
 
 class Request;
@@ -65,6 +67,8 @@ public:
         timestamp = value;
     }
 
+    nlohmann::json to_json() const;
+
 protected:
     uint64_t startSeqno;
     uint64_t endSeqno;
@@ -75,17 +79,16 @@ protected:
 };
 
 /**
- * Decode byte_buffer representing the extras for a V1 snapshot marker
+ * DCP SnapshotMarker may use different encodings on the wire depending
+ * what it carries. The first version carries everything in the extras
+ * section, whereas the newer versions use a 1 byte field in extras which
+ * represents the encoding used for the section in the value field.
  */
-DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras);
+DcpSnapshotMarker decodeDcpSnapshotMarker(cb::const_byte_buffer extras,
+                                          cb::const_byte_buffer value);
 
 /**
- * Decode byte_buffer representing the value for a V2 snapshot marker
- */
-DcpSnapshotMarker decodeDcpSnapshotMarkerV2xValue(cb::const_byte_buffer value);
-
-/**
- * Encode into the given frame the DcpSnapshotMarker (either v1 or v2.0)
+ * Encode into the given frame the DcpSnapshotMarker (either v1 or v2.x)
  */
 void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
                              uint64_t start,
