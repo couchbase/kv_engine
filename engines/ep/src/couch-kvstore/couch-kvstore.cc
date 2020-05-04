@@ -32,6 +32,7 @@
 
 #include <JSON_checker.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
@@ -1030,23 +1031,66 @@ bool CouchKVStore::compactDBInternal(
     }
     hook_ctx->highCompletedSeqno = vbState->persistedCompletedSeqno;
 
-    // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
-    errCode = cb::couchstore::compact(
-            *compactdb,
-            compact_file.c_str(),
-            flags,
-            [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
-                return time_purge_hook(&db, docInfo, value, hook_ctx);
-            },
-            std::move(docinfo_hook),
-            def_iops);
+    // Remove the destination file (in the case there is a leftover somewhere
+    // IF one exist compact would start writing into the file, but if the
+    // new compaction creates a smaller file people using the file may pick
+    // up an old and stale file header at the end of the file!)
+    // (couchstore don't remove the target file before starting compaction
+    // as callers _may_ use the existence of those for locking purposes)
+    removeCompactFile(compact_file);
+
+    // Perform COMPACTION of vbucket.couch.rev into
+    // vbucket.couch.rev.compact
+    if (configuration.isPitrEnabled()) {
+        std::chrono::nanoseconds timestamp =
+                std::chrono::system_clock::now().time_since_epoch() -
+                configuration.getPitrMaxHistoryAge();
+        auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                configuration.getPitrGranularity());
+        auto seconds =
+                std::chrono::duration_cast<std::chrono::seconds>(timestamp);
+        auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
+                timestamp - seconds);
+
+        EP_LOG_INFO(
+                "{}: Full compaction to {}, incremental with granularity of "
+                "{} sec",
+                vbid.to_string(),
+                ISOTime::generatetimestamp(seconds.count(), usec.count()),
+                configuration.getPitrGranularity().count());
+
+        errCode = cb::couchstore::compact(
+                *compactdb,
+                compact_file.c_str(),
+                flags,
+                [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
+                    return time_purge_hook(&db, docInfo, value, hook_ctx);
+                },
+                std::move(docinfo_hook),
+                def_iops,
+                timestamp.count(),
+                delta.count());
+    } else {
+        errCode = cb::couchstore::compact(
+                *compactdb,
+                compact_file.c_str(),
+                flags,
+                [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
+                    return time_purge_hook(&db, docInfo, value, hook_ctx);
+                },
+                std::move(docinfo_hook),
+                def_iops);
+    }
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::compactDB:couchstore_compact_db_ex "
+                "CouchKVStore::compactDB: cb::couchstore::compact() "
                 "error:{} [{}], name:{}",
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(compactdb, errCode),
                 dbfile);
+        // Remove the compacted file (in the case it was created and
+        // partly written)
+        removeCompactFile(compact_file);
         return false;
     }
 

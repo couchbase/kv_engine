@@ -124,6 +124,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         memcached_logger
         mcbp
         mcd_util
+        mcd_time
         mcd_tracing
         mock_server
         platform
