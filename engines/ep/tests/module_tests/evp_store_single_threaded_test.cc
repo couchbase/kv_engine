@@ -4548,9 +4548,24 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     delete_item(vbid, makeStoredDocKey("keyB"));
 
     // M(keyB):2 deduplicated, just 2 items for cursor
-    const auto vb = engine->getKVBucket()->getVBucket(vbid);
-    ASSERT_EQ(2, vb->checkpointManager->getNumItemsForPersistence());
-    EXPECT_EQ(2, vb->dirtyQueueSize);
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_EQ(2, vb.checkpointManager->getNumItemsForPersistence());
+    EXPECT_EQ(2, vb.dirtyQueueSize);
+
+    const auto checkPreFlushHTState = [&vb]() -> void {
+        const auto resA = vb.ht.findForUpdate(makeStoredDocKey("keyA"));
+        ASSERT_TRUE(resA.pending);
+        ASSERT_FALSE(resA.pending->isDeleted());
+        ASSERT_TRUE(resA.pending->isDirty());
+        ASSERT_FALSE(resA.committed);
+
+        const auto resB = vb.ht.findForUpdate(makeStoredDocKey("keyB"));
+        ASSERT_FALSE(resB.pending);
+        ASSERT_TRUE(resB.committed);
+        ASSERT_TRUE(resB.committed->isDeleted());
+        ASSERT_TRUE(resB.committed->isDirty());
+    };
+    checkPreFlushHTState();
 
     // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
     //  cached vbstate for verifying persistence would invalidate the test.
@@ -4579,7 +4594,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
     // Flush stats not updated
-    EXPECT_EQ(2, vb->dirtyQueueSize);
+    EXPECT_EQ(2, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
         checkPersistedVBState(0 /*lastSnapStart*/,
@@ -4589,6 +4604,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
                               0 /*HPS*/,
                               0 /*HCS*/,
                               0 /*maxDelRevSeqno*/);
+        checkPreFlushHTState();
     }
 
     // Check nothing persisted to disk
@@ -4607,7 +4623,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
     // Flush stats updated
-    EXPECT_EQ(0, vb->dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
         // Notes: expected (snapStart = snapEnd) for complete snap flushed,
@@ -4619,6 +4635,17 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
                               1 /*HPS*/,
                               0 /*HCS*/,
                               2 /*maxDelRevSeqno*/);
+
+        // Check HT state
+        const auto resA = vb.ht.findForUpdate(makeStoredDocKey("keyA"));
+        ASSERT_TRUE(resA.pending);
+        ASSERT_FALSE(resA.pending->isDeleted());
+        ASSERT_FALSE(resA.pending->isDirty());
+        ASSERT_FALSE(resA.committed);
+
+        const auto resB = vb.ht.findForUpdate(makeStoredDocKey("keyB"));
+        ASSERT_FALSE(resB.pending);
+        ASSERT_FALSE(resB.committed);
     }
 
     // Check persisted docs
@@ -4788,11 +4815,12 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     manager.createNewCheckpoint();
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
+    const auto storedKey = makeStoredDocKey("keyA");
     const std::string value2 = "value2";
     {
         SCOPED_TRACE("");
         store_item(vbid,
-                   makeStoredDocKey("keyA"),
+                   storedKey,
                    value2,
                    0 /*exptime*/,
                    {cb::engine_errc::success} /*expected*/,
@@ -4803,16 +4831,27 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
 
     EXPECT_EQ(2, vb.dirtyQueueSize);
 
+    const auto checkPreFlushHTState = [&vb, &storedKey]() -> void {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_TRUE(res.committed);
+        ASSERT_FALSE(res.committed->isDeleted());
+        ASSERT_TRUE(res.committed->isDirty());
+    };
+    checkPreFlushHTState();
+
     // This flush fails, we have not written anything to disk
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
     EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(2, vb.dirtyQueueSize);
+    // HT state
+    checkPreFlushHTState();
     // No doc on disk
     auto kvstore = store->getRWUnderlying(vbid);
-    const auto key = makeDiskDocKey("keyA");
-    auto doc = kvstore->get(key, vbid);
+    const auto diskKey = makeDiskDocKey("keyA");
+    auto doc = kvstore->get(diskKey, vbid);
     EXPECT_EQ(ENGINE_KEY_ENOENT, doc.getStatus());
     ASSERT_FALSE(doc.item);
 
@@ -4824,8 +4863,14 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     EXPECT_TRUE(vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved());
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
+    // HT state
+    const auto res = vb.ht.findForUpdate(storedKey);
+    ASSERT_FALSE(res.pending);
+    ASSERT_TRUE(res.committed);
+    ASSERT_FALSE(res.committed->isDeleted());
+    ASSERT_FALSE(res.committed->isDirty());
     // doc persisted
-    doc = kvstore->get(key, vbid);
+    doc = kvstore->get(diskKey, vbid);
     EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
     ASSERT_TRUE(doc.item);
     ASSERT_GT(doc.item->getNBytes(), 0);
@@ -5038,12 +5083,14 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
     // - stats account for the deletion in the write queue
     // - the deletion is in the HashTable
     EXPECT_EQ(1, vb.dirtyQueueSize);
-    {
+    const auto checkPreFlushHTState = [&vb, &storedKey]() -> void {
         const auto res = vb.ht.findForUpdate(storedKey);
         ASSERT_FALSE(res.pending);
         ASSERT_TRUE(res.committed);
         ASSERT_TRUE(res.committed->isDeleted());
-    }
+        ASSERT_TRUE(res.committed->isDirty());
+    };
+    checkPreFlushHTState();
 
     // Test: flush fails, we have not written anything to disk
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
@@ -5053,19 +5100,14 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
     // Post-conditions:
     //  - no doc on disk
     //  - flush stats not updated
-    //  - the deletion is still in the HashTable
+    //  - the deletion is still dirty in the HashTable
     auto kvstore = store->getRWUnderlying(vbid);
     const auto diskKey = makeDiskDocKey("keyA");
     auto doc = kvstore->get(diskKey, vbid);
     EXPECT_EQ(ENGINE_KEY_ENOENT, doc.getStatus());
     ASSERT_FALSE(doc.item);
     EXPECT_EQ(1, vb.dirtyQueueSize);
-    {
-        const auto res = vb.ht.findForUpdate(storedKey);
-        ASSERT_FALSE(res.pending);
-        ASSERT_TRUE(res.committed);
-        ASSERT_TRUE(res.committed->isDeleted());
-    }
+    checkPreFlushHTState();
 
     // Check out that all goes well when we re-attemp the flush
 
