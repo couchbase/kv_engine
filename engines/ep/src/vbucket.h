@@ -374,7 +374,7 @@ public:
      *        created this will have no effect on deletion.
      */
     void setDeferredDeletion(bool value) {
-        deferredDeletion.store(true);
+        deferredDeletion.store(value);
     }
 
     /**

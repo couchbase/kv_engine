@@ -124,14 +124,6 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
 void PersistenceCallback::redirty(EPStats& stats,
                                   VBucket& vbucket,
                                   queued_item queuedItem) {
-    if (vbucket.isDeletionDeferred()) {
-        // updating the member stats for the vbucket is not really necessary
-        // as the vbucket is about to be deleted
-        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
-        // the following is a global stat and so is worth updating
-        --stats.diskQueueSize;
-        return;
-    }
     ++stats.flushFailed;
     vbucket.markDirty(queuedItem->getKey());
     ++vbucket.opsReject;
