@@ -274,7 +274,8 @@ public:
             uint64_t _documentCount,
             const vbucket_state& vbucketState,
             const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections);
+                    droppedCollections,
+            std::optional<uint64_t> timestamp = {});
 
     const int64_t startSeqno;
     const uint64_t purgeSeqno;
@@ -299,6 +300,9 @@ public:
      * end of the snapshot. This seqno is also used to optimise local warmup.
      */
     const uint64_t persistedCompletedSeqno;
+
+    /// Timestamp for the data (if available)
+    const std::optional<uint64_t> timestamp;
 };
 
 /**

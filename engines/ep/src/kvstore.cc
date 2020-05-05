@@ -82,7 +82,8 @@ BySeqnoScanContext::BySeqnoScanContext(
         uint64_t _documentCount,
         const vbucket_state& vbucketState,
         const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections)
+                droppedCollections,
+        std::optional<uint64_t> timestamp)
 
     : ScanContext(vb,
                   std::move(handle),
@@ -96,7 +97,8 @@ BySeqnoScanContext::BySeqnoScanContext(
       purgeSeqno(purgeSeqno),
       documentCount(_documentCount),
       maxVisibleSeqno(vbucketState.maxVisibleSeqno),
-      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno) {
+      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno),
+      timestamp(std::move(timestamp)) {
 }
 
 ByIdScanContext::ByIdScanContext(
