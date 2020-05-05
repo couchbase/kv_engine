@@ -1554,14 +1554,14 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
-    using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_1Value;
     using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
 
     // Allocate the buffer to be big enough for all cases, which will be the
     // v2.0 packet
     const auto size = sizeof(Request) + sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
                       sizeof(DcpSnapshotMarkerV2xPayload) +
-                      sizeof(DcpSnapshotMarkerV2_0Value);
+                      sizeof(DcpSnapshotMarkerV2_1Value);
     std::vector<uint8_t> buffer(size);
 
     Framebuilder builder({buffer.data(), buffer.size()});
