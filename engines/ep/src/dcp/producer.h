@@ -232,6 +232,10 @@ public:
         return enableExpiryOpcode;
     }
 
+    PointInTimeEnabled isPointInTimeEnabled() const {
+        return pitrEnabled;
+    }
+
     /**
      * Tracks the amount of outstanding sent data for a Dcp Producer, alongside
      * how many bytes have been acknowledged by the peer connection.
@@ -613,6 +617,10 @@ protected:
     // Indicates whether the active streams belonging to the DcpProducer should
     // send the xattrs, (if any exist), in the response.
     const IncludeXattrs includeXattrs;
+
+    // Indicates whether the active streams belonging to the DcpProducer wants
+    // historical data streamed and not just a snapshot of the current data
+    const PointInTimeEnabled pitrEnabled;
 
     /**
      * Indicates whether the active streams belonging to the DcpProducer should

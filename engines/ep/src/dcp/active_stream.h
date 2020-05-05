@@ -179,13 +179,15 @@ public:
      * range
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
+     * @param timestamp of the disk snapshot (if available)
      * @return If the stream has queued a snapshot marker. If this is false, the
      *         stream determined none of the items in the backfill would be sent
      */
     bool markDiskSnapshot(uint64_t startSeqno,
                           uint64_t endSeqno,
                           std::optional<uint64_t> highCompletedSeqno,
-                          uint64_t maxVisibleSeqno);
+                          uint64_t maxVisibleSeqno,
+                          std::optional<uint64_t> timestamp);
 
     /**
      * Queues a single "Out of Seqno Order" marker with the 'start' flag
@@ -330,6 +332,10 @@ public:
     bool isDiskOnly() const;
 
     bool isTakeoverStream() const;
+
+    PointInTimeEnabled isPointInTimeEnabled() const {
+        return pitrEnabled;
+    }
 
     /**
      * Used to set the last read seqno from a scan of the data store layer.
@@ -666,6 +672,9 @@ private:
 
     // Will the stream send dcp deletions with delete-times?
     const IncludeDeleteTime includeDeleteTime;
+
+    /// Is PiTR enabled on this stream
+    const PointInTimeEnabled pitrEnabled;
 
     // Will the stream encode the CollectionID in the key?
     const DocKeyEncodesCollectionId includeCollectionID;

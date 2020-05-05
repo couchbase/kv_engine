@@ -157,6 +157,11 @@ enum class MultipleStreamRequests : bool {
     No
 };
 
+/// PointInTimeEnabled is used to state whether an active stream wants to
+/// stream the data including historical snapshots (and not just the latest
+/// version of the data)
+enum class PointInTimeEnabled : bool { Yes, No };
+
 /** Does the stream support synchronous replication (i.e. acking Prepares)?
  * A Stream may also support just SyncWrites (receiving Prepares and Commits
  * without acking).

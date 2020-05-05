@@ -71,6 +71,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
+      pitrEnabled(p->isPointInTimeEnabled()),
       includeCollectionID(f.isLegacyFilter() ? DocKeyEncodesCollectionId::No
                                              : DocKeyEncodesCollectionId::Yes),
       enableExpiryOutput(p->isDCPExpiryEnabled() ? EnableExpiryOutput::Yes
@@ -87,6 +88,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     if (isTakeoverStream()) {
         type = "takeover ";
         end_seqno_ = dcpMaxSeqno;
+    } else if (pitrEnabled == PointInTimeEnabled::Yes) {
+        type = "PiTR ";
     }
 
     folly::SharedMutex::ReadHolder rlh(vbucket.getStateLock());
@@ -254,7 +257,8 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
 bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     uint64_t endSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
-                                    uint64_t maxVisibleSeqno) {
+                                    uint64_t maxVisibleSeqno,
+                                    std::optional<uint64_t> timestamp) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -355,8 +359,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                 hcsToSend,
                 mvsToSend,
-                std::optional<uint64_t>{}, // @todo MB-37319 - Add the correct
-                                           // disk snaphot
+                timestamp,
                 sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 

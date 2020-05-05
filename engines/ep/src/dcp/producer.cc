@@ -178,6 +178,9 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
               ((flags & cb::mcbp::request::DcpOpenPayload::IncludeXattrs) != 0)
                       ? IncludeXattrs::Yes
                       : IncludeXattrs::No),
+      pitrEnabled((flags & cb::mcbp::request::DcpOpenPayload::PiTR) != 0
+                          ? PointInTimeEnabled::Yes
+                          : PointInTimeEnabled::No),
       includeDeleteTime(
               ((flags &
                 cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes) != 0)
@@ -444,6 +447,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
 
     if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
         end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
+    } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
+        logger->warn("DCP connections with PiTR enabled must enable DISKONLY");
+        return ENGINE_EINVAL;
     }
 
     if (!notifyOnly && start_seqno > end_seqno) {

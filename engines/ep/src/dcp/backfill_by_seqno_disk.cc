@@ -77,7 +77,9 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             startSeqno,
             DocumentFilter::ALL_ITEMS,
             valFilter,
-            SnapshotSource::Head);
+            stream->isPointInTimeEnabled() == PointInTimeEnabled::Yes
+                    ? SnapshotSource::Historical
+                    : SnapshotSource::Head);
 
     // Check startSeqno against the purge-seqno of the opened datafile.
     // 1) A normal stream request would of checked inside streamRequest, but
@@ -114,7 +116,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                 stream->markDiskSnapshot(startSeqno,
                                          scanCtx->maxSeqno,
                                          scanCtx->persistedCompletedSeqno,
-                                         scanCtx->maxVisibleSeqno);
+                                         scanCtx->maxVisibleSeqno,
+                                         scanCtx->timestamp);
 
         if (markerSent) {
             // This value may be an overestimate - it includes prepares/aborts

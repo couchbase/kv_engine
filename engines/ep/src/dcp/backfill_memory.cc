@@ -174,7 +174,8 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                     stream->markDiskSnapshot(startSeqno,
                                              endSeqno,
                                              evb->getHighCompletedSeqno(),
-                                             rangeItr.getMaxVisibleSeqno());
+                                             rangeItr.getMaxVisibleSeqno(),
+                                             {});
 
             if (markerSent) {
                 /* Set backfill remaining
