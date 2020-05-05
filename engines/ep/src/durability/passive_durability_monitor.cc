@@ -22,7 +22,7 @@
 #include "bucket_logger.h"
 #include "item.h"
 #include "rollback_result.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucket_state.h"

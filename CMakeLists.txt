@@ -170,6 +170,7 @@ ADD_SUBDIRECTORY(xattr)
 ADD_SUBDIRECTORY(logger)
 ADD_SUBDIRECTORY(daemon)
 ADD_SUBDIRECTORY(tracing)
+ADD_SUBDIRECTORY(statistics)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)

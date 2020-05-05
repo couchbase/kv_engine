@@ -23,8 +23,8 @@
 #include "checkpoint_config.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
+#include "statistics/collector.h"
 #include "stats.h"
-#include "statwriter.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 

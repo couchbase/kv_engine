@@ -25,7 +25,7 @@
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "replicationthrottle.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <gsl.h>
 

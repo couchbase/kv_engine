@@ -26,7 +26,7 @@
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
 #endif
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <memcached/server_core_iface.h>
 

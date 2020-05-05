@@ -23,7 +23,7 @@
 #include "magma-kvstore_iorequest.h"
 #include "magma-kvstore_metadata.h"
 #include "objectregistry.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"

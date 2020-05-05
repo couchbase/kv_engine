@@ -38,7 +38,7 @@
 #include "kvstore.h"
 #include "kvstore_config.h"
 #include "persistence_callback.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 

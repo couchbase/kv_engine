@@ -24,7 +24,7 @@
 #include "collections/manifest.h"
 #include "ep_time.h"
 #include "item.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "vbucket.h"
 
 #include <memory>

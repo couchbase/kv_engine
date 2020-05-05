@@ -21,7 +21,7 @@
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <json_utilities.h>
 #include <nlohmann/json.hpp>

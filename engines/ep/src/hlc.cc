@@ -17,7 +17,7 @@
 
 #include "hlc.h"
 
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <platform/platform_time.h>
 

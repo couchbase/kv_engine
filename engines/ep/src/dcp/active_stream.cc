@@ -23,7 +23,7 @@
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <memcached/protocol_binary.h>
 #include <platform/optional.h>

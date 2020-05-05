@@ -32,7 +32,7 @@
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "tasks.h"
 #include "vb_commit.h"
 #include "vb_visitors.h"

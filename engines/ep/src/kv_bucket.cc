@@ -58,7 +58,7 @@
 #include "mutation_log.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "tasks.h"
 #include "trace_helpers.h"
 #include "vb_count_visitor.h"

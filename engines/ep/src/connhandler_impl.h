@@ -17,7 +17,7 @@
 #pragma once
 
 #include "connhandler.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <sstream>
 

@@ -20,7 +20,7 @@
 #include "atomic.h"
 #include "bucket_logger.h"
 #include "failover-table.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 FailoverTable::FailoverTable(size_t capacity)
     : max_entries(capacity), erroneousEntriesErased(0) {

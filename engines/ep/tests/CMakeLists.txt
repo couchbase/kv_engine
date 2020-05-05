@@ -136,6 +136,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         platform
         platform_cb_malloc_arena
         phosphor
+        statistics
         xattr
         ${EP_STORAGE_LIBS}
         ${MALLOC_LIBRARIES}

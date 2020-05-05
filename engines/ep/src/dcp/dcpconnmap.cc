@@ -24,7 +24,7 @@
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "ep_engine.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include <daemon/tracing.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>

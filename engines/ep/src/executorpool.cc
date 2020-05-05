@@ -20,7 +20,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "executorthread.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "taskqueue.h"
 
 #include <nlohmann/json.hpp>

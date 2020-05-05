@@ -35,7 +35,7 @@
 #include "item_eviction.h"
 #include "kv_bucket.h"
 #include "snappy-c.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <memcached/server_cookie_iface.h>
 

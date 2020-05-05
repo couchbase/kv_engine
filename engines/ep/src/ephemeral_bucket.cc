@@ -27,7 +27,7 @@
 #include "failover-table.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 /**
  * A configuration value changed listener that responds to Ephemeral bucket

@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <string_view>

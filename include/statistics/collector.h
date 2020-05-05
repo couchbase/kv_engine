@@ -17,12 +17,11 @@
 
 #pragma once
 
-#include "hdrhistogram.h"
-
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
+#include <utilities/hdrhistogram.h>
 
 #include <atomic>
 #include <optional>

@@ -14,9 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "dcp/response.h"
 #include "dcp/stream.h"
-#include "statwriter.h"
+#include "dcp/response.h"
+#include "statistics/collector.h"
 #include "vbucket.h"
 
 #include <platform/checked_snprintf.h>

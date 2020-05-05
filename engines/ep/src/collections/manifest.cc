@@ -20,7 +20,7 @@
 #include "collections/collections_types.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 #include "utility.h"
 
 #include <json_utilities.h>

@@ -17,7 +17,7 @@
 
 #include "collections/vbucket_manifest_entry.h"
 #include "bucket_logger.h"
-#include "statwriter.h"
+#include "statistics/collector.h"
 
 #include <platform/checked_snprintf.h>
 
