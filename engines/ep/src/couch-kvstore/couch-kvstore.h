@@ -336,6 +336,10 @@ public:
             uint32_t count,
             std::shared_ptr<Callback<const DiskDocKey&>> cb) override;
 
+    bool supportsHistoricalSnapshots() const override {
+        return true;
+    }
+
     std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
             std::unique_ptr<StatusCallback<CacheLookup>> cl,

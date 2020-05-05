@@ -873,6 +873,11 @@ public:
             uint32_t count,
             std::shared_ptr<Callback<const DiskDocKey&>> cb) = 0;
 
+    /// Does the backend support historical snapshots
+    virtual bool supportsHistoricalSnapshots() const {
+        return false;
+    }
+
     /**
      * Create a KVStore seqno range Scan Context with the given options.
      * On success, returns a unique_pointer to the ScanContext. The caller can

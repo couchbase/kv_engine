@@ -6260,6 +6260,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     ConnHandler *handler = nullptr;
     if (flags & (cb::mcbp::request::DcpOpenPayload::Producer |
                  cb::mcbp::request::DcpOpenPayload::Notifier)) {
+        if (flags & cb::mcbp::request::DcpOpenPayload::PiTR) {
+            auto* store = getKVBucket()->getOneROUnderlying();
+            if (!store || !store->supportsHistoricalSnapshots()) {
+                EP_LOG_WARN(
+                        "Cannot open a DCP connection with PiTR as the "
+                        "underlying kvstore don't support historical "
+                        "snapshots");
+                return ENGINE_DISCONNECT;
+            }
+        }
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
         // dont accept dcp consumer open requests during warm up
