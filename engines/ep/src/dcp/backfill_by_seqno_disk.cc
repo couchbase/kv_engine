@@ -76,7 +76,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             vbid,
             startSeqno,
             DocumentFilter::ALL_ITEMS,
-            valFilter);
+            valFilter,
+            SnapshotSource::Head);
 
     // Check startSeqno against the purge-seqno of the opened datafile.
     // 1) A normal stream request would of checked inside streamRequest, but

@@ -281,7 +281,8 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
             Vbid(0),
             1,
             DocumentFilter::ALL_ITEMS,
-            ValueFilter::VALUES_COMPRESSED);
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
 
     ASSERT_TRUE(scanCtx);
     EXPECT_EQ(scan_success, kvstore->scan(*scanCtx));
@@ -538,7 +539,8 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
             Vbid(0),
             1,
             DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS,
-            ValueFilter::VALUES_COMPRESSED);
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
 
     ASSERT_TRUE(scanCtx);
     EXPECT_EQ(scan_success, kvstore2.rw->scan(*scanCtx));
@@ -1003,7 +1005,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, initBySeqnoScanContext_changes_count) {
                 Vbid(0),
                 0,
                 DocumentFilter::ALL_ITEMS,
-                ValueFilter::VALUES_DECOMPRESSED);
+                ValueFilter::VALUES_DECOMPRESSED,
+                SnapshotSource::Head);
         EXPECT_FALSE(scanCtx)
                 << "kvstore->initBySeqnoScanContext(cb, cl, 0, 0, "
                    "DocumentFilter::ALL_ITEMS, "
@@ -1023,7 +1026,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
             Vbid(0),
             0,
             DocumentFilter::ALL_ITEMS,
-            ValueFilter::VALUES_DECOMPRESSED);
+            ValueFilter::VALUES_DECOMPRESSED,
+            SnapshotSource::Head);
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -1052,7 +1056,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
             Vbid(0),
             0,
             DocumentFilter::ALL_ITEMS,
-            ValueFilter::VALUES_DECOMPRESSED);
+            ValueFilter::VALUES_DECOMPRESSED,
+            SnapshotSource::Head);
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -2152,7 +2157,8 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
                     Vbid(0),
                     1,
                     DocumentFilter::ALL_ITEMS,
-                    ValueFilter::VALUES_COMPRESSED);
+                    ValueFilter::VALUES_COMPRESSED,
+                    SnapshotSource::Head);
         }
     };
 
@@ -2200,7 +2206,8 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
                     Vbid(0),
                     1,
                     DocumentFilter::ALL_ITEMS,
-                    ValueFilter::VALUES_COMPRESSED);
+                    ValueFilter::VALUES_COMPRESSED,
+                    SnapshotSource::Head);
             if (!scanCtx) {
                 FAIL() << "initBySeqnoScanContext returned nullptr";
                 return;
@@ -2455,7 +2462,8 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
                                             vbid,
                                             1,
                                             DocumentFilter::ALL_ITEMS,
-                                            ValueFilter::VALUES_COMPRESSED);
+                                            ValueFilter::VALUES_COMPRESSED,
+                                            SnapshotSource::Head);
 
     ASSERT_NE(nullptr, scanCtx);
     kvstore->scan(*scanCtx);

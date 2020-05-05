@@ -1384,7 +1384,14 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         Vbid vbid,
         uint64_t startSeqno,
         DocumentFilter options,
-        ValueFilter valOptions) {
+        ValueFilter valOptions,
+        SnapshotSource source) {
+    if (source == SnapshotSource::Historical) {
+        throw std::runtime_error(
+                "CouchKVStore::initBySeqnoScanContext: historicalSnapshot not "
+                "implemented");
+    }
+
     auto handle = makeFileHandle(vbid);
 
     if (!handle) {
@@ -2836,7 +2843,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                                       vbid,
                                       info.updateSeqNum + 1,
                                       DocumentFilter::ALL_ITEMS,
-                                      ValueFilter::KEYS_ONLY);
+                                      ValueFilter::KEYS_ONLY,
+                                      SnapshotSource::Head);
     if (!ctx) {
         return RollbackResult(false);
     }

@@ -1204,7 +1204,14 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         Vbid vbid,
         uint64_t startSeqno,
         DocumentFilter options,
-        ValueFilter valOptions) {
+        ValueFilter valOptions,
+        SnapshotSource source) {
+    if (source == SnapshotSource::Historical) {
+        throw std::runtime_error(
+                "MagmaKVStore::initBySeqnoScanContext: historicalSnapshot not "
+                "implemented");
+    }
+
     auto handle = makeFileHandle(vbid);
 
     auto readState = readVBStateFromDisk(vbid);

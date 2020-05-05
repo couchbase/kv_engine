@@ -1447,7 +1447,14 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
         Vbid vbid,
         uint64_t startSeqno,
         DocumentFilter options,
-        ValueFilter valOptions) {
+        ValueFilter valOptions,
+        SnapshotSource source) {
+    if (source == SnapshotSource::Historical) {
+        throw std::runtime_error(
+                "RocksDBKVStore::initBySeqnoScanContext: historicalSnapshot "
+                "not implemented");
+    }
+
     // As we cannot efficiently determine how many documents this scan will
     // find, we approximate this value with the seqno difference + 1
     // as scan is supposed to be inclusive at both ends,

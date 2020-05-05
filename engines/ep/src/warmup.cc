@@ -1300,7 +1300,8 @@ void Warmup::keyDumpforShard(uint16_t shardId)
                 vbid,
                 0,
                 DocumentFilter::NO_DELETES,
-                ValueFilter::KEYS_ONLY);
+                ValueFilter::KEYS_ONLY,
+                SnapshotSource::Head);
         if (ctx) {
             auto errorCode = kvstore->scan(*ctx);
             if (errorCode == scan_again) { // ENGINE_ENOMEM
@@ -1503,7 +1504,8 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
                 vbid,
                 0,
                 DocumentFilter::NO_DELETES,
-                valFilter);
+                valFilter,
+                SnapshotSource::Head);
         if (ctx) {
             errorCode = kvstore->scan(*ctx);
             if (errorCode == scan_again) { // ENGINE_ENOMEM
@@ -1545,7 +1547,8 @@ void Warmup::loadDataforShard(uint16_t shardId)
                 vbid,
                 0,
                 DocumentFilter::NO_DELETES,
-                valFilter);
+                valFilter,
+                SnapshotSource::Head);
         if (ctx) {
             errorCode = kvstore->scan(*ctx);
             if (errorCode == scan_again) { // ENGINE_ENOMEM

@@ -73,6 +73,8 @@ enum class GetMetaOnly { Yes, No };
 typedef std::shared_ptr<Callback<Vbid&, const DocKey&, bool&>> BloomFilterCBPtr;
 typedef std::shared_ptr<Callback<Item&, time_t&> > ExpiredItemsCBPtr;
 
+enum class SnapshotSource { Historical, Head };
+
 /**
  * Generic information about a KVStore file
  */
@@ -889,7 +891,12 @@ public:
     /**
      * Create a KVStore seqno range Scan Context with the given options.
      * On success, returns a unique_pointer to the ScanContext. The caller can
-     * then call scan() to execute the scan.
+     * then call scan() to execute the scan. The scan context is locked
+     * to a single version (snapshot) of the database (it does not change
+     * while the scan is running). The snapshot may either be "historical"
+     * (returns all of the data (from start seqno) up to the oldest snapshot
+     * available containing start seqno), or it may be "current" containing
+     * all of the data "right now").
      *
      * The caller specifies two callback objects - GetValue and CacheLookup:
      *
@@ -912,6 +919,7 @@ public:
      * @param startSeqno The seqno to begin scanning from
      * @param options DocumentFilter for the scan - e.g. return deleted items
      * @param valOptions ValueFilter - e.g. return the document body
+     * @param source - Should a historical or the current head be used
      * @return a BySeqnoScanContext, null if there's an error
      */
     virtual std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
@@ -920,7 +928,8 @@ public:
             Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
-            ValueFilter valOptions) = 0;
+            ValueFilter valOptions,
+            SnapshotSource source) = 0;
 
     /**
      * Create a KVStore id range Scan Context with the given options.

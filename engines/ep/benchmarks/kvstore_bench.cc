@@ -178,7 +178,8 @@ BENCHMARK_DEFINE_F(KVStoreBench, Scan)(benchmark::State& state) {
                 vbid,
                 0 /*startSeqno*/,
                 DocumentFilter::ALL_ITEMS,
-                ValueFilter::VALUES_COMPRESSED);
+                ValueFilter::VALUES_COMPRESSED,
+                SnapshotSource::Head);
         ASSERT_TRUE(scanContext);
 
         auto scanStatus = kvstore->scan(*scanContext);

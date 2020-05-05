@@ -1771,7 +1771,8 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
             epVb.getId(),
             startSeqno,
             docFilter,
-            valFilter);
+            valFilter,
+            SnapshotSource::Head);
 
     // Storage problems can lead to a null context, kvstore logs details
     if (!scanCtx) {

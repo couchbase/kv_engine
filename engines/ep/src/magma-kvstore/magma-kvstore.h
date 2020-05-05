@@ -362,7 +362,8 @@ public:
             Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
-            ValueFilter valOptions) override;
+            ValueFilter valOptions,
+            SnapshotSource source) override;
 
     std::unique_ptr<ByIdScanContext> initByIdScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,
