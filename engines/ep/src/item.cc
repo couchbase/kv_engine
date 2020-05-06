@@ -334,6 +334,19 @@ void Item::setPendingSyncWrite(cb::durability::Requirements requirements) {
     op = queue_op::pending_sync_write;
 }
 
+void Item::increaseDurabilityLevel(cb::durability::Level newLevel) {
+    const auto level = durabilityReqs.getLevel();
+    if (level < newLevel) {
+        durabilityReqs.setLevel(newLevel);
+
+        // Transitioning from NormalWrite to SyncWrite?
+        if (level == cb::durability::Level::None) {
+            Expects(op == queue_op::mutation);
+            op = queue_op::pending_sync_write;
+        }
+    }
+}
+
 void Item::setPreparedMaybeVisible() {
     Expects(op == queue_op::pending_sync_write);
     maybeVisible = 1;
