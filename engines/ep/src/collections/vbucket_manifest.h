@@ -23,13 +23,13 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "systemevent.h"
 
+#include <folly/SharedMutex.h>
 #include <platform/non_negative_counter.h>
 
 #include <functional>
 #include <iostream>
 #include <mutex>
 #include <optional>
-#include <shared_mutex>
 #include <unordered_map>
 
 class VBucket;
@@ -76,8 +76,12 @@ namespace VB {
 class Manifest {
 public:
     using container = ::std::unordered_map<CollectionID, ManifestEntry>;
-    using mutex_type = std::shared_mutex;
-
+#ifdef THREAD_SANITIZER
+    // SharedMutexReadPriority has no TSAN annotations, so use WritePrioity
+    using mutex_type = folly::SharedMutexWritePriority;
+#else
+    using mutex_type = folly::SharedMutexReadPriority;
+#endif
     enum class UpdateStatus { Success, Behind, EqualUidWithDifferences };
 
     /**
@@ -259,13 +263,14 @@ public:
          */
         void unlock() {
             readLock.unlock();
+            manifest = nullptr;
         }
 
     protected:
         friend std::ostream& operator<<(std::ostream& os,
                                         const Manifest::ReadHandle& readHandle);
-        std::shared_lock<mutex_type> readLock;
-        const Manifest* manifest;
+        mutex_type::ReadHolder readLock{nullptr};
+        const Manifest* manifest{nullptr};
     };
 
     /**
