@@ -196,6 +196,7 @@ static constexpr Requirements NoRequirements = {Level::None, Timeout{}};
 
 std::string to_string(Requirements r);
 std::string to_string(Level l);
+Level to_level(const std::string& s);
 
 } // namespace durability
 } // namespace cb
