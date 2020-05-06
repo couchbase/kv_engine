@@ -2437,6 +2437,17 @@ private:
     ENGINE_ERROR_CODE checkDurabilityRequirements(const Item& item);
 
     /**
+     * Check if the given durability requirements can be satisfied by this
+     * vBucket.
+     *
+     * @param reqs The durability requirements
+     * @return ENGINE_SUCCESS if durability is possible, appropriate error code
+     *         to return if not
+     */
+    ENGINE_ERROR_CODE checkDurabilityRequirements(
+            const cb::durability::Requirements& reqs);
+
+    /**
      * Base function for queueing an item for persistence and replication.
      *
      * @param item The item to queue.

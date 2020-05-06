@@ -694,8 +694,11 @@ public:
      * Set the Bucket Minimum Durability Level to the given level.
      *
      * @param level
+     * @return success if the operation succeeds, an error code otherwise
      */
-    void setMinDurabilityLevel(cb::durability::Level level);
+    ENGINE_ERROR_CODE setMinDurabilityLevel(cb::durability::Level level);
+
+    cb::durability::Level getMinDurabilityLevel() const;
 
 protected:
     GetValue getInternal(const DocKey& key,
@@ -766,6 +769,16 @@ protected:
      * SeqnoAck to the Active.
      */
     SeqnoAckCallback makeSeqnoAckCB() const;
+
+    /**
+     * Chech if the given level is a valid Bucket Durability Level for this
+     * Bucket.
+     *
+     * @param level
+     * @return
+     */
+    virtual bool isValidBucketDurabilityLevel(
+            cb::durability::Level level) const = 0;
 
     friend class Warmup;
     friend class PersistenceCallback;
