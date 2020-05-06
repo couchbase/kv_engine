@@ -559,6 +559,8 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
         } else if (key == "durability_timeout_task_interval") {
             getConfiguration().setDurabilityTimeoutTaskInterval(
                     std::stoull(val));
+        } else if (key == "durability_min_level") {
+            getConfiguration().setDurabilityMinLevel(val);
         } else if (key == "mutation_mem_threshold") {
             getConfiguration().setMutationMemThreshold(std::stoull(val));
         } else if (key == "timing_log") {

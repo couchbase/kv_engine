@@ -16,6 +16,8 @@
  */
 
 #include <memcached/durability_spec.h>
+
+#include <folly/lang/Assume.h>
 #include <nlohmann/json.hpp>
 
 #include <string>
@@ -52,18 +54,33 @@ std::string to_string(Requirements r) {
     return desc;
 }
 
+// Note: level<->string representation defined in the EP configuration
+
 std::string to_string(Level l) {
     switch (l) {
     case Level::None:
-        return "None";
+        return "none";
     case Level::Majority:
-        return "Majority";
+        return "majority";
     case Level::MajorityAndPersistOnMaster:
-        return "MajorityAndPersistOnMaster";
+        return "majority_and_persist_on_master";
     case Level::PersistToMajority:
-        return "PersistToMajority";
+        return "persist_to_majority";
     }
-    return "<invalid:" + std::to_string(int(l)) + ">";
+    folly::assume_unreachable();
+}
+
+Level to_level(const std::string& s) {
+    if (s == "none") {
+        return Level::None;
+    } else if (s == "majority") {
+        return Level::Majority;
+    } else if (s == "majority_and_persist_on_master") {
+        return Level::MajorityAndPersistOnMaster;
+    } else if (s == "persist_to_majority") {
+        return Level::PersistToMajority;
+    }
+    throw std::invalid_argument("cb::durability::to_level: unknown level " + s);
 }
 
 Requirements::Requirements(cb::const_byte_buffer buffer) {
