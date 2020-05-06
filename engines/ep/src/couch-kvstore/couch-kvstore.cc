@@ -818,7 +818,13 @@ static int time_purge_hook(Db* d,
             if (ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
                                                        int64_t(info->db_seq))) {
                 // Inform vb that the key@seqno is dropped
-                ctx->droppedKeyCb(diskKey, int64_t(info->db_seq));
+                try {
+                    ctx->droppedKeyCb(diskKey, int64_t(info->db_seq));
+                } catch (const std::exception& e) {
+                    EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
+                                e.what());
+                    return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
+                }
                 if (!info->deleted) {
                     ctx->stats.collectionsItemsPurged++;
                 } else {
