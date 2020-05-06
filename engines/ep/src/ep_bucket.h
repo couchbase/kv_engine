@@ -288,6 +288,9 @@ protected:
             const VBucket::AggregatedFlushStats& aggStats,
             const Collections::VB::Flush& collectionFlush);
 
+    bool isValidBucketDurabilityLevel(
+            cb::durability::Level level) const override;
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
