@@ -64,7 +64,7 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
 
     setPitrEnabled(config.isPitrEnabled());
     setPitrGranularity(std::chrono::seconds{config.getPitrGranularity()});
-    setPitrMaxHistoryAge(std::chrono::hours{config.getPitrMaxHistoryAge()});
+    setPitrMaxHistoryAge(std::chrono::seconds{config.getPitrMaxHistoryAge()});
     config.addValueChangedListener(
             "pitr_enabled", std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
