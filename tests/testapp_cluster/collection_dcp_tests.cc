@@ -128,7 +128,8 @@ TEST_F(CollectionsRbacBucket, BucketAccessFail) {
     } catch (const ConnectionError& e) {
         // No access and 0 privs == unknown scope
         EXPECT_TRUE(e.isUnknownScope());
-        // todo: MB-38762 - json value check
+        EXPECT_EQ("1",
+                  e.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
     try {
         connNoStream->dcpStreamRequest(
@@ -137,7 +138,8 @@ TEST_F(CollectionsRbacBucket, BucketAccessFail) {
     } catch (const ConnectionError& e) {
         // No access and 0 privs == unknown collection
         EXPECT_TRUE(e.isUnknownCollection());
-        // todo: MB-38762 - json value check
+        EXPECT_EQ("1",
+                  e.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 }
 

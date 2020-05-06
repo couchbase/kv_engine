@@ -18,6 +18,7 @@
 #pragma once
 
 #include "collections/collections_types.h"
+#include "collections/vbucket_manifest.h"
 #include "item.h"
 
 #include <memcached/dcp_stream_id.h>
@@ -34,8 +35,6 @@ class SystemEventMessage;
 
 namespace Collections {
 namespace VB {
-
-class Manifest;
 
 /**
  * The VB filter object constructs from data that is yielded from DCP stream
@@ -215,23 +214,30 @@ public:
 protected:
     /**
      * Constructor helper method for parsing the JSON
+     * @return first:success or unknown_collection/unknown_scope, second
+     *         manifest-ID when first is != success.
      */
-    void constructFromJson(std::string_view json,
-                           const Collections::VB::Manifest& manifest);
+    [[nodiscard]] std::pair<cb::engine_errc, uint64_t> constructFromJson(
+            const nlohmann::json& json,
+            const Collections::VB::Manifest& manifest);
 
     /**
      * Private helper to examine the given collection object against the
      * manifest and add to internal container or throw an exception
+     * @return true if collection is known and added
      */
-    void addCollection(const nlohmann::json& object,
-                       const ::Collections::VB::Manifest& manifest);
+    [[nodiscard]] bool addCollection(
+            const nlohmann::json& object,
+            const ::Collections::VB::Manifest::ReadHandle& rh);
 
     /**
      * Private helper to examine the given scope object against the manifest and
      * add the associated collections to the internal container
+     * @return true if scope is known and added
      */
-    void addScope(const nlohmann::json& object,
-                  const ::Collections::VB::Manifest& manifest);
+    [[nodiscard]] bool addScope(
+            const nlohmann::json& object,
+            const ::Collections::VB::Manifest::ReadHandle& rh);
 
     /**
      * Does the filter allow the system event? I.e. a "meat,dairy" filter

@@ -34,19 +34,21 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest,
                gsl::not_null<const void*> cookie,
                const EventuallyPersistentEngine& engine) {
+    cb::engine_errc status = cb::engine_errc::success;
+    uint64_t manifestUid{0};
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support _default
     if (!jsonFilter.has_value()) {
         // Ask the manifest object if the default collection exists?
-        if (manifest.lock().doesDefaultCollectionExist()) {
+        auto rh = manifest.lock();
+        if (rh.doesDefaultCollectionExist()) {
             enableDefaultCollection();
         } else {
-            throw cb::engine_error(cb::engine_errc::unknown_collection,
-                                   "Filter::Filter cannot make filter - no "
-                                   "_default collection");
+            status = cb::engine_errc::unknown_collection;
+            manifestUid = rh.getManifestUid();
         }
     } else {
-        auto json = jsonFilter.value();
+        auto jsonString = jsonFilter.value();
 
         // If the filter is initialised that means collections are enabled so
         // system events are allowed
@@ -54,62 +56,77 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
 
         // Assume passthrough constructFromJson will correct if we reach it
         passthrough = true;
-        if (!json.empty()) {
+        if (!jsonString.empty()) {
             // assume default, constructFromJson will correct based on the JSON
             enableDefaultCollection();
 
+            nlohmann::json json;
             try {
-                constructFromJson(json, manifest);
+                json = nlohmann::json::parse(jsonString);
+            } catch (const nlohmann::json::exception& e) {
+                throw cb::engine_error(
+                        cb::engine_errc::invalid_arguments,
+                        "Filter::Filter cannot parse nlohmann::json::parse "
+                        "exception:" +
+                                std::string{e.what()} +
+                                " json:" + std::string{jsonString});
+            }
+
+            try {
+                std::tie(status, manifestUid) =
+                        constructFromJson(json, manifest);
             } catch (const std::invalid_argument& e) {
-                // json utilities may throw invalid_argument
+                // json utilities may throw invalid_argument, catch and change
+                // to cb::engine_error so we return 'EINVAL'
                 throw cb::engine_error(cb::engine_errc::invalid_arguments,
                                        e.what());
             }
         }
     }
 
-    // Now use checkPrivileges to check if the user has the required access
-    auto status = checkPrivileges(cookie, engine);
-    if (status != cb::engine_errc::success) {
+    if (status == cb::engine_errc::success) {
+        // Now use checkPrivileges to check if the user has the required access
+        status = checkPrivileges(cookie, engine);
+    }
+
+    switch (status) {
+    case cb::engine_errc::success:
+        break;
+    case cb::engine_errc::unknown_scope:
+    case cb::engine_errc::unknown_collection:
+        engine.setUnknownCollectionErrorContext(cookie, manifestUid);
+        [[fallthrough]];
+    default:
         throw cb::engine_error(
-                status, "Filter::Filter no_access - incorrect privileges");
+                status,
+                "Filter::Filter failed status:" + cb::to_string(status));
     }
 }
 
-void Filter::constructFromJson(std::string_view json,
-                               const Collections::VB::Manifest& manifest) {
-    nlohmann::json parsed;
-    try {
-        parsed = nlohmann::json::parse(json);
-    } catch (const nlohmann::json::exception& e) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Filter::constructFromJson cannot parse jsonFilter:" +
-                        std::string{json} + " json::exception:" + e.what());
-    }
-
-    const auto streamIdObject = parsed.find(StreamIdKey);
-    if (streamIdObject != parsed.end()) {
+std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
+        const nlohmann::json& json, const Collections::VB::Manifest& manifest) {
+    auto rh = manifest.lock();
+    const auto streamIdObject = json.find(StreamIdKey);
+    if (streamIdObject != json.end()) {
         auto sid = cb::getJsonObject(
-                parsed, StreamIdKey, StreamIdType, "Filter::constructFromJson");
+                json, StreamIdKey, StreamIdType, "Filter::constructFromJson");
         streamId = cb::mcbp::DcpStreamId(sid.get<uint16_t>());
         if (streamId == cb::mcbp::DcpStreamId(0)) {
             throw cb::engine_error(cb::engine_errc::dcp_streamid_invalid,
-                                   "Filter::constructFromJson illegal sid:0:" +
-                                           std::string(json));
+                                   "Filter::constructFromJson illegal sid:0");
         }
     }
 
-    const auto uidObject = parsed.find(UidKey);
+    const auto uidObject = json.find(UidKey);
     // Check if a uid is specified and parse it
-    if (uidObject != parsed.end()) {
+    if (uidObject != json.end()) {
         auto jsonUid = cb::getJsonObject(
-                parsed, UidKey, UidType, "Filter::constructFromJson");
+                json, UidKey, UidType, "Filter::constructFromJson");
         uid = makeUid(jsonUid.get<std::string>());
 
         // Critical - if the client has a uid ahead of the vbucket, tempfail
         // we expect ns_server to update us to the latest manifest.
-        auto vbUid = manifest.lock().getManifestUid();
+        auto vbUid = rh.getManifestUid();
         if (*uid > vbUid) {
             throw cb::engine_error(
                     cb::engine_errc::collections_manifest_is_ahead,
@@ -119,10 +136,10 @@ void Filter::constructFromJson(std::string_view json,
         }
     }
 
-    const auto scopesObject = parsed.find(ScopeKey);
-    const auto collectionsObject = parsed.find(CollectionsKey);
-    if (scopesObject != parsed.end()) {
-        if (collectionsObject != parsed.end()) {
+    const auto scopesObject = json.find(ScopeKey);
+    const auto collectionsObject = json.find(CollectionsKey);
+    if (scopesObject != json.end()) {
+        if (collectionsObject != json.end()) {
             throw cb::engine_error(cb::engine_errc::invalid_arguments,
                                    "Filter::constructFromJson cannot specify "
                                    "both scope and collections");
@@ -130,14 +147,16 @@ void Filter::constructFromJson(std::string_view json,
         passthrough = false;
         disableDefaultCollection();
         auto scope = cb::getJsonObject(
-                parsed, ScopeKey, ScopeType, "Filter::constructFromJson");
-        addScope(scope, manifest);
+                json, ScopeKey, ScopeType, "Filter::constructFromJson");
+        if (!addScope(scope, rh)) {
+            return {cb::engine_errc::unknown_scope, rh.getManifestUid()};
+        }
     } else {
-        if (collectionsObject != parsed.end()) {
+        if (collectionsObject != json.end()) {
             passthrough = false;
             disableDefaultCollection();
             auto jsonCollections =
-                    cb::getJsonObject(parsed,
+                    cb::getJsonObject(json,
                                       CollectionsKey,
                                       CollectionsType,
                                       "Filter::constructFromJson");
@@ -146,9 +165,12 @@ void Filter::constructFromJson(std::string_view json,
                 cb::throwIfWrongType(std::string(CollectionsKey),
                                      entry,
                                      nlohmann::json::value_t::string);
-                addCollection(entry, manifest);
+                if (!addCollection(entry, rh)) {
+                    return {cb::engine_errc::unknown_collection,
+                            rh.getManifestUid()};
+                }
             }
-        } else if (uidObject == parsed.end()) {
+        } else if (uidObject == json.end()) {
             // The input JSON must of contained at least a UID, scope, or
             // collections
             //  * {} is valid JSON but is invalid for this class
@@ -158,55 +180,51 @@ void Filter::constructFromJson(std::string_view json,
             //  * {uid:4, collections:[...]} - is OK
             //  * {sid:4} - is OK
             //  * {uid:4, sid:4} - is OK
-            if (collectionsObject == parsed.end() &&
-                uidObject == parsed.end()) {
+            if (collectionsObject == json.end() && uidObject == json.end()) {
                 throw cb::engine_error(cb::engine_errc::invalid_arguments,
                                        "Filter::constructFromJson no uid or "
                                        "collections found");
             }
         }
     }
+    return {cb::engine_errc::success, rh.getManifestUid()};
 }
 
-void Filter::addCollection(const nlohmann::json& object,
-                           const Collections::VB::Manifest& manifest) {
+bool Filter::addCollection(const nlohmann::json& object,
+                           const Collections::VB::Manifest::ReadHandle& rh) {
     // Require that the requested collection exists in the manifest.
     // DCP cannot filter an unknown collection.
     auto cid = makeCollectionID(object.get<std::string>());
     ScopeID sid;
-    {
-        auto rh = manifest.lock();
-        auto scope = rh.getScopeID(cid);
-        if (!scope) {
-            // Error time
-            throw cb::engine_error(cb::engine_errc::unknown_collection,
-                                   "Filter::addCollection unknown collection:" +
-                                           cid.to_string());
-        }
-        sid = *scope;
+    auto scope = rh.getScopeID(cid);
+    if (!scope) {
+        // Error time
+        return false;
     }
+    sid = *scope;
 
     insertCollection(cid, sid);
+    return true;
 }
 
-void Filter::addScope(const nlohmann::json& object,
-                      const Collections::VB::Manifest& manifest) {
+bool Filter::addScope(const nlohmann::json& object,
+                      const Collections::VB::Manifest::ReadHandle& rh) {
     // Require that the requested scope exists in the manifest.
     // DCP cannot filter an unknown scope.
     auto sid = makeScopeID(object.get<std::string>());
-    auto collections = manifest.lock().getCollectionsForScope(sid);
 
-    if (!collections) {
+    auto collectionVector = rh.getCollectionsForScope(sid);
+
+    if (!collectionVector) {
         // Error time - the scope does not exist
-        throw cb::engine_error(
-                cb::engine_errc::unknown_scope,
-                "Filter::addScope unknown scope:" + sid.to_string());
+        return false;
     }
 
     scopeID = sid;
-    for (const auto& cid : *collections) {
+    for (const auto cid : collectionVector.value()) {
         insertCollection(cid, sid);
     }
+    return true;
 }
 
 void Filter::insertCollection(CollectionID cid, ScopeID sid) {
