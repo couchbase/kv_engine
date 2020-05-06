@@ -685,7 +685,8 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                 std::string("PassiveStream::processMessage: "
                             "Message type not supported"));
     }
-    if (ret != ENGINE_SUCCESS) {
+    // ENOMEM logging is handled by maybeLogMemoryState
+    if (ret != ENGINE_SUCCESS && ret != ENGINE_ENOMEM) {
         log(spdlog::level::level_enum::warn,
             "{} Got error '{}' while trying to process "
             "{} with seqno:{}",
@@ -696,6 +697,10 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
     } else {
         handleSnapshotEnd(vb, *message->getBySeqno());
     }
+
+    maybeLogMemoryState(cb::to_engine_errc(ret),
+                        taskToString[messageType],
+                        message->getItem()->getBySeqno());
 
     return ret;
 }
@@ -1240,6 +1245,27 @@ void PassiveStream::log(spdlog::level::level_enum severity,
 void PassiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
     throw std::logic_error(
             "Unexpected call to PassiveStream::closeIfRequiredPrivilegesLost");
+}
+
+void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
+                                        const std::string& msgType,
+                                        int64_t seqno) {
+    bool previousNoMem = isNoMemory.load();
+    if (status == cb::engine_errc::no_memory && !previousNoMem) {
+        log(spdlog::level::level_enum::warn,
+            "{} Got error '{}' while trying to process "
+            "{} with seqno:{}",
+            vb_,
+            cb::to_string(status),
+            msgType,
+            seqno);
+        isNoMemory.store(true);
+    } else if (status == cb::engine_errc::success && previousNoMem) {
+        log(spdlog::level::level_enum::info,
+            "{} PassiveStream resuming after no-memory backoff",
+            vb_);
+        isNoMemory.store(false);
+    }
 }
 
 PassiveStream::Buffer::Buffer() : bytes(0) {
