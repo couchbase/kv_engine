@@ -83,7 +83,7 @@ struct SanMapping : public ClientCertConfig::Mapping {
     }
 
     std::pair<Status, std::string> match(X509* cert) const override {
-        Status status = Status::Error;
+        Status status = Status::NoMatch;
         auto* names = reinterpret_cast<GENERAL_NAMES*>(
                 X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
         std::string userName;
@@ -115,7 +115,11 @@ struct SanMapping : public ClientCertConfig::Mapping {
                 }
             }
             GENERAL_NAMES_free(names);
+        } else {
+            status = Status::Error;
+            userName = "X509_get_ext_d2i failed";
         }
+
         return std::make_pair(status, userName);
     };
 

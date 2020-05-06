@@ -26,6 +26,7 @@
 #include "settings.h"
 #include "subdoc/util.h"
 #include "subdocument_context.h"
+#include "subdocument_parser.h"
 #include "subdocument_traits.h"
 #include "subdocument_validators.h"
 #include "timings.h"
@@ -36,7 +37,6 @@
 
 #include <logger/logger.h>
 #include <memcached/durability_spec.h>
-#include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>
 #include <utilities/engine_errc_2_mcbp.h>
