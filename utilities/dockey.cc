@@ -17,7 +17,9 @@
 
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dockey.h>
+#include <spdlog/fmt/fmt.h>
 #include <sstream>
+#include <string_view>
 
 std::string CollectionID::to_string() const {
     std::stringstream sstream;
@@ -36,13 +38,31 @@ std::string ScopeID::to_string() const {
 }
 
 std::string DocKey::to_string() const {
-    std::stringstream ss;
-    auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    // Get the sid of the key and add it to the string
+    auto [cid, key] = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
             {data(), size()});
-    ss << "cid:0x" << std::hex << leb128.first << std::dec << ":"
-       << std::string(reinterpret_cast<const char*>(leb128.second.data()),
-                      leb128.second.size());
-    return ss.str();
+
+    std::string_view remainingKey{reinterpret_cast<const char*>(key.data()),
+                                  key.size()};
+    if (getCollectionID().isSystem()) {
+        // Get the hex value of the type of system event
+        auto [systemEventID, keyWithoutEvent] =
+                cb::mcbp::decode_unsigned_leb128<uint32_t>(
+                        {key.data(), key.size()});
+        // Get the cid or sid of the system event is for
+        auto [cidOrSid, keySuffix] = cb::mcbp::decode_unsigned_leb128<uint32_t>(
+                {keyWithoutEvent.data(), keyWithoutEvent.size()});
+        // Get the string view to the remaining string part of the key
+        remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
+                        keySuffix.size()};
+        return fmt::format(fmt("cid:{:#x}:{:#x}:{:#x}:{}"),
+                           cid,
+                           systemEventID,
+                           cidOrSid,
+                           remainingKey);
+    } else {
+        return fmt::format(fmt("cid:{:#x}:{}"), cid, remainingKey);
+    }
 }
 
 CollectionID DocKey::getCollectionID() const {

@@ -1330,6 +1330,5 @@ std::ostream& operator<<(std::ostream& os,
                          const Manifest::ReadHandle& readHandle);
 
 std::string to_string(Manifest::UpdateStatus);
-
 } // end namespace VB
 } // end namespace Collections

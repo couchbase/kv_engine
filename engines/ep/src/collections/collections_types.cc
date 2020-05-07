@@ -20,6 +20,7 @@
 
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
+#include <spdlog/fmt/fmt.h>
 
 #include <cctype>
 #include <cstring>
@@ -78,6 +79,41 @@ AccumulatedStats& AccumulatedStats::operator+=(const AccumulatedStats& other) {
     opsDelete += other.opsDelete;
     opsGet += other.opsGet;
     return *this;
+}
+
+std::string to_string(const CreateEventData& event) {
+    return fmt::format(
+            fmt("CreateCollection{{uid:{:#x} scopeID:{} collectionID:{} "
+                "name:'"
+                "{}' maxTTLEnabled:{} maxTTL:{}}}"),
+            event.manifestUid.load(),
+            event.metaData.sid.to_string(),
+            event.metaData.cid.to_string(),
+            event.metaData.name,
+            event.metaData.maxTtl.has_value(),
+            event.metaData.maxTtl.has_value() ? event.metaData.maxTtl->count()
+                                              : 0);
+}
+
+std::string to_string(const DropEventData& event) {
+    return fmt::format(
+            fmt("DropCollection{{uid:{:#x} scopeID:{} collectionID:{}}}"),
+            event.manifestUid.load(),
+            event.sid.to_string(),
+            event.cid.to_string());
+}
+
+std::string to_string(const CreateScopeEventData& event) {
+    return fmt::format(fmt("CreateScope{{uid:{:#x} scopeID:{} name:'{}'}}"),
+                       event.manifestUid.load(),
+                       event.sid.to_string(),
+                       event.name);
+}
+
+std::string to_string(const DropScopeEventData& event) {
+    return fmt::format(fmt("DropScope{{uid:{:#x} scopeID:{}}}"),
+                       event.manifestUid.load(),
+                       event.sid.to_string());
 }
 
 } // end namespace Collections

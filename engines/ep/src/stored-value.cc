@@ -21,11 +21,14 @@
 #include "item.h"
 #include "objectregistry.h"
 #include "stats.h"
+#include "systemevent.h"
 
-#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/compress.h>
 
+#include <collections/vbucket_manifest.h>
+#include <mcbp/protocol/unsigned_leb128.h>
+#include <nlohmann/json.hpp>
 #include <sstream>
 
 const int64_t StoredValue::state_pending_seqno = -2;
@@ -470,8 +473,43 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
     json["committed"] = sv.getCommitted();
 }
 
-std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
+static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
+    using namespace Collections::VB;
 
+    if (!sv.getKey().getCollectionID().isSystem()) {
+        throw std::invalid_argument(
+                "getSystemEventsValueFromStoredValue(): StoredValue must be a "
+                "SystemEvent");
+    }
+
+    auto systemEventType =
+            SystemEventFactory::getSystemEventType(sv.getKey()).first;
+    std::string_view itemValue{sv.getValue()->getData(),
+                               sv.getValue()->getSize()};
+
+    if (systemEventType == SystemEvent::Scope) {
+        if (sv.isDeleted()) {
+            auto eventData = Manifest::getDropScopeEventData(itemValue);
+            return to_string(eventData);
+        } else {
+            auto eventData = Manifest::getCreateScopeEventData(itemValue);
+            return to_string(eventData);
+        }
+    } else if (systemEventType == SystemEvent::Collection) {
+        if (sv.isDeleted()) {
+            auto eventData = Manifest::getDropEventData(itemValue);
+            return to_string(eventData);
+        } else {
+            auto eventData = Manifest::getCreateEventData(itemValue);
+            return to_string(eventData);
+        }
+    }
+    throw std::invalid_argument(
+            "getSystemEventsValueFromStoredValue(): StoredValue must be a "
+            "SystemEvent for a collection or scope");
+}
+
+std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     // type, address
     os << (sv.isOrdered() ? "OSV @" : " SV @") << &sv << " ";
 
@@ -541,14 +579,19 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << " vallen:" << sv.valuelen();
     if (sv.getValue().get()) {
         os << " val age:" << uint32_t(sv.getValue()->getAge()) << " :\"";
-        const char* data = sv.getValue()->getData();
-        // print up to first 40 bytes of value.
-        const size_t limit = std::min(size_t(40), sv.getValue()->valueSize());
-        for (size_t ii = 0; ii < limit; ii++) {
-            os << data[ii];
-        }
-        if (limit < sv.getValue()->valueSize()) {
-            os << " <cut>";
+        if (sv.valuelen() > 0) {
+            if (sv.getKey().getCollectionID().isSystem()) {
+                os << getSystemEventsValueFromStoredValue(sv);
+            } else {
+                const char* data = sv.getValue()->getData();
+                // print up to first 40 bytes of value.
+                const size_t limit =
+                        std::min(size_t(40), sv.getValue()->valueSize());
+                os << std::string_view{data, limit};
+                if (limit < sv.getValue()->valueSize()) {
+                    os << " <cut>";
+                }
+            }
         }
         os << "\"";
     }

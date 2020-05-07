@@ -205,6 +205,10 @@ public:
         return DocKeyEncodesCollectionId::Yes;
     }
 
+    std::string to_string() const {
+        return DocKey(*this).to_string();
+    }
+
     bool operator==(const DocKey& rhs) const;
 
     /**

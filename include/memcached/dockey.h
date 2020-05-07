@@ -254,6 +254,10 @@ struct DocKeyInterface {
         return static_cast<const T*>(this)->getEncoding();
     }
 
+    std::string to_string() const {
+        return static_cast<const T*>(this)->to_string();
+    }
+
     uint32_t hash() const {
         uint32_t h = 5381;
 

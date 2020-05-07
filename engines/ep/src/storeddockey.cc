@@ -119,11 +119,6 @@ SerialisedDocKey::SerialisedDocKey(cb::const_byte_buffer key,
 }
 
 std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key) {
-    auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-            {reinterpret_cast<const uint8_t*>(key.data()), key.size()});
-    os << "cid:0x" << std::hex << leb128.first << ":"
-       << std::string(reinterpret_cast<const char*>(leb128.second.data()),
-                      leb128.second.size());
-    os << ", size:" << key.size();
+    os << key.to_string() << ", size:" << key.size();
     return os;
 }

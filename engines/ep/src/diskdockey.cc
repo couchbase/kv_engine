@@ -83,8 +83,6 @@ std::string DiskDocKey::to_string() const {
         decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
                 decoded.second);
     }
-    ss << "cid:0x" << std::hex << decoded.first << std::dec << ":"
-       << std::string(reinterpret_cast<const char*>(decoded.second.data()),
-                      decoded.second.size());
+    ss << getDocKey().to_string();
     return ss.str();
 }

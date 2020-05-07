@@ -193,6 +193,11 @@ struct DropScopeEventData {
     ScopeID sid; // The scope the event belongs to
 };
 
+std::string to_string(const CreateEventData& event);
+std::string to_string(const DropEventData& event);
+std::string to_string(const CreateScopeEventData& event);
+std::string to_string(const DropScopeEventData& event);
+
 /**
  * All of the data a DCP create event message will transmit in the value of the
  * message. This is the layout to be used on the wire and is in the correct
