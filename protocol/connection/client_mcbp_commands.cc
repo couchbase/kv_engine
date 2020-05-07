@@ -960,9 +960,13 @@ BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand()
 BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand(
         std::string key,
         std::vector<MutationSpecifier> specs,
-        mcbp::subdoc::doc_flag docFlags)
+        mcbp::subdoc::doc_flag docFlags,
+        const boost::optional<cb::durability::Requirements>& durReqs)
     : specs(std::move(specs)), docFlags(docFlags) {
     setKey(key);
+    if (durReqs) {
+        setDurabilityReqs(*durReqs);
+    }
 }
 
 BinprotSubdocMultiMutationCommand&
@@ -998,6 +1002,14 @@ BinprotSubdocMultiMutationCommand& BinprotSubdocMultiMutationCommand::setExpiry(
     expiry.assign(expiry_);
     return *this;
 }
+
+BinprotSubdocMultiMutationCommand&
+BinprotSubdocMultiMutationCommand::setDurabilityReqs(
+        const cb::durability::Requirements& durReqs) {
+    addFrameInfo(DurabilityFrameInfo(durReqs.getLevel(), durReqs.getTimeout()));
+    return *this;
+}
+
 BinprotSubdocMultiMutationCommand::MutationSpecifier&
 BinprotSubdocMultiMutationCommand::at(size_t index) {
     return specs.at(index);

@@ -44,6 +44,16 @@ INSTANTIATE_TEST_CASE_P(
                            ::testing::Values(ClientSnappySupport::Yes)),
         PrintToStringCombinedName());
 
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        XattrNoDocDurabilityTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(XattrSupport::Yes),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes)),
+        PrintToStringCombinedName());
+
 // Instantiation for tests which want XATTR support disabled.
 INSTANTIATE_TEST_CASE_P(
         TransportProtocols,

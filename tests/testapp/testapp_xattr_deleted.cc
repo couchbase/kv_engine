@@ -29,19 +29,28 @@ using namespace cb::mcbp;
 
 // Negative test: The subdoc operation returns Einval as
 // doc_flag::CreateAsDeleted requires one of doc_flag::Mkdoc/Add.
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem_RequiresMkdocOrAdd) {
+void XattrNoDocTest::testRequiresMkdocOrAdd() {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "txn.deleted",
                        "true",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                       doc_flag::CreateAsDeleted);
+                       doc_flag::CreateAsDeleted,
+                       durReqs);
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
+
+TEST_P(XattrNoDocTest, RequiresMkdocOrAdd) {
+    testRequiresMkdocOrAdd();
+}
+
+TEST_P(XattrNoDocDurabilityTest, RequiresMkdocOrAdd) {
+    testRequiresMkdocOrAdd();
 }
 
 // Negative test: The Subdoc CreateAsDeleted doesn't allow to write in the
 // body.
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem_RequiresXattrPath) {
+void XattrNoDocTest::testRequiresXattrPath() {
     // Note: subdoc-flags doesn't set SUBDOC_FLAG_XATTR_PATH
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
@@ -52,16 +61,29 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem_RequiresXattrPath) {
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
+TEST_P(XattrNoDocTest, RequiresXattrPath) {
+    testRequiresXattrPath();
+}
+
+TEST_P(XattrNoDocDurabilityTest, RequiresXattrPath) {
+    testRequiresXattrPath();
+}
+
 // Positive test: Can User XAttrs be added to a document which doesn't exist
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag.
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem) {
+void XattrNoDocTest::testSinglePathDictAdd() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     // let's add a user XATTR to a non-existing document
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "txn.deleted",
                        "true",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                       doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+                       doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+                       durReqs);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get(
@@ -70,17 +92,30 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem) {
     EXPECT_EQ("true", resp.getValue());
 }
 
+TEST_P(XattrNoDocTest, SinglePathDictAdd) {
+    testSinglePathDictAdd();
+}
+
+TEST_P(XattrNoDocDurabilityTest, SinglePathDictAdd) {
+    testSinglePathDictAdd();
+}
+
 // Positive tests: Can User XAttrs be added to a document which doesn't exist
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag, using
 // multi-mutation with each mutation opcode.
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathDictAdd) {
+void XattrNoDocTest::testMultipathDictAdd() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocDictAdd,
               SUBDOC_FLAG_XATTR_PATH,
               "txn",
               "\"foo\""}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -91,14 +126,27 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathDictAdd) {
     EXPECT_EQ("\"foo\"", resp.getValue());
 }
 
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathDictUpsert) {
+TEST_P(XattrNoDocTest, MultipathDictAdd) {
+    testMultipathDictAdd();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathDictAdd) {
+    testMultipathDictAdd();
+}
+
+void XattrNoDocTest::testMultipathDictUpsert() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocDictUpsert,
               SUBDOC_FLAG_XATTR_PATH,
               "txn",
               "\"bar\""}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -108,14 +156,27 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathDictUpsert) {
     EXPECT_EQ("\"bar\"", resp.getValue());
 }
 
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayPushLast) {
+TEST_P(XattrNoDocTest, MultipathDictUpsert) {
+    testMultipathDictUpsert();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathDictUpsert) {
+    testMultipathDictUpsert();
+}
+
+void XattrNoDocTest::testMultipathArrayPushLast() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayPushLast,
               SUBDOC_FLAG_XATTR_PATH,
               "array",
               "1"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -125,14 +186,27 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayPushLast) {
     EXPECT_EQ("[1]", resp.getValue());
 }
 
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayPushFirst) {
+TEST_P(XattrNoDocTest, MultipathArrayPushLast) {
+    testMultipathArrayPushLast();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathArrayPushLast) {
+    testMultipathArrayPushLast();
+}
+
+void XattrNoDocTest::testMultipathArrayPushFirst() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayPushFirst,
               SUBDOC_FLAG_XATTR_PATH,
               "array",
               "2"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -140,6 +214,14 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayPushFirst) {
     resp = subdoc_get("array", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("[2]", resp.getValue());
+}
+
+TEST_P(XattrNoDocTest, MultipathArrayPushFirst) {
+    testMultipathArrayPushFirst();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathArrayPushFirst) {
+    testMultipathArrayPushFirst();
 }
 
 // @todo MB-39545: This test fails because doc_flag::Mkdoc is invalid with
@@ -150,8 +232,7 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayPushFirst) {
 //  Specific and simple (single-path) tests on ArrayInsert suggests that we may
 //  have some existing issue in that area that we should address in a dedicated
 //  patch.
-TEST_P(XattrNoDocTest,
-       DISABLED_AddUserXattrToNonExistentItemMultipathArrayInsert) {
+TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayPushFirst,
@@ -162,7 +243,8 @@ TEST_P(XattrNoDocTest,
               SUBDOC_FLAG_XATTR_PATH,
               "array.[0]",
               "1"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -172,14 +254,19 @@ TEST_P(XattrNoDocTest,
     EXPECT_EQ("[0,1]", resp.getValue());
 }
 
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayAddUnique) {
+void XattrNoDocTest::testMultipathArrayAddUnique() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayAddUnique,
               SUBDOC_FLAG_XATTR_PATH,
               "array",
               "4"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -189,14 +276,27 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathArrayAddUnique) {
     EXPECT_EQ("[4]", resp.getValue());
 }
 
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathCounter) {
+TEST_P(XattrNoDocTest, MultipathArrayAddUnique) {
+    testMultipathArrayAddUnique();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathArrayAddUnique) {
+    testMultipathArrayAddUnique();
+}
+
+void XattrNoDocTest::testMultipathCounter() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocCounter,
               SUBDOC_FLAG_XATTR_PATH,
               "counter",
               "5"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
@@ -208,10 +308,22 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathCounter) {
     EXPECT_EQ("5", resp.getValue());
 }
 
+TEST_P(XattrNoDocTest, MultipathCounter) {
+    testMultipathCounter();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathCounter) {
+    testMultipathCounter();
+}
+
 // Positive test: Can User XAttrs be added to a document which doesn't exist
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag, using
 // a combination of subdoc-multi mutation types.
-TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathCombo) {
+void XattrNoDocTest::testMultipathCombo() {
+    if (durReqs && !supportSyncRepl()) {
+        return;
+    }
+
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(
@@ -240,6 +352,10 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathCombo) {
     cmd.addDocFlag(doc_flag::Mkdoc);
     cmd.addDocFlag(doc_flag::CreateAsDeleted);
 
+    if (durReqs) {
+        cmd.setDurabilityReqs(*durReqs);
+    }
+
     auto& conn = getConnection();
     conn.sendCommand(cmd);
     BinprotSubdocResponse resp;
@@ -251,4 +367,12 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItemMultipathCombo) {
             "txn.counter", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("1", resp.getValue());
+}
+
+TEST_P(XattrNoDocTest, MultipathCombo) {
+    testMultipathCombo();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathCombo) {
+    testMultipathCombo();
 }

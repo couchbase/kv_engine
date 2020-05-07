@@ -19,6 +19,7 @@
 #include <boost/optional/optional_fwd.hpp>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/response.h>
+#include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 #include <unordered_set>
@@ -347,9 +348,11 @@ public:
         std::string value;
     };
 
-    BinprotSubdocMultiMutationCommand(std::string key,
-                                      std::vector<MutationSpecifier> specs,
-                                      mcbp::subdoc::doc_flag docFlags);
+    BinprotSubdocMultiMutationCommand(
+            std::string key,
+            std::vector<MutationSpecifier> specs,
+            mcbp::subdoc::doc_flag docFlags,
+            const boost::optional<cb::durability::Requirements>& durReqs = {});
 
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -366,6 +369,9 @@ public:
             const std::string& value);
 
     BinprotSubdocMultiMutationCommand& setExpiry(uint32_t expiry_);
+
+    BinprotSubdocMultiMutationCommand& setDurabilityReqs(
+            const cb::durability::Requirements& durReqs);
 
     MutationSpecifier& at(size_t index);
 

@@ -42,6 +42,32 @@ protected:
                       flag,
                       docFlag);
     }
+
+    bool supportSyncRepl() const {
+        return mcd_env->getTestBucket().supportsSyncWrites();
+    }
+
+    void testRequiresMkdocOrAdd();
+    void testRequiresXattrPath();
+    void testSinglePathDictAdd();
+    void testMultipathDictAdd();
+    void testMultipathDictUpsert();
+    void testMultipathArrayPushLast();
+    void testMultipathArrayPushFirst();
+    void testMultipathArrayAddUnique();
+    void testMultipathCounter();
+    void testMultipathCombo();
+
+    boost::optional<cb::durability::Requirements> durReqs = {};
+};
+
+class XattrNoDocDurabilityTest : public XattrNoDocTest {
+protected:
+    void SetUp() override {
+        XattrNoDocTest::SetUp();
+        // level:majority, timeout:default
+        durReqs = cb::durability::Requirements();
+    }
 };
 
 class XattrTest : public XattrNoDocTest {

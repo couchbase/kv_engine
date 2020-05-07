@@ -16,9 +16,10 @@
  */
 #pragma once
 
-#include  <algorithm>
-
 #include "testapp.h"
+#include <boost/optional/optional_fwd.hpp>
+#include <memcached/durability_spec.h>
+#include <algorithm>
 
 /**
  * Test fixture for testapp tests; parameterised on the TransportProtocol (IPv4,
@@ -138,7 +139,8 @@ protected:
             const std::string& path,
             const std::string& value = {},
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None);
+            mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None,
+            const boost::optional<cb::durability::Requirements>& durReqs = {});
 
     /// Perform the specified subdoc multi-mutation command; returning the
     /// response.
