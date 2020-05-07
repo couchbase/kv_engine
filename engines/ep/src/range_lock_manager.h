@@ -384,7 +384,7 @@ protected:
         std::list<SeqRange> exclusive;
     };
 
-    folly::Synchronized<LockedRanges, SpinLock> ranges;
+    folly::Synchronized<LockedRanges, std::mutex> ranges;
 
     friend class RangeGuard;
 };

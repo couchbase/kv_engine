@@ -90,28 +90,6 @@ public:
     }
 };
 
-/**
- * A lighter-weight, smaller lock than a mutex.
- *
- * This is primarily useful when contention is rare.
- */
-class SpinLock {
-public:
-    // It seems like inlining the code caused the dtrace probe to
-    // be optimized away ;)
-    SpinLock();
-    ~SpinLock();
-
-    void lock();
-    void unlock();
-
-private:
-    bool tryAcquire();
-
-    std::atomic_flag lck;
-    DISALLOW_COPY_AND_ASSIGN(SpinLock);
-};
-
 template <class S, class Pointer, class Deleter>
 class SingleThreadedRCPtr;
 

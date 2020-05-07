@@ -10,11 +10,10 @@ thread exist.
 
 ## Synchronisation Primitives
 
-There are two mutual-exclusion primitives available in ep-engine (in
+There is one custom mutual-exclusion primitives available in ep-engine (in
 addition to those provided by the C++ standard library):
 
 1. `RWLock` shared, reader/writer lock - [rwlock.h](./src/rwlock.h)
-2. `SpinLock` 1-byte exclusive lock - [atomix.h](./src/atomic.h)
 
 A condition-variable is also available called `SyncObject`
 [syncobject.h](./src/syncobject.h). `SyncObject` glues a `std::mutex` and
@@ -128,23 +127,6 @@ void producer() {
         notified = true;
     }
     syncObject.notifyOne();
-}
-```
-
-### SpinLock
-
-A `SpinLock` uses a single byte for the lock and our own code to spin until the
-lock is acquired. The intention for this lock is for low contention locks.
-
-The RAII pattern is just like for a mutex.
-
-
-```c++
-SpinLock spinLock;
-void example1() {
-    std::lock_guard<SpinLock> lockHolder(&spinLock);
-    ...
-    return;
 }
 ```
 
