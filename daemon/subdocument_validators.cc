@@ -24,12 +24,11 @@
 #include "connection.h"
 #include "cookie.h"
 #include "mcbp_validators.h"
+#include "subdocument_parser.h"
 #include "subdocument_traits.h"
 
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
-
-#include <memcached/protocol_binary.h>
 
 static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
     auto status =
