@@ -5904,7 +5904,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void* cookie,
         return ENGINE_SUCCESS;
     }
 
-    auto producer = dynamic_pointer_cast<DcpProducer>(conn);
+    auto producer = std::dynamic_pointer_cast<DcpProducer>(conn);
     if (producer) {
         producer->addTakeoverStats(add_stat, cookie, *vb);
     } else {

@@ -112,12 +112,11 @@ private:
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };
 
-template <class T> class RCPtr;
 template <class S, class Pointer, class Deleter>
 class SingleThreadedRCPtr;
 
 /**
- * A reference counted value (used by RCPtr and SingleThreadedRCPtr).
+ * A reference counted value (used by SingleThreadedRCPtr).
  */
 class RCValue {
 public:
@@ -126,108 +125,11 @@ public:
     ~RCValue() = default;
 
 private:
-    template <class MyTT> friend class RCPtr;
     template <class MySS, class Pointer, class Deleter>
     friend class SingleThreadedRCPtr;
 
     mutable std::atomic<int> _rc_refcount;
 };
-
-/**
- * Concurrent reference counted pointer.
- */
-template <class C>
-class RCPtr {
-public:
-    RCPtr(C* init = nullptr) : value(init) {
-        if (init != nullptr) {
-            ++value->_rc_refcount;
-        }
-    }
-
-    RCPtr(const RCPtr<C> &other) : value(other.gimme()) {}
-
-    RCPtr(RCPtr<C>&& other) {
-        value.store(other.value.load());
-        other.value.store(nullptr);
-    }
-
-    ~RCPtr() {
-        if (value && (--value->_rc_refcount) == 0) {
-            delete get();
-        }
-    }
-
-    void reset(C* newValue = nullptr) {
-        if (newValue != nullptr) {
-            ++newValue->_rc_refcount;
-        }
-        swap(newValue);
-    }
-
-    void reset(const RCPtr<C> &other) {
-        swap(other.gimme());
-    }
-
-    // safe for the lifetime of this instance
-    C *get() const {
-        return value;
-    }
-
-    RCPtr<C> & operator =(const RCPtr<C> &other) {
-        reset(other);
-        return *this;
-    }
-
-    C &operator *() const {
-        return *value;
-    }
-
-    C *operator ->() const {
-        return value;
-    }
-
-    bool operator! () const {
-        return !value;
-    }
-
-    operator bool () const {
-        return (bool)value;
-    }
-
-private:
-    C *gimme() const {
-        std::lock_guard<SpinLock> lh(lock);
-        if (value) {
-            ++value->_rc_refcount;
-        }
-        return value;
-    }
-
-    void swap(C *newValue) {
-        C* tmp;
-        {
-            std::lock_guard<SpinLock> lh(lock);
-            tmp = value.exchange(newValue);
-        }
-        if (tmp != nullptr && --tmp->_rc_refcount == 0) {
-            delete tmp;
-        }
-    }
-
-    AtomicPtr<C> value;
-    mutable SpinLock lock; // exists solely for the purpose of implementing reset() safely
-};
-
-/**
- * Dynamic cast for RCPtr. Modelled on method of the same name for
- * std::shared_ptr.
- */
-template <class T, class U>
-RCPtr<T> dynamic_pointer_cast(const RCPtr<U>& r) {
-    T* p = dynamic_cast<T*>(r.get());
-    return p ? RCPtr<T>(p) : RCPtr<T>();
-}
 
 /**
  * Single-threaded reference counted pointer.

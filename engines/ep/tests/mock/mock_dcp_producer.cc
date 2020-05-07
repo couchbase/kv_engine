@@ -64,7 +64,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             includeXattrs);
     stream->setActive();
 
-    auto baseStream = dynamic_pointer_cast<Stream>(stream);
+    auto baseStream = std::dynamic_pointer_cast<Stream>(stream);
     updateStreamsMap(vb.getId(), stream->getStreamId(), baseStream);
 
     auto found = streams.find(vb.getId().get());

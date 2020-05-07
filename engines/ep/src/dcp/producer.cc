@@ -1118,7 +1118,7 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
     for (auto itr = rv->second->rlock(); !itr.end(); itr.next()) {
         auto s = itr.get();
         if (s->getOpaque() == opaque) {
-            stream = dynamic_pointer_cast<ActiveStream>(s);
+            stream = std::dynamic_pointer_cast<ActiveStream>(s);
             break;
         }
     }
@@ -1631,7 +1631,7 @@ void DcpProducer::closeAllStreams() {
     // completes run().
     // This will terminate any tasks and delete any backfills
     // associated with this Producer.  This is necessary as if we
-    // don't, then the RCPtr references which exist between
+    // don't, then the ref-counted ptr references which exist between
     // DcpProducer and ActiveStream result in us leaking DcpProducer
     // objects (and Couchstore vBucket files, via DCPBackfill task).
     backfillMgr.reset();

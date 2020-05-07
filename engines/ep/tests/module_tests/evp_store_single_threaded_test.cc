@@ -466,8 +466,8 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
                                           {}));
 
         // Stream should not have been created
-        auto stream =
-                dynamic_pointer_cast<ActiveStream>(producer->findStream(vbid));
+        auto stream = std::dynamic_pointer_cast<ActiveStream>(
+                producer->findStream(vbid));
         ASSERT_FALSE(stream);
     });
 

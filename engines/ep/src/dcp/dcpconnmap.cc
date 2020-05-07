@@ -278,7 +278,7 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
         // memcached runs the connection again it will be disconnected anyways
         // as it will see that the bucket is being shut down.
         itr.second->flagDisconnect();
-        auto producer = dynamic_pointer_cast<DcpProducer>(itr.second);
+        auto producer = std::dynamic_pointer_cast<DcpProducer>(itr.second);
         if (producer) {
             producer->closeAllStreams();
             producer->cancelCheckpointCreatorTask();
@@ -287,7 +287,7 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
             // connection.
             producer->immediatelyNotify();
         } else {
-            auto consumer = dynamic_pointer_cast<DcpConsumer>(itr.second);
+            auto consumer = std::dynamic_pointer_cast<DcpConsumer>(itr.second);
             if (consumer) {
                 consumer->closeAllStreams();
                 // The consumer may be in EWOULDBLOCK (if it's idle), therefore
@@ -301,7 +301,7 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
 
 void DcpConnMap::cancelTasks(CookieToConnectionMap& map) {
     for (auto itr : map) {
-        auto consumer = dynamic_pointer_cast<DcpConsumer>(itr.second);
+        auto consumer = std::dynamic_pointer_cast<DcpConsumer>(itr.second);
         if (consumer) {
             consumer->cancelTask();
         }
@@ -413,7 +413,7 @@ void DcpConnMap::manageConnections() {
         auto conn = release.front();
         conn->releaseReference();
         release.pop_front();
-        auto prod = dynamic_pointer_cast<DcpProducer>(conn);
+        auto prod = std::dynamic_pointer_cast<DcpProducer>(conn);
         if (prod) {
             removeVBConnections(*prod);
         }

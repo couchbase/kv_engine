@@ -142,11 +142,6 @@ endif()
 
 add_sanitizers(ep-engine_ep_unit_tests)
 
-ADD_EXECUTABLE(ep-engine_atomic_ptr_test
-        module_tests/atomic_ptr_test.cc
-        ${EventuallyPersistentEngine_SOURCE_DIR}/src/atomic.cc)
-TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform platform_cb_malloc_arena)
-
 ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/couch-kvstore/couch-fs-stats.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/configuration.h
@@ -174,7 +169,6 @@ ADD_EXECUTABLE(ep-engine_string_utils_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/string_utils.cc)
 TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
-ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
 gtest_discover_tests(ep-engine_ep_unit_tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
