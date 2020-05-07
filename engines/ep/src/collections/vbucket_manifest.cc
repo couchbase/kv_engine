@@ -126,19 +126,24 @@ std::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
     return rv;
 }
 
-Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
-                                        ::VBucket& vb,
+// The update is split into two parts
+// 1) Input validation and change processing (only need read lock)
+// 2) Applying the change(s) (need write lock)
+// We utilise the upgrade feature of our mutex so that we can switch from
+// read (using UpgradeHolder) to write
+Manifest::UpdateStatus Manifest::update(::VBucket& vb,
                                         const Collections::Manifest& manifest) {
+    mutex_type::UpgradeHolder upgradeLock(rwlock);
     auto status = canUpdate(manifest);
     if (status != UpdateStatus::Success) {
         return status;
     }
 
-    auto rv = processManifest(manifest);
+    auto changes = processManifest(manifest);
 
     // If manifest was equal. expect no changes
     if (manifest.getUid() == manifestUid) {
-        if (rv.empty()) {
+        if (changes.empty()) {
             return UpdateStatus::Success;
         } else {
             // Log verbosely for this case
@@ -146,20 +151,30 @@ Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
                     "Manifest::update with equal uid:{} but differences "
                     "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}",
                     manifestUid,
-                    rv.scopesToAdd.size(),
-                    rv.collectionsToAdd.size(),
-                    rv.scopesToRemove.size(),
-                    rv.collectionsToRemove.size());
+                    changes.scopesToAdd.size(),
+                    changes.collectionsToAdd.size(),
+                    changes.scopesToRemove.size(),
+                    changes.collectionsToRemove.size());
             return UpdateStatus::EqualUidWithDifferences;
         }
     }
 
-    auto finalScopeCreate = applyScopeCreates(wHandle, vb, rv.scopesToAdd);
+    completeUpdate(std::move(upgradeLock), vb, changes);
+    return UpdateStatus::Success;
+}
+
+void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
+                              ::VBucket& vb,
+                              Manifest::ManifestChanges& changes) {
+    // Write Handle now needed
+    Manifest::WriteHandle wHandle(*this, std::move(upgradeLock));
+
+    auto finalScopeCreate = applyScopeCreates(wHandle, vb, changes.scopesToAdd);
     if (finalScopeCreate) {
-        auto uid = rv.collectionsToAdd.empty() &&
-                                   rv.collectionsToRemove.empty() &&
-                                   rv.scopesToRemove.empty()
-                           ? manifest.getUid()
+        auto uid = changes.collectionsToAdd.empty() &&
+                                   changes.collectionsToRemove.empty() &&
+                                   changes.scopesToRemove.empty()
+                           ? changes.uid
                            : manifestUid;
         addScope(wHandle,
                  vb,
@@ -169,19 +184,21 @@ Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
                  OptionalSeqno{/*no-seqno*/});
     }
 
-    auto finalDeletion = applyDeletions(wHandle, vb, rv.collectionsToRemove);
+    auto finalDeletion =
+            applyDeletions(wHandle, vb, changes.collectionsToRemove);
     if (finalDeletion) {
-        auto uid = rv.collectionsToAdd.empty() && rv.scopesToRemove.empty()
-                           ? manifest.getUid()
+        auto uid = changes.collectionsToAdd.empty() &&
+                                   changes.scopesToRemove.empty()
+                           ? changes.uid
                            : manifestUid;
         dropCollection(
                 wHandle, vb, uid, *finalDeletion, OptionalSeqno{/*no-seqno*/});
     }
 
-    auto finalAddition = applyCreates(wHandle, vb, rv.collectionsToAdd);
+    auto finalAddition = applyCreates(wHandle, vb, changes.collectionsToAdd);
 
     if (finalAddition) {
-        auto uid = rv.scopesToRemove.empty() ? manifest.getUid() : manifestUid;
+        auto uid = changes.scopesToRemove.empty() ? changes.uid : manifestUid;
         addCollection(wHandle,
                       vb,
                       uid,
@@ -193,16 +210,15 @@ Manifest::UpdateStatus Manifest::update(const WriteHandle& wHandle,
 
     // This is done last so the scope deletion follows any collection
     // deletions
-    auto finalScopeDrop = applyScopeDrops(wHandle, vb, rv.scopesToRemove);
+    auto finalScopeDrop = applyScopeDrops(wHandle, vb, changes.scopesToRemove);
 
     if (finalScopeDrop) {
         dropScope(wHandle,
                   vb,
-                  manifest.getUid(),
+                  changes.uid,
                   *finalScopeDrop,
                   OptionalSeqno{/*no-seqno*/});
     }
-    return UpdateStatus::Success;
 }
 
 Manifest::UpdateStatus Manifest::canUpdate(
@@ -451,7 +467,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 
 Manifest::ManifestChanges Manifest::processManifest(
         const Collections::Manifest& manifest) const {
-    ManifestChanges rv;
+    ManifestChanges rv{manifest.getUid()};
 
     for (const auto& entry : map) {
         // If the entry is not found in the new manifest it must be

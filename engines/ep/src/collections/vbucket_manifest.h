@@ -553,22 +553,8 @@ public:
             : writeLock(std::move(rhs.writeLock)), manifest(rhs.manifest) {
         }
 
-        /**
-         * Update from a Collections::Manifest
-         *
-         * Update compares the current collection set against the manifest and
-         * triggers collection creation and collection deletion.
-         *
-         * Creation and deletion of a collection are pushed into the VBucket and
-         * the seqno of updates is recorded in the manifest.
-         *
-         * @param vb The VBucket to update (queue data into).
-         * @param manifest The incoming manifest to compare this object with.
-         * @return UpdateStatus success or reason for failure
-         */
-        UpdateStatus update(::VBucket& vb,
-                            const Collections::Manifest& newManifest) {
-            return manifest.update(*this, vb, newManifest);
+        WriteHandle(Manifest& m, mutex_type::UpgradeHolder&& upgradeHolder)
+            : writeLock(std::move(upgradeHolder)), manifest(m) {
         }
 
         /**
@@ -687,7 +673,7 @@ public:
         }
 
     private:
-        std::unique_lock<mutex_type> writeLock;
+        mutex_type::WriteHolder writeLock;
         Manifest& manifest;
     };
 
@@ -737,7 +723,7 @@ public:
         return {this, rwlock, cid};
     }
 
-    // Explictly delete rvalue StoredDocKey usage. A CachingReadHandle wants to
+    // Explicitly delete rvalue StoredDocKey usage. A CachingReadHandle wants to
     // create a view of the original key, so that key must have a life-span
     // which is longer than the handle. Only test-code trips over this as they
     // may create keys at the point of calling a method.
@@ -747,6 +733,21 @@ public:
     WriteHandle wlock() {
         return {*this, rwlock};
     }
+
+    /**
+     * Update from a Collections::Manifest
+     *
+     * Update compares the current collection set against the manifest and
+     * triggers collection creation and collection deletion.
+     *
+     * Creation and deletion of a collection are pushed into the VBucket and
+     * the seqno of updates is recorded in the manifest.
+     *
+     * @param vb The VBucket to update (queue data into).
+     * @param manifest The incoming manifest to compare this object with.
+     * @return UpdateStatus describing outcome (success or failed reason)
+     */
+    UpdateStatus update(::VBucket& vb, const Collections::Manifest& manifest);
 
     /**
      * Get the system event collection create data from a SystemEvent
@@ -819,28 +820,42 @@ public:
     };
 
 protected:
-
-    /**
-     * Update from a Collections::Manifest
-     *
-     * Update compares the current collection set against the manifest and
-     * triggers collection creation and collection deletion.
-     *
-     * Creation and deletion of a collection are pushed into the VBucket and
-     * the seqno of updates is recorded in the manifest.
-     *
-     * @param vb The VBucket to update (queue data into).
-     * @param manifest The incoming manifest to compare this object with.
-     * @return true if the update was applied
-     */
-    UpdateStatus update(const WriteHandle& wHandle,
-                        ::VBucket& vb,
-                        const Collections::Manifest& manifest);
-
     /**
      * @return an update status by testing if this can be updated to manifest
      */
     UpdateStatus canUpdate(const Collections::Manifest& manifest) const;
+
+    /**
+     * The changes that we need to make to the vBucket manifest derived from
+     * the bucket manifest.
+     */
+    struct ManifestChanges {
+        ManifestChanges(ManifestUid uid) : uid(uid) {
+        }
+        ManifestUid uid{0};
+        std::vector<ScopeAddition> scopesToAdd;
+        std::vector<ScopeID> scopesToRemove;
+        std::vector<CollectionAddition> collectionsToAdd;
+        std::vector<CollectionID> collectionsToRemove;
+
+        bool empty() const {
+            return scopesToAdd.empty() && scopesToRemove.empty() &&
+                   collectionsToAdd.empty() && collectionsToRemove.empty();
+        }
+    };
+
+    /**
+     * Complete the update of this from a manifest - will take the upgradeLock
+     * and switch to exclusive mode to process the required changes.
+     *
+     * @param upgradeLock rvalue upgrade holder, which will be moved to a write
+     *        handle.
+     * @param vb Vbucket to apply update to
+     * @param changes Set of changes to make
+     */
+    void completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
+                        ::VBucket& vb,
+                        ManifestChanges& changes);
 
     /**
      * Sub-functions used by update
@@ -1202,21 +1217,7 @@ protected:
      */
     const ManifestEntry& getManifestEntry(CollectionID collectionID) const;
 
-    /**
-     * The changes that we need to make to the vBucket manifest derived from
-     * the bucket manifest.
-     */
-    struct ManifestChanges {
-        std::vector<ScopeAddition> scopesToAdd;
-        std::vector<ScopeID> scopesToRemove;
-        std::vector<CollectionAddition> collectionsToAdd;
-        std::vector<CollectionID> collectionsToRemove;
 
-        bool empty() const {
-            return scopesToAdd.empty() && scopesToRemove.empty() &&
-                   collectionsToAdd.empty() && collectionsToRemove.empty();
-        }
-    };
 
     /**
      * Process a Collections::Manifest to determine if collections need adding

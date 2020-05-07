@@ -801,7 +801,7 @@ public:
      */
     Collections::VB::Manifest::UpdateStatus updateFromManifest(
             const Collections::Manifest& m) {
-        return manifest->wlock().update(*this, m);
+        return manifest->update(*this, m);
     }
 
     /**
