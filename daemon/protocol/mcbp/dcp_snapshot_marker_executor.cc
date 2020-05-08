@@ -15,13 +15,12 @@
  *   limitations under the License.
  */
 
-#include "dcp_snapshot_marker_codec.h"
 #include "executors.h"
 
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
-#include <memcached/protocol_binary.h>
+#include <mcbp/codec/dcp_snapshot_marker.h>
 
 void dcp_snapshot_marker_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
@@ -29,8 +28,7 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         auto& req = cookie.getRequest();
-        const auto snapshot = cb::mcbp::decodeDcpSnapshotMarker(
-                req.getExtdata(), req.getValue());
+        const auto snapshot = cb::mcbp::DcpSnapshotMarker::decode(req);
         ret = dcpSnapshotMarker(cookie,
                                 req.getOpaque(),
                                 req.getVBucket(),

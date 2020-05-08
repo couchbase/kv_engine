@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "dcp_snapshot_marker_codec.h"
+#include <mcbp/codec/dcp_snapshot_marker.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 
@@ -42,11 +42,9 @@ DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     const auto* payload =
             reinterpret_cast<const DcpSnapshotMarkerV1Payload*>(extras.data());
-    DcpSnapshotMarker marker;
-    marker.setStartSeqno(payload->getStartSeqno());
-    marker.setEndSeqno(payload->getEndSeqno());
-    marker.setFlags(payload->getFlags());
-    return marker;
+    return DcpSnapshotMarker(payload->getStartSeqno(),
+                             payload->getEndSeqno(),
+                             payload->getFlags());
 }
 
 static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
@@ -59,13 +57,11 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
                 "decodeDcpSnapshotMarkerV21Value: Invalid size");
     }
 
-    DcpSnapshotMarker marker;
-
     const auto* payload2_0 =
             reinterpret_cast<const DcpSnapshotMarkerV2_0Value*>(value.data());
-    marker.setStartSeqno(payload2_0->getStartSeqno());
-    marker.setEndSeqno(payload2_0->getEndSeqno());
-    marker.setFlags(payload2_0->getFlags());
+    DcpSnapshotMarker marker(payload2_0->getStartSeqno(),
+                             payload2_0->getEndSeqno(),
+                             payload2_0->getFlags());
 
     // MaxVisible is sent in all V2.0 snapshot markers
     marker.setMaxVisibleSeqno(payload2_0->getMaxVisibleSeqno());
@@ -98,18 +94,23 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV21Value(
     return marker;
 }
 
-DcpSnapshotMarker decodeDcpSnapshotMarker(cb::const_byte_buffer extras,
-                                          cb::const_byte_buffer value) {
+DcpSnapshotMarker DcpSnapshotMarker::decode(const Request& request) {
+    if (request.getClientOpcode() != ClientOpcode::DcpSnapshotMarker) {
+        throw std::runtime_error(
+                "DcpSnapshotMarker::decode: request is not a "
+                "DcpSnapshotMarker");
+    }
+    auto extras = request.getExtdata();
     using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
     if (extras.size() == sizeof(DcpSnapshotMarkerV2xVersion)) {
         switch (extras[0]) {
         case 0:
-            return decodeDcpSnapshotMarkerV20Value(value);
+            return decodeDcpSnapshotMarkerV20Value(request.getValue());
         case 1:
-            return decodeDcpSnapshotMarkerV21Value(value);
+            return decodeDcpSnapshotMarkerV21Value(request.getValue());
         }
         throw std::runtime_error(
-                "decodeDcpSnapshotMarker: Unknown snapshot marker version");
+                "DcpSnapshotMarker::decode: Unknown snapshot marker version");
     }
     if (extras.size() ==
         sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload)) {
@@ -117,16 +118,11 @@ DcpSnapshotMarker decodeDcpSnapshotMarker(cb::const_byte_buffer extras,
     }
 
     throw std::runtime_error(
-            "decodeDcpSnapshotMarker: Invalid extras encoding");
+            "DcpSnapshotMarker::decode: Invalid extras encoding");
 }
 
-void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
-                             uint64_t start,
-                             uint64_t end,
-                             uint32_t flags,
-                             std::optional<uint64_t> highCompletedSeqno,
-                             std::optional<uint64_t> maxVisibleSeqno,
-                             std::optional<uint64_t> timestamp) {
+void DcpSnapshotMarker::encode(
+        cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame) const {
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
@@ -143,8 +139,8 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
         frame.setExtras(extras.getBuffer());
 
         DcpSnapshotMarkerV2_1Value value;
-        value.setStartSeqno(start);
-        value.setEndSeqno(end);
+        value.setStartSeqno(startSeqno);
+        value.setEndSeqno(endSeqno);
         value.setFlags(flags);
         value.setMaxVisibleSeqno(maxVisibleSeqno.value_or(0));
         value.setHighCompletedSeqno(highCompletedSeqno.value_or(0));
@@ -160,8 +156,8 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
         // producer path is passing it down.
         DcpSnapshotMarkerV2xPayload extras(DcpSnapshotMarkerV2xVersion::Zero);
         DcpSnapshotMarkerV2_0Value value;
-        value.setStartSeqno(start);
-        value.setEndSeqno(end);
+        value.setStartSeqno(startSeqno);
+        value.setEndSeqno(endSeqno);
         value.setFlags(flags);
         // @todo: MB-36948: This should change to use get()
         value.setMaxVisibleSeqno(maxVisibleSeqno.value_or(0));
@@ -170,8 +166,8 @@ void encodeDcpSnapshotMarker(cb::mcbp::FrameBuilder<cb::mcbp::Request>& frame,
         frame.setValue(value.getBuffer());
     } else {
         DcpSnapshotMarkerV1Payload payload;
-        payload.setStartSeqno(start);
-        payload.setEndSeqno(end);
+        payload.setStartSeqno(startSeqno);
+        payload.setEndSeqno(endSeqno);
         payload.setFlags(flags);
         frame.setExtras(payload.getBuffer());
     }

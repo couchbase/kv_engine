@@ -25,7 +25,6 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
-#include "protocol/mcbp/dcp_snapshot_marker_codec.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "sendbuffer.h"
@@ -37,6 +36,7 @@
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
 #include <logger/logger.h>
+#include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
@@ -1576,8 +1576,9 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
         builder.setFramingExtras(framedSid.getBuf());
     }
 
-    cb::mcbp::encodeDcpSnapshotMarker(
-            builder, start_seqno, end_seqno, flags, hcs, mvs, timestamp);
+    cb::mcbp::DcpSnapshotMarker marker(
+            start_seqno, end_seqno, flags, hcs, mvs, timestamp);
+    marker.encode(builder);
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

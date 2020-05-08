@@ -106,7 +106,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_prepare_executor.cc
             protocol/mcbp/dcp_seqno_acknowledged_executor.cc
             protocol/mcbp/dcp_set_vbucket_state_executor.cc
-            protocol/mcbp/dcp_snapshot_marker_codec.cc
             protocol/mcbp/dcp_snapshot_marker_executor.cc
             protocol/mcbp/dcp_stream_end_executor.cc
             protocol/mcbp/dcp_stream_req_executor.cc
