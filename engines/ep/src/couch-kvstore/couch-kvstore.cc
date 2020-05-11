@@ -980,7 +980,7 @@ bool CouchKVStore::compactDBInternal(
     Vbid vbid = hook_ctx->compactConfig.db_file_id;
     hook_ctx->config = &configuration;
 
-    TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get())
+    TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
 
     // Open the source VBucket database file ...
     errCode = openDB(
@@ -1509,7 +1509,7 @@ scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) {
                        "vbid",
                        ctx.vbid.get(),
                        "startSeqno",
-                       ctx.startSeqno)
+                       ctx.startSeqno);
 
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*ctx.handle);
     auto& db = couchKvHandle.getDbHolder();
@@ -1526,7 +1526,8 @@ scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) {
                                          bySeqnoScanCallback,
                                          static_cast<void*>(&ctx));
 
-    TRACE_EVENT_END1("CouchKVStore", "scan", "lastReadSeqno", ctx.lastReadSeqno)
+    TRACE_EVENT_END1(
+            "CouchKVStore", "scan", "lastReadSeqno", ctx.lastReadSeqno);
 
     if (errorCode != COUCHSTORE_SUCCESS) {
         if (errorCode == COUCHSTORE_ERROR_CANCEL) {
@@ -1549,7 +1550,7 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
                        "vbid",
                        ctx.vbid.get(),
                        "ranges",
-                       uint32_t(ctx.ranges.size()))
+                       uint32_t(ctx.ranges.size()));
 
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*ctx.handle);
     auto& db = couchKvHandle.getDbHolder();
@@ -1575,7 +1576,7 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
         }
     }
     TRACE_EVENT_END1(
-            "CouchKVStore", "scan by id", "lastReadSeqno", ctx.lastReadSeqno)
+            "CouchKVStore", "scan by id", "lastReadSeqno", ctx.lastReadSeqno);
 
     if (errorCode != COUCHSTORE_SUCCESS) {
         if (errorCode == COUCHSTORE_ERROR_CANCEL) {
@@ -1683,7 +1684,7 @@ couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
                            "vbucketId",
                            vbucketId.get(),
                            "fileRev",
-                           fileRev)
+                           fileRev);
         }
     }
     if (configuration.getCouchstoreWriteValidationEnabled()) {
@@ -2007,7 +2008,7 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
                  "vbid",
                  vbucket2flush.get(),
                  "pendingCommitCnt",
-                 pendingCommitCnt)
+                 pendingCommitCnt);
 
     std::vector<Doc*> docs(pendingCommitCnt);
     std::vector<DocInfo*> docinfos(pendingCommitCnt);
