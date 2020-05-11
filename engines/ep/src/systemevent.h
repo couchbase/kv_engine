@@ -20,12 +20,12 @@
 #include "atomic.h"
 #include "collections/flush.h"
 #include "ep_types.h"
+#include "storeddockey_fwd.h"
 
 #include <string>
 
 class Item;
 class KVStore;
-class StoredDocKey;
 class SystemEventMessage;
 
 namespace Collections {

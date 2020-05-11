@@ -1654,6 +1654,11 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
 
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
+
+    // Allocator used for tracking the memory usage of the keys in the
+    // checkpoint indexes.
+    checkpoint_index::key_type::allocator_type keyIndexKeyTrackingAllocator;
+
     // Emulate the Checkpoint keyIndex so we can determine the number
     // of bytes that should be allocated during its use.
     checkpoint_index keyIndex(memoryTrackingAllocator);
@@ -1700,7 +1705,9 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
     // Add the size of adding to the queue
     expectedSize += perElementOverhead;
     // Add to the emulated keyIndex
-    keyIndex.emplace(qiSmall->getKey(), entry);
+    keyIndex.emplace(CheckpointIndexKeyType(qiSmall->getKey(),
+                                            keyIndexKeyTrackingAllocator),
+                     entry);
 
     auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     expectedSize += (keyIndexSize - initialKeyIndexSize);
@@ -1734,7 +1741,9 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
     // Add the size of adding to the queue
     expectedSize += perElementOverhead;
     // Add to the keyIndex
-    keyIndex.emplace(qiBig->getKey(), entry);
+    keyIndex.emplace(CheckpointIndexKeyType(qiBig->getKey(),
+                                            keyIndexKeyTrackingAllocator),
+                     entry);
 
     keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     expectedSize += (keyIndexSize - initialKeyIndexSize);
@@ -1779,6 +1788,11 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
 
     // Allocator used for tracking memory used by the CheckpointQueue
     checkpoint_index::allocator_type memoryTrackingAllocator;
+
+    // Allocator used for tracking the memory usage of the keys in the
+    // checkpoint indexes.
+    checkpoint_index::key_type::allocator_type keyIndexKeyTrackingAllocator;
+
     // Emulate the Checkpoint keyIndex so we can determine the number
     // of bytes that should be allocated during its use.
     checkpoint_index keyIndex(memoryTrackingAllocator);
@@ -1818,7 +1832,9 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Three pointers - forward, backward and pointer to item
     const auto perElementListOverhead = sizeof(uintptr_t) * 3;
     // Add entry into keyIndex
-    keyIndex.emplace(qiSmall->getKey(), entry);
+    keyIndex.emplace(CheckpointIndexKeyType(qiSmall->getKey(),
+                                            keyIndexKeyTrackingAllocator),
+                     entry);
 
     const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
     EXPECT_EQ(perElementListOverhead + (keyIndexSize - initialKeyIndexSize),
@@ -1852,6 +1868,37 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
 
     // Should be back to the initialOverhead
     EXPECT_EQ(initialOverhead, this->manager->getMemoryOverhead());
+}
+
+TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadHeapAllocatedKeyTest) {
+    // Get the intial size of the checkpoint overhead.
+    const auto initialOverhead = this->manager->getMemoryOverhead();
+
+    // Create a queued_item with a big key. This size is an order of magnitude
+    // bigger than our key index should be when it's empty so we can just check
+    // if the overhead is at least this size to verify that we track key
+    // allocations.
+    auto keySize = 2000;
+    std::string value("value");
+    queued_item qiSmall(new Item(makeStoredDocKey(std::string(keySize, 'x')),
+                                 0,
+                                 0,
+                                 value.c_str(),
+                                 value.size(),
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 -1,
+                                 Vbid(0)));
+
+    // Add the queued_item to the checkpoint
+    this->manager->queueDirty(*this->vbucket,
+                              qiSmall,
+                              GenerateBySeqno::Yes,
+                              GenerateCas::Yes,
+                              /*preLinkDocCtx*/ nullptr);
+
+    auto overhead = this->manager->getMemoryOverhead() - initialOverhead;
+    EXPECT_LT(keySize, overhead);
 }
 
 // Test that can expel items and that we have the correct behaviour when we
