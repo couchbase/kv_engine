@@ -29,6 +29,7 @@
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
+#include <utilities/engine_errc_2_mcbp.h>
 
 using cb::mcbp::Status;
 
@@ -375,7 +376,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 cookie.setUnknownCollectionErrorContext(res.getManifestId());
                 return Status::UnknownCollection;
             } else {
-                return cb::mcbp::Status(res.result);
+                return cb::mcbp::to_status(res.result);
             }
         }
         cookie.setCurrentCollectionInfo(
