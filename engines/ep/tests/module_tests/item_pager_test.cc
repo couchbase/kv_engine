@@ -717,6 +717,95 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
 }
 
 /**
+ * MB-38315 found that when we BG Fetch a deleted item it can end up "stuck" in
+ * the HashTable until the compactor removes the tombstone for it. This
+ * increases memory pressure and could cause the system to lock up if the pager
+ * finds no items eligible for eviction (e.g. BGFetched an entirely deleted data
+ * set). Test that the item pager can page out a clean deleted item.
+ */
+TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
+    // Only relevant to full eviction as Value Eviction will:
+    //   1: Delete deleted items from the HashTable when they are persisted
+    //      (also true for Full Eviction)
+    //   2: Not allow BGFetches
+    //
+    // This means that there is no way for us to get a deleted item into the
+    // HashTable that is not dirty. As such, this test can't work for Value
+    // eviction.
+    if (!fullEviction()) {
+        return;
+    }
+
+    // 1) Write our document
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    delete_item(vbid, key);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Evict it
+    auto vb = store->getVBucket(vbid);
+
+    const char* msg;
+    vb->evictKey(&msg, vb->lockCollections(key));
+
+    // 3) Get to schedule our BGFetch
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto res = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, res.getStatus());
+
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(1, vb->getNumTempItems());
+
+    // 4) Fetch it back into the HashTable
+    runBGFetcherTask();
+
+    // Should have replaced the temp item, but the item in the HT will be
+    // deleted and not counted in NumItems
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->getNumTempItems());
+
+    auto checkItemStatePostFetch = [&](bool expected) {
+        auto val = vb->fetchValidValue(WantsDeleted::Yes,
+                                       TrackReference::No,
+                                       QueueExpired::No,
+                                       vb->lockCollections(key));
+        if (expected) {
+            EXPECT_TRUE(val.storedValue);
+            EXPECT_TRUE(val.storedValue->isDeleted());
+            EXPECT_FALSE(val.storedValue->isDirty());
+            EXPECT_FALSE(val.storedValue->isTempItem());
+        } else {
+            EXPECT_FALSE(val.storedValue);
+        }
+    };
+
+    // Check that the item is actually in the HT
+    checkItemStatePostFetch(true /*expect item to exist*/);
+
+    // 5) Re-run our get after BG Fetch (proving that it does not affect the
+    // item). Returns success as we requested deleted values.
+    res = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, res.getStatus());
+
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->getNumTempItems());
+
+    // Check that the item is still in the HT
+    checkItemStatePostFetch(true /*expect item to exist*/);
+
+    // 6) Fill to just over HWM then run the pager
+    populateUntilAboveHighWaterMark(vbid);
+    runHighMemoryPager();
+
+    // Finally, check our item again. It should now have been evicted
+    checkItemStatePostFetch(false /*expect item to not exist*/);
+}
+
+/**
  * Test fixture for Ephemeral-only item pager tests.
  */
 class STEphemeralItemPagerTest : public STItemPagerTest {
