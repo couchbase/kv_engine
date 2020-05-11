@@ -1,5 +1,6 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc
+ *     Copyright 2020 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,14 +17,15 @@
 
 #pragma once
 
+#include "storeddockey_fwd.h"
+
+#include "ep_types.h"
+
 #include <memcached/dockey.h>
 #include <gsl/gsl>
 #include <limits>
-#include <memory>
 #include <string>
 #include <type_traits>
-
-#include "ep_types.h"
 
 class SerialisedDocKey;
 
@@ -37,20 +39,38 @@ class SerialisedDocKey;
  *    the CollectionID forms part of the on-disk key. Accounting and for for the
  *    CollectionID means storage components don't have to create a new buffer
  *    into which they can layout CollectionID and key data.
+ *
+ * StoredDocKeyT is templated over an Allocator type. A StoredDocKey using
+ * declaration provides a StoredDocKeyT with std::allocator which is suitable
+ * for most purposes. The Allocator here allows us to track checkpoint memory
+ * overhead accurately when the key (std::string is the underlying type)
+ * requires a heap allocation. This varies based on platform but is typically
+ * keys over 16 or 24 bytes.
  */
-class StoredDocKey : public DocKeyInterface<StoredDocKey> {
+template <template <class> class Allocator>
+class StoredDocKeyT : public DocKeyInterface<StoredDocKeyT<Allocator>> {
 public:
+    using allocator_type = Allocator<std::string::value_type>;
+
     /**
      * Construct empty - required for some std containers
      */
-    StoredDocKey() = default;
+    StoredDocKeyT() = default;
 
     /**
      * Create a StoredDocKey from a DocKey
      *
      * @param key DocKey that is to be copied-in
      */
-    StoredDocKey(const DocKey& key);
+    StoredDocKeyT(const DocKey& key) : StoredDocKeyT(key, allocator_type()) {
+    }
+
+    /**
+     * Create a StoredDocKey from a DocKey
+     *
+     * @param key DocKey that is to be copied-in
+     */
+    StoredDocKeyT(const DocKey& key, allocator_type allocator);
 
     /**
      * Create a StoredDocKey from another, essentially wrapping a DocKey
@@ -58,7 +78,7 @@ public:
      * @param key data that is to be copied-in
      * @param cid CollectionID to give to the new key
      */
-    StoredDocKey(const DocKey& key, CollectionID cid);
+    StoredDocKeyT(const DocKey& key, CollectionID cid);
 
     /**
      * Create a StoredDocKey from a std::string (test code uses this)
@@ -67,7 +87,11 @@ public:
      * @param cid the CollectionID that the key applies to (and will be encoded
      *        into the stored data)
      */
-    StoredDocKey(const std::string& key, CollectionID cid);
+    StoredDocKeyT(const std::string& key, CollectionID cid);
+
+    const char* keyData() const {
+        return keydata.data();
+    }
 
     const uint8_t* data() const {
         return reinterpret_cast<const uint8_t*>(keydata.data());
@@ -101,19 +125,19 @@ public:
      */
     const char* c_str() const;
 
-    int compare(const StoredDocKey& rhs) const {
+    int compare(const StoredDocKeyT& rhs) const {
         return keydata.compare(rhs.keydata);
     }
 
-    bool operator==(const StoredDocKey& rhs) const {
+    bool operator==(const StoredDocKeyT& rhs) const {
         return keydata == rhs.keydata;
     }
 
-    bool operator!=(const StoredDocKey& rhs) const {
+    bool operator!=(const StoredDocKeyT& rhs) const {
         return !(*this == rhs);
     }
 
-    bool operator<(const StoredDocKey& rhs) const {
+    bool operator<(const StoredDocKeyT& rhs) const {
         return keydata < rhs.keydata;
     }
 
@@ -122,7 +146,10 @@ public:
     }
 
 protected:
-    std::string keydata;
+    std::basic_string<std::string::value_type,
+                      std::string::traits_type,
+                      allocator_type>
+            keydata;
 };
 
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key);
@@ -134,9 +161,9 @@ static_assert(sizeof(CollectionID) == sizeof(uint32_t),
  * A hash function for StoredDocKey so they can be used in std::map and friends.
  */
 namespace std {
-template <>
-struct hash<StoredDocKey> {
-    std::size_t operator()(const StoredDocKey& key) const {
+template <template <class> class Allocator>
+struct hash<StoredDocKeyT<Allocator>> {
+    std::size_t operator()(const StoredDocKeyT<Allocator>& key) const {
         return key.hash();
     }
 };
