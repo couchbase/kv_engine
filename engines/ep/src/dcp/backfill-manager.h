@@ -102,7 +102,6 @@ public:
 
     void wakeUpTask();
 
-protected:
     /**
      * Get the current number of tracked backfills.
      *
@@ -113,6 +112,7 @@ protected:
                pendingBackfills.size();
     }
 
+protected:
     //! The buffer is the total bytes used by all backfills for this connection
     struct {
         size_t bytesRead;
