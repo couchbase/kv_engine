@@ -33,13 +33,11 @@ enum backfill_status_t {
     backfill_snooze
 };
 
-class DCPBackfill {
-public:
-    DCPBackfill(std::shared_ptr<ActiveStream> s,
-                uint64_t startSeqno,
-                uint64_t endSeqno);
-
-    virtual ~DCPBackfill() {
+/**
+ * Interface for classes which perform DCP Backfills.
+ */
+struct DCPBackfillIface {
+    virtual ~DCPBackfillIface() {
     }
 
     /**
@@ -50,25 +48,31 @@ public:
     virtual backfill_status_t run() = 0;
 
     /**
-     * Get the id of the vbucket for which this object is created
-     *
-     * @return vbid
+     * Cancels the backfill
      */
+    virtual void cancel() = 0;
+
+    /**
+     * @returns true if the DCP stream associated with the backfill is dead,
+     * else false.
+     */
+    virtual bool isStreamDead() const = 0;
+};
+
+class DCPBackfill : public DCPBackfillIface {
+public:
+    DCPBackfill(std::shared_ptr<ActiveStream> s,
+                uint64_t startSeqno,
+                uint64_t endSeqno);
+
+    virtual ~DCPBackfill() {
+    }
+
     Vbid getVBucketId() const {
         return vbid;
     }
 
-    /**
-     * Indicates if the DCP stream associated with the backfill is dead
-     *
-     * @return true if stream is in dead state; else false
-     */
-    bool isStreamDead() const;
-
-    /**
-     * Cancels the backfill
-     */
-    virtual void cancel() = 0;
+    bool isStreamDead() const override;
 
 protected:
     /**
@@ -97,4 +101,4 @@ protected:
     const Vbid vbid;
 };
 
-using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfill>;
+using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfillIface>;

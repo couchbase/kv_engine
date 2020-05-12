@@ -154,28 +154,25 @@ BackfillManager::~BackfillManager() {
     }
 }
 
-void BackfillManager::schedule(VBucket& vb,
-                               std::shared_ptr<ActiveStream> stream,
-                               uint64_t start,
-                               uint64_t end) {
+BackfillManager::ScheduleResult BackfillManager::schedule(
+        UniqueDCPBackfillPtr backfill) {
     LockHolder lh(lock);
-    UniqueDCPBackfillPtr backfill =
-            vb.createDCPBackfill(engine, stream, start, end);
+    ScheduleResult result;
     if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(std::move(backfill));
+        result = ScheduleResult::Active;
     } else {
-        EP_LOG_INFO(
-                "Backfill for {} {} is pending", stream->getName(), vb.getId());
         pendingBackfills.push_back(std::move(backfill));
+        result = ScheduleResult::Pending;
     }
 
     if (managerTask && !managerTask->isdead()) {
         ExecutorPool::get()->wake(managerTask->getId());
-        return;
+    } else {
+        managerTask.reset(new BackfillManagerTask(engine, shared_from_this()));
+        ExecutorPool::get()->schedule(managerTask);
     }
-
-    managerTask.reset(new BackfillManagerTask(engine, shared_from_this()));
-    ExecutorPool::get()->schedule(managerTask);
+    return result;
 }
 
 bool BackfillManager::bytesCheckAndRead(size_t bytes) {

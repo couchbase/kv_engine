@@ -42,7 +42,7 @@ class CheckpointManager;
 class CheckpointConfig;
 class ConflictResolution;
 class Configuration;
-class DCPBackfill;
+struct DCPBackfillIface;
 class DiskDocKey;
 class DurabilityMonitor;
 class EPStats;
@@ -1510,7 +1510,7 @@ public:
      * @return pointer to the backfill object created. Caller to own this
      *         object and hence must handle deletion.
      */
-    virtual std::unique_ptr<DCPBackfill> createDCPBackfill(
+    virtual std::unique_ptr<DCPBackfillIface> createDCPBackfill(
             EventuallyPersistentEngine& e,
             std::shared_ptr<ActiveStream> stream,
             uint64_t startSeqno,
