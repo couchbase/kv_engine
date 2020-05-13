@@ -130,6 +130,7 @@ static void check_len(uint32_t len, size_t size) {
 }
 
 uint32_t get_body_offset(const cb::const_char_buffer& payload) {
+    Expects(payload.size() > 0);
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     auto len = ntohl(*lenptr);
     check_len(len, payload.size());
@@ -137,6 +138,7 @@ uint32_t get_body_offset(const cb::const_char_buffer& payload) {
 }
 
 uint32_t get_body_offset(const cb::char_buffer& payload) {
+    Expects(payload.size() > 0);
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     auto len = ntohl(*lenptr);
     check_len(len, payload.size());

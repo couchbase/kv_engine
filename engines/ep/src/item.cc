@@ -447,10 +447,59 @@ void Item::removeXattrs() {
     const auto bodyOffset = cb::xattr::get_body_offset(valBuffer);
     setData(valBuffer.data() + bodyOffset, valBuffer.size() - bodyOffset);
     setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    if (getNBytes() == 0) {
+        // Docs with no body and Xattrs may be created with DATATYPE_JSON to
+        // bypass the Subdoc restriction on DATATYPE_RAW | DATATYPE_XATTR, see
+        // Subdoc logic for details. Here we have to rectify.
+        setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_JSON);
+    }
 }
 
-void Item::removeBodyAndOrXattrs(IncludeValue includeVal,
-                                 IncludeXattrs includeXattrs) {
+void Item::removeUserXattrs() {
+    if (!value) {
+        // No value, nothing to do
+        return;
+    }
+
+    if (!mcbp::datatype::is_xattr(getDataType())) {
+        // No Xattrs, nothing to do
+        return;
+    }
+
+    // No-op if already uncompressed
+    decompressValue();
+
+    // The function currently does not support value with body.
+    // That is fine for now as this is introduced for MB-37374, thus is supposed
+    // to operate only against deleted items, which don't contain any body.
+    Expects(isDeleted());
+    const auto valNBytes = value->valueSize();
+    cb::char_buffer valBuf{const_cast<char*>(value->getData()), valNBytes};
+    const auto bodySize = valNBytes - cb::xattr::get_body_offset(valBuf);
+    Expects(bodySize == 0);
+
+    cb::xattr::Blob xattrBlob(valBuf, false);
+    xattrBlob.prune_user_keys();
+    setData(xattrBlob.data(), xattrBlob.size());
+
+    // We have removed all user-xattrs, clear the xattr dt if no xattr left
+    if (xattrBlob.get_system_size() == 0) {
+        setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+    }
+
+    // Docs with no body and Xattrs may be created with DATATYPE_JSON to bypass
+    // the Subdoc restriction on DATATYPE_RAW | DATATYPE_XATTR, see Subdoc logic
+    // for details. Here we have to rectify.
+    // Note: Doing this unconditionally as we reach this line iff there is no
+    // body. We would need to do this conditionally otherwise.
+    setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_JSON);
+}
+
+void Item::removeBodyAndOrXattrs(
+        IncludeValue includeVal,
+        IncludeXattrs includeXattrs,
+        IncludeDeletedUserXattrs includeDeletedUserXattrs) {
     if (!value) {
         // If no value (ie, no body and/or xattrs) then nothing to do
         return;
@@ -469,13 +518,17 @@ void Item::removeBodyAndOrXattrs(IncludeValue includeVal,
         removeXattrs();
     }
 
-    // @todo: Paranoid check :) Consider to remove after code has been around
-    //  for a while
+    if (isDeleted() &&
+        includeDeletedUserXattrs == IncludeDeletedUserXattrs::No) {
+        removeUserXattrs();
+    }
+
+    // Datatype for no-value must be RAW
     if (getNBytes() == 0) {
         Expects(datatype == PROTOCOL_BINARY_RAW_BYTES);
     }
 
-    // MB-31967: Restore the complete datatype requested
+    // MB-31967: Restore the complete datatype if requested
     if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
         setDataType(originalDatatype);
     }

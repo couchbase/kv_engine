@@ -509,13 +509,24 @@ public:
     void removeXattrs();
 
     /**
+     * Remove user-xattrs from the Xattrs chunk of this item's value.
+     * No-op if no Value or no user-xattr present.
+     * Keeps the Body and the sys-xattrs intact, if any.
+     */
+    void removeUserXattrs();
+
+    /**
      * Removes Body and/or Xattrs from the item depending on the given params
      *
      * @param includeVal states whether the item should include body
      * @param includeXattrs states whether the item should include xattrs
+     * @param includeDeletedUserXattrs states whether a delete item should
+     *  include user-xattrs
      */
-    void removeBodyAndOrXattrs(IncludeValue includeVal,
-                               IncludeXattrs includeXattrs);
+    void removeBodyAndOrXattrs(
+            IncludeValue includeVal,
+            IncludeXattrs includeXattrs,
+            IncludeDeletedUserXattrs includeDeletedUserXattrs);
 
     /// Returns if this item is a system event
     bool isSystemEvent() const {

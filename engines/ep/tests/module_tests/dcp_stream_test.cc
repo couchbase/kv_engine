@@ -2957,6 +2957,156 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
     destroy_mock_cookie(cookie);
 }
 
+void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
+        uint32_t flags) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+
+    // Check that we are testing a valid configuration: here we want to test
+    // only configurations that trigger user-xattr pruning in deletes.
+    ASSERT_TRUE((flags & DcpOpenFlag::IncludeDeletedUserXattrs) == 0);
+
+    auto vb = engine->getVBucket(vbid);
+    recreateProducerAndStream(*vb, flags);
+
+    const auto currIncDelUserXattr =
+            (flags & DcpOpenFlag::IncludeDeletedUserXattrs) != 0
+                    ? IncludeDeletedUserXattrs::Yes
+                    : IncludeDeletedUserXattrs::No;
+    ASSERT_EQ(currIncDelUserXattr,
+              producer->public_getIncludeDeletedUserXattrs());
+    ASSERT_EQ(currIncDelUserXattr,
+              stream->public_getIncludeDeletedUserXattrs());
+
+    const auto currIncXattr = (flags & DcpOpenFlag::IncludeXattrs) != 0
+                                      ? IncludeXattrs::Yes
+                                      : IncludeXattrs::No;
+    ASSERT_EQ(currIncXattr, producer->public_getIncludeXattrs());
+    ASSERT_EQ(currIncXattr, stream->public_getIncludeXattrs());
+
+    ASSERT_EQ(IncludeValue::Yes, producer->public_getIncludeValue());
+    ASSERT_EQ(IncludeValue::Yes, stream->public_getIncludeValue());
+
+    // Create a value that contains some user-xattrs + the "_sync" sys-xattr
+    const auto value = createXattrValue("");
+
+    // Note: this body DT can be any type, but I set it to something != than RAW
+    // to test that if we prune everything we end up with DT RAW. See below.
+    const auto bodyType = PROTOCOL_BINARY_DATATYPE_JSON;
+
+    auto* cookie = create_mock_cookie();
+
+    // Store a Deleted doc
+    auto item = makeCommittedItem(makeStoredDocKey("keyD"), value);
+    item->setDataType(bodyType | PROTOCOL_BINARY_DATATYPE_XATTR);
+    uint64_t cas = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->store(cookie,
+                            item.get(),
+                            cas,
+                            OPERATION_ADD,
+                            {} /*durability*/,
+                            DocumentState::Deleted));
+
+    if (persistent()) {
+        // Flush and ensure docs on disk
+        flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
+        auto kvstore = store->getRWUnderlying(vbid);
+        const auto doc = kvstore->get(makeDiskDocKey("keyD"), vbid);
+        EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+        EXPECT_TRUE(doc.item->isDeleted());
+        // Check that we have persisted the expected value to disk
+        ASSERT_TRUE(doc.item);
+        ASSERT_GT(doc.item->getNBytes(), 0);
+        EXPECT_EQ(cb::const_char_buffer(value.c_str(), value.size()),
+                  cb::const_char_buffer(doc.item->getData(),
+                                        doc.item->getNBytes()));
+    }
+
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Push items to the readyQ and check what we get
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size());
+
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // Inspect payload for DCP deletion
+
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+    const auto& deletion = dynamic_cast<MutationResponse&>(*resp);
+    ASSERT_EQ(IncludeValue::Yes, deletion.getIncludeValue());
+    ASSERT_EQ(currIncXattr, deletion.getIncludeXattrs());
+    ASSERT_EQ(currIncDelUserXattr, deletion.getIncludeDeletedUserXattrs());
+
+    // Check that we stream the expected value.
+    // What value we stream depends on the current configuration:
+    // - if the test flags=0, then we want to prune everything, so no value
+    // - else if the test flags=IncludeXattr, then we want only sys-xattrs as
+    //   IncludeDeleteUserXattrs::No
+
+    const auto* delData = deletion.getItem()->getData();
+    const auto delNBytes = deletion.getItem()->getNBytes();
+
+    const auto valueBuf =
+            cb::char_buffer(const_cast<char*>(delData), delNBytes);
+
+    // Check that we have no body
+    if (valueBuf.size() > 0) {
+        const auto bodyOffset = cb::xattr::get_body_offset(valueBuf);
+        cb::const_char_buffer bodyBuf(delData + bodyOffset,
+                                      delNBytes - bodyOffset);
+        ASSERT_EQ(0, bodyBuf.size());
+    }
+
+    // Check that we have the expected value
+    if (flags == 0) {
+        ASSERT_EQ(IncludeXattrs::No, deletion.getIncludeXattrs());
+        ASSERT_EQ(IncludeDeletedUserXattrs::No,
+                  deletion.getIncludeDeletedUserXattrs());
+        // No value
+        // Note: DT for no-value must be RAW
+        ASSERT_EQ(PROTOCOL_BINARY_RAW_BYTES, deletion.getItem()->getDataType());
+        // Note: I would expect valueBuf.data()==nullptr, but was not the case
+        //  before my see Item::setData
+        ASSERT_EQ(0, valueBuf.size());
+    } else {
+        ASSERT_EQ(IncludeXattrs::Yes, deletion.getIncludeXattrs());
+        ASSERT_EQ(IncludeDeletedUserXattrs::No,
+                  deletion.getIncludeDeletedUserXattrs());
+
+        // Only xattrs in deletion, dt must be XATTR only
+        ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR,
+                  deletion.getItem()->getDataType());
+
+        cb::xattr::Blob blob(valueBuf, false);
+        // Must have NO user-xattrs
+        for (uint8_t i = 1; i <= 6; ++i) {
+            EXPECT_TRUE(blob.get("ABCuser" + std::to_string(i)).empty());
+        }
+        EXPECT_TRUE(blob.get("meta").empty());
+        // Must have sys-xattr
+        EXPECT_FALSE(blob.get("_sync").empty());
+    }
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       ProducerPrunesUserXattrsForDelete_NoDeleteUserXattrs) {
+    testProducerPrunesUserXattrsForDelete(
+            cb::mcbp::request::DcpOpenPayload::IncludeXattrs);
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       ProducerPrunesUserXattrsForDelete_NoXattrs) {
+    testProducerPrunesUserXattrsForDelete(0);
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         SingleThreadedActiveStreamTest,
                         STParameterizedBucketTest::allConfigValues(),
