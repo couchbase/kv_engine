@@ -1688,7 +1688,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     ASSERT_EQ(0, producer->getBytesOutstanding());
 
     // readyQ must contain a SnapshotMarker
-    ASSERT_EQ(1, stream->public_readyQSize());
+    ASSERT_GE(stream->public_readyQSize(), 1);
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -1862,9 +1862,13 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
 
         EXPECT_EQ(backfill_success, bfm.backfill()); // init
         EXPECT_EQ(backfill_success, bfm.backfill()); // scan
-        EXPECT_EQ(backfill_success, bfm.backfill()); // completing
-        EXPECT_EQ(backfill_success, bfm.backfill()); // done
-        EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
+        if (persistent()) {
+            // Persistent buckets need individual calls for each step,
+            // ephemeral does it in a single call.
+            EXPECT_EQ(backfill_success, bfm.backfill()); // completing
+            EXPECT_EQ(backfill_success, bfm.backfill()); // done
+            EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
+        }
         EXPECT_EQ(0, bfm.getNumBackfills());
 
         producer->closeStream(stream->getOpaque(), vbid, stream->getStreamId());
@@ -1884,8 +1888,10 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         EXPECT_EQ(backfill_success, bfm.backfill()); // init
         // scan is skipped
         EXPECT_EQ(backfill_success, bfm.backfill()); // completing
-        EXPECT_EQ(backfill_success, bfm.backfill()); // done
-        EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
+        if (persistent()) {
+            EXPECT_EQ(backfill_success, bfm.backfill()); // done
+            EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
+        }
         EXPECT_EQ(0, bfm.getNumBackfills());
     }
 }
@@ -2687,11 +2693,10 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_TRUE(producer->getReadyQueue().empty());
 }
 
-INSTANTIATE_TEST_CASE_P(
-        AllBucketTypes,
-        SingleThreadedActiveStreamTest,
-        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_CASE_P(AllBucketTypes,
+                        SingleThreadedActiveStreamTest,
+                        STParameterizedBucketTest::allConfigValues(),
+                        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_CASE_P(
         AllBucketTypes,
