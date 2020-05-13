@@ -4768,7 +4768,6 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
         EXPECT_EQ(backfill_success, manager.backfill()); // scan
         EXPECT_EQ(backfill_success, manager.backfill()); // completing
     }
-    EXPECT_EQ(backfill_success, manager.backfill()); // done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     ASSERT_EQ(2, stream->public_readyQSize());
@@ -4880,13 +4879,6 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     auto& manager = producer->getBFM();
 
     EXPECT_EQ(backfill_success, manager.backfill()); // init
-    if (persistent()) {
-        // Ephemeral create calls directly into scan,
-        // which calls directly into complete, short-circuiting the
-        // normal one step per run logic
-        // scan phase skipped because there are no items to backfill
-        EXPECT_EQ(backfill_success, manager.backfill()); // completing
-    }
     EXPECT_EQ(backfill_success, manager.backfill()); // done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
@@ -4990,7 +4982,6 @@ void DurabilityActiveStreamTest::
         EXPECT_EQ(backfill_success, manager.backfill()); // scan
         EXPECT_EQ(backfill_success, manager.backfill()); // completing
     }
-    EXPECT_EQ(backfill_success, manager.backfill()); // done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
     // snapshot marker + mutation
@@ -5047,13 +5038,6 @@ void DurabilityActiveStreamTest::
     EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
 
     EXPECT_EQ(backfill_success, manager.backfill()); // init
-    if (persistent()) {
-        // Ephemeral create calls directly into scan,
-        // which calls directly into complete, short-circuiting the
-        // normal one step per run logic
-        // scan phase skipped because there are no items to backfill
-        EXPECT_EQ(backfill_success, manager.backfill()); // completing
-    }
     EXPECT_EQ(backfill_success, manager.backfill()); // done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 

@@ -155,7 +155,8 @@ backfill_status_t DCPBackfillDisk::run() {
     case backfill_state_scanning:
         return scan();
     case backfill_state_completing:
-        return complete(false);
+        complete(false);
+        return backfill_finished;
     case backfill_state_done:
         return backfill_finished;
     }
@@ -268,13 +269,15 @@ backfill_status_t DCPBackfillDisk::create() {
 backfill_status_t DCPBackfillDisk::scan() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        return complete(true);
+        complete(true);
+        return backfill_finished;
     }
 
     Vbid vbid = stream->getVBucket();
 
     if (!(stream->isActive())) {
-        return complete(true);
+        complete(true);
+        return backfill_finished;
     }
 
     KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
@@ -289,7 +292,7 @@ backfill_status_t DCPBackfillDisk::scan() {
     return backfill_success;
 }
 
-backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
+void DCPBackfillDisk::complete(bool cancelled) {
     /* we want to destroy kv store context irrespective of a premature complete
        or not */
     KVStore* kvstore = engine.getKVBucket()->getROUnderlying(getVBucketId());
@@ -304,7 +307,7 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
                 getVBucketId(),
                 cancelled ? "cancelled" : "finished");
         transitionState(backfill_state_done);
-        return backfill_finished;
+        return;
     }
 
     stream->completeBackfill();
@@ -319,8 +322,6 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
                 cancelled ? "cancelled" : "finished");
 
     transitionState(backfill_state_done);
-
-    return backfill_success;
 }
 
 void DCPBackfillDisk::transitionState(backfill_state_t newState) {

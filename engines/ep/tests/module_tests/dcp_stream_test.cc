@@ -1861,7 +1861,6 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         recreateStream(*vb);
 
         EXPECT_EQ(backfill_success, bfm.backfill()); // init
-        EXPECT_EQ(backfill_success, bfm.backfill()); // scan
         if (persistent()) {
             // Persistent buckets need individual calls for each step,
             // ephemeral does it in a single call.
@@ -1889,7 +1888,6 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         // scan is skipped
         EXPECT_EQ(backfill_success, bfm.backfill()); // completing
         if (persistent()) {
-            EXPECT_EQ(backfill_success, bfm.backfill()); // done
             EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
         }
         EXPECT_EQ(0, bfm.getNumBackfills());

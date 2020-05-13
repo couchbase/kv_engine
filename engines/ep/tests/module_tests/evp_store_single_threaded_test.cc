@@ -238,8 +238,6 @@ void SingleThreadedKVBucketTest::runBackfill() {
     runNextTask(lpAuxioQ);
     // backfill:scan()
     runNextTask(lpAuxioQ);
-    // backfill:complete()
-    runNextTask(lpAuxioQ);
 
     // 1 Extra step for persistent backfill
     if (engine->getConfiguration().getBucketType() != "ephemeral") {
@@ -1110,7 +1108,6 @@ TEST_F(SingleThreadedEPBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     // Let the backfill task complete running through its various states
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
 
     // Now run the checkpoint processor task, whilst still backfilling
     // With MB-29369 this should be safe
@@ -1422,7 +1419,6 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
-    runNextTask(lpAuxioQ);
     // Assert that the callback (and hence backfill) was only invoked twice
     ASSERT_EQ(2, registerCursorCount);
     // take snapshot marker off the ReadyQ
@@ -1612,8 +1608,6 @@ TEST_F(SingleThreadedEPBucketTest, MB25056_do_not_set_pendingBackfill_to_true) {
     // backfill:scan()
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
     // backfill:complete()
-    runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
-    // backfill:finished()
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
     // inMemoryPhase and pendingBackfill is true and so transitions to
     // backfillPhase
@@ -3864,13 +3858,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     producers.clear_dcp_data();
 
     // Run a backfill
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    // backfill:create()
-    runNextTask(lpAuxioQ);
-    // backfill:scan()
-    runNextTask(lpAuxioQ);
-    // backfill:complete()
-    runNextTask(lpAuxioQ);
+    runBackfill();
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
@@ -3883,11 +3871,6 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
 
-    if (persistent()) {
-        // backfill:finished() - "CheckedExecutor failed fetchNextTask" thrown
-        // if called with an ephemeral bucket.
-        runNextTask(lpAuxioQ);
-    }
     producer->closeAllStreams();
     producer->cancelCheckpointCreatorTask();
     producer.reset();

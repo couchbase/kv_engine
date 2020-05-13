@@ -105,7 +105,7 @@ private:
      * @param cancelled indicates the if backfill finished fully or was
      *                  cancelled in between; for debug
      */
-    backfill_status_t complete(bool cancelled);
+    void complete(bool cancelled);
 
     /**
      * Makes transitions to the state machine to backfill from the disk
