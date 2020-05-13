@@ -408,6 +408,8 @@ public:
      * @param opaque DCP opaque value
      * @param includeVal Does the DCP message contain a value
      * @param includeXattrs Does the DCP message contain xattrs
+     * @param includeDeleteTime Does DCP include the delete time for deletions
+     * @param includeDeletesUserXattrs Does the DCP deletion contain user-xattrs
      * @param includeCollectionID If the incoming/outgoing key should contain
      *        the Collection-ID.
      */
@@ -416,15 +418,16 @@ public:
                      IncludeValue includeVal,
                      IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
+                     IncludeDeletedUserXattrs includeDeletedUserXattrs,
                      DocKeyEncodesCollectionId includeCollectionID,
                      EnableExpiryOutput enableExpiryOut,
                      cb::mcbp::DcpStreamId sid)
-        : DcpResponse(eventFromItem(*item), opaque,
-                      sid),
+        : DcpResponse(eventFromItem(*item), opaque, sid),
           item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
           includeDeleteTime(includeDeleteTime),
+          includeDeletedUserXattrs(includeDeletedUserXattrs),
           includeCollectionID(includeCollectionID),
           enableExpiryOutput(enableExpiryOut) {
     }
@@ -464,15 +467,23 @@ public:
     IncludeValue getIncludeValue() const {
         return includeValue;
     }
+
     IncludeXattrs getIncludeXattrs() const {
         return includeXattributes;
     }
+
+    IncludeDeletedUserXattrs getIncludeDeletedUserXattrs() const {
+        return includeDeletedUserXattrs;
+    }
+
     IncludeDeleteTime getIncludeDeleteTime() const {
         return includeDeleteTime;
     }
+
     DocKeyEncodesCollectionId getDocKeyEncodesCollectionId() const {
         return includeCollectionID;
     }
+
     EnableExpiryOutput getEnableExpiryOutput() const {
         return enableExpiryOutput;
     }
@@ -526,6 +537,8 @@ protected:
     IncludeXattrs includeXattributes;
     // Whether the response should include delete-time (when a delete)
     IncludeDeleteTime includeDeleteTime;
+    // Whether the response should include user-xattrs (when a delete)
+    IncludeDeletedUserXattrs includeDeletedUserXattrs;
     // Whether the response includes the collection-ID
     DocKeyEncodesCollectionId includeCollectionID;
     // Whether the response should utilise expiry opcode output
@@ -552,6 +565,7 @@ public:
                             IncludeValue includeVal,
                             IncludeXattrs includeXattrs,
                             IncludeDeleteTime includeDeleteTime,
+                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
                             DocKeyEncodesCollectionId includeCollectionID,
                             ExtendedMetaData* e,
                             cb::mcbp::DcpStreamId sid)
@@ -560,6 +574,7 @@ public:
                            includeVal,
                            includeXattrs,
                            includeDeleteTime,
+                           includeDeletedUserXattrs,
                            includeCollectionID,
                            EnableExpiryOutput::Yes,
                            sid),

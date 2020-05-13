@@ -48,7 +48,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         IncludeValue includeValue,
-        IncludeXattrs includeXattrs) {
+        IncludeXattrs includeXattrs,
+        IncludeDeletedUserXattrs includeDeletedUserXattrs) {
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(&engine_),
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -61,7 +62,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             snap_start_seqno,
             snap_end_seqno,
             includeValue,
-            includeXattrs);
+            includeXattrs,
+            includeDeletedUserXattrs);
     stream->setActive();
 
     auto baseStream = dynamic_pointer_cast<Stream>(stream);

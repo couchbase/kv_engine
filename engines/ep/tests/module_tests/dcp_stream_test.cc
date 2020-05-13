@@ -48,6 +48,7 @@
 #include "engines/ep/tests/mock/mock_dcp_conn_map.h"
 #include <engines/ep/tests/mock/mock_dcp_backfill_mgr.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 
 #include <folly/portability/GMock.h>
@@ -1579,15 +1580,41 @@ MutationStatus SingleThreadedActiveStreamTest::public_processSet(
             .first;
 }
 
-void SingleThreadedActiveStreamTest::recreateStream(VBucket& vb) {
-    stream = producer->mockActiveStreamRequest(0 /*flags*/,
-                                               0 /*opaque*/,
-                                               vb,
-                                               0 /*st_seqno*/,
-                                               ~0 /*en_seqno*/,
-                                               0x0 /*vb_uuid*/,
-                                               0 /*snap_start_seqno*/,
-                                               ~0 /*snap_end_seqno*/);
+void SingleThreadedActiveStreamTest::recreateProducerAndStream(VBucket& vb,
+                                                               uint32_t flags) {
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 flags,
+                                                 false /*startTask*/);
+    recreateStream(vb, true /*enforceProducerFlags*/);
+}
+
+void SingleThreadedActiveStreamTest::recreateStream(VBucket& vb,
+                                                    bool enforceProducerFlags) {
+    if (enforceProducerFlags) {
+        stream = producer->mockActiveStreamRequest(
+                0 /*flags*/,
+                0 /*opaque*/,
+                vb,
+                0 /*st_seqno*/,
+                ~0 /*en_seqno*/,
+                0x0 /*vb_uuid*/,
+                0 /*snap_start_seqno*/,
+                ~0 /*snap_end_seqno*/,
+                producer->public_getIncludeValue(),
+                producer->public_getIncludeXattrs(),
+                producer->public_getIncludeDeletedUserXattrs());
+    } else {
+        stream = producer->mockActiveStreamRequest(0 /*flags*/,
+                                                   0 /*opaque*/,
+                                                   vb,
+                                                   0 /*st_seqno*/,
+                                                   ~0 /*en_seqno*/,
+                                                   0x0 /*vb_uuid*/,
+                                                   0 /*snap_start_seqno*/,
+                                                   ~0 /*snap_end_seqno*/);
+    }
 }
 
 void SingleThreadedPassiveStreamTest::SetUp() {
@@ -2552,6 +2579,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                   IncludeValue::Yes,
                                   IncludeXattrs::Yes,
                                   IncludeDeleteTime::No,
+                                  IncludeDeletedUserXattrs::Yes,
                                   DocKeyEncodesCollectionId::No,
                                   nullptr /*ext-metadata*/,
                                   streamId)));
@@ -2826,6 +2854,107 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
     EXPECT_FALSE(producer->findStream(vbid)->isActive());
     EXPECT_TRUE(producer->getReadyQueue().empty());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+
+    auto vb = engine->getVBucket(vbid);
+    // Note: we require IncludeXattr::Yes for IncludeDeletedUserXattrs::Yes
+    recreateProducerAndStream(
+            *vb,
+            DcpOpenFlag::IncludeXattrs | DcpOpenFlag::IncludeDeletedUserXattrs);
+    ASSERT_EQ(IncludeDeletedUserXattrs::Yes,
+              producer->public_getIncludeDeletedUserXattrs());
+    ASSERT_EQ(IncludeDeletedUserXattrs::Yes,
+              stream->public_getIncludeDeletedUserXattrs());
+    ASSERT_EQ(IncludeXattrs::Yes, producer->public_getIncludeXattrs());
+    ASSERT_EQ(IncludeXattrs::Yes, stream->public_getIncludeXattrs());
+    ASSERT_EQ(IncludeValue::Yes, producer->public_getIncludeValue());
+    ASSERT_EQ(IncludeValue::Yes, stream->public_getIncludeValue());
+
+    // Create a value that contains some user-xattrs + the "_sync" sys-xattr
+    const auto value = createXattrValue("");
+
+    const protocol_binary_datatype_t dtJsonXattr =
+            PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR;
+
+    auto* cookie = create_mock_cookie();
+
+    // Store a Deleted doc
+    auto item = makeCommittedItem(makeStoredDocKey("keyD"), value);
+    item->setDataType(dtJsonXattr);
+    uint64_t cas = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              engine->store(cookie,
+                            item.get(),
+                            cas,
+                            OPERATION_ADD,
+                            {} /*durability*/,
+                            DocumentState::Deleted));
+
+    if (persistent()) {
+        // Flush and ensure docs on disk
+        flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
+        auto kvstore = store->getRWUnderlying(vbid);
+        const auto doc = kvstore->get(makeDiskDocKey("keyD"), vbid);
+        EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+        EXPECT_TRUE(doc.item->isDeleted());
+        // Check that we have persisted the expected value to disk
+        ASSERT_TRUE(doc.item);
+        ASSERT_GT(doc.item->getNBytes(), 0);
+        EXPECT_EQ(cb::const_char_buffer(value.c_str(), value.size()),
+                  cb::const_char_buffer(doc.item->getData(),
+                                        doc.item->getNBytes()));
+    }
+
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Push items to the readyQ and check what we get
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size());
+
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // Inspect payload for DCP deletion
+
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+    const auto& deletion = dynamic_cast<MutationResponse&>(*resp);
+    ASSERT_EQ(IncludeValue::Yes, deletion.getIncludeValue());
+    ASSERT_EQ(IncludeXattrs::Yes, deletion.getIncludeXattrs());
+    ASSERT_EQ(IncludeDeletedUserXattrs::Yes,
+              deletion.getIncludeDeletedUserXattrs());
+
+    // The value must contain all xattrs (user+sys)
+    ASSERT_EQ(dtJsonXattr, deletion.getItem()->getDataType());
+    const auto* delData = deletion.getItem()->getData();
+    const auto delNBytes = deletion.getItem()->getNBytes();
+
+    const auto valueBuf =
+            cb::char_buffer(const_cast<char*>(delData), delNBytes);
+
+    // Check that we have no body
+    const auto bodyOffset = cb::xattr::get_body_offset(valueBuf);
+    cb::const_char_buffer delBodyBuf(delData + bodyOffset,
+                                     delNBytes - bodyOffset);
+    ASSERT_EQ(0, delBodyBuf.size());
+
+    // Check that we have all the expected xattrs
+    cb::xattr::Blob blob(valueBuf, false);
+    // Must have user-xattrs
+    for (uint8_t i = 1; i <= 6; ++i) {
+        EXPECT_FALSE(blob.get("ABCuser" + std::to_string(i)).empty());
+    }
+    EXPECT_FALSE(blob.get("meta").empty());
+    // Must have sys-xattr
+    EXPECT_FALSE(blob.get("_sync").empty());
+
+    destroy_mock_cookie(cookie);
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

@@ -57,6 +57,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       pendingBackfill(false),
       lastReadSeqno(st_seqno),
       backfillRemaining(),
+      includeValue(includeVal),
+      includeXattributes(includeXattrs),
+      includeDeletedUserXattrs(includeDeletedUserXattrs),
       lastReadSeqnoUnSnapshotted(st_seqno),
       lastSentSeqno(st_seqno),
       curChkSeqno(st_seqno),
@@ -69,10 +72,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       takeoverSendMaxTime(e->getConfiguration().getDcpTakeoverMaxTime()),
       lastSentSnapEndSeqno(0),
       chkptItemsExtractionInProgress(false),
-      includeValue(includeVal),
-      includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
-      includeDeletedUserXattrs(includeDeletedUserXattrs),
       includeCollectionID(f.isLegacyFilter() ? DocKeyEncodesCollectionId::No
                                              : DocKeyEncodesCollectionId::Yes),
       enableExpiryOutput(p->isDCPExpiryEnabled() ? EnableExpiryOutput::Yes
@@ -964,6 +964,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
 static bool shouldModifyItem(const queued_item& item,
                              IncludeValue includeValue,
                              IncludeXattrs includeXattrs,
+                             IncludeDeletedUserXattrs includeDeletedUserXattrs,
                              bool isForceValueCompressionEnabled,
                              bool isSnappyEnabled) {
     // If there is no value, no modification needs to be done
@@ -997,9 +998,18 @@ static bool shouldModifyItem(const queued_item& item,
          * check if xattrs need to be pruned. If not, then
          * value needs no modification
          */
-        if (includeXattrs == IncludeXattrs::No &&
-            mcbp::datatype::is_xattr(item->getDataType())) {
-            return true;
+        if (mcbp::datatype::is_xattr(item->getDataType())) {
+            // Do we want to strip all xattrs regardless of whether the item is
+            // a mutation or deletion?
+            if (includeXattrs == IncludeXattrs::No) {
+                return true;
+            }
+
+            // Do we want to strip user-xattrs for deletions?
+            if (includeDeletedUserXattrs == IncludeDeletedUserXattrs::No &&
+                item->isDeleted()) {
+                return true;
+            }
         }
     }
 
@@ -1043,6 +1053,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         if (shouldModifyItem(item,
                              includeValue,
                              includeXattributes,
+                             includeDeletedUserXattrs,
                              isForceValueCompressionEnabled(),
                              isSnappyEnabled())) {
             auto finalItem = std::make_unique<Item>(*item);
@@ -1079,6 +1090,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                       includeValue,
                                                       includeXattributes,
                                                       includeDeleteTime,
+                                                      includeDeletedUserXattrs,
                                                       includeCollectionID,
                                                       enableExpiryOutput,
                                                       sid);
@@ -1090,6 +1102,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                   includeValue,
                                                   includeXattributes,
                                                   includeDeleteTime,
+                                                  includeDeletedUserXattrs,
                                                   includeCollectionID,
                                                   enableExpiryOutput,
                                                   sid);

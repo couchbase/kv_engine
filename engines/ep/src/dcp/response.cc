@@ -115,6 +115,7 @@ MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
                        response.getIncludeValue(),
                        response.getIncludeXattrs(),
                        response.getIncludeDeleteTime(),
+                       response.getIncludeDeletedUserXattrs(),
                        response.getDocKeyEncodesCollectionId(),
                        response.getEnableExpiryOutput(),
                        response.getStreamId()),

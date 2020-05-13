@@ -62,8 +62,24 @@ protected:
     MutationStatus public_processSet(VBucket& vb,
                                      Item& item,
                                      const VBQueueItemCtx& ctx = {});
+    /**
+     * Reset the current producer and stream and recreate with the given params.
+     *
+     * @param vb
+     * @param dcpOpenflags The flags used at producer creation
+     */
+    void recreateProducerAndStream(VBucket& vb, uint32_t flags);
 
-    void recreateStream(VBucket& vb);
+    /**
+     * @param vb
+     * @param enforceProducerFlags Whether we should simulate the real StreamReq
+     *  where Stream features are enabled depending on the flags passed from
+     *  Producer.
+     *  @todo: Currently we use some arg-defaults which would be nice to remove,
+     *  but that needs a general refactor and touching many tests unrelated from
+     *  the current work.
+     */
+    void recreateStream(VBucket& vb, bool enforceProducerFlags = false);
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;

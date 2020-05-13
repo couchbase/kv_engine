@@ -167,7 +167,9 @@ public:
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
             IncludeValue includeValue = IncludeValue::Yes,
-            IncludeXattrs includeXattrs = IncludeXattrs::Yes);
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
+            IncludeDeletedUserXattrs includeDeleteUserXattrs =
+                    IncludeDeletedUserXattrs::No);
 
     /**
      * Step the producer and expect the opcode to be returned
@@ -221,6 +223,14 @@ public:
 
     void setSeqnoAckHook(std::function<void()> hook) {
         seqnoAckHook = hook;
+    }
+
+    IncludeValue public_getIncludeValue() const {
+        return includeValue;
+    }
+
+    IncludeXattrs public_getIncludeXattrs() const {
+        return includeXattrs;
     }
 
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {

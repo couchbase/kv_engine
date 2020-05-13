@@ -428,6 +428,17 @@ protected:
     std::function<void()> completeBackfillHook;
     std::function<void()> nextHook;
 
+    // Whether the responses sent using this stream should contain the body
+    const IncludeValue includeValue;
+
+    // Whether the responses sent using the stream should contain the xattrs (if
+    // any)
+    const IncludeXattrs includeXattributes;
+
+    // Will the stream include user-xattrs (if any) at sending dcp (normal/sync)
+    // deletions?
+    const IncludeDeletedUserXattrs includeDeletedUserXattrs;
+
 private:
     std::unique_ptr<DcpResponse> next(std::lock_guard<std::mutex>& lh);
 
@@ -583,18 +594,8 @@ private:
        items are added to the readyQ */
     std::atomic<bool> chkptItemsExtractionInProgress;
 
-    // Whether the responses sent using this stream should contain the value
-    const IncludeValue includeValue;
-    // Whether the responses sent using the stream should contain the xattrs
-    // (if any exist)
-    const IncludeXattrs includeXattributes;
-
     // Will the stream send dcp deletions with delete-times?
     const IncludeDeleteTime includeDeleteTime;
-
-    // Will the stream include user-xattrs (if any) at sending dcp (normal/sync)
-    // deletions?
-    const IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
     // Will the stream encode the CollectionID in the key?
     const DocKeyEncodesCollectionId includeCollectionID;

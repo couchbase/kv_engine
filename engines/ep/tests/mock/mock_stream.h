@@ -41,7 +41,9 @@ public:
             uint64_t snap_start_seqno = std::numeric_limits<uint64_t>::min(),
             uint64_t snap_end_seqno = std::numeric_limits<uint64_t>::max(),
             IncludeValue includeValue = IncludeValue::Yes,
-            IncludeXattrs includeXattrs = IncludeXattrs::Yes);
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
+            IncludeDeletedUserXattrs includeDeletedUserXattrs =
+                    IncludeDeletedUserXattrs::No);
 
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {
@@ -163,6 +165,18 @@ public:
 
     void setNextHook(std::function<void()> hook) {
         nextHook = hook;
+    }
+
+    IncludeValue public_getIncludeValue() const {
+        return includeValue;
+    }
+
+    IncludeXattrs public_getIncludeXattrs() const {
+        return includeXattributes;
+    }
+
+    IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
+        return includeDeletedUserXattrs;
     }
 };
 
