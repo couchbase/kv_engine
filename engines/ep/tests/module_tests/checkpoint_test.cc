@@ -1848,6 +1848,50 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadHeapAllocatedKeyTest) {
     EXPECT_LT(keySize, overhead);
 }
 
+/**
+ * MB-35589: We do not add keys to the indexes of Disk Checkpoints.
+ *
+ * Disk Checkpoints do not maintain a key index in the same way that Memory
+ * Checkpoints do as we don't expect to perform de-duplication or de-duplication
+ * sanity checks. This is also necessary as we cannot let a Disk Checkpoint
+ * grow memory usage (after expelling) in a O(n) manner for heavy DGM use cases
+ * as we would use a lot of memory for key indexes. As such, test that we don't
+ * add keys to the indexes of Disk Checkpoints by measuring memory usage.
+ */
+TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
+    // Set checkpoint type to Disk
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+
+    // Get the intial size of the checkpoint overhead.
+    const auto initialOverhead = this->manager->getMemoryOverhead();
+
+    auto keySize = 2000;
+    std::string value("value");
+    queued_item qiSmall(new Item(makeStoredDocKey(std::string(keySize, 'x')),
+                                 0,
+                                 0,
+                                 value.c_str(),
+                                 value.size(),
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0,
+                                 -1,
+                                 Vbid(0)));
+
+    // Add the queued_item to the checkpoint
+    this->manager->queueDirty(*this->vbucket,
+                              qiSmall,
+                              GenerateBySeqno::Yes,
+                              GenerateCas::Yes,
+                              /*preLinkDocCtx*/ nullptr);
+
+    // The queue (toWrite) is implemented as std:list, therefore when we add an
+    // item it results in the creation of 3 pointers - forward ptr, backward ptr
+    // and ptr to object. This is tracked under memoryOverhead.
+    const size_t perElementOverhead = 3 * sizeof(uintptr_t);
+    EXPECT_EQ(initialOverhead + perElementOverhead,
+              this->manager->getMemoryOverhead());
+}
+
 // Test that can expel items and that we have the correct behaviour when we
 // register cursors for items that have been expelled.
 TEST_P(CheckpointTest, expelCheckpointItemsTest) {

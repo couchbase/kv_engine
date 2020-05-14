@@ -338,7 +338,17 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
         }
     }
 
-    if (qi->getKey().size() > 0) {
+    /**
+     * We only add keys to the indexes of Memory Checkpoints. We don't add them
+     * to the indexes of Disk Checkpoints as these grow at a O(n) rate and this
+     * is unsustainable for heavy DGM use cases. A Disk Checkpoint should also
+     * never contain more than one instance of any given key as we should only
+     * be keeping the latest copy of each key on disk. A Memory Checkpoint can
+     * have multiple of the same key in some circumstances and the keyIndexes
+     * allow us to perform de-duplication correctly on the active node and check
+     * on the replica node that we have received a valid Checkpoint.
+     */
+    if (qi->getKey().size() > 0 && !isDiskCheckpoint()) {
         ChkptQueueIterator last = end();
         // --last is okay as the list is not empty now.
         index_entry entry = {--last, qi->getBySeqno()};
