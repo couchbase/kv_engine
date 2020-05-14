@@ -1557,16 +1557,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
 
     auto vb = engine->getVBucket(vbid);
 
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                flags,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                0 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                0 /*snap_start_seqno*/,
-                                                ~0 /*snap_end_seqno*/);
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, flags, 0 /*opaque*/, *vb);
 
     stream->setActive();
 }

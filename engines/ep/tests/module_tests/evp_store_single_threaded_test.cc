@@ -3893,12 +3893,7 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
             producer,
             DCP_ADD_STREAM_FLAG_DISKONLY /* flags */,
             0 /* opaque */,
-            *vb,
-            0 /* startSeqno */,
-            std::numeric_limits<uint64_t>::max() /* endSeqno */,
-            0 /* vbUuid */,
-            0 /* snapStartSeqno */,
-            0 /* snapEndSeqno */);
+            *vb);
 
     stream->transitionStateToBackfilling();
     size_t limit = 0;

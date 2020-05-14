@@ -29,18 +29,19 @@ class MockDcpProducer;
  */
 class MockActiveStream : public ActiveStream {
 public:
-    MockActiveStream(EventuallyPersistentEngine* e,
-                     std::shared_ptr<MockDcpProducer> p,
-                     uint32_t flags,
-                     uint32_t opaque,
-                     VBucket& vb,
-                     uint64_t st_seqno,
-                     uint64_t en_seqno,
-                     uint64_t vb_uuid,
-                     uint64_t snap_start_seqno,
-                     uint64_t snap_end_seqno,
-                     IncludeValue includeValue = IncludeValue::Yes,
-                     IncludeXattrs includeXattrs = IncludeXattrs::Yes);
+    MockActiveStream(
+            EventuallyPersistentEngine* e,
+            std::shared_ptr<MockDcpProducer> p,
+            uint32_t flags,
+            uint32_t opaque,
+            VBucket& vb,
+            uint64_t st_seqno = std::numeric_limits<uint64_t>::min(),
+            uint64_t en_seqno = std::numeric_limits<uint64_t>::max(),
+            uint64_t vb_uuid = 0,
+            uint64_t snap_start_seqno = std::numeric_limits<uint64_t>::min(),
+            uint64_t snap_end_seqno = std::numeric_limits<uint64_t>::max(),
+            IncludeValue includeValue = IncludeValue::Yes,
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes);
 
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {
