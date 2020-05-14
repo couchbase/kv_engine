@@ -97,3 +97,48 @@ TEST_F(BackfillManagerTest, RoundRobin) {
     backfillMgr->backfill();
     backfillMgr->backfill();
 }
+
+/*
+ * MB-37680: Check that active backfills are scheduled in sequential order when
+ * backfillOrder is set to Sequential.
+ */
+TEST_F(BackfillManagerTest, Sequential) {
+    auto backfill0 = std::make_unique<GMockDCPBackfill>();
+    auto backfill1 = std::make_unique<GMockDCPBackfill>();
+    auto backfill2 = std::make_unique<GMockDCPBackfill>();
+
+    // Expectation - the first backfill should be run to completion before the
+    // next one starts.
+    //
+    {
+        InSequence s;
+        EXPECT_CALL(*backfill0, run())
+                .WillOnce(Return(backfill_success))
+                .WillOnce(Return(backfill_finished))
+                .RetiresOnSaturation();
+        EXPECT_CALL(*backfill1, run())
+                .WillOnce(Return(backfill_success))
+                .WillOnce(Return(backfill_finished))
+                .RetiresOnSaturation();
+        EXPECT_CALL(*backfill2, run())
+                .WillOnce(Return(backfill_success))
+                .WillOnce(Return(backfill_finished))
+                .RetiresOnSaturation();
+    }
+
+    // Test: schedule all backfills, then instruct the backfill manager to
+    // backfill 6 times.
+    backfillMgr->setBackfillOrder(BackfillManager::ScheduleOrder::Sequential);
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill0)));
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill1)));
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill2)));
+    backfillMgr->backfill();
+    backfillMgr->backfill();
+    backfillMgr->backfill();
+    backfillMgr->backfill();
+    backfillMgr->backfill();
+    backfillMgr->backfill();
+}

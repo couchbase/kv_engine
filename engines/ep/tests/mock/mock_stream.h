@@ -122,6 +122,9 @@ public:
      */
     void consumeBackfillItems(int numItems);
 
+    /// Consumes all ready backfill items.
+    void consumeAllBackfillItems();
+
     bool public_handleSlowStream() {
         return handleSlowStream();
     }

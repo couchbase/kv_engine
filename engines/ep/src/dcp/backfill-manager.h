@@ -70,6 +70,22 @@ public:
 
     void addStats(DcpProducer& conn, const AddStatFn& add_stat, const void* c);
 
+    /// The scheduling order for DCPBackfills
+    enum class ScheduleOrder {
+        /**
+         * Run the first DCPBackfill, if not finished then add to back of queue
+         * before running the next DCPBackfill.
+         * This is the default.
+         */
+        RoundRobin,
+        /// Run the first DCPBackfill to completion before starting on the next.
+        Sequential,
+    };
+    /**
+     * Sets the order by which backfills are scheduled:
+     */
+    void setBackfillOrder(ScheduleOrder order);
+
     enum class ScheduleResult {
         Active,
         Pending,
@@ -120,6 +136,8 @@ public:
                pendingBackfills.size();
     }
 
+    std::string to_string(ScheduleOrder order);
+
 protected:
     //! The buffer is the total bytes used by all backfills for this connection
     struct {
@@ -144,4 +162,5 @@ private:
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
     EventuallyPersistentEngine& engine;
     ExTask managerTask;
+    ScheduleOrder scheduleOrder{ScheduleOrder::RoundRobin};
 };
