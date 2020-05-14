@@ -298,6 +298,73 @@ STAT(sync_write_commit_persist_to_majority,
      level,
      persist_to_majority)
 
+// server_stats
+STAT(uptime, seconds, , , )
+STAT(stat_reset,
+     none,
+     ,
+     , ) // TODO: String indicating when stats were reset. Change
+         //  to a numeric stat for Prometheus?
+STAT(time, seconds, , , )
+STAT(version, none, , , ) // version string
+STAT(memcached_version, none, , , ) // version string
+STAT(libevent, none, , , ) // version string
+STAT(pointer_size, none, , , ) // constant
+STAT(daemon_connections, count, , , )
+STAT(curr_connections, count, , , )
+STAT(system_connections, count, , , )
+STAT(total_connections, count, , , ) // total since start/reset
+STAT(connection_structures, count, , , )
+STAT(cmd_get, count, operations, op, get)
+STAT(cmd_set, count, operations, op, set)
+STAT(cmd_flush, count, operations, op, flush)
+STAT(cmd_lock, count, operations, op, lock)
+STAT(cmd_subdoc_lookup, count, subdoc_operations, op, lookup)
+STAT(cmd_subdoc_mutation, count, subdoc_operations, op, mutation)
+STAT(bytes_subdoc_lookup_total,
+     bytes,
+     subdoc_lookup_searched,
+     , ) // type _bytes will be suffixed
+STAT(bytes_subdoc_lookup_extracted, bytes, subdoc_lookup_extracted, , )
+STAT(bytes_subdoc_mutation_total, bytes, subdoc_mutation_updated, , )
+STAT(bytes_subdoc_mutation_inserted, bytes, subdoc_mutation_inserted, , )
+// aggregates over all buckets
+STAT(cmd_total_sets, count, , , )
+STAT(cmd_total_gets, count, , , )
+STAT(cmd_total_ops, count, , , )
+// aggregates over multiple operations for a single bucket
+STAT(cmd_mutation, count, , , )
+STAT(cmd_lookup, count, , , )
+
+STAT(auth_cmds, count, , , )
+STAT(auth_errors, count, , , )
+STAT(get_hits, count, , , )
+STAT(get_misses, count, , , )
+STAT(delete_misses, count, , , )
+STAT(delete_hits, count, , , )
+STAT(incr_misses, count, , , )
+STAT(incr_hits, count, , , )
+STAT(decr_misses, count, , , )
+STAT(decr_hits, count, , , )
+STAT(cas_misses, count, , , )
+STAT(cas_hits, count, , , )
+STAT(cas_badval, count, , , )
+STAT(bytes_read, bytes, read, , ) // type _bytes will be suffixed
+STAT(bytes_written, bytes, written, , )
+STAT(rejected_conns, count, , , )
+STAT(threads, count, , , )
+STAT(conn_yields, count, , , )
+STAT(iovused_high_watermark, none, , , )
+STAT(msgused_high_watermark, none, , , )
+STAT(lock_errors, count, , , )
+STAT(cmd_lookup_10s_count, count, , , )
+// us suffix would be confusing in Prometheus as the stat is scaled to seconds
+STAT(cmd_lookup_10s_duration_us, microseconds, cmd_lookup_10s_duration, , )
+STAT(cmd_mutation_10s_count, count, , , )
+// us suffix would be confusing in Prometheus as the stat is scaled to seconds
+STAT(cmd_mutation_10s_duration_us, microseconds, cmd_mutation_10s_duration, , )
+STAT(total_resp_errors, count, , , )
+
 // Vbucket aggreagated stats
 #define VB_AGG_STAT(name, unit, familyName)                   \
     STAT(vb_active_##name, unit, familyName, state, active)   \
