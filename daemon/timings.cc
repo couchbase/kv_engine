@@ -114,8 +114,7 @@ static const cb::mcbp::ClientOpcode timings_retrievals[] = {
         cb::mcbp::ClientOpcode::SubdocGet,
         cb::mcbp::ClientOpcode::SubdocExists};
 
-uint64_t Timings::get_aggregated_mutation_stats() {
-
+uint64_t Timings::get_aggregated_mutation_stats() const {
     uint64_t ret = 0;
     for (auto cmd : timings_mutations) {
         auto* histoPtr =
@@ -128,8 +127,7 @@ uint64_t Timings::get_aggregated_mutation_stats() {
     return ret;
 }
 
-uint64_t Timings::get_aggregated_retrieval_stats() {
-
+uint64_t Timings::get_aggregated_retrieval_stats() const {
     uint64_t ret = 0;
     for (auto cmd : timings_retrievals) {
         auto* histoPtr =
