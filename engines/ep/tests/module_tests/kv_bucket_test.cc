@@ -1496,14 +1496,15 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
     setRandomFunction(returnZero);
 
     // Try with am empty hash table
-    auto gv = store->getRandomKey();
+    auto gv = store->getRandomKey(CollectionID::Default, cookie);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     Item item = store_item(
             vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0);
+    flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Try with a non-empty hash table
-    gv = store->getRandomKey();
+    gv = store->getRandomKey(CollectionID::Default, cookie);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
 

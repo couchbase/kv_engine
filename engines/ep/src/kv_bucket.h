@@ -127,7 +127,7 @@ public:
         return getInternal(key, vbucket, cookie, ForGetReplicaOp::No, options);
     }
 
-    GetValue getRandomKey() override;
+    GetValue getRandomKey(CollectionID cid, const void* cookie) override;
 
     GetValue getReplica(const DocKey& key,
                         Vbid vbucket,

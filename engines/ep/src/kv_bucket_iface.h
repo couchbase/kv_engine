@@ -145,9 +145,11 @@ public:
     /**
      * Retrieve a value randomly from the store.
      *
+     * @param cid collection to retrieve from
+     * @param cookie the connection cookie
      * @return a GetValue representing the value retrieved
      */
-    virtual GetValue getRandomKey() = 0;
+    virtual GetValue getRandomKey(CollectionID cid, const void* cookie) = 0;
 
     /**
      * Retrieve a value from a vbucket in replica state.

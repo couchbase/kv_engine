@@ -6238,12 +6238,14 @@ static enum test_result test_get_random_key(EngineIface* h) {
             h->unknown_command(cookie, *pkt, add_response),
             "Database should be empty");
 
+    StoredDocKey key("key", CollectionID::Default);
+
     // Store a key
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
                   OPERATION_SET,
-                  "mykey",
+                  key.keyData(),
                   "{\"some\":\"value\"}",
                   nullptr,
                   0,
@@ -6252,8 +6254,11 @@ static enum test_result test_get_random_key(EngineIface* h) {
                   PROTOCOL_BINARY_DATATYPE_JSON),
             "Failed set.");
     checkeq(cb::engine_errc::success,
-            get(h, nullptr, "mykey", Vbid(0)).first,
+            get(h, nullptr, key.keyData(), Vbid(0)).first,
             "Item should be there");
+
+    // collections only count after flush
+    wait_for_flusher_to_settle(h);
 
     // We should be able to get one if there is something in there
     checkeq(ENGINE_SUCCESS,
@@ -9348,7 +9353,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // no collection item counts on rocks
+                 prepare_skip_broken_under_rocks,
                  cleanup),
 
         TestCase("test failover log behavior",

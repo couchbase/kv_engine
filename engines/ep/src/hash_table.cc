@@ -335,14 +335,14 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
     return {std::move(hbl), foundCmt, foundPend};
 }
 
-std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
+std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid, long rnd) {
     /* Try to locate a partition */
     size_t start = rnd % size;
     size_t curr = start;
     std::unique_ptr<Item> ret;
 
     do {
-        ret = getRandomKeyFromSlot(curr++);
+        ret = getRandomKeyFromSlot(cid, curr++);
         if (curr == size) {
             curr = 0;
         }
@@ -1262,12 +1262,13 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
     return true;
 }
 
-std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
+std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(CollectionID cid,
+                                                      int slot) {
     auto lh = getLockedBucket(slot);
     for (StoredValue* v = values[slot].get().get(); v;
             v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
-            v->isCommitted()) {
+            v->isCommitted() && v->getKey().getCollectionID() == cid) {
             return v->toItem(Vbid(0));
         }
     }

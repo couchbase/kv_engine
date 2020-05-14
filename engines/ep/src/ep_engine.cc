@@ -6258,7 +6258,13 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(
         const void* cookie, const AddResponseFn& response) {
-    GetValue gv(kvBucket->getRandomKey());
+    CollectionID cid{CollectionID::Default};
+    auto priv = checkPrivilege(cookie, cb::rbac::Privilege::Read, cid);
+    if (priv != cb::engine_errc::success) {
+        return ENGINE_ERROR_CODE(priv);
+    }
+
+    GetValue gv(kvBucket->getRandomKey(cid, cookie));
     ENGINE_ERROR_CODE ret = gv.getStatus();
 
     if (ret == ENGINE_SUCCESS) {

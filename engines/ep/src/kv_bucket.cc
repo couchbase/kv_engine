@@ -1516,21 +1516,28 @@ GetValue KVBucket::getInternal(const DocKey& key,
     }
 }
 
-GetValue KVBucket::getRandomKey() {
+GetValue KVBucket::getRandomKey(CollectionID cid, const void* cookie) {
     size_t max = vbMap.getSize();
-
     const Vbid::id_type start = labs(getRandom()) % max;
     Vbid::id_type curr = start;
     std::unique_ptr<Item> itm;
 
-    while (itm == NULL) {
+    while (itm == nullptr) {
         VBucketPtr vb = getVBucket(Vbid(curr++));
         if (vb) {
             folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-            if (vb->getState() == vbucket_state_active &&
-                (itm = vb->ht.getRandomKey(getRandom()))) {
-                GetValue rv(std::move(itm), ENGINE_SUCCESS);
-                return rv;
+            if (vb->getState() == vbucket_state_active) {
+                auto cHandle = vb->lockCollections();
+                if (!cHandle.exists(cid)) {
+                    engine.setUnknownCollectionErrorContext(
+                            cookie, cHandle.getManifestUid());
+                    return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
+                }
+                if (cHandle.getItemCount(cid) != 0) {
+                    if (auto itm = vb->ht.getRandomKey(cid, getRandom()); itm) {
+                        return GetValue(std::move(itm), ENGINE_SUCCESS);
+                    }
+                }
             }
         }
 
@@ -1543,7 +1550,7 @@ GetValue KVBucket::getRandomKey() {
         // Search next vbucket
     }
 
-    return GetValue(NULL, ENGINE_KEY_ENOENT);
+    return GetValue(nullptr, ENGINE_KEY_ENOENT);
 }
 
 ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
