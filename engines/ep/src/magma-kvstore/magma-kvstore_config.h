@@ -21,6 +21,7 @@
 #include "libmagma/magma.h"
 
 class Configuration;
+class MagmaKVStore;
 
 // This class represents the MagmaKVStore specific configuration.
 // MagmaKVStore uses this in place of the KVStoreConfig base class.
@@ -30,6 +31,8 @@ public:
     MagmaKVStoreConfig(Configuration& config,
                        uint16_t numShards,
                        uint16_t shardid);
+
+    void setStore(MagmaKVStore* store);
 
     size_t getBucketQuota() {
         return bucketQuota;
@@ -88,10 +91,18 @@ public:
     bool getMagmaEnableBlockCache() const {
         return magmaEnableBlockCache;
     }
+    float getMagmaFragmentationRatio() const {
+        return magmaFragmentationRatio.load();
+    }
+    void setMagmaFragmentationRatio(float value);
 
     magma::Magma::Config magmaCfg;
 
 private:
+    class ConfigChangeListener;
+
+    MagmaKVStore* store;
+
     // Bucket RAM Quota
     size_t bucketQuota;
 
@@ -174,4 +185,8 @@ private:
     // Magma can utilize an LRU policy driven block cache that maintains
     // the index blocks from sstables.
     bool magmaEnableBlockCache;
+
+    // Ratio of fragmentation which magma will attempt to maintain via
+    // compaction. Atomic as this can be changed dynamically.
+    std::atomic<float> magmaFragmentationRatio;
 };

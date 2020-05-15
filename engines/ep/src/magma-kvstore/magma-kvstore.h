@@ -595,11 +595,15 @@ public:
 
     const KVStoreConfig& getConfig() const override;
 
+    void setMagmaFragmentationRatio(float value);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;
 
 protected:
+    class ConfigChangeListener;
+
     /**
      * CompactDB implementation. See comments on public compactDB.
      */

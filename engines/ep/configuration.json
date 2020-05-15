@@ -1128,6 +1128,18 @@
             "descr": "The block cache is an LRU policy driven cache that is used to maintain index blocks for the sstable's btrees.",
             "type": "bool"
         },
+        "magma_fragmentation_ratio": {
+            "default": "0.5",
+            "dynamic": true,
+            "descr": "The ratio of fragmentation a magma bucket aims to maintain. A 1.0 value will disable compaction by setting the desired fragmentation percentage to 100%. A 0.0 value will allow compaction to run constantly",
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
         "retain_erroneous_tombstones": {
             "default": "true",
             "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",

@@ -17,6 +17,24 @@
 
 #include "magma-kvstore_config.h"
 
+#include "magma-kvstore.h"
+
+/// A listener class to update MagmaKVSTore related configs at runtime.
+class MagmaKVStoreConfig::ConfigChangeListener : public ValueChangedListener {
+public:
+    ConfigChangeListener(MagmaKVStoreConfig& c) : config(c) {
+    }
+
+    void floatValueChanged(const std::string& key, float value) override {
+        if (key == "magma_fragmentation_ratio") {
+            config.setMagmaFragmentationRatio(value);
+        }
+    }
+
+private:
+    MagmaKVStoreConfig& config;
+};
+
 MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
                                        uint16_t numShards,
                                        uint16_t shardid)
@@ -40,4 +58,20 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaExpiryFragThreshold = config.getMagmaExpiryFragThreshold();
     magmaTombstoneFragThreshold = config.getMagmaTombstoneFragThreshold();
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
+    magmaFragmentationRatio = config.getMagmaFragmentationRatio();
+
+    config.addValueChangedListener(
+            "magma_fragmentation_ratio",
+            std::make_unique<ConfigChangeListener>(*this));
+}
+
+void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
+    this->store = store;
+}
+
+void MagmaKVStoreConfig::setMagmaFragmentationRatio(float value) {
+    magmaFragmentationRatio.store(value);
+    if (store) {
+        store->setMagmaFragmentationRatio(value);
+    }
 }

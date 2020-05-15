@@ -772,6 +772,13 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::mcbp::Status::Einval;
             }
+        } else if (key == "magma_fragmentation_ratio") {
+            float value;
+            if (safe_strtof(val.c_str(), value)) {
+                getConfiguration().setMagmaFragmentationRatio(value);
+            } else {
+                rv = cb::mcbp::Status::Einval;
+            }
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;

@@ -416,6 +416,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.WriteCacheRatio =
             configuration.getMagmaWriteCacheRatio();
 
+    configuration.setStore(this);
+
     magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
 
     cachedVBStates.resize(configuration.getMaxVBuckets());
@@ -468,6 +470,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     }
 
     setMaxDataSize(configuration.getBucketQuota());
+    setMagmaFragmentationRatio(configuration.getMagmaFragmentationRatio());
 
     auto kvstoreList = magma->GetKVStoreList();
     for (auto& kvid : kvstoreList) {
@@ -2257,6 +2260,10 @@ void MagmaKVStore::addLocalDbReqs(const LocalDbReqs& localDbReqs,
 void MagmaKVStore::addStatUpdateToWriteOps(
         MagmaDbStats& stats, MagmaKVStore::WriteOps& writeOps) const {
     writeOps.emplace_back(Magma::WriteOperation::NewUserStatsUpdate(&stats));
+}
+
+void MagmaKVStore::setMagmaFragmentationRatio(float value) {
+    magma->SetFragmentationRatio(value);
 }
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
