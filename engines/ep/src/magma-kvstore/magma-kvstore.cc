@@ -848,17 +848,20 @@ void MagmaKVStore::reset(Vbid vbid) {
 
     Status status;
     Magma::KVStoreRevision kvsRev;
-    std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
+    std::tie(status, kvsRev) = magma->GetKVStoreRevision(vbid.get());
     if (!status) {
         logger->critical(
-                "MagmaKVStore::reset SoftDeleteKVStore failed. {} "
+                "MagmaKVStore::reset GetKVStoreRevision failed. {} "
                 "status:{}",
                 vbid.to_string(),
                 status.String());
+        // Magma doesn't think the kvstore exists. We need to use
+        // the kvstore revision from kv engine and assume its
+        // the latest revision. This will allow DeleteKVStore to
+        // remove the kvstore path.
+        kvsRev = kvstoreRevList[vbid.get()];
     }
-    // Even though SoftDeleteKVStore might have failed, go ahead and
-    // call DeleteKVStore because it will remove the KVStore path
-    // regardless if we think the kvstore is valid or not.
+
     status = magma->DeleteKVStore(vbid.get(), kvsRev);
     if (!status) {
         logger->critical(
@@ -895,12 +898,6 @@ void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
 }
 
 void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
-    if (magma->KVStoreExists(vbid.get())) {
-        throw std::logic_error("MagmaKVStore::prepareToCreateImpl " +
-                               vbid.to_string() +
-                               " Can't call prepareToCreate before calling" +
-                               " prepareToDelete on an existing kvstore.");
-    }
     auto vbstate = getVBucketState(vbid);
     if (vbstate) {
         vbstate->reset();
@@ -913,23 +910,20 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
 }
 
 uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
-    if (magma->KVStoreExists(vbid.get())) {
-        Status status;
-        Magma::KVStoreRevision kvsRev;
-        std::tie(status, kvsRev) = magma->SoftDeleteKVStore(vbid.get());
-        if (!status) {
-            logger->critical(
-                    "MagmaKVStore::prepareToDeleteImpl SoftDeleteKVStore "
-                    "failed. {} status:{}",
-                    vbid,
-                    status.String());
-        }
-        logger->info("MagmaKVStore::prepareToDeleteImpl {} kvstoreRev:{}",
-                     vbid,
-                     kvstoreRevList[vbid.get()]);
-        return static_cast<uint64_t>(kvstoreRevList[vbid.get()]);
+    Status status;
+    Magma::KVStoreRevision kvsRev;
+    std::tie(status, kvsRev) = magma->GetKVStoreRevision(vbid.get());
+    if (!status) {
+        logger->critical(
+                "MagmaKVStore::prepareToDeleteImpl {} "
+                "GetKVStoreRevision failed. Status:{}",
+                vbid,
+                status.String());
+        // Even though we couldn't get the kvstore revision from magma,
+        // we'll use what is in kv engine and assume its the latest.
+        kvsRev = kvstoreRevList[vbid.get()];
     }
-    return 0;
+    return kvsRev;
 }
 
 // Note: It is assumed this can only be called from bg flusher thread or
