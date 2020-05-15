@@ -82,12 +82,24 @@ protected:
     void recreateStream(VBucket& vb, bool enforceProducerFlags = false);
 
     /**
+     * Verify that a DCP Producer sends user-xattrs in Normal (DCP_DELETE) and
+     * Sync (DCP_PREPARE) Deletes.
+     *
+     * @param durReqs
+     */
+    void testProducerIncludesUserXattrsInDelete(
+            const boost::optional<cb::durability::Requirements>& durReqs);
+
+    /**
      * Verifies scenarios where a Producer has IncludeDeletedUserXattrs::No, so
      * user-xattr (if any) must be pruned from the delete value before streaming
+     * The test covers Normal and Sync Deletes.
      *
      * @param flags The DcpOpen flags under test
      */
-    void testProducerPrunesUserXattrsForDelete(uint32_t flags);
+    void testProducerPrunesUserXattrsForDelete(
+            uint32_t flags,
+            const boost::optional<cb::durability::Requirements>& durReqs);
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
