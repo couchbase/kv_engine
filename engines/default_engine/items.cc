@@ -1149,7 +1149,6 @@ void item_scrubber_main(struct default_engine *engine)
     hash_item cursor;
     int ii;
 
-    memset(&cursor, 0, sizeof(cursor));
     cursor.refcount = 1;
     for (ii = 0; ii < POWER_LARGEST; ++ii) {
         bool skip = false;

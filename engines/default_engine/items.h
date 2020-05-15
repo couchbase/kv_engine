@@ -9,39 +9,39 @@
 #include <cstring>
 
 /*
- * You should not try to aquire any of the item locks before calling these
+ * You should not try to acquire any of the item locks before calling these
  * functions.
  */
-typedef struct _hash_item {
-    struct _hash_item* next;
-    struct _hash_item* prev;
-    struct _hash_item* h_next; /* hash chain next */
+using hash_item = struct _hash_item {
+    struct _hash_item* next{nullptr};
+    struct _hash_item* prev{nullptr};
+    struct _hash_item* h_next{nullptr}; /* hash chain next */
     /**
      * The unique identifier for this item (it is guaranteed to be unique
      * per key, which means that a two different version of a document
      * cannot have the same CAS value (This is not true after a server
      * restart given that default_bucket is an in-memory bucket).
      */
-    uint64_t cas;
+    uint64_t cas{0};
 
     /** least recent access */
-    rel_time_t time;
+    rel_time_t time{0};
 
     /** When the item will expire (relative to process startup) */
-    rel_time_t exptime;
+    rel_time_t exptime{0};
 
     /**
      * When the current lock for the object expire. If locktime < "current
      * time" the item isn't locked anymore (timed out). If locktime >=
      * "current time" the object is locked.
      */
-    rel_time_t locktime;
+    rel_time_t locktime{0};
 
     /** The total size of the data (in bytes) */
-    uint32_t nbytes;
+    uint32_t nbytes{0};
 
     /** Flags associated with the item (in network byte order) */
-    uint32_t flags;
+    uint32_t flags{0};
 
     /**
      * The number of entities holding a reference to this item object (we
@@ -49,19 +49,19 @@ typedef struct _hash_item {
      * our clients to share an existing object, but we need the refcount
      * so that we know when we can release the object.
      */
-    uint16_t refcount;
+    uint16_t refcount = 0;
 
     /** Intermal flags used by the engine.*/
-    std::atomic<uint8_t> iflag;
+    std::atomic<uint8_t> iflag{0};
 
     /** which slab class we're in */
-    uint8_t slabs_clsid;
+    uint8_t slabs_clsid{0};
 
     /** to identify the type of the data */
-    uint8_t datatype;
+    uint8_t datatype{0};
 
     // There is 3 spare bytes due to alignment
-} hash_item;
+};
 
 /*
     The structure of the key we hash with.
