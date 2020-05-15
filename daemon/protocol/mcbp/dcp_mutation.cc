@@ -17,6 +17,7 @@
 
 #include "dcp_mutation.h"
 #include "engine_wrapper.h"
+#include "executors.h"
 #include "utilities.h"
 
 #include <memcached/limits.h>
@@ -68,25 +69,11 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
 void dcp_mutation_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
-    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         ret = do_dcp_mutation(cookie);
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-
-    case ENGINE_DISCONNECT:
-        connection.shutdown();
-        break;
-
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        break;
-
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
+    if (ret != ENGINE_SUCCESS) {
+        handle_executor_status(cookie, ret);
     }
 }

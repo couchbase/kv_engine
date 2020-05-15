@@ -77,12 +77,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
                            collections);
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-
-    case ENGINE_ROLLBACK:
+    if (ret == ENGINE_ROLLBACK) {
         rollback_seqno = htonll(rollback_seqno);
         cookie.sendResponse(cb::mcbp::Status::Rollback,
                             {},
@@ -91,17 +86,8 @@ void dcp_stream_req_executor(Cookie& cookie) {
                              sizeof(rollback_seqno)},
                             cb::mcbp::Datatype::Raw,
                             0);
-        break;
-    case ENGINE_DISCONNECT:
-        connection.shutdown();
-        break;
-
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        break;
-
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
+    } else if (ret != ENGINE_SUCCESS) {
+        handle_executor_status(cookie, ret);
     }
 }
 

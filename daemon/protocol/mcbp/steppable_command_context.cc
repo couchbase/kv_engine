@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "steppable_command_context.h"
+#include "executors.h"
 
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
@@ -51,26 +52,8 @@ void SteppableCommandContext::drive() {
     }
 
     cookie.logResponse(ret);
-    auto remapErr = connection.remapErrorCode(ret);
-    switch (remapErr) {
-    case ENGINE_SUCCESS:
-        break;
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        return;
-    case ENGINE_DISCONNECT:
-        if (ret == ENGINE_DISCONNECT) {
-            LOG_WARNING(
-                    "{}: SteppableCommandContext::drive - step returned "
-                    "ENGINE_DISCONNECT - closing connection {}",
-                    connection.getId(),
-                    connection.getDescription());
-        }
-        connection.shutdown();
-        return;
-    default:
-        cookie.sendResponse(cb::engine_errc(remapErr));
-        return;
+    if (ret != ENGINE_SUCCESS) {
+        handle_executor_status(cookie, ret);
     }
 }
 

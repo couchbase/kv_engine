@@ -25,7 +25,6 @@
 void dcp_close_stream_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
-    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         const auto& header = cookie.getHeader().getRequest();
         cb::mcbp::DcpStreamId dcpStreamId; // Initialises to 'none'
@@ -45,22 +44,6 @@ void dcp_close_stream_executor(Cookie& cookie) {
                 cookie, header.getOpaque(), header.getVBucket(), dcpStreamId);
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        cookie.sendResponse(cb::mcbp::Status::Success);
-        break;
-
-    case ENGINE_DISCONNECT:
-        connection.shutdown();
-        break;
-
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        break;
-
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
-    }
+    handle_executor_status(cookie, ret);
 }
 

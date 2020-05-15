@@ -72,27 +72,21 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {
 
 void list_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    cookie.logCommand();
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
         ret = list_bucket(connection);
+        if (ret.first == ENGINE_SUCCESS) {
+            cookie.sendResponse(cb::mcbp::Status::Success,
+                                {},
+                                {},
+                                {ret.second.data(), ret.second.size()},
+                                cb::mcbp::Datatype::Raw,
+                                0);
+            return;
+        }
     } catch (const std::bad_alloc&) {
         ret.first = ENGINE_ENOMEM;
     }
 
-    ret.first = connection.remapErrorCode(ret.first);
-    cookie.logResponse(ret.first);
-
-    if (ret.first == ENGINE_SUCCESS) {
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            {ret.second.data(), ret.second.size()},
-                            cb::mcbp::Datatype::Raw,
-                            0);
-    } else if (ret.first == ENGINE_DISCONNECT) {
-        connection.shutdown();
-    } else {
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret.first)));
-    }
+    handle_executor_status(cookie, ret.first);
 }

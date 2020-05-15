@@ -27,12 +27,8 @@ void collections_set_manifest_executor(Cookie& cookie) {
     auto val = req.getValue();
     std::string_view jsonBuffer{reinterpret_cast<const char*>(val.data()),
                                 val.size()};
-    auto ret = connection.getBucketEngine().set_collection_manifest(&cookie,
-                                                                    jsonBuffer);
-
-    if (ret == cb::engine_errc::disconnect) {
-        connection.shutdown();
-    } else {
-        cookie.sendResponse(ret);
-    }
+    const auto ret = connection.getBucketEngine().set_collection_manifest(
+            &cookie, jsonBuffer);
+    Expects(ret != cb::engine_errc::would_block);
+    handle_executor_status(cookie, ret);
 }

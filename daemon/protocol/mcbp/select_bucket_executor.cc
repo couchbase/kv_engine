@@ -124,11 +124,5 @@ void select_bucket_executor(Cookie& cookie) {
         code = select_bucket(cookie, bucketname);
     }
 
-    auto ret = connection.remapErrorCode(code);
-    cookie.logResponse(ret);
-    if (ret == ENGINE_DISCONNECT) {
-        connection.shutdown();
-        return;
-    }
-    cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret)));
+    handle_executor_status(cookie, code);
 }

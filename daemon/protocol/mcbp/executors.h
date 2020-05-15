@@ -61,3 +61,16 @@ void get_cluster_config_executor(Cookie&);
 void set_cluster_config_executor(Cookie&);
 
 void adjust_timeofday_executor(Cookie&);
+
+/**
+ * Handle the status for an executor (update ewouldblock state / disconnect
+ * send responses etc)
+ *
+ * @param cookie The command cookie running the operation
+ * @param status code (cannot be rollback)
+ */
+void handle_executor_status(Cookie& cookie, cb::engine_errc status);
+static inline void handle_executor_status(Cookie& cookie,
+                                          ENGINE_ERROR_CODE status) {
+    handle_executor_status(cookie, cb::engine_errc(status));
+}

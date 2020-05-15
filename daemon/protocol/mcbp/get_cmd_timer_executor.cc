@@ -175,7 +175,6 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
 }
 
 void get_cmd_timer_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
     cookie.logCommand();
     std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
@@ -183,23 +182,9 @@ void get_cmd_timer_executor(Cookie& cookie) {
     } catch (const std::bad_alloc&) {
         ret.first = ENGINE_ENOMEM;
     }
+    cookie.logResponse(ret.first);
 
-    auto remapErr = connection.remapErrorCode(ret.first);
-    cookie.logResponse(remapErr);
-
-    if (remapErr == ENGINE_DISCONNECT) {
-        if (ret.first == ENGINE_DISCONNECT) {
-            LOG_WARNING(
-                    "{}: get_cmd_timer_executor - get_cmd_timer returned "
-                    "ENGINE_DISCONNECT - closing connection {}",
-                    connection.getId(),
-                    connection.getDescription());
-        }
-        connection.shutdown();
-        return;
-    }
-
-    if (remapErr == ENGINE_SUCCESS) {
+    if (ret.first == ENGINE_SUCCESS) {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
@@ -207,6 +192,6 @@ void get_cmd_timer_executor(Cookie& cookie) {
                             cb::mcbp::Datatype::JSON,
                             0);
     } else {
-        cookie.sendResponse(cb::engine_errc(remapErr));
+        handle_executor_status(cookie, ret.first);
     }
 }

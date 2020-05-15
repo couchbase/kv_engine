@@ -25,7 +25,6 @@
 void dcp_snapshot_marker_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
-    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         auto& req = cookie.getRequest();
         const auto snapshot = cb::mcbp::DcpSnapshotMarker::decode(req);
@@ -39,21 +38,8 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
                                 snapshot.getMaxVisibleSeqno());
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-
-    case ENGINE_DISCONNECT:
-        connection.shutdown();
-        break;
-
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        break;
-
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
+    if (ret != ENGINE_SUCCESS) {
+        handle_executor_status(cookie, ret);
     }
 }
 

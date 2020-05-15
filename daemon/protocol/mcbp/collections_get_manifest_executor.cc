@@ -24,17 +24,10 @@
 
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine().get_collection_manifest(
+    const auto ret = connection.getBucketEngine().get_collection_manifest(
             &cookie, mcbpResponseHandlerFn);
-
-    ret = cookie.getConnection().remapErrorCode(ret);
-    switch (ret) {
-    case cb::engine_errc::success:
-        break;
-    case cb::engine_errc::disconnect:
-        connection.shutdown();
-        break;
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
+    if (ret != cb::engine_errc::success) {
+        Expects(ret != cb::engine_errc::would_block);
+        handle_executor_status(cookie, ret);
     }
 }

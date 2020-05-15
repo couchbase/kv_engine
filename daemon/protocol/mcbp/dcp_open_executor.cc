@@ -62,9 +62,7 @@ void dcp_open_executor(Cookie& cookie) {
         }
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS: {
+    if (ret == ENGINE_SUCCESS) {
         const bool dcpXattrAware =
                 (flags & DcpOpenPayload::IncludeXattrs) != 0 &&
                 connection.selectedBucketIsXattrEnabled();
@@ -110,18 +108,7 @@ void dcp_open_executor(Cookie& cookie) {
 
         audit_dcp_open(connection);
         cookie.sendResponse(cb::mcbp::Status::Success);
-        break;
-    }
-
-    case ENGINE_DISCONNECT:
-        connection.shutdown();
-        break;
-
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        break;
-
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
+    } else {
+        handle_executor_status(cookie, ret);
     }
 }

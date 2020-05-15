@@ -16,6 +16,7 @@
  */
 #include "dcp_system_event_executor.h"
 #include "engine_wrapper.h"
+#include "executors.h"
 #include "utilities.h"
 
 #include <memcached/protocol_binary.h>
@@ -23,7 +24,6 @@
 void dcp_system_event_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
-    auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         using cb::mcbp::request::DcpSystemEventPayload;
         const auto& request = cookie.getRequest();
@@ -41,20 +41,7 @@ void dcp_system_event_executor(Cookie& cookie) {
                              request.getValue());
     }
 
-    ret = connection.remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-
-    case ENGINE_DISCONNECT:
-        connection.shutdown();
-        break;
-
-    case ENGINE_EWOULDBLOCK:
-        cookie.setEwouldblock(true);
-        break;
-
-    default:
-        cookie.sendResponse(cb::engine_errc(ret));
+    if (ret != ENGINE_SUCCESS) {
+        handle_executor_status(cookie, ret);
     }
 }
