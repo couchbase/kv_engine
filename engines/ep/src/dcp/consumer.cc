@@ -31,6 +31,7 @@
 
 #include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
+#include <xattr/utils.h>
 
 #include <utility>
 
@@ -588,19 +589,43 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                            vbucket,
                                            revSeqno));
 
-    // MB-29040: Producer may send deleted doc with value that still has
-    // the user xattrs and the body. Fix up that mistake by running the
-    // expiry hook which will correctly process the document
-    if (value.size()) {
-        if (mcbp::datatype::is_xattr(datatype)) {
-            auto vb = engine_.getVBucket(vbucket);
-            if (vb) {
-                engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
+    // MB-37374: 6.6 Producers may legally send user-xattrs in deletion.
+    // The existing validation for pre-6.6 Producers is still necessary.
+    if (includeDeletedUserXattrs == IncludeDeletedUserXattrs::No) {
+        // MB-29040: Producer may send deleted doc with value that still has
+        // the user xattrs and the body. Fix up that mistake by running the
+        // expiry hook which will correctly process the document
+        if (value.size() > 0) {
+            if (mcbp::datatype::is_xattr(datatype)) {
+                auto vb = engine_.getVBucket(vbucket);
+                if (vb) {
+                    engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
+                }
+            } else {
+                // MB-31141: Deletes cannot have a value
+                item->replaceValue(Blob::New(0));
+                item->setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
+        }
+    } else {
+        // Some validation seems reasonable here, given that in the past we
+        // already had issues in this area (see if-block above).
+        bool hasBody = false;
+        if (mcbp::datatype::is_xattr(datatype)) {
+            const auto size = value.size();
+            const auto val = cb::const_char_buffer{
+                    reinterpret_cast<const char*>(value.data()), size};
+            const auto bodySize = size - cb::xattr::get_body_offset(val);
+            hasBody = (bodySize > 0);
         } else {
-            // MB-31141: Deletes cannot have a value
-            item->replaceValue(Blob::New(0));
-            item->setDataType(PROTOCOL_BINARY_RAW_BYTES);
+            hasBody = (value.size() > 0);
+        }
+
+        if (hasBody) {
+            logger->warn(
+                    "DcpConsumer::deletion: ({}) Value cannot contain a body",
+                    vbucket);
+            return ENGINE_EINVAL;
         }
     }
 

@@ -3150,6 +3150,11 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     int opaque = 1;
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
 
+    // MB-37374: Since 6.6, the validation covered in this test is enforce only
+    // for producers that don't enable IncludeDeletedUserXattrs. So we need to
+    // simulate the related Consumer negotiation before proceeding.
+    consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::No);
+
     std::string body;
     if (!isXattrSystem()) {
         body.assign("value");
