@@ -68,6 +68,7 @@
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 #include <xattr/blob.h>
@@ -4414,7 +4415,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentEngine::addLookupAllKeys(const void *cookie,
+void EventuallyPersistentEngine::addLookupAllKeys(const void* cookie,
                                                   ENGINE_ERROR_CODE err) {
     LockHolder lh(lookupMutex);
     allKeysLookups[cookie] = err;
@@ -6060,14 +6061,24 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     }
 
     DocKey start_key = makeDocKey(cookie, request.getKey());
-    ExTask task =
-            std::make_shared<FetchAllKeysTask>(this,
-                                               cookie,
-                                               response,
-                                               start_key,
-                                               request.getVBucket(),
-                                               count,
-                                               isCollectionsSupported(cookie));
+    auto privTestResult =
+            checkPrivilege(cookie, cb::rbac::Privilege::Read, start_key);
+    if (privTestResult != ENGINE_SUCCESS) {
+        return privTestResult;
+    }
+
+    std::optional<CollectionID> keysCollection;
+    if (isCollectionsSupported(cookie)) {
+        keysCollection = start_key.getCollectionID();
+    }
+
+    ExTask task = std::make_shared<FetchAllKeysTask>(this,
+                                                     cookie,
+                                                     response,
+                                                     start_key,
+                                                     request.getVBucket(),
+                                                     count,
+                                                     keysCollection);
     ExecutorPool::get()->schedule(task);
     return ENGINE_EWOULDBLOCK;
 }

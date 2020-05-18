@@ -24,19 +24,30 @@
 #include <mcbp/protocol/status.h>
 #include <phosphor/phosphor.h>
 
+#include <utility>
+
 void AllKeysCallback::callback(const DiskDocKey& key) {
+    setStatus(static_cast<int>(AllKeysCallbackStatus::KeySkipped));
+    if (addedKeyCount >= maxCount) {
+        return;
+    }
+
     auto outKey = key.getDocKey();
     if (outKey.isPrivate() || key.isPrepared()) {
         // Skip system-event and durability-prepared keys
         return;
     }
 
-    if (!collectionsSupported) {
+    if (collection) {
+        if (outKey.getCollectionID() != collection.value()) {
+            return;
+        }
+    } else {
         if (outKey.getCollectionID().isDefaultCollection()) {
             outKey = outKey.makeDocKeyWithoutCollectionID();
         } else {
-            // Only default collection key can be sent back if
-            // collectionsSupported is false
+            // Only default collection key can be sent back if collections is
+            // not supported, implied by 'collection' not having a value
             return;
         }
     }
@@ -51,6 +62,10 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
     buffer.insert(buffer.end(), outlenPtr, outlenPtr + sizeof(uint16_t));
     // insert the char buffer
     buffer.insert(buffer.end(), outKey.data(), outKey.data() + outKey.size());
+
+    addedKeyCount++;
+    setStatus(static_cast<int>(AllKeysCallbackStatus::KeyAdded));
+    return;
 }
 
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
@@ -59,7 +74,7 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
                                    const DocKey start_key_,
                                    Vbid vbucket,
                                    uint32_t count_,
-                                   bool collectionsSupported)
+                                   std::optional<CollectionID> collection)
     : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
       cookie(c),
       description("Running the ALL_DOCS api on " + vbucket.to_string()),
@@ -67,7 +82,7 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
       start_key(start_key_),
       vbid(vbucket),
       count(count_),
-      collectionsSupported(collectionsSupported) {
+      collection(std::move(collection)) {
 }
 
 bool FetchAllKeysTask::run() {
@@ -89,14 +104,13 @@ bool FetchAllKeysTask::run() {
                       ? ENGINE_SUCCESS
                       : ENGINE_FAILED;
     } else {
-        auto cb = std::make_shared<AllKeysCallback>(collectionsSupported);
+        auto cb = std::make_shared<AllKeysCallback>(collection, count);
         err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                 vbid, start_key, count, cb);
         if (err == ENGINE_SUCCESS) {
             err = response({}, // key
                            {}, // extra
-                           {((AllKeysCallback*)cb.get())->getAllKeysPtr(),
-                            ((AllKeysCallback*)cb.get())->getAllKeysLen()},
+                           {cb->getAllKeysPtr(), cb->getAllKeysLen()},
                            PROTOCOL_BINARY_RAW_BYTES,
                            cb::mcbp::Status::Success,
                            0,

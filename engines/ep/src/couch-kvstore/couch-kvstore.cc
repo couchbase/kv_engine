@@ -21,6 +21,7 @@
 #include "couch-kvstore-config.h"
 #include "diskdockey.h"
 #include "ep_time.h"
+#include "getkeys.h"
 #include "item.h"
 #include "kvstore_config.h"
 #include "persistence_callback.h"
@@ -171,12 +172,12 @@ struct GetMultiCbCtx {
 };
 
 struct AllKeysCtx {
-    AllKeysCtx(std::shared_ptr<Callback<const DiskDocKey&>> callback,
+    AllKeysCtx(std::shared_ptr<StatusCallback<const DiskDocKey&>> callback,
                uint32_t cnt)
         : cb(std::move(callback)), count(cnt) {
     }
 
-    std::shared_ptr<Callback<const DiskDocKey&>> cb;
+    std::shared_ptr<StatusCallback<const DiskDocKey&>> cb;
     uint32_t count;
 };
 
@@ -2860,22 +2861,20 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                           vb_state->lastSnapEnd);
 }
 
-int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
-    auto *allKeysCtx = (AllKeysCtx *)ctx;
+int populateAllKeys(Db* db, DocInfo* docinfo, void* ctx) {
+    auto* allKeysCtx = static_cast<AllKeysCtx*>(ctx);
     auto key = makeDiskDocKey(docinfo->id);
-    (allKeysCtx->cb)->callback(key);
-    if (--(allKeysCtx->count) <= 0) {
-        //Only when count met is less than the actual number of entries
-        return COUCHSTORE_ERROR_CANCEL;
-    }
-    return COUCHSTORE_SUCCESS;
+    allKeysCtx->cb->callback(key);
+    return allKeysCtx->cb->getStatus() ? COUCHSTORE_ERROR_CANCEL
+                                       : COUCHSTORE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE
-CouchKVStore::getAllKeys(Vbid vbid,
-                         const DiskDocKey& start_key,
-                         uint32_t count,
-                         std::shared_ptr<Callback<const DiskDocKey&>> cb) {
+CouchKVStore::getAllKeys(
+        Vbid vbid,
+        const DiskDocKey& start_key,
+        uint32_t count,
+        std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if(errCode == COUCHSTORE_SUCCESS) {

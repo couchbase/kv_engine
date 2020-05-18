@@ -23,26 +23,26 @@
 
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
-#include "collections/collections_types.h"
 #include "collections/manager.h"
+#include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/ep_request_utils.h"
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_global_task.h"
-#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
-#include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
-#include <programs/engine_testapp/mock_cookie.h>
+#include "tests/module_tests/vbucket_utils.h"
 
 #include <folly/portability/GMock.h>
 
-#include <engines/ep/tests/module_tests/vbucket_utils.h>
 #include <spdlog/fmt/fmt.h>
 #include <functional>
+#include <optional>
 #include <thread>
 
 TEST_P(CollectionsParameterizedTest, uid_increment) {
@@ -1865,6 +1865,340 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyNoVbid) {
     result = engine->get_scope_id(cookie, keyMeat, {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
+}
+
+static std::set<std::string> lastGetKeysResult;
+
+bool getAllKeysResponseHandler(std::string_view key,
+                               std::string_view extras,
+                               std::string_view body,
+                               uint8_t datatype,
+                               cb::mcbp::Status status,
+                               uint64_t cas,
+                               const void* cookie) {
+    lastGetKeysResult.clear();
+
+    const char* strPtr = body.data();
+    auto* sizePtr = reinterpret_cast<const uint16_t*>(strPtr);
+    while (strPtr != (body.data() + body.size())) {
+        uint16_t strLen = ntohs(*sizePtr);
+        strPtr += sizeof(uint16_t);
+
+        lastGetKeysResult.insert({strPtr, strLen});
+        sizePtr = reinterpret_cast<const uint16_t*>(strPtr + strLen);
+        strPtr += strLen;
+    }
+    return true;
+}
+
+static std::string makeCollectionEncodedString(std::string key,
+                                               CollectionID cid) {
+    auto storedDocKey = makeStoredDocKey(key, cid);
+    return {reinterpret_cast<const char*>(storedDocKey.data()),
+            storedDocKey.size()};
+}
+
+ENGINE_ERROR_CODE CollectionsTest::sendGetKeys(std::string startKey,
+                                               std::optional<uint32_t> maxCount,
+                                               const AddResponseFn& response) {
+    using namespace cb::mcbp;
+    lastGetKeysResult.clear();
+    std::string exts;
+    if (maxCount) {
+        auto packLevelCount = htonl(*maxCount);
+        exts = {reinterpret_cast<char*>(&packLevelCount), sizeof(uint32_t)};
+    }
+
+    auto request = createPacket(ClientOpcode::GetKeys, vbid, 0, exts, startKey);
+    return engine->getAllKeys(cookie, *request, response);
+}
+
+std::set<std::string> CollectionsTest::generateExpectedKeys(
+        std::string_view keyPrefix, size_t numOfItems, CollectionID cid) {
+    std::set<std::string> generatedKeys;
+    for (size_t i = 0; i < numOfItems; i++) {
+        std::string currentKey(keyPrefix);
+        currentKey += std::to_string(i);
+        if (mock_is_collections_supported(cookie)) {
+            StoredDocKey sDocKey{currentKey, cid};
+            generatedKeys.insert({reinterpret_cast<const char*>(sDocKey.data()),
+                                  sDocKey.size()});
+        } else {
+            generatedKeys.insert(currentKey);
+        }
+    }
+
+    return generatedKeys;
+}
+
+TEST_F(CollectionsTest, GetAllKeysNonCollectionConnection) {
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Create and flush items for the default and meat collections
+    store_items(
+            10, vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 10);
+
+    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys("default0", {}, getAllKeysResponseHandler));
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
+}
+
+TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Create and flush items for the default collection
+    store_items(20, vbid, makeStoredDocKey("default"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 20);
+
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys("default0", {10}, getAllKeysResponseHandler));
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(10, lastGetKeysResult.size());
+}
+
+TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
+    store_items(4, vbid, makeStoredDocKey("default"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // All keys default2 and after from default collection
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys("default2", {}, getAllKeysResponseHandler));
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    std::set<std::string> twoKeys;
+    twoKeys.insert("default2");
+    twoKeys.insert("default3");
+    EXPECT_EQ(twoKeys, lastGetKeysResult);
+}
+
+TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
+    // Enable collections on mock connection
+    mock_set_collections_support(cookie, true);
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_items(
+            4, vbid, makeStoredDocKey("meat", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // All keys meat2 and after from meat collection
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys(makeCollectionEncodedString("meat2",
+                                                      CollectionEntry::meat),
+                          {},
+                          getAllKeysResponseHandler));
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    std::set<std::string> twoKeys;
+    twoKeys.insert("\bmeat2");
+    twoKeys.insert("\bmeat3");
+    EXPECT_EQ(twoKeys, lastGetKeysResult);
+}
+
+TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
+    // Enable collections on mock connection
+    mock_set_collections_support(cookie, true);
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_items(
+            4, vbid, makeStoredDocKey("meat", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // All keys meat2 and after from meat collection
+    EXPECT_EQ(
+            ENGINE_EWOULDBLOCK,
+            sendGetKeys(makeCollectionEncodedString("", CollectionEntry::meat),
+                        {},
+                        getAllKeysResponseHandler));
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+
+    EXPECT_EQ(generateExpectedKeys("meat", 4, CollectionEntry::meat),
+              lastGetKeysResult);
+}
+
+TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
+    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    // Ensure we treat any key as part of th default collection on a
+    // no collection enabled connection.
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys(makeCollectionEncodedString("default4",
+                                                      CollectionEntry::meat),
+                          {},
+                          getAllKeysResponseHandler));
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+
+    // As the requested key does not match any of the stored keys we expect
+    // to get all keys in the default collection back
+    EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
+}
+
+TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
+    // Enable collections on mock connection
+    mock_set_collections_support(cookie, true);
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Create and flush items for the default and meat collections
+    store_items(
+            10, vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 10);
+
+    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    // Get the keys for default collection, in this case we should get all 5
+    // keys
+    std::string startKey =
+            makeCollectionEncodedString("default0", CollectionEntry::defaultC);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the GetKeys task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
+    // Calling GetKeys again should return ENGINE_SUCCESS indicating all keys
+    // have been fetched
+    EXPECT_EQ(ENGINE_SUCCESS,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+
+    startKey = makeCollectionEncodedString("beef0", CollectionEntry::meat);
+    // Get the keys for meat collection, in this case we should get all 10 keys
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the GetKeys task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
+              lastGetKeysResult);
+    // Calling GetKeys again should return ENGINE_SUCCESS indicating all keys
+    // have been fetched
+    EXPECT_EQ(ENGINE_SUCCESS,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+}
+
+class CollectionsRbacTest : public CollectionsTest {
+public:
+    void SetUp() override {
+        CollectionsTest::SetUp();
+        mock_reset_check_privilege_function();
+        mock_set_privilege_context_revision(0);
+    }
+    std::set<CollectionID> noAccessCids;
+
+    CheckPrivilegeFunction checkPriv = [this](gsl::not_null<const void*>,
+                                              cb::rbac::Privilege priv,
+                                              std::optional<ScopeID> sid,
+                                              std::optional<CollectionID> cid)
+            -> cb::rbac::PrivilegeAccess {
+        if (cid && noAccessCids.find(*cid) != noAccessCids.end()) {
+            return cb::rbac::PrivilegeAccessFailNoPrivileges;
+        }
+        return cb::rbac::PrivilegeAccessOk;
+    };
+
+    void setNoAccess(CollectionID noaccess) {
+        noAccessCids.insert(noaccess);
+        mock_set_check_privilege_function(checkPriv);
+        mock_set_privilege_context_revision(
+                mock_get_privilege_context_revision() + 1);
+    }
+
+    void TearDown() override {
+        mock_reset_check_privilege_function();
+        mock_set_privilege_context_revision(0);
+        CollectionsTest::TearDown();
+    }
+};
+
+TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
+    // Enable collections for this mock connection and remove
+    // privs to access the default and dairy collections
+    mock_set_collections_support(cookie, true);
+    setNoAccess(CollectionEntry::dairy);
+    setNoAccess(CollectionEntry::defaultC);
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat and dairy collections
+    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::dairy);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Create and flush items for the default and meat collections
+    store_items(
+            10, vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 10);
+
+    store_items(5, vbid, makeStoredDocKey("default"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    // Try and access all keys from the default collection, in this case we
+    // should be denied access
+    std::string startKey =
+            makeCollectionEncodedString("default0", CollectionEntry::defaultC);
+
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    EXPECT_EQ(std::set<std::string>(), lastGetKeysResult);
+
+    // Get the keys for meat collection, in this case we should get all 10 keys
+    startKey = makeCollectionEncodedString("beef0", CollectionEntry::meat);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the GetKeys task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
+              lastGetKeysResult);
+    // Calling GetKeys again should return ENGINE_SUCCESS indicating all keys
+    // have been fetched
+    EXPECT_EQ(ENGINE_SUCCESS,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+
+    // Add an item to the dairy so we would get a key if RBAC failed
+    store_item(
+            vbid, makeStoredDocKey("cheese", CollectionEntry::dairy), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // Try and access all keys from the dairy collection, in this case we
+    // should be denied access
+    startKey = makeCollectionEncodedString("cheese0", CollectionEntry::dairy);
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    EXPECT_EQ(std::set<std::string>(), lastGetKeysResult);
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,

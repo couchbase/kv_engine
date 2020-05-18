@@ -298,14 +298,11 @@ public:
                                 GetMetaOnly metaOnly);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
-    /**
-     * Get all_docs API, to return the list of all keys in the store
-     */
     ENGINE_ERROR_CODE getAllKeys(
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<Callback<const DiskDocKey&>> cb) override;
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) override;
 
     bool supportsHistoricalSnapshots() const override {
         return true;

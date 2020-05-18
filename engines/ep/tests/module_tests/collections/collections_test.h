@@ -44,6 +44,15 @@ protected:
                 ->getRWUnderlying()
                 ->getCollectionsManifest(vbid);
     }
+
+    ENGINE_ERROR_CODE sendGetKeys(std::string startKey,
+                                  std::optional<uint32_t> maxCount,
+                                  const AddResponseFn& response);
+
+    std::set<std::string> generateExpectedKeys(
+            std::string_view keyPrefix,
+            size_t numOfItems,
+            CollectionID cid = CollectionID(0));
 };
 
 /**

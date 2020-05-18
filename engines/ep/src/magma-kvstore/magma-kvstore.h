@@ -362,7 +362,7 @@ public:
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<Callback<const DiskDocKey&>> cb) override;
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) override;
 
     std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,

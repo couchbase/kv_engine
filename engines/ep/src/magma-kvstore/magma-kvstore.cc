@@ -1669,8 +1669,7 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& startKey,
         uint32_t count,
-        std::shared_ptr<Callback<const DiskDocKey&>> cb) {
-
+        std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) {
     Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
                            startKey.size()};
 

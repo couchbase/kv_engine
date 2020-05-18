@@ -215,6 +215,10 @@ void mock_set_privilege_context_revision(uint32_t rev) {
     privilege_context_revision = rev;
 }
 
+uint32_t mock_get_privilege_context_revision() {
+    return privilege_context_revision;
+}
+
 struct MockServerCookieApi : public ServerCookieIface {
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {

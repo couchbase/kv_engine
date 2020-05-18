@@ -21,3 +21,4 @@ using CheckPrivilegeFunction =
 void mock_set_check_privilege_function(CheckPrivilegeFunction function);
 void mock_reset_check_privilege_function();
 void mock_set_privilege_context_revision(uint32_t rev);
+uint32_t mock_get_privilege_context_revision();

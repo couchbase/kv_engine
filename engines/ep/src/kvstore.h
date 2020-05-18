@@ -852,11 +852,21 @@ public:
         return st;
     }
 
+    /**
+     * Get all_docs API, to return the list of all keys in the store
+     * @param vbid vbucket id of which to collect keys from
+     * @param start_key key of where to start the scan from once found all keys
+     * after this should be returned.
+     * @param count the max number of keys that should be collected by kvstore
+     * implementation for this vbucket
+     * @param cb shared pointer to a callback function
+     * @return engine status code
+     */
     virtual ENGINE_ERROR_CODE getAllKeys(
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<Callback<const DiskDocKey&>> cb) = 0;
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) = 0;
 
     /// Does the backend support historical snapshots
     virtual bool supportsHistoricalSnapshots() const {

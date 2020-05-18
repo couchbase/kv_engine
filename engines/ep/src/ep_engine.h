@@ -734,7 +734,13 @@ public:
      */
     ConnHandler* getConnHandler(const void* cookie, bool logNonExistent = true);
 
-    void addLookupAllKeys(const void *cookie, ENGINE_ERROR_CODE err);
+    /**
+     * Method to add a cookie to allKeysLookups to store the result of the
+     * getAllKeys() request.
+     * @param cookie the cookie that the getAllKeys() was processed for
+     * @param err Engine error code of the result of getAllKeys()
+     */
+    void addLookupAllKeys(const void* cookie, ENGINE_ERROR_CODE err);
 
     /*
      * Explicitly trigger the defragmenter task. Provided to facilitate

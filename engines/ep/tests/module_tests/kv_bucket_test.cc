@@ -167,8 +167,9 @@ Item KVBucketTest::store_item(Vbid vbid,
         protocol_binary_datatype_t datatype) {
     for (int ii = 0; ii < nitems; ii++) {
         auto keyii = makeStoredDocKey(
-                std::string(reinterpret_cast<const char*>(key.data()),
-                            key.size()) +
+                std::string(reinterpret_cast<const char*>(
+                                    key.makeDocKeyWithoutCollectionID().data()),
+                            key.makeDocKeyWithoutCollectionID().size()) +
                         std::to_string(ii),
                 key.getCollectionID());
         auto item = make_item(vbid, keyii, value, exptime, datatype);

@@ -73,6 +73,11 @@ void mock_set_collections_support(const void* cookie, bool enable) {
     c->handle_collections_support = enable;
 }
 
+bool mock_is_collections_supported(const void* cookie) {
+    auto* c = cookie_to_mock_cookie(cookie);
+    return c->handle_collections_support;
+}
+
 void lock_mock_cookie(const void* cookie) {
     auto* c = cookie_to_mock_cookie(cookie);
     c->mutex.lock();

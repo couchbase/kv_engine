@@ -87,6 +87,8 @@ void mock_set_mutation_extras_handling(const void* cookie, bool enable);
 
 void mock_set_collections_support(const void* cookie, bool enable);
 
+bool mock_is_collections_supported(const void* cookie);
+
 void mock_set_datatype_support(const void* cookie,
                                protocol_binary_datatype_t datatypes);
 

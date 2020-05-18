@@ -22,8 +22,14 @@
 #include "globaltask.h"
 
 #include <memcached/engine_common.h>
+#include <optional>
 
 class EventuallyPersistentEngine;
+
+enum class AllKeysCallbackStatus {
+    KeyAdded,
+    KeySkipped,
+};
 
 /**
  * Callback class used by AllKeysAPI, for caching fetched keys
@@ -36,10 +42,10 @@ class EventuallyPersistentEngine;
  * This initially allocated buffersize is doubled whenever the length
  * of the buffer holding all the keys, crosses the buffersize.
  */
-class AllKeysCallback : public Callback<const DiskDocKey&> {
+class AllKeysCallback : public StatusCallback<const DiskDocKey&> {
 public:
-    AllKeysCallback(bool collectionsSupported)
-        : collectionsSupported(collectionsSupported) {
+    AllKeysCallback(std::optional<CollectionID> collection, uint32_t maxCount)
+        : collection(std::move(collection)), maxCount(maxCount) {
         buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
@@ -54,7 +60,9 @@ public:
 
 private:
     std::vector<char> buffer;
-    bool collectionsSupported{false};
+    std::optional<CollectionID> collection;
+    uint32_t addedKeyCount = 0;
+    uint32_t maxCount = 0;
     static const int avgKeySize = 32;
     static const int expNumKeys = 1000;
 };
@@ -71,7 +79,7 @@ public:
                      const DocKey start_key_,
                      Vbid vbucket,
                      uint32_t count_,
-                     bool collectionsSupported);
+                     std::optional<CollectionID> collection);
 
     std::string getDescription() override {
         return description;
@@ -92,5 +100,5 @@ private:
     DiskDocKey start_key;
     Vbid vbid;
     uint32_t count;
-    bool collectionsSupported{false};
+    std::optional<CollectionID> collection;
 };
