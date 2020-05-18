@@ -1122,11 +1122,7 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
                 dummyCookie.get(), item, cas, OPERATION_SET, false);
     }
 
-    if (!fullEviction()) {
-        ASSERT_EQ(ENGINE_ENOMEM, result);
-    } else {
-        ASSERT_EQ(ENGINE_TMPFAIL, result);
-    }
+    ASSERT_EQ(ENGINE_ENOMEM, result);
 }
 
 // MB-26907: Test that the item count is properly updated upon an expiry for

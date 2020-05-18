@@ -2679,30 +2679,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
-    // Do we think it's possible we could free something?
-    bool haveEvidenceWeCanFreeMemory =
-            (stats.getMaxDataSize() > stats.getMemOverhead());
-    if (haveEvidenceWeCanFreeMemory) {
-        // Look for more evidence by seeing if we have resident items.
-        VBucketCountVisitor countVisitor(vbucket_state_active);
-        kvBucket->visit(countVisitor);
+    // Trigger necessary task(s) to free memory down below high watermark.
+    getKVBucket()->attemptToFreeMemory();
+    getKVBucket()->wakeUpCheckpointRemover();
 
-        haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <
-            countVisitor.getNumItems();
-    }
-    if (haveEvidenceWeCanFreeMemory) {
+    if (stats.getEstimatedTotalMemoryUsed() < stats.getMaxDataSize()) {
+        // Still below bucket_quota - treat as temporary failure.
         ++stats.tmp_oom_errors;
-        // Wake up the item pager task as memory usage
-        // seems to have exceeded high water mark
-        getKVBucket()->attemptToFreeMemory();
         return ENGINE_TMPFAIL;
     } else {
-        if (getKVBucket()->getItemEvictionPolicy() == EvictionPolicy::Full) {
-            ++stats.tmp_oom_errors;
-            getKVBucket()->wakeUpCheckpointRemover();
-            return ENGINE_TMPFAIL;
-        }
-
+        // Already over bucket quota - make this a hard error.
         ++stats.oom_errors;
         return ENGINE_ENOMEM;
     }
