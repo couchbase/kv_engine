@@ -18,6 +18,8 @@
 
 #include <relaxed_atomic.h>
 
+#include <memcached/engine_error.h>
+
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -194,6 +196,10 @@ extern stats stats;
 
 class Connection;
 struct thread_stats* get_thread_stats(Connection* c);
+
+class StatCollector;
+class Bucket;
+ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket);
 
 /*
  *  Macros for managing statistics inside memcached
