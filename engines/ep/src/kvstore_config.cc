@@ -36,6 +36,8 @@ public:
             config.setPitrMaxHistoryAge(std::chrono::seconds{value});
         } else if (key == "pitr_granularity") {
             config.setPitrGranularity(std::chrono::seconds{value});
+        } else if (key == "persistent_metadata_purge_age") {
+            config.setMetadataPurgeAge(std::chrono::seconds{value});
         }
     }
 
@@ -72,6 +74,12 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "pitr_granularity", std::make_unique<ConfigChangeListener>(*this));
+
+    setMetadataPurgeAge(
+            std::chrono::seconds{config.getPersistentMetadataPurgeAge()});
+    config.addValueChangedListener(
+            "persistent_metadata_purge_age",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,

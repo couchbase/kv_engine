@@ -774,6 +774,21 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "persistent_metadata_purge_age": {
+            "default": "259200",
+            "descr": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days",
+            "dynamic": true,
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent"
+            },
+            "validator": {
+                "range": {
+                    "max": 5184000,
+                    "min": 60
+                }
+            }
+        },
         "pitr_enabled" : {
             "default": "false",
             "descr": "Is PiTR enabled or not",

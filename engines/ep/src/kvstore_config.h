@@ -112,6 +112,14 @@ public:
         return pitrGranularity;
     }
 
+    void setMetadataPurgeAge(std::chrono::seconds age) {
+        metadataPurgeAge = age;
+    }
+
+    std::chrono::seconds getMetadataPurgeAge() const {
+        return metadataPurgeAge;
+    }
+
 protected:
     class ConfigChangeListener;
 
@@ -141,4 +149,10 @@ protected:
     std::atomic_bool pitrEnabled{false};
     std::atomic<std::chrono::seconds> pitrMaxHistoryAge;
     std::atomic<std::chrono::seconds> pitrGranularity;
+
+    /**
+     * Length of time for which we keep tombstones before purging to allow
+     * DCP clients to reconnect without rollback
+     */
+    std::atomic<std::chrono::seconds> metadataPurgeAge;
 };

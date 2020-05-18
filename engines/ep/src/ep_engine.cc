@@ -779,6 +779,13 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::mcbp::Status::Einval;
             }
+        } else if (key == "persistent_metadata_purge_age") {
+            uint32_t value;
+            if (safe_strtoul(val.c_str(), value)) {
+                getConfiguration().setPersistentMetadataPurgeAge(value);
+            } else {
+                rv = cb::mcbp::Status::Einval;
+            }
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
