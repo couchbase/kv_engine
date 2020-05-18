@@ -86,8 +86,13 @@ On startup Memcached has a number of tasks:
 * Starting the dispatch event loop
 
 ## Connection management
-The `Connection` class represents a Socket (it is used by both clients and
-server objects).
+The `Connection` class represents a Client connection and it is
+always associated with a Bucket. When the object is created it
+is associated with the the bucket named "default" if it exists,
+otherwise it'll use the special bucket "no bucket". The user may
+switch buckets by using the SELECT BUCKET command, and the system
+_MAY_ automatically kick you out of a bucket and put the connection
+into the "no bucket" (for instance if someone deletes the bucket).
 
 The Connection object is bound to a thread object, and never changes.
 
