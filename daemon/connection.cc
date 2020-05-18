@@ -465,7 +465,7 @@ void Connection::shutdownIfSendQueueStuck(
         // We've not had any progress on the socket for "n" secs
         // Forcibly shut down the connection!
         sendQueueInfo.term = true;
-        state = State::closing;
+        shutdown();
     }
 }
 
@@ -637,7 +637,7 @@ bool Connection::executeCommandsCallback() {
             // continue to run the state machine
             executeCommandPipeline();
         } catch (const std::exception& e) {
-            state = State::closing;
+            shutdown();
 
             try {
                 auto array = nlohmann::json::array();
@@ -691,7 +691,7 @@ bool Connection::executeCommandsCallback() {
                             std::to_string(ret),
                             getDescription());
 
-                    state = State::closing;
+                    shutdown();
                     more = false;
                 }
             }
@@ -809,7 +809,7 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
         thread.notification.remove(&instance);
 
         if (instance.state == State::running) {
-            instance.state = State::closing;
+            instance.shutdown();
         }
 
         if (!instance.executeCommandsCallback()) {
