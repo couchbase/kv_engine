@@ -18,12 +18,36 @@
 #include "statistics/collector.h"
 
 #include <spdlog/fmt/fmt.h>
+#include <utilities/hdrhistogram.h>
+
 #include <string_view>
 
 using namespace std::string_view_literals;
 
 LabelGuard::~LabelGuard() {
     collector.removeDefaultLabel(label);
+}
+
+void StatCollector::addStat(std::string_view k, const HdrHistogram& v) {
+    if (v.getValueCount() > 0) {
+        HistogramData histData;
+        histData.mean = std::round(v.getMean());
+        histData.sampleCount = v.getValueCount();
+
+        HdrHistogram::Iterator iter{v.getHistogramsIterator()};
+        while (auto result = v.getNextBucketLowHighAndCount(iter)) {
+            auto [lower, upper, count] = *result;
+
+            histData.buckets.push_back({lower, upper, count});
+
+            // TODO: HdrHistogram doesn't track the sum of all added values but
+            //  prometheus requires that value. For now just approximate it
+            //  from bucket counts.
+            auto avgBucketValue = (lower + upper) / 2;
+            histData.sampleSum += avgBucketValue * count;
+        }
+        addStat(k, histData);
+    }
 }
 
 void CBStatCollector::addStat(std::string_view k, std::string_view v) {
