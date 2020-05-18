@@ -462,7 +462,10 @@ CheckpointQueue Checkpoint::expelItems(
              ++expelItr) {
             const auto& toExpel = *expelItr;
 
-            if (!toExpel->isCheckPointMetaItem()) {
+            // We don't put keys in the indexes for disk checkpoints so we:
+            //     a) can't test that the key is in the index
+            //     b) can't invalidate the index entry as it does not exist
+            if (!toExpel->isCheckPointMetaItem() && !isDiskCheckpoint()) {
                 auto& keyIndex = toExpel->isCommitted() ? committedKeyIndex
                                                         : preparedKeyIndex;
 

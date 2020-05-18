@@ -1894,7 +1894,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
 
 // Test that can expel items and that we have the correct behaviour when we
 // register cursors for items that have been expelled.
-TEST_P(CheckpointTest, expelCheckpointItemsTest) {
+void CheckpointTest::testExpelCheckpointItems() {
     const int itemCount{3};
 
     for (auto ii = 0; ii < itemCount; ++ii) {
@@ -1964,6 +1964,15 @@ TEST_P(CheckpointTest, expelCheckpointItemsTest) {
     EXPECT_FALSE(regResult.tryBackfill);
 }
 
+TEST_P(CheckpointTest, testExpelCheckpointItemsMemory) {
+    testExpelCheckpointItems();
+}
+
+TEST_P(CheckpointTest, testExpelCheckpointItemsDisk) {
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    testExpelCheckpointItems();
+}
+
 // Test that we correctly handle duplicates, where the initial version of the
 // document has been expelled.
 TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
@@ -2017,7 +2026,7 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 // Test that when the first cursor we come across is pointing to the last
 // item we do not evict this item.  Instead we walk backwards find the
 // first non-meta item and evict from there.
-TEST_P(CheckpointTest, expelCursorPointingToLastItem) {
+void CheckpointTest::testExpelCursorPointingToLastItem() {
     if (!persistent()) {
         // Need at least one cursor (i.e. persistence cursor) to be able
         // to expel.
@@ -2060,10 +2069,19 @@ TEST_P(CheckpointTest, expelCursorPointingToLastItem) {
     EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
+TEST_P(CheckpointTest, testExpelCursorPointingToLastItemMemory) {
+    testExpelCursorPointingToLastItem();
+}
+
+TEST_P(CheckpointTest, testExpelCursorPointingToLastItemDisk) {
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    testExpelCursorPointingToLastItem();
+}
+
 // Test that when the first cursor we come across is pointing to the checkpoint
 // start we do not evict this item.  Instead we walk backwards and find the
 // the dummy item, so do not expel any items.
-TEST_P(CheckpointTest, expelCursorPointingToChkptStart) {
+void CheckpointTest::testExpelCursorPointingToChkptStart() {
     ASSERT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
 
     bool isLastMutationItem{true};
@@ -2083,10 +2101,19 @@ TEST_P(CheckpointTest, expelCursorPointingToChkptStart) {
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
+TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartMemory) {
+    testExpelCursorPointingToChkptStart();
+}
+
+TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartDisk) {
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    testExpelCursorPointingToChkptStart();
+}
+
 // Test that if we want to evict items from seqno X, but have a meta-data item
 // also with seqno X, and a cursor is pointing to this meta data item, we do not
 // evict.
-TEST_P(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
+void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
     const int itemCount{2};
 
     for (auto ii = 0; ii < itemCount; ++ii) {
@@ -2135,10 +2162,19 @@ TEST_P(CheckpointTest, dontExpelIfCursorAtMetadataItemWithSameSeqno) {
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
+TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoMemory) {
+    testDontExpelIfCursorAtMetadataItemWithSameSeqno();
+}
+
+TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    testDontExpelIfCursorAtMetadataItemWithSameSeqno();
+}
+
 // Test that if we have a item after a mutation with the same seqno
 // then we will move the expel point backwards to the mutation
 // (and possibly further).
-TEST_P(CheckpointTest, doNotExpelIfHaveSameSeqnoAfterMutation) {
+void CheckpointTest::testDoNotExpelIfHaveSameSeqnoAfterMutation() {
     this->checkpoint_config =
             CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
                              /*maxItemsInCheckpoint*/ 1,
@@ -2209,8 +2245,17 @@ TEST_P(CheckpointTest, doNotExpelIfHaveSameSeqnoAfterMutation) {
     EXPECT_EQ(0, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
+TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationMemory) {
+    testDoNotExpelIfHaveSameSeqnoAfterMutation();
+}
+
+TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationDisk) {
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    testDoNotExpelIfHaveSameSeqnoAfterMutation();
+}
+
 // Test estimate for the amount of memory recovered by expelling is correct.
-TEST_P(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
+void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const int itemCount{3};
     size_t sizeOfItem{0};
 
@@ -2310,6 +2355,15 @@ TEST_P(CheckpointTest, expelCheckpointItemsMemoryRecoveredTest) {
               expelResult.estimateOfFreeMemory - extra);
     EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
     EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
+}
+
+TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {
+    testExpelCheckpointItemsMemoryRecovered();
+}
+
+TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredDisk) {
+    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    testExpelCheckpointItemsMemoryRecovered();
 }
 
 TEST_P(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
