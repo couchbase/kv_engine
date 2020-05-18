@@ -52,6 +52,13 @@ void Collections::VB::Flush::decrementDiskCount(const DocKey& key) {
     }
 }
 
+void Collections::VB::Flush::updateDiskSize(const DocKey& key, ssize_t delta) {
+    if (key.getCollectionID() != CollectionID::System) {
+        mutated.insert(key.getCollectionID());
+        manifest.lock(key).updateDiskSize(delta);
+    }
+}
+
 void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
                                                    uint64_t value,
                                                    bool deleted) {

@@ -62,6 +62,7 @@ using ManifestUid = WeaklyMonotonic<uint64_t>;
 struct AccumulatedStats {
     AccumulatedStats& operator+=(const AccumulatedStats& other);
     uint64_t itemCount{0};
+    uint64_t diskSize{0};
     uint64_t opsStore{0};
     uint64_t opsDelete{0};
     uint64_t opsGet{0};

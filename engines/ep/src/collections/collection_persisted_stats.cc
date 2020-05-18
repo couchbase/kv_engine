@@ -28,6 +28,8 @@ PersistedStats::PersistedStats(const char* buf, size_t size) {
     itemCount = decoded.first;
     decoded = cb::mcbp::decode_unsigned_leb128<uint64_t>(decoded.second);
     highSeqno = decoded.first;
+    decoded = cb::mcbp::decode_unsigned_leb128<uint64_t>(decoded.second);
+    diskSize = decoded.first;
 
     if (!decoded.second.empty()) {
         throw std::runtime_error(
@@ -41,6 +43,9 @@ std::string PersistedStats::getLebEncodedStats() const {
     std::string data(leb.begin(), leb.end());
 
     leb = cb::mcbp::unsigned_leb128<uint64_t>(highSeqno);
+    data.append(leb.begin(), leb.end());
+
+    leb = cb::mcbp::unsigned_leb128<uint64_t>(diskSize);
     data.append(leb.begin(), leb.end());
 
     return data;

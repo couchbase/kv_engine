@@ -62,6 +62,12 @@ public:
     void decrementDiskCount(const DocKey& key);
 
     /**
+     * Update the on disk size (bytes) for the collection associated with the
+     * key
+     */
+    void updateDiskSize(const DocKey& key, ssize_t delta);
+
+    /**
      * Set the highest seqno that needs to be persisted for this collection
      *
      * @param key Key of the document being flushed

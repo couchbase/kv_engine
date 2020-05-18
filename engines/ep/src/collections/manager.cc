@@ -775,6 +775,7 @@ void Collections::CachedStats::addAggregatedCollectionStats(
 
     addStat("mem_used", memUsed);
     addStat("items", stats.itemCount);
+    addStat("disk_size", stats.diskSize);
 
     addStat("ops_store", stats.opsStore);
     addStat("ops_delete", stats.opsDelete);

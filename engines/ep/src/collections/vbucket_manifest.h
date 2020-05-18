@@ -375,6 +375,25 @@ public:
         }
 
         /**
+         * This update is possible via this CachingReadHandle, which has
+         * shared access to the Manifest, because the read-lock only ensures
+         * that the underlying collection map doesn't change. Data inside the
+         * collection entry maybe mutable, such as the on disk size, hence this
+         * method is marked const because the manifest is const.
+         *
+         * Adjust the tracked total on disk size for the collection by the
+         * given delta.
+         */
+        void updateDiskSize(ssize_t delta) const {
+            // We may be flushing keys written to a dropped collection so can
+            // have an invalid iterator or the id is not mapped (system)
+            if (!valid()) {
+                return;
+            }
+            return manifest->updateDiskSize(itr, delta);
+        }
+
+        /**
          * This set is possible via this CachingReadHandle, which has shared
          * access to the Manifest, because the read-lock only ensures that
          * the underlying collection map doesn't change. Data inside the
@@ -521,7 +540,8 @@ public:
 
         PersistedStats getPersistedStats() const {
             return {itr->second.getDiskCount(),
-                    itr->second.getPersistedHighSeqno()};
+                    itr->second.getPersistedHighSeqno(),
+                    itr->second.getDiskSize()};
         }
 
         void dump() {
@@ -1023,6 +1043,16 @@ protected:
         }
 
         entry->second.decrementDiskCount();
+    }
+
+    void updateDiskSize(const container::const_iterator entry,
+                        ssize_t delta) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.updateDiskSize(delta);
     }
 
     void setHighSeqno(const container::const_iterator entry,

@@ -136,7 +136,8 @@ void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
                 "couchstore_db_info errcode:" +
                 std::to_string(errcode));
     }
-    setCollectionStats(collection, {info.doc_count, info.last_sequence});
+    setCollectionStats(collection,
+                       {info.doc_count, info.last_sequence, info.space_used});
 
     writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), true);
 }

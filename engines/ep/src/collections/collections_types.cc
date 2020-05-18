@@ -75,6 +75,7 @@ ScopeID getScopeIDFromKey(const DocKey& key) {
 
 AccumulatedStats& AccumulatedStats::operator+=(const AccumulatedStats& other) {
     itemCount += other.itemCount;
+    diskSize += other.diskSize;
     opsStore += other.opsStore;
     opsDelete += other.opsDelete;
     opsGet += other.opsGet;

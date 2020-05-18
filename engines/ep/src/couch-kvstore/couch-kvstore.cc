@@ -2101,6 +2101,13 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     // is a mutation or deletion
     cbCtx->commitData.collections.setPersistedHighSeqno(
             docKey, newInfo->db_seq, newInfo->deleted);
+
+    size_t oldSize = oldInfo ? oldInfo->physical_size : 0;
+    size_t newSize = newInfo ? newInfo->physical_size : 0;
+
+    ssize_t delta = newSize - oldSize;
+
+    cbCtx->commitData.collections.updateDiskSize(docKey, delta);
 }
 
 /**

@@ -26,11 +26,11 @@ namespace VB {
  * decoding of stats.
  */
 struct PersistedStats {
-    PersistedStats() : itemCount(0), highSeqno(0) {
+    PersistedStats() : itemCount(0), highSeqno(0), diskSize(0) {
     }
 
-    PersistedStats(uint64_t itemCount, uint64_t highSeqno)
-        : itemCount(itemCount), highSeqno(highSeqno) {
+    PersistedStats(uint64_t itemCount, uint64_t highSeqno, uint64_t diskSize)
+        : itemCount(itemCount), highSeqno(highSeqno), diskSize(diskSize) {
     }
 
     /// Build from a buffer containing a LEB 128 encoded string
@@ -44,6 +44,7 @@ struct PersistedStats {
 
     uint64_t itemCount;
     uint64_t highSeqno;
+    uint64_t diskSize;
 };
 } // end namespace VB
 } // end namespace Collections

@@ -102,6 +102,21 @@ public:
         return diskCount;
     }
 
+    /// decrement the tracked total size (bytes) on disk for this collection
+    void updateDiskSize(ssize_t delta) const {
+        diskSize += delta;
+    }
+
+    /// decrement the tracked total size (bytes) on disk for this collection
+    void setDiskSize(size_t value) const {
+        diskSize = value;
+    }
+
+    /// @return the tracked total size (bytes) on disk for this collection
+    size_t getDiskSize() const {
+        return diskSize;
+    }
+
     /// set the highest seqno (persisted or not) for this collection
     void setHighSeqno(uint64_t value) const {
         highSeqno.store(value, std::memory_order_relaxed);
@@ -162,7 +177,11 @@ public:
         return numOpsGet.load(std::memory_order_relaxed);
     }
     AccumulatedStats getStatsForSummary() const {
-        return {getDiskCount(), getOpsStore(), getOpsDelete(), getOpsGet()};
+        return {getDiskCount(),
+                getDiskSize(),
+                getOpsStore(),
+                getOpsDelete(),
+                getOpsGet()};
     }
 
 private:
@@ -210,6 +229,14 @@ private:
      *           The write lock is really for the Manifest map being changed.
      */
     mutable cb::NonNegativeCounter<uint64_t> diskCount;
+
+    /**
+     * The total size (bytes) of items in this collection on disk
+     * mutable - the VB:Manifest read/write lock protects this object and
+     *           we can do stats updates as long as the read lock is held.
+     *           The write lock is really for the Manifest map being changed.
+     */
+    mutable cb::NonNegativeCounter<uint64_t> diskSize;
 
     /**
      * The highest seqno of any item (persisted or not) that belongs to this

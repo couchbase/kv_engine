@@ -1666,11 +1666,13 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
 }
 
 /**
- * RAII helper to check the per-collection memory usage changes in the expected
+ * RAII helper to check the per-collection stats changes in the expected
  * manner.
  *
+ * Currently used through MemChecker (checking mem_used) and DiskChecker
+ * (checking disk_size).
  *
- * Checks that the memory usage when the helper is destroyed vs when it was
+ * Checks that the stat when the helper is destroyed vs when it was
  * created meets the given invariant. E.g.,
  *  {
  *      auto x = MemChecker(*vb, CollectionEntry::defaultC, std::greater<>());
@@ -1681,33 +1683,81 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
  * This checks that when `x` goes out of scope, the memory usage of the default
  * collection is _greater_ than when the checker was constructed.
  */
-class MemChecker {
+class StatChecker {
 public:
-    using Func = std::function<bool(size_t, size_t)>;
+    using PostFunc = std::function<bool(size_t, size_t)>;
 
-    MemChecker(VBucket& vb,
-               const CollectionEntry::Entry& entry,
-               Func postCondition)
-        : vb(vb), entry(entry), postCondition(std::move(postCondition)) {
-        initialMemUsed = getCollectionMemUsed();
+    StatChecker(VBucket& vb,
+                const CollectionEntry::Entry& entry,
+                std::function<size_t(VBucket&, CollectionID)> getter,
+                std::string statName,
+                PostFunc postCondition)
+        : vb(vb),
+          entry(entry),
+          getter(std::move(getter)),
+          statName(std::move(statName)),
+          postCondition(std::move(postCondition)) {
+        initialValue = getValue();
     };
-    ~MemChecker() {
-        auto newMemUsed = getCollectionMemUsed();
-        EXPECT_TRUE(postCondition(newMemUsed, initialMemUsed))
-                << "Memory usage for collection: " << entry.name
-                << " did not meet expected condition";
+    virtual ~StatChecker() {
+        auto newValue = getValue();
+        EXPECT_TRUE(postCondition(newValue, initialValue))
+                << statName << " for collection: " << entry.name
+                << " did not meet expected condition. "
+                << "Was: " << initialValue << " New: " << newValue;
     }
 
 private:
-    size_t getCollectionMemUsed() {
-        const auto& stats = VBucketTestIntrospector::getStats(vb);
-        return stats.getCollectionMemUsed(entry.uid);
+    size_t getValue() {
+        // uses a provided getter func rather than a virtual method
+        // as it needs to be called in the base type constructor
+        // and destructor
+        return getter(vb, entry.uid);
     }
 
     VBucket& vb;
     const CollectionEntry::Entry& entry;
-    Func postCondition;
-    size_t initialMemUsed = 0;
+    std::function<size_t(VBucket&, CollectionID)> getter;
+    std::string statName;
+    PostFunc postCondition;
+    size_t initialValue = 0;
+};
+
+size_t getCollectionMemUsed(VBucket& vb, CollectionID cid) {
+    const auto& stats = VBucketTestIntrospector::getStats(vb);
+    return stats.getCollectionMemUsed(cid);
+}
+
+class MemChecker : public StatChecker {
+public:
+    MemChecker(VBucket& vb,
+               const CollectionEntry::Entry& entry,
+               PostFunc postCondition)
+        : StatChecker(vb,
+                      entry,
+                      getCollectionMemUsed,
+                      "mem_used",
+                      std::move(postCondition)) {
+    }
+};
+
+size_t getCollectionDiskSize(VBucket& vb, CollectionID cid) {
+    Collections::Summary summary;
+    vb.lockCollections().updateSummary(summary);
+    return summary[cid].diskSize;
+}
+
+class DiskChecker : public StatChecker {
+public:
+    DiskChecker(VBucket& vb,
+                const CollectionEntry::Entry& entry,
+                PostFunc postCondition)
+        : StatChecker(vb,
+                      entry,
+                      getCollectionDiskSize,
+                      "disk_size",
+                      std::move(postCondition)) {
+    }
 };
 
 TEST_F(CollectionsTest, PerCollectionMemUsed) {
@@ -1770,6 +1820,72 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
         SCOPED_TRACE("evict item");
         auto d = MemChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
         auto m = MemChecker(*vb, CollectionEntry::meat, std::less<>());
+
+        evict_key(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat});
+    }
+}
+
+TEST_F(CollectionsTest, PerCollectionDiskSize) {
+    // test that the per-collection disk size (updated by saveDocsCallback)
+    // changes when items in the collection are added/updated/deleted (but not
+    // when evicted) and does not change when items in other collections are
+    // similarly changed.
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    {
+        SCOPED_TRACE("new item added to collection");
+        // default collection disk size should _increase_
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        // meta collection disk size should _stay the same_
+        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        store_item(
+                vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("new item added to collection");
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = DiskChecker(*vb, CollectionEntry::meat, std::greater<>());
+
+        store_item(vbid,
+                   StoredDocKey{"meat:beef", CollectionEntry::meat},
+                   "value");
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("update item with larger value");
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        store_item(vbid,
+                   StoredDocKey{"key", CollectionEntry::defaultC},
+                   "valuesdfasdfasdfasdfasdfsadf");
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("delete item");
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::less<>());
+        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("evict item");
+        // should not change the on disk size
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
 
         evict_key(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat});
     }
