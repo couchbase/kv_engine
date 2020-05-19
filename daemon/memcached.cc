@@ -1759,6 +1759,9 @@ int memcached_main(int argc, char** argv) {
     // occurring during initialisation.
     install_backtrace_terminate_handler();
 
+    // Set libevent to use our allocator before we do anything with libevent
+    event_set_mem_functions(cb_malloc, cb_realloc, cb_free);
+
     setup_libevent_locking();
 
     initialize_openssl();
