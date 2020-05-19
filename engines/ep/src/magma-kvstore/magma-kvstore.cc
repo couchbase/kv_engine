@@ -224,10 +224,10 @@ static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
 }
 
-MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(MagmaKVStore& magmaKVStore)
-    : magmaKVStore(magmaKVStore) {
+MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
+        MagmaKVStore& magmaKVStore, std::shared_ptr<compaction_ctx> ctx)
+    : magmaKVStore(magmaKVStore), ctx(std::move(ctx)) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
-    initialized = false;
 }
 
 MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
@@ -238,6 +238,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                       const magma::Slice& keySlice,
                                       const magma::Slice& metaSlice,
                                       const magma::Slice& valueSlice) {
+    auto vbid = magmakv::getVbid(metaSlice);
     auto& itemString = cbCtx.itemKeyBuf;
     if (logger->should_log(spdlog::level::TRACE)) {
         itemString.clear();
@@ -245,127 +246,116 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                    << cb::UserData{makeDiskDocKey(keySlice).to_string()};
         itemString << " ";
         itemString << magmakv::getDocMeta(metaSlice).to_string();
-        logger->TRACE("MagmaCompactionCB {}", itemString.str());
+        logger->TRACE("MagmaCompactionCB: {} {}",
+                      vbid,
+                      cb::UserData(itemString.str()));
     }
 
-    if (!cbCtx.initialized) {
-        cbCtx.vbid = magmakv::getVbid(metaSlice);
+    if (!cbCtx.ctx) {
+        cbCtx.ctx = makeCompactionContext(vbid);
+    }
 
-        // If we have a compaction_ctx, that means we are doing an
-        // explicit compaction triggered by the kv_engine.
-        {
-            std::lock_guard<std::mutex> lock(compactionCtxMutex);
-            if (compaction_ctxList[cbCtx.vbid.get()]) {
-                cbCtx.magmaCompactionCtx = compaction_ctxList[cbCtx.vbid.get()];
-                cbCtx.ctx = cbCtx.magmaCompactionCtx.get();
+    auto seqno = magmakv::getSeqNum(metaSlice);
+    auto exptime = magmakv::getExpiryTime(metaSlice);
+    Status status;
+
+    if (cbCtx.ctx->droppedKeyCb) {
+        // We need to check both committed and prepared documents - if the
+        // collection has been logically deleted then we need to discard
+        // both types of keys.
+        // As such use the docKey (i.e. without any DurabilityPrepare
+        // namespace) when checking if logically deleted;
+        auto diskKey = makeDiskDocKey(keySlice);
+        if (cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
+                                                         seqno)) {
+            // Inform vb that the key@seqno is dropped
+            cbCtx.ctx->droppedKeyCb(diskKey, seqno);
+            if (!magmakv::isDeleted(metaSlice)) {
+                cbCtx.ctx->stats.collectionsItemsPurged++;
+            } else {
+                if (magmakv::isPrepared(metaSlice)) {
+                    cbCtx.ctx->stats.preparesPurged++;
+                }
+                cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
             }
+            return true;
         }
-        if (!cbCtx.ctx) {
-            // TODO: we don't have a callback function to kv_engine
-            // to grab the compaction_ctx when the compaction is
-            // triggered by magma (Level, Expiry).
-        }
-        cbCtx.initialized = true;
     }
 
-    if (cbCtx.ctx) {
-        auto seqno = magmakv::getSeqNum(metaSlice);
-        auto exptime = magmakv::getExpiryTime(metaSlice);
-        Status status;
+    if (magmakv::isDeleted(metaSlice)) {
+        uint64_t maxSeqno;
+        status = magma->GetMaxSeqno(vbid.get(), maxSeqno);
+        if (!status) {
+            throw std::runtime_error("MagmaCompactionCallback: Failed : " +
+                                     vbid.to_string() + " " + status.String());
+        }
 
-        if (cbCtx.ctx->droppedKeyCb) {
-            // We need to check both committed and prepared documents - if the
-            // collection has been logically deleted then we need to discard
-            // both types of keys.
-            // As such use the docKey (i.e. without any DurabilityPrepare
-            // namespace) when checking if logically deleted;
-            auto diskKey = makeDiskDocKey(keySlice);
-            if (cbCtx.ctx->eraserContext->isLogicallyDeleted(
-                        diskKey.getDocKey(), seqno)) {
-                // Inform vb that the key@seqno is dropped
-                cbCtx.ctx->droppedKeyCb(diskKey, seqno);
-                if (!magmakv::isDeleted(metaSlice)) {
-                    cbCtx.ctx->stats.collectionsItemsPurged++;
-                } else {
-                    if (magmakv::isPrepared(metaSlice)) {
-                        cbCtx.ctx->stats.preparesPurged++;
-                    }
-                    cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
+        if (seqno != maxSeqno) {
+            bool drop = false;
+            if (cbCtx.ctx->compactConfig.drop_deletes) {
+                logger->TRACE("MagmaCompactionCB: {} DROP drop_deletes {}",
+                              vbid,
+                              cb::UserData(itemString.str()));
+                drop = true;
+            }
+
+            if (exptime < cbCtx.ctx->compactConfig.purge_before_ts &&
+                (exptime) &&
+                (!cbCtx.ctx->compactConfig.purge_before_seq ||
+                 seqno <= cbCtx.ctx->compactConfig.purge_before_seq)) {
+                logger->TRACE("MagmaCompactionCB: {} DROP expired tombstone {}",
+                              vbid,
+                              cb::UserData(itemString.str()));
+                drop = true;
+            }
+
+            if (drop) {
+                cbCtx.ctx->stats.tombstonesPurged++;
+                if (cbCtx.ctx->max_purged_seq < seqno) {
+                    cbCtx.ctx->max_purged_seq = seqno;
                 }
                 return true;
             }
         }
-
-        if (magmakv::isDeleted(metaSlice)) {
-            uint64_t maxSeqno;
-            status = magma->GetMaxSeqno(cbCtx.vbid.get(), maxSeqno);
-            if (!status) {
-                throw std::runtime_error("MagmaCompactionCallback Failed : " +
-                                         status.String());
+    } else {
+        // We can remove any prepares that have been completed. This works
+        // because we send Mutations instead of Commits when streaming from
+        // Disk so we do not need to send a Prepare message to keep things
+        // consistent on a replica.
+        if (magmakv::isPrepared(metaSlice)) {
+            if (cbCtx.ctx->max_purged_seq < seqno) {
+                cbCtx.ctx->stats.preparesPurged++;
+                return true;
             }
-
-            if (seqno != maxSeqno) {
-                if (cbCtx.ctx->compactConfig.drop_deletes) {
-                    logger->TRACE("MagmaCompactionCB DROP drop_deletes {}",
-                                  itemString.str());
-                    cbCtx.ctx->stats.tombstonesPurged++;
-                    if (cbCtx.ctx->max_purged_seq < seqno) {
-                        cbCtx.ctx->max_purged_seq = seqno;
-                    }
-                    return true;
-                }
-
-                if (exptime < cbCtx.ctx->compactConfig.purge_before_ts &&
-                    (exptime ||
-                     !cbCtx.ctx->compactConfig.retain_erroneous_tombstones) &&
-                    (!cbCtx.ctx->compactConfig.purge_before_seq ||
-                     seqno <= cbCtx.ctx->compactConfig.purge_before_seq)) {
-                    logger->TRACE("MagmaCompactionCB DROP expired tombstone {}",
-                                  itemString.str());
-                    cbCtx.ctx->stats.tombstonesPurged++;
-                    if (cbCtx.ctx->max_purged_seq < seqno) {
-                        cbCtx.ctx->max_purged_seq = seqno;
-                    }
-                    return true;
-                }
+        }
+        time_t currTime = ep_real_time();
+        if (exptime && exptime < currTime) {
+            auto docMeta = magmakv::getDocMeta(metaSlice);
+            auto itm =
+                    std::make_unique<Item>(makeDiskDocKey(keySlice).getDocKey(),
+                                           docMeta.flags,
+                                           docMeta.exptime,
+                                           valueSlice.Data(),
+                                           valueSlice.Len(),
+                                           docMeta.datatype,
+                                           docMeta.cas,
+                                           docMeta.bySeqno,
+                                           vbid,
+                                           docMeta.revSeqno);
+            if (magmakv::isCompressed(metaSlice)) {
+                itm->decompressValue();
             }
-        } else {
-            // We can remove any prepares that have been completed. This works
-            // because we send Mutations instead of Commits when streaming from
-            // Disk so we do not need to send a Prepare message to keep things
-            // consistent on a replica.
-            if (magmakv::isPrepared(metaSlice)) {
-                if (cbCtx.ctx->max_purged_seq < seqno) {
-                    cbCtx.ctx->stats.preparesPurged++;
-                    return true;
-                }
-            }
-            time_t currTime = ep_real_time();
-            if (exptime && exptime < currTime) {
-                auto docMeta = magmakv::getDocMeta(metaSlice);
-                auto itm = std::make_unique<Item>(
-                        makeDiskDocKey(keySlice).getDocKey(),
-                        docMeta.flags,
-                        docMeta.exptime,
-                        valueSlice.Data(),
-                        valueSlice.Len(),
-                        docMeta.datatype,
-                        docMeta.cas,
-                        docMeta.bySeqno,
-                        cbCtx.vbid,
-                        docMeta.revSeqno);
-                if (magmakv::isCompressed(metaSlice)) {
-                    itm->decompressValue();
-                }
-                itm->setDeleted(DeleteSource::TTL);
-                cbCtx.ctx->expiryCallback->callback(*(itm.get()), currTime);
-                logger->TRACE("MagmaCompactionCB expiry callback {}",
-                              itemString.str());
-            }
+            itm->setDeleted(DeleteSource::TTL);
+            cbCtx.ctx->expiryCallback->callback(*(itm.get()), currTime);
+            logger->TRACE("MagmaCompactionCB: {} expiry callback {}",
+                          vbid,
+                          cb::UserData(itemString.str()));
         }
     }
 
-    logger->TRACE("MagmaCompactionCB KEEP {}", itemString.str());
+    logger->TRACE("MagmaCompactionCB: {} KEEP {}",
+                  vbid,
+                  cb::UserData(itemString.str()));
     return false;
 }
 
@@ -376,8 +366,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma." +
                 std::to_string(configuration.getShardId())),
-      scanCounter(0),
-      compaction_ctxList(configuration.getMaxVBuckets()) {
+      scanCounter(0) {
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
     configuration.magmaCfg.MaxKVStoreLSDBufferSize =
@@ -1738,11 +1727,6 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
         return false;
     }
 
-    {
-        std::lock_guard<std::mutex> lock(compactionCtxMutex);
-        compaction_ctxList[vbid.get()] = ctx;
-    }
-
     auto dropped = getDroppedCollections(vbid);
     ctx->eraserContext =
             std::make_unique<Collections::VB::EraserContext>(dropped);
@@ -1757,15 +1741,18 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
     }
     ctx->highCompletedSeqno = diskState.vbstate.persistedCompletedSeqno;
 
-    // If there aren't any collections to drop, this compaction is likely
-    // being called from a test because kv_engine shouldn't call compactDB
-    // to compact levels, magma takes care of that already.
+    auto compactionCB = [this, ctx]() {
+        return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this, ctx);
+    };
+
     if (dropped.empty()) {
-        // Perform synchronous compaction.
-        status = magma->CompactKVStore(vbid.get(), Magma::StoreType::Key);
+        status = magma->CompactKVStore(
+                vbid.get(), Magma::StoreType::Key, compactionCB);
         if (!status) {
-            logger->warn("MagmaKVStore::compactDBInternal: Sync failed for {} ",
-                         vbid);
+            logger->warn(
+                    "MagmaKVStore::compactDBInternal CompactKVStore failed. "
+                    "{} ",
+                    vbid);
             return false;
         }
     } else {
@@ -1783,10 +1770,8 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
                         cb::UserData{docKey.to_string()});
             }
 
-            // This will find all the keys with a prefix of the collection ID
-            // and drop them.
-            status = magma->PurgeKVStore(
-                    vbid.get(), keySlice, keySlice, nullptr, true);
+            status = magma->CompactKVStore(
+                    vbid.get(), keySlice, keySlice, compactionCB);
             if (!status) {
                 logger->warn(
                         "MagmaKVStore::compactDBInternal: PurgeKVStore {} "
@@ -1858,8 +1843,6 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
                 "Status:{}",
                 vbid,
                 status.String());
-        std::lock_guard<std::mutex> lock(compactionCtxMutex);
-        compaction_ctxList[vbid.get()].reset();
         return false;
     }
     status = magma->Sync(doCommitEveryBatch);
@@ -1868,8 +1851,6 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
                 "MagmaKVStore::compactDBInternal {} Sync failed. Status:{}",
                 vbid,
                 status.String());
-        std::lock_guard<std::mutex> lock(compactionCtxMutex);
-        compaction_ctxList[vbid.get()].reset();
         return false;
     }
 
@@ -1891,11 +1872,6 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
             ctx->stats.collectionsDeletedItemsPurged,
             ctx->stats.tombstonesPurged,
             ctx->stats.preparesPurged);
-
-    {
-        std::lock_guard<std::mutex> lock(compactionCtxMutex);
-        compaction_ctxList[vbid.get()].reset();
-    }
 
     return true;
 }

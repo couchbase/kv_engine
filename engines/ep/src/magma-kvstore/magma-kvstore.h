@@ -642,9 +642,23 @@ protected:
                            Vbid vbid,
                            GetMetaOnly getMetaOnly);
 
+    /**
+     * MagmaCompactionCB is the class invoked by magma compactions,
+     * both implicit and explicit. For explict compactions, which come
+     * through compactDB, we pass the compaction_ctx thru to the callback
+     * routine. For implicit compaction, we call makeCompactionCtx to
+     * create the compaction_ctx on the fly.
+     *
+     * Since implicit compactions can run in a thread other than the
+     * BG Writer thread, we keep track of MagmaDbStats stats during
+     * compaction and magma will call the GetUserStats() routine and
+     * merge them with the existing MagmaDbStats stats.
+     */
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
     public:
-        MagmaCompactionCB(MagmaKVStore& magmaKVStore);
+        MagmaCompactionCB(MagmaKVStore& magmaKVStore,
+                          std::shared_ptr<compaction_ctx> ctx = nullptr);
+
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
                         const magma::Slice& metaSlice,
@@ -652,18 +666,14 @@ protected:
             return magmaKVStore.compactionCallBack(
                     *this, keySlice, metaSlice, valueSlice);
         }
-        MagmaKVStore& magmaKVStore;
-        bool initialized{false};
-        std::stringstream itemKeyBuf;
-        std::shared_ptr<compaction_ctx> magmaCompactionCtx;
-        compaction_ctx* ctx{nullptr};
-        Vbid vbid{};
-
         const magma::UserStats* GetUserStats() override {
             return &magmaDbStats;
         }
+        MagmaKVStore& magmaKVStore;
+        std::stringstream itemKeyBuf;
 
-    private:
+        std::shared_ptr<compaction_ctx> ctx;
+
         MagmaDbStats magmaDbStats;
     };
 
@@ -735,12 +745,6 @@ protected:
     // Using upsert for Set means we can't keep accurate document totals.
     // This is used for testing only!
     bool useUpsertForSet{false};
-
-    // This needs to be a shared_ptr because its possible an implicit
-    // compaction kicks off while an explicit compaction is happening
-    // and we don't want to free it while the implicit compaction is working.
-    std::vector<std::shared_ptr<compaction_ctx>> compaction_ctxList;
-    std::mutex compactionCtxMutex;
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;

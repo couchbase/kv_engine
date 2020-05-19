@@ -4230,7 +4230,17 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
 
     // Run compaction and verify that the tombstone is purged
     runCompaction(~0, 3);
-    EXPECT_EQ(3, vb->getPurgeSeqno());
+
+    size_t expected;
+    if (isMagma()) {
+        // Magma doesn't susuffer from MB-30015 so doesn't retain these
+        // tombstones
+        expected = 0;
+    } else {
+        expected = 3;
+    }
+
+    EXPECT_EQ(expected, vb->getPurgeSeqno());
 }
 
 /**
