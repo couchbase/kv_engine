@@ -1561,6 +1561,18 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
                 continue;
             }
 
+            if (item->isAbort()) {
+                EP_LOG_INFO(
+                        "({}) Rolling back an unpersisted abort with "
+                        "key:{} and seqno:{}",
+                        vb.getId(),
+                        cb::UserData(item->getKey().to_string()),
+                        item->getBySeqno());
+                // Aborts are not kept in the hashtable so do not
+                // need to be removed.
+                continue;
+            }
+
             // Committed items only past this point
             GetValue gcb = getROUnderlying(vb.getId())
                                    ->get(DiskDocKey{*item}, vb.getId());

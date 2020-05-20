@@ -1001,8 +1001,9 @@ public:
      * Receive and flush a DCP abort
      *
      * @param key Key to use for the Abort.
+     * @param flush whether to flush the abort to disk
      */
-    void doAbort(StoredDocKey key);
+    void doAbort(StoredDocKey key, bool flush = true);
 
     /**
      * Receive and flush a DCP prepare followed by a DCP abort
@@ -1010,10 +1011,12 @@ public:
      * @param key Key to use for the Prepare and Abort.
      * @param value Value to use for the Prepare.
      * @param syncDelete is this a SyncWrite or SyncDelete
+     * @param flush whether to flush after each op
      */
     void doPrepareAndAbort(StoredDocKey key,
                            std::string value,
-                           bool syncDeleted = false);
+                           bool syncDeleted = false,
+                           bool flush = true);
 
     void rollbackPrepare(bool deleted);
     void rollbackPrepareOnTopOfSyncWrite(bool syncDelete, bool deletedPrepare);
@@ -1268,7 +1271,7 @@ void RollbackDcpTest::doPrepareAndCommit(StoredDocKey key,
     doCommit(key);
 }
 
-void RollbackDcpTest::doAbort(StoredDocKey key) {
+void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
     auto stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
 
@@ -1289,7 +1292,9 @@ void RollbackDcpTest::doAbort(StoredDocKey key) {
             ENGINE_SUCCESS,
             vb->abort(
                     key, prepareSeqno, {abortSeqno}, vb->lockCollections(key)));
-    flush_vbucket_to_disk(vbid, 1);
+    if (flush) {
+        flush_vbucket_to_disk(vbid, 1);
+    }
 
     auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
@@ -1305,9 +1310,10 @@ void RollbackDcpTest::doAbort(StoredDocKey key) {
 
 void RollbackDcpTest::doPrepareAndAbort(StoredDocKey key,
                                         std::string value,
-                                        bool syncDelete) {
-    doPrepare(key, value, syncDelete);
-    doAbort(key);
+                                        bool syncDelete,
+                                        bool flush) {
+    doPrepare(key, value, syncDelete, flush);
+    doAbort(key, flush);
 }
 
 /**
@@ -2037,6 +2043,47 @@ TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbortedSyncDelete) {
 
 TEST_P(RollbackDcpTest, RollbackSyncDeleteAbortOnTopOfAbortedSyncDelete) {
     rollbackAbortOnTopOfAbortedSyncWrite(true, true);
+}
+
+TEST_P(RollbackDcpTest, RollbackUnpersistedAbortDoesNotLoadOlderPrepare) {
+    // MB-39333: Rolling back an unpersisted abort should not attempt
+    // to load an earlier version from disk - if the prepare needs to be
+    // reloaded, it will be done as part of loadPreparedSyncWrite
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0);
+
+    auto key = makeStoredDocKey("key");
+    // persist a prepare and commit (both are flushed immediately)
+    doPrepareAndCommit(key, "value", /*not a syncdelete */ false);
+
+    auto rollbackSeqno = vb->getHighSeqno();
+
+    // Save the pre-rollback HashTable state for later comparison
+    auto htState = getHtState();
+
+    // store but _do not_ flush a prepare and an abort
+    doPrepareAndAbort(key,
+                      "value2",
+                      /*not a syncdelete */ false,
+                      /* don't flush */ false);
+
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+    auto& passiveDm = static_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(0, passiveDm.getNumTracked());
+    EXPECT_EQ(1, passiveDm.getHighPreparedSeqno());
+    EXPECT_EQ(1, passiveDm.getHighCompletedSeqno());
+    // expect only the one committed item to be left
+    EXPECT_EQ(1, vb->getNumTotalItems());
+
+    // MB-39333: Rolling back the abort would erroneously reload the first
+    // prepare (seqno 2 here) into the ht.
+    EXPECT_FALSE(vb->ht.findOnlyPrepared(key).storedValue);
+
+    EXPECT_EQ(htState.dump(), getHtState().dump());
 }
 
 class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {
