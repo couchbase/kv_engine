@@ -235,12 +235,20 @@ static enum test_result test_whitespace_db(EngineIface* h) {
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
+    // We append the whitespace portion of the name to the current one as this
+    // should be unique when running under ctest (it gets set via our command
+    // line args)
     std::string dbname;
-    std::string policy;
-    policy = isPersistentBucket(h)
-                     ? vals.find("ep_item_eviction_policy")->second
-                     : "ephemeral";
-    dbname.assign(policy + std::string(WHITESPACE_DB));
+    dbname.assign(vals["ep_dbname"] + std::string(WHITESPACE_DB));
+
+    try {
+        rmdb(dbname.c_str());
+    } catch (std::system_error& e) {
+        // If the file doesn't exist, everything is fine and we can continue
+        if (e.code() != std::error_code(ENOENT, std::system_category())) {
+            throw e;
+        }
+    }
 
     std::string oldparam("dbname=" + vals["ep_dbname"]);
     std::string newparam("dbname=" + dbname);
@@ -265,6 +273,22 @@ static enum test_result test_whitespace_db(EngineIface* h) {
 
     check(cb::io::isDirectory(dbname), "I expected the whitespace db to exist");
     return SUCCESS;
+}
+
+void test_whitespace_db_cleanup(engine_test_t* test, enum test_result result) {
+    // Cleanup the whitespace db if it exists
+    std::string dbname;
+    dbname.assign(vals["ep_dbname"] + std::string(WHITESPACE_DB));
+    try {
+        rmdb(dbname.c_str());
+    } catch (std::system_error& e) {
+        if (e.code() != std::error_code(ENOENT, std::system_category())) {
+            throw e;
+        }
+    }
+
+    // Chain to the normal cleanup to cleanup the original db
+    cleanup(test, result);
 }
 
 static enum test_result test_get_miss(EngineIface* h) {
@@ -2254,9 +2278,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_whitespace_db,
                  test_setup,
                  teardown,
-                 "dbname=" WHITESPACE_DB ";ht_locks=1;ht_size=3",
+                 "ht_locks=1;ht_size=3",
                  prepare,
-                 cleanup),
+                 test_whitespace_db_cleanup),
         TestCase("get miss",
                  test_get_miss,
                  test_setup,
