@@ -28,53 +28,47 @@ PersistenceCallback::PersistenceCallback() {
 PersistenceCallback::~PersistenceCallback() = default;
 
 // This callback is invoked for set only.
-void PersistenceCallback::operator()(
-        TransactionContext& txCtx,
-        queued_item queuedItem,
-        KVStore::FlushStateMutation mutationResult) {
+void PersistenceCallback::operator()(TransactionContext& txCtx,
+                                     queued_item queuedItem,
+                                     KVStore::FlushStateMutation state) {
     auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
-    {
-        auto res = vbucket.ht.findItem(*queuedItem);
-        auto* v = res.storedValue;
-        if (v) {
-            if (v->getCas() == queuedItem->getCas()) {
-                // mark this item clean only if current and stored cas
-                // value match
+    using State = KVStore::FlushStateMutation;
+
+    switch (state) {
+    case State::Insert:
+    case State::Update: {
+        // Mark clean, only if the StoredValue has the same CommittedState and
+        // and CAS as the persisted item.
+        //
+        // @todo: MB-39280, compare Seqno, not CAS
+        {
+            auto res = vbucket.ht.findItem(*queuedItem);
+            auto* v = res.storedValue;
+            if (v && (v->getCas() == queuedItem->getCas())) {
                 v->markClean();
             }
         }
-    }
-
-    const auto doGeneralFlushStats = [&vbucket, &queuedItem, &epCtx]() -> void {
+        // Update general flush stats
         vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
         --epCtx.stats.diskQueueSize;
         epCtx.stats.totalPersisted++;
-    };
 
-    switch (mutationResult) {
-    case KVStore::FlushStateMutation::Insert: {
-        doGeneralFlushStats();
-
-        // Only count Committed items in numTotalItems.
+        // Account only committed items in opsCreate/Update and numTotalItems
         if (queuedItem->isCommitted()) {
-            ++vbucket.opsCreate;
-            vbucket.incrNumTotalItems();
+            if (state == State::Insert) {
+                ++vbucket.opsCreate;
+                vbucket.incrNumTotalItems();
+            } else {
+                ++vbucket.opsUpdate;
+            }
         }
 
-        // All items which are actually flushed to disk (Mutations, prepares,
-        // commits, and system events) take up space on disk so increment
-        // metadata stat.
-        vbucket.incrMetaDataDisk(*queuedItem);
-        return;
-    }
-    case KVStore::FlushStateMutation::Update: {
-        doGeneralFlushStats();
-
-        if (queuedItem->isCommitted()) {
-            // ops_update should only count committed, not prepared items.
-            ++vbucket.opsUpdate;
+        // All inserts to disk (mutation, prepare, commit,system event) take up
+        // space on disk so increment metadata stat.
+        if (state == State::Insert) {
+            vbucket.incrMetaDataDisk(*queuedItem);
         }
 
         return;
@@ -85,7 +79,8 @@ void PersistenceCallback::operator()(
                 "SET on {} seqno:{}",
                 queuedItem->getVBucketId(),
                 queuedItem->getBySeqno());
-        redirty(epCtx.stats, vbucket, queuedItem);
+        ++epCtx.stats.flushFailed;
+        ++vbucket.opsReject;
         return;
     }
     folly::assume_unreachable();
@@ -116,18 +111,11 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
                 "DELETE on {} seqno:{}",
                 queuedItem->getVBucketId(),
                 queuedItem->getBySeqno());
-        redirty(epCtx.stats, vbucket, queuedItem);
+        ++epCtx.stats.flushFailed;
+        ++vbucket.opsReject;
         return;
     }
     folly::assume_unreachable();
-}
-
-void PersistenceCallback::redirty(EPStats& stats,
-                                  VBucket& vbucket,
-                                  queued_item queuedItem) {
-    ++stats.flushFailed;
-    vbucket.markDirty(queuedItem->getKey());
-    ++vbucket.opsReject;
 }
 
 EPTransactionContext::EPTransactionContext(EPStats& stats, VBucket& vbucket)
