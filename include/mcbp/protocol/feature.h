@@ -80,6 +80,10 @@ enum class Feature : uint16_t {
 
     // Does the server support Point in Time Recovery
     PiTR = 0x16,
+
+    /// Does the server support the subdoc mutation flag
+    /// mcbp::subdoc::doc_flag::CreateAsDeleted ?
+    SubdocCreateAsDeleted = 0x17,
 };
 
 } // namespace mcbp

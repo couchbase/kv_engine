@@ -41,7 +41,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::OpenTracing, "OpenTracing"},
          {cb::mcbp::Feature::PreserveTtl, "PreserveTtl"},
          {cb::mcbp::Feature::VAttr, "VAttr"},
-         {cb::mcbp::Feature::PiTR, "PiTR"}}};
+         {cb::mcbp::Feature::PiTR, "PiTR"},
+         {cb::mcbp::Feature::SubdocCreateAsDeleted, "SubdocCreateAsDeleted"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {
