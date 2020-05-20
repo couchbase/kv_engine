@@ -4631,7 +4631,8 @@ class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {};
  * @TODO magma: Test does not run for magma as we don't yet have a way of inject
  * errors.
  */
-TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
+void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
+        couchstore_error_t failureCode) {
     // About the first two COUCHSTORE_SUCCESS:
     // - firts, set-vbstate precommit()
     // - then, set-vbstate couchstore_commit()
@@ -4644,7 +4645,7 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillOnce(testing::Return(failureCode))
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     setVBucketStateAndRunPersistTask(
@@ -4655,12 +4656,12 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
     // Active receives PRE(keyA):1, M(keyB):2, D(keyB):3
     // Note that the set of mutation is just functional to testing that we write
     // to disk all the required vbstate entries at flush
-
+    const std::string valueA = "valueA";
     {
         SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyA"),
-                   "value",
+                   valueA,
                    0 /*exptime*/,
                    {cb::engine_errc::sync_write_pending} /*expected*/,
                    PROTOCOL_BINARY_RAW_BYTES,
@@ -4671,23 +4672,13 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
         SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyB"),
-                   "value",
+                   "valueB",
                    0 /*exptime*/,
                    {cb::engine_errc::success} /*expected*/,
                    PROTOCOL_BINARY_RAW_BYTES);
     }
 
-    {
-        SCOPED_TRACE("");
-        store_item(vbid,
-                   makeStoredDocKey("keyB"),
-                   "value",
-                   0 /*exptime*/,
-                   {cb::engine_errc::success} /*expected*/,
-                   PROTOCOL_BINARY_RAW_BYTES,
-                   {} /*dur-reqs*/,
-                   true /*deleted*/);
-    }
+    delete_item(vbid, makeStoredDocKey("keyB"));
 
     // M(keyB):2 deduplicated, just 2 items for cursor
     const auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -4733,6 +4724,17 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
                               0 /*maxDelRevSeqno*/);
     }
 
+    // Check nothing persisted to disk
+    auto kvstore = store->getRWUnderlying(vbid);
+    const auto keyA = makeDiskDocKey("keyA", true);
+    auto docA = kvstore->get(keyA, vbid);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, docA.getStatus());
+    ASSERT_FALSE(docA.item);
+    const auto keyB = makeDiskDocKey("keyB");
+    auto docB = kvstore->get(keyB, vbid);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, docB.getStatus());
+    ASSERT_FALSE(docB.item);
+
     // This flush succeeds, we must write all the expected items and new vbstate
     // on disk
     EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
@@ -4751,6 +4753,29 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
                               0 /*HCS*/,
                               2 /*maxDelRevSeqno*/);
     }
+
+    // Check persisted docs
+    docA = kvstore->get(keyA, vbid);
+    EXPECT_EQ(ENGINE_SUCCESS, docA.getStatus());
+    ASSERT_TRUE(docA.item);
+    ASSERT_GT(docA.item->getNBytes(), 0);
+    EXPECT_EQ(std::string_view(valueA.c_str(), valueA.size()),
+              std::string_view(docA.item->getData(), docA.item->getNBytes()));
+    EXPECT_FALSE(docA.item->isDeleted());
+    docB = kvstore->get(keyB, vbid);
+    EXPECT_EQ(ENGINE_SUCCESS, docB.getStatus());
+    EXPECT_EQ(0, docB.item->getNBytes());
+    EXPECT_TRUE(docB.item->isDeleted());
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureAtPersistNonMetaItems_ErrorWrite) {
+    testFlushFailureAtPersistNonMetaItems(COUCHSTORE_ERROR_WRITE);
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureAtPersistNonMetaItems_NoSuchFile) {
+    testFlushFailureAtPersistNonMetaItems(COUCHSTORE_ERROR_NO_SUCH_FILE);
 }
 
 /**
@@ -4765,7 +4790,8 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistNonMetaItems) {
  * @TODO magma: Test does not run for magma as we don't yet have a way of inject
  * errors.
  */
-TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistVBStateOnly) {
+void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
+        couchstore_error_t failureCode) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
@@ -4774,7 +4800,7 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistVBStateOnly) {
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillOnce(testing::Return(failureCode))
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
@@ -4842,14 +4868,27 @@ TEST_P(STParamCouchstoreBucketTest, ResetPCursorAtPersistVBStateOnly) {
     }
 }
 
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureAtPersistVBStateOnly_ErrorWrite) {
+    testFlushFailureAtPersistVBStateOnly(COUCHSTORE_ERROR_WRITE);
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureAtPersistVBStateOnly_NoSuchFile) {
+    testFlushFailureAtPersistVBStateOnly(COUCHSTORE_ERROR_NO_SUCH_FILE);
+}
+
 /**
  * Check that flush stats are updated only at flush success.
+ * Covers the case where the number of items pulled from the CheckpointManager
+ * is different (higher) than the actual number of items flushed. Ie, flusher
+ * deduplication occurs.
  *
  * @TODO magma: Test does not run for magma as we don't yet have a way of inject
  * errors.
  */
-TEST_P(STParamCouchstoreBucketTest,
-       FlushStatsAtPersistNonMetaItems_FlusherDeduplication) {
+void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
+        couchstore_error_t failureCode) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
@@ -4858,7 +4897,7 @@ TEST_P(STParamCouchstoreBucketTest,
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillOnce(testing::Return(failureCode))
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -4883,11 +4922,12 @@ TEST_P(STParamCouchstoreBucketTest,
     manager.createNewCheckpoint();
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 
+    const std::string value2 = "value2";
     {
         SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyA"),
-                   "value",
+                   value2,
                    0 /*exptime*/,
                    {cb::engine_errc::success} /*expected*/,
                    PROTOCOL_BINARY_RAW_BYTES);
@@ -4903,6 +4943,12 @@ TEST_P(STParamCouchstoreBucketTest,
               epBucket.flushVBucket(vbid));
     // Flush stats not updated
     EXPECT_EQ(2, vb.dirtyQueueSize);
+    // No doc on disk
+    auto kvstore = store->getRWUnderlying(vbid);
+    const auto key = makeDiskDocKey("keyA");
+    auto doc = kvstore->get(key, vbid);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, doc.getStatus());
+    ASSERT_FALSE(doc.item);
 
     // This flush succeeds, we must write all the expected items and new vbstate
     // on disk
@@ -4912,6 +4958,24 @@ TEST_P(STParamCouchstoreBucketTest,
     EXPECT_TRUE(vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved());
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
+    // doc persisted
+    doc = kvstore->get(key, vbid);
+    EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+    ASSERT_TRUE(doc.item);
+    ASSERT_GT(doc.item->getNBytes(), 0);
+    EXPECT_EQ(std::string_view(value2.c_str(), value2.size()),
+              std::string_view(doc.item->getData(), doc.item->getNBytes()));
+    EXPECT_FALSE(doc.item->isDeleted());
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureStatsAtDedupedNonMetaItems_ErrorWrite) {
+    testFlushFailureStatsAtDedupedNonMetaItems(COUCHSTORE_ERROR_WRITE);
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureStatsAtDedupedNonMetaItems_NoSuchFile) {
+    testFlushFailureStatsAtDedupedNonMetaItems(COUCHSTORE_ERROR_NO_SUCH_FILE);
 }
 
 /**
@@ -5064,6 +5128,107 @@ TEST_P(STParamPersistentBucketTest, AbortDoesNotIncrementOpsDelete) {
 TEST_P(STParamPersistentBucketTest,
        AbortDoesNotIncrementOpsDelete_FlusherDedup) {
     testAbortDoesNotIncrementOpsDelete(false /*flusherDedup*/);
+}
+
+/**
+ * Check that when persisting a delete and the flush fails:
+ *  - flush-stats are not updated
+ *  - the (deleted) item is not removed from the HashTable
+ */
+void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
+        couchstore_error_t failureCode) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(failureCode))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Active receives M(keyA):1 and deletion, M is deduplicated.
+    const auto storedKey = makeStoredDocKey("keyA");
+    store_item(vbid,
+               storedKey,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+
+    delete_item(vbid, storedKey);
+
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    // Mutation deduplicated, just deletion
+    ASSERT_EQ(1, manager.getNumItemsForPersistence());
+
+    // Pre-conditions:
+    // - stats account for the deletion in the write queue
+    // - the deletion is in the HashTable
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_TRUE(res.committed);
+        ASSERT_TRUE(res.committed->isDeleted());
+    }
+
+    // Test: flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Post-conditions:
+    //  - no doc on disk
+    //  - flush stats not updated
+    //  - the deletion is still in the HashTable
+    auto kvstore = store->getRWUnderlying(vbid);
+    const auto diskKey = makeDiskDocKey("keyA");
+    auto doc = kvstore->get(diskKey, vbid);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, doc.getStatus());
+    ASSERT_FALSE(doc.item);
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+    {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_TRUE(res.committed);
+        ASSERT_TRUE(res.committed->isDeleted());
+    }
+
+    // Check out that all goes well when we re-attemp the flush
+
+    // This flush succeeds, we must write all the expected items on disk.
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Doc on disk, flush stats updated and deletion removed from the HT
+    doc = kvstore->get(diskKey, vbid);
+    EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+    EXPECT_EQ(0, doc.item->getNBytes());
+    EXPECT_TRUE(doc.item->isDeleted());
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    {
+        const auto res = vb.ht.findForUpdate(storedKey);
+        ASSERT_FALSE(res.pending);
+        ASSERT_FALSE(res.committed);
+    }
+
+    // All done, nothing to flush
+    ASSERT_EQ(0, manager.getNumItemsForPersistence());
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+}
+
+TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_ErrorWrite) {
+    testFlushFailureAtPersistDelete(COUCHSTORE_ERROR_WRITE);
+}
+
+TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_NoSuchFile) {
+    testFlushFailureAtPersistDelete(COUCHSTORE_ERROR_NO_SUCH_FILE);
 }
 
 #ifdef EP_USE_MAGMA

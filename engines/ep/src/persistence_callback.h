@@ -16,9 +16,7 @@
  */
 #pragma once
 
-#include "callbacks.h"
 #include "kvstore.h"
-#include "vbucket.h"
 
 class EPStats;
 
@@ -37,36 +35,28 @@ public:
 
     // This callback is invoked for set only.
     void operator()(TransactionContext&,
-                    queued_item item,
-                    KVStore::MutationSetResultState mutationResult);
+                    queued_item,
+                    KVStore::FlushStateMutation);
 
     // This callback is invoked for deletions only.
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
     void operator()(TransactionContext&,
-                    queued_item item,
-                    KVStore::MutationStatus deleteStatus);
+                    queued_item,
+                    KVStore::FlushStateDeletion);
 
 private:
     void redirty(EPStats& stats, VBucket& vbucket, queued_item item);
 };
 
 struct EPTransactionContext : public TransactionContext {
-    EPTransactionContext(EPStats& stats,
-                         VBucket& vbucket)
-        : TransactionContext(vbucket.getId()), stats(stats), vbucket(vbucket) {
-    }
+    EPTransactionContext(EPStats& stats, VBucket& vbucket);
 
-    void setCallback(const queued_item& item,
-                     KVStore::MutationSetResultState mutationStatus) override {
-        cb(*this, item, mutationStatus);
-    }
+    void setCallback(const queued_item&, KVStore::FlushStateMutation) override;
 
-    void deleteCallback(const queued_item& item,
-                        KVStore::MutationStatus mutationStatus) override {
-        cb(*this, item, mutationStatus);
-    }
+    void deleteCallback(const queued_item&,
+                        KVStore::FlushStateDeletion) override;
 
     EPStats& stats;
     VBucket& vbucket;

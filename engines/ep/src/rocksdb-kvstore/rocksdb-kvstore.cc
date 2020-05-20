@@ -599,26 +599,9 @@ bool RocksDBKVStore::commit(VB::Commit& commitData) {
     return success;
 }
 
-static KVStore::MutationStatus getMutationStatus(rocksdb::Status status) {
-    switch (status.code()) {
-    case rocksdb::Status::Code::kOk:
-        return KVStore::MutationStatus::Success;
-    case rocksdb::Status::Code::kNotFound:
-        // This return value causes ep-engine to drop the failed flush
-        return KVStore::MutationStatus::DocNotFound;
-    case rocksdb::Status::Code::kBusy:
-        // This return value causes ep-engine to keep re-queueing the failed
-        // flush
-        return KVStore::MutationStatus::Failed;
-    default:
-        throw std::runtime_error(
-                std::string("getMutationStatus: RocksDB error:") +
-                std::string(status.getState()));
-    }
-}
-
 void RocksDBKVStore::commitCallback(rocksdb::Status status,
                                     const PendingRequestQueue& commitBatch) {
+    const auto flushSuccess = (status.code() == rocksdb::Status::Code::kOk);
     for (const auto& request : commitBatch) {
         auto dataSize = request.getDocMetaSlice().size() +
                         request.getDocBodySlice().size();
@@ -627,38 +610,37 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
         ++st.io_num_write;
         st.io_document_write_bytes += (key.size() + dataSize);
 
-        auto mutationStatus = getMutationStatus(status);
         if (request.isDelete()) {
-            if (status.code()) {
-                ++st.numDelFailure;
-            } else {
+            FlushStateDeletion state;
+            if (flushSuccess) {
+                // TODO: Should set `state` to Success or DocNotFound depending
+                //  on if this is a delete to an existing (Success) or
+                //  non-existing (DocNotFound) item. However, to achieve this we
+                //  would need to perform a Get to RocksDB which is costly. For
+                //  now just assume that the item did not exist.
+                state = FlushStateDeletion::DocNotFound;
                 st.delTimeHisto.add(request.getDelta() / 1000);
+            } else {
+                state = FlushStateDeletion::Failed;
+                ++st.numDelFailure;
             }
-            if (mutationStatus != MutationStatus::Failed) {
-                // TODO: Should set `mutationStatus` to Success or
-                // DocNotFound depending on if this is a delete to an existing
-                // (Success) or non-existing (DocNotFound) item.
+            transactionCtx->deleteCallback(request.getItem(), state);
+        } else {
+            FlushStateMutation state;
+            if (flushSuccess) {
+                // TODO: Should set `state` to Insert or Update depending on
+                // whether we had already an alive item on disk or not.
                 // However, to achieve this we would need to perform a Get to
                 // RocksDB which is costly. For now just assume that the item
                 // did not exist.
-                mutationStatus = MutationStatus::DocNotFound;
-            }
-            transactionCtx->deleteCallback(request.getItem(), mutationStatus);
-        } else {
-            if (status.code()) {
-                ++st.numSetFailure;
-            } else {
+                state = FlushStateMutation::Insert;
                 st.writeTimeHisto.add(request.getDelta() / 1000);
                 st.writeSizeHisto.add(dataSize + key.size());
+            } else {
+                state = FlushStateMutation::Failed;
+                ++st.numSetFailure;
             }
-            // TODO: Should set `mr.second` to true or false depending on if
-            // this is an insertion (MutationSetResultState::Insert) or an
-            // update of an existing item (MutationSetResultState::Update).
-            // However, to achieve this we would need to perform a Get to
-            // RocksDB which is costly. For now just assume that the item did
-            // not exist.
-            transactionCtx->setCallback(request.getItem(),
-                                        MutationSetResultState::Insert);
+            transactionCtx->setCallback(request.getItem(), state);
         }
     }
 }
