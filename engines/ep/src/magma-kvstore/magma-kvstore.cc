@@ -351,7 +351,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         // Disk so we do not need to send a Prepare message to keep things
         // consistent on a replica.
         if (magmakv::isPrepared(metaSlice)) {
-            if (cbCtx.ctx->max_purged_seq < seqno) {
+            if (seqno <= cbCtx.ctx->highCompletedSeqno) {
                 { // Locking scope for magmaDbStats
                     auto dbStats = cbCtx.magmaDbStats.stats.wlock();
                     dbStats->onDiskPrepares--;

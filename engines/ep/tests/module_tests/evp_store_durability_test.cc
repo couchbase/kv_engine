@@ -2569,6 +2569,58 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
 
 // @TODO Rocksdb when we have manual compaction/compaction filtering this test
 // should be made to pass.
+TEST_P(DurabilityEPBucketTest,
+       DontRemoveUnCommittedPreparesAtCompaction) {
+    if (isRocksDB()) {
+        return;
+    }
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    auto key = makeStoredDocKey("key");
+    auto req = Requirements(Level::Majority, Timeout(1000));
+    auto pending = makePendingItem(key, "value", req);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+    auto dummyKey = makeStoredDocKey("dummyKey");
+    auto dummy = makeCommittedItem(dummyKey, "dummyValue");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*dummy, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    CompactionConfig config;
+    auto cctx = std::make_shared<compaction_ctx>(config, 0);
+    cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
+
+    auto* kvstore = store->getOneRWUnderlying();
+
+    // Sanity - prepare exists before compaction
+    DiskDocKey prefixedKey(key, true /*prepare*/);
+    auto gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(2, kvstore->getItemCount(vbid));
+
+    EXPECT_TRUE(kvstore->compactDB(cctx));
+
+    // Check the Prepare on disk
+    gv = kvstore->get(prefixedKey, Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    // Check onDiskPrepares is updated correctly too.
+    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(2, kvstore->getItemCount(vbid));
+
+    auto vb = store->getVBucket(vbid);
+    vb.reset();
+    resetEngineAndWarmup();
+    kvstore = store->getOneRWUnderlying();
+    EXPECT_EQ(2, kvstore->getItemCount(vbid));
+    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+}
+
+// @TODO Rocksdb when we have manual compaction/compaction filtering this test
+// should be made to pass.
 TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
