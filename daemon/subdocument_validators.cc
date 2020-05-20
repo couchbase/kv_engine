@@ -208,6 +208,12 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
             cookie.setErrorContext("CreateAsDeleted requires Mkdoc or Add");
             return cb::mcbp::Status::Einval;
         }
+
+        if ((subdoc_flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
+            cookie.setErrorContext(
+                    "CreateAsDeleted does not support body path");
+            return cb::mcbp::Status::Einval;
+        }
     }
 
     // If the Add flag is set, check the cas is 0

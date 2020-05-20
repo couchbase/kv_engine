@@ -39,6 +39,19 @@ TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem_RequiresMkdocOrAdd) {
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
+// Negative test: The Subdoc CreateAsDeleted doesn't allow to write in the
+// body.
+TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem_RequiresXattrPath) {
+    // Note: subdoc-flags doesn't set SUBDOC_FLAG_XATTR_PATH
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                       name,
+                       "txn.deleted",
+                       "true",
+                       SUBDOC_FLAG_MKDIR_P,
+                       doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
+
 // Positive test: Can User XAttrs be added to a document which doesn't exist
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag.
 TEST_P(XattrNoDocTest, AddUserXattrToNonExistentItem) {
