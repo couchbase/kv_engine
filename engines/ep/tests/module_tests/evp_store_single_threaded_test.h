@@ -487,12 +487,16 @@ protected:
      *
      * @param failureCode How the flush fails, this is the injected error-code
      *  return by KVStore::commit in our tests
+     * @param vbDeletion Some tests get this additional arg to verify that all
+     *  goes as expected when the flusher processes VBuckets set for deferred
+     *  deletion
      */
     void testFlushFailureAtPersistNonMetaItems(couchstore_error_t failureCode);
     void testFlushFailureAtPersistVBStateOnly(couchstore_error_t failureCode);
     void testFlushFailureStatsAtDedupedNonMetaItems(
-            couchstore_error_t failureCode);
-    void testFlushFailureAtPersistDelete(couchstore_error_t failureCode);
+            couchstore_error_t failureCode, bool vbDeletion = false);
+    void testFlushFailureAtPersistDelete(couchstore_error_t failureCode,
+                                         bool vbDeletion = false);
 
 protected:
     EPBucket& getEPBucket();

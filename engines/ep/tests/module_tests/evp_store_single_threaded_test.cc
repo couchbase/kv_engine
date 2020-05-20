@@ -4888,7 +4888,7 @@ TEST_P(STParamCouchstoreBucketTest,
  * errors.
  */
 void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
-        couchstore_error_t failureCode) {
+        couchstore_error_t failureCode, bool vbDeletion) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
@@ -4901,6 +4901,15 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Do we want to test the case where the flusher is running on a vbucket set
+    // set for deferred deletion?
+    // Nothing changes in the logic of this test, just that we hit an additional
+    // code-path where flush-stats are wrongly updated at flush failure
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    if (vbDeletion) {
+        vb.setDeferredDeletion(true);
+    }
 
     // Active receives M(keyA):1, M(keyA):2.
     // They are queued into different checkpoints. We enforce that as we want to
@@ -4916,7 +4925,6 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
                    PROTOCOL_BINARY_RAW_BYTES);
     }
 
-    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumOpenChkItems());
     manager.createNewCheckpoint();
@@ -4966,6 +4974,11 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     EXPECT_EQ(std::string_view(value2.c_str(), value2.size()),
               std::string_view(doc.item->getData(), doc.item->getNBytes()));
     EXPECT_FALSE(doc.item->isDeleted());
+
+    // Cleanup: reset the flag to avoid that we schedule the actual deletion at
+    //  TearDown, the ExecutorPool will be already gone at that point and the
+    //  test will SegFault
+    vb.setDeferredDeletion(false);
 }
 
 TEST_P(STParamCouchstoreBucketTest,
@@ -4976,6 +4989,11 @@ TEST_P(STParamCouchstoreBucketTest,
 TEST_P(STParamCouchstoreBucketTest,
        FlushFailureStatsAtDedupedNonMetaItems_NoSuchFile) {
     testFlushFailureStatsAtDedupedNonMetaItems(COUCHSTORE_ERROR_NO_SUCH_FILE);
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushFailureStatsAtDedupedNonMetaItems_VBDeletion) {
+    testFlushFailureStatsAtDedupedNonMetaItems(COUCHSTORE_ERROR_WRITE, true);
 }
 
 /**
@@ -5136,7 +5154,7 @@ TEST_P(STParamPersistentBucketTest,
  *  - the (deleted) item is not removed from the HashTable
  */
 void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
-        couchstore_error_t failureCode) {
+        couchstore_error_t failureCode, bool vbDeletion) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
@@ -5150,6 +5168,11 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    if (vbDeletion) {
+        vb.setDeferredDeletion(true);
+    }
+
     // Active receives M(keyA):1 and deletion, M is deduplicated.
     const auto storedKey = makeStoredDocKey("keyA");
     store_item(vbid,
@@ -5161,7 +5184,6 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
 
     delete_item(vbid, storedKey);
 
-    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumOpenChkItems());
     // Mutation deduplicated, just deletion
@@ -5180,7 +5202,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
 
     // Test: flush fails, we have not written anything to disk
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+    ASSERT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
 
     // Post-conditions:
@@ -5221,6 +5243,8 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
     ASSERT_EQ(0, manager.getNumItemsForPersistence());
     EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
+
+    vb.setDeferredDeletion(false);
 }
 
 TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_ErrorWrite) {
@@ -5229,6 +5253,10 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_ErrorWrite) {
 
 TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_NoSuchFile) {
     testFlushFailureAtPersistDelete(COUCHSTORE_ERROR_NO_SUCH_FILE);
+}
+
+TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_VBDeletion) {
+    testFlushFailureAtPersistDelete(COUCHSTORE_ERROR_WRITE, true);
 }
 
 #ifdef EP_USE_MAGMA
