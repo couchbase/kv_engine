@@ -541,6 +541,7 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
 }
 
 void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
+    const auto flushSuccess = (errCode == Status::Code::Ok);
     for (const auto& req : *pendingReqs) {
         size_t mutationSize =
                 req.getRawKeyLen() + req.getBodySize() + req.getMetaSize();
@@ -548,19 +549,19 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
         st.io_document_write_bytes += mutationSize;
 
         if (req.isDelete()) {
-            MutationStatus deleteState;
-            if (errCode != Status::Code::Ok) {
-                deleteState = MutationStatus::Failed;
-                ++st.numDelFailure;
-            } else {
+            FlushStateDeletion state;
+            if (flushSuccess) {
                 if (req.oldItemExists() && !req.oldItemIsDelete()) {
-                    // Delete for existing item.
-                    deleteState = MutationStatus::Success;
+                    // Deletion is for an existing item on disk
+                    state = FlushStateDeletion::Delete;
                 } else {
-                    // Delete but no doc found.
-                    deleteState = MutationStatus::DocNotFound;
+                    // Deletion is for a non-existing item on disk
+                    state = FlushStateDeletion::DocNotFound;
                 }
                 st.delTimeHisto.add(req.getDelta());
+            } else {
+                state = FlushStateDeletion::Failed;
+                ++st.numDelFailure;
             }
 
             logger->TRACE(
@@ -569,22 +570,24 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                     pendingReqs->front().getVbID(),
                     cb::UserData(req.getKey().to_string()),
                     errCode,
-                    to_string(deleteState));
+                    to_string(state));
 
-            transactionCtx->deleteCallback(req.getItem(), deleteState);
+            transactionCtx->deleteCallback(req.getItem(), state);
         } else {
-            MutationSetResultState setState;
-            if (errCode != Status::Code::Ok) {
-                ++st.numSetFailure;
-                setState = MutationSetResultState::Failed;
-            } else {
+            FlushStateMutation state;
+            if (flushSuccess) {
                 if (req.oldItemExists() && !req.oldItemIsDelete()) {
-                    setState = MutationSetResultState::Update;
+                    // Mutation is for an existing item on disk
+                    state = FlushStateMutation::Update;
                 } else {
-                    setState = MutationSetResultState::Insert;
+                    // Mutation is for a non-existing item on disk
+                    state = FlushStateMutation::Insert;
                 }
                 st.writeTimeHisto.add(req.getDelta());
                 st.writeSizeHisto.add(mutationSize);
+            } else {
+                state = FlushStateMutation::Failed;
+                ++st.numSetFailure;
             }
 
             logger->TRACE(
@@ -593,9 +596,9 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                     pendingReqs->front().getVbID(),
                     cb::UserData(req.getKey().to_string()),
                     errCode,
-                    to_string(setState));
+                    to_string(state));
 
-            transactionCtx->setCallback(req.getItem(), setState);
+            transactionCtx->setCallback(req.getItem(), state);
         }
     }
 }

@@ -28,12 +28,12 @@
 #include "tests/module_tests/kvstore_test.h"
 
 struct WriteCallback {
-    void operator()(TransactionContext&, KVStore::MutationSetResultState) {
+    void operator()(TransactionContext&, KVStore::FlushStateMutation) {
     }
 };
 
 struct DeleteCallback {
-    void operator()(TransactionContext&, KVStore::MutationStatus) {
+    void operator()(TransactionContext&, KVStore::FlushStateDeletion) {
     }
 };
 
