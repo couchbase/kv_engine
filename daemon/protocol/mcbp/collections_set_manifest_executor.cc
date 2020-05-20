@@ -32,6 +32,7 @@ void collections_set_manifest_executor(Cookie& cookie) {
 
     switch (ret) {
     case cb::engine_errc::disconnect:
+        connection.setTerminationReason("Engine forced disconnect");
         connection.setState(StateMachine::State::closing);
         break;
     default:

@@ -316,6 +316,7 @@ static BufferLoan loan_single_buffer(Connection& c,
                 "connection {}",
                 c.getId(),
                 c.getDescription());
+        c.setTerminationReason("Failed to allocate network buffer");
         c.setState(StateMachine::State::closing);
         return BufferLoan::Existing;
     }

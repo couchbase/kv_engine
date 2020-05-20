@@ -82,19 +82,22 @@ void list_bucket_executor(Cookie& cookie) {
         ret.first = ENGINE_ENOMEM;
     }
 
-    ret.first = connection.remapErrorCode(ret.first);
-    cookie.logResponse(ret.first);
+    const auto mapped = connection.remapErrorCode(ret.first);
+    cookie.logResponse(mapped);
 
-    if (ret.first == ENGINE_SUCCESS) {
+    if (mapped == ENGINE_SUCCESS) {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
                             {ret.second.data(), ret.second.size()},
                             cb::mcbp::Datatype::Raw,
                             0);
-    } else if (ret.first == ENGINE_DISCONNECT) {
+    } else if (mapped == ENGINE_DISCONNECT) {
+        if (ret.first == ENGINE_DISCONNECT) {
+            connection.setTerminationReason("Engine forced disconnect");
+        }
         connection.setState(StateMachine::State::closing);
     } else {
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(ret.first)));
+        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(mapped)));
     }
 }

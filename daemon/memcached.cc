@@ -763,6 +763,7 @@ bool is_bucket_dying(Connection& c) {
                 c.getId(),
                 c.getDescription());
         c.setState(StateMachine::State::closing);
+        c.setTerminationReason("The connected bucket is being deleted");
         return true;
     }
 
@@ -1641,6 +1642,7 @@ struct ServerCookieApi : public ServerCookieIface {
                 c->getId(),
                 priority,
                 c->getDescription());
+        c->setTerminationReason("Invalid priority specified");
         c->setState(StateMachine::State::closing);
     }
 

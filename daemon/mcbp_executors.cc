@@ -237,6 +237,7 @@ static void quit_executor(Cookie& cookie) {
               connection.getId(),
               connection.getDescription());
     connection.setWriteAndGo(StateMachine::State::closing);
+    connection.setTerminationReason("Client sent QUIT");
 }
 
 static void quitq_executor(Cookie& cookie) {
@@ -245,6 +246,7 @@ static void quitq_executor(Cookie& cookie) {
               connection.getId(),
               connection.getDescription());
     connection.setState(StateMachine::State::closing);
+    connection.setTerminationReason("Client sent QUIT");
 }
 
 static void sasl_list_mech_executor(Cookie& cookie) {
@@ -388,6 +390,8 @@ static void ioctl_get_executor(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
+            connection.setTerminationReason(
+                    "ioctl_get_executor forced disconnect");
         }
         connection.setState(StateMachine::State::closing);
         break;
@@ -424,6 +428,8 @@ static void ioctl_set_executor(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
+            connection.setTerminationReason(
+                    "ioctl_set_executor forced disconnect");
         }
         connection.setState(StateMachine::State::closing);
         break;
@@ -582,6 +588,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                 c.getId(),
                 c.getDescription());
         c.setState(StateMachine::State::closing);
+        c.setTerminationReason("Connected engine does not support DCP");
         return;
     }
 
@@ -600,6 +607,8 @@ static void process_bin_dcp_response(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     c.getId(),
                     c.getDescription());
+            c.setTerminationReason(
+                    "process_bin_dcp_response forced disconnect");
         }
         c.setState(StateMachine::State::closing);
     } else {
@@ -872,6 +881,7 @@ void execute_client_request_packet(Cookie& cookie,
             c->getId(),
             uint32_t(res));
     c->setState(StateMachine::State::closing);
+    c->setTerminationReason("Internal error");
 }
 
 void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
@@ -912,6 +922,7 @@ static void execute_client_response_packet(Cookie& cookie,
                 is_valid_opcode(opcode) ? to_string(opcode)
                                         : "<invalid opcode>");
         c.setState(StateMachine::State::closing);
+        c.setTerminationReason("Unsupported response packet received");
     }
 }
 
@@ -986,6 +997,7 @@ void try_read_mcbp_command(Cookie& cookie) {
                 header.getMagic());
         audit_invalid_packet(c, input);
         c.setState(StateMachine::State::closing);
+        c.setTerminationReason("Invalid packet format detected");
         return;
     }
 
@@ -1012,6 +1024,7 @@ void try_read_mcbp_command(Cookie& cookie) {
                 header.getBodylen(),
                 Settings::instance().getMaxPacketSize());
         c.setState(StateMachine::State::closing);
+        c.setTerminationReason("Received packet is too big");
         return;
     }
 
@@ -1037,6 +1050,7 @@ void try_read_mcbp_command(Cookie& cookie) {
             LOG_WARNING("{}: Failed to grow buffer.. closing connection",
                         c.getId());
             c.setState(StateMachine::State::closing);
+            c.setTerminationReason("Failed to allocate network buffer");
             return;
         }
         c.setState(StateMachine::State::read_packet_body);

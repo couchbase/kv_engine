@@ -432,7 +432,7 @@ EngineIface* Connection::getBucketEngine() const {
     return getBucket().getEngine();
 }
 
-ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
+ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
     if (xerror_support) {
         return code;
     }
@@ -494,6 +494,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
             getId(),
             getDescription().c_str(),
             errc.message().c_str());
+    setTerminationReason("XError not enabled on client");
 
     return ENGINE_DISCONNECT;
 }
@@ -981,6 +982,7 @@ Connection::TransmitResult Connection::transmit() {
         ssl.drainBioSendPipe(socketDescriptor);
         if (ssl.morePendingOutput()) {
             if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
+                setTerminationReason("Failed to send data to client");
                 setState(StateMachine::State::closing);
                 return TransmitResult::HardError;
             }
@@ -1016,6 +1018,8 @@ Connection::TransmitResult Connection::transmit() {
                     if (ssl.isEnabled() && ssl.morePendingOutput()) {
                         if (ssl.hasError() ||
                             !updateEvent(EV_WRITE | EV_PERSIST)) {
+                            setTerminationReason(
+                                    "Failed to send data to client");
                             setState(StateMachine::State::closing);
                             return TransmitResult::HardError;
                         }
@@ -1030,6 +1034,7 @@ Connection::TransmitResult Connection::transmit() {
 
         if (res == -1 && cb::net::is_blocking(error)) {
             if (!updateEvent(EV_WRITE | EV_PERSIST)) {
+                setTerminationReason("Failed to send data to client");
                 setState(StateMachine::State::closing);
                 return TransmitResult::HardError;
             }
@@ -1059,6 +1064,7 @@ Connection::TransmitResult Connection::transmit() {
             }
         }
 
+        setTerminationReason("Failed to send data to client");
         setState(StateMachine::State::closing);
         return TransmitResult::HardError;
     } else {
@@ -1402,6 +1408,8 @@ Connection::Connection(SOCKET sfd,
 }
 
 Connection::~Connection() {
+    cb::audit::addSessionTerminated(*this);
+
     if (connectedToSystemPort) {
         --stats.system_conns;
     }
@@ -1416,6 +1424,15 @@ Connection::~Connection() {
     if (socketDescriptor != INVALID_SOCKET) {
         LOG_DEBUG("{} - Closing socket descriptor", getId());
         safe_close(socketDescriptor);
+    }
+}
+
+void Connection::setTerminationReason(std::string reason) {
+    if (terminationReason.empty()) {
+        terminationReason = std::move(reason);
+    } else {
+        terminationReason.append(";");
+        terminationReason.append(reason);
     }
 }
 
@@ -1507,6 +1524,7 @@ void Connection::runEventLoop(short which) {
     try {
         runStateMachinery();
     } catch (const std::exception& e) {
+        setTerminationReason(std::string("Received exception: ") + e.what());
         bool logged = false;
         if (getState() == StateMachine::State::execute ||
             getState() == StateMachine::State::validate) {

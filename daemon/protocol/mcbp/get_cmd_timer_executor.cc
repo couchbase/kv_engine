@@ -196,6 +196,7 @@ void get_cmd_timer_executor(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
+            connection.setTerminationReason("Engine forced disconnect");
         }
         connection.setState(StateMachine::State::closing);
         return;

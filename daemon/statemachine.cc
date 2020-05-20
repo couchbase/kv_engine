@@ -212,6 +212,9 @@ bool StateMachine::conn_ship_log() {
                         connection.getId(),
                         std::to_string(ret),
                         connection.getDescription());
+                if (ret == ENGINE_DISCONNECT) {
+                    connection.setTerminationReason("Engine forced disconnect");
+                }
                 setCurrentState(State::closing);
             }
         }
@@ -223,6 +226,7 @@ bool StateMachine::conn_ship_log() {
                 connection.getId(),
                 connection.getDescription());
         setCurrentState(State::closing);
+        connection.setTerminationReason("Network error");
     }
 
     return cont;
@@ -241,6 +245,7 @@ bool StateMachine::conn_waiting() {
                 connection.getId(),
                 connection.getDescription());
         setCurrentState(State::closing);
+        connection.setTerminationReason("Network error");
         return true;
     }
     setCurrentState(State::read_packet_header);
@@ -265,9 +270,16 @@ bool StateMachine::conn_read_packet_header() {
         }
         break;
     case Connection::TryReadResult::MemoryError:
+        connection.setTerminationReason("Failed to allocate memory");
+        setCurrentState(State::closing);
+        break;
     case Connection::TryReadResult::SocketClosed:
+        setCurrentState(State::closing);
+        connection.setTerminationReason("Client closed connection");
+        break;
     case Connection::TryReadResult::SocketError:
         setCurrentState(State::closing);
+        connection.setTerminationReason("Network error");
         break;
     }
 
@@ -333,6 +345,7 @@ bool StateMachine::conn_new_cmd() {
                         connection.getId(),
                         connection.getDescription());
                 setCurrentState(State::closing);
+                connection.setTerminationReason("Network error");
                 return true;
             }
         }
@@ -381,6 +394,7 @@ bool StateMachine::conn_validate() {
                 // execute the next command. Instead we want to
                 // close the connection. Override the write and go setting
                 connection.setWriteAndGo(StateMachine::State::closing);
+                connection.setTerminationReason("Invalid packet format");
                 return true;
             }
             cookie.setValidated(true);
@@ -390,6 +404,7 @@ bool StateMachine::conn_validate() {
             audit_invalid_packet(connection, cookie.getPacket());
             LOG_WARNING("{}: Received a server command. Closing connection",
                         connection.getId());
+            connection.setTerminationReason("Received a server command");
             setCurrentState(State::closing);
             return true;
         }
@@ -479,6 +494,7 @@ bool StateMachine::conn_read_packet_body() {
     if (res == 0) { /* end of stream */
         // Note: we do not log a clean connection shutdown
         setCurrentState(State::closing);
+        connection.setTerminationReason("Client closed connection");
         return true;
     }
 
@@ -491,6 +507,7 @@ bool StateMachine::conn_read_packet_body() {
                     "connection {}",
                     connection.getId(),
                     connection.getDescription());
+            connection.setTerminationReason("Network error");
             setCurrentState(State::closing);
             return true;
         }
@@ -507,6 +524,7 @@ bool StateMachine::conn_read_packet_body() {
                 connection.getDescription(),
                 errormsg);
 
+    connection.setTerminationReason("Network error");
     setCurrentState(State::closing);
     return true;
 }

@@ -356,10 +356,10 @@ public:
      * @param code The code to map (will be changed on return)
      * @return the mapped value.
      */
-    ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code) const;
+    ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code);
 
     /// convenience wrapper when working with the newer enum cb::engine_errc
-    cb::engine_errc remapErrorCode(cb::engine_errc code) const {
+    cb::engine_errc remapErrorCode(cb::engine_errc code) {
         return cb::engine_errc(remapErrorCode(ENGINE_ERROR_CODE(code)));
     }
 
@@ -381,6 +381,13 @@ public:
      * @param event
      */
     void enqueueServerEvent(std::unique_ptr<ServerEvent> event);
+
+    const std::string& getTerminationReason() const {
+        return terminationReason;
+    }
+
+    /// Set the reason for why the connection is being shut down
+    void setTerminationReason(std::string reason);
 
     /**
      * Close the connection. If there is any references to the connection
@@ -1182,6 +1189,9 @@ protected:
      * of the string we allocate room for the termination character.
      */
     std::array<char, MaxSavedConnectionId> connectionId{};
+
+    /// The reason why the session was terminated
+    std::string terminationReason;
 
     /**
      * The state machine we're currently using

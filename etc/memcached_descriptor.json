@@ -267,6 +267,26 @@
         "peername": "",
         "sockname": ""
       }
+    },
+    {
+      "id": 20493,
+      "name": "session terminated",
+      "description": "Session to the cluster has terminated",
+      "sync": false,
+      "enabled": false,
+      "filtering_permitted": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "reason_for_termination": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        }
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
+      }
     }
   ]
 }

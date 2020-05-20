@@ -278,6 +278,23 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
 
 namespace cb {
 namespace audit {
+
+void addSessionTerminated(const Connection& c) {
+    if (!isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED) ||
+        !c.isAuthenticated()) {
+        return;
+    }
+    auto root = create_memcached_audit_object(c);
+    const auto& reason = c.getTerminationReason();
+    if (!reason.empty()) {
+        root["reason_for_termination"] = reason;
+    }
+
+    do_audit(MEMCACHED_AUDIT_SESSION_TERMINATED,
+             root,
+             "Failed to audit session terminated");
+}
+
 namespace document {
 
 void add(const Cookie& cookie, Operation operation) {

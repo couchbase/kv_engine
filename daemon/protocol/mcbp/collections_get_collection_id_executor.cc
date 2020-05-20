@@ -33,6 +33,9 @@ void collections_get_collection_id_executor(Cookie& cookie) {
     auto remapErr = connection.remapErrorCode(rv.result);
 
     if (remapErr == cb::engine_errc::disconnect) {
+        if (rv.result == cb::engine_errc::disconnect) {
+            connection.setTerminationReason("Engine forced disconnect");
+        }
         connection.setState(StateMachine::State::closing);
         return;
     }

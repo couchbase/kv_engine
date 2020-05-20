@@ -49,6 +49,7 @@ static bool check_access_to_global_config(Cookie& cookie) {
             cookie.sendResponse(cb::mcbp::Status::Eaccess);
         } else {
             conn.setState(StateMachine::State::closing);
+            conn.setTerminationReason("XError not enabled");
         }
 
         return false;
@@ -59,6 +60,7 @@ static bool check_access_to_global_config(Cookie& cookie) {
         if (xerror) {
             cookie.sendResponse(cb::mcbp::Status::AuthStale);
         } else {
+            conn.setTerminationReason("XError not enabled");
             conn.setState(StateMachine::State::closing);
         }
 
@@ -120,6 +122,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                         "selecting a bucket. Disconnecting {}",
                         connection.getId(),
                         connection.getDescription());
+                connection.setTerminationReason("XError not enabled");
                 connection.setState(StateMachine::State::closing);
             }
             return;

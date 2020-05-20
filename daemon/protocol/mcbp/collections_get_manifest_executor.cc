@@ -28,8 +28,8 @@ void collections_get_manifest_executor(Cookie& cookie) {
     auto ret = connection.getBucketEngine()->get_collection_manifest(
             &cookie, mcbpResponseHandlerFn);
 
-    ret = cookie.getConnection().remapErrorCode(ret);
-    switch (ret) {
+    const auto mapped = cookie.getConnection().remapErrorCode(ret);
+    switch (mapped) {
     case cb::engine_errc::success: {
         if (cookie.getDynamicBuffer().getRoot() != nullptr) {
             // We assume that if the underlying engine returns a success then
@@ -43,11 +43,14 @@ void collections_get_manifest_executor(Cookie& cookie) {
         break;
     }
     case cb::engine_errc::disconnect:
+        if (ret == cb::engine_errc::disconnect) {
+            connection.setTerminationReason("Engine forced disconnect");
+        }
         connection.setState(StateMachine::State::closing);
         break;
     default:
         // Release the dynamic buffer.. it may be partial..
         cookie.clearDynamicBuffer();
-        cookie.sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(cb::engine_errc(mapped));
     }
 }
