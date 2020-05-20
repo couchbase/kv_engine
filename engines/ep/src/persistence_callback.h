@@ -45,9 +45,6 @@ public:
     void operator()(TransactionContext&,
                     queued_item,
                     KVStore::FlushStateDeletion);
-
-private:
-    void redirty(EPStats& stats, VBucket& vbucket, queued_item item);
 };
 
 struct EPTransactionContext : public TransactionContext {

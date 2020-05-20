@@ -1061,18 +1061,6 @@ bool VBucket::addPendingOp(const void* cookie) {
     return true;
 }
 
-void VBucket::markDirty(const DocKey& key) {
-    auto htRes = ht.findForWrite(key);
-    if (htRes.storedValue) {
-        htRes.storedValue->markDirty();
-    } else {
-        EP_LOG_WARN(
-                "VBucket::markDirty: Error marking dirty, a key is "
-                "missing from {}",
-                id);
-    }
-}
-
 bool VBucket::isResidentRatioUnderThreshold(float threshold) {
     if (eviction != EvictionPolicy::Full) {
         throw std::invalid_argument(

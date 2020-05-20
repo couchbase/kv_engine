@@ -760,9 +760,6 @@ public:
         return rollbackItemCount.load(std::memory_order_relaxed);
     }
 
-    // Mark the value associated with the given key as dirty
-    void markDirty(const DocKey& key);
-
     /**
      * Obtain the read handle for the collections manifest.
      * The caller will have read-only access to manifest using the methods
