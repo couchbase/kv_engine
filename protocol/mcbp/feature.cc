@@ -65,6 +65,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "VAttr";
     case cb::mcbp::Feature::PiTR:
         return "PiTR";
+    case cb::mcbp::Feature::SubdocCreateAsDeleted:
+        return "SubdocCreateAsDeleted";
     }
 
     throw std::invalid_argument(

@@ -83,6 +83,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::SyncReplication:
         case cb::mcbp::Feature::VAttr:
         case cb::mcbp::Feature::PiTR:
+        case cb::mcbp::Feature::SubdocCreateAsDeleted:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -115,6 +116,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::OpenTracing:
         case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::PiTR:
+        case cb::mcbp::Feature::SubdocCreateAsDeleted:
             // No other dependency
             break;
 
@@ -345,10 +347,10 @@ void process_hello_packet_executor(Cookie& cookie) {
                          connection.getDescription());
             }
             break;
-
-        case cb::mcbp::Feature::PiTR:
         case cb::mcbp::Feature::VAttr:
-            // VAttr and PiTR is only informative
+        case cb::mcbp::Feature::PiTR:
+        case cb::mcbp::Feature::SubdocCreateAsDeleted:
+            // VAttr, PiTR, SubdocCreateAsDeleted are only informative
             added = true;
             break;
         } // end switch

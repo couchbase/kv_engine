@@ -1821,6 +1821,7 @@ The following features is defined:
 | 0x0014 | PreserveTtl |
 | 0x0015 | VAttr |
 | 0x0016 | PiTR |
+| 0x0017 | SubdocCreateAsDeleted support |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1896,6 +1897,9 @@ The following features is defined:
 * `PiTR` This is purely information (it does not enable / disable anything on
           the server). It may be used from the client to determine if the server
           supports Point in Time Recovery.
+* `SubdocCreateAsDeleted` - This is purely informational (it does not enable /
+disable anything on the server). It may be used from the client to determine if
+the server supports the subdoc `CreateAsDeleted` doc flag.
 
 Response:
 
