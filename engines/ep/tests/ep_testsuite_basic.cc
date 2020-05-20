@@ -297,7 +297,7 @@ static enum test_result test_get_miss(EngineIface* h) {
 }
 
 static enum test_result test_set(EngineIface* h) {
-    item_info info;
+
     uint64_t vb_uuid = 0, high_seqno = 0;
     const int num_sets = 5, num_keys = 4;
 
@@ -308,7 +308,6 @@ static enum test_result test_set(EngineIface* h) {
 
     for (auto& k : key_arr) {
         for (int j = 0; j < num_sets; j++) {
-            memset(&info, 0, sizeof(info));
             vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
             high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
@@ -318,6 +317,7 @@ static enum test_result test_set(EngineIface* h) {
                     err_str_store.c_str());
 
             std::string err_str_get_item_info("Error getting " + k);
+            item_info info;
             checkeq(true,
                     get_item_info(h, &info, k.c_str()),
                     err_str_get_item_info.c_str());
