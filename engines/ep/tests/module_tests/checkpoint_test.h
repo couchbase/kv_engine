@@ -59,6 +59,33 @@ protected:
      */
     CheckpointManager::ItemsForCursor testGetItemsForPersistenceCursor();
 
+    // Test that can expel items and that we have the correct behaviour when we
+    // register cursors for items that have been expelled.
+    void testExpelCheckpointItems();
+
+    // Test that when the first cursor we come across is pointing to the last
+    // item we do not evict this item.  Instead we walk backwards find the
+    // first non-meta item and evict from there.
+    void testExpelCursorPointingToLastItem();
+
+    // Test that when the first cursor we come across is pointing to the
+    // checkpoint start we do not evict this item. Instead we walk backwards and
+    // find the the dummy item, so do not expel any items.
+    void testExpelCursorPointingToChkptStart();
+
+    // Test that if we want to evict items from seqno X, but have a meta-data
+    // item also with seqno X, and a cursor is pointing to this meta data item,
+    // we do not evict.
+    void testDontExpelIfCursorAtMetadataItemWithSameSeqno();
+
+    // Test that if we have a item after a mutation with the same seqno then we
+    // will move the expel point backwards to the mutation (and possibly
+    // further).
+    void testDoNotExpelIfHaveSameSeqnoAfterMutation();
+
+    // Test estimate for the amount of memory recovered by expelling is correct.
+    void testExpelCheckpointItemsMemoryRecovered();
+
     // Owned by VBucket
     MockCheckpointManager* manager;
     // Owned by CheckpointManager
