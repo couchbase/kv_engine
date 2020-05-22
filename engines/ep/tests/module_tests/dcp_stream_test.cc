@@ -3154,56 +3154,86 @@ TEST_P(SingleThreadedActiveStreamTest,
     testProducerPrunesUserXattrsForDelete(0, cb::durability::Requirements());
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInDelete) {
+void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
+        const boost::optional<cb::durability::Requirements>& durReqs) {
     consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
 
     // Send deletion in a single seqno snapshot
-    const uint32_t opaque = 1;
-    int64_t bySeqno = 1;
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(opaque,
+              consumer->snapshotMarker(1 /*opaque*/,
                                        vbid,
-                                       bySeqno,
-                                       bySeqno,
+                                       1 /*startSeqno*/,
+                                       1 /*endSeqno*/,
                                        MARKER_FLAG_CHK,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
+
+    const auto verifyDCPFailure =
+            [this, &durReqs](const cb::const_byte_buffer& value) -> void {
+        const uint32_t opaque = 1;
+        int64_t bySeqno = 1;
+        if (durReqs) {
+            EXPECT_EQ(ENGINE_EINVAL,
+                      consumer->prepare(opaque,
+                                        {"key", DocKeyEncodesCollectionId::No},
+                                        value,
+                                        0 /*priv_bytes*/,
+                                        PROTOCOL_BINARY_RAW_BYTES,
+                                        0 /*cas*/,
+                                        vbid,
+                                        0 /*flags*/,
+                                        bySeqno,
+                                        0 /*revSeqno*/,
+                                        0 /*exp*/,
+                                        0 /*lockTime*/,
+                                        0 /*nru*/,
+                                        DocumentState::Deleted,
+                                        durReqs->getLevel()));
+        } else {
+            EXPECT_EQ(ENGINE_EINVAL,
+                      consumer->deletion(opaque,
+                                         {"key", DocKeyEncodesCollectionId::No},
+                                         value,
+                                         0 /*priv_bytes*/,
+                                         PROTOCOL_BINARY_RAW_BYTES,
+                                         0 /*cas*/,
+                                         vbid,
+                                         bySeqno,
+                                         0 /*revSeqno*/,
+                                         {} /*meta*/));
+        }
+    };
 
     // Build up a value with just raw body and verify DCP failure
     const std::string body = "body";
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(body.data()),
                                 body.size()};
-    EXPECT_EQ(ENGINE_EINVAL,
-              consumer->deletion(opaque,
-                                 {"key", DocKeyEncodesCollectionId::No},
-                                 value,
-                                 0 /*priv_bytes*/,
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 0 /*cas*/,
-                                 vbid,
-                                 bySeqno,
-                                 0 /*revSeqno*/,
-                                 {} /*meta*/));
+    {
+        SCOPED_TRACE("");
+        verifyDCPFailure(value);
+    }
 
     // Verify the same for body + xattrs
     const auto xattrValue = createXattrValue(body);
     value = {reinterpret_cast<const uint8_t*>(xattrValue.data()),
              xattrValue.size()};
-    EXPECT_EQ(ENGINE_EINVAL,
-              consumer->deletion(opaque,
-                                 {"key", DocKeyEncodesCollectionId::No},
-                                 value,
-                                 0 /*priv_bytes*/,
-                                 PROTOCOL_BINARY_DATATYPE_XATTR,
-                                 0 /*cas*/,
-                                 vbid,
-                                 bySeqno,
-                                 0 /*revSeqno*/,
-                                 {} /*meta*/));
+    {
+        SCOPED_TRACE("");
+        verifyDCPFailure(value);
+    }
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInDelete) {
+    testConsumerRejectsBodyInDelete({});
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInSyncDelete) {
+    testConsumerRejectsBodyInDelete(cb::durability::Requirements());
 }
 
 void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
-        bool sysXattrs) {
+        bool sysXattrs,
+        const boost::optional<cb::durability::Requirements>& durReqs) {
     // UserXattrs in deletion are valid only for connections that enable it
     consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
 
@@ -3226,34 +3256,64 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     auto value = createXattrValue("", sysXattrs);
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
-    EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->deletion(opaque,
-                                 {"key", DocKeyEncodesCollectionId::No},
-                                 valueBuf,
-                                 0 /*priv_bytes*/,
-                                 PROTOCOL_BINARY_DATATYPE_XATTR,
-                                 0 /*cas*/,
-                                 vbid,
-                                 bySeqno,
-                                 0 /*revSeqno*/,
-                                 {} /*meta*/));
+
+    if (durReqs) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumer->prepare(opaque,
+                                    {"key", DocKeyEncodesCollectionId::No},
+                                    valueBuf,
+                                    0 /*priv_bytes*/,
+                                    PROTOCOL_BINARY_DATATYPE_XATTR,
+                                    0 /*cas*/,
+                                    vbid,
+                                    0 /*flags*/,
+                                    bySeqno,
+                                    0 /*revSeqno*/,
+                                    0 /*exp*/,
+                                    0 /*lockTime*/,
+                                    0 /*nru*/,
+                                    DocumentState::Deleted,
+                                    durReqs->getLevel()));
+    } else {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumer->deletion(opaque,
+                                     {"key", DocKeyEncodesCollectionId::No},
+                                     valueBuf,
+                                     0 /*priv_bytes*/,
+                                     PROTOCOL_BINARY_DATATYPE_XATTR,
+                                     0 /*cas*/,
+                                     vbid,
+                                     bySeqno,
+                                     0 /*revSeqno*/,
+                                     {} /*meta*/));
+    }
 
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               epBucket.flushVBucket(vbid));
 
+    // Check item persisted
+
     auto& kvstore = *store->getRWUnderlying(vbid);
-    auto doc = kvstore.get(makeDiskDocKey("key"), vbid);
+    const auto isPrepare = durReqs.is_initialized();
+    auto doc = kvstore.get(makeDiskDocKey("key", isPrepare), vbid);
     EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
-    EXPECT_TRUE(doc.item->isDeleted());
     ASSERT_TRUE(doc.item);
+    EXPECT_TRUE(doc.item->isDeleted());
+
+    if (durReqs) {
+        EXPECT_EQ(CommittedState::Pending, doc.item->getCommitted());
+    } else {
+        EXPECT_EQ(CommittedState::CommittedViaMutation,
+                  doc.item->getCommitted());
+    }
 
     ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, doc.item->getDataType());
     const auto* data = doc.item->getData();
     const auto nBytes = doc.item->getNBytes();
     const auto ondiskValBuf = cb::char_buffer(const_cast<char*>(data), nBytes);
 
-    // Checkout ondisk value
+    // Checkout on-disk value
 
     // No body
     const auto bodyOffset = cb::xattr::get_body_offset(ondiskValBuf);
@@ -3275,12 +3335,24 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ConsumerReceivesUserXattrsInDelete) {
-    testConsumerReceivesUserXattrsInDelete(true);
+    testConsumerReceivesUserXattrsInDelete(true, {});
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ConsumerReceivesUserXattrsInDelete_NoSysXattr) {
-    testConsumerReceivesUserXattrsInDelete(false);
+    testConsumerReceivesUserXattrsInDelete(false, {});
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ConsumerReceivesUserXattrsInSyncDelete) {
+    testConsumerReceivesUserXattrsInDelete(true,
+                                           cb::durability::Requirements());
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ConsumerReceivesUserXattrsInSyncDelete_NoSysXattr) {
+    testConsumerReceivesUserXattrsInDelete(false,
+                                           cb::durability::Requirements());
 }
 
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,

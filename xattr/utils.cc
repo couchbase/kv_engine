@@ -175,5 +175,12 @@ std::pair<size_t, size_t> get_size_and_system_xattr_size(
               ::mcbp::datatype::is_snappy(datatype));
     return {blob.size(), blob.get_system_size()};
 }
+
+size_t get_body_size(uint8_t datatype, const cb::const_char_buffer value) {
+    if (!::mcbp::datatype::is_xattr(datatype)) {
+        return value.size();
+    }
+    return value.size() - get_body_offset(value);
+}
 }
 }

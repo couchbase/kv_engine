@@ -610,18 +610,10 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     } else {
         // Some validation seems reasonable here, given that in the past we
         // already had issues in this area (see if-block above).
-        bool hasBody = false;
-        if (mcbp::datatype::is_xattr(datatype)) {
-            const auto size = value.size();
-            const auto val = cb::const_char_buffer{
-                    reinterpret_cast<const char*>(value.data()), size};
-            const auto bodySize = size - cb::xattr::get_body_offset(val);
-            hasBody = (bodySize > 0);
-        } else {
-            hasBody = (value.size() > 0);
-        }
-
-        if (hasBody) {
+        if (cb::xattr::get_body_size(
+                    datatype,
+                    {reinterpret_cast<const char*>(value.data()),
+                     value.size()}) > 0) {
             logger->warn(
                     "DcpConsumer::deletion: ({}) Value cannot contain a body",
                     vbucket);
@@ -1739,6 +1731,19 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
     item->setPreparedMaybeVisible();
     if (document_state == DocumentState::Deleted) {
         item->setDeleted();
+
+        // MB-37374: From 6.6 a SyncDelete may contain user-xattrs but still no
+        // body.
+        if (cb::xattr::get_body_size(
+                    datatype,
+                    {reinterpret_cast<const char*>(value.data()),
+                     value.size()}) > 0) {
+            logger->warn(
+                    "DcpConsumer::prepare: ({}) Value cannot contain a body "
+                    "for SyncDelete",
+                    vbucket);
+            return ENGINE_EINVAL;
+        }
     }
 
     const auto msgBytes =

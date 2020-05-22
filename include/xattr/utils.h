@@ -53,6 +53,7 @@ bool validate(const cb::const_char_buffer& blob);
  */
 XATTR_PUBLIC_API
 uint32_t get_body_offset(const cb::const_char_buffer& payload);
+
 /**
  * Get the segment where the actual body lives
  *
@@ -120,5 +121,16 @@ size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
 XATTR_PUBLIC_API
 std::pair<size_t, size_t> get_size_and_system_xattr_size(
         uint8_t datatype, const cb::const_char_buffer doc);
+
+/**
+ * Get the size of the body chunk in the provided value, which may not contain
+ * any xattr.
+ *
+ * @param datatype
+ * @param value
+ * @return the body size
+ */
+XATTR_PUBLIC_API
+size_t get_body_size(uint8_t datatype, const cb::const_char_buffer value);
 }
 }
