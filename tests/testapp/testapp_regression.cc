@@ -18,6 +18,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <evutil.h>
 #include <platform/compress.h>
 #include <protocol/connection/frameinfo.h>
 #include <protocol/mcbp/ewb_encode.h>
@@ -328,4 +329,82 @@ TEST_P(RegressionTest, MB37506) {
     } catch (const ConnectionError& e) {
         ASSERT_TRUE(e.isInvalidArguments());
     }
+}
+
+TEST_P(RegressionTest, MB39441) {
+    auto& conn = getConnection();
+    conn.setFeature(cb::mcbp::Feature::JSON, true);
+
+    conn.store("customer123",
+               Vbid{0},
+               R"({
+  "name": "Douglas Reynholm",
+  "email": "douglas@reynholmindustries.com",
+  "addresses": {
+    "billing": {
+      "line1": "123 Any Street",
+      "line2": "Anytown",
+      "country": "United Kingdom"
+    },
+    "delivery": {
+      "line1": "123 Any Street",
+      "line2": "Anytown",
+      "country": "United Kingdom"
+    }
+  },
+  "purchases": {
+    "complete": [
+      339,
+      976,
+      442,
+      666
+    ],
+    "abandoned": [
+      157,
+      42,
+      999
+    ]
+  }
+}
+)",
+               cb::mcbp::Datatype::JSON);
+
+    auto socket = conn.releaseSocket();
+    const auto command = std::vector<uint8_t>{
+            {0x80, 0xd1, 0x00, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+             0x70, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+             0x00, 0x00, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x65, 0x72, 0x31,
+             0x32, 0x33, 0xc8, 0x04, 0x00, 0x15, 0x00, 0x00, 0x00, 0x0a, 0x5f,
+             0x66, 0x72, 0x61, 0x6d, 0x65, 0x77, 0x6f, 0x72, 0x6b, 0x2e, 0x6d,
+             0x6f, 0x64, 0x65, 0x6c, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x22, 0x43,
+             0x75, 0x73, 0x74, 0x6f, 0x6d, 0x65, 0x72, 0x22, 0xc9, 0x00, 0x00,
+             0x14, 0x00, 0x00, 0x00, 0x00, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73,
+             0x73, 0x65, 0x73, 0x2e, 0x62, 0x69, 0x6c, 0x6c, 0x69, 0x6e, 0x67,
+             0x5b, 0x32, 0x5d, 0xca, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x15,
+             0x65, 0x6d, 0x61, 0x69, 0x6c, 0x22, 0x64, 0x6f, 0x75, 0x67, 0x72,
+             0x39, 0x36, 0x40, 0x68, 0x6f, 0x74, 0x6d, 0x61, 0x69, 0x6c, 0x2e,
+             0x63, 0x6f, 0x6d, 0x22}};
+    ASSERT_EQ(command.size(),
+              cb::net::send(socket, command.data(), command.size(), 0));
+    // The total response should be a 24 byte header and 3 bytes with the
+    // error. We might not receive all the data in a single chunk, so lets
+    // just read 1 by one (after all we just want 27 bytes so the overhead
+    // is limited)
+    std::vector<uint8_t> response(27);
+    for (size_t ii = 0; ii < response.size(); ++ii) {
+        ASSERT_EQ(1, cb::net::recv(socket, response.data() + ii, 1, 0));
+    }
+
+    const auto& header =
+            *reinterpret_cast<const cb::mcbp::Header*>(response.data());
+    ASSERT_TRUE(header.isResponse());
+    ASSERT_EQ(3, header.getBodylen());
+    ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure,
+              header.getResponse().getStatus());
+
+    // we should not have more data available on the socket
+    evutil_make_socket_nonblocking(socket);
+    const auto nb = cb::net::recv(socket, response.data(), response.size(), 0);
+    EXPECT_EQ(ssize_t{-1}, nb);
+    cb::net::closesocket(socket);
 }

@@ -1587,7 +1587,8 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                     response_buf.moveOffset(header_sz);
 
                     // Only the first unsuccessful op is reported.
-                    break;
+                    connection.setState(StateMachine::State::send_data);
+                    return;
                 }
             }
         }
