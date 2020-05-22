@@ -42,12 +42,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     std::unique_ptr<Manifest> newManifest;
     // Construct a newManifest (will throw if JSON was illegal)
     try {
-        newManifest = std::make_unique<Manifest>(
-                manifest,
-                bucket.getEPEngine().getConfiguration().getScopesMaxSize(),
-                bucket.getEPEngine()
-                        .getConfiguration()
-                        .getCollectionsMaxSize());
+        newManifest = std::make_unique<Manifest>(manifest);
     } catch (std::exception& e) {
         EP_LOG_WARN(
                 "Collections::Manager::update can't construct manifest "

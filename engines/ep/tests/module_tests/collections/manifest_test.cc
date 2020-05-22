@@ -639,65 +639,6 @@ TEST(ManifestTest, badNames) {
     }
 }
 
-TEST(ManifestTest, tooManyCollections) {
-    std::vector<std::string> invalidManifests = {
-            // Too many collections in the default scope
-            R"({"uid" : "0",
-                "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"beer", "uid":"8"},
-                               {"name":"brewery","uid":"9"}]}]})",
-
-            // Too many collections in a non-default scope
-            R"({"uid" : "0",
-                "scopes":[{"name":"_default", "uid":"0",
-                                "collections":[]},
-                          {"name":"brewerA", "uid":"2",
-                                "collections":[
-                                    {"name":"beer", "uid":"8"},
-                                    {"name":"brewery", "uid":"9"}]}]})",
-
-            // Too many collections across all scopes
-            R"({"uid" : "0",
-                "scopes":[{"name":"_default", "uid":"0",
-                                "collections":[
-                                    {"name":"beer", "uid":"8"}]},
-                          {"name":"brewerA", "uid":"2",
-                                "collections":[
-                                    {"name":"beer", "uid":"9"}]}]})",
-    };
-
-    for (auto& manifest : invalidManifests) {
-        EXPECT_THROW(Collections::Manifest cm(manifest, 2, 1),
-                     std::invalid_argument)
-                << "No exception thrown for manifest "
-                   "with too many collections. "
-                   "Manifest: "
-                << manifest << std::endl;
-    }
-}
-
-TEST(ManifestTest, tooManyScopes) {
-    std::vector<std::string> invalidManifests = {
-            // Too many scopes
-            R"({"uid" : "0",
-                "scopes":[{"name":"_default", "uid":"0",
-                                "collections":[]},
-                          {"name":"brewerA", "uid":"2",
-                                "collections":[
-                                    {"name":"beer", "uid":"8"},
-                                    {"name":"brewery", "uid":"9"}]}]})",
-    };
-
-    for (auto& manifest : invalidManifests) {
-        EXPECT_THROW(Collections::Manifest cm(manifest, 1),
-                     std::invalid_argument)
-                << "No exception thrown for manifest "
-                   "with too many collections. "
-                   "Manifest: "
-                << manifest << std::endl;
-    }
-}
-
 TEST(ManifestTest, findCollectionByName) {
     std::string manifest = R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",

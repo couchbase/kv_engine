@@ -65,21 +65,10 @@ public:
      * Create a manifest from json.
      * Validates the json as per SET_COLLECTIONS rules.
      * @param json a buffer containing the JSON manifest data
-     * @param maxNumberOfScopes an upper limit on the number of scopes allowed
-     *        defaults to 100.
-     * @param maxNumberOfCollections an upper limit on the number of collections
-     *        allowed, defaults to 1000.
      */
-    Manifest(std::string_view json,
-             size_t maxNumberOfScopes = 100,
-             size_t maxNumberOfCollections = 1000);
+    Manifest(std::string_view json);
 
-    Manifest(const std::string& json,
-             size_t maxNumberOfScopes = 100,
-             size_t maxNumberOfCollections = 1000)
-        : Manifest(std::string_view{json},
-                   maxNumberOfScopes,
-                   maxNumberOfCollections) {
+    Manifest(const std::string& json) : Manifest(std::string_view{json}) {
     }
 
     bool doesDefaultCollectionExist() const {

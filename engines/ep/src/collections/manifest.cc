@@ -75,9 +75,7 @@ static void throwIfWrongType(const std::string& errorKey,
                              const nlohmann::json& object,
                              nlohmann::json::value_t expectedType);
 
-Manifest::Manifest(std::string_view json,
-                   size_t maxNumberOfScopes,
-                   size_t maxNumberOfCollections)
+Manifest::Manifest(std::string_view json)
     : defaultCollectionExists(false), scopes(), collections(), uid(0) {
     nlohmann::json parsed;
     try {
@@ -94,13 +92,6 @@ Manifest::Manifest(std::string_view json,
 
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
-
-    // Check that we do not have too many before doing any parsing
-    if (scopes.size() > maxNumberOfScopes) {
-        throw std::invalid_argument(
-                "Manifest::Manifest too many scopes count:" +
-                std::to_string(scopes.size()));
-    }
 
     for (const auto& scope : scopes) {
         throwIfWrongType(
@@ -139,15 +130,6 @@ Manifest::Manifest(std::string_view json,
         // Read the collections within this scope
         auto collections =
                 getJsonObject(scope, CollectionsKey, CollectionsType);
-
-        // Check that the number of collections in this scope + the
-        // number of already stored collections is not greater than the max
-        if (collections.size() + this->collections.size() >
-            maxNumberOfCollections) {
-            throw std::invalid_argument(
-                    "Manifest::Manifest too many collections count:" +
-                    std::to_string(collections.size()));
-        }
 
         for (const auto& collection : collections) {
             throwIfWrongType(std::string(CollectionsKey),
