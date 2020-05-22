@@ -1054,6 +1054,17 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             supportsSyncReplication = SyncReplication::SyncReplication;
         }
         return ENGINE_SUCCESS;
+    } else if (key == "include_deleted_user_xattrs") {
+        if (valueStr == "true") {
+            if (includeDeletedUserXattrs == IncludeDeletedUserXattrs::Yes) {
+                return ENGINE_SUCCESS;
+            } else {
+                // Note: Return here as there is no invalid param, we just want
+                // to inform the DCP client that this Producer does not enable
+                // IncludeDeletedUserXattrs, so we do not want to log as below
+                return ENGINE_EINVAL;
+            }
+        }
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
