@@ -320,10 +320,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 drop = true;
             }
 
-            if (exptime < cbCtx.ctx->compactConfig.purge_before_ts &&
-                (exptime) &&
-                (!cbCtx.ctx->compactConfig.purge_before_seq ||
-                 seqno <= cbCtx.ctx->compactConfig.purge_before_seq)) {
+            if (exptime && exptime < cbCtx.ctx->compactConfig.purge_before_ts) {
                 if (logger->should_log(spdlog::level::TRACE)) {
                     logger->TRACE(
                             "MagmaCompactionCB: {} DROP expired tombstone {}",
@@ -2181,6 +2178,9 @@ std::shared_ptr<compaction_ctx> MagmaKVStore::makeCompactionContext(Vbid vbid) {
 
     CompactionConfig config{};
     config.db_file_id = vbid;
+    config.purge_before_ts =
+            ep_real_time() - configuration.getMetadataPurgeAge().count();
+
     auto ctx = makeCompactionContextCallback(config, 0 /*purgeSeqno*/);
 
     ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(

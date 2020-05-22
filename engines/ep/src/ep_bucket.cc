@@ -1100,9 +1100,6 @@ void EPBucket::dropKey(Vbid vbid, const DiskDocKey& diskKey, int64_t bySeqno) {
 
 std::shared_ptr<compaction_ctx> EPBucket::makeCompactionContext(
         CompactionConfig& config, uint64_t purgeSeqno) {
-    // @TODO When we have compaction metadata purge interval in the engine we
-    // may need to manually set purge_before_ts in config
-
     auto ctx = std::make_shared<compaction_ctx>(config, purgeSeqno);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));

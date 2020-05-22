@@ -5442,6 +5442,70 @@ TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
                               2 /*maxDelRevSeqno*/);
     }
 }
+
+// We want to test what happens during an implicit magma compaction (in
+// particular in regards to the CompactionConfig). Given that we call the same
+// functions with a slightly different compaction_ctx object we can just test
+// this by creating the compaction_ctx in the same way that we do for an
+// implicit compaction and perform a normal compaction with this ctx.
+// This test requires the full engine to ensure that we get correct timestamps
+// for items as we delete them and all the required callbacks to perform
+// compactions.
+TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto firstDeletedKey = makeStoredDocKey("keyA");
+    auto secondDeletedKey = makeStoredDocKey("keyB");
+
+    store_item(vbid, firstDeletedKey, "value");
+    delete_item(vbid, firstDeletedKey);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Time travel 5 days, we want to drop the tombstone for this when we
+    // compact
+    TimeTraveller timmy{60 * 60 * 24 * 5};
+
+    // Add a second tombstone to check that we don't drop everything
+    store_item(vbid, secondDeletedKey, "value");
+    delete_item(vbid, secondDeletedKey);
+
+    // And a dummy item because we can't drop the final seqno
+    store_item(vbid, makeStoredDocKey("dummy"), "value");
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+
+    // Assert the state of the first key on disk
+    auto gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), Vbid(0));
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_TRUE(gv.item);
+    ASSERT_TRUE(gv.item->isDeleted());
+
+    // Assert the second of the first key on disk
+    gv = magmaKVStore->get(DiskDocKey(secondDeletedKey), Vbid(0));
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_TRUE(gv.item);
+    ASSERT_TRUE(gv.item->isDeleted());
+
+    // And compact
+    auto cctx = magmaKVStore->makeCompactionContext(vbid);
+
+    EXPECT_TRUE(magmaKVStore->compactDB(cctx));
+
+    // Check the first key on disk - should not exist
+    gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_FALSE(gv.item);
+
+    // Check the second key on disk - should be a tombstone
+    gv = magmaKVStore->get(DiskDocKey(secondDeletedKey), Vbid(0));
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_TRUE(gv.item);
+    EXPECT_TRUE(gv.item->isDeleted());
+}
 #endif
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
@@ -5460,7 +5524,7 @@ INSTANTIATE_TEST_SUITE_P(STParamCouchstoreBucketTest,
                          STParameterizedBucketTest::PrintToStringParamName);
 
 #ifdef EP_USE_MAGMA
-INSTANTIATE_TEST_SUITE_P(STParamCouchstoreBucketTest,
+INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
