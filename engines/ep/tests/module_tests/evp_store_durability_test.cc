@@ -2621,7 +2621,11 @@ TEST_P(DurabilityEPBucketTest,
 
 // @TODO Rocksdb when we have manual compaction/compaction filtering this test
 // should be made to pass.
-TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
+TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
+    if (isRocksDB()) {
+        return;
+    }
+
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -2673,7 +2677,11 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
 }
 
-TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
+TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
+    if (isRocksDB()) {
+        return;
+    }
+
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -2732,11 +2740,6 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
-    // TODO magma
-    // Magma ops are different than couchstore ops
-    if (engine->getConfiguration().getBackend(), "magma") {
-        return;
-    }
     // Replace RW kvstore and use a gmocked ops so we an inject failure
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
@@ -3802,11 +3805,6 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
 // should be made to pass.
 TEST_P(DurabilityCouchstoreBucketTest,
        CompactionOfPrepareDoesNotAddToBloomFilter) {
-    // This test doesn't apply to magma since magma does not use
-    // engine bloom filters.
-    if (engine->getConfiguration().getBackend(), "magma") {
-        return;
-    }
     using namespace cb::durability;
 
     // 1) Persist a prepare but don't complete it
@@ -4259,7 +4257,7 @@ TEST_P(DurabilityBucketTest,
 // Test cases which run against couchstore
 INSTANTIATE_TEST_SUITE_P(AllBackends,
                          DurabilityCouchstoreBucketTest,
-                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run against all persistent storage backends.
