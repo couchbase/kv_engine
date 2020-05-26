@@ -3794,30 +3794,56 @@ struct ConnStatBuilder {
 };
 
 struct ConnAggStatBuilder {
-    ConnAggStatBuilder(std::map<std::string, ConnCounter*> *m,
-                      const char *s, size_t sl)
-        : counters(m), sep(s), sep_len(sl) {}
+    ConnAggStatBuilder(std::map<std::string, ConnCounter*>& m,
+                       std::string_view sep)
+        : counters(m), sep(sep) {
+    }
 
-    ConnCounter* getTarget(std::shared_ptr<ConnHandler> tc) {
-        ConnCounter *rv = nullptr;
+    /**
+     * Get counter tracking stats for the given connection
+     * type (e.g., replication, views).
+     *
+     * Connection name is expected to meet the pattern:
+     *  [^:]*:conn_type<separator>.*
+     * E.g., with a separator of ":":
+     *   eq_dcpq:replication:ns_0@127.0.0.1->ns_1@127.0.0.1:default
+     * maps to
+     *   replication
+     *
+     * If the connection name does not follow this pattern,
+     * returns nullptr.
+     *
+     * @param tc connection
+     * @return counter for the given connection, or nullptr
+     */
+    ConnCounter* getCounterForConnType(std::string_view name) {
+        // strip everything upto and including the first colon,
+        // e.g., "eq_dcpq:"
+        size_t pos1 = name.find(':');
+        if (pos1 == std::string_view::npos) {
+            return nullptr;
+        }
 
-        if (tc) {
-            const std::string name(tc->getName());
-            size_t pos1 = name.find(':');
-            if (pos1 == name.npos) {
-                throw std::invalid_argument("ConnAggStatBuilder::getTarget: "
-                        "connection tc (which has name '" + tc->getName() +
-                        "' does not include a colon (:)");
-            }
-            size_t pos2 = name.find(sep, pos1+1, sep_len);
-            if (pos2 != name.npos) {
-                std::string prefix(name.substr(pos1+1, pos2 - pos1 - 1));
-                rv = (*counters)[prefix];
-                if (rv == nullptr) {
-                    rv = new ConnCounter;
-                    (*counters)[prefix] = rv;
-                }
-            }
+        name.remove_prefix(pos1 + 1);
+
+        // find the given separator
+        size_t pos2 = name.find(sep);
+        if (pos2 == std::string_view::npos) {
+            return nullptr;
+        }
+
+        // extract upto given separator e.g.,
+        // if the full conn name is:
+        //  eq_dcpq:replication:ns_0@127.0.0.1->ns_1@127.0.0.1:default
+        // and the given separator is: ":"
+        // "eq_dcpq:" was stripped earlier so
+        //  prefix is "replication"
+        std::string prefix(name.substr(0, pos2));
+
+        ConnCounter* rv = counters[prefix];
+        if (rv == nullptr) {
+            rv = new ConnCounter;
+            counters[prefix] = rv;
         }
         return rv;
     }
@@ -3840,28 +3866,27 @@ struct ConnAggStatBuilder {
         }
     }
 
-    ConnCounter *getTotalCounter() {
+    ConnCounter* getTotalCounter() {
         ConnCounter *rv = nullptr;
         std::string sepr(sep);
         std::string total(sepr + "total");
-        rv = (*counters)[total];
+        rv = counters[total];
         if(rv == nullptr) {
             rv = new ConnCounter;
-            (*counters)[total] = rv;
+            counters[total] = rv;
         }
         return rv;
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         if (tc) {
-            ConnCounter *aggregator = getTarget(tc);
+            ConnCounter* aggregator = getCounterForConnType(tc->getName());
             aggregate(tc, aggregator);
         }
     }
 
-    std::map<std::string, ConnCounter*> *counters;
-    const char *sep;
-    size_t sep_len;
+    std::map<std::string, ConnCounter*>& counters;
+    std::string_view sep;
 };
 
 /// @endcond
@@ -3902,21 +3927,14 @@ static void showConnAggStat(const std::string& prefix,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
-        const void* cookie,
-        const AddStatFn& add_stat,
-        const char* sepPtr,
-        size_t sep_len) {
-    // In practice, this will be 1, but C++ doesn't let me use dynamic
-    // array sizes.
+        const void* cookie, const AddStatFn& add_stat, std::string_view sep) {
+    // The separator is, in all current usage, ":" so the length will
+    // normally be 1
     const size_t max_sep_len(8);
-    sep_len = std::min(sep_len, max_sep_len);
-
-    char sep[max_sep_len + 1];
-    memcpy(sep, sepPtr, sep_len);
-    sep[sep_len] = 0x00;
+    sep = sep.substr(0, max_sep_len);
 
     std::map<std::string, ConnCounter*> counters;
-    ConnAggStatBuilder visitor(&counters, sep, sep_len);
+    ConnAggStatBuilder visitor(counters, sep);
     dcpConnMap_->each(visitor);
 
     std::map<std::string, ConnCounter*>::iterator it;
@@ -4611,7 +4629,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return doEngineStats(cookie, add_stat);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
-        return doConnAggStats(cookie, add_stat, key.data() + 7, key.size() - 7);
+        return doConnAggStats(cookie, add_stat, key.substr(7));
     }
     if (key == "dcp"sv) {
         return doDcpStats(cookie, add_stat, value);

@@ -939,8 +939,7 @@ protected:
                                       const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doConnAggStats(const void* cookie,
                                      const AddStatFn& add_stat,
-                                     const char* sep,
-                                     size_t nsep);
+                                     std::string_view sep);
     ENGINE_ERROR_CODE doTimingStats(const void* cookie,
                                     const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doSchedulerStats(const void* cookie,
