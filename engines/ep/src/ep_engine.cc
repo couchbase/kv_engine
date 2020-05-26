@@ -772,10 +772,10 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::mcbp::Status::Einval;
             }
-        } else if (key == "magma_fragmentation_ratio") {
+        } else if (key == "magma_fragmentation_percentage") {
             float value;
             if (safe_strtof(val.c_str(), value)) {
-                getConfiguration().setMagmaFragmentationRatio(value);
+                getConfiguration().setMagmaFragmentationPercentage(value);
             } else {
                 rv = cb::mcbp::Status::Einval;
             }

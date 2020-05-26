@@ -91,10 +91,10 @@ public:
     bool getMagmaEnableBlockCache() const {
         return magmaEnableBlockCache;
     }
-    float getMagmaFragmentationRatio() const {
-        return magmaFragmentationRatio.load();
+    size_t getMagmaFragmentationPercentage() const {
+        return magmaFragmentationPercentage.load();
     }
-    void setMagmaFragmentationRatio(float value);
+    void setMagmaFragmentationPercentage(size_t value);
 
     magma::Magma::Config magmaCfg;
 
@@ -186,7 +186,7 @@ private:
     // the index blocks from sstables.
     bool magmaEnableBlockCache;
 
-    // Ratio of fragmentation which magma will attempt to maintain via
+    // Percentage of fragmentation which magma will attempt to maintain via
     // compaction. Atomic as this can be changed dynamically.
-    std::atomic<float> magmaFragmentationRatio;
+    std::atomic<size_t> magmaFragmentationPercentage;
 };

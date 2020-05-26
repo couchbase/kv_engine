@@ -502,7 +502,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     }
 
     setMaxDataSize(configuration.getBucketQuota());
-    setMagmaFragmentationRatio(configuration.getMagmaFragmentationRatio());
+    setMagmaFragmentationPercentage(
+            configuration.getMagmaFragmentationPercentage());
 
     auto kvstoreList = magma->GetKVStoreList();
     for (auto& kvid : kvstoreList) {
@@ -2279,8 +2280,8 @@ void MagmaKVStore::addStatUpdateToWriteOps(
     writeOps.emplace_back(Magma::WriteOperation::NewUserStatsUpdate(&stats));
 }
 
-void MagmaKVStore::setMagmaFragmentationRatio(float value) {
-    magma->SetFragmentationRatio(value);
+void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
+    magma->SetFragmentationRatio(value / 100.0);
 }
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {

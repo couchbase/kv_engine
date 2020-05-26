@@ -25,9 +25,9 @@ public:
     ConfigChangeListener(MagmaKVStoreConfig& c) : config(c) {
     }
 
-    void floatValueChanged(const std::string& key, float value) override {
-        if (key == "magma_fragmentation_ratio") {
-            config.setMagmaFragmentationRatio(value);
+    void sizeValueChanged(const std::string& key, size_t value) override {
+        if (key == "magma_fragmentation_percentage") {
+            config.setMagmaFragmentationPercentage(value);
         }
     }
 
@@ -58,10 +58,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaExpiryFragThreshold = config.getMagmaExpiryFragThreshold();
     magmaTombstoneFragThreshold = config.getMagmaTombstoneFragThreshold();
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
-    magmaFragmentationRatio = config.getMagmaFragmentationRatio();
+    magmaFragmentationPercentage = config.getMagmaFragmentationPercentage();
 
     config.addValueChangedListener(
-            "magma_fragmentation_ratio",
+            "magma_fragmentation_percentage",
             std::make_unique<ConfigChangeListener>(*this));
 }
 
@@ -69,9 +69,9 @@ void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
     this->store = store;
 }
 
-void MagmaKVStoreConfig::setMagmaFragmentationRatio(float value) {
-    magmaFragmentationRatio.store(value);
+void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
+    magmaFragmentationPercentage.store(value);
     if (store) {
-        store->setMagmaFragmentationRatio(value);
+        store->setMagmaFragmentationPercentage(value);
     }
 }

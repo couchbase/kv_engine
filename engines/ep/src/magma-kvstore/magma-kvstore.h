@@ -595,7 +595,7 @@ public:
 
     const KVStoreConfig& getConfig() const override;
 
-    void setMagmaFragmentationRatio(float value);
+    void setMagmaFragmentationPercentage(size_t value);
 
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.

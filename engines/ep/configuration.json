@@ -1137,15 +1137,15 @@
             "descr": "The block cache is an LRU policy driven cache that is used to maintain index blocks for the sstable's btrees.",
             "type": "bool"
         },
-        "magma_fragmentation_ratio": {
-            "default": "0.5",
+        "magma_fragmentation_percentage": {
+            "default": "50",
             "dynamic": true,
-            "descr": "The ratio of fragmentation a magma bucket aims to maintain. A 1.0 value will disable compaction by setting the desired fragmentation percentage to 100%. A 0.0 value will allow compaction to run constantly",
-            "type": "float",
+            "descr": "The percentage of fragmentation a magma bucket aims to maintain. A 100 value will disable sequence tree compactions by setting the desired fragmentation percentage to 100%. Smaller compactions of the key and local indexes will still run.",
+            "type": "size_t",
             "validator": {
                 "range": {
-                    "min": 0.0,
-                    "max": 1.0
+                    "min": 10,
+                    "max": 100
                 }
             }
         },
