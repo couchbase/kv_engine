@@ -91,7 +91,7 @@ protected:
      * @param cancelled indicates the if backfill finished fully or was
      *                  cancelled in between; for debug
      */
-    virtual backfill_status_t complete(bool cancelled) = 0;
+    virtual void complete(bool cancelled) = 0;
 
     std::mutex lock;
     backfill_state_t state = backfill_state_init;

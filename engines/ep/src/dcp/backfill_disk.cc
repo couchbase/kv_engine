@@ -142,7 +142,8 @@ backfill_status_t DCPBackfillDisk::run() {
     case backfill_state_scanning:
         return scan();
     case backfill_state_completing:
-        return complete(false);
+        complete(false);
+        return backfill_finished;
     case backfill_state_done:
         return backfill_finished;
     }
