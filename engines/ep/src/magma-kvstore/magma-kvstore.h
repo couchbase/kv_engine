@@ -239,11 +239,6 @@ public:
     void reset(Vbid vbid) override;
 
     /**
-     * Begin a transaction (if not already in one).
-     */
-    bool begin(std::unique_ptr<TransactionContext> txCtx) override;
-
-    /**
      * Commit a transaction (unless not currently in one).
      *
      * Returns false if the commit fails.
@@ -720,15 +715,6 @@ protected:
     // them to disk (in `commit`).
     // unique_ptr for pimpl.
     std::unique_ptr<PendingRequestQueue> pendingReqs;
-
-    // This variable is used to verify that the KVStore API is used correctly
-    // when Magma is used as store. "Correctly" means that the caller must
-    // use the API in the following way:
-    //      - begin() x1
-    //      - set() / del() xN
-    //      - commit()
-    bool in_transaction;
-    std::unique_ptr<TransactionContext> transactionCtx;
 
     // Path to magma files. Include shardID.
     const std::string magmaPath;

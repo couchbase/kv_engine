@@ -602,6 +602,20 @@ void KVStore::delSystemEvent(const queued_item item) {
     del(item);
 }
 
+bool KVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
+    if (!txCtx) {
+        throw std::invalid_argument("KVStore::begin: txCtx is null");
+    }
+    if (isReadOnly()) {
+        throw std::logic_error(
+                "KVStore::begin: Not valid on a read-only object.");
+    }
+    collectionsMeta.clear();
+    inTransaction = true;
+    transactionCtx = std::move(txCtx);
+    return inTransaction;
+}
+
 std::string to_string(KVStore::FlushStateDeletion state) {
     switch (state) {
     case KVStore::FlushStateDeletion::Delete:

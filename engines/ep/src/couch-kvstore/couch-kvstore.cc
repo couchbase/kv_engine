@@ -279,7 +279,6 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
       configuration(config),
       dbname(config.getDBName()),
       dbFileRevMap(std::move(dbFileRevMap)),
-      intransaction(false),
       logger(config.getLogger()),
       base_ops(ops) {
     createDataDir(dbname);
@@ -425,9 +424,10 @@ void CouchKVStore::set(queued_item item) {
         throw std::logic_error("CouchKVStore::set: Not valid on a read-only "
                         "object.");
     }
-    if (!intransaction) {
-        throw std::invalid_argument("CouchKVStore::set: intransaction must be "
-                        "true to perform a set operation.");
+    if (!inTransaction) {
+        throw std::invalid_argument(
+                "CouchKVStore::set: inTransaction must be "
+                "true to perform a set operation.");
     }
 
     // each req will be de-allocated after commit
@@ -660,9 +660,10 @@ void CouchKVStore::del(queued_item item) {
         throw std::logic_error("CouchKVStore::del: Not valid on a read-only "
                         "object.");
     }
-    if (!intransaction) {
-        throw std::invalid_argument("CouchKVStore::del: intransaction must be "
-                        "true to perform a delete operation.");
+    if (!inTransaction) {
+        throw std::invalid_argument(
+                "CouchKVStore::del: inTransaction must be "
+                "true to perform a delete operation.");
     }
 
     pendingReqsQ.emplace_back(std::move(item));
@@ -1289,14 +1290,14 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
                         "object.");
     }
 
-    if (intransaction) {
+    if (inTransaction) {
         if (commit2couchstore(commitData)) {
-            intransaction = false;
+            inTransaction = false;
             transactionCtx.reset();
         }
     }
 
-    return !intransaction;
+    return !inTransaction;
 }
 
 bool CouchKVStore::getStat(const char* name, size_t& value)  {
@@ -1607,7 +1608,7 @@ cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
 }
 
 void CouchKVStore::close() {
-    intransaction = false;
+    inTransaction = false;
 }
 
 void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {

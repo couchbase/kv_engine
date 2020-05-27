@@ -637,7 +637,7 @@ public:
      *
      * @return false if we cannot begin a transaction
      */
-    virtual bool begin(std::unique_ptr<TransactionContext> txCtx) = 0;
+    bool begin(std::unique_ptr<TransactionContext> txCtx);
 
     /**
      * Commit a transaction (unless not currently in one).
@@ -1108,6 +1108,15 @@ protected:
     Collections::KVStore::CommitMetaData collectionsMeta;
 
     MakeCompactionContextCallback makeCompactionContextCallback;
+
+    // This variable is used to verify that the KVStore API is used correctly
+    // "Correctly" means that the caller must use the API in the following way:
+    //      - begin() x1
+    //      - set() / del() xN
+    //      - commit()
+    bool inTransaction{false};
+
+    std::unique_ptr<TransactionContext> transactionCtx;
 };
 
 std::string to_string(KVStore::FlushStateDeletion status);

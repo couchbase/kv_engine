@@ -406,7 +406,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     : KVStore(),
       configuration(configuration),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
-      in_transaction(false),
       magmaPath(configuration.getDBName() + "/magma." +
                 std::to_string(configuration.getShardId())),
       scanCounter(0) {
@@ -520,7 +519,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 }
 
 MagmaKVStore::~MagmaKVStore() {
-    if (!in_transaction) {
+    if (!inTransaction) {
         magma->Sync(true);
     }
     logger->debug("MagmaKVStore Destructor");
@@ -530,22 +529,16 @@ std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
     return magmaPath + std::to_string(vbid.get());
 }
 
-bool MagmaKVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
-    in_transaction = true;
-    transactionCtx = std::move(txCtx);
-    return in_transaction;
-}
-
 bool MagmaKVStore::commit(VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
-    if (!in_transaction) {
+    if (!inTransaction) {
         logger->warn("MagmaKVStore::commit called not in transaction");
         return true;
     }
 
     if (pendingReqs->size() == 0) {
-        in_transaction = false;
+        inTransaction = false;
         return true;
     }
 
@@ -566,7 +559,7 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
-        in_transaction = false;
+        inTransaction = false;
         transactionCtx.reset();
     }
 
@@ -640,8 +633,8 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
 }
 
 void MagmaKVStore::rollback() {
-    if (in_transaction) {
-        in_transaction = false;
+    if (inTransaction) {
+        inTransaction = false;
         transactionCtx.reset();
     }
 }
@@ -680,9 +673,9 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
 }
 
 void MagmaKVStore::set(queued_item item) {
-    if (!in_transaction) {
+    if (!inTransaction) {
         throw std::logic_error(
-                "MagmaKVStore::set: in_transaction must be true to perform a "
+                "MagmaKVStore::set: inTransaction must be true to perform a "
                 "set operation.");
     }
     pendingReqs->emplace_back(std::move(item), logger);
@@ -911,9 +904,9 @@ void MagmaKVStore::reset(Vbid vbid) {
 }
 
 void MagmaKVStore::del(queued_item item) {
-    if (!in_transaction) {
+    if (!inTransaction) {
         throw std::logic_error(
-                "MagmaKVStore::del: in_transaction must be true to perform a "
+                "MagmaKVStore::del: inTransaction must be true to perform a "
                 "delete operation.");
     }
     pendingReqs->emplace_back(std::move(item), logger);

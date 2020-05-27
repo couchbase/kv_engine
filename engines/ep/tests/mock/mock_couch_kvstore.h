@@ -67,9 +67,9 @@ public:
                     "MockCouchKVStore::set: Not valid on a read-only "
                     "object.");
         }
-        if (!intransaction) {
+        if (!inTransaction) {
             throw std::invalid_argument(
-                    "MockCouchKVStore::set: intransaction must be "
+                    "MockCouchKVStore::set: inTransaction must be "
                     "true to perform a set operation.");
         }
 

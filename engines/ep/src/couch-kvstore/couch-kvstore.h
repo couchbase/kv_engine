@@ -133,27 +133,6 @@ public:
     void reset(Vbid vbucketId) override;
 
     /**
-     * Begin a transaction (if not already in one).
-     *
-     * @return true if the transaction is started successfully
-     */
-    bool begin(std::unique_ptr<TransactionContext> txCtx) override {
-        if (!txCtx) {
-            throw std::invalid_argument("CouchKVStore::begin: txCtx is null");
-        }
-        if (isReadOnly()) {
-            throw std::logic_error(
-                    "CouchKVStore::begin: Not valid on a read-only object.");
-        }
-        if (collectionsMeta.needsCommit) {
-            throw std::logic_error("CouchKVStore::begin needsCommit:true");
-        }
-        intransaction = true;
-        transactionCtx = std::move(txCtx);
-        return intransaction;
-    }
-
-    /**
      * Commit a transaction (unless not currently in one).
      *
      * @param flushData - see KVStore::commit
@@ -169,8 +148,8 @@ public:
             throw std::logic_error("CouchKVStore::rollback: Not valid on a "
                     "read-only object.");
         }
-        if (intransaction) {
-            intransaction = false;
+        if (inTransaction) {
+            inTransaction = false;
             transactionCtx.reset();
         }
     }
@@ -787,8 +766,6 @@ protected:
 
     uint16_t numDbFiles;
     PendingRequestQueue pendingReqsQ;
-    bool intransaction;
-    std::unique_ptr<TransactionContext> transactionCtx;
 
     /**
      * FileOpsInterface implementation for couchstore which tracks
