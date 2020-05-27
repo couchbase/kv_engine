@@ -838,6 +838,16 @@ public:
         notify_changed("num_writer_threads");
     }
 
+    std::pair<in_port_t, sa_family_t> getPrometheusConfig() {
+        return *prometheus_config.rlock();
+    }
+
+    void setPrometheusConfig(std::pair<in_port_t, sa_family_t> config) {
+        *prometheus_config.wlock() = std::move(config);
+        has.prometheus_config = true;
+        notify_changed("prometheus_config");
+    }
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
@@ -1039,6 +1049,8 @@ protected:
     std::atomic<int> num_reader_threads{0};
     std::atomic<int> num_writer_threads{0};
 
+    folly::Synchronized<std::pair<in_port_t, sa_family_t>> prometheus_config;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1093,5 +1105,6 @@ public:
         bool num_writer_threads = false;
         bool portnumber_file = false;
         bool parent_identifier = false;
+        bool prometheus_config = false;
     } has;
 };

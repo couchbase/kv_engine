@@ -673,13 +673,24 @@ bool is_bucket_dying(Connection& c) {
 }
 
 static void create_portnumber_file(bool terminate) {
-    auto filename = Settings::instance().getPortnumberFile();
+    auto& settings = Settings::instance();
+    auto filename = settings.getPortnumberFile();
     if (!filename.empty()) {
         nlohmann::json json;
         json["ports"] = nlohmann::json::array();
 
         for (const auto& connection : listen_conn) {
             json["ports"].push_back(connection->toJson());
+        }
+
+        {
+            auto [port, family] = settings.getPrometheusConfig();
+            json["prometheus"]["port"] = port;
+            if (family == AF_INET || family == AF_INET6) {
+                json["prometheus"]["port"] = port;
+                json["prometheus"]["family"] =
+                        (family == AF_INET) ? "inet" : "inet6";
+            }
         }
 
         std::string tempname;

@@ -270,6 +270,66 @@ TEST_F(SettingsTest, Threads) {
     }
 }
 
+TEST_F(SettingsTest, Prometheus) {
+    nlohmann::json json;
+    json["prometheus"]["port"] = 666;
+    json["prometheus"]["family"] = "inet";
+
+    try {
+        Settings settings(json);
+        auto [port, family] = settings.getPrometheusConfig();
+        EXPECT_EQ(666, port);
+        EXPECT_EQ(AF_INET, family);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    // Check for inet6
+    json["prometheus"]["port"] = 999;
+    json["prometheus"]["family"] = "inet6";
+    try {
+        Settings settings(json);
+        auto [port, family] = settings.getPrometheusConfig();
+        EXPECT_EQ(999, port);
+        EXPECT_EQ(AF_INET6, family);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    // Check for invalid port
+    json["prometheus"]["port"] = "asdf";
+    json["prometheus"]["family"] = "inet";
+    try {
+        Settings settings(json);
+        FAIL() << "Should detect invalid port";
+    } catch (std::exception& exception) {
+    }
+
+    // Check for invalid family
+    json["prometheus"]["port"] = 999;
+    json["prometheus"]["family"] = "asdf";
+    try {
+        Settings settings(json);
+        FAIL() << "Should detect invalid family";
+    } catch (std::exception& exception) {
+    }
+
+    json["prometheus"] = nlohmann::json::value_t::object;
+    json["prometheus"]["family"] = "inet";
+    try {
+        Settings settings(json);
+        FAIL() << "Should detect missing port";
+    } catch (std::exception& exception) {
+    }
+    json["prometheus"] = nlohmann::json::value_t::object;
+    json["prometheus"]["port"] = 999;
+    try {
+        Settings settings(json);
+        FAIL() << "Should detect missing family";
+    } catch (std::exception& exception) {
+    }
+}
+
 TEST_F(SettingsTest, Interfaces) {
     nonArrayValuesShouldFail("interfaces");
 
@@ -1037,6 +1097,29 @@ TEST(SettingsUpdateTest, RootIsNotDynamic) {
     updated.setRoot("/var");
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
+}
+
+TEST(SettingsUpdateTest, PrometheusIsDynamic) {
+    // setting the same value should work
+    Settings settings;
+    Settings updated;
+    settings.setPrometheusConfig({666, AF_INET});
+    updated.setPrometheusConfig({666, AF_INET});
+
+    settings.updateSettings(updated, true);
+    {
+        auto [port, family] = settings.getPrometheusConfig();
+        EXPECT_EQ(666, port);
+        EXPECT_EQ(AF_INET, family);
+    }
+
+    updated.setPrometheusConfig({999, AF_INET6});
+    settings.updateSettings(updated, true);
+    {
+        auto [port, family] = settings.getPrometheusConfig();
+        EXPECT_EQ(999, port);
+        EXPECT_EQ(AF_INET6, family);
+    }
 }
 
 TEST(SettingsUpdateTest, AlwaysCollectTraceInfoIsDynamic) {

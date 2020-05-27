@@ -106,6 +106,13 @@ clients. By default this number is set to 75% of the number of cores
 available on the system (but no less than 4). The value for threads
 should be specified as an integral number.
 
+=== prometheus
+
+The *prometheus* is a object with the following properties:
+
+    port         The port number to bind to
+    family       The address family to use (IPv4/IPv6)
+
 === interfaces
 
 The *interfaces* attribute is used to specify an array of interfaces

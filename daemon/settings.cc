@@ -649,6 +649,35 @@ static void handle_opentracing(Settings& s, const nlohmann::json& obj) {
     s.setOpenTracingConfig(std::make_shared<OpenTracingConfig>(obj));
 }
 
+static void handle_prometheus(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_object()) {
+        cb::throwJsonTypeError(R"("prometheus" must be an object)");
+    }
+    auto iter = obj.find("port");
+    if (iter == obj.end() || !iter->is_number()) {
+        throw std::invalid_argument(
+                R"("prometheus.port" must be present and a number)");
+    }
+    const auto port = iter->get<in_port_t>();
+    iter = obj.find("family");
+    if (iter == obj.end() || !iter->is_string()) {
+        throw std::invalid_argument(
+                R"("prometheus.family" must be present and a string)");
+    }
+    const auto val = iter->get<std::string>();
+    sa_family_t family;
+    if (val == "inet") {
+        family = AF_INET;
+    } else if (val == "inet6") {
+        family = AF_INET6;
+    } else {
+        throw std::invalid_argument(
+                R"("prometheus.family" must be "inet" or "inet6")");
+    }
+
+    s.setPrometheusConfig({port, family});
+}
+
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file.. (this is a bit messy)
@@ -719,6 +748,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"max_concurrent_commands_per_connection",
              handle_max_concurrent_commands_per_connection},
             {"opentracing", handle_opentracing},
+            {"prometheus", handle_prometheus},
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier}};
 
@@ -1232,6 +1262,25 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  threadConfig2String(getNumWriterThreads()),
                  threadConfig2String(other.getNumWriterThreads()));
         setNumWriterThreads(other.getNumWriterThreads());
+    }
+
+    if (other.has.prometheus_config) {
+        auto nval = *other.prometheus_config.rlock();
+        if (nval != *prometheus_config.rlock()) {
+            switch (nval.second) {
+            case AF_INET:
+                LOG_INFO("Change prometheus port to IPv4 port {}", nval.first);
+                break;
+            case AF_INET6:
+                LOG_INFO("Change prometheus port to IPv6 port {}", nval.first);
+                break;
+            default:
+                LOG_INFO("Disable prometheus port");
+                nval.first = 0;
+                nval.second = 0;
+            }
+            setPrometheusConfig(nval);
+        }
     }
 }
 
