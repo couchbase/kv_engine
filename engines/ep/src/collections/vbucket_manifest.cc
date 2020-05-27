@@ -283,8 +283,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
     if (itr != map.end()) {
         throwException<std::logic_error>(
                 __FUNCTION__,
-                "collection already exists + "
-                ", collection:" +
+                "The collection already exists: failed adding collection:" +
                         identifiers.second.to_string() +
                         ", scope:" + identifiers.first.to_string() +
                         ", startSeqno:" + std::to_string(startSeqno));
