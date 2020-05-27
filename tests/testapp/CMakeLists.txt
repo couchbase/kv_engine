@@ -131,7 +131,7 @@ if (TIMEOUT_EXE AND NOT WIN32)
 endif()
 
 gtest_discover_tests(memcached_testapp
-    EXTRA_ARGS ${VERBOSE_EXTRA_ARG}
+    EXTRA_ARGS -E default ${VERBOSE_EXTRA_ARG}
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     TEST_PREFIX memcached_testapp.default.
     ONE_CTEST_PER_SUITE

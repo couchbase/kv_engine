@@ -1400,7 +1400,7 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    std::string engine_name("default");
+    std::string engine_name("ep");
     std::string engine_config;
 
     int cmd;
