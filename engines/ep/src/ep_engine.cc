@@ -5513,7 +5513,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t cas = request.getCas();
     ENGINE_ERROR_CODE ret;
     try {
-        // MB-36321 User XATTRs and body should be nuked
+        // MB-37374: Accept user-xattrs, body is still invalid
         const auto datatype = uint8_t(request.getDatatype());
         cb::compression::Buffer uncompressedValue;
         if (mcbp::datatype::is_snappy(datatype)) {
@@ -5528,52 +5528,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
             value = uncompressedValue;
         }
 
-        std::vector<char> backing;
-        bool invalid = false;
         if (allowDelWithMetaPruneUserData) {
             if (mcbp::datatype::is_xattr(datatype)) {
-                // prune user xattrs and user value
-                auto sizes = cb::xattr::get_size_and_system_xattr_size(
-                        datatype,
-                        {reinterpret_cast<const char*>(value.data()),
-                         value.size()});
-                if (sizes.first != sizes.second) {
-                    // We need to rebuild the system xattrs
-                    std::copy_n(value.begin(),
-                                sizes.first,
-                                std::back_inserter(backing));
-                    cb::xattr::Blob blob({backing.data(), backing.size()},
-                                         false);
-                    blob.prune_user_keys();
-                    auto system = blob.finalize();
-                    value = {reinterpret_cast<uint8_t*>(system.data()),
-                             system.size()};
-                } else {
-                    // Strip of a potential value
-                    value = {value.data(), sizes.first};
-                }
+                // Whatever we have in the value, just keep Xattrs
+                const auto valBuffer = cb::const_char_buffer{
+                        reinterpret_cast<const char*>(value.data()),
+                        value.size()};
+                value = {reinterpret_cast<const uint8_t*>(valBuffer.data()),
+                         cb::xattr::get_body_offset(valBuffer)};
             } else {
-                // prune value
+                // We may have nothing or only a Body, remove everything
                 value = {};
             }
-        } else if (mcbp::datatype::is_xattr(datatype)) {
-            // verify that value is only system xattr
-            auto sizes = cb::xattr::get_size_and_system_xattr_size(
-                    PROTOCOL_BINARY_DATATYPE_XATTR,
-                    {reinterpret_cast<const char*>(value.data()),
-                     value.size()});
-            if (sizes.second != value.size()) {
-                invalid = true;
+        } else {
+            // Whether we have Xattrs or not, we just want to fail if we got a
+            // value with Body
+            if (cb::xattr::get_body_size(
+                        datatype,
+                        {reinterpret_cast<const char*>(value.data()),
+                         value.size()}) > 0) {
+                setErrorContext(cookie,
+                                "It is only possible to specify Xattrs as a "
+                                "value to DeleteWithMeta");
+                return ENGINE_EINVAL;
             }
-        } else if (!value.empty()) {
-            invalid = true;
-        }
-
-        if (invalid) {
-            setErrorContext(cookie,
-                            "It is only possible to specify system extended "
-                            "attributes as a value to DeleteWithMeta");
-            return ENGINE_EINVAL;
         }
 
         if (value.empty()) {
