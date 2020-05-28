@@ -1913,8 +1913,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
 
     // To drive a single vBucket's backfill to completion requires
     // 4 steps (initialise, scan() * number of items, completed) for persistent
-    // and 2 for ephemeral.
-    const int backfillSteps = persistent() ? 4 : 2;
+    // and 3 for ephemeral.
+    const int backfillSteps = persistent() ? 4 : 3;
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, advanceBackfill());
     }
@@ -2026,10 +2026,9 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         recreateStream(*vb);
 
         EXPECT_EQ(backfill_success, bfm.backfill()); // init
+        EXPECT_EQ(backfill_success, bfm.backfill()); // scan
         if (persistent()) {
-            // Persistent buckets need individual calls for each step,
-            // ephemeral does it in a single call.
-            EXPECT_EQ(backfill_success, bfm.backfill()); // completing
+            // Persistent buckets need more calls for each step,
             EXPECT_EQ(backfill_success, bfm.backfill()); // done
             EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
         }
@@ -2791,9 +2790,9 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     auto& bfm = producer->getBFM();
 
     // Ephemeral has a single stage backfill and we only compare about the
-    // complete stage so skip over create and scan for persistent buckets
+    // complete stage so skip over scan for persistent buckets
+    bfm.backfill();
     if (persistent()) {
-        bfm.backfill();
         bfm.backfill();
     }
 

@@ -417,13 +417,8 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
     // Run the backfill we scheduled when we transitioned to the backfilling
     // state
     auto& bfm = producer->getBFM();
-    bfm.backfill();
-
-    // Ephemeral starts the scan-phase synchronously at backfill-init, while
-    // EP needs another run of the backfill task
-    if (persistent()) {
-        bfm.backfill();
-    }
+    bfm.backfill(); // create
+    bfm.backfill(); // scan
 
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size());
@@ -629,12 +624,8 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
     // Run the backfill we scheduled when we transitioned to the backfilling
     // state
     auto& bfm = producer->getBFM();
-    bfm.backfill();
-    // Ephemeral starts the scan-phase synchronously at backfill-init, while
-    // EP needs another run of the backfill task
-    if (persistent()) {
-        bfm.backfill();
-    }
+    bfm.backfill(); // create
+    bfm.backfill(); // scan
 
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(2, readyQ.size()) << "Expected SnapshotMarker and Mutation";
@@ -4767,11 +4758,10 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
     auto& manager = producer->getBFM();
 
     EXPECT_EQ(backfill_success, manager.backfill()); // init
+    EXPECT_EQ(backfill_success, manager.backfill()); // scan
     if (persistent()) {
-        // Ephemeral create calls directly into scan,
-        // which calls directly into complete, short-circuiting the
+        // Ephemeral scan calls directly into complete, short-circuiting the
         // normal one step per run logic
-        EXPECT_EQ(backfill_success, manager.backfill()); // scan
         EXPECT_EQ(backfill_success, manager.backfill()); // completing
     }
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
@@ -4981,11 +4971,10 @@ void DurabilityActiveStreamTest::
 
     // backfill the mutation
     EXPECT_EQ(backfill_success, manager.backfill()); // init
+    EXPECT_EQ(backfill_success, manager.backfill()); // scan
     if (persistent()) {
-        // Ephemeral create calls directly into scan,
-        // which calls directly into complete, short-circuiting the
+        // Ephemeral scan calls directly into complete, short-circuiting the
         // normal one step per run logic
-        EXPECT_EQ(backfill_success, manager.backfill()); // scan
         EXPECT_EQ(backfill_success, manager.backfill()); // completing
     }
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
