@@ -1872,10 +1872,11 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
         ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
     }
 
-    // Re-create producer now we have items only on disk, setting a buffer which
-    // can only hold 1 item (so backfill doesn't complete a VB in one scan).
+    // Re-create producer now we have items only on disk, setting a scan buffer
+    // which can only hold 1 item (so backfill doesn't complete a VB in one
+    // scan).
     setupProducer({{"backfill_order", "sequential"}});
-    producer->setBackfillBufferSize(1);
+    producer->public_getBackfillScanBuffer().maxItems = 1;
 
     // setupProducer creates a stream for vb0. Also need streams for vb1 and
     // vb2.
@@ -1898,51 +1899,70 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     ASSERT_TRUE(stream1->isBackfilling());
     ASSERT_TRUE(stream2->isBackfilling());
 
-    // Test - Drive the BackfillManager forward. We expect to see _all_ of the
-    // data from vb0 first, then all of the data from vb1, then vb2.
+    // Test - Drive the BackfillManager forward. We expect to see:
+    // 1. The snapshot marker from each vbucket
+    // 2. All of the mutations from vb0
+    // 3. All of the mutations from vb1
+    // 4. All of the mutations from vb2
     auto& bfm = producer->getBFM();
     ASSERT_EQ(3, bfm.getNumBackfills());
-    auto advanceBackfill =
-            [&bfm, &stream = this->stream, &stream1, &stream2]() {
-                auto backfillStatus = bfm.backfill();
-                stream->consumeAllBackfillItems();
-                stream1->consumeAllBackfillItems();
-                stream2->consumeAllBackfillItems();
-                return backfillStatus;
-            };
+
+    // 1. snapshot markers
+    auto& readyQ0 = stream->public_readyQ();
+    auto& readyQ1 = stream1->public_readyQ();
+    auto& readyQ2 = stream2->public_readyQ();
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(backfill_success, bfm.backfill());
+
+    EXPECT_EQ(1, readyQ0.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ0.back()->getEvent());
+    EXPECT_EQ(1, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.back()->getEvent());
+    EXPECT_EQ(1, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
 
     // To drive a single vBucket's backfill to completion requires
-    // 4 steps (initialise, scan() * number of items, completed) for persistent
-    // and 3 for ephemeral.
-    const int backfillSteps = persistent() ? 4 : 3;
+    // 3 steps (scan() * number of items, completed) for persistent
+    // and 2 for ephemeral.
+    const int backfillSteps = persistent() ? 3 : 2;
     for (int i = 0; i < backfillSteps; i++) {
-        ASSERT_EQ(backfill_success, advanceBackfill());
+        ASSERT_EQ(backfill_success, bfm.backfill());
     }
 
-    // Verify that all of the first VB has been backfilled and nothing else.
-    EXPECT_EQ(2, stream->getNumBackfillItems());
-    EXPECT_EQ(0, stream1->getNumBackfillItems());
-    EXPECT_EQ(0, stream2->getNumBackfillItems());
+    // 2. Verify that all of the first VB has now backfilled.
+    EXPECT_EQ(3, readyQ0.size());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
+    EXPECT_EQ(1, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.back()->getEvent());
+    EXPECT_EQ(1, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
 
     for (int i = 0; i < backfillSteps; i++) {
-        ASSERT_EQ(backfill_success, advanceBackfill());
+        ASSERT_EQ(backfill_success, bfm.backfill());
     }
 
-    // Verify that all of the second VB has now been backfilled.
-    EXPECT_EQ(2, stream->getNumBackfillItems());
-    EXPECT_EQ(2, stream1->getNumBackfillItems());
-    EXPECT_EQ(0, stream2->getNumBackfillItems());
+    // 3. Verify that all of the second VB has now been backfilled.
+    EXPECT_EQ(3, readyQ0.size());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
+    EXPECT_EQ(3, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ1.back()->getEvent());
+    EXPECT_EQ(1, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
 
     for (int i = 0; i < backfillSteps; i++) {
-        ASSERT_EQ(backfill_success, advanceBackfill());
+        ASSERT_EQ(backfill_success, bfm.backfill());
     }
 
-    // Verify that all 3 VBs have now been backfilled.
-    EXPECT_EQ(2, stream->getNumBackfillItems());
-    EXPECT_EQ(2, stream1->getNumBackfillItems());
-    EXPECT_EQ(2, stream2->getNumBackfillItems());
+    // 4. Verify that all 3 VBs have now been backfilled.
+    EXPECT_EQ(3, readyQ0.size());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
+    EXPECT_EQ(3, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ1.back()->getEvent());
+    EXPECT_EQ(3, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
 
-    ASSERT_EQ(backfill_finished, advanceBackfill());
+    ASSERT_EQ(backfill_finished, bfm.backfill());
 }
 
 /**

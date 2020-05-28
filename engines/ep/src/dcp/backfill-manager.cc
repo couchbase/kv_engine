@@ -164,7 +164,7 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
     LockHolder lh(lock);
     ScheduleResult result;
     if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push_back(std::move(backfill));
+        initializingBackfills.push_back(std::move(backfill));
         result = ScheduleResult::Active;
     } else {
         pendingBackfills.push_back(std::move(backfill));
@@ -264,8 +264,10 @@ void BackfillManager::bytesSent(size_t bytes) {
 backfill_status_t BackfillManager::backfill() {
     std::unique_lock<std::mutex> lh(lock);
 
-    if (activeBackfills.empty() && snoozingBackfills.empty()
-        && pendingBackfills.empty()) {
+    // If no backfills remaining in any of the queues then we can
+    // stop the background task and finish.
+    if (initializingBackfills.empty() && activeBackfills.empty() &&
+        snoozingBackfills.empty() && pendingBackfills.empty()) {
         managerTask.reset();
         return backfill_finished;
     }
@@ -277,11 +279,8 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    moveToActiveQueue();
-
-    if (activeBackfills.empty()) {
-        return backfill_snooze;
-    }
+    movePendingToInitializing();
+    moveSnoozingToActiveQueue();
 
     if (buffer.full) {
         // If the buffer is full check to make sure we don't have any backfills
@@ -309,8 +308,14 @@ backfill_status_t BackfillManager::backfill() {
         return reschedule ? backfill_success : backfill_snooze;
     }
 
-    UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
-    activeBackfills.pop_front();
+    UniqueDCPBackfillPtr backfill;
+    Source source;
+    std::tie(backfill, source) = dequeueNextBackfill(lh);
+
+    // If no backfills ready to run then snooze
+    if (!backfill) {
+        return backfill_snooze;
+    }
 
     lh.unlock();
     backfill_status_t status = backfill->run();
@@ -326,7 +331,22 @@ backfill_status_t BackfillManager::backfill() {
                 activeBackfills.push_back(std::move(backfill));
                 break;
             case ScheduleOrder::Sequential:
-                activeBackfills.push_front(std::move(backfill));
+                switch (source) {
+                case Source::Active:
+                    // If the source is active then this is the "current"
+                    // backfill we are working our way through, we want
+                    // to put it back on the front of the active queue to
+                    // run next time.
+                    activeBackfills.push_front(std::move(backfill));
+                    break;
+                case Source::Initializing:
+                    // New - this was only run to initialise it; it should
+                    // now go to the back of the active queue so the
+                    // "current" Backfill can resume to completion.
+                    // round-robin and sequential:
+                    activeBackfills.push_back(std::move(backfill));
+                    break;
+                }
                 break;
             }
             break;
@@ -344,15 +364,16 @@ backfill_status_t BackfillManager::backfill() {
     return backfill_success;
 }
 
-void BackfillManager::moveToActiveQueue() {
-    // Order in below AND is important
+void BackfillManager::movePendingToInitializing() {
     while (!pendingBackfills.empty() &&
            engine.getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.splice(activeBackfills.end(),
-                               pendingBackfills,
-                               pendingBackfills.begin());
+        initializingBackfills.splice(initializingBackfills.end(),
+                                     pendingBackfills,
+                                     pendingBackfills.begin());
     }
+}
 
+void BackfillManager::moveSnoozingToActiveQueue() {
     while (!snoozingBackfills.empty()) {
         std::pair<rel_time_t, UniqueDCPBackfillPtr> snoozer =
                 std::move(snoozingBackfills.front());
@@ -367,6 +388,21 @@ void BackfillManager::moveToActiveQueue() {
             break;
         }
     }
+}
+
+std::pair<UniqueDCPBackfillPtr, BackfillManager::Source>
+BackfillManager::dequeueNextBackfill(std::unique_lock<std::mutex>&) {
+    // Dequeue from initializingBackfills if non-empty, else activeBackfills.
+    auto& queue = initializingBackfills.empty() ? activeBackfills
+                                                : initializingBackfills;
+    auto source = initializingBackfills.empty() ? Source::Active
+                                                : Source::Initializing;
+    if (!queue.empty()) {
+        auto next = std::move(queue.front());
+        queue.pop_front();
+        return {std::move(next), source};
+    }
+    return {};
 }
 
 void BackfillManager::wakeUpTask() {
