@@ -1130,7 +1130,44 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         return false;
     }
 
+    const auto opcode = resp->response.getClientOpcode();
+    const auto opaque = resp->response.getOpaque();
+    const auto responseStatus = resp->response.getStatus();
+
+    // Search for an active stream with the same opaque as the response.
+    auto streamFindFn = [opaque](const StreamsMap::value_type& s) {
+      auto handle = s.second->rlock();
+      for (; !handle.end(); handle.next()) {
+          const auto& stream = handle.get();
+          auto* as = dynamic_cast<ActiveStream*>(stream.get());
+          if (as && opaque == stream->getOpaque()) {
+              return stream; // return matching shared_ptr<Stream>
+          }
+      }
+      return ContainerElement{};
+    };
+
     const auto errorMessageHandler = [&]() -> bool {
+        if (responseStatus == cb::mcbp::Status::NotMyVbucket) {
+            // Use find_if2 which will return the matching shared_ptr<Stream>
+            auto stream = find_if2(streamFindFn);
+            std::string streamInfo("null");
+            if (stream) {
+                streamInfo = fmt::format(
+                        fmt("stream name:{}, {}, state:{}"),
+                        stream->getName(),
+                        stream->getVBucket(),
+                        stream->getStateName());
+            }
+            logger->info(
+                    "DcpProducer::handleResponse received "
+                    "unexpected "
+                    "response:{}, Will not disconnect as NotMyVbucket will affect "
+                    "only one stream:{}",
+                    resp->response.toJSON(true).dump(),
+                    streamInfo);
+            return true;
+        }
         logger->error(
                 "DcpProducer::handleResponse disconnecting, received "
                 "unexpected "
@@ -1139,28 +1176,11 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         return false;
     };
 
-    const auto opcode = resp->response.getClientOpcode();
-    const auto responseStatus = resp->response.getStatus();
-
     switch (opcode) {
     case cb::mcbp::ClientOpcode::DcpSetVbucketState:
     case cb::mcbp::ClientOpcode::DcpSnapshotMarker: {
-        const auto opaque = resp->response.getOpaque();
-
-        // Search for an active stream with the same opaque as the response.
         // Use find_if2 which will return the matching shared_ptr<Stream>
-        auto stream = find_if2([opaque](const StreamsMap::value_type& s) {
-            auto handle = s.second->rlock();
-            for (; !handle.end(); handle.next()) {
-                const auto& stream = handle.get();
-                auto* as = dynamic_cast<ActiveStream*>(stream.get());
-                if (as && opaque == stream->getOpaque()) {
-                    return stream; // return matching shared_ptr<Stream>
-                }
-            }
-            return ContainerElement{};
-        });
-
+        auto stream = find_if2(streamFindFn);
         if (stream) {
             auto* as = static_cast<ActiveStream*>(stream.get());
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {

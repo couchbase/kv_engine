@@ -2913,24 +2913,27 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    message.response.setStatus(cb::mcbp::Status::Success);
-    for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
-                    cb::mcbp::ClientOpcode::DcpAddStream,
-                    cb::mcbp::ClientOpcode::DcpCloseStream,
-                    cb::mcbp::ClientOpcode::DcpStreamReq,
-                    cb::mcbp::ClientOpcode::DcpGetFailoverLog,
-                    cb::mcbp::ClientOpcode::DcpMutation,
-                    cb::mcbp::ClientOpcode::DcpDeletion,
-                    cb::mcbp::ClientOpcode::DcpExpiration,
-                    cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
-                    cb::mcbp::ClientOpcode::DcpControl,
-                    cb::mcbp::ClientOpcode::DcpSystemEvent,
-                    cb::mcbp::ClientOpcode::GetErrorMap,
-                    cb::mcbp::ClientOpcode::DcpPrepare,
-                    cb::mcbp::ClientOpcode::DcpCommit,
-                    cb::mcbp::ClientOpcode::DcpAbort}) {
-        message.response.setOpcode(op);
-        EXPECT_TRUE(producer->handleResponse(&message));
+    for (auto status :
+         {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
+        message.response.setStatus(status);
+        for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
+                        cb::mcbp::ClientOpcode::DcpAddStream,
+                        cb::mcbp::ClientOpcode::DcpCloseStream,
+                        cb::mcbp::ClientOpcode::DcpStreamReq,
+                        cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                        cb::mcbp::ClientOpcode::DcpMutation,
+                        cb::mcbp::ClientOpcode::DcpDeletion,
+                        cb::mcbp::ClientOpcode::DcpExpiration,
+                        cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                        cb::mcbp::ClientOpcode::DcpControl,
+                        cb::mcbp::ClientOpcode::DcpSystemEvent,
+                        cb::mcbp::ClientOpcode::GetErrorMap,
+                        cb::mcbp::ClientOpcode::DcpPrepare,
+                        cb::mcbp::ClientOpcode::DcpCommit,
+                        cb::mcbp::ClientOpcode::DcpAbort}) {
+            message.response.setOpcode(op);
+            EXPECT_TRUE(producer->handleResponse(&message));
+        }
     }
 }
 
@@ -2953,7 +2956,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
                            cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::Locked,
-                           cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
                            cb::mcbp::Status::SyncWriteReCommitInProgress,
@@ -2990,7 +2992,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
     message.response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
     for (auto errorCode :
-         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::Success}) {
+         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
         message.response.setStatus(errorCode);
         EXPECT_TRUE(producer->handleResponse(&message));
     }
@@ -3001,7 +3003,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
                            cb::mcbp::Status::Etmpfail,
                            cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::Locked,
-                           cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
                            cb::mcbp::Status::SyncWriteReCommitInProgress,
@@ -3029,7 +3030,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
                            cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::Locked,
-                           cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::Success,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
@@ -3043,6 +3043,14 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
             message.response.setOpaque(Opaque);
             EXPECT_FALSE(producer->handleResponse(&message));
         }
+    }
+    message.response.setStatus(cb::mcbp::Status::NotMyVbucket);
+    // Test DcpNoop when the opaque is the default opaque value
+    message.response.setOpaque(10000000);
+    EXPECT_TRUE(producer->handleResponse(&message));
+    for (uint32_t Opaque : {123, 0}) {
+        message.response.setOpaque(Opaque);
+        EXPECT_TRUE(producer->handleResponse(&message));
     }
 }
 
