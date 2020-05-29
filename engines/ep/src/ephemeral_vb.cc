@@ -289,7 +289,7 @@ void EphemeralVBucket::notifyAllPendingConnsFailed(
     fireAllOps(e);
 }
 
-std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
+std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
         EventuallyPersistentEngine& e,
         std::shared_ptr<ActiveStream> stream,
         uint64_t startSeqno,
@@ -301,7 +301,7 @@ std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
             evb, stream, startSeqno, endSeqno);
 }
 
-std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
+std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
         EventuallyPersistentEngine& e,
         std::shared_ptr<ActiveStream> stream,
         CollectionID cid) {

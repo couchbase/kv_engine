@@ -1348,7 +1348,15 @@ bool DcpProducer::scheduleBackfillManager(VBucket& vb,
                                           uint64_t start,
                                           uint64_t end) {
     if (start <= end) {
-        backfillMgr->schedule(vb, s, start, end);
+        switch (backfillMgr->schedule(
+                vb.createDCPBackfill(engine_, s, start, end))) {
+        case BackfillManager::ScheduleResult::Active:
+            break;
+        case BackfillManager::ScheduleResult::Pending:
+            EP_LOG_INFO(
+                    "Backfill for {} {} is pending", s->getName(), vb.getId());
+            break;
+        }
         return true;
     }
     return false;
@@ -1357,7 +1365,7 @@ bool DcpProducer::scheduleBackfillManager(VBucket& vb,
 bool DcpProducer::scheduleBackfillManager(VBucket& vb,
                                           std::shared_ptr<ActiveStream> s,
                                           CollectionID cid) {
-    backfillMgr->schedule(vb, s, cid);
+    backfillMgr->schedule(vb.createDCPBackfill(engine_, s, cid));
     return true;
 }
 
