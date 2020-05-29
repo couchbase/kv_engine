@@ -2101,6 +2101,10 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
                 vbucket2flush);
     }
 
+    if (postFlushHook) {
+        postFlushHook();
+    }
+
     commitCallback(pendingReqsQ, kvctx, errCode);
 
     pendingReqsQ.clear();

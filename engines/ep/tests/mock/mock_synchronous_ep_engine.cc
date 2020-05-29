@@ -21,6 +21,7 @@
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
+#include "item.h"
 #include "mock_dcp_conn_map.h"
 #include "mock_ep_bucket.h"
 #include "mock_ephemeral_bucket.h"
@@ -133,4 +134,44 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
 std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeBucket(
         Configuration& config) {
     return makeBucket(config);
+}
+
+ENGINE_ERROR_CODE SynchronousEPEngine::public_setWithMeta(
+        Vbid vbucket,
+        DocKey key,
+        cb::const_byte_buffer value,
+        ItemMetaData itemMeta,
+        bool isDeleted,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        uint64_t* seqno,
+        const void* cookie,
+        PermittedVBStates permittedVBStates,
+        CheckConflicts checkConflicts,
+        bool allowExisting,
+        GenerateBySeqno genBySeqno,
+        GenerateCas genCas,
+        cb::const_byte_buffer emd) {
+    return setWithMeta(vbucket,
+                       key,
+                       value,
+                       itemMeta,
+                       isDeleted,
+                       datatype,
+                       cas,
+                       seqno,
+                       cookie,
+                       permittedVBStates,
+                       checkConflicts,
+                       allowExisting,
+                       genBySeqno,
+                       genCas,
+                       emd);
+}
+
+DocKey SynchronousEPEngine::public_makeDocKey(const void* cookie,
+                                              const std::string& key) {
+    const auto buf = cb::const_byte_buffer{
+            reinterpret_cast<const uint8_t*>(key.data()), key.size()};
+    return makeDocKey(cookie, buf);
 }
