@@ -173,6 +173,13 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
     if (auth_task->getError() == cb::sasl::Error::AUTH_PROVIDER_DIED) {
         cookie.sendResponse(cb::mcbp::Status::Etmpfail);
     } else {
+        if (Settings::instance().isExternalAuthServiceEnabled()) {
+            cookie.setErrorContext(
+                    "Authentication failed. This could be due to invalid "
+                    "credentials or if the user is an external user the "
+                    "external authentication service may not support the "
+                    "selected authentication mechanism.");
+        }
         cookie.sendResponse(cb::mcbp::Status::AuthError);
     }
 

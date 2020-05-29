@@ -1649,3 +1649,7 @@ std::string ConnectionError::getErrorContext() const {
     const auto decoded = nlohmann::json::parse(payload);
     return decoded["error"]["context"];
 }
+
+nlohmann::json ConnectionError::getErrorJsonContext() const {
+    return nlohmann::json::parse(payload);
+}

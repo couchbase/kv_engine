@@ -212,6 +212,8 @@ public:
 
     std::string getErrorContext() const;
 
+    nlohmann::json getErrorJsonContext() const;
+
 private:
     const cb::mcbp::Status reason;
     const std::string payload;
