@@ -371,13 +371,7 @@ TEST(ClientOpcode, is_collection_command) {
                      ClientOpcode::SubdocCounter,
                      ClientOpcode::SubdocMultiLookup,
                      ClientOpcode::SubdocMultiMutation,
-                     ClientOpcode::SubdocGetCount,
-                     ClientOpcode::DcpMutation,
-                     ClientOpcode::DcpDeletion,
-                     ClientOpcode::DcpExpiration,
-                     ClientOpcode::DcpPrepare,
-                     ClientOpcode::DcpCommit,
-                     ClientOpcode::DcpAbort}},
+                     ClientOpcode::SubdocGetCount}},
                    "collection");
 }
 

@@ -615,12 +615,6 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::SubdocMultiLookup:
     case ClientOpcode::SubdocMultiMutation:
     case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
         return true;
 
     case ClientOpcode::Observe:
@@ -684,6 +678,17 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::DcpSeqnoAcknowledged:
     case ClientOpcode::DcpSeqnoAdvanced:
     case ClientOpcode::DcpOsoSnapshot:
+    // MB-39650: DCP input are not collection commands in this context. They do
+    // represent changes to collections, but they are not privilege checked
+    // against anything other than bucket level Privilege::DcpConsumer there
+    // is no concept of allowing some collections and failing another for DCP
+    // input.
+    case ClientOpcode::DcpMutation:
+    case ClientOpcode::DcpDeletion:
+    case ClientOpcode::DcpExpiration:
+    case ClientOpcode::DcpPrepare:
+    case ClientOpcode::DcpCommit:
+    case ClientOpcode::DcpAbort:
     case ClientOpcode::StopPersistence:
     case ClientOpcode::StartPersistence:
     case ClientOpcode::SetParam:
