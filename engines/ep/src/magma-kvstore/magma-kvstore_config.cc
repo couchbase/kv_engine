@@ -20,6 +20,8 @@
 #include "configuration.h"
 #include "magma-kvstore.h"
 
+#include <memcached/server_core_iface.h>
+
 /// A listener class to update MagmaKVSTore related configs at runtime.
 class MagmaKVStoreConfig::ConfigChangeListener : public ValueChangedListener {
 public:
@@ -74,4 +76,10 @@ void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
     if (store) {
         store->setMagmaFragmentationPercentage(value);
     }
+}
+
+void MagmaKVStoreConfig::setStorageThreads(size_t value) {
+    storageThreads.store(value);
+
+    //@TODO set number of threads for magma
 }

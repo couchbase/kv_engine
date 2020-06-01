@@ -546,33 +546,50 @@ static void handle_opcode_attributes_override(Settings& s,
     s.setOpcodeAttributesOverride(obj.dump());
 }
 
-std::string threadConfig2String(int val) {
+std::string storageThreadConfig2String(int val) {
     if (val == 0) {
         return "default";
     }
-    if (val == -1) {
-        return "disk_io_optimized";
-    }
+
     return std::to_string(val);
 }
 
-static int parseThreadConfigSpec(const std::string& variable,
-                                 const std::string& spec) {
-    if (spec == "default") {
-        return 0;
+std::string threadConfig2String(int val) {
+    if (val == -1) {
+        return "disk_io_optimized";
     }
 
-    if (spec == "disk_io_optimized") {
-        return -1;
+    return storageThreadConfig2String(val);
+}
+
+static int parseStorageThreadConfigSpec(const std::string& variable,
+                                        const std::string& spec) {
+    if (spec == "default") {
+        return 0;
     }
 
     uint64_t val;
     if (!safe_strtoull(spec.c_str(), val)) {
         throw std::invalid_argument(
                 variable +
-                R"( must be specified as "default", "disk_io_optimized" or a numeric value)");
+                R"( must be specified as a numeric value or "default")");
     }
     return val;
+}
+
+static int parseThreadConfigSpec(const std::string& variable,
+                                 const std::string& spec) {
+    if (spec == "disk_io_optimized") {
+        return -1;
+    }
+
+    try {
+        return parseStorageThreadConfigSpec(variable, spec);
+    } catch (std::invalid_argument& e) {
+        std::string message{e.what()};
+        message.append(R"( or "disk_io_optimized")");
+        throw std::invalid_argument(message);
+    }
 }
 
 static void handle_num_reader_threads(Settings& s,  const nlohmann::json& obj) {
@@ -590,6 +607,16 @@ static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
     } else {
         const auto val = obj.get<std::string>();
         s.setNumWriterThreads(parseThreadConfigSpec("num_writer_threads", val));
+    }
+}
+
+static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
+    if (obj.is_number_unsigned()) {
+        s.setNumStorageThreads(obj.get<size_t>());
+    } else {
+        const auto val = obj.get<std::string>();
+        s.setNumStorageThreads(
+                parseStorageThreadConfigSpec("num_storage_threads", val));
     }
 }
 
@@ -739,6 +766,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"opcode_attributes_override", handle_opcode_attributes_override},
             {"num_reader_threads", handle_num_reader_threads},
             {"num_writer_threads", handle_num_writer_threads},
+            {"num_storage_threads", handle_num_storage_threads},
             {"topkeys_enabled", handle_topkeys_enabled},
             {"tracing_enabled", handle_tracing_enabled},
             {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
@@ -1281,6 +1309,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             }
             setPrometheusConfig(nval);
         }
+    }
+
+    if (other.has.num_storage_threads &&
+        other.getNumStorageThreads() != getNumStorageThreads()) {
+        LOG_INFO("Change number of storage threads from: {} to {}",
+                 storageThreadConfig2String(getNumStorageThreads()),
+                 storageThreadConfig2String(other.getNumStorageThreads()));
+        setNumStorageThreads(other.getNumStorageThreads());
+
     }
 }
 

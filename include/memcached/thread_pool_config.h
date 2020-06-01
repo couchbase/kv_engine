@@ -23,7 +23,8 @@
  * Class to represent the number of reader and writer threads
  */
 struct ThreadPoolConfig {
-    /// Number of threads to be created for a given thread pool type.
+    /// Number of threads to be created for a given thread pool type
+    /// (KV readers/writers).
     enum class ThreadCount : int {
         /// Number of threads optimized for disk IO latency - auto-selected
         /// based on available CPU core count.
@@ -33,6 +34,14 @@ struct ThreadPoolConfig {
         // Any other positive integer value is an explicit number of threads
         // to create.
     };
+
+    /// Number of backend storage threads to be created
+    enum class StorageThreadCount : int {
+        /// Let the engine pick the default value
+        Default = 0,
+        // Any other positive integer value is an explicit number of threads
+    };
+
     friend std::ostream& operator<<(std::ostream& os, const ThreadCount& tc);
 
     ThreadPoolConfig() = default;
@@ -40,4 +49,5 @@ struct ThreadPoolConfig {
 
     ThreadCount num_readers{ThreadCount::Default};
     ThreadCount num_writers{ThreadCount::Default};
+    StorageThreadCount num_storage_threads{StorageThreadCount::Default};
 };

@@ -6874,3 +6874,8 @@ void EventuallyPersistentEngine::set_num_writer_threads(
 void EventuallyPersistentEngine::disconnect(gsl::not_null<const void*> cookie) {
     acquireEngine(this)->handleDisconnect(cookie);
 }
+
+void EventuallyPersistentEngine::setStorageThreadCallback(
+        std::function<void(size_t)> cb) {
+    getServerApi()->core->setStorageThreadCallback(cb);
+}

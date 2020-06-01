@@ -848,6 +848,16 @@ public:
         notify_changed("prometheus_config");
     }
 
+    int getNumStorageThreads() const {
+        return num_storage_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumStorageThreads(size_t val) {
+        num_storage_threads.store(val, std::memory_order_release);
+        has.num_storage_threads = true;
+        notify_changed("num_storage_threads");
+    }
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
@@ -1051,6 +1061,9 @@ protected:
 
     folly::Synchronized<std::pair<in_port_t, sa_family_t>> prometheus_config;
 
+    /// Number of storage backend threads
+    std::atomic<int> num_storage_threads{0};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1103,6 +1116,7 @@ public:
         bool opentracing_config = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
+        bool num_storage_threads = false;
         bool portnumber_file = false;
         bool parent_identifier = false;
         bool prometheus_config = false;

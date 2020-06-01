@@ -93,6 +93,12 @@ public:
     }
     void setMagmaFragmentationPercentage(size_t value);
 
+    void setStorageThreads(size_t value);
+
+    size_t getStorageThreads() const {
+        return storageThreads.load();
+    }
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -182,4 +188,9 @@ private:
     // Percentage of fragmentation which magma will attempt to maintain via
     // compaction. Atomic as this can be changed dynamically.
     std::atomic<size_t> magmaFragmentationPercentage;
+
+    /**
+     * Number of threads the storage backend is allowed to run.
+     */
+    std::atomic<size_t> storageThreads;
 };

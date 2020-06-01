@@ -20,6 +20,8 @@
 #include "types.h"
 #include <memcached/thread_pool_config.h>
 
+#include <functional>
+
 struct ServerCoreIface {
     virtual ~ServerCoreIface() = default;
 
@@ -80,4 +82,9 @@ struct ServerCoreIface {
     virtual size_t getMaxEngineFileDescriptors() = 0;
 
     virtual bool isCollectionsEnabled() const = 0;
+
+    /**
+     * Set a function to be called when number of storage threads changes
+     */
+    virtual void setStorageThreadCallback(std::function<void(size_t)> cb) = 0;
 };

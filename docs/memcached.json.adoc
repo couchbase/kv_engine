@@ -373,6 +373,12 @@ Specifies the number of reader or writer threads, respectively.
 If 0 means that memcached should use the default number of reader or writer
 threads, which is computed based on the number of cores.
 
+=== num_storage_threads
+
+Specifies the number of storage backend threads.
+If 0 means that memcached should use the default number of storage threads which
+is calculated as 3 x num_writer_threads.
+
 === logger
 
 The *logger* attribute is used to specify properties for the logger

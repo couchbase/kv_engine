@@ -40,6 +40,7 @@
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
+#include "server_core_api.h"
 #include "server_socket.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -52,6 +53,7 @@
 #include <cbsasl/mechanism.h>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
+#include <memcached/server_core_iface.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
@@ -530,6 +532,22 @@ static void settings_init() {
                 bucketsForEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine().set_num_writer_threads(val);
+                            return true;
+                        },
+                        nullptr);
+            });
+    settings.addChangeListener(
+            "num_storage_threads", [](const std::string&, Settings& s) -> void {
+                auto val = s.getNumStorageThreads();
+                bucketsForEach(
+                        [val](Bucket& b, void*) -> bool {
+                            auto* serverCoreApi = dynamic_cast<ServerCoreApi*>(
+                                    get_server_api()->core);
+                            if (!serverCoreApi) {
+                                throw std::runtime_error(
+                                        "Server core API is unexpected type");
+                            }
+                            serverCoreApi->updateStorageThreads(val);
                             return true;
                         },
                         nullptr);
@@ -1350,6 +1368,18 @@ void CreateBucketThread::create() {
     }
 
     if (result == ENGINE_SUCCESS) {
+        // We don't pass the storage threads down in the config like we do for
+        // readers and writers because that evolved over time to be duplicated
+        // in both configs. Instead, just invoke the callback that the engine
+        // should have set up.
+        auto* serverCoreApi =
+                dynamic_cast<ServerCoreApi*>(get_server_api()->core);
+        if (!serverCoreApi) {
+            throw std::runtime_error("Server core API is unexpected type");
+        }
+        serverCoreApi->updateStorageThreads(
+                Settings::instance().getNumStorageThreads());
+
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = Bucket::State::Ready;

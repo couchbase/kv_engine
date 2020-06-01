@@ -850,6 +850,8 @@ public:
      */
     uint32_t getPrivilegeRevision(const void* cookie) const;
 
+    void setStorageThreadCallback(std::function<void(size_t)> cb);
+
 protected:
     friend class EpEngineValueChangeListener;
 

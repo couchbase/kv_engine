@@ -24,6 +24,7 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
+#include "server_core_api.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "tracing.h"
@@ -57,44 +58,6 @@ struct ServerBucketApi : public ServerBucketIface {
         } catch (const std::exception&) {
             return {};
         }
-    }
-};
-
-struct ServerCoreApi : public ServerCoreIface {
-    rel_time_t get_current_time() override {
-        return mc_time_get_current_time();
-    }
-
-    rel_time_t realtime(rel_time_t exptime) override {
-        return mc_time_convert_to_real_time(exptime);
-    }
-
-    time_t abstime(rel_time_t exptime) override {
-        return mc_time_convert_to_abs_time(exptime);
-    }
-
-    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
-        return mc_time_limit_abstime(t, limit);
-    }
-
-    int parse_config(const char* str,
-                     config_item* items,
-                     FILE* error) override {
-        return ::parse_config(str, items, error);
-    }
-
-    ThreadPoolConfig getThreadPoolSizes() override {
-        auto& instance = Settings::instance();
-        return ThreadPoolConfig(instance.getNumReaderThreads(),
-                                instance.getNumWriterThreads());
-    }
-
-    size_t getMaxEngineFileDescriptors() override {
-        return environment.engine_file_descriptors;
-    }
-
-    bool isCollectionsEnabled() const override {
-        return Settings::instance().isCollectionsEnabled();
     }
 };
 
