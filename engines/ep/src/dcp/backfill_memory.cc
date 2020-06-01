@@ -227,7 +227,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     if (!(stream->isActive())) {
         /* Stop prematurely if the stream state changes */
         complete(true);
-        return backfill_success;
+        return backfill_finished;
     }
 
     /* Read items */
@@ -292,7 +292,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     /* Backfill has ran to completion */
     complete(false);
 
-    return backfill_success;
+    return backfill_finished;
 }
 
 void DCPBackfillMemoryBuffered::complete(bool cancelled) {

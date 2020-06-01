@@ -1868,7 +1868,6 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         recreateStream(*vb);
 
         EXPECT_EQ(backfill_success, bfm.backfill()); // init
-        EXPECT_EQ(backfill_success, bfm.backfill()); // scan
         if (persistent()) {
             // Persistent buckets need individual calls for each step,
             // ephemeral does it in a single call.
@@ -1896,7 +1895,6 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         // scan is skipped
         EXPECT_EQ(backfill_success, bfm.backfill()); // completing
         if (persistent()) {
-            EXPECT_EQ(backfill_success, bfm.backfill()); // done
             EXPECT_EQ(backfill_finished, bfm.backfill()); // nothing else to do
         }
         EXPECT_EQ(0, bfm.getNumBackfills());
@@ -2765,10 +2763,6 @@ protected:
         // Step the third mutation
         EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
-
-        // Finally run again to complete backfill (so it is shutdown in a clean
-        // fashion).
-        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
 
         // Ephemeral backfill scan goes straight to complete but persistent
         // backfill scan does not so we need an extra run

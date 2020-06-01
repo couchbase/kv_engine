@@ -71,5 +71,5 @@ private:
      * @param cancelled indicates the if backfill finished fully or was
      *                  cancelled in between; for debug
      */
-    backfill_status_t complete(bool cancelled) override;
+    void complete(bool cancelled) override;
 };

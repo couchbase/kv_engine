@@ -137,13 +137,15 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
 backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        return complete(true);
+        complete(true);
+        return backfill_finished;
     }
 
     Vbid vbid = stream->getVBucket();
 
     if (!(stream->isActive())) {
-        return complete(true);
+        complete(true);
+        return backfill_finished;
     }
 
     KVStore* kvstore = bucket.getROUnderlying(vbid);
@@ -161,7 +163,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     return backfill_success;
 }
 
-backfill_status_t DCPBackfillBySeqnoDisk::complete(bool cancelled) {
+void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
     auto stream = streamPtr.lock();
     if (!stream) {
         EP_LOG_WARN(
@@ -171,7 +173,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::complete(bool cancelled) {
                 getVBucketId(),
                 cancelled ? "cancelled" : "finished");
         transitionState(backfill_state_done);
-        return backfill_finished;
+        return;
     }
 
     stream->completeBackfill();
@@ -186,6 +188,4 @@ backfill_status_t DCPBackfillBySeqnoDisk::complete(bool cancelled) {
                 cancelled ? "cancelled" : "finished");
 
     transitionState(backfill_state_done);
-
-    return backfill_success;
 }
