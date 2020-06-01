@@ -288,7 +288,7 @@ TEST_P(CollectionsKVStoreTest, add_of_dropped) {
         FAIL() << "Expected an exception";
     } catch (const std::exception& e) {
         EXPECT_STREQ(
-                "Collections::KVStore::updateOpenCollections found a new "
+                "Collections::KVStore::encodeOpenCollections found a new "
                 "collection in "
                 "dropped list, cid:0xa",
                 e.what());

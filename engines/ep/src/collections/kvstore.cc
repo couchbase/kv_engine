@@ -163,7 +163,7 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
         if (itr != droppedCollections.end()) {
             // we have found the created collection in the drop list, not good
             throw std::logic_error(
-                    "Collections::KVStore::updateOpenCollections found a new "
+                    "Collections::KVStore::encodeOpenCollections found a new "
                     "collection in dropped list, cid:" +
                     meta.cid.to_string());
         }
