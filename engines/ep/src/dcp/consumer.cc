@@ -440,15 +440,16 @@ ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
         }
     }
 
-    auto msg =
-            std::make_unique<MutationConsumerMessage>(std::move(item),
-                                                      opaque,
-                                                      IncludeValue::Yes,
-                                                      IncludeXattrs::Yes,
-                                                      IncludeDeleteTime::No,
-                                                      key.getEncoding(),
-                                                      emd.release(),
-                                                      cb::mcbp::DcpStreamId{});
+    auto msg = std::make_unique<MutationConsumerMessage>(
+            std::move(item),
+            opaque,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeleteTime::No,
+            IncludeDeletedUserXattrs::Yes,
+            key.getEncoding(),
+            emd.release(),
+            cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
@@ -614,6 +615,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                 IncludeValue::Yes,
                 IncludeXattrs::Yes,
                 includeDeleteTime,
+                IncludeDeletedUserXattrs::Yes,
                 key.getEncoding(),
                 emd.release(),
                 cb::mcbp::DcpStreamId{}));

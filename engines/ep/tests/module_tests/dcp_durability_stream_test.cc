@@ -1219,6 +1219,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1242,6 +1243,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1274,6 +1276,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1312,6 +1315,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1349,6 +1353,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1422,6 +1427,7 @@ void DurabilityPassiveStreamTest::
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1442,6 +1448,7 @@ void DurabilityPassiveStreamTest::
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1521,6 +1528,7 @@ void DurabilityPassiveStreamTest::
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1587,6 +1595,7 @@ void DurabilityPassiveStreamTest::
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1675,6 +1684,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -1999,6 +2009,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -2114,6 +2125,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -2287,6 +2299,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -2445,6 +2458,7 @@ void DurabilityPassiveStreamPersistentTest::
                                   IncludeValue::Yes,
                                   IncludeXattrs::Yes,
                                   IncludeDeleteTime::No,
+                                  IncludeDeletedUserXattrs::Yes,
                                   DocKeyEncodesCollectionId::No,
                                   nullptr /*ext-metadata*/,
                                   cb::mcbp::DcpStreamId{})));
@@ -2467,6 +2481,7 @@ void DurabilityPassiveStreamPersistentTest::
                     IncludeValue::Yes,
                     IncludeXattrs::Yes,
                     IncludeDeleteTime::No,
+                    IncludeDeletedUserXattrs::Yes,
                     DocKeyEncodesCollectionId::No,
                     nullptr /*ext-metadata*/,
                     cb::mcbp::DcpStreamId{});
@@ -2616,6 +2631,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -2640,6 +2656,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -2999,6 +3016,7 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3071,6 +3089,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3112,6 +3131,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3149,6 +3169,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3225,6 +3246,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3273,6 +3295,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3293,6 +3316,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3342,6 +3366,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3358,6 +3383,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3402,6 +3428,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3434,6 +3461,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3448,6 +3476,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3467,6 +3496,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3510,6 +3540,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3526,6 +3557,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3555,6 +3587,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3593,6 +3626,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3628,6 +3662,7 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -3689,6 +3724,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr /*ext-meta*/,
                       cb::mcbp::DcpStreamId{})));
@@ -4023,6 +4059,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
@@ -4281,6 +4318,7 @@ void DurabilityPromotionStreamTest::
                               IncludeValue::Yes,
                               IncludeXattrs::Yes,
                               IncludeDeleteTime::No,
+                              IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
                               nullptr /*ext-metadata*/,
                               cb::mcbp::DcpStreamId{})));

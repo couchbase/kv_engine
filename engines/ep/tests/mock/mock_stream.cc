@@ -20,18 +20,20 @@
 #include "dcp/response.h"
 #include "mock_dcp_producer.h"
 #include "vbucket.h"
-MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
-                                   std::shared_ptr<MockDcpProducer> p,
-                                   uint32_t flags,
-                                   uint32_t opaque,
-                                   VBucket& vb,
-                                   uint64_t st_seqno,
-                                   uint64_t en_seqno,
-                                   uint64_t vb_uuid,
-                                   uint64_t snap_start_seqno,
-                                   uint64_t snap_end_seqno,
-                                   IncludeValue includeValue,
-                                   IncludeXattrs includeXattrs)
+MockActiveStream::MockActiveStream(
+        EventuallyPersistentEngine* e,
+        std::shared_ptr<MockDcpProducer> p,
+        uint32_t flags,
+        uint32_t opaque,
+        VBucket& vb,
+        uint64_t st_seqno,
+        uint64_t en_seqno,
+        uint64_t vb_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        IncludeValue includeValue,
+        IncludeXattrs includeXattrs,
+        IncludeDeletedUserXattrs includeDeletedUserXattrs)
     : ActiveStream(e,
                    p,
                    p->getName(),
@@ -46,7 +48,7 @@ MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,
-                   IncludeDeletedUserXattrs::No,
+                   includeDeletedUserXattrs,
                    {{}, vb.getManifest(), p->getCookie(), *e}) {
 }
 
