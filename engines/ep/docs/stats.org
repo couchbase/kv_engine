@@ -716,6 +716,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | backfill_num_active                    | Number of active (running) backfills                   |
 | backfill_num_snoozing                  | Number of snoozing (running) backfills                 |
 | backfill_num_pending                   | Number of pending (not running) backfills              |
+| backfill_order                         | Order backfills should be scheduled                    |
 | paused                                 | true if this client is blocked                         |
 | paused_reason                          | Description of why client is paused                    |
 | send_stream_end_on_client_close_stream | Send STREAM_END msg when DCP client closes stream      |

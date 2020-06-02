@@ -36,6 +36,14 @@ producer, it cannot be disabled.
 supports out of order DCP. The server may, if possible send DCP messages in a
 different order than sequence number order.
 
+* `backfill_order` - Tells the server what order the client would like to
+receive backfills in. This option is available only from Couchbase 6.6.
+Possible values are:
+  * `round-robin` - vBuckets should be backfilled in round-robin order, reading
+  a chunk of data from each in turn (default).
+  * `sequential` - vBuckets should be backfilled sequentially - _all_ data from
+  the first vBucket should be read from disk before advancing to the next vBucket.
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

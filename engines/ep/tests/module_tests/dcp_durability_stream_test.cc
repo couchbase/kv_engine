@@ -494,16 +494,8 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     ASSERT_EQ(2, ckptMgr.getNumItems());
 
     // Create our new stream to plant our checkpoint cursor at the abort
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                0 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                0 /*snap_start_seqno*/,
-                                                ~0 /*snap_end_seqno*/);
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
 
     stream->setActive();
     stream->transitionStateToBackfilling();
@@ -714,16 +706,8 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
     stream.reset();
     removeCheckpoint(*vb, 1);
 
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                0 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                0 /*snap_start_seqno*/,
-                                                ~0 /*snap_end_seqno*/);
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
@@ -874,16 +858,8 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     const auto key = makeStoredDocKey("key");
 
     // Disconnect and resume from our prepare
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                0 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                0 /*snap_start_seqno*/,
-                                                ~0 /*snap_end_seqno*/);
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -992,16 +968,8 @@ TEST_P(DurabilityActiveStreamTest,
     flushVBucketToDiskIfPersistent(vbid, 2);
     removeCheckpoint(*vb, 4);
 
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                0 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                0 /*snap_start_seqno*/,
-                                                ~0 /*snap_end_seqno*/);
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
