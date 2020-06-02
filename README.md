@@ -44,6 +44,7 @@ built via the Couchbase
 * [SSL Client Certificate](docs/ssl_client_cert.md)
 * [DCP](docs/dcp/README.md)
 * [Memcached configuration file](docs/memcached.json.adoc)
+* [Network interfaces](docs/NetworkInterface.md)
 
 ### Protocols
 
