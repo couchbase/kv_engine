@@ -1787,6 +1787,53 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_TRUE(statusFound);
 }
 
+/// Test that backfill is correctly cancelled if the VBucket is deleted
+/// part-way through the backfill.
+TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+
+    // Delete initial stream (so we can re-create after items are only available
+    // from disk.
+    stream.reset();
+
+    // Store some items, create new checkpoint and flush so we have something to
+    // backfill from disk
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    ckptMgr.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Close the now unreferenced checkpoint so DCP stream must go to disk.
+    bool newCKptCreated;
+    ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+
+    // Re-create producer now we have items only on disk, setting a buffer which
+    // can only hold 1 item (so backfill doesn't complete in one scan).
+    setupProducer();
+    producer->setBackfillBufferSize(1);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Initialise the backfill of this VBucket (performs initial scan but
+    // doesn't read any data yet).
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(2, *stream->getNumBackfillItemsRemaining());
+
+    // Now delete the VBucket.
+    engine->getKVBucket()->deleteVBucket(vbid);
+    // Normally done by DcpConnMap::vBucketStateChanged(), but the producer
+    // isn't tracked in DcpConnMap here.
+    stream->setDead(END_STREAM_STATE);
+
+    // Test: run backfillMgr again to actually attempt to read items from disk.
+    // Given vBucket has been deleted this should result in the backfill
+    // finishing early instead of snoozing.
+    ASSERT_EQ(1, bfm.getNumBackfills());
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_EQ(0, bfm.getNumBackfills());
+}
+
 /**
  * Unit test for MB-36146 to ensure that CheckpointCursor do not try to
  * use the currentCheckpoint member variable if its not point to a valid

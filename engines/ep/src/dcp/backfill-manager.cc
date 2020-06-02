@@ -342,20 +342,8 @@ backfill_status_t BackfillManager::backfill() {
             engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
             break;
         case backfill_snooze: {
-            Vbid vbid = backfill->getVBucketId();
-            VBucketPtr vb = engine.getVBucket(vbid);
-            if (vb) {
-                snoozingBackfills.push_back(
-                        std::make_pair(ep_current_time(), std::move(backfill)));
-            } else {
-                lh.unlock();
-                EP_LOG_WARN(
-                        "Deleting the backfill, as {} "
-                        "seems to have been deleted!",
-                        vbid);
-                backfill->cancel();
-                engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
-            }
+            snoozingBackfills.emplace_back(ep_current_time(),
+                                           std::move(backfill));
             break;
         }
     }

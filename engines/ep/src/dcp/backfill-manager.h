@@ -113,7 +113,6 @@ public:
 
     void wakeUpTask();
 
-protected:
     /**
      * Get the current number of tracked backfills.
      *
@@ -124,6 +123,7 @@ protected:
                pendingBackfills.size();
     }
 
+protected:
     /**
      * Common code for adding a new backfill
      */
