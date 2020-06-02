@@ -158,7 +158,7 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
     conn.setClustermapChangeNotification(true);
 }
 
-TEST_P(ClusterConfigTest, CccpPushNotification) {
+TEST_P(ClusterConfigTest, DISABLED_CccpPushNotification) {
     auto& conn = getAdminConnection();
     conn.selectBucket("default");
 

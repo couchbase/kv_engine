@@ -105,7 +105,7 @@ TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
 
 }
 
-TEST_P(DcpTest, UnorderedExecutionNotSupported) {
+TEST_P(DcpTest, DISABLED_UnorderedExecutionNotSupported) {
     // Verify that it isn't possible to run a DCP open command
     // on a connection which is set to unordered execution mode.
     // Ideally we should have verified each of the available DCP

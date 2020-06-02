@@ -320,6 +320,9 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case cb::mcbp::Feature::UnorderedExecution:
+            // MB-39694 Unordered Execution is disabled while investigating
+            //          other bugs
+#if 0
             if (connection.isDCP()) {
                 LOG_INFO(
                         "{}: {} Unordered execution is not supported for "
@@ -330,6 +333,7 @@ void process_hello_packet_executor(Cookie& cookie) {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
             }
+#endif
             break;
 
         case cb::mcbp::Feature::PreserveTtl:
