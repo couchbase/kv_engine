@@ -50,7 +50,11 @@ nlohmann::json Cookie::toJSON() const {
         ret["packet"] = nlohmann::json();
     } else {
         const auto& header = getHeader();
-        ret["packet"] = header.toJSON(validated);
+        try {
+            ret["packet"] = header.toJSON(validated);
+        } catch (const std::exception& e) {
+            ret["packet"]["error"] = e.what();
+        }
     }
 
     if (!event_id.empty()) {
