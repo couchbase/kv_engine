@@ -16,7 +16,7 @@
  */
 
 #include "testapp_client_test.h"
-
+#include <protocol/connection/frameinfo.h>
 #include <xattr/blob.h>
 
 MemcachedConnection& TestappClientTest::getConnection() {
@@ -118,7 +118,8 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
         const std::string& path,
         const std::string& value,
         protocol_binary_subdoc_flag flag,
-        mcbp::subdoc::doc_flag docFlag) {
+        mcbp::subdoc::doc_flag docFlag,
+        const std::optional<cb::durability::Requirements>& durReqs) {
     auto& conn = getConnection();
 
     BinprotSubdocCommand cmd;
@@ -129,11 +130,25 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
     cmd.addPathFlags(flag);
     cmd.addDocFlags(docFlag);
 
+    if (durReqs) {
+        cmd.addFrameInfo(DurabilityFrameInfo(durReqs->getLevel(),
+                                             durReqs->getTimeout()));
+    }
+
     conn.sendCommand(cmd);
 
     BinprotSubdocResponse resp;
     conn.recvResponse(resp);
 
+    return resp;
+}
+
+BinprotSubdocResponse TestappXattrClientTest::subdocMultiMutation(
+        BinprotSubdocMultiMutationCommand cmd) {
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+    BinprotSubdocResponse resp;
+    conn.recvResponse(resp);
     return resp;
 }
 

@@ -194,6 +194,19 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         return cb::mcbp::Status::Einval;
     }
 
+    if (mcbp::subdoc::hasCreateAsDeleted(doc_flags)) {
+        if (!hasAdd(doc_flags) && !hasMkdoc(doc_flags)) {
+            cookie.setErrorContext("CreateAsDeleted requires Mkdoc or Add");
+            return cb::mcbp::Status::Einval;
+        }
+
+        if ((subdoc_flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
+            cookie.setErrorContext(
+                    "CreateAsDeleted does not support body path");
+            return cb::mcbp::Status::Einval;
+        }
+    }
+
     // If the Add flag is set, check the cas is 0
     if (hasAdd(doc_flags) && request.getCas() != 0) {
         cookie.setErrorContext("Request with add flag must have CAS 0");

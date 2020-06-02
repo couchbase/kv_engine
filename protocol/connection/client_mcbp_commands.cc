@@ -313,9 +313,9 @@ BinprotSubdocCommand& BinprotSubdocCommand::addPathFlags(
 }
 BinprotSubdocCommand& BinprotSubdocCommand::addDocFlags(
         mcbp::subdoc::doc_flag flags_) {
-    static const mcbp::subdoc::doc_flag validFlags =
-            mcbp::subdoc::doc_flag::Mkdoc |
-            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add;
+    using namespace mcbp::subdoc;
+    constexpr doc_flag validFlags = doc_flag::Mkdoc | doc_flag::AccessDeleted |
+                                    doc_flag::Add | doc_flag::CreateAsDeleted;
     if ((flags_ & ~validFlags) == mcbp::subdoc::doc_flag::None) {
         doc_flags = doc_flags | flags_;
     } else {
@@ -957,12 +957,25 @@ BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand()
                       cb::mcbp::ClientOpcode::SubdocMultiMutation>(),
       docFlags(mcbp::subdoc::doc_flag::None) {
 }
+
+BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand(
+        std::string key,
+        std::vector<MutationSpecifier> specs,
+        mcbp::subdoc::doc_flag docFlags,
+        const std::optional<cb::durability::Requirements>& durReqs)
+    : specs(std::move(specs)), docFlags(docFlags) {
+    setKey(key);
+    if (durReqs) {
+        setDurabilityReqs(*durReqs);
+    }
+}
+
 BinprotSubdocMultiMutationCommand&
 BinprotSubdocMultiMutationCommand::addDocFlag(mcbp::subdoc::doc_flag docFlag) {
-    static const mcbp::subdoc::doc_flag validFlags =
-            mcbp::subdoc::doc_flag::Mkdoc |
-            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add;
-    if ((docFlag & ~validFlags) == mcbp::subdoc::doc_flag::None) {
+    using namespace mcbp::subdoc;
+    constexpr doc_flag validFlags = doc_flag::Mkdoc | doc_flag::AccessDeleted |
+                                    doc_flag::Add | doc_flag::CreateAsDeleted;
+    if ((docFlag & ~validFlags) == doc_flag::None) {
         docFlags = docFlags | docFlag;
     } else {
         throw std::invalid_argument("addDocFlag: docFlag (Which is " +
@@ -990,6 +1003,14 @@ BinprotSubdocMultiMutationCommand& BinprotSubdocMultiMutationCommand::setExpiry(
     expiry.assign(expiry_);
     return *this;
 }
+
+BinprotSubdocMultiMutationCommand&
+BinprotSubdocMultiMutationCommand::setDurabilityReqs(
+        const cb::durability::Requirements& durReqs) {
+    addFrameInfo(DurabilityFrameInfo(durReqs.getLevel(), durReqs.getTimeout()));
+    return *this;
+}
+
 BinprotSubdocMultiMutationCommand::MutationSpecifier&
 BinprotSubdocMultiMutationCommand::at(size_t index) {
     return specs.at(index);

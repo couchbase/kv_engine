@@ -153,7 +153,7 @@ static void create_single_path_context(SubdocCmdContext& context,
         flags = flags | SUBDOC_FLAG_MKDIR_P;
     }
 
-    context.setMutationSemantics(doc_flags);
+    context.decodeDocFlags(doc_flags);
 
     // Decode as single path; add a single operation to the context.
     if (traits.request_has_value) {
@@ -201,7 +201,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
     std::string_view value{reinterpret_cast<const char*>(valbuf.data()),
                            valbuf.size()};
 
-    context.setMutationSemantics(doc_flags);
+    context.decodeDocFlags(doc_flags);
+
     size_t offset = 0;
     while (offset < value.size()) {
         cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
@@ -536,6 +537,7 @@ static bool subdoc_fetch(Cookie& cookie,
             // Indicate that a new document is required:
             ctx.needs_new_doc = true;
             ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+            ctx.in_document_state = ctx.createState;
             return true;
 
         case ENGINE_EWOULDBLOCK:
@@ -663,8 +665,8 @@ static cb::mcbp::Status subdoc_operate_one_path(
     default:
         // TODO: handle remaining errors.
         LOG_DEBUG("Unexpected response from subdoc: {} ({:x})",
-                  subdoc_res,
-                  subdoc_res);
+                  subdoc_res.description(),
+                  subdoc_res.code());
         return cb::mcbp::Status::Einternal;
     }
 }

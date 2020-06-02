@@ -18,6 +18,7 @@
 #include "client_connection.h"
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/response.h>
+#include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <unordered_set>
@@ -31,8 +32,6 @@ class FrameInfo;
  */
 class BinprotCommand {
 public:
-    BinprotCommand(const BinprotCommand&) = delete;
-
     BinprotCommand() = default;
 
     virtual ~BinprotCommand() = default;
@@ -348,6 +347,12 @@ public:
         std::string value;
     };
 
+    BinprotSubdocMultiMutationCommand(
+            std::string key,
+            std::vector<MutationSpecifier> specs,
+            mcbp::subdoc::doc_flag docFlags,
+            const std::optional<cb::durability::Requirements>& durReqs = {});
+
     void encode(std::vector<uint8_t>& buf) const override;
 
     BinprotSubdocMultiMutationCommand& addDocFlag(
@@ -363,6 +368,9 @@ public:
             const std::string& value);
 
     BinprotSubdocMultiMutationCommand& setExpiry(uint32_t expiry_);
+
+    BinprotSubdocMultiMutationCommand& setDurabilityReqs(
+            const cb::durability::Requirements& durReqs);
 
     MutationSpecifier& at(size_t index);
 
