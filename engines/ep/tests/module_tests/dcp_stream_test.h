@@ -101,6 +101,14 @@ protected:
      */
     void recreateStream(VBucket& vb, bool enforceProducerFlags = false);
 
+    /**
+     * Verifies scenarios where a Producer has IncludeDeletedUserXattrs::No, so
+     * user-xattr (if any) must be pruned from the delete value before streaming
+     *
+     * @param flags The DcpOpen flags under test
+     */
+    void testProducerPrunesUserXattrsForDelete(uint32_t flags);
+
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
 };
