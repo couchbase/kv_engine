@@ -1239,12 +1239,28 @@ void TestappTest::ewouldblock_engine_disable() {
 
 void TestappTest::reconfigure() {
     write_config_to_file(memcached_cfg.dump(2), config_file);
-    auto& conn = getAdminConnection();
 
-    BinprotGenericCommand req{cb::mcbp::ClientOpcode::ConfigReload, {}, {}};
-    const auto resp = conn.execute(req);
-    ASSERT_TRUE(resp.isSuccess()) << "Failed to reconfigure the server";
-    conn.reconnect();
+    bool network_failure;
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    BinprotResponse response;
+    do {
+        network_failure = false;
+        try {
+            auto& conn = getAdminConnection();
+            BinprotGenericCommand req{
+                    cb::mcbp::ClientOpcode::ConfigReload, {}, {}};
+            response = conn.execute(req);
+            conn.reconnect();
+        } catch (const std::exception& e) {
+            std::cerr << "Got exception: " << e.what() << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+            network_failure = true;
+        }
+    } while (network_failure && std::chrono::steady_clock::now() < timeout);
+    ASSERT_FALSE(network_failure)
+            << "Failed to tell the server to reload the configuration";
+    ASSERT_TRUE(response.isSuccess()) << response.getDataString();
 }
 
 void TestappTest::runCreateXattr(const std::string& path,
