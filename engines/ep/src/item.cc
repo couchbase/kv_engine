@@ -22,6 +22,7 @@
 
 #include <folly/lang/Assume.h>
 #include <platform/compress.h>
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 #include <chrono>
 
@@ -404,66 +405,78 @@ item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     return info;
 }
 
-void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
-                                 IncludeXattrs includeXattrs) {
+void Item::removeBody() {
     if (!value) {
-        // If the item does not have value (i.e. data and/or xattrs) then no
-        // pruning is required.
+        // No value, nothing to do
         return;
     }
 
-    if (includeVal == IncludeValue::Yes) {
-        if ((includeXattrs == IncludeXattrs::Yes) ||
-                !(mcbp::datatype::is_xattr(getDataType()))) {
-            // If we want to include the value and either, we want to include
-            // the xattrs or there are no xattrs, then no pruning is required
-            // and we can just return.
-            return;
-        }
-    }
-
-    const auto originalDatatype = getDataType();
-
-    if (includeXattrs == IncludeXattrs::No &&
-        ((includeVal == IncludeValue::No) ||
-         (includeVal == IncludeValue::NoWithUnderlyingDatatype))) {
-        // Don't want the xattributes or value, so just send the key
+    if (!mcbp::datatype::is_xattr(getDataType())) {
+        // We don't want the body and there are no xattrs, just set empty value
         setData(nullptr, 0);
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
-    } else {
-        // Call decompress before working on the value (a no-op for non-snappy)
-        decompressValue();
-
-        auto root = reinterpret_cast<const char*>(value->getData());
-        std::string_view buffer{root, value->valueSize()};
-
-        if (includeXattrs == IncludeXattrs::Yes) {
-            if (mcbp::datatype::is_xattr(getDataType())) {
-                // Want just the xattributes
-                setData(value->getData(), cb::xattr::get_body_offset(buffer));
-                // Remove all other datatype flags as we're only sending the
-                // xattrs
-                setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
-            } else {
-                // We don't want the value and there are no xattributes,
-                // so just send the key
-                setData(nullptr, 0);
-                setDataType(PROTOCOL_BINARY_RAW_BYTES);
-            }
-        } else if (includeVal == IncludeValue::Yes) {
-            // Want just the value, so remove xattributes if there are any
-            if (mcbp::datatype::is_xattr(getDataType())) {
-                const auto sz = cb::xattr::get_body_offset(buffer);
-                setData(value->getData() + sz, value->valueSize() - sz);
-                // Clear the xattr datatype
-                setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
-            }
-        }
+        return;
     }
 
-    // MB-31967: Restore the complete datatype if
-    // IncludeValue::NoWithUnderlyingDatatype was specified (less disruptive
-    // to above logic to do this once at the end).
+    // No-op if already uncompressed
+    decompressValue();
+
+    // We want only xattrs.
+    // Note: The following is no-op if no Body present.
+    std::string_view valBuffer{value->getData(), value->valueSize()};
+    setData(valBuffer.data(), cb::xattr::get_body_offset(valBuffer));
+    setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
+}
+
+void Item::removeXattrs() {
+    if (!value) {
+        // No value, nothing to do
+        return;
+    }
+
+    if (!mcbp::datatype::is_xattr(getDataType())) {
+        // No Xattrs, nothing to do
+        return;
+    }
+
+    // No-op if already uncompressed
+    decompressValue();
+
+    // We want only the body
+    std::string_view valBuffer{value->getData(), value->valueSize()};
+    const auto bodyOffset = cb::xattr::get_body_offset(valBuffer);
+    valBuffer.remove_prefix(bodyOffset);
+    setData(valBuffer.data(), valBuffer.size());
+    setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+}
+
+void Item::removeBodyAndOrXattrs(IncludeValue includeVal,
+                                 IncludeXattrs includeXattrs) {
+    if (!value) {
+        // If no value (ie, no body and/or xattrs) then nothing to do
+        return;
+    }
+
+    // Take a copy of the original datatype before proceeding, any modification
+    // to the value may change the datatype.
+    const auto originalDatatype = getDataType();
+
+    // Note: IncludeValue acts like "include body"
+    if (includeVal != IncludeValue::Yes) {
+        removeBody();
+    }
+
+    if (includeXattrs == IncludeXattrs::No) {
+        removeXattrs();
+    }
+
+    // @todo: Paranoid check :) Consider to remove after code has been around
+    //  for a while
+    if (getNBytes() == 0) {
+        Expects(datatype == PROTOCOL_BINARY_RAW_BYTES);
+    }
+
+    // MB-31967: Restore the complete datatype requested
     if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
         setDataType(originalDatatype);
     }
