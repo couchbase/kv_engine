@@ -243,7 +243,9 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
         [&connection, &testfile]() {
             // wait until we've started to delete the bucket
             bool deleting = false;
-            while (!deleting) {
+            const auto timeout =
+                    std::chrono::system_clock::now() + std::chrono::seconds{5};
+            do {
                 // Avoid busy-wait ;-)
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 auto details = connection->stats("bucket_details");
@@ -259,10 +261,22 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
                         }
                     }
                 }
+            } while (!deleting && std::chrono::system_clock::now() < timeout);
+            if (!deleting) {
+                throw std::runtime_error(
+                        "MB19981TestDeleteWhileClientConnectedAndEWouldBlocked:"
+                        " time out waiting for bucket to get into deleting "
+                        "state");
             }
 
             // resume the connection
             cb::io::rmrf(testfile);
+            if (std::chrono::system_clock::now() > timeout) {
+                throw std::runtime_error(
+                        "MB19981TestDeleteWhileClientConnectedAndEWouldBlocked:"
+                        " It took more than 5 seconds to initiate bucket "
+                        "deletion");
+            }
         }
     };
 
