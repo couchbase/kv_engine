@@ -2941,6 +2941,26 @@ TEST_P(ConnectionTest,
     processConsumerMutationsNearThreshold(false);
 }
 
+TEST_P(ConnectionTest, ProducerEnablesDeleteXattr) {
+    const void* cookie = create_mock_cookie();
+
+    uint32_t flags = 0;
+    {
+        const auto producer = std::make_shared<MockDcpProducer>(
+                *engine, cookie, "test_producer", flags);
+        EXPECT_EQ(IncludeDeletedUserXattrs::No,
+                  producer->public_getIncludeDeletedUserXattrs());
+    }
+
+    flags = cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs;
+    const auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", flags);
+    EXPECT_EQ(IncludeDeletedUserXattrs::Yes,
+              producer->public_getIncludeDeletedUserXattrs());
+
+    destroy_mock_cookie(cookie);
+}
+
 class ActiveStreamChkptProcessorTaskTest : public SingleThreadedKVBucketTest {
 public:
     ActiveStreamChkptProcessorTaskTest()

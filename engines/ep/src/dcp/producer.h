@@ -614,9 +614,16 @@ protected:
     // Indicates whether the active streams belonging to the DcpProducer should
     // send the value in the response.
     const IncludeValue includeValue;
+
     // Indicates whether the active streams belonging to the DcpProducer should
     // send the xattrs, (if any exist), in the response.
     const IncludeXattrs includeXattrs;
+
+    /**
+     * Indicates whether the streams belonging to this DCP connection should
+     * stream the xattrs (if any) in the message for normal and sync DCP delete.
+     */
+    IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
     // Indicates whether the active streams belonging to the DcpProducer wants
     // historical data streamed and not just a snapshot of the current data

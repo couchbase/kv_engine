@@ -605,6 +605,12 @@ public:
     /// Requst PiTR for the connection (only legal for Producers)
     static const uint32_t PiTR = 128;
 
+    /**
+     * Indicates that the server includes the document UserXattrs within
+     * deletion values.
+     */
+    static const uint32_t IncludeDeletedUserXattrs = 256;
+
 protected:
     uint32_t seqno = 0;
     uint32_t flags = 0;

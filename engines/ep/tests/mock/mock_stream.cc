@@ -46,6 +46,7 @@ MockActiveStream::MockActiveStream(EventuallyPersistentEngine* e,
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,
+                   IncludeDeletedUserXattrs::No,
                    {{}, vb.getManifest(), p->getCookie(), *e}) {
 }
 

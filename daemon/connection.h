@@ -340,6 +340,14 @@ public:
         dcpXattrAware = enable;
     }
 
+    bool isDcpDeletedUserXattr() const {
+        return dcpDeletedUserXattr;
+    }
+
+    void setDcpDeletedUserXattr(bool value) {
+        dcpDeletedUserXattr = value;
+    }
+
     void setDcpDeleteTimeEnabled(bool enable) {
         dcpDeleteTimeEnabled = enable;
     }
@@ -948,6 +956,9 @@ protected:
 
     /** Is this DCP channel XAttrAware */
     bool dcpXattrAware = false;
+
+    /** Is this DCP channel aware of DeletedUserXattr */
+    bool dcpDeletedUserXattr = false;
 
     /** Shuld values be stripped off? */
     bool dcpNoValue = false;
