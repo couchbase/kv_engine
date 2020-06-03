@@ -126,7 +126,9 @@ void BackfillManager::addStats(DcpProducer& conn,
     conn.addStat(
             "backfill_num_snoozing", snoozingBackfills.size(), add_stat, c);
     conn.addStat("backfill_num_pending", pendingBackfills.size(), add_stat, c);
-    conn.addStat("backfill_order", to_string(scheduleOrder), add_stat, c);
+    // TODO MB-39725: This fails on master with a linker error. Figure
+    //    out why and restore stat.
+    // conn.addStat("backfill_order", to_string(scheduleOrder), add_stat, c);
 }
 
 BackfillManager::~BackfillManager() {
