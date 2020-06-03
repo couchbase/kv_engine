@@ -146,9 +146,10 @@ static bool create_notification_pipe(FrontEndThread& me) {
     return true;
 }
 
-static void setup_dispatcher(struct event_base *main_base,
-                             void (*dispatcher_callback)(evutil_socket_t, short, void *))
-{
+void dispatcher_init(struct event_base* main_base,
+                     void (*dispatcher_callback)(evutil_socket_t,
+                                                 short,
+                                                 void*)) {
     dispatcher_thread.base = main_base;
 	dispatcher_thread.thread_id = cb_thread_self();
         if (!create_notification_pipe(dispatcher_thread)) {
@@ -391,15 +392,9 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
     }
 }
 
-/*
- * Initializes the thread subsystem, creating various worker threads.
- *
- * nthreads  Number of worker event handler threads to spawn
- * main_base Event base for main thread
- */
-void thread_init(size_t nthr,
-                 struct event_base* main_base,
-                 void (*dispatcher_callback)(evutil_socket_t, short, void*)) {
+void worker_threads_init() {
+    const auto nthr = Settings::instance().getNumWorkerThreads();
+
     scheduler_info.resize(nthr);
 
     try {
@@ -407,8 +402,6 @@ void thread_init(size_t nthr,
     } catch (const std::bad_alloc&) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
-
-    setup_dispatcher(main_base, dispatcher_callback);
 
     for (size_t ii = 0; ii < nthr; ii++) {
         if (!create_notification_pipe(threads[ii])) {

@@ -48,10 +48,12 @@ void associate_initial_bucket(Connection& connection);
  * in the current thread) are called via "dispatch_" frontends, which are
  * also #define-d to directly call the underlying code in singlethreaded mode.
  */
+void worker_threads_init();
 
-void thread_init(size_t nthreads,
-                 struct event_base* main_base,
-                 void (*dispatcher_callback)(evutil_socket_t, short, void*));
+void dispatcher_init(struct event_base* main_base,
+                     void (*dispatcher_callback)(evutil_socket_t,
+                                                 short,
+                                                 void*));
 void threads_shutdown();
 void threads_cleanup();
 

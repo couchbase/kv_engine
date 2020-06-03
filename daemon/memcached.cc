@@ -1888,10 +1888,10 @@ int memcached_main(int argc, char** argv) {
      */
     create_listen_sockets();
 
+    dispatcher_init(main_base, dispatch_event_handler);
+
     /* start up worker threads if MT mode */
-    thread_init(Settings::instance().getNumWorkerThreads(),
-                main_base,
-                dispatch_event_handler);
+    worker_threads_init();
 
     executorPool = std::make_unique<cb::ExecutorPool>(
             Settings::instance().getNumWorkerThreads());
