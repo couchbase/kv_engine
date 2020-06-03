@@ -31,6 +31,31 @@
 #include <memory>
 #include <string>
 
+/**
+ * The listen_event_handler is the callback from libevent when someone is
+ * connecting to one of the server sockets. It runs in the context of the
+ * listen thread
+ */
+void ServerSocket::listen_event_handler(evutil_socket_t, short, void* arg) {
+    auto& c = *reinterpret_cast<ServerSocket*>(arg);
+
+    if (is_memcached_shutting_down()) {
+        // Someone requested memcached to shut down. The listen thread should
+        // be stopped immediately to avoid new connections
+        LOG_INFO("Stopping listen thread");
+        event_base_loopbreak(event_get_base(c.ev.get()));
+        return;
+    }
+
+    try {
+        c.acceptNewClient();
+    } catch (std::invalid_argument& e) {
+        LOG_WARNING("{}: exception occurred while accepting clients: {}",
+                    c.getSocket(),
+                    e.what());
+    }
+}
+
 ServerSocket::ServerSocket(SOCKET fd,
                            event_base* b,
                            std::shared_ptr<ListeningPort> interf)

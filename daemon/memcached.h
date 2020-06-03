@@ -66,9 +66,8 @@ void safe_close(SOCKET sfd);
 int add_conn_to_pending_io_list(Connection* c,
                                 Cookie* cookie,
                                 ENGINE_ERROR_CODE status);
-void listen_event_handler(evutil_socket_t, short, void *);
-
 const char* get_server_version();
+bool is_memcached_shutting_down();
 
 /**
  * Connection-related functions

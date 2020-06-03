@@ -81,4 +81,7 @@ protected:
 
     /// The libevent object we're using
     cb::libevent::unique_event_ptr ev;
+
+    /// The notification handler registered in libevent
+    static void listen_event_handler(evutil_socket_t, short, void* arg);
 };

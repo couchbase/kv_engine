@@ -33,8 +33,6 @@
 
 #include <atomic>
 
-extern std::atomic<bool> memcached_shutdown;
-
 /*
  * This constant defines the seconds between libevent clock callbacks.
  * This roughly equates to how frequency of gethrtime calls made.
@@ -181,7 +179,8 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
     t.tv_sec = (long)memcached_clock_tick_seconds;
     t.tv_usec = 0;
 
-    if (memcached_shutdown) {
+    if (is_memcached_shutting_down()) {
+        event_base_loopbreak(event_get_base(&clockevent));
         return ;
     }
 

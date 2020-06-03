@@ -30,8 +30,6 @@
 #include <mutex>
 #include <queue>
 
-extern std::atomic<bool> memcached_shutdown;
-
 /* An item in the connection queue. */
 FrontEndThread::ConnectionQueue::~ConnectionQueue() {
     for (const auto& entry : connections) {
@@ -263,7 +261,7 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     // about.
     drain_notification_channel(fd);
 
-    if (memcached_shutdown) {
+    if (is_memcached_shutting_down()) {
         if (signal_idle_clients(me, false) == 0) {
             LOG_INFO("Stopping worker thread {}", me.index);
             event_base_loopbreak(me.base);
@@ -314,7 +312,7 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
         c->triggerCallback();
     }
 
-    if (memcached_shutdown) {
+    if (is_memcached_shutting_down()) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
         time_t now = time(nullptr);

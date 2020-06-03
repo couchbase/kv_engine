@@ -108,6 +108,10 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
 
 std::atomic<bool> memcached_shutdown;
 
+bool is_memcached_shutting_down() {
+    return memcached_shutdown;
+}
+
 std::unique_ptr<cb::ExecutorPool> executorPool;
 
 /* Mutex for global stats */
@@ -707,31 +711,6 @@ static void create_portnumber_file(bool terminate) {
             }
             cb::io::rmrf(tempname);
         }
-    }
-}
-
-/**
- * The listen_event_handler is the callback from libevent when someone is
- * connecting to one of the server sockets. It runs in the context of the
- * listen thread
- */
-void listen_event_handler(evutil_socket_t, short, void *arg) {
-    auto& c = *reinterpret_cast<ServerSocket*>(arg);
-
-    if (memcached_shutdown) {
-        // Someone requested memcached to shut down. The listen thread should
-        // be stopped immediately to avoid new connections
-        LOG_INFO("Stopping listen thread");
-        event_base_loopbreak(main_base);
-        return;
-    }
-
-    try {
-        c.acceptNewClient();
-    } catch (std::invalid_argument& e) {
-        LOG_WARNING("{}: exception occurred while accepting clients: {}",
-                    c.getSocket(),
-                    e.what());
     }
 }
 
