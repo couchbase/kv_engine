@@ -102,6 +102,9 @@ void dcp_open_executor(Cookie& cookie) {
         if (dcpDeleteTimes) {
             logBuffer.append("DELETE_TIMES, ");
         }
+        if (connection.isDcpDeletedUserXattr()) {
+            logBuffer.append("INCLUDE_DELETED_USER_XATTRS, ");
+        }
 
         // Remove trailing whitespace and comma
         if (!logBuffer.empty()) {
