@@ -314,10 +314,10 @@ typedef enum : uint8_t {
 
 namespace mcbp {
 namespace subdoc {
+
 /**
  * Definitions of sub-document doc flags (this is a bitmap).
  */
-
 enum class doc_flag : uint8_t {
     None = 0x0,
 
@@ -326,21 +326,35 @@ enum class doc_flag : uint8_t {
      * SUBDOC_FLAG_MKDIR_P and Set (upsert) mutation semantics. Not valid
      * with Add.
      */
-        Mkdoc = 0x1,
+    Mkdoc = 0x1,
 
     /**
      * (Mutation) Add the document only if it does not exist. Implies
      * SUBDOC_FLAG_MKDIR_P. Not valid with Mkdoc.
      */
-        Add = 0x02,
+    Add = 0x02,
 
     /**
      * Allow access to XATTRs for deleted documents (instead of
      * returning KEY_ENOENT).
      */
-        AccessDeleted = 0x04,
+    AccessDeleted = 0x04,
 
+    /**
+     * (Mutation) Used with Mkdoc / Add; if the document does not exist then
+     * create it in the Deleted state, instead of the normal Alive state.
+     * Not valid unless Mkdoc or Add specified.
+     */
+    CreateAsDeleted = 0x08,
 };
+
+/**
+ * Used for validation at parsing the doc-flags.
+ * The value depends on how many bits the doc_flag enum is actually using and
+ * must change accordingly.
+ */
+static constexpr uint8_t extrasDocFlagMask = 0xf0;
+
 } // namespace subdoc
 } // namespace mcbp
 
@@ -2064,19 +2078,19 @@ inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
 
 namespace mcbp {
 namespace subdoc {
-inline mcbp::subdoc::doc_flag operator|(mcbp::subdoc::doc_flag a,
-                                        mcbp::subdoc::doc_flag b) {
+inline constexpr mcbp::subdoc::doc_flag operator|(mcbp::subdoc::doc_flag a,
+                                                  mcbp::subdoc::doc_flag b) {
     return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) |
                                   static_cast<uint8_t>(b));
 }
 
-inline mcbp::subdoc::doc_flag operator&(mcbp::subdoc::doc_flag a,
-                                        mcbp::subdoc::doc_flag b) {
+inline constexpr mcbp::subdoc::doc_flag operator&(mcbp::subdoc::doc_flag a,
+                                                  mcbp::subdoc::doc_flag b) {
     return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) &
                                   static_cast<uint8_t>(b));
 }
 
-inline mcbp::subdoc::doc_flag operator~(mcbp::subdoc::doc_flag a) {
+inline constexpr mcbp::subdoc::doc_flag operator~(mcbp::subdoc::doc_flag a) {
     return mcbp::subdoc::doc_flag(~static_cast<uint8_t>(a));
 }
 
@@ -2090,6 +2104,8 @@ inline std::string to_string(mcbp::subdoc::doc_flag a) {
         return "AccessDeleted";
     case mcbp::subdoc::doc_flag::Add:
         return "Add";
+    case mcbp::subdoc::doc_flag::CreateAsDeleted:
+        return "CreateAsDeleted";
     }
     return std::to_string(static_cast<uint8_t>(a));
 }
@@ -2105,6 +2121,11 @@ inline bool hasMkdoc(mcbp::subdoc::doc_flag a) {
 
 inline bool hasAdd(mcbp::subdoc::doc_flag a) {
     return (a & mcbp::subdoc::doc_flag::Add) != mcbp::subdoc::doc_flag::None;
+}
+
+inline bool hasCreateAsDeleted(mcbp::subdoc::doc_flag a) {
+    return (a & mcbp::subdoc::doc_flag::CreateAsDeleted) !=
+           mcbp::subdoc::doc_flag::None;
 }
 
 inline bool isNone(mcbp::subdoc::doc_flag a) {

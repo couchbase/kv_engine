@@ -33,6 +33,27 @@ INSTANTIATE_TEST_SUITE_P(
                            ::testing::Values(ClientSnappySupport::Yes)),
         PrintToStringCombinedName());
 
+// Instantiation for tests which don't want an initial document.
+INSTANTIATE_TEST_SUITE_P(
+        TransportProtocols,
+        XattrNoDocTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(XattrSupport::Yes),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes)),
+        PrintToStringCombinedName());
+
+INSTANTIATE_TEST_SUITE_P(
+        TransportProtocols,
+        XattrNoDocDurabilityTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(XattrSupport::Yes),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes)),
+        PrintToStringCombinedName());
+
 // Instantiation for tests which want XATTR support disabled.
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
@@ -377,10 +398,10 @@ TEST_P(XattrTest, TestMacroExpansionOccursOnce) {
             << "'meta.cas' should be unchanged when value replaced";
 }
 
-TEST_P(XattrTest, OperateOnDeletedItem) {
+TEST_P(XattrTest, AddSystemXattrToDeletedItem) {
     getConnection().remove(name, Vbid(0));
 
-    // let's add an attribute to the deleted document
+    // let's add a system XATTR to the deleted document
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "_sync.deleted",
@@ -392,6 +413,25 @@ TEST_P(XattrTest, OperateOnDeletedItem) {
     resp = subdoc_get("_sync.deleted",
                       SUBDOC_FLAG_XATTR_PATH,
                       mcbp::subdoc::doc_flag::AccessDeleted);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+    EXPECT_EQ("true", resp.getValue());
+}
+
+TEST_P(XattrTest, AddUserXattrToDeletedItem) {
+    using namespace mcbp::subdoc;
+    getConnection().remove(name, Vbid(0));
+
+    // let's add a user XATTR to the deleted document
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                       name,
+                       "txn.deleted",
+                       "true",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                       doc_flag::Mkdoc | doc_flag::AccessDeleted);
+    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    resp = subdoc_get(
+            "txn.deleted", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
 }
