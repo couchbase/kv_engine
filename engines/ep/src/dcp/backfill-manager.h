@@ -70,21 +70,18 @@ public:
 
     void addStats(DcpProducer& conn, const AddStatFn& add_stat, const void* c);
 
+    enum class ScheduleResult {
+        Active,
+        Pending,
+    };
     /**
-     * Explicitly schedule a seqno range scan to perform a backfill.
+     * Transfer ownership of the specified DCPBackfill to the BackfillManager.
+     * If the maximum backfills have not been reached, then add to the set of
+     * active Backfills, waking up the BackfillTask if necessary.
+     * If the maximum has been reached, then add to the set of pending
+     * backfills.
      */
-    void schedule(VBucket& vb,
-                  std::shared_ptr<ActiveStream> stream,
-                  uint64_t start,
-                  uint64_t end);
-
-    /**
-     * Schedule a collection-ID backfill, this may choose to use a name
-     * index to retrieve items in name order.
-     */
-    void schedule(VBucket& vb,
-                  std::shared_ptr<ActiveStream> stream,
-                  CollectionID cid);
+    ScheduleResult schedule(UniqueDCPBackfillPtr backfill);
 
     /**
      * Checks if the read size can fit into the backfill buffer and scan
