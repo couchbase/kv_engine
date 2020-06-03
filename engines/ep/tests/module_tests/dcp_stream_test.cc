@@ -1568,16 +1568,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
 
     auto vb = engine->getVBucket(vbid);
 
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                flags,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                0 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                0 /*snap_start_seqno*/,
-                                                ~0 /*snap_end_seqno*/);
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, flags, 0 /*opaque*/, *vb);
 
     stream->setActive();
 }
@@ -1832,6 +1824,104 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
     ASSERT_EQ(1, bfm.getNumBackfills());
     EXPECT_EQ(backfill_success, bfm.backfill());
     EXPECT_EQ(0, bfm.getNumBackfills());
+}
+
+/// Test that backfills are scheduled in sequential order when
+/// "stream_backfill_order" is set to "sequential"
+TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
+    // Delete initial stream (so we can re-create after items are only available
+    // from disk.
+    stream.reset();
+
+    // Create on-disk items for three vBuckets. These will be used to backfill
+    // from below.
+    for (auto vbid : {Vbid{0}, Vbid{1}, Vbid{2}}) {
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+        store_item(vbid, makeStoredDocKey("key1"), "value");
+        store_item(vbid, makeStoredDocKey("key2"), "value");
+        auto vb = engine->getVBucket(vbid);
+        auto& ckptMgr = *vb->checkpointManager;
+
+        // To ensure that a backfill is required, must ensure items are no
+        // longer present in CheckpointManager. Achieve this by creating a
+        // new checkpoint, flushing the (now-closed) one and removing it.
+        ckptMgr.createNewCheckpoint();
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        bool newCKptCreated;
+        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+    }
+
+    // Re-create producer now we have items only on disk, setting a buffer which
+    // can only hold 1 item (so backfill doesn't complete a VB in one scan).
+    setupProducer({{"backfill_order", "sequential"}});
+    producer->setBackfillBufferSize(1);
+
+    // setupProducer creates a stream for vb0. Also need streams for vb1 and
+    // vb2.
+    auto stream1 =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0,
+                                               0 /*opaque*/,
+                                               *engine->getVBucket(Vbid{1}));
+    auto stream2 =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0,
+                                               0 /*opaque*/,
+                                               *engine->getVBucket(Vbid{2}));
+    stream1->setActive();
+    stream2->setActive();
+
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_TRUE(stream1->isBackfilling());
+    ASSERT_TRUE(stream2->isBackfilling());
+
+    // Test - Drive the BackfillManager forward. We expect to see _all_ of the
+    // data from vb0 first, then all of the data from vb1, then vb2.
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(3, bfm.getNumBackfills());
+    auto advanceBackfill =
+            [&bfm, &stream = this->stream, &stream1, &stream2]() {
+                auto backfillStatus = bfm.backfill();
+                stream->consumeAllBackfillItems();
+                stream1->consumeAllBackfillItems();
+                stream2->consumeAllBackfillItems();
+                return backfillStatus;
+            };
+
+    // To drive a single vBucket's backfill to completion requires
+    // 4 steps (initialise, scan() * number of items, completed) for persistent
+    // and 2 for ephemeral.
+    const int backfillSteps = persistent() ? 4 : 2;
+    for (int i = 0; i < backfillSteps; i++) {
+        ASSERT_EQ(backfill_success, advanceBackfill());
+    }
+
+    // Verify that all of the first VB has been backfilled and nothing else.
+    EXPECT_EQ(2, stream->getNumBackfillItems());
+    EXPECT_EQ(0, stream1->getNumBackfillItems());
+    EXPECT_EQ(0, stream2->getNumBackfillItems());
+
+    for (int i = 0; i < backfillSteps; i++) {
+        ASSERT_EQ(backfill_success, advanceBackfill());
+    }
+
+    // Verify that all of the second VB has now been backfilled.
+    EXPECT_EQ(2, stream->getNumBackfillItems());
+    EXPECT_EQ(2, stream1->getNumBackfillItems());
+    EXPECT_EQ(0, stream2->getNumBackfillItems());
+
+    for (int i = 0; i < backfillSteps; i++) {
+        ASSERT_EQ(backfill_success, advanceBackfill());
+    }
+
+    // Verify that all 3 VBs have now been backfilled.
+    EXPECT_EQ(2, stream->getNumBackfillItems());
+    EXPECT_EQ(2, stream1->getNumBackfillItems());
+    EXPECT_EQ(2, stream2->getNumBackfillItems());
+
+    ASSERT_EQ(backfill_finished, advanceBackfill());
 }
 
 /**

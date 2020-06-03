@@ -80,6 +80,11 @@ void MockActiveStream::consumeBackfillItems(int numItems) {
         }
     }
 }
+void MockActiveStream::consumeAllBackfillItems() {
+    std::lock_guard<std::mutex> lh(streamMutex);
+    while (backfillPhase(lh)) {
+    }
+}
 
 ENGINE_ERROR_CODE MockPassiveStream::messageReceived(
         std::unique_ptr<DcpResponse> dcpResponse) {

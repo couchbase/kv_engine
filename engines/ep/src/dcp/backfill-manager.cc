@@ -126,6 +126,7 @@ void BackfillManager::addStats(DcpProducer& conn,
     conn.addStat(
             "backfill_num_snoozing", snoozingBackfills.size(), add_stat, c);
     conn.addStat("backfill_num_pending", pendingBackfills.size(), add_stat, c);
+    conn.addStat("backfill_order", to_string(scheduleOrder), add_stat, c);
 }
 
 BackfillManager::~BackfillManager() {
@@ -154,6 +155,10 @@ BackfillManager::~BackfillManager() {
         pendingBackfills.pop_front();
         backfill->cancel();
     }
+}
+
+void BackfillManager::setBackfillOrder(BackfillManager::ScheduleOrder order) {
+    scheduleOrder = order;
 }
 
 BackfillManager::ScheduleResult BackfillManager::schedule(
@@ -318,7 +323,14 @@ backfill_status_t BackfillManager::backfill() {
 
     switch (status) {
         case backfill_success:
-            activeBackfills.push_back(std::move(backfill));
+            switch (scheduleOrder) {
+            case ScheduleOrder::RoundRobin:
+                activeBackfills.push_back(std::move(backfill));
+                break;
+            case ScheduleOrder::Sequential:
+                activeBackfills.push_front(std::move(backfill));
+                break;
+            }
             break;
         case backfill_finished:
             lh.unlock();
@@ -364,4 +376,13 @@ void BackfillManager::wakeUpTask() {
     if (managerTask) {
         ExecutorPool::get()->wake(managerTask->getId());
     }
+}
+std::string BackfillManager::to_string(BackfillManager::ScheduleOrder order) {
+    switch (order) {
+    case BackfillManager::ScheduleOrder::RoundRobin:
+        return "round-robin";
+    case BackfillManager::ScheduleOrder::Sequential:
+        return "sequential";
+    }
+    folly::assume_unreachable();
 }

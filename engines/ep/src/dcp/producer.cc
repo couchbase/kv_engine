@@ -939,7 +939,22 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
     std::string keyStr(key.data(), key.size());
     std::string valueStr(value.data(), value.size());
 
-    if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
+    if (strncmp(param, "backfill_order", key.size()) == 0) {
+        using ScheduleOrder = BackfillManager::ScheduleOrder;
+        if (valueStr == "round-robin") {
+            backfillMgr->setBackfillOrder(ScheduleOrder::RoundRobin);
+        } else if (valueStr == "sequential") {
+            backfillMgr->setBackfillOrder(ScheduleOrder::Sequential);
+        } else {
+            engine_.setErrorContext(
+                    getCookie(),
+                    "Unsupported value '" + keyStr +
+                            "' for ctrl parameter 'backfill_order'");
+            return ENGINE_EINVAL;
+        }
+        return ENGINE_SUCCESS;
+
+    } else if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
         uint32_t size;
         if (parseUint32(valueStr.c_str(), &size)) {
             /* Size 0 implies the client (DCP consumer) does not support
