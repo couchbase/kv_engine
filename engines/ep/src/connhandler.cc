@@ -349,3 +349,10 @@ void ConnHandler::setLogHeader(const std::string& header) {
 const char* ConnHandler::logHeader() {
     return logger->prefix.c_str();
 }
+
+// Explicit instantition of addStat() used outside of ConnHandler and
+// derived classes - for example from BackfillManager::addStats().
+template void ConnHandler::addStat<std::string>(const char *nm,
+                                                const std::string &val,
+                                                const AddStatFn &add_stat,
+                                                const void *c) const;
