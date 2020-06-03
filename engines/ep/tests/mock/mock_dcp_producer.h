@@ -226,4 +226,8 @@ public:
     void setSeqnoAckHook(std::function<void()> hook) {
         seqnoAckHook = hook;
     }
+
+    IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
+        return includeDeletedUserXattrs;
+    }
 };
