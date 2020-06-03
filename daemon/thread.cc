@@ -49,8 +49,6 @@ void FrontEndThread::ConnectionQueue::swap(
     connections.swap(other);
 }
 
-static FrontEndThread dispatcher_thread;
-
 void FrontEndThread::NotificationList::push(Connection* c) {
     std::lock_guard<std::mutex> lock(mutex);
     auto iter = std::find(connections.begin(), connections.end(), c);
@@ -118,18 +116,18 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
     }
 }
 
-static bool create_notification_pipe(FrontEndThread& me) {
+bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets) {
     if (cb::net::socketpair(SOCKETPAIR_AF,
                             SOCK_STREAM,
                             0,
-                            reinterpret_cast<SOCKET*>(me.notify)) ==
+                            reinterpret_cast<SOCKET*>(sockets.data())) ==
         SOCKET_ERROR) {
-        LOG_WARNING("Can't create notify pipe: {}",
+        LOG_WARNING("Failed to create socketpair: {}",
                     cb_strerror(cb::net::get_socket_error()));
         return false;
     }
 
-    for (auto sock : me.notify) {
+    for (auto sock : sockets) {
         int flags = 1;
         const auto* flag_ptr = reinterpret_cast<const void*>(&flags);
         cb::net::setsockopt(
@@ -138,35 +136,15 @@ static bool create_notification_pipe(FrontEndThread& me) {
                 sock, SOL_SOCKET, SO_REUSEADDR, flag_ptr, sizeof(flags));
 
         if (evutil_make_socket_nonblocking(sock) == -1) {
-            LOG_WARNING("Failed to enable non-blocking: {}",
+            LOG_WARNING("Failed to make socket non-blocking: {}",
                         cb_strerror(cb::net::get_socket_error()));
+            safe_close(sockets[0]);
+            safe_close(sockets[1]);
+            sockets[0] = sockets[1] = INVALID_SOCKET;
             return false;
         }
     }
     return true;
-}
-
-void dispatcher_init(struct event_base* main_base,
-                     void (*dispatcher_callback)(evutil_socket_t,
-                                                 short,
-                                                 void*)) {
-    dispatcher_thread.base = main_base;
-	dispatcher_thread.thread_id = cb_thread_self();
-        if (!create_notification_pipe(dispatcher_thread)) {
-            FATAL_ERROR(EXIT_FAILURE, "Unable to create notification pipe");
-    }
-
-    /* Listen for notifications from other threads */
-    if ((event_assign(&dispatcher_thread.notify_event,
-                      dispatcher_thread.base,
-                      dispatcher_thread.notify[0],
-                      EV_READ | EV_PERSIST,
-                      dispatcher_callback,
-                      nullptr) == -1) ||
-        (event_add(&dispatcher_thread.notify_event, nullptr) == -1)) {
-        FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
-    }
-    dispatcher_thread.running = true;
 }
 
 /*
@@ -378,12 +356,6 @@ void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
     notify_thread(thread);
 }
 
-void notify_dispatcher() {
-    if (dispatcher_thread.running) {
-        notify_thread(dispatcher_thread);
-    }
-}
-
 /******************************* GLOBAL STATS ******************************/
 
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
@@ -404,7 +376,7 @@ void worker_threads_init() {
     }
 
     for (size_t ii = 0; ii < nthr; ii++) {
-        if (!create_notification_pipe(threads[ii])) {
+        if (!create_nonblocking_socketpair(threads[ii].notify)) {
             FATAL_ERROR(EXIT_FAILURE, "Cannot create notification pipe");
         }
         threads[ii].index = ii;

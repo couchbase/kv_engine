@@ -65,6 +65,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             memcached.cc
             network_interface.cc
             network_interface.h
+            network_interface_manager.cc
+            network_interface_manager.h
             opentracing.cc
             opentracing.h
             opentracing_config.cc

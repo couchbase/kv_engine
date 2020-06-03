@@ -72,7 +72,7 @@ struct FrontEndThread {
      * and in order to notify the thread other threads will
      * write data to index 1.
      */
-    SOCKET notify[2] = {INVALID_SOCKET, INVALID_SOCKET};
+    std::array<SOCKET, 2> notify = {{INVALID_SOCKET, INVALID_SOCKET}};
 
     /**
      * The dispatcher accepts new clients and needs to dispatch them

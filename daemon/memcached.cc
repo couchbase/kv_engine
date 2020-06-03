@@ -35,6 +35,7 @@
 #include "mcbp_validators.h"
 #include "mcbpdestroybuckettask.h"
 #include "network_interface.h"
+#include "network_interface_manager.h"
 #include "opentracing.h"
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
@@ -143,7 +144,6 @@ struct stats stats;
 
 /** file scope variables **/
 std::vector<std::unique_ptr<ServerSocket>> listen_conn;
-std::atomic_bool check_listen_conn;
 
 static struct event_base *main_base;
 
@@ -395,8 +395,9 @@ static void opcode_attributes_override_changed_listener(const std::string&,
 }
 
 static void interfaces_changed_listener(const std::string&, Settings &s) {
-    check_listen_conn = true;
-    notify_dispatcher();
+    if (networkInterfaceManager) {
+        networkInterfaceManager->signal();
+    }
 }
 
 #ifdef HAVE_LIBNUMA
@@ -715,12 +716,17 @@ static void create_portnumber_file(bool terminate) {
     }
 }
 
-static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
+/// @todo move this method over to the .cc file once we move
+/// the rest of the methods to create the sockets etc.
+void NetworkInterfaceManager::event_handler(evutil_socket_t fd,
+                                            short,
+                                            void* arg) {
+    auto& me = *reinterpret_cast<NetworkInterfaceManager*>(arg);
     // Start by draining the notification pipe fist
     drain_notification_channel(fd);
-    if (check_listen_conn) {
+    if (me.check_listen_conn) {
         invalidateSslCache();
-        check_listen_conn = false;
+        me.check_listen_conn = false;
 
         bool changes = false;
         auto interfaces = Settings::instance().getInterfaces();
@@ -1891,7 +1897,8 @@ int memcached_main(int argc, char** argv) {
      */
     create_listen_sockets();
 
-    dispatcher_init(main_base, dispatch_event_handler);
+    networkInterfaceManager =
+            std::make_unique<NetworkInterfaceManager>(main_base);
 
     /* start up worker threads if MT mode */
     worker_threads_init();
@@ -1940,6 +1947,8 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO("Shutting down client worker threads");
     threads_shutdown();
+
+    networkInterfaceManager.reset();
 
     LOG_INFO("Releasing server sockets");
     listen_conn.clear();

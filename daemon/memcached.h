@@ -50,12 +50,16 @@ void associate_initial_bucket(Connection& connection);
  */
 void worker_threads_init();
 
-void dispatcher_init(struct event_base* main_base,
-                     void (*dispatcher_callback)(evutil_socket_t,
-                                                 short,
-                                                 void*));
 void threads_shutdown();
 void threads_cleanup();
+
+/**
+ * Create a socketpair and make it non-blocking
+ *
+ * @param sockets Where to store the sockets
+ * @return true if success, false otherwise (and the error reason logged)
+ */
+bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets);
 
 class ListeningPort;
 void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort>& interface);
