@@ -39,6 +39,7 @@ ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                     c.getId(),
                     c.getDescription(),
                     to_string(request.getClientOpcode()));
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -83,6 +84,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
         LOG_WARNING("{}: {} bucket_get_meta return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
 
     return ret;
@@ -120,6 +122,7 @@ ENGINE_ERROR_CODE bucket_store(
         LOG_WARNING("{}: {} bucket_store return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
 
     return ret;
@@ -152,6 +155,7 @@ cb::EngineErrorCasPair bucket_store_if(
         LOG_WARNING("{}: {} store_if return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
 
     return ret;
@@ -174,6 +178,7 @@ ENGINE_ERROR_CODE bucket_remove(
         LOG_WARNING("{}: {} bucket_remove return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -189,6 +194,7 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
         LOG_WARNING("{}: {} bucket_get return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -215,6 +221,7 @@ cb::EngineErrorItemPair bucket_get_if(
         LOG_WARNING("{}: {} bucket_get_if return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -233,6 +240,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(
         LOG_WARNING("{}: {} bucket_get_and_touch return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -251,6 +259,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
         LOG_WARNING("{}: {} bucket_get_locked return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -270,6 +279,7 @@ ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
         LOG_WARNING("{}: {} bucket_unlock return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -325,6 +335,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
             LOG_WARNING("{}: {} bucket_allocate_ex return ENGINE_DISCONNECT",
                         c.getId(),
                         c.getDescription());
+            c.setTerminationReason("Engine forced disconnect");
         }
         throw err;
     }
@@ -337,6 +348,7 @@ ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
         LOG_WARNING("{}: {} bucket_flush return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -355,6 +367,7 @@ ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
         LOG_WARNING("{}: {} bucket_get_stats return ENGINE_DISCONNECT",
                     c.getId(),
                     c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -370,6 +383,7 @@ ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.add_stream returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -386,6 +400,7 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
                 "{}: {} dcp.buffer_acknowledgement returned ENGINE_DISCONNECT",
                 connection.getId(),
                 connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -401,6 +416,7 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.close_stream returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -416,6 +432,7 @@ ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.control returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -448,6 +465,7 @@ ENGINE_ERROR_CODE dcpDeletion(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.deletion returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -480,6 +498,7 @@ ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.deletion_v2 returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -512,6 +531,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.expiration returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -527,6 +547,7 @@ ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.get_failover_log returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -567,6 +588,7 @@ ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.mutation returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -579,6 +601,7 @@ ENGINE_ERROR_CODE dcpNoop(Cookie& cookie, uint32_t opaque) {
         LOG_WARNING("{}: {} dcp.noop returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -596,6 +619,7 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.open returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -611,6 +635,7 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.set_vbucket_state returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -637,6 +662,7 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.snapshot_marker returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -652,6 +678,7 @@ ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.stream_end returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -686,6 +713,7 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.stream_req returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -712,6 +740,7 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.system_event returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -754,6 +783,7 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -770,6 +800,7 @@ ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -788,6 +819,7 @@ ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.commit returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }
@@ -806,6 +838,7 @@ ENGINE_ERROR_CODE dcpAbort(Cookie& cookie,
         LOG_WARNING("{}: {} dcp.abort returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
 }

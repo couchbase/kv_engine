@@ -280,7 +280,25 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
     });
 }
 
-namespace cb::audit::document {
+namespace cb::audit {
+
+void addSessionTerminated(const Connection& c) {
+    if (!isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED) ||
+        !c.isAuthenticated()) {
+        return;
+    }
+    auto root = create_memcached_audit_object(c, {});
+    const auto& reason = c.getTerminationReason();
+    if (!reason.empty()) {
+        root["reason_for_termination"] = reason;
+    }
+
+    do_audit(MEMCACHED_AUDIT_SESSION_TERMINATED,
+             root,
+             "Failed to audit session terminated");
+}
+
+namespace document {
 
 void add(const Cookie& cookie, Operation operation) {
     uint32_t id = 0;
@@ -301,7 +319,7 @@ void add(const Cookie& cookie, Operation operation) {
 
     if (id == 0) {
         throw std::invalid_argument(
-            "cb::audit::document::add: Invalid operation");
+                "cb::audit::document::add: Invalid operation");
     }
 
     if (!isEnabled(id)) {
@@ -339,6 +357,7 @@ void add(const Cookie& cookie, Operation operation) {
 }
 
 } // namespace cb::audit::document
+} // namespace cb::audit
 
 static void event_state_listener(uint32_t id, bool enabled) {
     setEnabled(id, enabled);

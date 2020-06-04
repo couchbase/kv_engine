@@ -280,7 +280,7 @@ EngineIface& Connection::getBucketEngine() const {
     return getBucket().getEngine();
 }
 
-ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
+ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
     if (xerror_support) {
         return code;
     }
@@ -342,6 +342,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
             getId(),
             getDescription().c_str(),
             errc.message().c_str());
+    setTerminationReason("XError not enabled on client");
 
     return ENGINE_DISCONNECT;
 }
@@ -466,6 +467,7 @@ void Connection::shutdownIfSendQueueStuck(
         // We've not had any progress on the socket for "n" secs
         // Forcibly shut down the connection!
         sendQueueInfo.term = true;
+        setTerminationReason("Failed to send data to client");
         shutdown();
     }
 }
@@ -638,6 +640,7 @@ bool Connection::executeCommandsCallback() {
             // continue to run the state machine
             executeCommandPipeline();
         } catch (const std::exception& e) {
+            setTerminationReason(std::string("Received exception: ") + e.what());
             shutdown();
 
             try {
@@ -691,7 +694,9 @@ bool Connection::executeCommandsCallback() {
                             getId(),
                             std::to_string(ret),
                             getDescription());
-
+                    if (ret == ENGINE_DISCONNECT) {
+                        setTerminationReason("Engine forced disconnect");
+                    }
                     shutdown();
                     more = false;
                 }
@@ -771,6 +776,7 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
 
     if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
         LOG_DEBUG("{}: Connection::on_event: Socket EOF", instance.getId());
+        instance.setTerminationReason("Client closed connection");
         term = true;
     }
 
@@ -778,6 +784,7 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
         LOG_INFO("{}: Connection::on_event: Socket error: {}",
                  instance.getId(),
                  evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+        instance.setTerminationReason("Network error");
         term = true;
     }
 
@@ -851,10 +858,12 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
         if (certResult.first == cb::x509::Status::NotPresent) {
             audit_auth_failure(instance,
                                "Client did not provide an X.509 certificate");
+            instance.setTerminationReason("Client did not provide an X.509 certificate");
         } else {
             audit_auth_failure(
                     instance,
                     "Failed to use client provided X.509 certificate");
+            instance.setTerminationReason("Failed to use client provided X.509 certificate");
         }
         instance.shutdown();
         if (!certResult.second.empty()) {
@@ -1029,6 +1038,8 @@ Connection::Connection(SOCKET sfd,
 }
 
 Connection::~Connection() {
+    cb::audit::addSessionTerminated(*this);
+
     if (connectedToSystemPort) {
         --stats.system_conns;
     }
@@ -1042,6 +1053,15 @@ Connection::~Connection() {
     }
 
     --stats.conn_structs;
+}
+
+void Connection::setTerminationReason(std::string reason) {
+    if (terminationReason.empty()) {
+        terminationReason = std::move(reason);
+    } else {
+        terminationReason.append(";");
+        terminationReason.append(reason);
+    }
 }
 
 void Connection::setAgentName(std::string_view name) {

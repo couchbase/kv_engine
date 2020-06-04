@@ -300,10 +300,10 @@ public:
      * @param code The code to map (will be changed on return)
      * @return the mapped value.
      */
-    ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code) const;
+    ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code);
 
     /// convenience wrapper when working with the newer enum cb::engine_errc
-    cb::engine_errc remapErrorCode(cb::engine_errc code) const {
+    cb::engine_errc remapErrorCode(cb::engine_errc code) {
         return cb::engine_errc(remapErrorCode(ENGINE_ERROR_CODE(code)));
     }
 
@@ -325,6 +325,13 @@ public:
      * @param event
      */
     void enqueueServerEvent(std::unique_ptr<ServerEvent> event);
+
+    const std::string& getTerminationReason() const {
+        return terminationReason;
+    }
+
+    /// Set the reason for why the connection is being shut down
+    void setTerminationReason(std::string reason);
 
     bool isDCP() const {
         return dcp;
@@ -950,6 +957,9 @@ protected:
 
     /// The current state we're in
     State state{State::running};
+
+    /// The reason why the session was terminated
+    std::string terminationReason;
 
     /** Is this connection used by a DCP connection? */
     bool dcp = false;

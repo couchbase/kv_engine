@@ -102,8 +102,15 @@ void audit_privilege_debug(const Connection& c,
 
 namespace cb {
 namespace audit {
-namespace document {
 
+/**
+ *  Add an audit event that the connection is terminated
+ *
+ * @param c the connection object closing the connection
+ */
+void addSessionTerminated(const Connection& c);
+
+namespace document {
 enum class Operation;
 
 void add(const Cookie& c, Operation operation);

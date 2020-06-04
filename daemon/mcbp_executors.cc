@@ -231,6 +231,7 @@ static void quit_executor(Cookie& cookie) {
               connection.getId(),
               connection.getDescription());
     connection.shutdown();
+    connection.setTerminationReason("Client sent QUIT");
 }
 
 static void quitq_executor(Cookie& cookie) {
@@ -239,6 +240,7 @@ static void quitq_executor(Cookie& cookie) {
               connection.getId(),
               connection.getDescription());
     connection.shutdown();
+    connection.setTerminationReason("Client sent QUIT");
 }
 
 static void sasl_list_mech_executor(Cookie& cookie) {
@@ -381,6 +383,8 @@ static void ioctl_get_executor(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
+            connection.setTerminationReason(
+                    "ioctl_get_executor forced disconnect");
         }
         connection.shutdown();
         break;
@@ -417,6 +421,8 @@ static void ioctl_set_executor(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
+            connection.setTerminationReason(
+                    "ioctl_set_executor forced disconnect");
         }
         connection.shutdown();
         break;
@@ -599,6 +605,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                 c.getId(),
                 c.getDescription());
         c.shutdown();
+        c.setTerminationReason("Connected engine does not support DCP");
         return;
     }
 
@@ -617,6 +624,8 @@ static void process_bin_dcp_response(Cookie& cookie) {
                     "ENGINE_DISCONNECT - closing connection {}",
                     c.getId(),
                     c.getDescription());
+            c.setTerminationReason(
+                    "process_bin_dcp_response forced disconnect");
         }
         c.shutdown();
     }
@@ -936,6 +945,7 @@ static void execute_client_response_packet(Cookie& cookie,
                 is_valid_opcode(opcode) ? to_string(opcode)
                                         : "<invalid opcode>");
         c.shutdown();
+        c.setTerminationReason("Unsupported response packet received");
     }
 }
 

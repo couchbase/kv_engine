@@ -45,6 +45,7 @@ static bool check_access_to_global_config(Cookie& cookie) {
     if (xerror) {
         cookie.sendResponse(cb::mcbp::Status::Eaccess);
     } else {
+        conn.setTerminationReason("XError not enabled");
         conn.shutdown();
     }
 
@@ -102,6 +103,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                         connection.getId(),
                         connection.getDescription());
                 connection.shutdown();
+                connection.setTerminationReason("XError not enabled");
             }
             return;
         }
