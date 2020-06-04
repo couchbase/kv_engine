@@ -1855,7 +1855,10 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
     }
 }
 
-TEST_F(CollectionsTest, PerCollectionDiskSize) {
+TEST_P(CollectionsParameterizedTest, PerCollectionDiskSize) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
     // test that the per-collection disk size (updated by saveDocsCallback)
     // changes when items in the collection are added/updated/deleted (but not
     // when evicted) and does not change when items in other collections are
@@ -1909,6 +1912,8 @@ TEST_F(CollectionsTest, PerCollectionDiskSize) {
 
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+
+        EXPECT_EQ(0, getCollectionDiskSize(*vb, CollectionEntry::defaultC.uid));
     }
 
     {
@@ -1986,11 +1991,6 @@ TEST_P(CollectionsParameterizedTest, PerCollectionDiskSizeDurability) {
         GTEST_SKIP();
     }
 
-    if (isMagma()) {
-        // Magma does not yet track disk_size, will be enabled
-        // when it does
-        GTEST_SKIP();
-    }
     // test that the per-collection disk size (updated by saveDocsCallback)
     // changes when items in the collection are added/updated/deleted (but not
     // when evicted) and does not change when items in other collections are

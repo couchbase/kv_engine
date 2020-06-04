@@ -1059,10 +1059,15 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
     auto writeDocsCB = [this, &commitData, &kvctx, &ninserts, &ndeletes, vbid](
                                const Magma::WriteOperation& op,
                                const bool docExists,
-                               const bool isTombstone) {
+                               const magma::Slice oldMeta) {
         auto req = reinterpret_cast<MagmaRequest*>(op.UserData);
         auto diskDocKey = makeDiskDocKey(op.Key);
         auto docKey = diskDocKey.getDocKey();
+
+        const size_t isTombstone =
+                docExists && configuration.magmaCfg.IsTombstone(oldMeta);
+        const size_t oldSize =
+                docExists ? configuration.magmaCfg.GetValueSize(oldMeta) : 0;
 
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
@@ -1118,6 +1123,19 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
 
         commitData.collections.setPersistedHighSeqno(
                 docKey, req->getDocMeta().bySeqno, int(req->isDelete()));
+
+        if (diskDocKey.isCommitted()) {
+            // Exclude prepares from the disk size. Prepares _could_ be
+            // accounted for both here and when dropped in compaction, but
+            // the stat would then be "bloated" by however many prepares
+            // magma still holds in the LSM tree.
+            // disk_size is an estimate expected to be used to assess
+            // "how big" a collection is, old prepares are not relevant to
+            // this usage.
+            size_t newSize = req->getBodySize();
+            ssize_t delta = newSize - oldSize;
+            commitData.collections.updateDiskSize(docKey, delta);
+        }
     };
 
     // LocalDbReqs and MagmaDbStats are used to store the memory for the localDb
