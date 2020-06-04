@@ -1598,6 +1598,7 @@ void SingleThreadedActiveStreamTest::recreateProducerAndStream(VBucket& vb,
                                                  "test_producer->test_consumer",
                                                  flags,
                                                  false /*startTask*/);
+    producer->setSyncReplication(SyncReplication::SyncReplication);
     recreateStream(vb, true /*enforceProducerFlags*/);
 }
 
@@ -2854,8 +2855,15 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_TRUE(producer->getReadyQueue().empty());
 }
 
-TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
+void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
+        const std::optional<cb::durability::Requirements>& durReqs) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+
+    // Test is executed also for SyncDelete
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     auto vb = engine->getVBucket(vbid);
     // Note: we require IncludeXattr::Yes for IncludeDeletedUserXattrs::Yes
@@ -2883,12 +2891,13 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
     auto item = makeCommittedItem(makeStoredDocKey("keyD"), value);
     item->setDataType(dtJsonXattr);
     uint64_t cas = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    const auto expectedStoreRes = durReqs ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    ASSERT_EQ(expectedStoreRes,
               engine->store(cookie,
                             item.get(),
                             cas,
                             OPERATION_SET,
-                            {} /*durability*/,
+                            durReqs,
                             DocumentState::Deleted,
                             false));
 
@@ -2896,9 +2905,11 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
         // Flush and ensure docs on disk
         flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
         auto kvstore = store->getRWUnderlying(vbid);
-        const auto doc = kvstore->get(makeDiskDocKey("keyD"), vbid);
+        const auto isPrepare = durReqs.has_value();
+        const auto doc = kvstore->get(makeDiskDocKey("keyD", isPrepare), vbid);
         EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
         EXPECT_TRUE(doc.item->isDeleted());
+        EXPECT_EQ(isPrepare, doc.item->isPending());
         // Check that we have persisted the expected value to disk
         ASSERT_TRUE(doc.item);
         ASSERT_GT(doc.item->getNBytes(), 0);
@@ -2921,8 +2932,15 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
 
     resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
-    ASSERT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+
     const auto& deletion = dynamic_cast<MutationResponse&>(*resp);
+    if (durReqs) {
+        ASSERT_EQ(DcpResponse::Event::Prepare, deletion.getEvent());
+    } else {
+        ASSERT_EQ(DcpResponse::Event::Deletion, deletion.getEvent());
+    }
+
+    ASSERT_TRUE(deletion.getItem()->isDeleted());
     ASSERT_EQ(IncludeValue::Yes, deletion.getIncludeValue());
     ASSERT_EQ(IncludeXattrs::Yes, deletion.getIncludeXattrs());
     ASSERT_EQ(IncludeDeletedUserXattrs::Yes,
@@ -2930,14 +2948,13 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
 
     // The value must contain all xattrs (user+sys)
     ASSERT_EQ(dtJsonXattr, deletion.getItem()->getDataType());
-    const auto* delData = deletion.getItem()->getData();
-    const auto delNBytes = deletion.getItem()->getNBytes();
+    const auto* data = deletion.getItem()->getData();
+    const auto nBytes = deletion.getItem()->getNBytes();
 
-    const auto valueBuf =
-            cb::char_buffer(const_cast<char*>(delData), delNBytes);
+    const auto valueBuf = cb::char_buffer(const_cast<char*>(data), nBytes);
 
-    // Check that we have no body
-    std::string_view body{delData, delNBytes};
+    // Check that we have no body (bodySize=0)
+    std::string_view body{data, nBytes};
     body.remove_prefix(cb::xattr::get_body_offset(body));
     ASSERT_EQ(0, body.size());
 
@@ -2954,9 +2971,25 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInDelete) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(SingleThreadedActiveStreamTest,
+       ProducerIncludesUserXattrsInNormalDelete) {
+    testProducerIncludesUserXattrsInDelete({});
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInSyncDelete) {
+    testProducerIncludesUserXattrsInDelete(cb::durability::Requirements());
+}
+
 void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
-        uint32_t flags) {
+        uint32_t flags,
+        const std::optional<cb::durability::Requirements>& durReqs) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+
+    // Test is executed also for SyncDelete
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     // Check that we are testing a valid configuration: here we want to test
     // only configurations that trigger user-xattr pruning in deletes.
@@ -2996,12 +3029,13 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     auto item = makeCommittedItem(makeStoredDocKey("keyD"), value);
     item->setDataType(bodyType | PROTOCOL_BINARY_DATATYPE_XATTR);
     uint64_t cas = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    const auto expectedStoreRes = durReqs ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    ASSERT_EQ(expectedStoreRes,
               engine->store(cookie,
                             item.get(),
                             cas,
                             OPERATION_SET,
-                            {} /*durability*/,
+                            durReqs,
                             DocumentState::Deleted,
                             false));
 
@@ -3009,7 +3043,8 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         // Flush and ensure docs on disk
         flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
         auto kvstore = store->getRWUnderlying(vbid);
-        const auto doc = kvstore->get(makeDiskDocKey("keyD"), vbid);
+        const auto isPrepare = durReqs.has_value();
+        const auto doc = kvstore->get(makeDiskDocKey("keyD", isPrepare), vbid);
         EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
         EXPECT_TRUE(doc.item->isDeleted());
         // Check that we have persisted the expected value to disk
@@ -3034,8 +3069,15 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
-    ASSERT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+
     const auto& deletion = dynamic_cast<MutationResponse&>(*resp);
+    if (durReqs) {
+        ASSERT_EQ(DcpResponse::Event::Prepare, deletion.getEvent());
+    } else {
+        ASSERT_EQ(DcpResponse::Event::Deletion, deletion.getEvent());
+    }
+
+    ASSERT_TRUE(deletion.getItem()->isDeleted());
     ASSERT_EQ(IncludeValue::Yes, deletion.getIncludeValue());
     ASSERT_EQ(currIncXattr, deletion.getIncludeXattrs());
     ASSERT_EQ(currIncDelUserXattr, deletion.getIncludeDeletedUserXattrs());
@@ -3046,17 +3088,16 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     // - else if the test flags=IncludeXattr, then we want only sys-xattrs as
     //   IncludeDeleteUserXattrs::No
 
-    const auto* delData = deletion.getItem()->getData();
-    const auto delNBytes = deletion.getItem()->getNBytes();
+    const auto* data = deletion.getItem()->getData();
+    const auto nBytes = deletion.getItem()->getNBytes();
 
-    const auto valueBuf =
-            cb::char_buffer(const_cast<char*>(delData), delNBytes);
+    const auto valueBuf = cb::char_buffer(const_cast<char*>(data), nBytes);
 
-    // Check that we have no body
+    // If we have a value..
     if (valueBuf.size() > 0) {
-        std::string_view body{delData, delNBytes};
-        const auto bodyOffset = cb::xattr::get_body_offset(body);
-        body.remove_prefix(bodyOffset);
+        // Check that we have no body (bodySize=0)
+        std::string_view body{data, nBytes};
+        body.remove_prefix(cb::xattr::get_body_offset(body));
         ASSERT_EQ(0, body.size());
     }
 
@@ -3094,14 +3135,26 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
-       ProducerPrunesUserXattrsForDelete_NoDeleteUserXattrs) {
+       ProducerPrunesUserXattrsForNormalDelete_NoDeleteUserXattrs) {
     testProducerPrunesUserXattrsForDelete(
-            cb::mcbp::request::DcpOpenPayload::IncludeXattrs);
+            cb::mcbp::request::DcpOpenPayload::IncludeXattrs, {});
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
-       ProducerPrunesUserXattrsForDelete_NoXattrs) {
-    testProducerPrunesUserXattrsForDelete(0);
+       ProducerPrunesUserXattrsForSyncDelete_NoDeleteUserXattrs) {
+    testProducerPrunesUserXattrsForDelete(
+            cb::mcbp::request::DcpOpenPayload::IncludeXattrs,
+            cb::durability::Requirements());
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       ProducerPrunesUserXattrsForNormalDelete_NoXattrs) {
+    testProducerPrunesUserXattrsForDelete(0, {});
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       ProducerPrunesUserXattrsForSyncDelete_NoXattrs) {
+    testProducerPrunesUserXattrsForDelete(0, cb::durability::Requirements());
 }
 
 class SingleThreadedBackfillTest : public SingleThreadedActiveStreamTest {
