@@ -329,8 +329,12 @@ ScopeID getScopeIDFromKey(const DocKey& key);
 /**
  * Callback function for processing against dropped collections in an ephemeral
  * vb, returns true if the key at seqno should be dropped
+ *
+ * @param DocKey the key of the item we should process
+ * @param int64_t the seqno of the item
+ * @param bool whether or not the item is a prepare (true if prepare)
  */
-using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
+using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t, bool)>;
 
 /**
  * A function for determining if a collection is visible

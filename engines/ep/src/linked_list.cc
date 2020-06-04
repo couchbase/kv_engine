@@ -382,7 +382,8 @@ size_t BasicLinkedList::purgeTombstones(
 
         bool isDropped = false;
         if (!stale && isDroppedKeyCb) {
-            isDropped = isDroppedKeyCb(it->getKey(), it->getBySeqno());
+            isDropped = isDroppedKeyCb(
+                    it->getKey(), it->getBySeqno(), it->isPending());
         }
 
         // Only stale or dropped items are purged.

@@ -113,11 +113,12 @@ public:
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
 
-    size_t purgeTombstones(seqno_t purgeUpToSeqno,
-                           Collections::IsDroppedEphemeralCb isDroppedKeyCb =
-                                   [](const DocKey, int64_t) { return false; },
-                           std::function<bool()> shouldPause =
-                                   []() { return false; }) override;
+    size_t purgeTombstones(
+            seqno_t purgeUpToSeqno,
+            Collections::IsDroppedEphemeralCb isDroppedKeyCb =
+                    [](const DocKey, int64_t, bool) { return false; },
+            std::function<bool()> shouldPause =
+                    []() { return false; }) override;
 
     void updateNumDeletedItems(bool oldDeleted, bool newDeleted) override;
 

@@ -258,9 +258,12 @@ public:
      * collection (or is in a flushed range)
      * @param key The key to test
      * @param bySeqno The seqno of the key
+     * @param pending The key is a pending mutation
      * @return true if the key is logically deleted
      */
-    bool isKeyLogicallyDeleted(const DocKey& key, int64_t bySeqno);
+    bool isKeyLogicallyDeleted(const DocKey& key,
+                               int64_t bySeqno,
+                               bool pending);
 
     uint64_t getMaxVisibleSeqno() const;
 

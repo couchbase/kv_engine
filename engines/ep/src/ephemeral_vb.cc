@@ -320,8 +320,10 @@ std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
         bool isBackfill) {
     return seqList->makeRangeIterator(isBackfill);
 }
+
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
-                                             int64_t bySeqno) {
+                                             int64_t bySeqno,
+                                             bool pending) {
     auto cid = key.getCollectionID();
     if (cid.isSystem()) {
         return false;
@@ -354,7 +356,8 @@ size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
     auto droppedCallback = std::bind(&EphemeralVBucket::isKeyLogicallyDeleted,
                                      this,
                                      std::placeholders::_1,
-                                     std::placeholders::_2);
+                                     std::placeholders::_2,
+                                     std::placeholders::_3);
 
     auto seqListPurged = seqList->purgeTombstones(
             static_cast<seqno_t>(seqList->getHighSeqno()) - 1,
