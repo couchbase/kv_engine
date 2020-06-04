@@ -250,19 +250,6 @@ static void sasl_list_mech_executor(Cookie& cookie) {
         return;
     }
 
-    if (Settings::instance().isExternalAuthServiceEnabled()) {
-        // If the system is configured to use ns_server for authentication
-        // we should only advertise PLAIN as the mechanism (as it can't use
-        // SCRAM to connect to LDAP)
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            "PLAIN",
-                            cb::mcbp::Datatype::Raw,
-                            0);
-        return;
-    }
-
     if (connection.isSslEnabled() &&
         Settings::instance().has.ssl_sasl_mechanisms) {
         const auto& mechs = Settings::instance().getSslSaslMechanisms();

@@ -180,9 +180,12 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
-TEST_P(ExternalAuthTest, OnlyPlainShouldBeAdvertised) {
+TEST_P(ExternalAuthTest, TestAllMechsOffered) {
     auto& conn = getConnection();
-    EXPECT_EQ("PLAIN", conn.getSaslMechanisms());
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
+    EXPECT_EQ("SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN",
+              rsp.getDataString());
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthWithNoExternalProvider) {
@@ -372,4 +375,31 @@ TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
 
     // The next time we call the op it should hit it in the cache..
     conn.execute(cmd);
+}
+
+/**
+ * Verify that the payload in the auth error include if LDAP is configured
+ * or not. The payload should look like:
+ *  {
+ *      "error": {
+ *         "ref": "4d58151c-b452-45c8-1d63-ff69a5dd7f44",
+ *         "context" : "Authentication failed. This could be due ...."
+ *      }
+ *  }
+ */
+TEST_P(ExternalAuthTest, TestErrorIncludeLdapInfo) {
+    auto& conn = getConnection();
+    try {
+        conn.authenticate("foo", "bar", "SCRAM-SHA512");
+        FAIL() << "scram should not work";
+    } catch (const ConnectionError& e) {
+        const auto json = e.getErrorJsonContext();
+        auto message = json["error"]["context"].get<std::string>();
+        const std::string blueprint =
+                "Authentication failed. This could be due to invalid "
+                "credentials or if the user is an external user the "
+                "external authentication service may not support the "
+                "selected authentication mechanism.";
+        EXPECT_EQ(blueprint, message);
+    }
 }

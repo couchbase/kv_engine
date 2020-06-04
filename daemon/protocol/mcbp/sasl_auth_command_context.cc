@@ -21,6 +21,7 @@
 #include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
+#include <daemon/settings.h>
 #include <daemon/start_sasl_auth_task.h>
 #include <daemon/stats.h>
 #include <daemon/step_sasl_auth_task.h>
@@ -171,6 +172,13 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
     if (auth_task->getError() == cb::sasl::Error::AUTH_PROVIDER_DIED) {
         cookie.sendResponse(cb::mcbp::Status::Etmpfail);
     } else {
+        if (Settings::instance().isExternalAuthServiceEnabled()) {
+            cookie.setErrorContext(
+                    "Authentication failed. This could be due to invalid "
+                    "credentials or if the user is an external user the "
+                    "external authentication service may not support the "
+                    "selected authentication mechanism.");
+        }
         cookie.sendResponse(cb::mcbp::Status::AuthError);
     }
 
