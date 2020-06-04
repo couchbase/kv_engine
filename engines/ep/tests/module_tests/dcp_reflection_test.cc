@@ -460,6 +460,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
                 mutation->getIncludeValue(),
                 mutation->getIncludeXattrs(),
                 mutation->getIncludeDeleteTime(),
+                mutation->getIncludeDeletedUserXattrs(),
                 mutation->getDocKeyEncodesCollectionId(),
                 mutation->getExtMetaData(),
                 mutation->getStreamId()));
