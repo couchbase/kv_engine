@@ -1766,10 +1766,6 @@ int memcached_main(int argc, char** argv) {
 
     cb::rbac::initialize();
 
-    if (getenv("COUCHBASE_FORCE_ENABLE_XATTR") != nullptr) {
-        Settings::instance().setXattrEnabled(true);
-    }
-
     /* Configure file logger, if specified as a settings object */
     if (Settings::instance().has.logger) {
         auto ret =

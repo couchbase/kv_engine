@@ -53,11 +53,6 @@ JSON looks like:
         "iv" : "base64 encoded iv"
     }
 
-## `COUCHBASE_FORCE_ENABLE_XATTR`
-
-May be used to enable support for extended attributes even if
-the configuration file provided to memcached lists it as disabled.
-
 ## `COUCHBASE_ENABLE_PRIVILEGE_DEBUG`
 
 By setting this environment variable all privilege checks returns
