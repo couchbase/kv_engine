@@ -1786,6 +1786,12 @@ int memcached_main(int argc, char** argv) {
 
     /* Logging available now extensions have been loaded. */
     LOG_INFO("Couchbase version {} starting.", get_server_version());
+#ifdef ADDRESS_SANITIZER
+    LOG_INFO("Address sanitizer enabled");
+#endif
+#ifdef THREAD_SANITIZER
+    LOG_INFO("Thread sanitizer enabled");
+#endif
 
     /// Initialize breakpad crash catcher with our just-parsed settings
     Settings::instance().addChangeListener("breakpad",
