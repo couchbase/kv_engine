@@ -106,7 +106,7 @@ protected:
  * set for the individual command that we receive the responses in the right
  * sequence even if we need to page them in from disk
  */
-TEST_F(OutOfOrderClusterTest, DISABLED_GetSequenceAllBarriers) {
+TEST_F(OutOfOrderClusterTest, GetSequenceAllBarriers) {
     testGetReorderWithAndWithoutReorder(Reorder::None);
 }
 
@@ -115,7 +115,7 @@ TEST_F(OutOfOrderClusterTest, DISABLED_GetSequenceAllBarriers) {
  * set for the individual command that we receive the responses out of order
  * as some of the documents needs to be fetched from disk
  */
-TEST_F(OutOfOrderClusterTest, DISABLED_GetSequenceNoBarriers) {
+TEST_F(OutOfOrderClusterTest, GetSequenceNoBarriers) {
     testGetReorderWithAndWithoutReorder(Reorder::All);
 }
 
@@ -123,6 +123,6 @@ TEST_F(OutOfOrderClusterTest, DISABLED_GetSequenceNoBarriers) {
  * Verify that I don't reorder a command which allows reordering with one
  * which doesn't allow reordering (current == reorder, next == no-reorder)
  */
-TEST_F(OutOfOrderClusterTest, DISABLED_OnlyReorderReordableCommands) {
+TEST_F(OutOfOrderClusterTest, OnlyReorderReordableCommands) {
     testGetReorderWithAndWithoutReorder(Reorder::Half);
 }
