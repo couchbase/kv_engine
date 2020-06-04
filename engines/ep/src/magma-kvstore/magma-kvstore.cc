@@ -440,9 +440,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaMaxWriteCache();
     configuration.magmaCfg.WALBufferSize =
             configuration.getMagmaInitialWalBufferSize();
-    configuration.magmaCfg.NumFlushers = configuration.getMagmaNumFlushers();
-    configuration.magmaCfg.NumCompactors =
-            configuration.getMagmaNumCompactors();
     configuration.magmaCfg.WALSyncTime = 0ms;
     configuration.magmaCfg.ExpiryFragThreshold =
             configuration.getMagmaExpiryFragThreshold();
@@ -517,6 +514,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     setMaxDataSize(configuration.getBucketQuota());
     setMagmaFragmentationPercentage(
             configuration.getMagmaFragmentationPercentage());
+    calculateAndSetMagmaThreads();
 
     auto kvstoreList = magma->GetKVStoreList();
     for (auto& kvid : kvstoreList) {
@@ -2365,6 +2363,42 @@ void MagmaKVStore::addStatUpdateToWriteOps(
 
 void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
     magma->SetFragmentationRatio(value / 100.0);
+}
+
+void MagmaKVStore::calculateAndSetMagmaThreads() {
+    auto backendThreads = configuration.getStorageThreads();
+    if (backendThreads == 0) {
+        // This is the "default" case and we can choose how many threads to run.
+        // For magma the default is 3 x number of writers with the idea that for
+        // each writer we will have 1 flusher and 2 compactors.
+        backendThreads = configuration.getNumWriterThreads() * 3;
+    }
+
+    auto flusherRatio =
+            static_cast<float>(configuration.getMagmaFlusherPercentage()) / 100;
+    auto flushers = std::ceil(backendThreads * flusherRatio);
+    auto compactors = backendThreads - flushers;
+
+    if (flushers <= 0) {
+        throw std::runtime_error(
+                "MagmaKVStore::calculateAndSetMagmaThreads: Invalid number of "
+                "flusher threads. Must be greater than 0");
+    }
+
+    if (compactors <= 0) {
+        throw std::runtime_error(
+                "MagmaKVStore::calculateAndSetMagmaThreads: Invalid number of "
+                "compactors threads. Must be greater than 0");
+    }
+
+    EP_LOG_INFO(
+            "MagmaKVStore::calculateAndSetMagmaThreads: Flushers:{} "
+            "Compactors:{}",
+            flushers,
+            compactors);
+
+    magma->SetNumThreads(Magma::ThreadType::Flusher, flushers);
+    magma->SetNumThreads(Magma::ThreadType::Compactor, compactors);
 }
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {

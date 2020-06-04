@@ -582,6 +582,13 @@ public:
 
     void setMagmaFragmentationPercentage(size_t value);
 
+    /**
+     * Set the number of magma flushers and compactors based on configuration
+     * settings of number of backend threads, number of writer threads, and
+     * percentage of flusher threads.
+     */
+    void calculateAndSetMagmaThreads();
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

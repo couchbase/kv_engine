@@ -248,10 +248,11 @@ void KVStoreParamTest::SetUp() {
     Configuration config;
     // `GetParam` returns the string parameter representing the KVStore
     // implementation.
-    auto configStr = "dbname="s + data_dir + ";backend="s + GetParam();
-#ifdef EP_USE_MAGMA
-    configStr += ";" + magmaConfig;
-#endif
+    auto configStr = "dbname="s + data_dir + ";backend="s + GetParam() + ";";
+
+    if (GetParam() == "magma") {
+        configStr += magmaConfig;
+    }
 
     config.parseConfiguration(configStr.c_str(), get_mock_server_api());
     WorkLoadPolicy workload(config.getMaxNumWorkers(),

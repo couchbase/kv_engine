@@ -99,6 +99,16 @@ public:
         return storageThreads.load();
     }
 
+    size_t getMagmaFlusherPercentage() const {
+        return magmaFlusherPercentage.load();
+    }
+    void setMagmaFlusherThreadPercentage(size_t value);
+
+    size_t getNumWriterThreads() const {
+        return numWriterThreads.load();
+    }
+    void setNumWriterThreads(size_t value);
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -189,8 +199,20 @@ private:
     // compaction. Atomic as this can be changed dynamically.
     std::atomic<size_t> magmaFragmentationPercentage;
 
+    // Percentage of storage threads which magma will use a flushers. The
+    // remaining threads will be compactors. Atomic as this can be changed
+    // dynamically.
+    std::atomic<size_t> magmaFlusherPercentage;
+
+    // Number of KV writer threads. Used to calculate how many storage threads
+    // to create for magma in the default case.
+    std::atomic<size_t> numWriterThreads;
+
     /**
-     * Number of threads the storage backend is allowed to run.
+     * Number of threads the storage backend is allowed to run. The "default"
+     * value of 0 infers the number of storage threads from the number of writer
+     * threads. This value exists in the memcached config, not the bucket
+     * config, so we have to default the value here for unit tests.
      */
-    std::atomic<size_t> storageThreads;
+    std::atomic<size_t> storageThreads{0};
 };

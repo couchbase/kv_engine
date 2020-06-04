@@ -31,6 +31,10 @@ public:
     void sizeValueChanged(const std::string& key, size_t value) override {
         if (key == "magma_fragmentation_percentage") {
             config.setMagmaFragmentationPercentage(value);
+        } else if (key == "magma_flusher_thread_percentage") {
+            config.setMagmaFlusherThreadPercentage(value);
+        } else if (key == "num_writer_threads") {
+            config.setNumWriterThreads(value);
         }
     }
 
@@ -61,9 +65,17 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaTombstoneFragThreshold = config.getMagmaTombstoneFragThreshold();
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
     magmaFragmentationPercentage = config.getMagmaFragmentationPercentage();
+    magmaFlusherPercentage = config.getMagmaFlusherThreadPercentage();
+    numWriterThreads = config.getNumWriterThreads();
 
     config.addValueChangedListener(
             "magma_fragmentation_percentage",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "num_writer_threads",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_flusher_thread_percentage",
             std::make_unique<ConfigChangeListener>(*this));
 }
 
@@ -80,6 +92,21 @@ void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
 
 void MagmaKVStoreConfig::setStorageThreads(size_t value) {
     storageThreads.store(value);
+    if (store) {
+        store->calculateAndSetMagmaThreads();
+    }
+}
 
-    //@TODO set number of threads for magma
+void MagmaKVStoreConfig::setMagmaFlusherThreadPercentage(size_t value) {
+    magmaFlusherPercentage.store(value);
+    if (store) {
+        store->calculateAndSetMagmaThreads();
+    }
+}
+
+void MagmaKVStoreConfig::setNumWriterThreads(size_t value) {
+    numWriterThreads.store(value);
+    if (store) {
+        store->calculateAndSetMagmaThreads();
+    }
 }

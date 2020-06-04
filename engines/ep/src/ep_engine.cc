@@ -786,6 +786,13 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::mcbp::Status::Einval;
             }
+        } else if (key == "magma_flusher_thread_percentage") {
+            uint32_t value;
+            if (safe_strtoul(val.c_str(), value)) {
+                getConfiguration().setMagmaFlusherThreadPercentage(value);
+            } else {
+                rv = cb::mcbp::Status::Einval;
+            }
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
