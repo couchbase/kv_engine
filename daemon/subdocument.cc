@@ -1544,7 +1544,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                             encode_multi_mutation_result_spec(
                                     index, op, scratch));
                     // Only the first unsuccessful op is reported.
-                    break;
+                    return;
                 }
             }
         }
