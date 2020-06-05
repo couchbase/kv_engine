@@ -29,11 +29,11 @@ VBucketVisitor::~VBucketVisitor() = default;
 
 void CappedDurationVBucketVisitor::begin() {
     // Record when this chunk started so we know when to pause.
-    chunkStart = std::chrono::steady_clock::now();
+    chunkStart = Clock::now();
 }
 
 bool CappedDurationVBucketVisitor::pauseVisitor() {
-    return std::chrono::steady_clock::now() > (chunkStart + maxChunkDuration);
+    return Clock::now() > (chunkStart + maxChunkDuration);
 }
 
 PauseResumeVBAdapter::PauseResumeVBAdapter(
