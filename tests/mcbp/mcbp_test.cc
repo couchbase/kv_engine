@@ -2921,6 +2921,11 @@ protected:
 };
 
 TEST_P(GetRandomKeyValidatorTest, CorrectMessage) {
+    if (GetParam()) {
+        // Collections expects 4-byte extras
+        req.setExtlen(4);
+        req.setBodylen(4);
+    }
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 

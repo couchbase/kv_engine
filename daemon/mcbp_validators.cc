@@ -1906,8 +1906,13 @@ static Status scrub_validator(Cookie& cookie) {
 }
 
 static Status get_random_key_validator(Cookie& cookie) {
+    uint8_t extras = 0;
+    // client is required to send the collection-id
+    if (cookie.getConnection().isCollectionsSupported()) {
+        extras = sizeof(CollectionIDType);
+    }
     return McbpValidator::verify_header(cookie,
-                                        0,
+                                        extras,
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,

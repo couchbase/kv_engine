@@ -717,6 +717,7 @@ public:
     }
 
     ENGINE_ERROR_CODE getRandomKey(const void* cookie,
+                                   const cb::mcbp::Request& request,
                                    const AddResponseFn& response);
 
     void setCompressionMode(const std::string& compressModeStr);

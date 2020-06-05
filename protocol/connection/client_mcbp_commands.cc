@@ -206,6 +206,12 @@ BinprotGenericCommand& BinprotGenericCommand::setExtras(
     return *this;
 }
 
+BinprotGenericCommand& BinprotGenericCommand::setExtras(std::string_view buf) {
+    const auto* data = reinterpret_cast<const uint8_t*>(buf.data());
+    this->extras.assign(data, data + buf.size());
+    return *this;
+}
+
 void BinprotGenericCommand::clear() {
     BinprotCommand::clear();
     value.clear();

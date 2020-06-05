@@ -1275,7 +1275,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(EventuallyPersistentEngine* h,
         return rv;
     }
     case cb::mcbp::ClientOpcode::GetRandomKey:
-        return h->getRandomKey(cookie, response);
+        return h->getRandomKey(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
         return h->getAllKeys(cookie, request, response);
     default:
@@ -6107,8 +6107,18 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(
-        const void* cookie, const AddResponseFn& response) {
+        const void* cookie,
+        const cb::mcbp::Request& request,
+        const AddResponseFn& response) {
     CollectionID cid{CollectionID::Default};
+
+    if (request.getExtlen()) {
+        const auto& payload =
+                reinterpret_cast<const cb::mcbp::request::GetRandomKeyPayload&>(
+                        *request.getExtdata().data());
+        cid = payload.getCollectionId();
+    }
+
     auto priv = checkPrivilege(cookie, cb::rbac::Privilege::Read, cid);
     if (priv != cb::engine_errc::success) {
         return ENGINE_ERROR_CODE(priv);

@@ -533,7 +533,7 @@ information about a given command.
 | 0xb3 | Compact db |
 | 0xb4 | Set cluster config |
 | 0xb5 | Get cluster config |
-| 0xb6 | Get random key |
+| 0xb6 | [Get random key](#0xb6-get-random-key)|
 | 0xb7 | Seqno persistence |
 | 0xb8 | [Get keys](../engines/ep/docs/protocol/get_keys.md) |
 | 0xb9 | [Collections: set manifest](Collections.md#0xb9---Set-Collections-Manifest) |
@@ -2478,6 +2478,56 @@ Response:
 
 The response to this request will include the token currently held in
 memcached in the cas field of the header.
+
+### 0xb6 Get Random Key
+
+The `get random key` command allows the client to retrieve a key from any valid
+collection (or default collection for non-collection enabled connections).
+
+The command will search resident items only using a randomised vbucket as a
+start point and then randomised hash-tables buckets for searching within a
+vbucket.
+
+Request:
+
+* MAY have extras if client has enabled collections (see HELO)
+* MUST NOT have key
+* MUST NOT have value
+
+If the command contains an extra section it must encode a collection-ID as a
+4 byte network order integer. The extras is only required when the client has
+enabled collection using [HELO](#0x1f-helo).
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| collection-id in network byte order                           |
+        +---------------+---------------+---------------+---------------+
+        Total 4 bytes
+
+Response:
+
+If successful the command responds with the randomly found key and value.
+
+* MUST NOT have extra
+* MUST have key
+* MUST have value
+
+Errors:
+
+PROTOCOL_BINARY_RESPONSE_KEY_ENOENT (0x01)
+
+The request cannot find a key (collection empty or not resident).
+
+PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION (0x88)
+
+The collection does not exist
+
+PROTOCOL_BINARY_RESPONSE_EACCESS (0x24)
+
+The caller lacks the correct privilege to read documents
+
 
 ## Server Commands
 

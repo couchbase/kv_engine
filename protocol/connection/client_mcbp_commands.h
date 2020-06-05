@@ -196,6 +196,7 @@ public:
     BinprotGenericCommand();
     BinprotGenericCommand& setValue(std::string value_);
     BinprotGenericCommand& setExtras(const std::vector<uint8_t>& buf);
+    BinprotGenericCommand& setExtras(std::string_view buf);
 
     // Use for setting a simple value as an extras
     template <typename T>

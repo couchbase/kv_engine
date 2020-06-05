@@ -1475,6 +1475,11 @@ std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
 
 Document MemcachedConnection::getRandomKey(Vbid vbucket) {
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetRandomKey};
+    if (hasFeature(cb::mcbp::Feature::Collections)) {
+        // Currently just request random default collection key
+        cb::mcbp::request::GetRandomKeyPayload randomKey;
+        cmd.setExtras(randomKey.getBuffer());
+    }
     cmd.setVBucket(vbucket);
     const auto response = BinprotGetResponse(execute(cmd));
     if (!response.isSuccess()) {

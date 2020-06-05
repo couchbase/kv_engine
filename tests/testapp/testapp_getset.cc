@@ -1190,17 +1190,18 @@ TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattrCompressed) {
 // the bucket, this limits the expect statements we can use
 void GetSetTest::doTestGetRandomKey(bool collections) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetRandomKey);
+    storeAndPersistItem(Vbid(0), "doTestGetRandomKey");
+
     MemcachedConnection& conn = getConnection();
-    conn.mutate(document, Vbid(0), MutationType::Set);
-
     if (collections) {
-        BinprotHelloCommand cmd("Collections");
-        cmd.enableFeature(cb::mcbp::Feature::Collections);
-        cmd.enableFeature(cb::mcbp::Feature::SNAPPY);
-        cmd.enableFeature(cb::mcbp::Feature::JSON);
-
-        const auto rsp = BinprotHelloResponse(conn.execute(cmd));
-        ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+        conn.setFeatures("doTestGetRandomKey",
+                         {{cb::mcbp::Feature::Collections,
+                           cb::mcbp::Feature::SNAPPY,
+                           cb::mcbp::Feature::JSON}});
+    } else {
+        conn.setFeatures(
+                "doTestGetRandomKey",
+                {{cb::mcbp::Feature::SNAPPY, cb::mcbp::Feature::JSON}});
     }
 
     const auto stored = conn.getRandomKey(Vbid(0));

@@ -2205,5 +2205,25 @@ protected:
     uint64_t manifestId{0};
     uint32_t scopeId{0};
 };
+
+// Payload for get_rando_key opcode 0xb6, data stored in network byte order
+class GetRandomKeyPayload {
+public:
+    GetRandomKeyPayload() = default;
+    GetRandomKeyPayload(uint32_t collectionId)
+        : collectionId(htonl(collectionId)) {
+    }
+
+    CollectionID getCollectionId() const {
+        return ntohl(collectionId);
+    }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+protected:
+    CollectionIDType collectionId{0};
+};
 #pragma pack()
 } // namespace cb::mcbp::request
