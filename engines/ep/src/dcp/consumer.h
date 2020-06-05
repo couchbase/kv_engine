@@ -46,16 +46,18 @@ class DcpConsumer : public ConnHandler,
     typedef std::map<uint32_t, std::pair<uint32_t, Vbid>> opaque_map;
 
 public:
-    struct SyncReplNegotiation {
+    /**
+     * Some of the DCP Consumer/Producer negotiation happens over DcpControl and
+     * it is blocking (eg, SyncReplication). An instance of this struct is used
+     * to process a specific negotiation on the Consumer side.
+     */
+    struct BlockingDcpControlNegotiation {
         enum class State : uint8_t {
             PendingRequest,
             PendingResponse,
-            Completed
+            Completed // Covers "nothing to negotiate" and "neg complete"
         } state;
-
-        // Sync Replication is enabled via DCP_CONTROL like many other DCP
-        // features. This opaque is used to identify the "enable sync repl"
-        // response at DcpConsumer::handleResponse.
+        // Used to identify the specific response from Producer.
         uint32_t opaque{0};
     };
 
@@ -387,6 +389,13 @@ protected:
     ENGINE_ERROR_CODE enableSynchronousReplication(
             dcp_message_producers* producers);
 
+    /**
+     * Handles the negotiation of IncludeDeletedUserXattrs.
+     *
+     * @param producers Pointers to message producers
+     */
+    ENGINE_ERROR_CODE handleDeletedUserXattrs(dcp_message_producers* producers);
+
     void notifyVbucketReady(Vbid vbucket);
 
     /**
@@ -571,7 +580,7 @@ protected:
     bool pendingEnableExpiryOpcode;
 
     // Maintains the state of the Sync Replication negotiation
-    SyncReplNegotiation syncReplNegotiation;
+    BlockingDcpControlNegotiation syncReplNegotiation;
 
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.
@@ -597,6 +606,14 @@ protected:
         PendingResponse
     } getErrorMapState;
     bool producerIsVersion5orHigher;
+
+    /**
+     * Handles the negotiation for IncludeDeletedUserXattrs.
+     * The final purpose is for the Consumer to know if the Producer supports
+     * IncludeDeletedUserXattrs, to enforce the proper validation on the payload
+     * for normal/sync DCP delete.
+     */
+    BlockingDcpControlNegotiation deletedUserXattrsNegotiation;
 
     /* Indicates if the 'Processor' task is running */
     std::atomic<bool> processorTaskRunning;

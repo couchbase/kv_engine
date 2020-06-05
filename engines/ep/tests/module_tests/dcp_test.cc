@@ -842,6 +842,13 @@ protected:
      */
     void processConsumerMutationsNearThreshold(bool beyondThreshold);
 
+    /**
+     * @param producerState Are we simulating a negotiation against a Producer
+     *  that enables IncludeDeletedUserXattrs?
+     */
+    void testConsumerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs producerState);
+
     /* vbucket associated with this connection */
     Vbid vbid;
 };
@@ -1639,7 +1646,7 @@ TEST_P(ConnectionTest, ConsumerWithoutConsumerNameDoesNotEnableSyncRepl) {
             *connMap.newConsumer(cookie, "consumer"));
     consumer.setPendingAddStream(false);
     EXPECT_FALSE(consumer.isSyncReplicationEnabled());
-    EXPECT_EQ(DcpConsumer::SyncReplNegotiation::State::Completed,
+    EXPECT_EQ(DcpConsumer::BlockingDcpControlNegotiation::State::Completed,
               consumer.public_getSyncReplNegotiation().state);
 
     destroy_mock_cookie(cookie);
@@ -1654,8 +1661,9 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
             *connMap.newConsumer(cookie, "consumer", "replica1"));
     consumer.setPendingAddStream(false);
     EXPECT_FALSE(consumer.isSyncReplicationEnabled());
-    EXPECT_EQ(DcpConsumer::SyncReplNegotiation::State::PendingRequest,
-              consumer.public_getSyncReplNegotiation().state);
+    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
+    auto syncReplNeg = consumer.public_getSyncReplNegotiation();
+    EXPECT_EQ(State::PendingRequest, syncReplNeg.state);
 
     // Move consumer into paused state (aka EWOULDBLOCK) by stepping through the
     // DCP_CONTROL logic.
@@ -1664,19 +1672,106 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
     do {
         result = consumer.step(&producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
-    } while (result == ENGINE_SUCCESS);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+        syncReplNeg = consumer.public_getSyncReplNegotiation();
+    } while (syncReplNeg.state != State::Completed);
+    EXPECT_EQ(ENGINE_SUCCESS, result);
+
+    // Last step - send the consumer name
+    ASSERT_TRUE(consumer.public_getPendingSendConsumerName());
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
 
     // SyncReplication negotiation is now completed, SyncReplication is enabled
     // on this consumer, and we have sent the consumer name to the producer.
-    EXPECT_EQ(DcpConsumer::SyncReplNegotiation::State::Completed,
-              consumer.public_getSyncReplNegotiation().state);
     EXPECT_TRUE(consumer.isSyncReplicationEnabled());
-
-    // The last thing that we sent was the key
+    EXPECT_FALSE(consumer.public_getPendingSendConsumerName());
     EXPECT_EQ("replica1", producers.last_value);
 
     destroy_mock_cookie(cookie);
+}
+
+void ConnectionTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
+        IncludeDeletedUserXattrs producerState) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize();
+    const void* cookie = create_mock_cookie();
+
+    // Create a new Consumer, flag that we want it to support DeleteXattr
+    auto& consumer = dynamic_cast<MockDcpConsumer&>(
+            *connMap.newConsumer(cookie, "conn_name", "the_consumer_name"));
+
+    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
+    auto syncReplNeg = consumer.public_getSyncReplNegotiation();
+    ASSERT_EQ(State::PendingRequest, syncReplNeg.state);
+
+    // Consumer::step performs multiple negotiation steps. Some of them are
+    // "blocking" steps. So, move the Consumer to the point where all the
+    // negotiation steps (but IncludeDeletedUserXattrs) have been completed and
+    // verifying that the negotiation of DeletedUserXattrs flows as exptected.
+
+    consumer.setPendingAddStream(false);
+    MockDcpMessageProducers producers(handle);
+    ENGINE_ERROR_CODE result;
+    // Step and unblock (ie, simulate Producer response) up to completing the
+    // SyncRepl negotiation, which is the last blocking step before the
+    // DeletedUserXattrs negotiation
+    do {
+        result = consumer.step(&producers);
+        handleProducerResponseIfStepBlocked(consumer, producers);
+        syncReplNeg = consumer.public_getSyncReplNegotiation();
+    } while (syncReplNeg.state != State::Completed);
+    EXPECT_EQ(ENGINE_SUCCESS, result);
+
+    // Skip over "send consumer name"
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    ASSERT_FALSE(consumer.public_getPendingSendConsumerName());
+
+    // Check pre-negotiation state
+    auto xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    ASSERT_EQ(State::PendingRequest, xattrNeg.state);
+    ASSERT_EQ(0, xattrNeg.opaque);
+
+    // Start negotiation - consumer sends DcpControl
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    EXPECT_EQ(State::PendingResponse, xattrNeg.state);
+    EXPECT_EQ("include_deleted_user_xattrs", producers.last_key);
+    EXPECT_EQ("true", producers.last_value);
+    EXPECT_GT(xattrNeg.opaque, 0);
+    EXPECT_EQ(xattrNeg.opaque, producers.last_opaque);
+
+    // Verify blocked - Consumer cannot proceed until negotiation completes
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, consumer.step(&producers));
+    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    EXPECT_EQ(State::PendingResponse, xattrNeg.state);
+
+    // Simulate Producer response
+    cb::mcbp::Status respStatus =
+            (producerState == IncludeDeletedUserXattrs::Yes
+                     ? cb::mcbp::Status::Success
+                     : cb::mcbp::Status::UnknownCommand);
+    protocol_binary_response_header resp{};
+    resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    resp.response.setStatus(respStatus);
+    resp.response.setOpaque(xattrNeg.opaque);
+    consumer.handleResponse(&resp);
+
+    // Verify final consumer state
+    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    EXPECT_EQ(State::Completed, xattrNeg.state);
+    EXPECT_EQ(producerState, consumer.public_getIncludeDeletedUserXattrs());
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(ConnectionTest, ConsumerNegotiatesDeletedXattrs_DisabledAtProducer) {
+    testConsumerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::No);
+}
+
+TEST_P(ConnectionTest, ConsumerNegotiatesDeletedXattrs_EnabledAtProducer) {
+    testConsumerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::Yes);
 }
 
 TEST_P(ConnectionTest, AckCorrectPassiveStream) {
@@ -3075,24 +3170,27 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    message.response.setStatus(cb::mcbp::Status::Success);
-    for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
-                    cb::mcbp::ClientOpcode::DcpAddStream,
-                    cb::mcbp::ClientOpcode::DcpCloseStream,
-                    cb::mcbp::ClientOpcode::DcpStreamReq,
-                    cb::mcbp::ClientOpcode::DcpGetFailoverLog,
-                    cb::mcbp::ClientOpcode::DcpMutation,
-                    cb::mcbp::ClientOpcode::DcpDeletion,
-                    cb::mcbp::ClientOpcode::DcpExpiration,
-                    cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
-                    cb::mcbp::ClientOpcode::DcpControl,
-                    cb::mcbp::ClientOpcode::DcpSystemEvent,
-                    cb::mcbp::ClientOpcode::GetErrorMap,
-                    cb::mcbp::ClientOpcode::DcpPrepare,
-                    cb::mcbp::ClientOpcode::DcpCommit,
-                    cb::mcbp::ClientOpcode::DcpAbort}) {
-        message.response.setOpcode(op);
-        EXPECT_TRUE(producer->handleResponse(&message));
+    for (auto status :
+         {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
+        message.response.setStatus(status);
+        for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
+                        cb::mcbp::ClientOpcode::DcpAddStream,
+                        cb::mcbp::ClientOpcode::DcpCloseStream,
+                        cb::mcbp::ClientOpcode::DcpStreamReq,
+                        cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                        cb::mcbp::ClientOpcode::DcpMutation,
+                        cb::mcbp::ClientOpcode::DcpDeletion,
+                        cb::mcbp::ClientOpcode::DcpExpiration,
+                        cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                        cb::mcbp::ClientOpcode::DcpControl,
+                        cb::mcbp::ClientOpcode::DcpSystemEvent,
+                        cb::mcbp::ClientOpcode::GetErrorMap,
+                        cb::mcbp::ClientOpcode::DcpPrepare,
+                        cb::mcbp::ClientOpcode::DcpCommit,
+                        cb::mcbp::ClientOpcode::DcpAbort}) {
+            message.response.setOpcode(op);
+            EXPECT_TRUE(producer->handleResponse(&message));
+        }
     }
 }
 
@@ -3115,7 +3213,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
                            cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::Locked,
-                           cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
                            cb::mcbp::Status::SyncWriteReCommitInProgress,
@@ -3151,8 +3248,9 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
     message.response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    for (auto errorCode :
-         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::Success}) {
+    for (auto errorCode : {cb::mcbp::Status::KeyEnoent,
+                           cb::mcbp::Status::NotMyVbucket,
+                           cb::mcbp::Status::Success}) {
         message.response.setStatus(errorCode);
         EXPECT_TRUE(producer->handleResponse(&message));
     }
@@ -3163,7 +3261,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
                            cb::mcbp::Status::Etmpfail,
                            cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::Locked,
-                           cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
                            cb::mcbp::Status::SyncWriteReCommitInProgress,
@@ -3191,7 +3288,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
                            cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::Locked,
-                           cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::Success,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
@@ -3205,6 +3301,14 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
             message.response.setOpaque(Opaque);
             EXPECT_FALSE(producer->handleResponse(&message));
         }
+    }
+    message.response.setStatus(cb::mcbp::Status::NotMyVbucket);
+    // Test DcpNoop when the opaque is the default opaque value
+    message.response.setOpaque(10000000);
+    EXPECT_TRUE(producer->handleResponse(&message));
+    for (uint32_t Opaque : {123, 0}) {
+        message.response.setOpaque(Opaque);
+        EXPECT_TRUE(producer->handleResponse(&message));
     }
 }
 
