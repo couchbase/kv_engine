@@ -187,15 +187,13 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                  */
                 stream->setBackfillRemaining(rangeItr.count());
 
-                /* Change the backfill state */
+                /* Change the backfill state and return for next stage. */
                 transitionState(BackfillState::Scanning);
-                /* Jump to scan here itself */
-                return scan();
-            } else {
-                // func call complete before exiting, halting the
-                // backfill as it is unneeded.
-                break;
+                return backfill_success;
             }
+            // func call complete before exiting, halting the
+            // backfill as it is unneeded.
+            break;
         }
         ++rangeItr;
     }
@@ -278,7 +276,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                backfillMgr */
             TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
             stream->log(spdlog::level::level_enum::debug,
-                        "{} Deferring backfill at seqno:{}"
+                        "{} Deferring backfill at seqno:{} "
                         "as scan buffer or backfill buffer is full",
                         getVBucketId(),
                         seqnoDbg);
