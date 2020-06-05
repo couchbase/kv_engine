@@ -1921,11 +1921,11 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
                     cb::engine_errc::not_my_vbucket);
         }
     } else {
-        auto scopIdInfo =
+        auto scopeIdInfo =
                 engine->getKVBucket()->getScopeID(key.getCollectionID());
-        if (*scopIdInfo.second) {
-            return cb::EngineErrorGetScopeIDResult(scopIdInfo.first,
-                                                   ScopeID(*scopIdInfo.second));
+        if (scopeIdInfo.second.has_value()) {
+            return cb::EngineErrorGetScopeIDResult(
+                    scopeIdInfo.first, ScopeID(scopeIdInfo.second.value()));
         }
     }
     return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);

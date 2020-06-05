@@ -24,6 +24,7 @@
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
+#include "collections/manager.h"
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore.h"
@@ -1835,6 +1836,35 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     // check vbucket that doesnt exist
     result = engine->get_scope_id(cookie, keyDairy, Vbid(10));
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, result.result);
+}
+
+TEST_F(CollectionsTest, GetScopeIdForGivenKeyNoVbid) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    CollectionsManifest manifest;
+    manifest.add(ScopeEntry::shop1)
+            .add(CollectionEntry::dairy, ScopeEntry::shop1);
+
+    engine->set_collection_manifest(cookie, std::string{manifest});
+    flush_vbucket_to_disk(vbid, 2);
+
+    StoredDocKey keyDefault{"default", CollectionEntry::defaultC};
+    StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
+    StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
+
+    auto result = engine->get_scope_id(cookie, keyDefault, {});
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(0, result.getManifestId());
+    EXPECT_EQ(ScopeUid::defaultS, result.getScopeId());
+
+    result = engine->get_scope_id(cookie, keyDairy, {});
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(4, result.getManifestId());
+    EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
+
+    result = engine->get_scope_id(cookie, keyMeat, {});
+    EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
+    EXPECT_EQ(0, result.getManifestId());
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
