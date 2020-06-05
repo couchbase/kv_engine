@@ -27,7 +27,6 @@
 #include "../mock/mock_global_task.h"
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
-#include "../mock/mock_synchronous_ep_engine.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
@@ -40,6 +39,7 @@
 #include "dcp/response.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
+#include "ep_vb.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "evp_store_test.h"
@@ -5507,3 +5507,119 @@ INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 #endif
+
+TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Used to synchronize this-thread (which simulate a frontend thread) and
+    // the flusher-thread below (which simulate the flusher running in a bg
+    // thread) so that we produce the exec interleaving of a scenario that
+    // allows the user reading a stale seqno from disk.
+    // Before the fix, that is possible because he flusher marks-clean items in
+    // in the HashTable by CAS. Fixed by using Seqno instead.
+    // Note: The scenario showed here a perfectly legal case of XDCR setup where
+    // 2 different source clusters replicate to the same destination cluster.
+    ThreadGate tg{2};
+
+    auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
+    kvstore.setPostFlushHook([&tg]() {
+        // The hook is executed after we have flushed to disk but before we call
+        // back into the PersistenceCallback. Here we use the hook only for
+        // blocking the flusher and allowing a frontend write before it proceeds
+        tg.threadUp();
+    });
+
+    const std::string key = "key";
+    const auto setWithMeta = [this, &key](uint64_t cas,
+                                          uint64_t revSeqno,
+                                          uint64_t expectedSeqno) -> void {
+        const std::string value = "value";
+        const auto valBuf = cb::const_byte_buffer{
+                reinterpret_cast<const uint8_t*>(key.data()), key.size()};
+        uint64_t opCas = 0;
+        uint64_t seqno = 0;
+        const auto res = engine->public_setWithMeta(
+                vbid,
+                engine->public_makeDocKey(cookie, key),
+                valBuf,
+                {cas, revSeqno, 0 /*flags*/, 0 /*exp*/},
+                false /*isDeleted*/,
+                PROTOCOL_BINARY_RAW_BYTES,
+                opCas,
+                &seqno,
+                cookie,
+                {vbucket_state_active} /*permittedVBStates*/,
+                CheckConflicts::Yes,
+                true /*allowExisting*/,
+                GenerateBySeqno::Yes,
+                GenerateCas::No,
+                {} /*extendedMetaData*/);
+        ASSERT_EQ(ENGINE_SUCCESS, res);
+        EXPECT_EQ(cas, opCas); // Note: CAS is not regenerated
+        EXPECT_EQ(expectedSeqno, seqno);
+    };
+
+    // This-thread issues the first setWithMeta(s:1) and then blocks.
+    // It must resume only when the flusher has persisted but not yet executed
+    // into the PersistenceCallback.
+    const uint64_t cas = 0x0123456789abcdef;
+    {
+        SCOPED_TRACE("");
+        setWithMeta(cas, 1 /*revSeqno*/, 1 /*expectedSeqno*/);
+    }
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    ASSERT_EQ(1, vb.checkpointManager->getNumItemsForPersistence());
+
+    // Run the flusher in a bg-thread
+    const auto flush = [this]() -> void {
+        auto& epBucket = dynamic_cast<EPBucket&>(*store);
+        const auto res = epBucket.flushVBucket(vbid);
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No), res);
+    };
+    auto flusher = std::thread(flush);
+
+    // This-thread issues a second setWithMeta(s:2), but only when the the
+    // flusher is blocked into the postFlushHook.
+    while (tg.getCount() < 1) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // setWithMeta(s:2) with same CAS and higher revSeqno, so s:2 wins conflict
+    // resolution and the operation succeeds.
+    {
+        SCOPED_TRACE("");
+        setWithMeta(cas, 2 /*revSeqno*/, 2 /*expectedSeqno*/);
+    }
+
+    // Now I want the flusher to proceed and call into the PersistenceCallback.
+    // Before the fix, the flusher uses CAS for identifying the StoredValue to
+    // mark clean in the HashTable, so in this scenario that makes clean a
+    // StoreValue (s:2) that has never been persisted.
+    // Note: The flusher was already running before s:2 was queued for
+    // persistence, so s:2 is not being persisted in this flusher run.
+    tg.threadUp();
+    flusher.join();
+
+    // Now the ItemPager runs. In the HashTable we have s:2: it must be dirty
+    // and so not eligible for eviction.
+    auto& epVB = dynamic_cast<EPVBucket&>(vb);
+    const auto docKey = makeStoredDocKey(key);
+    {
+        const auto readHandle = vb.lockCollections();
+        auto res = vb.ht.findOnlyCommitted(docKey);
+        ASSERT_TRUE(res.storedValue);
+        ASSERT_EQ(2, res.storedValue->getBySeqno());
+        EXPECT_TRUE(res.storedValue->isDirty());
+        EXPECT_FALSE(epVB.pageOut(readHandle, res.lock, res.storedValue));
+    }
+
+    // Note: The flusher has never persisted s:2
+    ASSERT_EQ(1, vb.getPersistenceSeqno());
+
+    // Try a get, it must fetch s:2 from the HashTable
+    const auto res = engine->get(cookie, docKey, vbid, DocStateFilter::Alive);
+    // Note: Before the fix we get EWOULDBLOCK as s:2 would be evicted
+    ASSERT_EQ(cb::engine_errc::success, res.first);
+    const auto* it = reinterpret_cast<const Item*>(res.second.get());
+    EXPECT_EQ(2, it->getBySeqno());
+}

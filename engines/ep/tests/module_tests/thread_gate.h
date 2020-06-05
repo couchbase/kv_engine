@@ -54,7 +54,8 @@ public:
         cv.wait_for(lh, timeout, [this, &lh]() { return isComplete(lh); });
     }
 
-    size_t getCount() const {
+    size_t getCount() {
+        std::unique_lock<std::mutex> lh(m);
         return thread_count;
     }
 

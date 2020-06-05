@@ -40,13 +40,12 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
     case State::Insert:
     case State::Update: {
         // Mark clean, only if the StoredValue has the same CommittedState and
-        // and CAS as the persisted item.
-        //
-        // @todo: MB-39280, compare Seqno, not CAS
+        // and Seqno (MB-39280) as the persisted item.
         {
             auto res = vbucket.ht.findItem(*queuedItem);
             auto* v = res.storedValue;
-            if (v && (v->getCas() == queuedItem->getCas())) {
+            if (v && (v->getBySeqno() == queuedItem->getBySeqno())) {
+                Expects(v->isDirty());
                 v->markClean();
             }
         }
