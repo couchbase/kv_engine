@@ -849,6 +849,13 @@ protected:
     void testConsumerNegotiatesIncludeDeletedUserXattrs(
             IncludeDeletedUserXattrs producerState);
 
+    /**
+     * @param producerState Are we simulating a negotiation against a Producer
+     *  that enables IncludeDeletedUserXattrs?
+     */
+    void testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs producerState);
+
     /* vbucket associated with this connection */
     Vbid vbid;
 };
@@ -1764,13 +1771,54 @@ void ConnectionTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(ConnectionTest, ConsumerNegotiatesDeletedXattrs_DisabledAtProducer) {
+TEST_P(ConnectionTest, ConsumerNegotiatesDeletedUserXattrs_DisabledAtProducer) {
     testConsumerNegotiatesIncludeDeletedUserXattrs(
             IncludeDeletedUserXattrs::No);
 }
 
-TEST_P(ConnectionTest, ConsumerNegotiatesDeletedXattrs_EnabledAtProducer) {
+TEST_P(ConnectionTest, ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
     testConsumerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::Yes);
+}
+
+void ConnectionTest::testProducerNegotiatesIncludeDeletedUserXattrs(
+        IncludeDeletedUserXattrs producerState) {
+    const void* cookie = create_mock_cookie();
+
+    uint32_t dcpOpenFlags;
+    ENGINE_ERROR_CODE expectedControlResp;
+    switch (producerState) {
+    case IncludeDeletedUserXattrs::Yes: {
+        dcpOpenFlags =
+                cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs;
+        expectedControlResp = ENGINE_SUCCESS;
+        break;
+    }
+    case IncludeDeletedUserXattrs::No: {
+        dcpOpenFlags = 0;
+        expectedControlResp = ENGINE_EINVAL;
+        break;
+    }
+    }
+
+    const auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", dcpOpenFlags);
+    EXPECT_EQ(producerState, producer->public_getIncludeDeletedUserXattrs());
+    EXPECT_EQ(expectedControlResp,
+              producer->control(0, "include_deleted_user_xattrs", "true"));
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(ConnectionTest,
+       ProducerNegotiatesIncludeDeletedUserXattrs_DisabledAtProducer) {
+    testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::No);
+}
+
+TEST_P(ConnectionTest,
+       ProducerNegotiatesIncludeDeletedUserXattrs_EnabledAtProducer) {
+    testProducerNegotiatesIncludeDeletedUserXattrs(
             IncludeDeletedUserXattrs::Yes);
 }
 
