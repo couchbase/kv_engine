@@ -373,6 +373,13 @@ protected:
      */
     std::atomic<SyncReplication> supportsSyncReplication{SyncReplication::No};
 
+    /**
+     * Indicates whether this DCP connection supports streaming user-xattrs in
+     * the value for normal and sync DCP delete.
+     */
+    IncludeDeletedUserXattrs includeDeletedUserXattrs{
+            IncludeDeletedUserXattrs::No};
+
 private:
 
      //! The name for this connection

@@ -3596,18 +3596,21 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
 }
 
 /**
- * The Consumer-Producer negotiation for Sync Replication happens over
- * DCP_CONTROL and introduces a blocking step, so we have to simulate the
- * Producer response for letting dcp_step() proceed.
+ * Part of the Consumer-Producer negotiation happens over DCP_CONTROL and
+ * introduces a blocking step, so we have to simulate the Producer response for
+ * letting dcp_step() proceed.
  * Note that the blocking DCP_CONTROL request is signed at Consumer by
  * tracking the opaque value sent to the Producer, so we need to set the
  * proper opaque.
+ *
+ * At the time of writing, the SyncReplication and the IncludeDeletedUserXattrs
+ * negotiations follow the described pattern.
  *
  * @param engine The engine interface
  * @param cookie The cookie representing the DCP Consumer into the engine
  * @param producers The MockDcpMessageProducers used by the Consumer
  */
-static void simulateProdRespAtSyncReplNegotiation(
+static void simulateProdRespToDcpControlBlockingNegotiation(
         EngineIface* engine,
         const void* cookie,
         MockDcpMessageProducers& producers) {
@@ -3682,8 +3685,10 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
     dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
     dcpStepAndExpectControlMsg("enable_sync_writes"s);
-    simulateProdRespAtSyncReplNegotiation(h, cookie, producers);
+    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
     dcpStepAndExpectControlMsg("consumer_name"s);
+    dcpStepAndExpectControlMsg("include_deleted_user_xattrs"s);
+    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
 
     dcp_step(h, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
@@ -4423,8 +4428,10 @@ static void drainDcpControl(EngineIface* engine,
     do {
         dcp_step(engine, cookie, producers);
         // The Sync Repl negotiation introduces a blocking step
-        if (producers.last_key == "enable_sync_writes") {
-            simulateProdRespAtSyncReplNegotiation(engine, cookie, producers);
+        if (producers.last_key == "enable_sync_writes" ||
+            producers.last_key == "include_deleted_user_xattrs") {
+            simulateProdRespToDcpControlBlockingNegotiation(
+                    engine, cookie, producers);
         }
     } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
 }
