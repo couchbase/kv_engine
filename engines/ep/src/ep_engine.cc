@@ -4764,8 +4764,9 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         manifestUid = res.first;
         if (!res.second) {
             status = cb::engine_errc::unknown_collection;
+        } else {
+            sid = res.second.value();
         }
-        sid = res.second.value();
     }
 
     if (status == cb::engine_errc::success) {
