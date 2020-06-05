@@ -2022,6 +2022,10 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
                 vbucket2flush);
     }
 
+    if (postFlushHook) {
+        postFlushHook();
+    }
+
     commitCallback(pendingReqsQ, kvctx, errCode);
 
     pendingReqsQ.clear();

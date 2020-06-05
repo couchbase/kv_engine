@@ -70,6 +70,24 @@ public:
 
     std::unique_ptr<KVBucket> public_makeMockBucket(Configuration& config);
 
+    ENGINE_ERROR_CODE public_setWithMeta(Vbid vbucket,
+                                         DocKey key,
+                                         cb::const_byte_buffer value,
+                                         ItemMetaData itemMeta,
+                                         bool isDeleted,
+                                         protocol_binary_datatype_t datatype,
+                                         uint64_t& cas,
+                                         uint64_t* seqno,
+                                         const void* cookie,
+                                         PermittedVBStates permittedVBStates,
+                                         CheckConflicts checkConflicts,
+                                         bool allowExisting,
+                                         GenerateBySeqno genBySeqno,
+                                         GenerateCas genCas,
+                                         cb::const_byte_buffer emd);
+
+    DocKey public_makeDocKey(const void* cookie, const std::string& key);
+
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);
     }
