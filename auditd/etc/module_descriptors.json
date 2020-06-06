@@ -30,7 +30,7 @@
                {
                 "fts" : {
                                "startid" :24576,
-                               "file" : "goproj/src/github.com/couchbase/cbft/etc/audit_descriptor.json"
+                               "file" : "cbft/etc/audit_descriptor.json"
                               }
                },
                {
