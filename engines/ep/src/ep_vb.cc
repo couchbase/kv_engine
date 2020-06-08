@@ -50,6 +50,7 @@ EPVBucket::EPVBucket(Vbid i,
                      NewSeqnoCallback newSeqnoCb,
                      SyncWriteResolvedCallback syncWriteResolvedCb,
                      SyncWriteCompleteCallback syncWriteCb,
+                     SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
                      SeqnoAckCallback seqnoAckCb,
                      CheckpointDisposer ckptDisposer,
                      Configuration& config,
@@ -76,6 +77,7 @@ EPVBucket::EPVBucket(Vbid i,
               std::move(newSeqnoCb),
               syncWriteResolvedCb,
               syncWriteCb,
+              syncWriteTimeoutFactory,
               seqnoAckCb,
               ckptDisposer,
               config,
@@ -893,7 +895,11 @@ void EPVBucket::loadOutstandingPrepares(
     switch (getState()) {
     case vbucket_state_active: {
         durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
-                stats, *this, vbs, std::move(outstandingPrepares));
+                stats,
+                *this,
+                vbs,
+                syncWriteTimeoutFactory(*this),
+                std::move(outstandingPrepares));
 
         // Some of the prepares may now be viable for commit
         getActiveDM().checkForCommit();

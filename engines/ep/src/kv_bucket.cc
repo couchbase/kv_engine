@@ -463,11 +463,29 @@ bool KVBucket::initialize() {
         ExecutorPool::get()->schedule(ckptDestroyerTasks.back());
     }
 
-    durabilityTimeoutTask = std::make_shared<DurabilityTimeoutTask>(
-            engine,
-            std::chrono::milliseconds(
-                    config.getDurabilityTimeoutTaskInterval()));
-    ExecutorPool::get()->schedule(durabilityTimeoutTask);
+    // Setup tasks related to SyncWrite timeout handling. At present there are
+    // two possible modes:
+    // * "polling" (added in Mad-Hatter) which uses a task per Bucket and polls
+    //   all vBuckets for any timed out SyncWrites every
+    //   durability_timeout_task_interval ms.
+    // * "event-driven" (added in Neo) which uses a task per vBucket; each of
+    //   which is scheduled to run when the next SyncWrite to be completed is
+    //   due to exceed it's timeout. If that SyncWrite is completed before the
+    //   timeout then the task is re-scheduled (and doesn't run).
+    if (config.getDurabilityTimeoutMode() == "polling") {
+        durabilityTimeoutTask = std::make_shared<DurabilityTimeoutTask>(
+                engine,
+                std::chrono::milliseconds(
+                        config.getDurabilityTimeoutTaskInterval()));
+        ExecutorPool::get()->schedule(durabilityTimeoutTask);
+    } else if (config.getDurabilityTimeoutMode() == "event-driven") {
+        syncWriteTimeoutFactory =
+                [&taskable =
+                         this->getEPEngine().getTaskable()](VBucket& vbucket) {
+                    return std::make_unique<EventDrivenDurabilityTimeout>(
+                            taskable, vbucket);
+                };
+    }
 
     durabilityCompletionTask =
             std::make_shared<DurabilityCompletionTask>(engine);

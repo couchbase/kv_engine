@@ -101,6 +101,7 @@ int main(int, char **) {
             sizeof(StreamContainer<DcpProducer::ContainerElement>));
     display("EPStats", sizeof(EPStats), stats.getMemFootPrint());
     display("FileStats", sizeof(FileStats), FileStats().getMemFootPrint());
+    display("GlobalTask", sizeof(GlobalTask));
     display("Item", sizeof(Item));
     display("HashTable", sizeof(HashTable));
     display("HdrHistogram frequency histo",

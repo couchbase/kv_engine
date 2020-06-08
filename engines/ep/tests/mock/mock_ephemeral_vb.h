@@ -23,23 +23,25 @@
 
 class MockEphemeralVBucket : public EphemeralVBucket {
 public:
-    MockEphemeralVBucket(Vbid i,
-                         vbucket_state_t newState,
-                         EPStats& st,
-                         CheckpointConfig& chkConfig,
-                         KVShard* kvshard,
-                         int64_t lastSeqno,
-                         uint64_t lastSnapStart,
-                         uint64_t lastSnapEnd,
-                         std::unique_ptr<FailoverTable> table,
-                         NewSeqnoCallback newSeqnoCb,
-                         SyncWriteResolvedCallback syncWriteResolvedCb,
-                         SyncWriteCompleteCallback syncWriteCb,
-                         SeqnoAckCallback seqnoAckCb,
-                         CheckpointDisposer ckptDisposer,
-                         Configuration& config,
-                         EvictionPolicy evictionPolicy,
-                         std::unique_ptr<Collections::VB::Manifest> manifest);
+    MockEphemeralVBucket(
+            Vbid i,
+            vbucket_state_t newState,
+            EPStats& st,
+            CheckpointConfig& chkConfig,
+            KVShard* kvshard,
+            int64_t lastSeqno,
+            uint64_t lastSnapStart,
+            uint64_t lastSnapEnd,
+            std::unique_ptr<FailoverTable> table,
+            NewSeqnoCallback newSeqnoCb,
+            SyncWriteResolvedCallback syncWriteResolvedCb,
+            SyncWriteCompleteCallback syncWriteCb,
+            SyncWriteTimeoutHandlerFactory syncWriteNextExpiryChangedFact,
+            SeqnoAckCallback seqnoAckCb,
+            CheckpointDisposer ckptDisposer,
+            Configuration& config,
+            EvictionPolicy evictionPolicy,
+            std::unique_ptr<Collections::VB::Manifest> manifest);
 
     /* Register fake shared range lock for testing */
     RangeGuard registerFakeSharedRangeLock(seqno_t start, seqno_t end) {

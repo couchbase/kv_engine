@@ -55,6 +55,7 @@ public:
                 /*newSeqnoCb*/ nullptr,
                 [](Vbid) { return; },
                 NoopSyncWriteCompleteCb,
+                NoopSyncWriteTimeoutFactory,
                 NoopSeqnoAckCb,
                 ImmediateCkptDisposer,
                 config,

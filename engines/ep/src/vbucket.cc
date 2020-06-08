@@ -177,6 +177,7 @@ VBucket::VBucket(Vbid i,
                  NewSeqnoCallback newSeqnoCb,
                  SyncWriteResolvedCallback syncWriteResolvedCb,
                  SyncWriteCompleteCallback syncWriteCb,
+                 SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
                  SeqnoAckCallback seqnoAckCb,
                  CheckpointDisposer ckptDisposer,
                  Configuration& config,
@@ -224,6 +225,7 @@ VBucket::VBucket(Vbid i,
                                                             flusherCb,
                                                             ckptDisposer)),
       bucket(bucket),
+      syncWriteTimeoutFactory(std::move(syncWriteTimeoutFactory)),
       replicationTopology(std::make_unique<nlohmann::json>()),
       purge_seqno(purgeSeqno),
       takeover_backed_up(false),
@@ -624,12 +626,14 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
             // an ActiveDM from the PassiveDM, maintaining any in-flight
             // SyncWrites.
             durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
-                    stats, std::move(*currentPassiveDM));
+                    stats,
+                    std::move(*currentPassiveDM),
+                    syncWriteTimeoutFactory(*this));
         } else if (!durabilityMonitor) {
             // Change to Active from no previous DurabilityMonitor - create
             // one.
-            durabilityMonitor =
-                    std::make_unique<ActiveDurabilityMonitor>(stats, *this);
+            durabilityMonitor = std::make_unique<ActiveDurabilityMonitor>(
+                    stats, *this, syncWriteTimeoutFactory(*this));
         } else {
             // Already have an (active?) DurabilityMonitor and just changing
             // topology.

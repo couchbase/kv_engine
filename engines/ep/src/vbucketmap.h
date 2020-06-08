@@ -55,6 +55,12 @@ public:
     cb::engine_errc addBucket(VBucketPtr vb);
 
     /**
+     * Create a per-vBucket task which handles cleanup of pending SyncWrites
+     * which have expired.
+     */
+    void enableSyncWriteExpiryTasks();
+
+    /**
      * Drop the vbucket from the map and setup deferred deletion of the VBucket.
      * Once the VBucketPtr has no more references the vbucket is deleted, but
      * deletion occurs via a task that is scheduled by the VBucketPtr deleter,

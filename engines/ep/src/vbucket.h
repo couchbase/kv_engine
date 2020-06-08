@@ -126,6 +126,33 @@ using SeqnoAckCallback = std::function<void(Vbid vbid, int64_t seqno)>;
 /// Instance of SeqnoAckCallback which does nothing.
 const SeqnoAckCallback NoopSeqnoAckCb = [](Vbid vbid, int64_t seqno) {};
 
+using SyncWriteTimeoutHandlerFactory =
+        std::function<std::unique_ptr<EventDrivenDurabilityTimeoutIface>(
+                VBucket&)>;
+
+/**
+ * No-op implementation of EventDrivenDurabilityTimeoutIface - primarily exists
+ * to allow both event-driven and polling implementation of durability
+ * timeouts to exist - NoopEventDrivenDurabilityTimeout is used when
+ * mode==polling.
+ */
+class NoopEventDrivenDurabilityTimeout
+    : public EventDrivenDurabilityTimeoutIface {
+public:
+    NoopEventDrivenDurabilityTimeout() = default;
+
+    void updateNextExpiryTime(
+            std::chrono::steady_clock::time_point next) override {
+    }
+    void cancelNextExpiryTime() override {
+    }
+};
+
+const SyncWriteTimeoutHandlerFactory NoopSyncWriteTimeoutFactory =
+        [](VBucket&) {
+            return std::make_unique<NoopEventDrivenDurabilityTimeout>();
+        };
+
 class EventuallyPersistentEngine;
 class FailoverTable;
 class KVShard;
@@ -157,6 +184,7 @@ public:
             NewSeqnoCallback newSeqnoCb,
             SyncWriteResolvedCallback syncWriteResolvedCb,
             SyncWriteCompleteCallback syncWriteCb,
+            SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
             SeqnoAckCallback seqnoAckCb,
             CheckpointDisposer ckptDisposer,
             Configuration& config,
@@ -2446,6 +2474,18 @@ public:
 
 protected:
     KVBucket* const bucket;
+
+    /**
+     * Factory method which when invoked returns an object to be used by
+     * ActiveDurabilityMonitor for handling aborting of SyncWrites after they
+     * timeout.
+     * The VBucket owns a factory (instead of simply the task itself) primarily
+     * because only the ActiveDurabilityMonitor actually times out (and aborts)
+     * SyncWrites, hence if there is no ActiveDM (vbucket is not active) then
+     * there should be no task. It also aids in testing as we can inject
+     * test-only objects.
+     */
+    const SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory;
 
 private:
     /**

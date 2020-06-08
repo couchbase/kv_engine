@@ -10,12 +10,18 @@
  */
 #pragma once
 
+#include "ep_types.h"
 #include "vb_visitors.h"
 #include <executor/globaltask.h>
 #include <platform/atomic_duration.h>
 
 /*
  * Enforces the Durability Timeout for the SyncWrites tracked in this KVBucket.
+ * Runs periodically (every durability_timeout_task_interval), and visits each
+ * vBucket, calling processDurabilityTimeout() on each.
+ *
+ * This class is used when durability_timeout_mode == "polling". See also:
+ * EventDrivenDurabilityTimeout.
  */
 class DurabilityTimeoutTask : public GlobalTask {
 public:
@@ -67,4 +73,28 @@ public:
 
 private:
     const std::chrono::steady_clock::time_point startTime;
+};
+
+/**
+ * Default implementation of EventDrivenDurabilityTimeoutIface. This
+ * creates a NonIO task for each instance of VBucketDurabilityTimeoutHandler;
+ * the task is scheduled / cancelled based on calls to updateNextExpiryTime() /
+ * cancelNextExpiryTime().
+ * The background task is cancelled (and deleted) when this object is deleted.
+ *
+ * This class is used when durability_timeout_mode == "event-driven".
+ * See also: DurabilityTimeoutTask.
+ */
+class EventDrivenDurabilityTimeout : public EventDrivenDurabilityTimeoutIface {
+public:
+    EventDrivenDurabilityTimeout(Taskable& taskable, VBucket& vbucket);
+
+    ~EventDrivenDurabilityTimeout() override;
+
+    void updateNextExpiryTime(std::chrono::steady_clock::time_point) override;
+
+    void cancelNextExpiryTime() override;
+
+private:
+    size_t taskId;
 };

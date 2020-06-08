@@ -58,6 +58,7 @@ public:
                   /*newSeqnoCb*/ nullptr,
                   SyncWriteResolvedCallback{},
                   NoopSyncWriteCompleteCb,
+                  NoopSyncWriteTimeoutFactory,
                   NoopSeqnoAckCb,
                   ImmediateCkptDisposer,
                   config,

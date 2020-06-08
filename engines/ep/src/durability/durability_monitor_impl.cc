@@ -123,6 +123,11 @@ DurabilityMonitor::ActiveSyncWrite::getStartTime() const {
     return startTime;
 }
 
+std::optional<std::chrono::steady_clock::time_point>
+DurabilityMonitor::ActiveSyncWrite::getExpiryTime() const {
+    return expiryTime;
+}
+
 void DurabilityMonitor::ActiveSyncWrite::ack(const std::string& node) {
     if (!firstChain) {
         throw std::logic_error(

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <memcached/vbucket.h>
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -86,6 +87,28 @@ enum class ConflictResolutionMode {
  * what to commit.
  */
 enum class SendCommitSyncWriteAs : char { Commit, Mutation };
+
+/**
+ * Interface for event-driven checking of SyncWrites which have exceeded their
+ * timeout and aborting them.
+ * A VBucket's ActiveDurabilityMonitor will call updateNextExpiryTime()
+ * with the time when the "next" SyncWrite will expire. At that time, the
+ * implementation of this interface will call into the VBucket to check for
+ * (and abort if found) any expired SyncWrites.
+ */
+struct EventDrivenDurabilityTimeoutIface {
+    virtual ~EventDrivenDurabilityTimeoutIface() = default;
+
+    /// Update the time when the next SyncWrite will expire.
+    virtual void updateNextExpiryTime(
+            std::chrono::steady_clock::time_point next) = 0;
+
+    /**
+     * Cancel the next run of the durability timeout task (as there are no
+     * SyncWrites requiring timeout).
+     */
+    virtual void cancelNextExpiryTime() = 0;
+};
 
 /**
  * Used by setVBucketState - indicates that the vbucket is transferred

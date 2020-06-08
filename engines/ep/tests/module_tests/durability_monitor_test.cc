@@ -11,18 +11,17 @@
 
 #include "durability_monitor_test.h"
 
+#include "../mock/mock_synchronous_ep_engine.h"
+#include "../mock/mock_taskable.h"
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "durability/active_durability_monitor.h"
 #include "item.h"
-#include "test_helpers.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_utils.h"
+
 #include <programs/engine_testapp/mock_cookie.h>
-#include <test_manifest.h>
-
-#include "durability/active_durability_monitor.h"
-
-#include "../mock/mock_synchronous_ep_engine.h"
+#include <utilities/test_manifest.h>
 
 void ActiveDurabilityMonitorTest::SetUp() {
     // MB-34453: Change sync_writes_max_allowed_replicas back to total
@@ -3836,8 +3835,9 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
     cm.remove(CollectionEntry::meat);
     setCollections(cookie, cm);
 
-    EPStats ep{};
-    ActiveDurabilityMonitor adm(ep, std::move(pdm));
+    EPStats stats;
+    ActiveDurabilityMonitor adm(
+            stats, std::move(pdm), NoopSyncWriteTimeoutFactory(*vb));
     vb->setState(vbucket_state_active);
     ASSERT_EQ(vbucket_state_active, vb->getState());
     adm.setReplicationTopology(nlohmann::json::array({{"active", "replica1"}}));

@@ -39,6 +39,7 @@ public:
               NewSeqnoCallback newSeqnoCb,
               SyncWriteResolvedCallback syncWriteResolvedCb,
               SyncWriteCompleteCallback syncWriteCb,
+              SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
               SeqnoAckCallback seqnoAckCb,
               CheckpointDisposer ckptDisposer,
               Configuration& config,

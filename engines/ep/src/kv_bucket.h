@@ -1017,6 +1017,16 @@ protected:
     // tracked in this KVBucket.
     ExTask durabilityTimeoutTask;
 
+    /**
+     * Factory function which returns on object to handle SyncWrite timeouts
+     * for a given vBucket.
+     * Only used if durability_timeout_mode == event-driven.
+     * Note this defaults to NoopSyncWriteTimeoutFactory to aid in testing;
+     * initialise() will set to a non-noop factory (if mode == event-driven).
+     */
+    SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory =
+            NoopSyncWriteTimeoutFactory;
+
     /// Responsible for completing (commiting or aborting SyncWrites which have
     /// completed in this KVBucket.
     std::shared_ptr<DurabilityCompletionTask> durabilityCompletionTask;

@@ -339,6 +339,9 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          });
 
 TEST_P(DurabilityTest, TimeoutTaskScheduled) {
+    if (engine->getConfiguration().getDurabilityTimeoutMode() != "polling") {
+        GTEST_SKIP_("Only applicable to durability_timeout_mode==polling");
+    }
     auto* executor = dynamic_cast<MockExecutorPool*>(ExecutorPool::get());
     ASSERT_TRUE(executor);
     EXPECT_TRUE(

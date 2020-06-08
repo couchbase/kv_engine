@@ -276,6 +276,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     std::move(newSeqnoCb),
                                     makeSyncWriteResolvedCB(),
                                     makeSyncWriteCompleteCB(),
+                                    syncWriteTimeoutFactory,
                                     makeSeqnoAckCB(),
                                     makeCheckpointDisposer(),
                                     engine.getConfiguration(),

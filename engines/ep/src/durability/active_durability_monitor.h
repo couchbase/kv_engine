@@ -103,9 +103,16 @@ public:
     // Container type used for State::trackedWrites
     using Container = std::list<DurabilityMonitor::ActiveSyncWrite>;
 
-    // Note: constructor and destructor implementation in the .cc file to allow
-    // the forward declaration of ReplicationChain in the header
-    ActiveDurabilityMonitor(EPStats& stats, VBucket& vb);
+    /**
+     * Construct an ActiveDM for the given vBucket.
+     * @param stats EPStats object for the associated Bucket.
+     * @param vb VBucket which owns this Durability Monitor.
+     * @param nextExpiryChanged Object to use for timing out SyncWrites.
+     */
+    ActiveDurabilityMonitor(EPStats& stats,
+                            VBucket& vb,
+                            std::unique_ptr<EventDrivenDurabilityTimeoutIface>
+                                    nextExpiryChanged);
 
     /**
      * Construct an ActiveDM for the given vBucket, with the specified
@@ -114,6 +121,7 @@ public:
      * @param stats EPStats object for the associated Bucket.
      * @param vb VBucket which owns this Durability Monitor.
      * @param vbs reference to the vbucket_state found at warmup
+     * @param nextExpiryChanged Object to use for timing out SyncWrites.
      * @param outstandingPrepares In-flight prepares which the DM should take
      *        responsibility for.
      *        These must be ordered by ascending seqno, otherwise
@@ -122,6 +130,8 @@ public:
     ActiveDurabilityMonitor(EPStats& stats,
                             VBucket& vb,
                             const vbucket_state& vbs,
+                            std::unique_ptr<EventDrivenDurabilityTimeoutIface>
+                                    nextExpiryChanged,
                             std::vector<queued_item>&& outstandingPrepares);
 
     /**
@@ -131,7 +141,10 @@ public:
      * @param stats EPStats object for the associated Bucket.
      * @param pdm The PassiveDM to be converted
      */
-    ActiveDurabilityMonitor(EPStats& stats, PassiveDurabilityMonitor&& pdm);
+    ActiveDurabilityMonitor(EPStats& stats,
+                            PassiveDurabilityMonitor&& pdm,
+                            std::unique_ptr<EventDrivenDurabilityTimeoutIface>
+                                    nextExpiryChanged);
 
     ~ActiveDurabilityMonitor() override;
 

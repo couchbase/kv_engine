@@ -143,10 +143,13 @@ private:
     }
 };
 
-ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats, VBucket& vb)
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(
+        EPStats& stats,
+        VBucket& vb,
+        std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
     : stats(stats),
       vb(vb),
-      state(std::make_unique<State>(*this)),
+      state(std::make_unique<State>(*this, std::move(nextExpiryChanged))),
       resolvedQueue(std::make_unique<ResolvedQueue>(vb.getId())) {
 }
 
@@ -154,8 +157,9 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
         EPStats& stats,
         VBucket& vb,
         const vbucket_state& vbs,
+        std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged,
         std::vector<queued_item>&& outstandingPrepares)
-    : ActiveDurabilityMonitor(stats, vb) {
+    : ActiveDurabilityMonitor(stats, vb, std::move(nextExpiryChanged)) {
     if (!vbs.transition.replicationTopology.is_null()) {
         setReplicationTopology(vbs.transition.replicationTopology);
     }
@@ -165,6 +169,8 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
         // Any outstanding prepares "grandfathered" into the DM from warmup
         // should have an infinite timeout (we cannot abort them as they
         // may already have been Committed before we restarted).
+        // (This also means there's no need to consider scheduling the
+        // timeout callback).
         Expects(prepare->getDurabilityReqs().getTimeout().isInfinite());
         s->trackedWrites.emplace_back(nullptr,
                                       std::move(prepare),
@@ -183,9 +189,11 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
     s->highCompletedSeqno.reset(vbs.persistedCompletedSeqno);
 }
 
-ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
-                                                 PassiveDurabilityMonitor&& pdm)
-    : ActiveDurabilityMonitor(stats, pdm.vb) {
+ActiveDurabilityMonitor::ActiveDurabilityMonitor(
+        EPStats& stats,
+        PassiveDurabilityMonitor&& pdm,
+        std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
+    : ActiveDurabilityMonitor(stats, pdm.vb, std::move(nextExpiryChanged)) {
     EP_LOG_INFO(
             "ActiveDurabilityMonitor::ctor(PDM&&): {} Transitioning from "
             "PDM: HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
@@ -197,7 +205,13 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
 
     auto s = state.wlock();
     for (auto& write : pdm.state.wlock()->trackedWrites) {
+        // Any prepares converted from the PDM into the ADM have an infinite
+        // timeout set (we cannot abort them as they may already have been
+        // Committed when we were non-active.
+        // This also means there's no need to consider scheduling the timeout
+        // callback here.
         s->trackedWrites.emplace_back(std::move(write));
+        Expects(!s->trackedWrites.back().getExpiryTime());
     }
 
     if (!s->trackedWrites.empty()) {
@@ -344,7 +358,7 @@ void ActiveDurabilityMonitor::processTimeout(
     }
 
     // Identify SyncWrites which can be timed out as of this time point
-    // and should be aborted, transferring them into the completedQeuue (under
+    // and should be aborted, transferring them into the completedQueue (under
     // the correct locks).
     state.wlock()->removeExpired(asOf, *resolvedQueue);
 
@@ -559,8 +573,10 @@ void ActiveDurabilityMonitor::removedQueuedAck(const std::string& node) {
     state.wlock()->queuedSeqnoAcks.erase(node);
 }
 
-ActiveDurabilityMonitor::State::State(const ActiveDurabilityMonitor& adm)
-    : adm(adm) {
+ActiveDurabilityMonitor::State::State(
+        ActiveDurabilityMonitor& adm,
+        std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
+    : adm(adm), nextExpiryChanged(std::move(nextExpiryChanged)) {
     const auto prefix = "ActiveDM(" + adm.vb.getId().to_string() + ")::State::";
     lastTrackedSeqno.setLabel(prefix + "lastTrackedSeqno");
     lastCommittedSeqno.setLabel(prefix + "lastCommittedSeqno");
@@ -804,11 +820,15 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
     // the SyncWrite from trackedWrites.
     it->resetChains();
 
+    // If we are removing the first element then (a) the "previous" item is
+    // different, and (b) we need to re-schedule the SyncWrite timeout task.
+    const bool removingFirstElement = it == trackedWrites.begin();
+
     Container::iterator prev;
     // Note: iterators in trackedWrites are never singular, Container::end
     //     is used as placeholder element for when an iterator cannot point to
     //     any valid element in Container
-    if (it == trackedWrites.begin()) {
+    if (removingFirstElement) {
         prev = trackedWrites.end();
     } else {
         prev = std::prev(it);
@@ -839,6 +859,14 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
 
     Container removed;
     removed.splice(removed.end(), trackedWrites, it);
+
+    if (removingFirstElement) {
+        // If first element was removed, then a new SyncWrite (or possibly none
+        // at all) is at the head of trackedWrites and hence now the next
+        // SyncWrite to be timeed out - reschedule the timeout callback.
+        scheduleTimeoutCallback();
+    }
+
     return std::move(removed.front());
 }
 
@@ -1426,11 +1454,20 @@ void ActiveDurabilityMonitor::State::addSyncWrite(const CookieIface* cookie,
                                                   queued_item item) {
     Expects(firstChain.get());
     const auto seqno = item->getBySeqno();
+    const auto wasEmpty = trackedWrites.empty();
     trackedWrites.emplace_back(cookie,
                                std::move(item),
                                defaultTimeout,
                                firstChain.get(),
                                secondChain.get());
+
+    if (wasEmpty) {
+        // trackedWrites transitioned from empty to non-empty; so the front
+        // item has changed (we now have one) and hence the next timeout
+        // callback should be scheduled.
+        scheduleTimeoutCallback();
+    }
+
     lastTrackedSeqno = seqno;
     totalAccepted++;
 }
@@ -1455,6 +1492,18 @@ void ActiveDurabilityMonitor::State::removeExpired(
             break;
         }
     }
+}
+
+void ActiveDurabilityMonitor::State::scheduleTimeoutCallback() {
+    if (!trackedWrites.empty()) {
+        const auto nextExpiry = trackedWrites.front().getExpiryTime();
+        if (nextExpiry) {
+            nextExpiryChanged->updateNextExpiryTime(*nextExpiry);
+            return;
+        }
+    }
+    // No SyncWrites exist, or no expiry set - cancel expiry task.
+    nextExpiryChanged->cancelNextExpiryTime();
 }
 
 void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(

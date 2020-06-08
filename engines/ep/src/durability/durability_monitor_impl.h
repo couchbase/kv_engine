@@ -166,6 +166,12 @@ public:
     std::chrono::steady_clock::time_point getStartTime() const;
 
     /**
+     * @returns The time point this SyncWrite will expire at. Will return
+     * an empty optional for SyncWrites which have no expiry time set.
+     */
+    std::optional<std::chrono::steady_clock::time_point> getExpiryTime() const;
+
+    /**
      * Notify this SyncWrite that it has been ack'ed by node.
      *
      * @param node
@@ -406,7 +412,9 @@ struct ActiveDurabilityMonitor::State {
     /**
      * @param adm The owning ActiveDurabilityMonitor
      */
-    explicit State(const ActiveDurabilityMonitor& adm);
+    explicit State(ActiveDurabilityMonitor& adm,
+                   std::unique_ptr<EventDrivenDurabilityTimeoutIface>
+                           nextExpiryChanged);
 
     /**
      * Create a replication chain. Not static as we require an iterator from
@@ -498,6 +506,14 @@ struct ActiveDurabilityMonitor::State {
      */
     void removeExpired(std::chrono::steady_clock::time_point asOf,
                        ResolvedQueue& expired);
+
+    /**
+     * Schedule the timeout callback based on the state of trackedWrites.
+     * If trackedWrites is non-empty then schedule timeout callback to run
+     * when trackedWrites.front() is due to expire; otherwise cancel the
+     * timeout callback.
+     */
+    void scheduleTimeoutCallback();
 
     /// @returns the name of the active node. Assumes the first chain is valid.
     const std::string& getActive() const;
@@ -735,6 +751,11 @@ public:
     // should never ack backwards.
     std::unordered_map<std::string, Monotonic<int64_t, ThrowExceptionPolicy>>
             queuedSeqnoAcks;
+
+    /// Interface to the VBucket's SyncWriteExpiry task, used to schedule when
+    /// the task should run to cancel (abort) any SyncWrites which have
+    /// exceeded their durability timeout.
+    std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged;
 
     friend std::ostream& operator<<(std::ostream& os, const State& s) {
         os << "#trackedWrites:" << s.trackedWrites.size()
