@@ -50,8 +50,6 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
             }
         }
         // Update general flush stats
-        vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
-        --epCtx.stats.diskQueueSize;
         epCtx.stats.totalPersisted++;
 
         // Account only committed items in opsCreate/Update and numTotalItems

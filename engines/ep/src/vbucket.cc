@@ -711,16 +711,6 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
-void VBucket::doStatsForFlushing(const Item& qi, size_t itemBytes) {
-    --dirtyQueueSize;
-    decrDirtyQueueMem(sizeof(Item));
-    ++dirtyQueueDrain;
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-            qi.getQueuedTime().time_since_epoch());
-    decrDirtyQueueAge(us.count());
-    decrDirtyQueuePendingWrites(itemBytes);
-}
-
 void VBucket::AggregatedFlushStats::accountItem(const Item& item) {
     ++numItems;
     totalBytes += item.size();
@@ -3004,8 +2994,6 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
             ++opsDelete;
         }
     }
-    doStatsForFlushing(queuedItem, queuedItem.size());
-    --stats.diskQueueSize;
     decrMetaDataDisk(queuedItem);
 }
 

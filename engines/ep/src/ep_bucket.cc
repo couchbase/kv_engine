@@ -546,9 +546,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
             }
-
-            // Register the item for deferred (flush success only) stats update.
-            aggStats.accountItem(*item);
         } else if (!canDeDuplicate(prev, *item)) {
             // This is an item we must persist.
             prev = item.get();
@@ -625,10 +622,10 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
             //     This means we only write the highest (i.e. newest)
             //     item for a given key, and discard any duplicate,
             //     older items.
-
-            // Register the item for deferred (flush success only) stats update.
-            aggStats.accountItem(*item);
         }
+
+        // Register the item for deferred (flush success only) stats update.
+        aggStats.accountItem(*item);
     }
 
     // Just return if nothing to flush

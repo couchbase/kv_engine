@@ -497,12 +497,9 @@ public:
     bool addPendingOp(const void *cookie);
 
     void doStatsForQueueing(const Item& item, size_t itemBytes);
-    void doStatsForFlushing(const Item& item, size_t itemBytes);
 
     /**
-     * Stores flush stats for deferrered update after flush-success.
-     * Note: currently used only for keeping track of set-vbstate items and
-     *  (non-flushed) deduplicated items.
+     * Stores flush stats for deferred update after flush-success.
      */
     class AggregatedFlushStats {
     public:
