@@ -549,44 +549,64 @@ void TestappTest::verify_server_running() {
 }
 
 void TestappTest::parse_portnumber_file() {
-    // I've seen that running under valgrind startup of the processes
-    // might be slow, and getting even worse if the machine is under
-    // load. Instead of having a "false timeout" just because the
-    // server is slow, lets set the deadline to a high value so that
-    // if we hit it we have a real problem and not just a loaded
-    // server (rebuilding all of the source one more time is just
-    // putting more load on the servers).
-    connectionMap.initialize(nlohmann::json::parse(
-            cb::io::loadFile(portnumber_file, std::chrono::minutes{5})));
+    try {
+        // I've seen that running under valgrind startup of the processes
+        // might be slow, and getting even worse if the machine is under
+        // load. Instead of having a "false timeout" just because the
+        // server is slow, lets set the deadline to a high value so that
+        // if we hit it we have a real problem and not just a loaded
+        // server (rebuilding all of the source one more time is just
+        // putting more load on the servers).
+        connectionMap.initialize(nlohmann::json::parse(
+                cb::io::loadFile(portnumber_file, std::chrono::minutes{5})));
 
-    // The tests which don't use the MemcachedConnection class needs the
-    // global variables port and ssl_port to be set
-    port = (in_port_t)-1;
-    ssl_port = (in_port_t)-1;
+        // The tests which don't use the MemcachedConnection class needs the
+        // global variables port and ssl_port to be set
+        port = (in_port_t)-1;
+        ssl_port = (in_port_t)-1;
 
-    connectionMap.iterate([](MemcachedConnection& connection) {
-        if (connection.getFamily() == AF_INET) {
-            if (connection.isSsl()) {
-                ssl_port = connection.getPort();
-            } else {
-                port = connection.getPort();
+        connectionMap.iterate([](MemcachedConnection& connection) {
+            if (connection.getFamily() == AF_INET) {
+                if (connection.isSsl()) {
+                    ssl_port = connection.getPort();
+                } else {
+                    port = connection.getPort();
+                }
             }
+        });
+
+        if (port == in_port_t(-1)) {
+            std::stringstream ss;
+            connectionMap.iterate([&ss](MemcachedConnection& connection) {
+                ss << "[" << connection.to_string() << "]," << std::endl;
+            });
+
+            throw std::runtime_error(
+                    "parse_portnumber_file: Failed to locate an plain IPv4 "
+                    "connection from: " +
+                    ss.str());
         }
-    });
 
-    if (port == in_port_t(-1)) {
-        throw std::runtime_error(
-                "parse_portnumber_file: Failed to locate an plain IPv4 "
-                "connection");
+        if (ssl_port == in_port_t(-1)) {
+            std::stringstream ss;
+            connectionMap.iterate([&ss](MemcachedConnection& connection) {
+                ss << "[" << connection.to_string() << "]," << std::endl;
+            });
+
+            throw std::runtime_error(
+                    "parse_portnumber_file: Failed to locate a SSL IPv4 "
+                    "connection from: " +
+                    ss.str());
+        }
+
+        EXPECT_EQ(0, remove(portnumber_file.c_str()));
+    } catch (const std::exception& e) {
+        std::cerr << "FATAL ERROR in parse_portnumber_file!" << std::endl
+                  << "An error occured while getting the connection ports: "
+                  << std::endl
+                  << e.what() << std::endl;
+        std::abort();
     }
-
-    if (ssl_port == in_port_t(-1)) {
-        throw std::runtime_error(
-                "parse_portnumber_file: Failed to locate a SSL IPv4 "
-                "connection");
-    }
-
-    EXPECT_EQ(0, remove(portnumber_file.c_str()));
 }
 
 int memcached_main(int argc, char** argv);
