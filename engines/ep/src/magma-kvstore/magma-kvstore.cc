@@ -1752,13 +1752,6 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
 
     Vbid vbid = ctx->compactConfig.db_file_id;
 
-    auto status = magma->Sync(true);
-    if (!status) {
-        logger->warn("MagmaKVStore::compactDBInternal: Sync failed. {}",
-                     ctx->compactConfig.db_file_id);
-        return false;
-    }
-
     auto dropped = getDroppedCollections(vbid);
     ctx->eraserContext =
             std::make_unique<Collections::VB::EraserContext>(dropped);
@@ -1778,9 +1771,12 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this, ctx);
     };
 
+    Status status;
     if (dropped.empty()) {
+        // Compact the entire key range
+        Slice nullKey;
         status = magma->CompactKVStore(
-                vbid.get(), Magma::StoreType::Key, compactionCB);
+                vbid.get(), nullKey, nullKey, compactionCB);
         if (!status) {
             logger->warn(
                     "MagmaKVStore::compactDBInternal CompactKVStore failed. "
