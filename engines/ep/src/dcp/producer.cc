@@ -1171,6 +1171,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         // sent an abort to the consumer in a non disk snapshot without it
         // having seen a prepare.
         if (responseStatus == cb::mcbp::Status::NotMyVbucket ||
+            responseStatus == cb::mcbp::Status::KeyEexists ||
             (responseStatus == cb::mcbp::Status::KeyEnoent &&
              opcode != cb::mcbp::ClientOpcode::DcpPrepare &&
              opcode != cb::mcbp::ClientOpcode::DcpAbort &&
@@ -1189,6 +1190,8 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
                 mcbpStatusName = "NotMyVbucket";
             } else if (responseStatus == cb::mcbp::Status::KeyEnoent) {
                 mcbpStatusName = "KeyEnoent";
+            } else if (responseStatus == cb::mcbp::Status::KeyEexists) {
+                mcbpStatusName = "KeyEexists";
             }
             logger->info(
                     "DcpProducer::handleResponse received "

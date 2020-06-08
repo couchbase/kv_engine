@@ -3057,6 +3057,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
     for (auto status : {cb::mcbp::Status::NotMyVbucket,
+                        cb::mcbp::Status::KeyEexists,
                         cb::mcbp::Status::KeyEnoent,
                         cb::mcbp::Status::Success}) {
         message.response.setStatus(status);
@@ -3108,7 +3109,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
                            cb::mcbp::Status::Enomem,
                            cb::mcbp::Status::Erange,
                            cb::mcbp::Status::Etmpfail,
-                           cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::Locked,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
@@ -3152,8 +3152,10 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
     message.response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    for (auto errorCode :
-         {cb::mcbp::Status::KeyEnoent, cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
+    for (auto errorCode : {cb::mcbp::Status::KeyEnoent,
+                           cb::mcbp::Status::KeyEexists,
+                           cb::mcbp::Status::NotMyVbucket,
+                           cb::mcbp::Status::Success}) {
         message.response.setStatus(errorCode);
         EXPECT_TRUE(producer->handleResponse(&message));
     }
@@ -3162,7 +3164,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
                            cb::mcbp::Status::Enomem,
                            cb::mcbp::Status::Erange,
                            cb::mcbp::Status::Etmpfail,
-                           cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::Locked,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
@@ -3188,7 +3189,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
                            cb::mcbp::Status::Enomem,
                            cb::mcbp::Status::Erange,
                            cb::mcbp::Status::Etmpfail,
-                           cb::mcbp::Status::KeyEexists,
                            cb::mcbp::Status::Locked,
                            cb::mcbp::Status::Success,
                            cb::mcbp::Status::SyncWriteAmbiguous,
@@ -3205,8 +3205,9 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
         }
     }
 
-    for (auto errorCode :
-         {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::KeyEnoent}) {
+    for (auto errorCode : {cb::mcbp::Status::NotMyVbucket,
+                           cb::mcbp::Status::KeyEexists,
+                           cb::mcbp::Status::KeyEnoent}) {
         message.response.setStatus(errorCode);
         // Test DcpNoop when the opaque is the default opaque value
         message.response.setOpaque(10000000);
