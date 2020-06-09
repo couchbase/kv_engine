@@ -29,6 +29,7 @@
 #include "dcp_utils.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_bucket.h"
+#include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
@@ -137,43 +138,27 @@ public:
      * @param flush_before_rollback: Should the vbucket be flushed to disk just
      *        before the rollback (i.e. guaranteeing the in-memory state is in
      *        sync with disk).
-     * @param expire_item: Instead of deleting the item, expire the item using
-     *        an expiry time and triggering it via a get.
      */
-    void rollback_after_deletion_test(bool flush_before_rollback,
-                                      bool expire_item) {
+    void rollback_after_deletion_test(bool flush_before_rollback) {
         // Setup: Store an item then flush the vBucket (creating a checkpoint);
-        // then delete/expire the item and create a second checkpoint.
+        // then delete the item and create a second checkpoint.
         StoredDocKey a = makeStoredDocKey("key");
-        auto expiryTime = 0;
-        if (expire_item) {
-            expiryTime = 10;
-        }
-        auto item_v1 = store_item(vbid, a, "1", expiryTime);
+        auto item_v1 = store_item(vbid, a, "1");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
         // Save the pre-rollback HashTable state for later comparison
         auto htState = getHtState();
-        if (expire_item) {
-            // Move time forward and trigger expiry on a get.
-            TimeTraveller arron(expiryTime * 2);
-            ASSERT_EQ(
-                    ENGINE_KEY_ENOENT,
-                    store->get(a, vbid, /*cookie*/ nullptr, get_options_t::NONE)
-                            .getStatus());
-        } else {
-            uint64_t cas = item_v1.getCas();
-            mutation_descr_t mutation_descr;
-            ASSERT_EQ(ENGINE_SUCCESS,
-                      store->deleteItem(a,
-                                        cas,
-                                        vbid,
-                                        /*cookie*/ nullptr,
-                                        {},
-                                        /*itemMeta*/ nullptr,
-                                        mutation_descr));
-        }
+        uint64_t cas = item_v1.getCas();
+        mutation_descr_t mutation_descr;
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  store->deleteItem(a,
+                                    cas,
+                                    vbid,
+                                    /*cookie*/ nullptr,
+                                    {},
+                                    /*itemMeta*/ nullptr,
+                                    mutation_descr));
         if (flush_before_rollback) {
             const auto& vb = *store->getVBucket(vbid);
             const auto& ckptList =
@@ -603,23 +588,11 @@ TEST_P(RollbackTest, RollbackAfterMutationNoFlush) {
 }
 
 TEST_P(RollbackTest, RollbackAfterDeletion) {
-    rollback_after_deletion_test(/*flush_before_rollback*/ true,
-                                 /*expire_item*/ false);
+    rollback_after_deletion_test(/*flush_before_rollback*/ true);
 }
 
 TEST_P(RollbackTest, RollbackAfterDeletionNoFlush) {
-    rollback_after_deletion_test(/*flush_before_rollback*/ false,
-                                 /*expire_item*/ false);
-}
-
-TEST_P(RollbackTest, RollbackAfterExpiration) {
-    rollback_after_deletion_test(/*flush_before_rollback*/ true,
-                                 /*expire_item*/ true);
-}
-
-TEST_P(RollbackTest, RollbackAfterExpirationNoFlush) {
-    rollback_after_deletion_test(/*flush_before_rollback*/ false,
-                                 /*expire_item*/ true);
+    rollback_after_deletion_test(/*flush_before_rollback*/ false);
 }
 
 TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshot) {
@@ -662,11 +635,9 @@ TEST_P(RollbackTest, RollbackMutationDocCountsNoFlush) {
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCounts) {
-    rollback_stat_test(1,
-                       std::bind(&RollbackTest::rollback_after_deletion_test,
-                                 this,
-                                 true,
-                                 false));
+    rollback_stat_test(
+            1,
+            std::bind(&RollbackTest::rollback_after_deletion_test, this, true));
 }
 
 // Test what happens when we rollback a deletion of a document that existed
@@ -675,7 +646,6 @@ TEST_P(RollbackTest, RollbackDeletionDocCountsNoFlush) {
     rollback_stat_test(1,
                        std::bind(&RollbackTest::rollback_after_deletion_test,
                                  this,
-                                 false,
                                  false));
 }
 
