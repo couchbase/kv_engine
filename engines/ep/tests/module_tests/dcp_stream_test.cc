@@ -2646,6 +2646,132 @@ TEST_P(SingleThreadedPassiveStreamTest,
     }
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInDelete) {
+    consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
+
+    // Send deletion in a single seqno snapshot
+    const uint32_t opaque = 1;
+    int64_t bySeqno = 1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
+
+    // Build up a value with just raw body and verify DCP failure
+    const std::string body = "body";
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(body.data()),
+                                body.size()};
+    EXPECT_EQ(ENGINE_EINVAL,
+              consumer->deletion(opaque,
+                                 {"key", DocKeyEncodesCollectionId::No},
+                                 value,
+                                 0 /*priv_bytes*/,
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0 /*cas*/,
+                                 vbid,
+                                 bySeqno,
+                                 0 /*revSeqno*/,
+                                 {} /*meta*/));
+
+    // Verify the same for body + xattrs
+    const auto xattrValue = createXattrValue(body);
+    value = {reinterpret_cast<const uint8_t*>(xattrValue.data()),
+             xattrValue.size()};
+    EXPECT_EQ(ENGINE_EINVAL,
+              consumer->deletion(opaque,
+                                 {"key", DocKeyEncodesCollectionId::No},
+                                 value,
+                                 0 /*priv_bytes*/,
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0 /*cas*/,
+                                 vbid,
+                                 bySeqno,
+                                 0 /*revSeqno*/,
+                                 {} /*meta*/));
+}
+
+void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
+        bool sysXattrs) {
+    // UserXattrs in deletion are valid only for connections that enable it
+    consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
+
+    // Send deletion in a single seqno snapshot
+    const uint32_t opaque = 1;
+    int64_t bySeqno = 1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
+
+    // Build up a value composed of:
+    // - no body
+    // - some user-xattrs ("ABCUser[1..6]" + "meta")
+    // - maybe the "_sync" sys-xattr
+    auto value = createXattrValue("", sysXattrs);
+    cb::const_byte_buffer valueBuf{
+            reinterpret_cast<const uint8_t*>(value.data()), value.size()};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(opaque,
+                                 {"key", DocKeyEncodesCollectionId::No},
+                                 valueBuf,
+                                 0 /*priv_bytes*/,
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0 /*cas*/,
+                                 vbid,
+                                 bySeqno,
+                                 0 /*revSeqno*/,
+                                 {} /*meta*/));
+
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    auto& kvstore = *store->getRWUnderlying(vbid);
+    auto doc = kvstore.get(makeDiskDocKey("key"), vbid);
+    EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+    EXPECT_TRUE(doc.item->isDeleted());
+    ASSERT_TRUE(doc.item);
+
+    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, doc.item->getDataType());
+    const auto* data = doc.item->getData();
+    const auto nBytes = doc.item->getNBytes();
+
+    // Checkout ondisk value
+
+    // No body
+    ASSERT_EQ(std::string_view(""), cb::xattr::get_body({data, nBytes}));
+    cb::xattr::Blob blob({const_cast<char*>(data), nBytes}, false);
+
+    // Must have user-xattrs
+    for (uint8_t i = 1; i <= 6; ++i) {
+        EXPECT_FALSE(blob.get("ABCuser" + std::to_string(i)).empty());
+    }
+    EXPECT_FALSE(blob.get("meta").empty());
+
+    if (sysXattrs) {
+        EXPECT_FALSE(blob.get("_sync").empty());
+    } else {
+        EXPECT_TRUE(blob.get("_sync").empty());
+    }
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerReceivesUserXattrsInDelete) {
+    testConsumerReceivesUserXattrsInDelete(true);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ConsumerReceivesUserXattrsInDelete_NoSysXattr) {
+    testConsumerReceivesUserXattrsInDelete(false);
+}
+
 TEST_P(SingleThreadedActiveStreamTest,
        CursorReregisteredBeforeBackfillAfterCursorDrop) {
     // MB-37150: test that, after cursor dropping, cursors are registered before

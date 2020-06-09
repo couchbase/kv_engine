@@ -153,4 +153,8 @@ public:
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
         return includeDeletedUserXattrs;
     }
+
+    void public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs value) {
+        includeDeletedUserXattrs = value;
+    }
 };

@@ -158,6 +158,14 @@ protected:
     void testInitialDiskSnapshotFlagClearedOnTransitionToActive(
             vbucket_state_t initialState);
 
+    /**
+     * Test that the Consumer accepts user-xattrs in deletion for enabled
+     * connections.
+     *
+     * @param sysXattrs Does the tested payload contain sys-xattrs?
+     */
+    void testConsumerReceivesUserXattrsInDelete(bool sysXattrs);
+
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
     // SetUp()?
