@@ -119,6 +119,6 @@ SerialisedDocKey::SerialisedDocKey(cb::const_byte_buffer key,
 }
 
 std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key) {
-    os << key.to_string() << ", size:" << key.size();
+    os << key.to_string() << ", size:" << std::dec << key.size();
     return os;
 }
