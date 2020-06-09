@@ -89,6 +89,32 @@ protected:
     DocInfo dbDocInfo;
 };
 
+/**
+ * Class for storing an update to the local documents index, will store a key
+ * and value alongside a couchstore LocalDoc struct.
+ */
+class CouchLocalDocRequest {
+public:
+    struct IsDeleted {};
+    /// store a key and value
+    CouchLocalDocRequest(std::string&& key, std::string&& value);
+    /// store a key and flatbuffer value (which will be copied into a string)
+    CouchLocalDocRequest(std::string&& key,
+                         const flatbuffers::DetachedBuffer& value);
+    /// store a key for deletion
+    CouchLocalDocRequest(std::string&& key, IsDeleted);
+    /// @return reference to the LocalDoc structure
+    LocalDoc& getLocalDoc();
+
+protected:
+    void setupKey();
+    void setupValue();
+
+    std::string key;
+    std::string value;
+    LocalDoc doc{};
+};
+
 struct kvstats_ctx;
 
 /**
@@ -495,6 +521,7 @@ protected:
      * std::vector (CouchRequest objects are ~256 bytes in size).
      */
     using PendingRequestQueue = std::deque<CouchRequest>;
+    using PendingLocalDocRequestQueue = std::deque<CouchLocalDocRequest>;
 
     /*
      * Returns the DbInfo for the given vbucket database.
@@ -539,7 +566,8 @@ protected:
     void commitCallback(PendingRequestQueue& committedReqs,
                         kvstats_ctx& kvctx,
                         couchstore_error_t errCode);
-    couchstore_error_t saveVBState(Db *db, const vbucket_state &vbState);
+
+    void saveVBState(const vbucket_state& vbState);
 
     /**
      * Save stats for collection cid into the file referenced by db
@@ -553,10 +581,9 @@ protected:
 
     /**
      * Delete the count for collection cid
-     * @param db The Db to write to
      * @param cid The collection to delete
      */
-    void deleteCollectionStats(Db& db, CollectionID cid);
+    void deleteCollectionStats(CollectionID cid);
 
     std::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
@@ -573,47 +600,42 @@ protected:
     LocalDocHolder readLocalDoc(Db& db, const std::string& name);
 
     /**
-     * Write a document to the local docs index
+     * Insert a key/value to be later written to the local docs index
      *
-     * Internally logs errors from couchstore
-     *
-     * @param db The database handle to write to
      * @param name The name of the document to write
-     * @param data The data to write
-     * @return error code success or other (non-success is logged)
+     * @param value The data to write
      */
-    couchstore_error_t writeLocalDoc(Db& db,
-                                     const std::string& name,
-                                     std::string_view data);
+    void writeLocalDoc(std::string&& name, std::string&& value);
 
     /**
-     * Delete a document from the local docs index
+     * Insert a key/value to be later written to the local docs index
      *
-     * Internally logs errors from couchstore
-     *
-     * @param db The database handle to write to
-     * @param name The name of the document to delete
-     * @return error code success or other (non-success is logged)
+     * @param name The name of the document to write
+     * @param value The data to write (flatbuffer data)
      */
-    couchstore_error_t deleteLocalDoc(Db& db, const std::string& name);
+    void writeLocalDoc(std::string&& name,
+                       const flatbuffers::DetachedBuffer& value);
+
+    /**
+     * Insert a key for to be later deleted from the local docs index
+     *
+     * @param name The name of the document to delete
+     */
+    void deleteLocalDoc(std::string&& name);
 
     /**
      * Sync the KVStore::collectionsMeta structures to the database.
      *
-     * @param db The database handle to update
-     * @return error code success or other (non-success is logged)
+     * @param db The database handle used to read state
      */
-    couchstore_error_t updateCollectionsMeta(
-            Db& db, Collections::VB::Flush& collectionsFlush);
+    void updateCollectionsMeta(Db& db,
+                               Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the current
-     * uid committed
-     *
-     * @param db The database handle to update
-     * @return error code success or other (non-success is logged)
+     * uid committed by creating a pending write to the local document index.
      */
-    couchstore_error_t updateManifestUid(Db& db);
+    void updateManifestUid();
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of open
@@ -624,11 +646,11 @@ protected:
      * duplicated read of the dropped collections.
      *
      * @param db The database handle to update
-     * @return a pair of error code and the dropped collections
+     * @return the dropped collections
      */
-    std::pair<couchstore_error_t,
-              std::vector<Collections::KVStore::DroppedCollection>>
-    updateOpenCollections(Db& db);
+
+    std::vector<Collections::KVStore::DroppedCollection> updateOpenCollections(
+            Db& db);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
@@ -639,7 +661,7 @@ protected:
      *        storage if this optional is not initialised
      * @return error code success or other (non-success is logged)
      */
-    couchstore_error_t updateDroppedCollections(
+    void updateDroppedCollections(
             Db& db,
             std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                     dropped);
@@ -651,7 +673,7 @@ protected:
      * @param db The database handle to update
      * @return error code success or other (non-success is logged)
      */
-    couchstore_error_t updateScopes(Db& db);
+    void updateScopes(Db& db);
 
     /**
      * read local document to get the vector of dropped collections from an
@@ -736,6 +758,13 @@ protected:
                            Vbid vb,
                            GetMetaOnly getMetaOnly);
 
+    /**
+     * Process the queue of local index updates (pendingLocalReqsQ) and make
+     * one call to cb::couchstore::saveLocalDocuments.
+     * Regardless of error, the current pendidLocalReqsQ is then cleared.
+     */
+    couchstore_error_t updateLocalDocuments(Db& db);
+
     CouchKVStoreConfig& configuration;
 
     const std::string dbname;
@@ -763,6 +792,7 @@ protected:
 
     uint16_t numDbFiles;
     PendingRequestQueue pendingReqsQ;
+    PendingLocalDocRequestQueue pendingLocalReqsQ;
 
     /**
      * FileOpsInterface implementation for couchstore which tracks
