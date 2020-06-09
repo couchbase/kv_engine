@@ -159,12 +159,23 @@ protected:
             vbucket_state_t initialState);
 
     /**
+     * Test that the Consumer rejects body in deletion's value
+     *
+     * @param durReqs (optional) The Dur Reqs, if we are testing SyncDelete
+     */
+    void testConsumerRejectsBodyInDelete(
+            const std::optional<cb::durability::Requirements>& durReqs);
+
+    /**
      * Test that the Consumer accepts user-xattrs in deletion for enabled
      * connections.
      *
      * @param sysXattrs Does the tested payload contain sys-xattrs?
+     * @param durReqs (optional) The Dur Reqs, if we are testing SyncDelete
      */
-    void testConsumerReceivesUserXattrsInDelete(bool sysXattrs);
+    void testConsumerReceivesUserXattrsInDelete(
+            bool sysXattrs,
+            const std::optional<cb::durability::Requirements>& durReqs);
 
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
