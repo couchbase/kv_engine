@@ -834,7 +834,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_WRITE)).RetiresOnSaturation();
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(8).RetiresOnSaturation();
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(5).RetiresOnSaturation();
 
         kvstore->commit(flush);
     }
