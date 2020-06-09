@@ -48,6 +48,7 @@ bool validate(std::string_view blob);
  *         (the body size == payload.size() - the returned value)
  */
 uint32_t get_body_offset(std::string_view payload);
+
 /**
  * Get the segment where the actual body lives
  *
@@ -112,5 +113,15 @@ size_t get_system_xattr_size(uint8_t datatype, std::string_view doc);
  */
 std::pair<size_t, size_t> get_size_and_system_xattr_size(uint8_t datatype,
                                                          std::string_view doc);
+
+/**
+ * Get the size of the body chunk in the provided value, which may not contain
+ * any xattr.
+ *
+ * @param datatype
+ * @param value
+ * @return the body size
+ */
+size_t get_body_size(uint8_t datatype, std::string_view value);
 }
 }
