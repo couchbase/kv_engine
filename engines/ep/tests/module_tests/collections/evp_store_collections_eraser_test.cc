@@ -23,6 +23,7 @@
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket_state.h"
 
 class CollectionsEraserTest : public STParameterizedBucketTest {
 public:
@@ -583,6 +584,53 @@ TEST_P(CollectionsEraserTest, MB_38313) {
     store->deleteVBucket(vbid, nullptr);
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                 "Compact DB file 0"); // would fault (gsl exception)
+}
+
+// @TODO move to CollectionsEraserSyncWriteTest when we run it for all backends
+TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
+    // Ephemeral doesn't have comparable compaction so not valid to test here
+    if (!persistent()) {
+        return;
+    }
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Do our SyncWrite
+    auto key = makeStoredDocKey("syncwrite");
+    auto item = makePendingItem(key, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // And commit it
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(key,
+                         2 /*prepareSeqno*/,
+                         {} /*commitSeqno*/,
+                         vb->lockCollections(key)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // add some items
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1x items */);
+
+    // delete the collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
+
+    runEraser();
+
+    // We expect the prepare to have been visited (and dropped due to
+    // completion) during this compaction as the compaction must iterate over
+    // the prepare namespace
+    auto state = store->getRWUnderlying(vbid)->getVBucketState(vbid);
+    ASSERT_TRUE(state);
+    EXPECT_EQ(0, state->onDiskPrepares);
 }
 
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {

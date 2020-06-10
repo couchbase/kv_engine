@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <limits>
 #include <utility>
+#include <mcbp/protocol/unsigned_leb128.h>
 
 class Snapshot;
 
@@ -1828,6 +1829,22 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
 
             ctx->eraserContext->processEndOfCollection(key.getDocKey(),
                                                        SystemEvent::Collection);
+        }
+
+        // For magma we also need to compact the prepare namespace as this is
+        // disjoint from the collection namespaces
+        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(CollectionID::DurabilityPrepare);
+        auto prepareKey = std::string(reinterpret_cast<const char*>(leb128.data()),
+                           leb128.size());
+        Slice prepareSlice{prepareKey};
+        status = magma->CompactKVStore(
+                vbid.get(), prepareSlice, prepareSlice, compactionCB);
+        if (!status) {
+            logger->warn(
+                    "MagmaKVStore::compactDBInternal CompactKVStore {} "
+                    "over the prepare namespace failed with status:{}",
+                    vbid,
+                    status.String());
         }
     }
 
