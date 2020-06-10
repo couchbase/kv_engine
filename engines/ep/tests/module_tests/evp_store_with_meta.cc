@@ -668,13 +668,15 @@ void WithMetaTest::conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
     ItemMetaData itemMeta{
             100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
     std::string value;
+    protocol_binary_datatype_t datatype = 0;
     if (withValue) {
         value = createXattrValue("myvalue");
+        datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     }
     std::string key = "mykey";
     // First add a document so we have something to conflict with
     auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
-                                   0 /*xattr off*/,
+                                   datatype,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
                                    0 /*cas*/,
@@ -690,7 +692,7 @@ void WithMetaTest::conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
 
     // revSeqno/cas/exp/flags equal, xattr on, conflict (a set would win)
     swm = buildWithMetaPacket(op,
-                              PROTOCOL_BINARY_DATATYPE_XATTR,
+                              datatype,
                               vbid /*vbucket*/,
                               0 /*opaque*/,
                               0 /*cas*/,
@@ -1424,10 +1426,12 @@ TEST_P(DelWithMetaTest, MB_31141) {
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
 
     // Before the fix 5.0+ could of left the value as 5, the size of the
-    // extended metadata. (The expected size is the size of the system
-    // xattrs segment. The rest of the value (user defined xattrs and value)
-    // was stripped off as part of delete)
-    int expectedSize = withValue ? 43 : 0;
+    // extended metadata. With the fix, the expected size is the size of the
+    // system xattrs segment (43), as the rest of the value (user defined xattrs
+    // and value) was stripped off as part of delete.
+    // From 6.6 (MB-37374) we strip only the body, so the expected size is the
+    // size of the entire Xattrs chunk (268).
+    int expectedSize = withValue ? 268 : 0;
     EXPECT_EQ(expectedSize, result.item->getNBytes());
 }
 

@@ -107,11 +107,25 @@ TEST_F(BackfillManagerTest, Sequential) {
     auto backfill1 = std::make_unique<GMockDCPBackfill>();
     auto backfill2 = std::make_unique<GMockDCPBackfill>();
 
-    // Expectation - the first backfill should be run to completion before the
-    // next one starts.
+    // Expectation - each Backfill should be run once (to initialise and
+    // generate the snapshot_marker, then the first backfill should be run to
+    // completion before the next one starts.
     //
     {
         InSequence s;
+
+        // each backfill called once for snapshot_marker
+        EXPECT_CALL(*backfill0, run())
+                .WillOnce(Return(backfill_success))
+                .RetiresOnSaturation();
+        EXPECT_CALL(*backfill1, run())
+                .WillOnce(Return(backfill_success))
+                .RetiresOnSaturation();
+        EXPECT_CALL(*backfill2, run())
+                .WillOnce(Return(backfill_success))
+                .RetiresOnSaturation();
+
+        // then each one sequential until finished.
         EXPECT_CALL(*backfill0, run())
                 .WillOnce(Return(backfill_success))
                 .WillOnce(Return(backfill_finished))
@@ -127,7 +141,7 @@ TEST_F(BackfillManagerTest, Sequential) {
     }
 
     // Test: schedule all backfills, then instruct the backfill manager to
-    // backfill 6 times.
+    // backfill 9 times.
     backfillMgr->setBackfillOrder(BackfillManager::ScheduleOrder::Sequential);
     ASSERT_EQ(BackfillManager::ScheduleResult::Active,
               backfillMgr->schedule(std::move(backfill0)));
@@ -135,10 +149,7 @@ TEST_F(BackfillManagerTest, Sequential) {
               backfillMgr->schedule(std::move(backfill1)));
     ASSERT_EQ(BackfillManager::ScheduleResult::Active,
               backfillMgr->schedule(std::move(backfill2)));
-    backfillMgr->backfill();
-    backfillMgr->backfill();
-    backfillMgr->backfill();
-    backfillMgr->backfill();
-    backfillMgr->backfill();
-    backfillMgr->backfill();
+    for (int i = 0; i < 9; i++) {
+        backfillMgr->backfill();
+    }
 }
