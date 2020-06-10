@@ -47,16 +47,17 @@ elif op == "loop_set":
 elif op == "setD":
     if len(sys.argv) > 9:
         level = int(sys.argv[9])
-    if len(sys.argv) > 9:
+    if len(sys.argv) > 10:
         timeout = int(sys.argv[10])
-    print (client.setDurable(key, 0, 0, value, level=level, timeout=timeout))
+    print (client.setDurable(key, 0, 0, value, level=level, timeout=timeout,
+                             collection=collection))
 elif op == "bulk_setD":
     count = int(sys.argv[9])
     if len(sys.argv) > 10:
         level = int(sys.argv[10])
 
     for i in range(count):
-        client.setDurable(key + "_" + str(i)
+        client.setDurable(key + "_" + str(i),
                           0,
                           0,
                           value,
