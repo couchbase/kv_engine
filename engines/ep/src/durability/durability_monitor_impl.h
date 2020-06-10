@@ -831,6 +831,19 @@ struct PassiveDurabilityMonitor::State {
      */
     void checkForAndRemovePrepares();
 
+    /**
+     * Check for and drop any collections from droppedCollections that we can
+     */
+    void checkForAndRemoveDroppedCollections();
+
+    /**
+     * Erase the SyncWrite at the given iterator after fixing up the iterators
+     * for the HCS and HPS values (if they point to the element to be erased)
+     *
+     * @return trackedWrites.erase(...) result
+     */
+    Container::iterator safeEraseSyncWrite(Container::iterator toErase);
+
     /// The container of pending Prepares.
     Container trackedWrites;
 
@@ -858,6 +871,12 @@ struct PassiveDurabilityMonitor::State {
     // Aborted). Together with the HPS Position, it is used for implementing
     // the correct Prepare remove-logic in PassiveDM.
     Position<Container> highCompletedSeqno;
+
+    // Map of collections to their end seqnos that have been dropped and may
+    // have outstanding prepares. Required to allow us to skip over and clean up
+    // prepares for dropped collections in trackedWrites without acquiring the
+    // collection VB manifest handle which would cause a lock order inversion.
+    std::unordered_map<CollectionID, int64_t> droppedCollections;
 
     const PassiveDurabilityMonitor& pdm;
 };

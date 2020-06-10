@@ -30,6 +30,7 @@
 #include <folly/concurrency/UnboundedQueue.h>
 
 #include <gsl.h>
+#include <memcached/dockey.h>
 #include <utilities/logtags.h>
 
 constexpr std::chrono::milliseconds
@@ -817,6 +818,14 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
 
 void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
+    auto cHandle = vb.lockCollections(key);
+
+    if (!cHandle.valid()) {
+        // collection no longer exists, cannot commit
+        vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
+                                           ENGINE_SYNC_WRITE_AMBIGUOUS);
+        return;
+    }
 
     const auto prepareEnd = std::chrono::steady_clock::now();
     auto* cookie = sw.getCookie();
@@ -834,7 +843,7 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     auto result = vb.commit(key,
                             sw.getBySeqno() /*prepareSeqno*/,
                             {} /*commitSeqno*/,
-                            vb.lockCollections(key),
+                            cHandle,
                             sw.getCookie());
     if (result != ENGINE_SUCCESS) {
         throwException<std::logic_error>(
@@ -863,19 +872,72 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
 
 void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
-    auto result = vb.abort(key,
-                           sw.getBySeqno() /*prepareSeqno*/,
-                           {} /*abortSeqno*/,
-                           vb.lockCollections(key),
-                           sw.getCookie());
-    if (result != ENGINE_SUCCESS) {
-        throwException<std::logic_error>(
-                __func__, "failed with status:" + std::to_string(result));
+
+    auto cHandle = vb.lockCollections(key);
+    if (cHandle.valid()) {
+        auto result = vb.abort(key,
+                               sw.getBySeqno() /*prepareSeqno*/,
+                               {} /*abortSeqno*/,
+                               cHandle,
+                               sw.getCookie());
+        if (result != ENGINE_SUCCESS) {
+            throwException<std::logic_error>(
+                    __func__, "failed with status:" + std::to_string(result));
+        }
+    } else {
+        // collection no longer exists, don't generate an abort
+        vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
+                                           ENGINE_SYNC_WRITE_AMBIGUOUS);
     }
     auto s = state.wlock();
     s->lastAbortedSeqno = sw.getBySeqno();
     s->updateHighCompletedSeqno();
     s->totalAborted++;
+}
+
+void ActiveDurabilityMonitor::eraseSyncWrite(const DocKey& key, int64_t seqno) {
+    auto s = state.wlock();
+
+    // Need to find the write we want to drop
+    auto toErase = std::find_if(
+            s->trackedWrites.begin(),
+            s->trackedWrites.end(),
+            [key](const auto& write) -> bool { return write.getKey() == key; });
+
+    if (toErase->getBySeqno() != seqno) {
+        std::stringstream ss;
+        ss << "Attempting to drop prepare for '"
+           << cb::tagUserData(key.to_string())
+           << "' but seqno does not match. Seqno of prepare: "
+           << toErase->getBySeqno() << ", seqno given: " << seqno;
+        throwException<std::logic_error>(__func__, "" + ss.str());
+    }
+
+    // We need to update the positions for the acks if they are pointing to
+    // the writes we are about to erase
+    auto valid = toErase == s->trackedWrites.begin() ? s->trackedWrites.end()
+                                                     : std::prev(toErase);
+
+    if (s->firstChain) {
+        // We really should have a first chain at this point, the only case
+        // where we shouldn't should be an upgrade, but better safe than sorry!
+        for (auto& position : s->firstChain->positions) {
+            if (position.second.it == toErase) {
+                position.second.it = valid;
+            }
+        }
+    }
+
+    if (s->secondChain) {
+        for (auto& position : s->secondChain->positions) {
+            if (position.second.it == toErase) {
+                position.second.it = valid;
+            }
+        }
+    }
+
+    // And erase
+    s->trackedWrites.erase(toErase);
 }
 
 std::vector<const void*>

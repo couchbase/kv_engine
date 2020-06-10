@@ -927,10 +927,14 @@ void EPVBucket::dropKey(int64_t bySeqno,
                         Collections::VB::Manifest::CachingReadHandle& cHandle) {
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
-    auto res = fetchValidValue(
-            WantsDeleted::No, TrackReference::No, QueueExpired::No, cHandle);
-    if (res.storedValue && res.storedValue->getBySeqno() == bySeqno) {
-        ht.unlocked_del(res.lock, res.storedValue);
+    const auto& key = cHandle.getKey();
+
+    auto res = ht.findForUpdate(key);
+    if (res.committed && res.committed->getBySeqno() == bySeqno) {
+        ht.unlocked_del(res.getHBL(), res.committed);
+    }
+    if (res.pending && res.pending->getBySeqno() == bySeqno) {
+        ht.unlocked_del(res.getHBL(), res.pending.release());
     }
 }
 
@@ -969,6 +973,13 @@ int64_t EPVBucket::addSystemEventItem(
         doCollectionsStats(wHandle, *cid, notifyCtx);
         if (qi->isDeleted()) {
             stats.dropCollectionStats(*cid);
+
+            // Inform the PDM about the dropped collection so that it knows
+            // that it can skip any outstanding prepares until they are cleaned
+            // up
+            if (getState() != vbucket_state_active) {
+                getPassiveDM().notifyDroppedCollection(*cid, notifyCtx.bySeqno);
+            }
         } else {
             stats.trackCollectionStats(*cid);
         }

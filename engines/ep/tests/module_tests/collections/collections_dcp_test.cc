@@ -19,6 +19,7 @@
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
+#include "ephemeral_vb.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
@@ -282,6 +283,34 @@ void CollectionsDcpTest::ensureDcpWillBackfill() {
     // Move DCP to a new vbucket so that we can replay history from 0
     // without having to wind back vbid(1)
     replicaVB++;
+}
+
+void CollectionsDcpTest::runEraser() {
+    {
+        SCOPED_TRACE("CollectionsDcpTest::runEraser - active");
+        runEraser(vbid);
+    }
+
+    {
+        SCOPED_TRACE("CollectionsDcpTest::runEraser - replica");
+        runEraser(replicaVB);
+    }
+}
+
+void CollectionsDcpTest::runEraser(Vbid id) {
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        std::string task = "Compact DB file " + std::to_string(id.get());
+        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
+        EXPECT_TRUE(store->getVBucket(id)
+                            ->getShard()
+                            ->getRWUnderlying()
+                            ->getDroppedCollections(id)
+                            .empty());
+    } else {
+        auto vb = store->getVBucket(id);
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
+        evb->purgeStaleItems();
+    }
 }
 
 ENGINE_ERROR_CODE CollectionsDcpTest::dcpAddFailoverLog(

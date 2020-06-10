@@ -168,6 +168,8 @@ void PassiveDurabilityMonitor::addSyncWrite(
     }
 
     auto s = state.wlock();
+    s->checkForAndRemoveDroppedCollections();
+
     if (overwritingPrepareSeqno) {
         // Remove any trackedWrites with the same key.
         auto itr = s->trackedWrites.begin();
@@ -240,6 +242,7 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
         // ack'ed back to the Active.
         auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
+        s->checkForAndRemoveDroppedCollections();
 
         // Store the seqno ack to send after we drop the state lock
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
@@ -257,6 +260,7 @@ void PassiveDurabilityMonitor::notifyLocalPersistence() {
         auto s = state.wlock();
         auto prevHps = s->highPreparedSeqno.lastWriteSeqno;
         s->updateHighPreparedSeqno();
+        s->checkForAndRemoveDroppedCollections();
 
         // Store the seqno ack to send after we drop the state lock
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
@@ -340,6 +344,27 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         }
     }
 
+    // We may hit the case where the first thing(s) in trackedWrites are for
+    // collections that have been dropped already but not yet been fully cleaned
+    // up by the collections eraser task (compaction). In this case, we will
+    // erase any SyncWrites for dropped collections.
+    if (enforceOrderedCompletion && next->getKey() != key &&
+        !s->droppedCollections.empty()) {
+        // This should iterate through trackedWrites until the first thing that
+        // is not part of a dropped collection
+        while (next != s->trackedWrites.end()) {
+            auto nextCid = next->getKey().getCollectionID();
+            if (s->droppedCollections.find(nextCid) ==
+                s->droppedCollections.end()) {
+                // Common path - most things won't belong to a dropped
+                // Collection
+                break;
+            } else {
+                next = s->safeEraseSyncWrite(next);
+            }
+        }
+    }
+
     if (next == s->trackedWrites.end()) {
         if (!enforceOrderedCompletion && res == Resolution::Abort) {
             // Ignore abort without matching prepare from disk snapshot as
@@ -405,6 +430,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(
 
     // HCS may have moved, which could make some Prepare eligible for removal.
     s->checkForAndRemovePrepares();
+    s->checkForAndRemoveDroppedCollections();
 
     switch (res) {
     case Resolution::Commit:
@@ -415,6 +441,57 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         return;
     }
     folly::assume_unreachable();
+}
+
+void PassiveDurabilityMonitor::eraseSyncWrite(const DocKey& key,
+                                              int64_t seqno) {
+    auto s = state.wlock();
+
+    // Have to start from the beginning of trackedWrites for a couple reasons:
+    //
+    // 1) Disk snapshots with de-dupe means a prepare could exist before the HCS
+    // 2) Completed prepares can exist before the HCS for non disk snapshots if
+    //    we have not yet persisted them but have a completion.
+    auto toErase = std::find_if(
+            s->trackedWrites.begin(),
+            s->trackedWrites.end(),
+            [key](const auto& write) -> bool { return write.getKey() == key; });
+
+    // We might call into here with a prepare that does not exist in the DM if:
+    //
+    // 1) The prepare is for a collection that has been dropped
+    // 2) A following prepare has been completed triggering the cleanup of
+    //    prepares with lower seqnos belonging to dropped collections
+    if (toErase == s->trackedWrites.end()) {
+        return;
+    }
+
+    if (toErase->getBySeqno() != seqno) {
+        std::stringstream ss;
+        ss << "Attempting to drop prepare for '"
+           << cb::tagUserData(key.to_string())
+           << "' but seqno does not match. Seqno of prepare: "
+           << toErase->getBySeqno() << ", seqno given: " << seqno;
+        throwException<std::logic_error>(__func__, "" + ss.str());
+    }
+
+    // Don't change HCS or HPS values, but we do need to ensure the iterators
+    // are correct.
+    // Find the correct iterator for setting HCS and HPS. We can't leave them
+    // pointing to invalid elements. We always need to move the iterator back
+    // to ensure that we never advance the HCS or HPS.
+    s->safeEraseSyncWrite(toErase);
+}
+
+void PassiveDurabilityMonitor::notifyDroppedCollection(CollectionID cid,
+                                                       int64_t seqno) {
+    auto s = state.wlock();
+    s->droppedCollections[cid] = seqno;
+}
+
+size_t PassiveDurabilityMonitor::getNumDroppedCollections() const {
+    auto s = state.rlock();
+    return s->droppedCollections.size();
 }
 
 int64_t PassiveDurabilityMonitor::getHighestTrackedSeqno() const {
@@ -442,6 +519,28 @@ PassiveDurabilityMonitor::State::State(const PassiveDurabilityMonitor& pdm)
     const auto hcsPrefix = prefix + "highCompletedSeqno";
     highCompletedSeqno.lastWriteSeqno.setLabel(hcsPrefix + ".lastWriteSeqno");
     highCompletedSeqno.lastAckSeqno.setLabel(hcsPrefix + ".lastAckSeqno");
+}
+
+PassiveDurabilityMonitor::Container::iterator
+PassiveDurabilityMonitor::State::safeEraseSyncWrite(
+        Container::iterator toErase) {
+    // Don't change HCS or HPS values, but we do need to ensure the iterators
+    // are correct.
+    // Find the correct iterator for setting HCS and HPS. We can't leave them
+    // pointing to invalid elements. We always need to move the iterator back
+    // to ensure that we never advance the HCS or HPS.
+    auto valid = toErase == trackedWrites.begin() ? trackedWrites.end()
+                                                  : std::prev(toErase);
+
+    if (toErase == highPreparedSeqno.it) {
+        highPreparedSeqno.it = valid;
+    }
+
+    if (toErase == highCompletedSeqno.it) {
+        highCompletedSeqno.it = valid;
+    }
+
+    return trackedWrites.erase(toErase);
 }
 
 PassiveDurabilityMonitor::Container::iterator
@@ -632,6 +731,32 @@ void PassiveDurabilityMonitor::State::checkForAndRemovePrepares() {
         const auto next = std::next(it);
         trackedWrites.erase(it);
         it = next;
+    }
+}
+
+void PassiveDurabilityMonitor::State::checkForAndRemoveDroppedCollections() {
+    if (droppedCollections.empty()) {
+        return;
+    }
+
+    if (trackedWrites.empty()) {
+        // Nothing in trackedWrites means we should never need to check for
+        // any collection added to droppedCollections and we can remove them
+        // all
+        droppedCollections.clear();
+        return;
+    }
+
+    // Remove everything dropped before the first thing in
+    // trackedWrites. This isn't perfect, but we expect collection drops
+    // to be infrequent compared to SyncWrites so we don't want to
+    // iterate trackedWrites here.
+    int64_t firstSeqno = trackedWrites.begin()->getBySeqno();
+
+    for (auto& dc : droppedCollections) {
+        if (dc.second < firstSeqno) {
+            droppedCollections.erase(dc.first);
+        }
     }
 }
 

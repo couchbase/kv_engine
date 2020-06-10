@@ -25,6 +25,7 @@
 
 #include <unordered_set>
 
+struct DocKey;
 class EPStats;
 class PassiveDurabilityMonitor;
 struct vbucket_state;
@@ -328,6 +329,20 @@ public:
     static void chainToOstream(std::ostream& os,
                                const ReplicationChain& rc,
                                Container::const_iterator trackedWritesEnd);
+
+    /**
+     * Erase the SyncWrite with the given key and seqno from the DM.
+     *
+     * Does not move the HCS or HPS values as this would be incorrect (neither
+     * can move forward if we don't prepare or complete something, neither can
+     * move backwards at all).
+     *
+     * Moves iterators of acks /backwards/ to the first valid position.
+     *
+     * @param key Key to drop
+     * @param seqno Expected seqno of the SyncWrite we are dropping
+     */
+    void eraseSyncWrite(const DocKey& key, int64_t seqno);
 
 protected:
     void toOStream(std::ostream& os) const override;

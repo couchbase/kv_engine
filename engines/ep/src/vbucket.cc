@@ -840,6 +840,7 @@ ENGINE_ERROR_CODE VBucket::commit(
         std::optional<int64_t> commitSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
+    Expects(cHandle.valid());
     auto res = ht.findForUpdate(key);
     if (!res.pending) {
         // If we are committing we /should/ always find the pending item.
@@ -897,6 +898,7 @@ ENGINE_ERROR_CODE VBucket::abort(
         std::optional<int64_t> abortSeqno,
         const Collections::VB::Manifest::CachingReadHandle& cHandle,
         const void* cookie) {
+    Expects(cHandle.valid());
     auto htRes = ht.findForUpdate(key);
 
     // This block handles the case where at Replica we receive an Abort but we
@@ -4011,4 +4013,12 @@ bool VBucket::isReceivingDiskSnapshot() const {
 
 uint64_t VBucket::getMaxVisibleSeqno() const {
     return checkpointManager->getMaxVisibleSeqno();
+}
+
+void VBucket::dropPendingKey(const DocKey& key, int64_t seqno) {
+    if (state == vbucket_state_active) {
+        getActiveDM().eraseSyncWrite(key, seqno);
+    } else {
+        getPassiveDM().eraseSyncWrite(key, seqno);
+    }
 }

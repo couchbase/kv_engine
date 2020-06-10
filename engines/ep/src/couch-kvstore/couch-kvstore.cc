@@ -805,19 +805,22 @@ static int time_purge_hook(Db* d,
                                                        int64_t(info->db_seq))) {
                 // Inform vb that the key@seqno is dropped
                 try {
-                    ctx->droppedKeyCb(diskKey, int64_t(info->db_seq));
+                    ctx->droppedKeyCb(diskKey,
+                                      int64_t(info->db_seq),
+                                      metadata->isAbort());
                 } catch (const std::exception& e) {
                     EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
                                 e.what());
                     return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
                 }
-                if (!info->deleted) {
-                    ctx->stats.collectionsItemsPurged++;
-                } else {
-                    ctx->stats.collectionsDeletedItemsPurged++;
-                }
                 if (metadata->isPrepare()) {
                     ctx->stats.preparesPurged++;
+                } else {
+                    if (!info->deleted) {
+                        ctx->stats.collectionsItemsPurged++;
+                    } else {
+                        ctx->stats.collectionsDeletedItemsPurged++;
+                    }
                 }
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             } else if (info->deleted) {

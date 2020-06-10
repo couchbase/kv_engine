@@ -301,6 +301,16 @@ protected:
     void simulateTimeoutCheck(ActiveDurabilityMonitor& adm,
                               std::chrono::steady_clock::time_point now) const;
 
+    /**
+     * Test that we can drop the first key in trackedWrites
+     */
+    void testDropFirstKey();
+
+    /**
+     * Test that we can drop the last key in trackedWrites
+     */
+    void testDropLastKey();
+
     const std::string active = "active";
     const std::string replica1 = "replica1";
     const std::string replica2 = "replica2";
@@ -424,6 +434,16 @@ protected:
      */
     void testRemoveCompletedOnlyIfLocallySatisfied(
             PassiveDurabilityMonitor::Resolution res);
+
+    /**
+     * Test that we can drop the first key in trackedWrites
+     */
+    void testDropFirstKey();
+
+    /**
+     * Test that we can drop the last key in trackedWrites
+     */
+    void testDropLastKey();
 };
 
 /*

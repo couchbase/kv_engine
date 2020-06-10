@@ -18,6 +18,7 @@
 #include "collections_dcp_producers.h"
 
 #include "collections/collections_types.h"
+#include "item.h"
 #include "tests/mock/mock_dcp_consumer.h"
 
 #include "folly/portability/GTest.h"
@@ -161,5 +162,107 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
                                     timestamp,
                                     sid);
 
+    return ret;
+}
+
+ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::mutation(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        uint8_t nru,
+        cb::mcbp::DcpStreamId sid) {
+    auto ret = ENGINE_SUCCESS;
+    if (consumer) {
+        auto& item = *static_cast<Item*>(itm.get());
+
+        ret = consumer->mutation(
+                opaque,
+                item.getKey(),
+                {reinterpret_cast<const uint8_t*>(item.getData()),
+                 item.getNBytes()},
+                0,
+                item.getDataType(),
+                item.getCas(),
+                replicaVB,
+                item.getFlags(),
+                by_seqno,
+                rev_seqno,
+                item.getExptime(),
+                lock_time,
+                {},
+                nru);
+    }
+
+    MockDcpMessageProducers::mutation(opaque,
+                                      std::move(itm),
+                                      vbucket,
+                                      by_seqno,
+                                      rev_seqno,
+                                      lock_time,
+                                      nru,
+                                      sid);
+    return ret;
+}
+
+ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::prepare(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        uint8_t nru,
+        DocumentState document_state,
+        cb::durability::Level level) {
+    auto ret = ENGINE_SUCCESS;
+    if (consumer) {
+        auto& item = *static_cast<Item*>(itm.get());
+
+        ret = consumer->prepare(
+                opaque,
+                item.getKey(),
+                {reinterpret_cast<const uint8_t*>(item.getData()),
+                 item.getNBytes()},
+                0,
+                item.getDataType(),
+                item.getCas(),
+                replicaVB,
+                item.getFlags(),
+                by_seqno,
+                rev_seqno,
+                item.getExptime(),
+                lock_time,
+                nru,
+                document_state,
+                level);
+    }
+    MockDcpMessageProducers::prepare(opaque,
+                                     std::move(itm),
+                                     vbucket,
+                                     by_seqno,
+                                     rev_seqno,
+                                     lock_time,
+                                     nru,
+                                     document_state,
+                                     level);
+    return ret;
+}
+
+ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::commit(
+        uint32_t opaque,
+        Vbid vbucket,
+        const DocKey& key,
+        uint64_t prepare_seqno,
+        uint64_t commit_seqno) {
+    auto ret = ENGINE_SUCCESS;
+    if (consumer) {
+        ret = consumer->commit(
+                opaque, replicaVB, key, prepare_seqno, commit_seqno);
+    }
+    MockDcpMessageProducers::commit(
+            opaque, vbucket, key, prepare_seqno, commit_seqno);
     return ret;
 }

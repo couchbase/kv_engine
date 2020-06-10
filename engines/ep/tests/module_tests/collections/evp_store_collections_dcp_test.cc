@@ -23,6 +23,8 @@
 #include "collections/manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
+#include "durability/active_durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "ep_time.h"
 #include "ephemeral_vb.h"
 #include "failover-table.h"
@@ -41,6 +43,7 @@
 #include "tests/module_tests/dcp_utils.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include "tests/module_tests/vbucket_utils.h"
 
 #include <engines/ep/src/collections/collections_types.h>
 #include <engines/ep/src/ephemeral_tombstone_purger.h>

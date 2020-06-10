@@ -1824,6 +1824,131 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     }
 }
 
+TEST_P(ActiveDurabilityMonitorTest, dropOnlyKey) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+
+    addSyncWrite(1);
+    ASSERT_EQ(1, adm.getNumTracked());
+    ASSERT_EQ(0, adm.getHighCompletedSeqno());
+    ASSERT_EQ(1, adm.getHighPreparedSeqno());
+
+    adm.eraseSyncWrite(makeStoredDocKey("key1"), 1);
+
+    EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+    EXPECT_EQ(1, adm.getHighPreparedSeqno());
+}
+
+void ActiveDurabilityMonitorTest::testDropFirstKey() {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+
+    addSyncWrites(1, 2);
+    ASSERT_EQ(2, adm.getNumTracked());
+    ASSERT_EQ(0, adm.getHighCompletedSeqno());
+    ASSERT_EQ(2, adm.getHighPreparedSeqno());
+
+    adm.eraseSyncWrite(makeStoredDocKey("key1"), 1);
+
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+
+    auto seqnos = adm.getTrackedSeqnos();
+    ASSERT_EQ(1, seqnos.size());
+    EXPECT_EQ(1, seqnos.count(2));
+
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 2));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropFirstKey) {
+    testDropFirstKey();
+}
+
+void ActiveDurabilityMonitorTest::testDropLastKey() {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, replica2}}));
+
+    addSyncWrites(1, 2);
+    ASSERT_EQ(2, adm.getNumTracked());
+    ASSERT_EQ(0, adm.getHighCompletedSeqno());
+    ASSERT_EQ(2, adm.getHighPreparedSeqno());
+
+    adm.eraseSyncWrite(makeStoredDocKey("key2"), 2);
+
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+    EXPECT_EQ(2, adm.getHighPreparedSeqno());
+
+    auto seqnos = adm.getTrackedSeqnos();
+    ASSERT_EQ(1, seqnos.size());
+    EXPECT_EQ(1, seqnos.count(1));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropLastKey) {
+    testDropLastKey();
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropFirstKeyAndAck) {
+    testDropFirstKey();
+
+    auto& adm = getActiveDM();
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 1));
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica2, 1));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropFirstKeyAndAckNext) {
+    testDropFirstKey();
+
+    auto& adm = getActiveDM();
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 2));
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica2, 2));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropLastKeyAndAck) {
+    testDropLastKey();
+
+    auto& adm = getActiveDM();
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 2));
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica2, 2));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropLastKeyAndAckPrevious) {
+    testDropLastKey();
+
+    auto& adm = getActiveDM();
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 1));
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica2, 1));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropFirstKeyAndCompleteSecond) {
+    testDropFirstKey();
+
+    auto& adm = getActiveDM();
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 2));
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica2, 2));
+
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(2, adm.getHighCompletedSeqno());
+}
+
+TEST_P(ActiveDurabilityMonitorTest, dropLastKeyAndCompleteFirst) {
+    testDropLastKey();
+
+    auto& adm = getActiveDM();
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica1, 2));
+    EXPECT_NO_THROW(adm.seqnoAckReceived(replica2, 2));
+
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(1, adm.getHighCompletedSeqno());
+}
+
 void PassiveDurabilityMonitorTest::SetUp() {
     STParameterizedBucketTest::SetUp();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
@@ -3381,6 +3506,176 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
     // 2.
     pdm.notifySnapshotEndReceived(2);
     EXPECT_EQ(2, ackedSeqno);
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropKey) {
+    auto& pdm = getPassiveDM();
+
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+            Requirements{Level::Majority, Timeout::Infinity()});
+    ASSERT_EQ(1, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    pdm.eraseSyncWrite(makeStoredDocKey("key1"), 1);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+}
+
+void PassiveDurabilityMonitorTest::testDropFirstKey() {
+    auto& pdm = getPassiveDM();
+
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    addSyncWrite(2 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    pdm.eraseSyncWrite(makeStoredDocKey("key1"), 1);
+
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropFirstKey) {
+    testDropFirstKey();
+}
+
+void PassiveDurabilityMonitorTest::testDropLastKey() {
+    auto& pdm = getPassiveDM();
+
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    addSyncWrite(2 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    pdm.eraseSyncWrite(makeStoredDocKey("key2"), 2);
+
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(0, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropLastKey) {
+    testDropLastKey();
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndReceiveSnapEnd) {
+    testDropFirstKey();
+
+    auto& pdm = getPassiveDM();
+
+    pdm.notifySnapshotEndReceived(3);
+
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndReceiveSnapEnd) {
+    testDropLastKey();
+
+    auto& pdm = getPassiveDM();
+
+    pdm.notifySnapshotEndReceived(3);
+
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNext) {
+    testDropFirstKey();
+
+    auto& pdm = getPassiveDM();
+
+    pdm.notifySnapshotEndReceived(3);
+    pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+    EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePrevious) {
+    testDropLastKey();
+
+    auto& pdm = getPassiveDM();
+
+    pdm.notifySnapshotEndReceived(3);
+    pdm.completeSyncWrite(makeStoredDocKey("key1"), PassiveDurabilityMonitor::Resolution::Commit, 1);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+    EXPECT_EQ(1, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
+    vb->checkpointManager->createSnapshot(1, 4, 1, CheckpointType::Disk, 4);
+
+    testDropFirstKey();
+
+    auto& pdm = getPassiveDM();
+
+    pdm.notifySnapshotEndReceived(3);
+    pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+    EXPECT_EQ(2, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePreviousDiskSnap) {
+    vb->checkpointManager->createSnapshot(1, 4, 1, CheckpointType::Disk, 4);
+
+    testDropLastKey();
+
+    auto& pdm = getPassiveDM();
+
+    pdm.notifySnapshotEndReceived(3);
+    pdm.completeSyncWrite(makeStoredDocKey("key1"), PassiveDurabilityMonitor::Resolution::Commit, 1);
+
+    EXPECT_EQ(0, pdm.getNumTracked());
+    EXPECT_EQ(1, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(1, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteOutOfOrder) {
+    auto& pdm = getPassiveDM();
+
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    addSyncWrite(2 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    addSyncWrite(3 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    ASSERT_EQ(3, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+
+    // Need to make this a disk snapshot or OoO won't work
+    vb->checkpointManager->updateCurrentSnapshot(4, 4, CheckpointType::Disk);
+
+    pdm.eraseSyncWrite(makeStoredDocKey("key3"), 3);
+
+    EXPECT_TRUE(vb->isReceivingDiskSnapshot());
+    pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
+
+    ASSERT_EQ(2, pdm.getNumTracked());
+    ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 }
 
 class ActiveDurabilityMonitorAbortTest

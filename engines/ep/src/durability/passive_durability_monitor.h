@@ -26,6 +26,8 @@
 #include <vector>
 
 class ActiveDurabilityMonitor;
+class CollectionID;
+struct DocKey;
 class RollbackResult;
 struct vbucket_state;
 class VBucket;
@@ -134,6 +136,25 @@ public:
     void completeSyncWrite(const StoredDocKey& key,
                            Resolution res,
                            std::optional<uint64_t> prepareSeqno);
+
+    /**
+     * Erase the SyncWrite with the given key and seqno from the DM.
+     *
+     * Does not move the HCS or HPS values as this would be incorrect (neither
+     * can move forward if we don't prepare or complete something, neither can
+     * move backwards at all).
+     *
+     * Moves iterators of the HPS and HCS /backwards/ to the first valid
+     * position.
+     *
+     * @param key Key to drop
+     * @param seqno Expected seqno of the SyncWrite we are dropping
+     */
+    void eraseSyncWrite(const DocKey& key, int64_t seqno);
+
+    void notifyDroppedCollection(CollectionID cid, int64_t seqno);
+
+    size_t getNumDroppedCollections() const;
 
     static std::string to_string(Resolution res);
 

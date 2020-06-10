@@ -1069,7 +1069,18 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
     }
 }
 
-void EPBucket::dropKey(Vbid vbid, const DiskDocKey& diskKey, int64_t bySeqno) {
+void EPBucket::dropKey(Vbid vbid,
+                       const DiskDocKey& diskKey,
+                       int64_t bySeqno,
+                       bool isAbort) {
+    // dropKey is called to remove a key from the in memory structures
+    // (HashTable, DurabilityMonitors etc.). We skip calling this for aborts
+    // as they don't exist in the HashTable and this allows us to make stricter
+    // sanity checks when dropping keys from the DurabilityMonitors.
+    if (isAbort) {
+        return;
+    }
+
     auto vb = getVBucket(vbid);
     if (!vb) {
         return;
@@ -1086,11 +1097,11 @@ void EPBucket::dropKey(Vbid vbid, const DiskDocKey& diskKey, int64_t bySeqno) {
         // in-case of expiry, however dropKey doesn't generate expired values
         auto cHandle = vb->lockCollections(docKey);
 
+        if (diskKey.isPrepared()) {
+            // ... drop it from the DurabilityMonitor
+            vb->dropPendingKey(docKey, bySeqno);
+        }
         // ... drop it from the VB (hashtable)
-        // @todo-durability: If prepared need to remove it from the Durability
-        // Monitor (in-flight prepared SyncWrite from a collection which no
-        // longer exists == abort the SyncWrite).
-        Expects(diskKey.isCommitted());
         vb->dropKey(bySeqno, cHandle);
     }
 }
@@ -1109,7 +1120,8 @@ std::shared_ptr<compaction_ctx> EPBucket::makeCompactionContext(
                                   this,
                                   config.db_file_id,
                                   std::placeholders::_1,
-                                  std::placeholders::_2);
+                                  std::placeholders::_2,
+                                  std::placeholders::_3);
 
     ctx->completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
                                         this,

@@ -336,6 +336,10 @@ protected:
             return operation == Operation::Pending;
         }
 
+        bool isAbort() const {
+            return operation == Operation::Abort;
+        }
+
     private:
         // Assigning a whole byte to this (see MetaDataV3 class comment)
         // although only currently need 2 bits.
@@ -543,6 +547,11 @@ public:
     bool isPrepare() const {
         return getVersionInitialisedFrom() == MetaData::Version::V3 &&
                allMeta.v3.isPrepare();
+    }
+
+    bool isAbort() const {
+        return getVersionInitialisedFrom() == MetaData::Version::V3 &&
+               allMeta.v3.isAbort();
     }
 
     cb::uint48_t getPrepareSeqno() const {

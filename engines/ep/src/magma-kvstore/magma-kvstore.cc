@@ -202,6 +202,11 @@ static const bool isPrepared(const Slice& metaSlice) {
            MetaData::Operation::PreparedSyncWrite;
 }
 
+static const bool isAbort(const Slice& metaSlice) {
+    return static_cast<MetaData::Operation>(getDocMeta(metaSlice).operation) ==
+           MetaData::Operation::Abort;
+}
+
 } // namespace magmakv
 
 MagmaRequest::MagmaRequest(queued_item it, std::shared_ptr<BucketLogger> logger)
@@ -275,7 +280,8 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         if (cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
                                                          seqno)) {
             // Inform vb that the key@seqno is dropped
-            cbCtx.ctx->droppedKeyCb(diskKey, seqno);
+            cbCtx.ctx->droppedKeyCb(
+                    diskKey, seqno, magmakv::isAbort(metaSlice));
 
             { // Locking scope for magmaDbStats
                 auto dbStats = cbCtx.magmaDbStats.stats.wlock();

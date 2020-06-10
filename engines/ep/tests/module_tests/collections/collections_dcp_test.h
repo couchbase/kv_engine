@@ -89,6 +89,10 @@ public:
 
     void tombstone_snapshots_test(bool forceWarmup);
 
+    void runEraser();
+
+    void runEraser(Vbid vbid);
+
     static ENGINE_ERROR_CODE dcpAddFailoverLog(
             vbucket_failover_t* entry,
             size_t nentries,

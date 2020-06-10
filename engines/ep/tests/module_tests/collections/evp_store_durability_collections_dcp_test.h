@@ -19,15 +19,14 @@
 #include <engines/ep/tests/module_tests/collections/collections_dcp_test.h>
 #include <engines/ep/tests/module_tests/evp_store_durability_test.h>
 
-class CollectionsDurabilityDcpParameterizedTest : public DurabilityKVBucketTest,
-                                                  public CollectionsDcpTest {
-public:
-    void SetUp() override {
-        DurabilityKVBucketTest::SetUp();
-        CollectionsDcpTest::internalSetUp();
-    }
+struct failover_entry_t;
 
-    void TearDown() override {
-        CollectionsDcpTest::TearDown();
-    }
+class CollectionsSyncWriteParamTest : public CollectionsDcpParameterizedTest {
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+protected:
+    failover_entry_t
+    testCompleteDifferentPrepareOnActiveBeforeReplicaDropSetUp();
 };

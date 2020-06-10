@@ -209,8 +209,9 @@ flatbuffers::DetachedBuffer encodeScopes(
         Collections::KVStore::CommitMetaData& collectionsMeta,
         cb::const_byte_buffer scopes);
 
-/// callback to inform KV-engine that KVStore dropped key@seqno
-using DroppedCb = std::function<void(const DiskDocKey&, int64_t)>;
+/// callback to inform KV-engine that KVStore dropped key@seqno and whether or
+/// not it is an abort.
+using DroppedCb = std::function<void(const DiskDocKey&, int64_t, bool)>;
 
 } // end namespace KVStore
 } // end namespace Collections

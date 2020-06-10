@@ -1607,6 +1607,14 @@ public:
             Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
 
     /**
+     * Drops the key from the DM so we can purge a collection
+     *
+     * @param key pending key
+     * @param seqno The seqno of the pending key to drop
+     */
+    void dropPendingKey(const DocKey& key, int64_t seqno);
+
+    /**
      * Get the number of deleted items that are "persisted".
      * Note1: This stat is used by ns_server during takeover.
      *

@@ -20,6 +20,7 @@
 #include "checkpoint_manager.h"
 #include "configuration.h"
 #include "dcp/backfill_memory.h"
+#include "durability/passive_durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ephemeral_tombstone_purger.h"
@@ -935,6 +936,12 @@ void EphemeralVBucket::dropKey(
     };
 
     if (res.pending) {
+        // We don't need to drop a complete prepare or an abort from the DM so
+        // only call for in-flight prepares
+        if (res.pending->isPending()) {
+            dropPendingKey(key, res.pending->getBySeqno());
+        }
+
         releaseAndMarkStale(res.getHBL(), res.pending.release());
     }
     if (res.committed) {
@@ -976,6 +983,13 @@ int64_t EphemeralVBucket::addSystemEventItem(
         doCollectionsStats(wHandle, *cid, notifyCtx);
         if (i->isDeleted()) {
             stats.dropCollectionStats(*cid);
+
+            // Inform the PDM about the dropped collection so that it knows
+            // that it can skip any outstanding prepares until they are cleaned
+            // up
+            if (getState() != vbucket_state_active) {
+                getPassiveDM().notifyDroppedCollection(*cid, notifyCtx.bySeqno);
+            }
         } else {
             stats.trackCollectionStats(*cid);
         }
