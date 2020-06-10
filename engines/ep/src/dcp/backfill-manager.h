@@ -40,6 +40,72 @@
  * - dcp_scan_byte_limit
  * - dcp_scan_item_limit
  * - dcp_backfill_byte_limit
+ *
+ * Implementation
+ * --------------
+ *
+ * The BackfillManager owns a number of Backfill objects which are advanced by
+ * an asynchronous (background) BackfillManagerTask. The BackfillManagerTask
+ * is repeatedly scheduled as long as there is at least one Backfill ready to
+ * run.
+ *
+ * The different Backfill objects reside in a series of queues, which are
+ * used to (a) limit the number of Backfills in progress at any one time
+ * (b) apply suitable scheduling to the active Backfills.
+ *
+ * The following queues exist:
+ *
+ * - initializing - Newly-scheduled Backfills are initially placed here. These
+ *                  Backfills will be run first before any others.
+ * - pending - Newly-scheduled Backfills are initially placed here if too many
+ *             Backfills are already scheduled.
+ * - active - Backfills which are actively being run. These backfills are run
+ *            in queue order as long as no backfills exist in
+ *            initializingBackfills. The order these are executed in depends on
+ *            scheduleOrder.
+ * - snoozing - Backfills which are not ready to run at present. They will be
+ *              periodically be re-considered for running (and moving to
+ *              activeBackfills)
+ *
+ * The lifecycle of a Backfill is:
+ *
+ *          schedule()
+ *               |
+ *               V
+ *     exceeded active limit?
+ *       /                \
+ *      Yes                No
+ *      |                  |
+ *      V                  |
+ *    [pendingBackfills]   |
+ *    [back       front]   |
+ *                    |    |
+ *                    +----/
+ *                    |
+ *                    V
+ *              [initializingBackfills]
+ *              [back            front]
+ *                                   |    /----------------------\
+ *                                   |    |                      |
+ *                                   V    V                      |
+ *                              [activeBackfills]                |
+ *                              [back      front]                |
+ *                                            |                  |
+ *                                          run()                |
+ *                                            |                  |
+ *                                     backfill result?          |
+ *                                    /       |       \          |
+ *                                   /        |        \         |
+ *                              snooze    finished    success    |
+ *                                 /          |          \______/|
+ *       /------------------------/           V                  |
+ *      V                                   [END]                |
+ *   [snoozingBackfills]                                         |
+ *   [back        front]                                         |
+ *                    |                                          |
+ *        activeBackfills space available                        |
+ *                    \_________________________________________/
+ *
  */
 #pragma once
 
@@ -132,8 +198,8 @@ public:
      * Only used within tests.
      */
     size_t getNumBackfills() const {
-        return activeBackfills.size() + snoozingBackfills.size() +
-               pendingBackfills.size();
+        return initializingBackfills.size() + activeBackfills.size() +
+               snoozingBackfills.size() + pendingBackfills.size();
     }
 
     std::string to_string(ScheduleOrder order);
@@ -154,18 +220,69 @@ protected:
         bool full;
     } buffer;
 
-    //! The scan buffer is for the current stream being backfilled
+    /**
+     * This records the amount of data backfilled by the current backfill scan.
+     * When either the maximum item or byte limit is reached then the backfill
+     * is paused and yields.
+     * This ensures that a single execution of the BackfillManager task doesn't
+     * monopolise an AuxIO thread unfairly.
+     */
     BackfillScanBuffer scanBuffer;
 
 private:
+    /**
+     * Move Backfills which are pending to the New backfill queue while there
+     * is available capacity.
+     */
+    void movePendingToInitializing();
 
-    void moveToActiveQueue();
+    /**
+     * Move Backfills which are snoozing to the Active queue if they have
+     * snoozed for long enough.
+     */
+    void moveSnoozingToActiveQueue();
+
+    /// The source queue of a dequeued backfill
+    enum class Source {
+        Initializing, // initializingQueue
+        Active, // activeQueue
+    };
+
+    /**
+     * Dequeues the next Backfill to run from the new / activeBackfills queue
+     * as appropriate.
+     * @returns the next Backfill to run, or null if there are no backfills
+     *         available.
+     *         The queue which the backfill was dequeued off, if non-null.
+     */
+    std::pair<UniqueDCPBackfillPtr, Source> dequeueNextBackfill(
+            std::unique_lock<std::mutex>&);
 
     std::mutex lock;
+
+    // List of backfills which have just been scheduled (added to Backfill
+    // Manager) and not yet been run.
+    //
+    // BackfillManager will select from this list first (before
+    // activeBackfills) to ensure that newly added backfills can initialise
+    // themselves in a timely fashion (e.g. open a disk file as soon as
+    // possible to minimise inconsistency across different vBucket files being
+    // opened).
+    std::list<UniqueDCPBackfillPtr> initializingBackfills;
+
+    // List of backfills in the "Active" state - i.e. have been initialised
+    // and are ready to be run to provide more data. The next backfill to
+    // be run is taken from the head of this list.
     std::list<UniqueDCPBackfillPtr> activeBackfills;
+
+    // List of backfills which are "snoozed" - they are not ready to run yet
+    // (for example the requested seqno is not yet persisted).
+    // Each element is a pair of the last run time and the Backfill.
+    // They are re-added to activeBackfills every sleepTime seconds to retry.
     std::list<std::pair<rel_time_t, UniqueDCPBackfillPtr> > snoozingBackfills;
+
     //! When the number of (activeBackfills + snoozingBackfills) crosses a
-    //!   threshold we use waitingBackfills
+    //!   threshold we use pendingBackfills
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
     EventuallyPersistentEngine& engine;
     ExTask managerTask;

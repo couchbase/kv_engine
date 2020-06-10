@@ -877,6 +877,12 @@ public:
      *
      * 1. GetValue callback is invoked for each object loaded from disk, for
      *    the caller to process that item.
+     *    If the callback has status ENGINE_SUCCESS then scanning continues.
+     *    If the callback has status ENGINE_ENOMEM then the scan is paused -
+     *    scan() returns early allowing caller to reduce memory pressure.
+     *    If scan() is called again it will resume at the _same_ item which
+     *    returned ENGINE_ENOMEM last time.
+     *
      * 2. CacheLookup callback an an optimization to avoid loading data from
      *    disk for already-resident items - it is invoked _before_ loading the
      *    item's value from disk, to give ep-engine's in-memory cache the

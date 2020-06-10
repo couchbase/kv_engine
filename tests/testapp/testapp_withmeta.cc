@@ -72,6 +72,24 @@ public:
     }
 
 protected:
+    /**
+     * Test that DelWithMeta accepts user-xattrs in the payload.
+     *
+     * @param allowValuePruning Whether the engine sanitizes bad user payloads
+     *  or fails the request
+     * @param withBody Whether the payload contains a body
+     */
+    void testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning);
+
+    /**
+     * Test that DelWithMeta rejects body in the payload.
+     *
+     * @param allowValuePruning Whether the engine sanitizes bad user payloads
+     *  or fails the request
+     * @param dtXattr Whether the value under test is DT Xattr
+     */
+    void testDeleteWithMetaRejectsBody(bool allowValuePruning, bool dtXattr);
+
     const uint64_t testCas = 0xb33ff00dcafef00dull;
     const char* testCasStr = "0xb33ff00dcafef00d";
 };
@@ -205,8 +223,8 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
     auto error = nlohmann::json::parse(rsp.getDataString());
 
     ASSERT_EQ(
-            "It is only possible to specify system extended attributes as a "
-            "value to DeleteWithMeta",
+            "It is only possible to specify Xattrs as a value to "
+            "DeleteWithMeta",
             error["error"]["context"]);
 }
 
@@ -240,4 +258,112 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
                         SUBDOC_FLAG_XATTR_PATH,
                         mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_TRUE(sresp.isSuccess()) << sresp.getStatus();
+}
+
+void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        return;
+    }
+
+    {
+        auto& conn = getAdminConnection();
+        conn.selectBucket(bucketName);
+        const auto setParam = BinprotSetParamCommand(
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                "allow_del_with_meta_prune_user_data",
+                allowValuePruning ? "true" : "false");
+        const auto resp = BinprotMutationResponse(conn.execute(setParam));
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    }
+
+    // Value with User/Sys Xattrs and no Body
+    cb::xattr::Blob blob;
+    blob.set("user", R"({"a":"b"})");
+    blob.set("_sys", R"({"c":"d"})");
+    const auto xattrs = blob.finalize();
+    document.value.clear();
+    std::copy(xattrs.begin(), xattrs.end(), std::back_inserter(document.value));
+    document.info.datatype = cb::mcbp::Datatype::Xattr;
+
+    BinprotDelWithMetaCommand delWithMeta(
+            document, Vbid(0), 0, 0 /*delTime*/, 1 /*seqno*/, 0 /*opCas*/);
+    auto& conn = getConnection();
+    const auto resp = BinprotMutationResponse(conn.execute(delWithMeta));
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs) {
+    testDeleteWithMetaAcceptsUserXattrs(false);
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs_AllowValuePruning) {
+    testDeleteWithMetaAcceptsUserXattrs(true);
+}
+
+void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
+                                                 bool dtXattr) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        return;
+    }
+
+    {
+        auto& conn = getAdminConnection();
+        conn.selectBucket(bucketName);
+        const auto setParam = BinprotSetParamCommand(
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                "allow_del_with_meta_prune_user_data",
+                allowValuePruning ? "true" : "false");
+        const auto resp = BinprotMutationResponse(conn.execute(setParam));
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    }
+
+    // Value with User/Sys Xattrs and Body
+    if (dtXattr) {
+        cb::xattr::Blob blob;
+        blob.set("user", R"({"a":"b"})");
+        blob.set("_sys", R"({"c":"d"})");
+        const auto xattrs = blob.finalize();
+        document.value.clear();
+        std::copy(xattrs.begin(),
+                  xattrs.end(),
+                  std::back_inserter(document.value));
+        document.value.append("body");
+        document.info.datatype = cb::mcbp::Datatype::Xattr;
+    } else {
+        document.value = "body";
+        document.info.datatype = cb::mcbp::Datatype::Raw;
+    }
+
+    BinprotDelWithMetaCommand delWithMeta(
+            document, Vbid(0), 0, 0 /*delTime*/, 1 /*seqno*/, 0 /*opCas*/);
+    auto& conn = getConnection();
+    const auto resp = BinprotMutationResponse(conn.execute(delWithMeta));
+    if (allowValuePruning) {
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+        ASSERT_TRUE(
+                resp.getDataString().find("only possible to specify Xattrs") !=
+                std::string::npos);
+    }
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_AllowValuePruning) {
+    testDeleteWithMetaRejectsBody(true, false);
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaRejectsBody) {
+    testDeleteWithMetaRejectsBody(false, false);
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_AllowValuePruning_DTXattr) {
+    testDeleteWithMetaRejectsBody(true, true);
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_DTXattr) {
+    testDeleteWithMetaRejectsBody(false, true);
 }
