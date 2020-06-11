@@ -708,10 +708,11 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(buffer);
-    } catch (const nlohmann::json::exception&) {
+    } catch (const nlohmann::json::exception& exception) {
         logger.warn(
                 "CouchKVStore::getPersistedStats:"
-                " Failed to parse the session stats json doc!!!");
+                " Failed to parse the session stats json doc!!!: {}",
+                exception.what());
         return;
     }
 
