@@ -22,36 +22,6 @@
 #include "executorpool_test.h"
 #include "lambda_task.h"
 
-MockTaskable::MockTaskable() : policy(HIGH_BUCKET_PRIORITY, 1) {
-}
-
-const std::string& MockTaskable::getName() const {
-    return name;
-}
-
-task_gid_t MockTaskable::getGID() const {
-    return 0;
-}
-
-bucket_priority_t MockTaskable::getWorkloadPriority() const {
-    return HIGH_BUCKET_PRIORITY;
-}
-
-void MockTaskable::setWorkloadPriority(bucket_priority_t prio) {
-}
-
-WorkLoadPolicy& MockTaskable::getWorkLoadPolicy() {
-    return policy;
-}
-
-void MockTaskable::logQTime(TaskId id,
-                            const std::chrono::steady_clock::duration enqTime) {
-}
-
-void MockTaskable::logRunTime(
-        TaskId id, const std::chrono::steady_clock::duration runTime) {
-}
-
 ExTask makeTask(Taskable& taskable, ThreadGate& tg, TaskId taskId) {
     return std::make_shared<LambdaTask>(
             taskable, taskId, 0, true, [&]() -> bool {

@@ -383,8 +383,8 @@ if (NOT EP_BYPASS_TESTS)
             tests/mock/mock_executor_pool.cc
             tests/mock/mock_stream.cc
             tests/mock/mock_synchronous_ep_engine.cc
-            ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
-            )
+            tests/mock/mock_taskable.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
     set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
     add_sanitizers(ep_mocks)
 
@@ -414,6 +414,7 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/defragmenter_bench.cc
                    benchmarks/engine_fixture.cc
                    benchmarks/ep_engine_benchmarks_main.cc
+                   benchmarks/executor_bench.cc
                    benchmarks/hash_table_bench.cc
                    benchmarks/item_bench.cc
                    benchmarks/item_compressor_bench.cc

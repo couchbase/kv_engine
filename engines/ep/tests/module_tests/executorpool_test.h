@@ -21,38 +21,14 @@
 
 #pragma once
 
+#include "../mock/mock_taskable.h"
+#include "executorpool.h"
+#include "executorthread.h"
+#include "fakes/fake_executorpool.h"
+#include "taskable.h"
 #include "thread_gate.h"
-#include <executorpool.h>
-#include <executorthread.h>
-#include <fakes/fake_executorpool.h>
 #include <folly/portability/GTest.h>
-#include <taskable.h>
 #include <thread>
-
-class MockTaskable : public Taskable {
-public:
-    MockTaskable();
-
-    const std::string& getName() const override;
-
-    task_gid_t getGID() const override;
-
-    bucket_priority_t getWorkloadPriority() const override;
-
-    void setWorkloadPriority(bucket_priority_t prio) override;
-
-    WorkLoadPolicy& getWorkLoadPolicy() override;
-
-    void logQTime(TaskId id,
-                  const std::chrono::steady_clock::duration enqTime) override;
-
-    void logRunTime(TaskId id,
-                    const std::chrono::steady_clock::duration runTime) override;
-
-protected:
-    std::string name;
-    WorkLoadPolicy policy;
-};
 
 class TestExecutorPool : public ExecutorPool {
 public:
