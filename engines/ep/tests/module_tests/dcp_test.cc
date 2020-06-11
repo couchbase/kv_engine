@@ -3218,8 +3218,9 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    for (auto status :
-         {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
+    for (auto status : {cb::mcbp::Status::NotMyVbucket,
+                        cb::mcbp::Status::KeyEnoent,
+                        cb::mcbp::Status::Success}) {
         message.response.setStatus(status);
         for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
                         cb::mcbp::ClientOpcode::DcpAddStream,
@@ -3232,11 +3233,22 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
                         cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
                         cb::mcbp::ClientOpcode::DcpControl,
                         cb::mcbp::ClientOpcode::DcpSystemEvent,
-                        cb::mcbp::ClientOpcode::GetErrorMap,
-                        cb::mcbp::ClientOpcode::DcpPrepare,
-                        cb::mcbp::ClientOpcode::DcpCommit,
-                        cb::mcbp::ClientOpcode::DcpAbort}) {
+                        cb::mcbp::ClientOpcode::GetErrorMap}) {
             message.response.setOpcode(op);
+            EXPECT_TRUE(producer->handleResponse(&message));
+        }
+    }
+    // We should disconnect when we see cb::mcbp::Status::KeyEnoent for
+    // a durability DCP op
+    for (auto op : {cb::mcbp::ClientOpcode::DcpPrepare,
+                    cb::mcbp::ClientOpcode::DcpCommit,
+                    cb::mcbp::ClientOpcode::DcpAbort}) {
+        message.response.setOpcode(op);
+
+        for (auto status :
+             {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
+            message.response.setStatus(status);
+
             EXPECT_TRUE(producer->handleResponse(&message));
         }
     }
@@ -3259,7 +3271,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
                            cb::mcbp::Status::Erange,
                            cb::mcbp::Status::Etmpfail,
                            cb::mcbp::Status::KeyEexists,
-                           cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::Locked,
                            cb::mcbp::Status::SyncWriteAmbiguous,
                            cb::mcbp::Status::SyncWriteInProgress,
@@ -3284,6 +3295,13 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
             message.response.setOpcode(op);
             EXPECT_FALSE(producer->handleResponse(&message));
         }
+    }
+    message.response.setStatus(cb::mcbp::Status::KeyEnoent);
+    for (auto op : {cb::mcbp::ClientOpcode::DcpPrepare,
+                    cb::mcbp::ClientOpcode::DcpCommit,
+                    cb::mcbp::ClientOpcode::DcpAbort}) {
+        message.response.setOpcode(op);
+        EXPECT_FALSE(producer->handleResponse(&message));
     }
 }
 
@@ -3334,7 +3352,6 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
                            cb::mcbp::Status::Erange,
                            cb::mcbp::Status::Etmpfail,
                            cb::mcbp::Status::KeyEexists,
-                           cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::Locked,
                            cb::mcbp::Status::Success,
                            cb::mcbp::Status::SyncWriteAmbiguous,
@@ -3350,13 +3367,17 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
             EXPECT_FALSE(producer->handleResponse(&message));
         }
     }
-    message.response.setStatus(cb::mcbp::Status::NotMyVbucket);
-    // Test DcpNoop when the opaque is the default opaque value
-    message.response.setOpaque(10000000);
-    EXPECT_TRUE(producer->handleResponse(&message));
-    for (uint32_t Opaque : {123, 0}) {
-        message.response.setOpaque(Opaque);
+
+    for (auto errorCode :
+         {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::KeyEnoent}) {
+        message.response.setStatus(errorCode);
+        // Test DcpNoop when the opaque is the default opaque value
+        message.response.setOpaque(10000000);
         EXPECT_TRUE(producer->handleResponse(&message));
+        for (uint32_t Opaque : {123, 0}) {
+            message.response.setOpaque(Opaque);
+            EXPECT_TRUE(producer->handleResponse(&message));
+        }
     }
 }
 

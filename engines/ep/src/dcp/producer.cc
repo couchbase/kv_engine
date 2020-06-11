@@ -1187,7 +1187,22 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     };
 
     const auto errorMessageHandler = [&]() -> bool {
-        if (responseStatus == cb::mcbp::Status::NotMyVbucket) {
+        // For DcpPrepare, DcpCommit and DcpAbort we may see KeyEnoent or
+        // Einval for the following reasons.
+        // KeyEnoent:
+        // In this case we receive a KeyEnoent, we need to disconnect as we
+        // must have sent an a commit or abort of key that the consumer is
+        // unaware of and we should never see KeyEnoent from a DcpPrepare.
+        // Einval:
+        // If we have seen a Einval we also need to disconnect as we must
+        // have sent an invalid. Mutation or packet to the consumer e.g. we
+        // sent an abort to the consumer in a non disk snapshot without it
+        // having seen a prepare.
+        if (responseStatus == cb::mcbp::Status::NotMyVbucket ||
+            (responseStatus == cb::mcbp::Status::KeyEnoent &&
+             opcode != cb::mcbp::ClientOpcode::DcpPrepare &&
+             opcode != cb::mcbp::ClientOpcode::DcpAbort &&
+             opcode != cb::mcbp::ClientOpcode::DcpCommit)) {
             // Use find_if2 which will return the matching shared_ptr<Stream>
             auto stream = find_if2(streamFindFn);
             std::string streamInfo("null");
@@ -1197,12 +1212,19 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
                                          stream->getVBucket(),
                                          stream->getStateName());
             }
+            std::string mcbpStatusName;
+            if (responseStatus == cb::mcbp::Status::NotMyVbucket) {
+                mcbpStatusName = "NotMyVbucket";
+            } else if (responseStatus == cb::mcbp::Status::KeyEnoent) {
+                mcbpStatusName = "KeyEnoent";
+            }
             logger->info(
                     "DcpProducer::handleResponse received "
                     "unexpected "
-                    "response:{}, Will not disconnect as NotMyVbucket will "
+                    "response:{}, Will not disconnect as {} will "
                     "affect "
                     "only one stream:{}",
+                    mcbpStatusName,
                     resp->response.toJSON(true).dump(),
                     streamInfo);
             return true;
@@ -1263,17 +1285,6 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         if (responseStatus == cb::mcbp::Status::Success) {
             return true;
         }
-        // For DcpPrepare, DcpCommit and DcpAbort we may see KeyEnoent or
-        // Einval for the following reasons.
-        // KeyEnoent:
-        // In this case we receive a KeyEnoent, we need to disconnect as we
-        // must have sent an a commit or abort of key that the consumer is
-        // unaware of and we should never see KeyEnoent from a DcpPrepare.
-        // Einval:
-        // If we have seen a Einval we also need to disconnect as we must
-        // have sent an invalid. Mutation or packet to the consumer e.g. we
-        // sent an abort to the consumer in a non disk snapshot without it
-        // having seen a prepare.
         return errorMessageHandler();
     default:
         std::string errorMsg(
