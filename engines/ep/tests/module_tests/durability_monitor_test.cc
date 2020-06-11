@@ -1834,6 +1834,11 @@ void PassiveDurabilityMonitorTest::SetUp() {
 }
 
 void PassiveDurabilityMonitorTest::TearDown() {
+    // Calling the ostream operator will iterate over the entire PDM and may
+    // catch any 'corruption' issues in the iterators used.
+    std::stringstream ss;
+    ss << getPassiveDM();
+
     STParameterizedBucketTest::TearDown();
 }
 
