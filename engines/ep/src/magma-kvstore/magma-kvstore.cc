@@ -300,15 +300,20 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
             { // Locking scope for magmaDbStats
                 auto dbStats = cbCtx.magmaDbStats.stats.wlock();
-                if (!magmakv::isDeleted(metaSlice)) {
+
+                if (!magmakv::isDeleted(metaSlice) || magmakv::isPrepared(metaSlice)) {
                     dbStats->docCount--;
-                    cbCtx.ctx->stats.collectionsItemsPurged++;
+                }
+
+                if (magmakv::isPrepared(metaSlice)) {
+                    cbCtx.ctx->stats.preparesPurged++;
+                    dbStats->onDiskPrepares--;
                 } else {
-                    if (magmakv::isPrepared(metaSlice)) {
-                        dbStats->onDiskPrepares--;
-                        cbCtx.ctx->stats.preparesPurged++;
+                    if (!magmakv::isDeleted(metaSlice)) {
+                        cbCtx.ctx->stats.collectionsItemsPurged++;
+                    } else {
+                        cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
                     }
-                    cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
                 }
             }
 
@@ -1804,6 +1809,21 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
             return false;
         }
     } else {
+        // For magma we also need to compact the prepare namespace as this is
+        // disjoint from the collection namespaces.
+        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(CollectionID::DurabilityPrepare);
+        Slice prepareSlice(reinterpret_cast<const char*>(leb128.data()),
+                           leb128.size());
+        status = magma->CompactKVStore(
+                vbid.get(), prepareSlice, prepareSlice, compactionCB);
+        if (!status) {
+            logger->warn(
+                    "MagmaKVStore::compactDBInternal CompactKVStore {} "
+                    "over the prepare namespace failed with status:{}",
+                    vbid,
+                    status.String());
+        }
+
         for (auto& dc : dropped) {
             std::string keyString =
                     Collections::makeCollectionIdIntoString(dc.collectionId);
@@ -1849,22 +1869,6 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
 
             ctx->eraserContext->processEndOfCollection(key.getDocKey(),
                                                        SystemEvent::Collection);
-        }
-
-        // For magma we also need to compact the prepare namespace as this is
-        // disjoint from the collection namespaces
-        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(CollectionID::DurabilityPrepare);
-        auto prepareKey = std::string(reinterpret_cast<const char*>(leb128.data()),
-                           leb128.size());
-        Slice prepareSlice{prepareKey};
-        status = magma->CompactKVStore(
-                vbid.get(), prepareSlice, prepareSlice, compactionCB);
-        if (!status) {
-            logger->warn(
-                    "MagmaKVStore::compactDBInternal CompactKVStore {} "
-                    "over the prepare namespace failed with status:{}",
-                    vbid,
-                    status.String());
         }
     }
 

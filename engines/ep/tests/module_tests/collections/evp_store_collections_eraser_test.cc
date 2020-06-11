@@ -858,8 +858,7 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(
-        CollectionsEraserSyncWriteTests,
-        CollectionsEraserSyncWriteTest,
-        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(CollectionsEraserSyncWriteTests,
+                         CollectionsEraserSyncWriteTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
