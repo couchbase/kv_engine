@@ -107,7 +107,7 @@ public:
         diskSize += delta;
     }
 
-    /// decrement the tracked total size (bytes) on disk for this collection
+    /// update the tracked total size (bytes) on disk for this collection
     void setDiskSize(size_t value) const {
         diskSize = value;
     }
