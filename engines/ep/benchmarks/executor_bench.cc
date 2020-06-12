@@ -28,6 +28,7 @@
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/futures/Future.h>
+#include <relaxed_atomic.h>
 #include <random>
 
 /**
@@ -40,7 +41,6 @@ protected:
         // ExecutorPool cannot handle having a count of zero :(
         pool = std::make_unique<TestExecutorPool>(
                 nonIOCount,
-                NUM_TASK_GROUPS,
                 ThreadPoolConfig::ThreadCount(1),
                 ThreadPoolConfig::ThreadCount(1),
                 1,

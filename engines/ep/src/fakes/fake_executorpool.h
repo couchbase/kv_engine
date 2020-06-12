@@ -30,11 +30,12 @@
 
 #include "executorpool.h"
 #include "executorthread.h"
+#include "objectregistry.h"
 #include "taskqueue.h"
 
 #include <folly/portability/GTest.h>
 
-class SingleThreadedExecutorPool : public ExecutorPool {
+class SingleThreadedExecutorPool : public CB3ExecutorPool {
 public:
 
     /* Registers an instance of this class as "the" executorpool (i.e. what
@@ -44,7 +45,7 @@ public:
      */
     static void replaceExecutorPoolWithFake() {
         LockHolder lh(initGuard);
-        auto* tmp = ExecutorPool::instance.load();
+        auto* tmp = instance.load();
         if (tmp != nullptr) {
             throw std::runtime_error("replaceExecutorPoolWithFake: "
                     "ExecutorPool instance already created - cowardly refusing to continue!");
@@ -52,18 +53,17 @@ public:
 
         EventuallyPersistentEngine *epe =
                 ObjectRegistry::onSwitchThread(nullptr, true);
-        tmp = new SingleThreadedExecutorPool(NUM_TASK_GROUPS);
+        tmp = new SingleThreadedExecutorPool();
         ObjectRegistry::onSwitchThread(epe);
         instance.store(tmp);
     }
 
-    explicit SingleThreadedExecutorPool(size_t nTaskSets)
-        : ExecutorPool(/*threads*/ 0,
-                       nTaskSets,
-                       ThreadPoolConfig::ThreadCount::Default,
-                       ThreadPoolConfig::ThreadCount::Default,
-                       0,
-                       0) {
+    explicit SingleThreadedExecutorPool()
+        : CB3ExecutorPool(/*threads*/ 0,
+                          ThreadPoolConfig::ThreadCount::Default,
+                          ThreadPoolConfig::ThreadCount::Default,
+                          0,
+                          0) {
     }
 
     bool _startWorkers() override {
@@ -131,7 +131,7 @@ public:
         return totReadyTasks;
     }
 
-    size_t getNumReadyTasks(task_type_t qType) {
+    size_t getNumReadyTasksOfType(task_type_t qType) {
         return numReadyTasks[qType];
     }
 
@@ -159,11 +159,14 @@ private:
  * A container for a single task to 'execute' on divorced of the logical thread.
  * Performs checks of the taskQueue once execution is complete.
  */
-class CheckedExecutor : public ExecutorThread {
+class CheckedExecutor : public CB3ExecutorThread {
 public:
-
     CheckedExecutor(ExecutorPool* manager_, TaskQueue& q)
-        : ExecutorThread(manager_, q.getQueueType(), "checked_executor"),
+        // TODO: The dynamic_cast will fail if the ExecutorPool is
+        // not CB3ExecutorPool (e.g. FollyExecutorPool).
+        : CB3ExecutorThread(dynamic_cast<CB3ExecutorPool*>(manager_),
+                            q.getQueueType(),
+                            "checked_executor"),
           queue(q),
           preFutureQueueSize(queue.getFutureQueueSize()),
           preReadyQueueSize(queue.getReadyQueueSize()),

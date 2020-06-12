@@ -23,13 +23,14 @@
 #include <list>
 #include <queue>
 
-class ExecutorPool;
-class ExecutorThread;
+class CB3ExecutorPool;
+class CB3ExecutorThread;
 
 class TaskQueue {
-    friend class ExecutorPool;
+    friend class CB3ExecutorPool;
+
 public:
-    TaskQueue(ExecutorPool *m, task_type_t t, const char *nm);
+    TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm);
     ~TaskQueue();
 
     void schedule(ExTask &task);
@@ -51,14 +52,14 @@ public:
      * thread::currentTask with the next task to run (if one found).
      * @returns true if there is a task to run, otherwise false.
      */
-    bool fetchNextTask(ExecutorThread& thread);
+    bool fetchNextTask(CB3ExecutorThread& thread);
 
     /**
      * Sleeps until the next task is ready to run, waking up when ready and
      * updating thread::currentTask with the task to run.
      * @returns true if there is a task to run, otherwise false.
      */
-    bool sleepThenFetchNextTask(ExecutorThread& thread);
+    bool sleepThenFetchNextTask(CB3ExecutorThread& thread);
 
     void wake(ExTask &task);
 
@@ -79,12 +80,13 @@ public:
 private:
     void _schedule(ExTask &task);
     std::chrono::steady_clock::time_point _reschedule(ExTask& task);
-    bool _sleepThenFetchNextTask(ExecutorThread& t);
-    bool _fetchNextTask(ExecutorThread& thread);
-    bool _fetchNextTaskInner(ExecutorThread& t,
+    bool _sleepThenFetchNextTask(CB3ExecutorThread& t);
+    bool _fetchNextTask(CB3ExecutorThread& thread);
+    bool _fetchNextTaskInner(CB3ExecutorThread& t,
                              const std::unique_lock<std::mutex>& lh);
     void _wake(ExTask &task);
-    bool _doSleep(ExecutorThread &thread, std::unique_lock<std::mutex>& lock);
+    bool _doSleep(CB3ExecutorThread& thread,
+                  std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t &numToWake);
     size_t _moveReadyTasks(const std::chrono::steady_clock::time_point tv);
     ExTask _popReadyTask();
@@ -92,7 +94,7 @@ private:
     SyncObject mutex;
     const std::string name;
     task_type_t queueType;
-    ExecutorPool *manager;
+    CB3ExecutorPool* manager;
     size_t sleepers; // number of threads sleeping in this taskQueue
 
     // sorted by task priority.

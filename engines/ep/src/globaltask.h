@@ -53,8 +53,7 @@ class EventuallyPersistentEngine;
 class GlobalTask {
     friend class CompareByDueDate;
     friend class CompareByPriority;
-    friend class ExecutorPool;
-    friend class ExecutorThread;
+    friend class CB3ExecutorPool;
 public:
 
     GlobalTask(Taskable& t,
@@ -247,8 +246,8 @@ protected:
      *
      * Note: this is protected as this is only safe to call from a GlobalTasks'
      * own run() method; as it does not actually re-schedule the task itself
-     * (after GlobalTask::run() completes ExecutorThread re-checks wakeTime and
-     * re-schedules as necessary).
+     * (after GlobalTask::run() completes CB3ExecutorThread re-checks wakeTime
+     * and re-schedules as necessary).
      *
      * If you want to wake a task from outside it's own run() method; use
      * ExecutorPool::wake().

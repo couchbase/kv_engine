@@ -21,12 +21,12 @@
 
 void MockExecutorPool::replaceExecutorPoolWithMock() {
     LockHolder lh(initGuard);
-    auto* executor = ExecutorPool::instance.load();
+    auto* executor = instance.load();
     if (executor) {
         executor->shutdown();
     }
     auto* epEngine = ObjectRegistry::onSwitchThread(nullptr, true);
-    executor = new MockExecutorPool(NUM_TASK_GROUPS);
+    executor = new MockExecutorPool();
     ObjectRegistry::onSwitchThread(epEngine);
     instance.store(executor);
 }

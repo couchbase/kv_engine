@@ -14,16 +14,15 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "taskqueue.h"
 #include "bucket_logger.h"
 #include "executorpool.h"
 #include "executorthread.h"
-#include "taskqueue.h"
 
 #include <cmath>
 
-TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
-    name(nm), queueType(t), manager(m), sleepers(0)
-{
+TaskQueue::TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm)
+    : name(nm), queueType(t), manager(m), sleepers(0) {
     // EMPTY
 }
 
@@ -70,7 +69,7 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
     }
 }
 
-bool TaskQueue::_doSleep(ExecutorThread &t,
+bool TaskQueue::_doSleep(CB3ExecutorThread& t,
                          std::unique_lock<std::mutex>& lock) {
     t.updateCurrentTime();
 
@@ -114,7 +113,7 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
     return true;
 }
 
-bool TaskQueue::_sleepThenFetchNextTask(ExecutorThread& t) {
+bool TaskQueue::_sleepThenFetchNextTask(CB3ExecutorThread& t) {
     std::unique_lock<std::mutex> lh(mutex);
     if (!_doSleep(t, lh)) {
         return false; // shutting down
@@ -122,12 +121,12 @@ bool TaskQueue::_sleepThenFetchNextTask(ExecutorThread& t) {
     return _fetchNextTaskInner(t, lh);
 }
 
-bool TaskQueue::_fetchNextTask(ExecutorThread& t) {
+bool TaskQueue::_fetchNextTask(CB3ExecutorThread& t) {
     std::unique_lock<std::mutex> lh(mutex);
     return _fetchNextTaskInner(t, lh);
 }
 
-bool TaskQueue::_fetchNextTaskInner(ExecutorThread& t,
+bool TaskQueue::_fetchNextTaskInner(CB3ExecutorThread& t,
                                     const std::unique_lock<std::mutex>&) {
     bool ret = false;
 
@@ -148,12 +147,12 @@ bool TaskQueue::_fetchNextTaskInner(ExecutorThread& t,
     return ret;
 }
 
-bool TaskQueue::fetchNextTask(ExecutorThread& thread) {
+bool TaskQueue::fetchNextTask(CB3ExecutorThread& thread) {
     NonBucketAllocationGuard guard;
     return _fetchNextTask(thread);
 }
 
-bool TaskQueue::sleepThenFetchNextTask(ExecutorThread& thread) {
+bool TaskQueue::sleepThenFetchNextTask(CB3ExecutorThread& thread) {
     NonBucketAllocationGuard guard;
     return _sleepThenFetchNextTask(thread);
 }

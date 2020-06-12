@@ -30,20 +30,15 @@
 #include <folly/portability/GTest.h>
 #include <thread>
 
-class TestExecutorPool : public ExecutorPool {
+class TestExecutorPool : public CB3ExecutorPool {
 public:
     TestExecutorPool(size_t maxThreads,
-                     size_t nTaskSets,
                      ThreadPoolConfig::ThreadCount maxReaders,
                      ThreadPoolConfig::ThreadCount maxWriters,
                      size_t maxAuxIO,
                      size_t maxNonIO)
-        : ExecutorPool(maxThreads,
-                       nTaskSets,
-                       maxReaders,
-                       maxWriters,
-                       maxAuxIO,
-                       maxNonIO) {
+        : CB3ExecutorPool(
+                  maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO) {
     }
 
     size_t getNumBuckets() {
@@ -57,7 +52,7 @@ public:
 
         std::for_each(threadQ.begin(),
                       threadQ.end(),
-                      [&output](const ExecutorThread* v) {
+                      [&output](const CB3ExecutorThread* v) {
                           output.push_back(v->getName());
                       });
 
@@ -118,7 +113,6 @@ protected:
         ExecutorPoolTest::SetUp();
         pool = std::unique_ptr<TestExecutorPool>(new TestExecutorPool(
                 MaxThreads,
-                NUM_TASK_GROUPS,
                 ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
                 ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
                 2, // MaxNumAuxio

@@ -953,7 +953,7 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
      * multiple times, e.g., MB-23454.
      * doWorkerStat calls getLog/getSlowLog to get a vector of TaskLogEntrys,
      * which have been copied out of the tasklog ringbuffer of a given
-     * ExecutorThread. These copies logically have copies of the original's
+     * CB3ExecutorThread. These copies logically have copies of the original's
      * `std::string name`.
      * As the ringbuffer overwrites older entries, the deletion of the old
      * entry's `std::string name` races with doWorkerStats reading the COW'd

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2013 Couchbase, Inc.
+ *     Copyright 2020 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,6 +16,13 @@
  */
 
 #include "executorpool.h"
+#include "configuration.h"
+#include "ep_engine.h"
+#include "objectregistry.h"
+
+std::mutex ExecutorPool::initGuard;
+std::atomic<ExecutorPool*> ExecutorPool::instance;
+
 #include "bucket_logger.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -32,15 +39,12 @@
 #include <queue>
 #include <sstream>
 
-std::mutex ExecutorPool::initGuard;
-std::atomic<ExecutorPool*> ExecutorPool::instance;
-
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
 
-size_t ExecutorPool::getNumNonIO() {
+size_t CB3ExecutorPool::getNumNonIO() {
     // 1. compute: 30% of total threads
     size_t count = maxGlobalThreads * 0.3;
 
@@ -55,7 +59,7 @@ size_t ExecutorPool::getNumNonIO() {
     return count;
 }
 
-size_t ExecutorPool::getNumAuxIO() {
+size_t CB3ExecutorPool::getNumAuxIO() {
     // 1. compute: ceil of 10% of total threads
     size_t count = maxGlobalThreads / 10;
     if (!count || maxGlobalThreads % 10) {
@@ -72,12 +76,12 @@ size_t ExecutorPool::getNumAuxIO() {
     return count;
 }
 
-size_t ExecutorPool::getNumWriters() {
+size_t CB3ExecutorPool::getNumWriters() {
     return calcNumWriters(
             ThreadPoolConfig::ThreadCount(numWorkers[WRITER_TASK_IDX].load()));
 }
 
-size_t ExecutorPool::getNumReaders() {
+size_t CB3ExecutorPool::getNumReaders() {
     return calcNumReaders(
             ThreadPoolConfig::ThreadCount(numWorkers[READER_TASK_IDX].load()));
 }
@@ -94,9 +98,8 @@ ExecutorPool *ExecutorPool::get() {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
             NonBucketAllocationGuard guard;
-            tmp = new ExecutorPool(
+            tmp = new CB3ExecutorPool(
                     config.getMaxThreads(),
-                    NUM_TASK_GROUPS,
                     ThreadPoolConfig::ThreadCount(config.getNumReaderThreads()),
                     ThreadPoolConfig::ThreadCount(config.getNumWriterThreads()),
                     config.getNumAuxioThreads(),
@@ -117,24 +120,22 @@ void ExecutorPool::shutdown() {
     }
 }
 
-ExecutorPool::ExecutorPool(size_t maxThreads,
-                           size_t nTaskSets,
-                           ThreadPoolConfig::ThreadCount maxReaders,
-                           ThreadPoolConfig::ThreadCount maxWriters,
-                           size_t maxAuxIO,
-                           size_t maxNonIO)
-    : numTaskSets(nTaskSets),
-      maxGlobalThreads(maxThreads ? maxThreads
+CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
+                                 ThreadPoolConfig::ThreadCount maxReaders,
+                                 ThreadPoolConfig::ThreadCount maxWriters,
+                                 size_t maxAuxIO,
+                                 size_t maxNonIO)
+    : maxGlobalThreads(maxThreads ? maxThreads
                                   : Couchbase::get_available_cpu_count()),
       totReadyTasks(0),
       isHiPrioQset(false),
       isLowPrioQset(false),
       numBuckets(0),
       numSleepers(0),
-      curWorkers(nTaskSets),
-      numWorkers(nTaskSets),
-      numReadyTasks(nTaskSets) {
-    for (size_t i = 0; i < nTaskSets; i++) {
+      curWorkers(numTaskSets),
+      numWorkers(numTaskSets),
+      numReadyTasks(numTaskSets) {
+    for (size_t i = 0; i < numTaskSets; i++) {
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
     }
@@ -144,7 +145,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads,
     numWorkers[NONIO_TASK_IDX] = maxNonIO;
 }
 
-ExecutorPool::~ExecutorPool() {
+CB3ExecutorPool::~CB3ExecutorPool() {
     _stopAndJoinThreads();
 
     if (isHiPrioQset) {
@@ -163,7 +164,7 @@ ExecutorPool::~ExecutorPool() {
 // polling frequencies as follows ...
 #define LOW_PRIORITY_FREQ 5 // 1 out of 5 times threads check low priority Q
 
-TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
+TaskQueue* CB3ExecutorPool::_nextTask(CB3ExecutorThread& t, uint8_t tick) {
     if (!tick) {
         return nullptr;
     }
@@ -200,31 +201,34 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
     return nullptr;
 }
 
-TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
-    TaskQueue *tq = _nextTask(t, tick);
+TaskQueue* CB3ExecutorPool::nextTask(CB3ExecutorThread& t, uint8_t tick) {
+    TaskQueue* tq = _nextTask(t, tick);
     return tq;
 }
 
-void ExecutorPool::addWork(size_t newWork, task_type_t qType) {
+void CB3ExecutorPool::addWork(size_t newWork, task_type_t qType) {
     if (newWork) {
         totReadyTasks.fetch_add(newWork);
         numReadyTasks[qType].fetch_add(newWork);
     }
 }
 
-void ExecutorPool::lessWork(task_type_t qType) {
+void CB3ExecutorPool::lessWork(task_type_t qType) {
     if (numReadyTasks[qType].load() == 0) {
-        throw std::logic_error("ExecutorPool::lessWork: number of ready "
-                "tasks on qType " + std::to_string(qType) + " is zero");
+        throw std::logic_error(
+                "CB3ExecutorPool::lessWork: number of ready "
+                "tasks on qType " +
+                std::to_string(qType) + " is zero");
     }
     numReadyTasks[qType]--;
     totReadyTasks--;
 }
 
-void ExecutorPool::startWork(task_type_t taskType) {
+void CB3ExecutorPool::startWork(task_type_t taskType) {
     if (taskType == NO_TASK_TYPE || taskType == NUM_TASK_GROUPS) {
         throw std::logic_error(
-                "ExecutorPool::startWork: worker is starting task with invalid "
+                "CB3ExecutorPool::startWork: worker is starting task with "
+                "invalid "
                 "type {" +
                 std::to_string(taskType) + "}");
     } else {
@@ -239,11 +243,13 @@ void ExecutorPool::startWork(task_type_t taskType) {
     }
 }
 
-void ExecutorPool::doneWork(task_type_t taskType) {
+void CB3ExecutorPool::doneWork(task_type_t taskType) {
     if (taskType == NO_TASK_TYPE || taskType == NUM_TASK_GROUPS) {
         throw std::logic_error(
-                "ExecutorPool::doneWork: worker is finishing task with invalid "
-                "type {" + std::to_string(taskType) + "}");
+                "CB3ExecutorPool::doneWork: worker is finishing task with "
+                "invalid "
+                "type {" +
+                std::to_string(taskType) + "}");
     } else {
         --curWorkers[taskType];
         // Record that a thread is done working on a particular queue type
@@ -253,7 +259,7 @@ void ExecutorPool::doneWork(task_type_t taskType) {
     }
 }
 
-ExTask ExecutorPool::_cancel(size_t taskId, bool remove) {
+ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {
     LockHolder lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
@@ -272,7 +278,7 @@ ExTask ExecutorPool::_cancel(size_t taskId, bool remove) {
 
     if (remove) { // only internal threads can remove tasks
         if (!task->isdead()) {
-            throw std::logic_error("ExecutorPool::_cancel: task '" +
+            throw std::logic_error("CB3ExecutorPool::_cancel: task '" +
                                    task->getDescription() +
                                    "' is not dead after calling "
                                    "cancel() on it");
@@ -287,13 +293,13 @@ ExTask ExecutorPool::_cancel(size_t taskId, bool remove) {
     return task;
 }
 
-bool ExecutorPool::cancel(size_t taskId, bool remove) {
+bool CB3ExecutorPool::cancel(size_t taskId, bool remove) {
     ExTask task;
 
     // Memory allocation guards.
     // cancel is called from a number of places and the caller may or may not
     // have memory allocation tracking associated to a bucket. For example
-    // ExecutorThread::run will not be associated with a bucket when it calls
+    // CB3ExecutorThread::run will not be associated with a bucket when it calls
     // cancel, yet KVBucket::setExpiryPagerSleeptime will be associated with a
     // bucket.
     // The call to _cancel *must* not be associated with a bucket, any memory
@@ -320,7 +326,7 @@ bool ExecutorPool::cancel(size_t taskId, bool remove) {
     return taskFound;
 }
 
-bool ExecutorPool::_wake(size_t taskId) {
+bool CB3ExecutorPool::_wake(size_t taskId) {
     LockHolder lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
@@ -330,13 +336,13 @@ bool ExecutorPool::_wake(size_t taskId) {
     return false;
 }
 
-bool ExecutorPool::wake(size_t taskId) {
+bool CB3ExecutorPool::wake(size_t taskId) {
     NonBucketAllocationGuard guard;
     bool rv = _wake(taskId);
     return rv;
 }
 
-bool ExecutorPool::_snooze(size_t taskId, double toSleep) {
+bool CB3ExecutorPool::_snooze(size_t taskId, double toSleep) {
     LockHolder lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
@@ -346,23 +352,24 @@ bool ExecutorPool::_snooze(size_t taskId, double toSleep) {
     return false;
 }
 
-bool ExecutorPool::snooze(size_t taskId, double toSleep) {
+bool CB3ExecutorPool::snooze(size_t taskId, double toSleep) {
     NonBucketAllocationGuard guard;
     bool rv = _snooze(taskId, toSleep);
     return rv;
 }
 
-TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
-                                       task_type_t qidx) {
+TaskQueue* CB3ExecutorPool::_getTaskQueue(const Taskable& t, task_type_t qidx) {
     TaskQueue         *q             = nullptr;
     size_t            curNumThreads  = 0;
 
     bucket_priority_t bucketPriority = t.getWorkloadPriority();
 
     if (qidx < 0 || static_cast<size_t>(qidx) >= numTaskSets) {
-        throw std::invalid_argument("ExecutorPool::_getTaskQueue: qidx "
-                "(which is " + std::to_string(qidx) + ") is outside the range [0,"
-                + std::to_string(numTaskSets) + ")");
+        throw std::invalid_argument(
+                "CB3ExecutorPool::_getTaskQueue: qidx "
+                "(which is " +
+                std::to_string(qidx) + ") is outside the range [0," +
+                std::to_string(numTaskSets) + ")");
     }
 
     curNumThreads = threadQ.size();
@@ -385,33 +392,39 @@ TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
         switch (bucketPriority) {
         case LOW_BUCKET_PRIORITY:
             if (lpTaskQ.size() != numTaskSets) {
-                throw std::logic_error("ExecutorPool::_getTaskQueue: At "
+                throw std::logic_error(
+                        "CB3ExecutorPool::_getTaskQueue: At "
                         "maximum capacity but low-priority taskQ size "
-                        "(which is " + std::to_string(lpTaskQ.size()) +
-                        ") is not " + std::to_string(numTaskSets));
+                        "(which is " +
+                        std::to_string(lpTaskQ.size()) + ") is not " +
+                        std::to_string(numTaskSets));
             }
             q = lpTaskQ[qidx];
             break;
 
         case HIGH_BUCKET_PRIORITY:
             if (hpTaskQ.size() != numTaskSets) {
-                throw std::logic_error("ExecutorPool::_getTaskQueue: At "
+                throw std::logic_error(
+                        "CB3ExecutorPool::_getTaskQueue: At "
                         "maximum capacity but high-priority taskQ size "
-                        "(which is " + std::to_string(lpTaskQ.size()) +
-                        ") is not " + std::to_string(numTaskSets));
+                        "(which is " +
+                        std::to_string(lpTaskQ.size()) + ") is not " +
+                        std::to_string(numTaskSets));
             }
             q = hpTaskQ[qidx];
             break;
 
         default:
-            throw std::logic_error("ExecutorPool::_getTaskQueue: Invalid "
-                    "bucketPriority " + std::to_string(bucketPriority));
+            throw std::logic_error(
+                    "CB3ExecutorPool::_getTaskQueue: Invalid "
+                    "bucketPriority " +
+                    std::to_string(bucketPriority));
         }
     }
     return q;
 }
 
-size_t ExecutorPool::_schedule(ExTask task) {
+size_t CB3ExecutorPool::_schedule(ExTask task) {
     LockHolder lh(tMutex);
     const size_t taskId = task->getId();
 
@@ -430,13 +443,13 @@ size_t ExecutorPool::_schedule(ExTask task) {
     return taskId;
 }
 
-size_t ExecutorPool::schedule(ExTask task) {
+size_t CB3ExecutorPool::schedule(ExTask task) {
     NonBucketAllocationGuard guard;
     size_t rv = _schedule(task);
     return rv;
 }
 
-void ExecutorPool::_registerTaskable(Taskable& taskable) {
+void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
     TaskQ *taskQ;
     bool *whichQset;
     const char *queueName;
@@ -478,12 +491,12 @@ void ExecutorPool::_registerTaskable(Taskable& taskable) {
     _startWorkers();
 }
 
-void ExecutorPool::registerTaskable(Taskable& taskable) {
+void CB3ExecutorPool::registerTaskable(Taskable& taskable) {
     NonBucketAllocationGuard guard;
     _registerTaskable(taskable);
 }
 
-ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
+void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
     std::string typeName{to_string(type)};
 
     // vector of threads which have been stopped
@@ -497,13 +510,14 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
         LockHolder lh(tMutex);
 
         // How many threads performing this task type there are currently
-        numItems = std::count_if(
-                threadQ.begin(), threadQ.end(), [type](ExecutorThread* thread) {
-                    return thread->taskType == type;
-                });
+        numItems = std::count_if(threadQ.begin(),
+                                 threadQ.end(),
+                                 [type](CB3ExecutorThread* thread) {
+                                     return thread->taskType == type;
+                                 });
 
         if (numItems == desiredNumItems) {
-            return 0;
+            return;
         }
 
         EP_LOG_INFO("Adjusting threads of type:{} from:{} to:{}",
@@ -515,7 +529,7 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             // If we want to increase the number of threads, they must be
             // created and started
             for (size_t tidx = numItems; tidx < desiredNumItems; ++tidx) {
-                threadQ.push_back(new ExecutorThread(
+                threadQ.push_back(new CB3ExecutorThread(
                         this,
                         type,
                         typeName + "_worker_" + std::to_string(tidx)));
@@ -567,16 +581,14 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
         delete (*itr);
         itr = removed.erase(itr);
     }
-
-    return ssize_t(desiredNumItems) - ssize_t(numItems);
 }
 
-void ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
+void CB3ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
     NonBucketAllocationGuard guard;
     _adjustWorkers(type, newCount);
 }
 
-bool ExecutorPool::_startWorkers() {
+bool CB3ExecutorPool::_startWorkers() {
     size_t numReaders = getNumReaders();
     size_t numWriters = getNumWriters();
     size_t numAuxIO = getNumAuxIO();
@@ -590,7 +602,7 @@ bool ExecutorPool::_startWorkers() {
     return true;
 }
 
-std::vector<ExTask> ExecutorPool::_stopTaskGroup(
+std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
         task_gid_t taskGID, std::unique_lock<std::mutex>& lh, bool force) {
     bool unfinishedTask;
     std::map<size_t, TaskQpair>::iterator itr;
@@ -631,8 +643,8 @@ std::vector<ExTask> ExecutorPool::_stopTaskGroup(
     return tasks;
 }
 
-std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
-                                                      bool force) {
+std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
+                                                         bool force) {
     EP_LOG_INFO("Unregistering {} taskable {}",
                 (numBuckets == 1) ? "last" : "",
                 taskable.getName());
@@ -644,7 +656,8 @@ std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
     taskOwners.erase(&taskable);
     if (!(--numBuckets)) {
         if (!taskLocator.empty()) {
-            throw std::logic_error("ExecutorPool::_unregisterTaskable: "
+            throw std::logic_error(
+                    "CB3ExecutorPool::_unregisterTaskable: "
                     "Attempting to unregister taskable '" +
                     taskable.getName() + "' but taskLocator is not empty");
         }
@@ -686,17 +699,17 @@ std::vector<ExTask> ExecutorPool::_unregisterTaskable(Taskable& taskable,
     return rv;
 }
 
-std::vector<ExTask> ExecutorPool::unregisterTaskable(Taskable& taskable,
-                                                     bool force) {
+std::vector<ExTask> CB3ExecutorPool::unregisterTaskable(Taskable& taskable,
+                                                        bool force) {
     // Note: unregistering a bucket is special - any memory allocations /
     // deallocations made while unregistering *should* be accounted to the
     // bucket in question - hence no `onSwitchThread(NULL)` call.
     return _unregisterTaskable(taskable, force);
 }
 
-void ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
-                               const void* cookie,
-                               const AddStatFn& add_stat) {
+void CB3ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
+                                  const void* cookie,
+                                  const AddStatFn& add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }
@@ -737,13 +750,13 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
             }
         }
     } catch (std::exception& error) {
-        EP_LOG_WARN("ExecutorPool::doTaskQStat: Failed to build stats: {}",
+        EP_LOG_WARN("CB3ExecutorPool::doTaskQStat: Failed to build stats: {}",
                     error.what());
     }
 }
 
 static void addWorkerStats(const char* prefix,
-                           ExecutorThread* t,
+                           CB3ExecutorThread* t,
                            const void* cookie,
                            const AddStatFn& add_stat) {
     char statname[80] = {0};
@@ -776,9 +789,9 @@ static void addWorkerStats(const char* prefix,
     }
 }
 
-void ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
-                                const void* cookie,
-                                const AddStatFn& add_stat) {
+void CB3ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
+                                   const void* cookie,
+                                   const AddStatFn& add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }
@@ -791,9 +804,9 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
     }
 }
 
-void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
-                               const void* cookie,
-                               const AddStatFn& add_stat) {
+void CB3ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
+                                  const void* cookie,
+                                  const AddStatFn& add_stat) {
     if (engine->getEpStats().isShutdown) {
         return;
     }
@@ -857,8 +870,7 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
     add_casted_stat(statname, ep_current_time(), add_stat, cookie);
 }
 
-void ExecutorPool::_stopAndJoinThreads() {
-
+void CB3ExecutorPool::_stopAndJoinThreads() {
     // Ask all threads to stop (but don't wait)
     for (auto thread : threadQ) {
         thread->stop(false);
@@ -880,7 +892,7 @@ void ExecutorPool::_stopAndJoinThreads() {
     }
 }
 
-size_t ExecutorPool::calcNumReaders(
+size_t CB3ExecutorPool::calcNumReaders(
         ThreadPoolConfig::ThreadCount threadCount) const {
     switch (threadCount) {
     case ThreadPoolConfig::ThreadCount::Default: {
@@ -917,7 +929,7 @@ size_t ExecutorPool::calcNumReaders(
     }
 }
 
-size_t ExecutorPool::calcNumWriters(
+size_t CB3ExecutorPool::calcNumWriters(
         ThreadPoolConfig::ThreadCount threadCount) const {
     switch (threadCount) {
     case ThreadPoolConfig::ThreadCount::Default:

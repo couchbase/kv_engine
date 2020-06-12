@@ -1,5 +1,5 @@
 /*
- *     Copyright 2014 Couchbase, Inc.
+ *     Copyright 2020 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,6 +13,176 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#pragma once
+
+#include <memcached/engine_common.h>
+#include <memcached/thread_pool_config.h>
+
+#include <atomic>
+#include <cstddef>
+#include <memory>
+#include <mutex>
+
+class EventuallyPersistentEngine;
+class GlobalTask;
+class Taskable;
+using ExTask = std::shared_ptr<GlobalTask>;
+
+class ExecutorPool {
+public:
+    /**
+     * @returns the singleton instance of ExecutorPool, creating it if not
+     * already exists.
+     */
+    static ExecutorPool* get();
+
+    /**
+     * Destroys the singleton instance of ExecutorPool, joining and terminating
+     * all pool threads.
+     */
+    static void shutdown();
+
+    /********************* Thread Management *********************************/
+
+    /**
+     * Returns the total number of worker threads which currently exist
+     * across all thread types.
+     */
+    virtual size_t getNumWorkersStat() = 0;
+
+    /// @returns the number of Reader IO threads.
+    virtual size_t getNumReaders() = 0;
+
+    /// @returns the number of Writer IO threads.
+    virtual size_t getNumWriters() = 0;
+
+    /// @returns the number of Auxillary IO threads.
+    virtual size_t getNumAuxIO() = 0;
+
+    /// @returns the number of Non-IO threads.
+    virtual size_t getNumNonIO() = 0;
+
+    /// Set the number of Reader IO threads to the specified number.
+    virtual void setNumReaders(ThreadPoolConfig::ThreadCount v) = 0;
+
+    /// Set the number of Writer IO threads to the specified number.
+    virtual void setNumWriters(ThreadPoolConfig::ThreadCount v) = 0;
+
+    /// Set the number of Auxillary IO threads to the specified number.
+    virtual void setNumAuxIO(uint16_t v) = 0;
+
+    /// Set the number of Non-IO threads to the specified number.
+    virtual void setNumNonIO(uint16_t v) = 0;
+
+    /*
+     * The following getMax...() methods are deprecated - the "maximum" number
+     * of threads is the same as the current number as returned by getNum...()
+     * above.
+     */
+
+    /// [Deprecated] Get the "maximum" number of Reader IO threads.
+    virtual size_t getMaxReaders() = 0;
+    /// [Deprecated] Get the "maximum" number of Writer IO threads.
+    virtual size_t getMaxWriters() = 0;
+    /// [Deprecated] Get the "maximum" number of Auxillary IO threads.
+    virtual size_t getMaxAuxIO() = 0;
+    /// [Deprecated] Get the "maximum" number of Non-IO threads.
+    virtual size_t getMaxNonIO() = 0;
+
+    /// @returns the number of threads currently sleeping.
+    virtual size_t getNumSleepers() = 0;
+
+    /// @returns the number of Tasks ready to run.
+    virtual size_t getNumReadyTasks() = 0;
+
+    /***************** Task Ownership ***************************************/
+
+    /**
+     * Registers a "Taskable" - a task owner with the executorPool.
+     */
+    virtual void registerTaskable(Taskable& taskable) = 0;
+
+    /**
+     * Remove the client via the Taskable interface.
+     * Calling this method will find and trigger cancel on all tasks of the
+     * client and return the tasks (shared_ptr) to the caller.
+     *
+     * @param taskable caller's taskable interface (getGID used to find tasks)
+     * @param force should the shutdown be forced (may not wait for tasks)
+     * @return a container storing the caller's tasks, ownership is transferred
+     *         to the caller.
+     */
+    virtual std::vector<ExTask> unregisterTaskable(Taskable& taskable,
+                                                   bool force) = 0;
+
+    /***************** Task Scheduling **************************************/
+
+    /**
+     * Allows task to be scheduled for future execution by a thread of the
+     * associated task->getTaskType. The task's 'wakeTime' determines
+     * approximately when the task will be executed (no guarantees).
+     */
+    virtual size_t schedule(ExTask task) = 0;
+
+    /**
+     * cancel the task with taskId and optionally remove from taskLocator.
+     * Removing from the taskLocator will eventually trigger deletion of the
+     * task as references to the shared_ptr are dropped.
+     *
+     * @param taskId Task to cancel
+     * @param remove true if the task should be removed from taskLocator
+     * @return true if the task was found and cancelled
+     */
+    virtual bool cancel(size_t taskId, bool remove = false) = 0;
+
+    /**
+     * The wake method allows for a caller to request that the task matching
+     * taskId be executed by its thread-type now'. The tasks wakeTime is
+     * modified so that it has a wakeTime of now and a thread of the correct
+     * type is signaled to wake-up and perform fetching. The woken task will
+     * have to wait for any current tasks to be executed first, but it will
+     * jump ahead of other tasks as tasks that are ready to run are ordered
+     * by their priority.
+     */
+    virtual bool wake(size_t taskId) = 0;
+
+    /**
+     * The snooze method will locate the task matching taskId and adjust its
+     * wakeTime to account for the toSleep value.
+     */
+    virtual bool snooze(size_t taskId, double tosleep) = 0;
+
+    /*************** Statistics *********************************************/
+
+    /**
+     * @returns statistics about worker threads.
+     */
+    virtual void doWorkerStat(EventuallyPersistentEngine* engine,
+                              const void* cookie,
+                              const AddStatFn& add_stat) = 0;
+
+    /**
+     * Generates stats regarding currently running tasks, as displayed by
+     * cbstats tasks.
+     */
+    virtual void doTasksStat(EventuallyPersistentEngine* engine,
+                             const void* cookie,
+                             const AddStatFn& add_stat) = 0;
+
+    /**
+     * Generates stats regarding queued tasks.
+     */
+    virtual void doTaskQStat(EventuallyPersistentEngine* engine,
+                             const void* cookie,
+                             const AddStatFn& add_stat) = 0;
+
+    virtual ~ExecutorPool() = default;
+
+protected:
+    // Singleton creation
+    static std::mutex initGuard;
+    static std::atomic<ExecutorPool*> instance;
+};
 
 /*
  * === High-level overview of the task execution system. ===
@@ -63,28 +233,24 @@
  *   The pool's snooze method will locate the task matching taskId and adjust
  *   its wakeTime to account for the toSleep value.
  */
-#pragma once
 
 #include "syncobject.h"
 #include "task_type.h"
 #include "taskable.h"
 
-#include <memcached/engine.h>
-#include <memcached/thread_pool_config.h>
 #include <map>
 #include <set>
 
 // Forward decl
 class TaskQueue;
-class ExecutorThread;
+class CB3ExecutorThread;
 
-typedef std::vector<ExecutorThread *> ThreadQ;
-typedef std::pair<ExTask, TaskQueue *> TaskQpair;
-typedef std::vector<TaskQueue *> TaskQ;
+using ThreadQ = std::vector<CB3ExecutorThread*>;
+using TaskQpair = std::pair<ExTask, TaskQueue*>;
+using TaskQ = std::vector<TaskQueue*>;
 
-class ExecutorPool {
+class CB3ExecutorPool : public ExecutorPool {
 public:
-
     void addWork(size_t newWork, task_type_t qType);
 
     void lessWork(task_type_t qType);
@@ -105,24 +271,15 @@ public:
         numSleepers--;
     }
 
-    TaskQueue *nextTask(ExecutorThread &t, uint8_t tick);
+    TaskQueue* nextTask(CB3ExecutorThread& t, uint8_t tick);
 
-    TaskQueue *getSleepQ(unsigned int curTaskType) {
+    TaskQueue* getSleepQ(unsigned int curTaskType) {
         return isHiPrioQset ? hpTaskQ[curTaskType] : lpTaskQ[curTaskType];
     }
 
-    /**
-     * cancel the task with taskId and optionally remove from taskLocator.
-     * Removing from the taskLocator will eventually trigger deletion of the
-     * task as references to the shared_ptr are dropped.
-     *
-     * @param taskId Task to cancel
-     * @param remove true if the task should be removed from taskLocator
-     * @return true if the task was found and cancelled
-     */
-    bool cancel(size_t taskId, bool remove = false);
+    bool cancel(size_t taskId, bool remove = false) override;
 
-    bool wake(size_t taskId);
+    bool wake(size_t taskId) override;
 
     /**
      * Change how many worker threads there are for a given task type,
@@ -133,9 +290,9 @@ public:
      */
     void adjustWorkers(task_type_t type, size_t newCount);
 
-    bool snooze(size_t taskId, double tosleep);
+    bool snooze(size_t taskId, double tosleep) override;
 
-    void registerTaskable(Taskable& taskable);
+    void registerTaskable(Taskable& taskable) override;
 
     /**
      * Remove the client via the Taskable interface.
@@ -147,11 +304,12 @@ public:
      * @return a container storing the caller's tasks, ownership is transferred
      *         to the caller.
      */
-    std::vector<ExTask> unregisterTaskable(Taskable& taskable, bool force);
+    std::vector<ExTask> unregisterTaskable(Taskable& taskable,
+                                           bool force) override;
 
     void doWorkerStat(EventuallyPersistentEngine* engine,
                       const void* cookie,
-                      const AddStatFn& add_stat);
+                      const AddStatFn& add_stat) override;
 
     /**
      * Generates stats regarding currently running tasks, as displayed by
@@ -159,66 +317,66 @@ public:
      */
     void doTasksStat(EventuallyPersistentEngine* engine,
                      const void* cookie,
-                     const AddStatFn& add_stat);
+                     const AddStatFn& add_stat) override;
 
     void doTaskQStat(EventuallyPersistentEngine* engine,
                      const void* cookie,
-                     const AddStatFn& add_stat);
+                     const AddStatFn& add_stat) override;
 
-    size_t getNumWorkersStat() {
+    size_t getNumWorkersStat() override {
         LockHolder lh(tMutex);
         return threadQ.size();
     }
 
-    size_t getNumReaders();
+    size_t getNumReaders() override;
 
-    size_t getNumWriters();
+    size_t getNumWriters() override;
 
-    size_t getNumAuxIO();
+    size_t getNumAuxIO() override;
 
-    size_t getNumNonIO();
+    size_t getNumNonIO() override;
 
-    size_t getMaxReaders() {
+    size_t getMaxReaders() override {
         return numWorkers[READER_TASK_IDX];
     }
 
-    size_t getMaxWriters() {
+    size_t getMaxWriters() override {
         return numWorkers[WRITER_TASK_IDX];
     }
 
-    size_t getMaxAuxIO() {
+    size_t getMaxAuxIO() override {
         return numWorkers[AUXIO_TASK_IDX];
     }
 
-    size_t getMaxNonIO() {
+    size_t getMaxNonIO() override {
         return numWorkers[NONIO_TASK_IDX];
     }
 
-    void setNumReaders(ThreadPoolConfig::ThreadCount v) {
+    void setNumReaders(ThreadPoolConfig::ThreadCount v) override {
         adjustWorkers(READER_TASK_IDX, calcNumReaders(v));
     }
 
-    void setNumWriters(ThreadPoolConfig::ThreadCount v) {
+    void setNumWriters(ThreadPoolConfig::ThreadCount v) override {
         adjustWorkers(WRITER_TASK_IDX, calcNumWriters(v));
     }
 
-    void setNumAuxIO(uint16_t v) {
+    void setNumAuxIO(uint16_t v) override {
         adjustWorkers(AUXIO_TASK_IDX, v);
     }
 
-    void setNumNonIO(uint16_t v) {
+    void setNumNonIO(uint16_t v) override {
         adjustWorkers(NONIO_TASK_IDX, v);
     }
 
-    size_t getNumReadyTasks() { return totReadyTasks; }
+    size_t getNumReadyTasks() override {
+        return totReadyTasks;
+    }
 
-    size_t getNumSleepers() { return numSleepers; }
+    size_t getNumSleepers() override {
+        return numSleepers;
+    }
 
-    size_t schedule(ExTask task);
-
-    static ExecutorPool *get();
-
-    static void shutdown();
+    size_t schedule(ExTask task) override;
 
 protected:
     /**
@@ -227,22 +385,20 @@ protected:
      * @param maxThreads Maximum number of threads in any given thread class
      *                   (Reader, Writer, NonIO, AuxIO). A value of 0 means
      *                   use number of CPU cores.
-     * @param nTaskSets Number of task sets.
      * @param maxReaders Number of Reader threads to create.
      * @param maxWriters Number of Writer threads to create.
      * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
      * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
      */
-    ExecutorPool(size_t maxThreads,
-                 size_t nTaskSets,
-                 ThreadPoolConfig::ThreadCount maxReaders,
-                 ThreadPoolConfig::ThreadCount maxWriters,
-                 size_t maxAuxIO,
-                 size_t maxNonIO);
+    CB3ExecutorPool(size_t maxThreads,
+                    ThreadPoolConfig::ThreadCount maxReaders,
+                    ThreadPoolConfig::ThreadCount maxWriters,
+                    size_t maxAuxIO,
+                    size_t maxNonIO);
 
-    virtual ~ExecutorPool();
+    ~CB3ExecutorPool() override;
 
-    TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
+    TaskQueue* _nextTask(CB3ExecutorThread& t, uint8_t tick);
 
     /**
      * see cancel() for detail
@@ -261,9 +417,8 @@ protected:
      *
      * @param type Thread type to change
      * @param desiredNumItems Number of threads we want to result in.
-     * @return How many threads have been created (+ve) / destroyed (-ve)
      */
-    ssize_t _adjustWorkers(task_type_t type, size_t desiredNumItems);
+    void _adjustWorkers(task_type_t type, size_t desiredNumItems);
 
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task);
@@ -285,7 +440,7 @@ protected:
      */
     size_t calcNumWriters(ThreadPoolConfig::ThreadCount threadCount) const;
 
-    const size_t numTaskSets;
+    const size_t numTaskSets{NUM_TASK_GROUPS};
 
     /**
      * Maximum number of threads of any given class (Reader, Writer, AuxIO,
@@ -324,7 +479,6 @@ protected:
     // Set of all known task owners
     std::set<void *> taskOwners;
 
-    // Singleton creation
-    static std::mutex initGuard;
-    static std::atomic<ExecutorPool*> instance;
+    /// To allow ExecutorPool::get() to create an instance.
+    friend class ExecutorPool;
 };

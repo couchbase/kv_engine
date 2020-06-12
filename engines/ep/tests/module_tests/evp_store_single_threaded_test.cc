@@ -1985,21 +1985,21 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     task_executor->schedule(task);
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
-              task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
+              task_executor->getNumReadyTasksOfType(AUXIO_TASK_IDX));
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
 
     // Wake task, but stays in futureQueue (fetch can now move it)
     task_executor->wake(task->getId());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
-              task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
+              task_executor->getNumReadyTasksOfType(AUXIO_TASK_IDX));
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
 
     runNextTask(lpAuxioQ);
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
-              task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
+              task_executor->getNumReadyTasksOfType(AUXIO_TASK_IDX));
     EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
 }
@@ -2620,7 +2620,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
 
     // Check 1 task is ready
     EXPECT_EQ(1, task_executor->getTotReadyTasks());
-    EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
+    EXPECT_EQ(1, task_executor->getNumReadyTasksOfType(NONIO_TASK_IDX));
 
     runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
 
@@ -2633,7 +2633,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
 
     // Check 1 task is ready
     EXPECT_EQ(1, task_executor->getTotReadyTasks());
-    EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
+    EXPECT_EQ(1, task_executor->getNumReadyTasksOfType(NONIO_TASK_IDX));
     runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
 }
 

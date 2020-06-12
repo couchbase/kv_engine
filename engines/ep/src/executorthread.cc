@@ -19,7 +19,6 @@
 #include <queue>
 
 #include "bucket_logger.h"
-#include "common.h"
 #include "executorpool.h"
 #include "executorthread.h"
 #include "globaltask.h"
@@ -32,16 +31,16 @@
 
 extern "C" {
     static void launch_executor_thread(void *arg) {
-        auto *executor = (ExecutorThread*) arg;
+        auto* executor = (CB3ExecutorThread*)arg;
         executor->run();
     }
 }
 
-ExecutorThread::~ExecutorThread() {
+CB3ExecutorThread::~CB3ExecutorThread() {
     EP_LOG_INFO("Executor killing {}", name);
 }
 
-void ExecutorThread::start() {
+void CB3ExecutorThread::start() {
     std::string thread_name("mc:" + getName());
     // Only permitted 15 characters of name; therefore abbreviate thread names.
     std::string worker("_worker");
@@ -60,7 +59,7 @@ void ExecutorThread::start() {
     EP_LOG_DEBUG("{}: Started", name);
 }
 
-void ExecutorThread::stop(bool wait) {
+void CB3ExecutorThread::stop(bool wait) {
     if (!wait && (state == EXECUTOR_SHUTDOWN || state == EXECUTOR_DEAD)) {
         return;
     }
@@ -75,12 +74,12 @@ void ExecutorThread::stop(bool wait) {
     EP_LOG_INFO("{}: Stopped", name);
 }
 
-void ExecutorThread::run() {
+void CB3ExecutorThread::run() {
     EP_LOG_DEBUG("Thread {} running..", getName());
 
     // The run loop should not account to any bucket, only once inside a task
     // will accounting be back on. GlobalTask::execute will switch to the bucket
-    // and ExecutorPool::cancel will guard the task delete clause with the
+    // and CB3ExecutorPool::cancel will guard the task delete clause with the
     // BucketAllocationGuard to account task deletion to the bucket.
     NonBucketAllocationGuard guard;
 
@@ -233,7 +232,7 @@ void ExecutorThread::run() {
     state = EXECUTOR_DEAD;
 }
 
-void ExecutorThread::setCurrentTask(ExTask newTask) {
+void CB3ExecutorThread::setCurrentTask(ExTask newTask) {
     LockHolder lh(currentTaskMutex);
     currentTask = newTask;
 }
@@ -243,7 +242,7 @@ void ExecutorThread::setCurrentTask(ExTask newTask) {
 // executorthread/pool code from it's destructor path, specifically if the task
 // owns a VBucketPtr which is marked as "deferred-delete". Doing this std::move
 // and lockless reset prevents a lock inversion.
-void ExecutorThread::resetCurrentTask() {
+void CB3ExecutorThread::resetCurrentTask() {
     ExTask resetThisObject;
     {
         LockHolder lh(currentTaskMutex);
@@ -254,7 +253,7 @@ void ExecutorThread::resetCurrentTask() {
     resetThisObject.reset();
 }
 
-std::string ExecutorThread::getTaskName() {
+std::string CB3ExecutorThread::getTaskName() {
     LockHolder lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getDescription();
@@ -263,7 +262,7 @@ std::string ExecutorThread::getTaskName() {
     }
 }
 
-const std::string ExecutorThread::getTaskableName() {
+const std::string CB3ExecutorThread::getTaskableName() {
     LockHolder lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getTaskable().getName();
@@ -272,7 +271,7 @@ const std::string ExecutorThread::getTaskableName() {
     }
 }
 
-const std::string ExecutorThread::getStateName() {
+const std::string CB3ExecutorThread::getStateName() {
     switch (state.load()) {
     case EXECUTOR_RUNNING:
         return std::string("running");
@@ -287,16 +286,16 @@ const std::string ExecutorThread::getStateName() {
     }
 }
 
-void ExecutorThread::cancelCurrentTask(ExecutorPool& manager) {
-    auto uid = currentTask->uid;
+void CB3ExecutorThread::cancelCurrentTask(CB3ExecutorPool& manager) {
+    auto uid = currentTask->getId();
     resetCurrentTask();
     manager.cancel(uid, true);
 }
 
-task_type_t ExecutorThread::getTaskType() const {
+task_type_t CB3ExecutorThread::getTaskType() const {
     return taskType;
 }
 
-int ExecutorThread::getPriority() const {
+int CB3ExecutorThread::getPriority() const {
     return priority;
 }

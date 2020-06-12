@@ -17,19 +17,19 @@
 #pragma once
 
 #include "executorpool.h"
+#include "task_type.h"
 
 /*
  * Wrapper to ExecutorPool, exposes protected members for testing.
  */
-class MockExecutorPool : public ExecutorPool {
+class MockExecutorPool : public CB3ExecutorPool {
 public:
-    explicit MockExecutorPool(size_t numTaskSets)
-        : ExecutorPool(4 /*maxThreads*/,
-                       numTaskSets,
-                       ThreadPoolConfig::ThreadCount(1) /*maxReaders*/,
-                       ThreadPoolConfig::ThreadCount(1) /*maxWriters*/,
-                       1 /*maxAuxIO*/,
-                       1 /*maxNonIO*/) {
+    explicit MockExecutorPool()
+        : CB3ExecutorPool(4 /*maxThreads*/,
+                          ThreadPoolConfig::ThreadCount(1) /*maxReaders*/,
+                          ThreadPoolConfig::ThreadCount(1) /*maxWriters*/,
+                          1 /*maxAuxIO*/,
+                          1 /*maxNonIO*/) {
     }
 
     /**

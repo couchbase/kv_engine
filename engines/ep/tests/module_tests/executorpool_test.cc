@@ -40,7 +40,6 @@ ExTask makeTask(Taskable& taskable, ThreadGate& tg, TaskId taskId) {
 
 TEST_F(ExecutorPoolTest, register_taskable_test) {
     TestExecutorPool pool(10, // MaxThreads
-                          NUM_TASK_GROUPS,
                           ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
                           ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
                           2, // MaxNumAuxio
@@ -94,7 +93,6 @@ TEST_F(ExecutorPoolTest, increase_workers) {
     ThreadGate tg{numWriters + 1};
 
     TestExecutorPool pool(5, // MaxThreads
-                          NUM_TASK_GROUPS,
                           ThreadPoolConfig::ThreadCount(numReaders),
                           ThreadPoolConfig::ThreadCount(numWriters),
                           numAuxIO,
@@ -131,7 +129,6 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 TEST_F(ExecutorPoolTest, ThreadPriorities) {
     // Create test pool and register a (mock) taskable to start all threads.
     TestExecutorPool pool(10, // MaxThreads
-                          NUM_TASK_GROUPS,
                           ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
                           ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
                           2, // MaxNumAuxio
@@ -233,7 +230,6 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
     MockTaskable taskable;
 
     TestExecutorPool pool(expected.maxThreads, // MaxThreads
-                          NUM_TASK_GROUPS,
                           expected.in_reader_writer,
                           expected.in_reader_writer,
                           0, // MaxNumAuxio
@@ -364,14 +360,14 @@ class ScheduleOnDestruct {
 public:
     ScheduleOnDestruct(ExecutorPool& pool,
                        EventuallyPersistentEngine& e,
-                       ExecutorThread& thread)
+                       CB3ExecutorThread& thread)
         : pool(pool), engine(e), thread(thread) {
     }
     ~ScheduleOnDestruct();
 
     ExecutorPool& pool;
     EventuallyPersistentEngine& engine;
-    ExecutorThread& thread;
+    CB3ExecutorThread& thread;
 };
 
 class ScheduleOnDestructTask : public GlobalTask {
@@ -381,7 +377,7 @@ public:
                            double sleeptime,
                            bool completeBeforeShutdown,
                            ExecutorPool& pool,
-                           ExecutorThread& thread)
+                           CB3ExecutorThread& thread)
         : GlobalTask(&e, taskId, sleeptime, completeBeforeShutdown),
           scheduleOnDestruct(pool, e, thread) {
     }
@@ -407,7 +403,7 @@ public:
              TaskId taskId,
              double sleeptime,
              bool completeBeforeShutdown,
-             ExecutorThread& thread)
+             CB3ExecutorThread& thread)
         : GlobalTask(&e, taskId, sleeptime, completeBeforeShutdown),
           thread(thread) {
     }
@@ -425,7 +421,7 @@ public:
         return std::chrono::seconds(60);
     }
 
-    ExecutorThread& thread;
+    CB3ExecutorThread& thread;
 };
 
 ScheduleOnDestruct::~ScheduleOnDestruct() {
@@ -449,8 +445,8 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  * This test simulates the requirements with the following:
  * 1) schedule the "ScheduleOnDestructTask", a task which will schedule another
  *    task when it destructs.
- * 2) Use the real ExecutorThread and run the task
- * 3) ~ScheduleOnDestructTask is called from ExecutorThread::run
+ * 2) Use the real CB3ExecutorThread and run the task
+ * 3) ~ScheduleOnDestructTask is called from CB3ExecutorThread::run
  * 4) From the destructor, schedule a new task, StopTask. When this task runs it
  *    calls into ExeuctorThread::stop so the run-loop terminates and the test
  *    can finish.
@@ -458,7 +454,10 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  * lock is already held by the calling thread.
  */
 TEST_F(SingleThreadedExecutorPoolTest, cancel_can_schedule) {
-    ExecutorThread thr(pool, NONIO_TASK_IDX, "cancel_can_schedule");
+    // TODO: Refactor this to support FollyExecutorPool when introduced.
+    CB3ExecutorThread thr(&dynamic_cast<CB3ExecutorPool&>(*pool),
+                          NONIO_TASK_IDX,
+                          "cancel_can_schedule");
     auto engine = SynchronousEPEngine::build("");
     auto memUsedA = engine->getEpStats().getPreciseTotalMemoryUsed();
     ExTask task = std::make_shared<ScheduleOnDestructTask>(

@@ -17,30 +17,20 @@
 #pragma once
 
 #include "globaltask.h"
-#include "objectregistry.h"
 #include "task_type.h"
-
-#include <platform/ring_buffer.h>
-#include <relaxed_atomic.h>
 
 #include <platform/platform_thread.h>
 #include <atomic>
 #include <chrono>
-#include <deque>
-#include <list>
 #include <map>
 #include <mutex>
-#include <queue>
-#include <string>
 #include <utility>
-#include <vector>
 
 #define TASK_LOG_SIZE 80
 
 #define MIN_SLEEP_TIME 2.0
 
-class ExecutorPool;
-class ExecutorThread;
+class CB3ExecutorPool;
 class TaskQueue;
 class WorkLoadPolicy;
 
@@ -52,9 +42,8 @@ enum executor_state_t {
     EXECUTOR_DEAD
 };
 
-
-class ExecutorThread {
-    friend class ExecutorPool;
+class CB3ExecutorThread {
+    friend class CB3ExecutorPool;
     friend class TaskQueue;
 public:
     /* The AtomicProcessTime class provides an abstraction for ensuring that
@@ -84,7 +73,9 @@ public:
         std::chrono::steady_clock::time_point timepoint;
     };
 
-    ExecutorThread(ExecutorPool* m, task_type_t type, const std::string nm)
+    CB3ExecutorThread(CB3ExecutorPool* m,
+                      task_type_t type,
+                      const std::string nm)
         : manager(m),
           taskType(type),
           name(nm),
@@ -94,7 +85,7 @@ public:
           currentTask(nullptr) {
     }
 
-    ~ExecutorThread();
+    ~CB3ExecutorThread();
 
     void start();
 
@@ -148,10 +139,10 @@ public:
     int getPriority() const;
 
 protected:
-    void cancelCurrentTask(ExecutorPool& manager);
+    void cancelCurrentTask(CB3ExecutorPool& manager);
 
     cb_thread_t thread;
-    ExecutorPool *manager;
+    CB3ExecutorPool* manager;
     task_type_t taskType;
     const std::string name;
     std::atomic<executor_state_t> state;
