@@ -1119,7 +1119,7 @@ bool CouchKVStore::compactDBInternal(
         return false;
     }
 
-    PendingLocalDocRequestQueue compactionLocalDocQueue;
+    PendingLocalDocRequestQueue localDocQueue;
     if (hook_ctx->eraserContext->needToUpdateCollectionsMetadata()) {
         if (!hook_ctx->eraserContext->empty()) {
             std::stringstream ss;
@@ -1129,9 +1129,8 @@ bool CouchKVStore::compactDBInternal(
             throw std::logic_error(ss.str());
         }
         // Need to ensure the 'dropped' list on disk is now gone
-        compactionLocalDocQueue.emplace_back(
-                Collections::droppedCollectionsName,
-                CouchLocalDocRequest::IsDeleted{});
+        localDocQueue.emplace_back(Collections::droppedCollectionsName,
+                                   CouchLocalDocRequest::IsDeleted{});
     }
 
     auto info = cb::couchstore::getHeader(*targetDb.getDb());
@@ -1149,12 +1148,11 @@ bool CouchKVStore::compactDBInternal(
         cachedDocCount[vbid.get()] = info.docCount;
         state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
         // Must sync the modified state back
-        compactionLocalDocQueue.emplace_back("_local/vbstate",
-                                             makeJsonVBState(*state));
+        localDocQueue.emplace_back("_local/vbstate", makeJsonVBState(*state));
     }
 
-    if (!compactionLocalDocQueue.empty()) {
-        updateLocalDocuments(*targetDb.getDb(), compactionLocalDocQueue);
+    if (!localDocQueue.empty()) {
+        updateLocalDocuments(*targetDb.getDb(), localDocQueue);
         errCode = couchstore_commit(targetDb.getDb());
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn(
