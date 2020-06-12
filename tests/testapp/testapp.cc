@@ -426,6 +426,7 @@ nlohmann::json TestappTest::generate_config() {
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
 
     nlohmann::json ret = {
+            {"always_collect_trace_info", true},
             {"max_connections", Testapp::MAX_CONNECTIONS},
             {"system_connections", Testapp::MAX_CONNECTIONS / 4},
             {"stdin_listener", false},

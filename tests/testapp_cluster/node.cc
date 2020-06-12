@@ -74,6 +74,7 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
               {"xattr_enabled", true},
               {"dedupe_nmvb_maps", false},
               {"active_external_users_push_interval", "30 m"},
+              {"always_collect_trace_info", true},
               {"error_maps_dir", errmaps},
               {"external_auth_service", true},
               {"rbac_file", rbac},

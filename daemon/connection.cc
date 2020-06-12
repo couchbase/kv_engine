@@ -1332,7 +1332,8 @@ void Connection::sendResponseHeaders(Cookie& cookie,
     response.setOpaque(request.getOpaque());
     response.setCas(cookie.getCas());
 
-    if (cookie.isTracingEnabled()) {
+    if (cookie.getConnection().isTracingEnabled() &&
+        cookie.isTracingEnabled()) {
         // When tracing is enabled we'll be using the alternative
         // response header where we inject the framing header.
         // For now we'll just hard-code the adding of the bytes
