@@ -24,13 +24,13 @@
 #include "systemevent.h"
 
 #include <folly/SharedMutex.h>
+#include <folly/container/F14Map.h>
 #include <platform/non_negative_counter.h>
 
 #include <functional>
 #include <iostream>
 #include <mutex>
 #include <optional>
-#include <unordered_map>
 
 class VBucket;
 
@@ -75,7 +75,7 @@ namespace VB {
  */
 class Manifest {
 public:
-    using container = ::std::unordered_map<CollectionID, ManifestEntry>;
+    using container = folly::F14FastMap<CollectionID, ManifestEntry>;
 #ifdef THREAD_SANITIZER
     // SharedMutexReadPriority has no TSAN annotations, so use WritePrioity
     using mutex_type = folly::SharedMutexWritePriority;
