@@ -29,7 +29,7 @@
 #pragma once
 
 #include "cb3_executorpool.h"
-#include "executorthread.h"
+#include "cb3_executorthread.h"
 #include "objectregistry.h"
 #include "taskqueue.h"
 

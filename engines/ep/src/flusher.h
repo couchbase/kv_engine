@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "executorthread.h"
+#include "cb3_executorthread.h"
 #include "utility.h"
 #include "vb_ready_queue.h"
 

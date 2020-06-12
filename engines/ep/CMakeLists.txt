@@ -237,6 +237,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/bucket_logger.cc
             src/callbacks.cc
             src/cb3_executorpool.cc
+            src/cb3_executorthread.cc
             src/checkpoint.cc
             src/checkpoint_config.cc
             src/checkpoint_manager.cc
@@ -293,7 +294,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ephemeral_vb_count_visitor.cc
             src/environment.cc
             src/executorpool.cc
-            src/executorthread.cc
             src/ext_meta_parser.cc
             src/failover-table.cc
             src/flusher.cc

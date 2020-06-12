@@ -44,6 +44,7 @@ enum executor_state_t {
 class CB3ExecutorThread {
     friend class CB3ExecutorPool;
     friend class TaskQueue;
+
 public:
     /* The AtomicProcessTime class provides an abstraction for ensuring that
      * changes to a std::chrono::steady_clock::time_point are atomic.  This is
@@ -51,7 +52,7 @@ public:
      */
     class AtomicProcessTime {
     public:
-        AtomicProcessTime() {}
+        AtomicProcessTime() = default;
         explicit AtomicProcessTime(
                 const std::chrono::steady_clock::time_point& tp)
             : timepoint(tp) {
@@ -90,11 +91,11 @@ public:
 
     void run();
 
-    void stop(bool wait=true);
+    void stop(bool wait = true);
 
-    void schedule(ExTask &task);
+    void schedule(ExTask& task);
 
-    void wake(ExTask &task);
+    void wake(ExTask& task);
 
     // Changes this threads' current task to the specified task
     void setCurrentTask(ExTask newTask);
@@ -104,7 +105,9 @@ public:
      */
     void resetCurrentTask();
 
-    const std::string& getName() const { return name; }
+    const std::string& getName() const {
+        return name;
+    }
 
     std::string getTaskName();
 

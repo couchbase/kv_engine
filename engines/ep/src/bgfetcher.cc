@@ -17,9 +17,9 @@
 
 #include "bgfetcher.h"
 #include "bucket_logger.h"
+#include "cb3_executorthread.h"
 #include "ep_engine.h"
 #include "executorpool.h"
-#include "executorthread.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
 #include "tasks.h"

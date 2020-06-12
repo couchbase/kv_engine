@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "executorthread.h"
+#include "cb3_executorthread.h"
 #include "bucket_logger.h"
 #include "cb3_executorpool.h"
 #include "globaltask.h"
@@ -29,10 +29,10 @@
 #include <sstream>
 
 extern "C" {
-    static void launch_executor_thread(void *arg) {
-        auto* executor = (CB3ExecutorThread*)arg;
-        executor->run();
-    }
+static void launch_executor_thread(void* arg) {
+    auto* executor = (CB3ExecutorThread*)arg;
+    executor->run();
+}
 }
 
 CB3ExecutorThread::~CB3ExecutorThread() {
@@ -48,7 +48,10 @@ void CB3ExecutorThread::start() {
         thread_name.replace(pos, worker.size(), "");
     }
     thread_name.resize(15);
-    if (cb_create_named_thread(&thread, launch_executor_thread, this, 0,
+    if (cb_create_named_thread(&thread,
+                               launch_executor_thread,
+                               this,
+                               0,
                                thread_name.c_str()) != 0) {
         std::stringstream ss;
         ss << name.c_str() << ": Initialization error!!!";
@@ -118,13 +121,12 @@ void CB3ExecutorThread::run() {
     priority = getpriority(PRIO_PROCESS, 0);
 
     for (uint8_t tick = 1;; tick++) {
-
         if (state != EXECUTOR_RUNNING) {
             break;
         }
 
         updateCurrentTime();
-        if (TaskQueue *q = manager->nextTask(*this, tick)) {
+        if (TaskQueue* q = manager->nextTask(*this, tick)) {
             manager->startWork(taskType);
 
             if (currentTask->isdead()) {

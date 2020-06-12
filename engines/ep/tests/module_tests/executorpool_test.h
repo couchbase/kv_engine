@@ -22,8 +22,8 @@
 #pragma once
 
 #include "../mock/mock_taskable.h"
+#include "cb3_executorthread.h"
 #include "executorpool.h"
-#include "executorthread.h"
 #include "fakes/fake_executorpool.h"
 #include "taskable.h"
 #include "thread_gate.h"
