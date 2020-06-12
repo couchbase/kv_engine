@@ -21,6 +21,8 @@
 #include "vb_filter.h"
 #include "vbucket_fwd.h"
 
+#include <folly/Chrono.h>
+
 using namespace std::chrono_literals;
 
 class HashTableVisitor;
@@ -108,16 +110,35 @@ class CappedDurationVBucketVisitor : public PausableVBucketVisitor {
 
 protected:
     /**
+     * Clock used for timing vBucket visits, to decide when to pause.
+     * This clock is read once per vBucket visited, which if there is
+     * little / no work for that vBucket can be _very_
+     * frequently. Given the maxChunkDuration is 25 milliseconds, we
+     * don't need the full resolution (and potential cost) provided by
+     * chrono::steady_clock - which on Linux uses CLOCK_MONOTONIC and
+     * typically gives ~1ns resolution.
+     *
+     * Instead we can use a coarser (1ms) but much cheaper clock such
+     * as folly's coarse_stready_clock (CLOCK_MONOTONIC_COARSE on
+     * Linux).
+     *
+     * (For example, with the HPET clocksource on Linux 4.15
+     * CLOCK_MONOTONIC requires a syscall to read, whereas
+     * CLOCK_MONOTONIC_COARSE can be handled in the userspace VDSO).
+     */
+    using Clock = folly::chrono::coarse_steady_clock;
+
+    /**
      * Target maximum duration to run the visitor before pausing (yielding),
      * to avoid blocking other higher priority tasks.
      * Note: chunk duration is only checked at vBucket boundaries, so
      * this limit isn't guaranteed - we may exceed it by the duration of a
      * single vBucket visit.
      */
-    const std::chrono::steady_clock::duration maxChunkDuration = 25ms;
+    const Clock::duration maxChunkDuration = 25ms;
 
     /// At what time did the current chunk of vBuckets start visiting?
-    std::chrono::steady_clock::time_point chunkStart;
+    Clock::time_point chunkStart;
 };
 
 /**
