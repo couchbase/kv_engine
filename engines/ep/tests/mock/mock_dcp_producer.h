@@ -240,4 +240,9 @@ public:
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
         return includeDeletedUserXattrs;
     }
+
+    // sets the value used to generate the totalBytes stat
+    void setTotalBtyesSent(size_t v) {
+        totalBytesSent = v;
+    }
 };

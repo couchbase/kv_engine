@@ -1552,6 +1552,7 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
 }
 
 void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
+    ++aggregator.totalProducers;
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
     aggregator.conn_totalUncompressedDataSize += totalUncompressedDataSize;

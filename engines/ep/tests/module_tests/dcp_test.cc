@@ -56,6 +56,7 @@
 #include <programs/engine_testapp/mock_server.h>
 
 #include <thread>
+#include <unordered_map>
 
 /**
  * The DCP tests wants to mock around with the notify_io_complete
@@ -2470,6 +2471,103 @@ TEST_F(DcpConnMapTest,
 
     // Cleanup
     connMap.manageConnections();
+}
+
+TEST_F(DcpConnMapTest, ConnAggStats) {
+    // Test that ConnAggStats correctly aggregates stats by connection
+    // "type" (taken from the connection name).
+    auto connMapPtr = std::make_unique<MockDcpConnMap>(*engine);
+    MockDcpConnMap& connMap = *connMapPtr;
+    engine->setDcpConnMap(std::move(connMapPtr));
+
+    // create cookies
+    const void* producerCookie1 = create_mock_cookie(engine.get());
+    const void* producerCookie2 = create_mock_cookie(engine.get());
+    const void* consumerCookie = create_mock_cookie(engine.get());
+    const void* statsCookie = create_mock_cookie(engine.get());
+
+    // create producers
+    // Producer for conn type "fts" - the type is not special, it's just a
+    // string which will be extracted from the conn name.
+    auto producer1 = std::make_shared<MockDcpProducer>(*engine,
+                                                       producerCookie1,
+                                                       "eq_dcpq:fts:foo",
+                                                       /*flags*/ 0);
+
+    // Oroducer for "views"
+    auto producer2 = std::make_shared<MockDcpProducer>(*engine,
+                                                       producerCookie2,
+                                                       "eq_dcpq:views:bar",
+                                                       /*flags*/ 0);
+    // Create a consumer for conn type "replication"
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine,
+                                                      consumerCookie,
+                                                      "eq_dcpq:replication:baz",
+                                                      "test_consumerA");
+
+    // add conns to map
+    connMap.addConn(producerCookie1, producer1);
+    connMap.addConn(producerCookie2, producer2);
+    connMap.addConn(consumerCookie, consumer);
+
+    // manufacture specific stats to test they are aggregated
+    // correctly
+    auto producerBytes1 = 1234;
+    auto producerBytes2 = 4321;
+    auto consumerBackoffs = 1991;
+
+    producer1->setTotalBtyesSent(producerBytes1);
+    producer2->setTotalBtyesSent(producerBytes2);
+    consumer->setNumBackoffs(consumerBackoffs);
+
+    std::unordered_map<std::string, std::string> statsOutput;
+
+    auto addStat = [&statsOutput](std::string_view key,
+                                  std::string_view value,
+                                  gsl::not_null<const void*> cookie) {
+        statsOutput.emplace(std::string(key), std::string(value));
+    };
+
+    // get the conn aggregated stats
+    engine->doConnAggStats(statsCookie, addStat, ":");
+
+    // expect output for each of the connection "types" and
+    // a total output.
+    std::unordered_map<std::string, std::string> expected{
+            {"replication:total_bytes", "0"},
+            {"fts:total_bytes", std::to_string(producerBytes1)},
+            {"views:total_bytes", std::to_string(producerBytes2)},
+            {":total:total_bytes",
+             std::to_string(producerBytes1 + producerBytes2)},
+
+            {"replication:producer_count", "0"},
+            {"fts:producer_count", "1"},
+            {"views:producer_count", "1"},
+            {":total:producer_count", "2"},
+
+            {"replication:count", "1"},
+            {"fts:count", "1"},
+            {"views:count", "1"},
+            {":total:count", "3"},
+
+            {"replication:backoff", std::to_string(consumerBackoffs)},
+            {"fts:backoff", "0"},
+            {"views:backoff", "0"},
+            {":total:backoff", std::to_string(consumerBackoffs)},
+    };
+
+    for (const auto& [key, value] : expected) {
+        auto itr = statsOutput.find(key);
+        if (itr == statsOutput.end()) {
+            FAIL() << "Stat \"" << key << "\" missing from output";
+        }
+        EXPECT_EQ(value, itr->second);
+    }
+
+    destroy_mock_cookie(producerCookie1);
+    destroy_mock_cookie(producerCookie2);
+    destroy_mock_cookie(consumerCookie);
+    destroy_mock_cookie(statsCookie);
 }
 
 void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(

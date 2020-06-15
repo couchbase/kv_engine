@@ -161,7 +161,7 @@ public:
      * Call a function on each DCP connection.
      */
     template <typename Fun>
-    void each(Fun f);
+    void each(Fun&& f);
 
 protected:
     /*

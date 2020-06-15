@@ -26,7 +26,7 @@
  * want to include conn_store.h everywhere as it's a pretty big header.
  */
 template <typename Fun>
-void DcpConnMap::each(Fun f) {
+void DcpConnMap::each(Fun&& f) {
     // Hold the handle to keep the lock during iteration
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (auto& c : *handle) {

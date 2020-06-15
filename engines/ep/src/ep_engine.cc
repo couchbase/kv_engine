@@ -3765,14 +3765,8 @@ protected:
  * Function object to send stats for a single dcp connection.
  */
 struct ConnStatBuilder {
-    ConnStatBuilder(const void* c,
-                    AddStatFn as,
-                    DcpStatsFilter filter,
-                    ConnCounter& tc)
-        : cookie(c),
-          add_stat(std::move(as)),
-          filter(std::move(filter)),
-          aggregator(tc) {
+    ConnStatBuilder(const void* c, AddStatFn as, DcpStatsFilter filter)
+        : cookie(c), add_stat(std::move(as)), filter(std::move(filter)) {
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
@@ -3781,22 +3775,23 @@ struct ConnStatBuilder {
             tc->addStats(add_stat, cookie);
             auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
             if (tp) {
-                ++aggregator.totalProducers;
                 tp->aggregateQueueStats(aggregator);
             }
         }
     }
 
+    const auto& getCounter() {
+        return aggregator;
+    }
+
     const void *cookie;
     AddStatFn add_stat;
     DcpStatsFilter filter;
-    ConnCounter& aggregator;
+    ConnCounter aggregator;
 };
 
 struct ConnAggStatBuilder {
-    ConnAggStatBuilder(std::map<std::string, ConnCounter*>& m,
-                       std::string_view sep)
-        : counters(m), sep(sep) {
+    ConnAggStatBuilder(std::string_view sep) : sep(sep) {
     }
 
     /**
@@ -3840,86 +3835,75 @@ struct ConnAggStatBuilder {
         //  prefix is "replication"
         std::string prefix(name.substr(0, pos2));
 
-        ConnCounter* rv = counters[prefix];
-        if (rv == nullptr) {
-            rv = new ConnCounter;
-            counters[prefix] = rv;
-        }
-        return rv;
+        return &counters[prefix];
     }
 
-    void aggregate(std::shared_ptr<ConnHandler> c, ConnCounter* tc) {
+    void aggregate(ConnHandler& conn, ConnCounter* tc) {
         ConnCounter counter;
-
         ++counter.totalConns;
-        if (std::dynamic_pointer_cast<DcpProducer>(c)) {
-            ++counter.totalProducers;
-        }
 
-        c->aggregateQueueStats(counter);
+        conn.aggregateQueueStats(counter);
 
-        ConnCounter* total = getTotalCounter();
-        *total += counter;
+        ConnCounter& total = getTotalCounter();
+        total += counter;
 
         if (tc) {
             *tc += counter;
         }
     }
 
-    ConnCounter* getTotalCounter() {
-        ConnCounter *rv = nullptr;
-        std::string sepr(sep);
-        std::string total(sepr + "total");
-        rv = counters[total];
-        if(rv == nullptr) {
-            rv = new ConnCounter;
-            counters[total] = rv;
-        }
-        return rv;
+    ConnCounter& getTotalCounter() {
+        return counters[std::string(sep) + "total"];
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         if (tc) {
             ConnCounter* aggregator = getCounterForConnType(tc->getName());
-            aggregate(tc, aggregator);
+            aggregate(*tc, aggregator);
         }
     }
 
-    std::map<std::string, ConnCounter*>& counters;
+    const auto& getCounters() {
+        return counters;
+    }
+
+    std::map<std::string, ConnCounter> counters;
     std::string_view sep;
 };
 
 /// @endcond
 
 static void showConnAggStat(const std::string& prefix,
-                            ConnCounter* counter,
+                            const ConnCounter& counter,
                             const void* cookie,
                             const AddStatFn& add_stat) {
     try {
         char statname[80] = {0};
         const size_t sl(sizeof(statname));
         checked_snprintf(statname, sl, "%s:count", prefix.c_str());
-        add_casted_stat(statname, counter->totalConns, add_stat, cookie);
+        add_casted_stat(statname, counter.totalConns, add_stat, cookie);
 
         checked_snprintf(statname, sl, "%s:backoff", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueBackoff,
-                        add_stat, cookie);
+        add_casted_stat(statname, counter.conn_queueBackoff, add_stat, cookie);
 
         checked_snprintf(statname, sl, "%s:producer_count", prefix.c_str());
-        add_casted_stat(statname, counter->totalProducers, add_stat, cookie);
+        add_casted_stat(statname, counter.totalProducers, add_stat, cookie);
 
         checked_snprintf(statname, sl, "%s:items_sent", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueDrain, add_stat, cookie);
+        add_casted_stat(statname, counter.conn_queueDrain, add_stat, cookie);
 
         checked_snprintf(statname, sl, "%s:items_remaining", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueRemaining, add_stat,
-                        cookie);
+        add_casted_stat(
+                statname, counter.conn_queueRemaining, add_stat, cookie);
 
         checked_snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
-        add_casted_stat(statname, counter->conn_totalBytes, add_stat, cookie);
+        add_casted_stat(statname, counter.conn_totalBytes, add_stat, cookie);
 
         checked_snprintf(statname, sl, "%s:total_uncompressed_data_size", prefix.c_str());
-        add_casted_stat(statname, counter->conn_totalUncompressedDataSize, add_stat, cookie);
+        add_casted_stat(statname,
+                        counter.conn_totalUncompressedDataSize,
+                        add_stat,
+                        cookie);
 
     } catch (std::exception& error) {
         EP_LOG_WARN("showConnAggStat: Failed to build stats: {}", error.what());
@@ -3933,14 +3917,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
     const size_t max_sep_len(8);
     sep = sep.substr(0, max_sep_len);
 
-    std::map<std::string, ConnCounter*> counters;
-    ConnAggStatBuilder visitor(counters, sep);
+    ConnAggStatBuilder visitor(sep);
     dcpConnMap_->each(visitor);
 
-    std::map<std::string, ConnCounter*>::iterator it;
-    for (it = counters.begin(); it != counters.end(); ++it) {
-        showConnAggStat(it->first, it->second, cookie, add_stat);
-        delete it->second;
+    for (const auto& [connType, counter] : visitor.getCounters()) {
+        // connType may be "replication", "views" etc. or ":total"
+        showConnAggStat(connType, counter, cookie, add_stat);
     }
 
     return ENGINE_SUCCESS;
@@ -3948,10 +3930,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(
         const void* cookie, const AddStatFn& add_stat, std::string_view value) {
-    ConnCounter aggregator;
-    ConnStatBuilder dcpVisitor(
-            cookie, add_stat, DcpStatsFilter{value}, aggregator);
+    ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
     dcpConnMap_->each(dcpVisitor);
+
+    const auto& aggregator = dcpVisitor.getCounter();
 
     add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
     add_casted_stat("ep_dcp_producer_count", aggregator.totalProducers, add_stat, cookie);

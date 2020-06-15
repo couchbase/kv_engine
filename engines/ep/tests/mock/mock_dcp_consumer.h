@@ -58,6 +58,10 @@ public:
         notifyVbucketReady(vbid);
     }
 
+    void setNumBackoffs(uint32_t v) {
+        backoffs = v;
+    }
+
     uint32_t getNumBackoffs() const {
         return backoffs.load();
     }

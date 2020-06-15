@@ -93,4 +93,5 @@ public:
     }
 
     using EventuallyPersistentEngine::doCollectionStats;
+    using EventuallyPersistentEngine::doConnAggStats;
 };
