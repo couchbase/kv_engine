@@ -62,11 +62,21 @@ TEST_F(CollectionsTests, TestBasicOperations) {
            MutationType::Replace);
 }
 
-TEST_F(CollectionsTests, TestUnknownScope) {
+TEST_F(CollectionsTests, TestInvalidCollection) {
     auto conn = getConnection();
     try {
-        mutate(*conn, createKey(1, "TestBasicOperations"), MutationType::Add);
-        FAIL() << "Invalid scope not detected";
+        // collections 1 to 7 are reserved and invalid from a client
+        mutate(*conn, createKey(1, "TestInvalidCollection"), MutationType::Add);
+        FAIL() << "Einval not detected";
+    } catch (const ConnectionError& e) {
+        EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
+    }
+    try {
+        // collection 1000 is unknown
+        mutate(*conn,
+               createKey(1000, "TestInvalidCollection"),
+               MutationType::Add);
+        FAIL() << "UnknownCollection not detected";
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::UnknownCollection, e.getReason());
     }

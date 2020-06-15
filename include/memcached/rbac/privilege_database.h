@@ -164,6 +164,11 @@ public:
         return privilegeMask;
     }
 
+    /// @return true if there are privileges defined against scopes
+    bool hasScopePrivileges() const {
+        return !scopes.empty();
+    }
+
 protected:
     /// The privilege mask describing the access to this scope IFF no
     /// scopes is configured
@@ -349,6 +354,11 @@ public:
 
     /// Is this privilege context stale, or may it be used?
     bool isStale() const;
+
+    /// @return true if there are scope privileges defined
+    bool hasScopePrivileges() const {
+        return bucket && bucket->hasScopePrivileges();
+    }
 
 protected:
     void setBucketPrivilegeBits(bool value);
