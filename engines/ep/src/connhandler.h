@@ -268,7 +268,7 @@ public:
 
     virtual void addStats(const AddStatFn& add_stat, const void* c);
 
-    virtual void aggregateQueueStats(ConnCounter& stats_aggregator) {
+    virtual void aggregateQueueStats(ConnCounter& stats_aggregator) const {
         // Empty
     }
 
@@ -335,7 +335,7 @@ public:
         return reason;
     }
 
-    bool isPaused() {
+    [[nodiscard]] bool isPaused() const {
         return paused;
     }
 

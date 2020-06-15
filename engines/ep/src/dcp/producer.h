@@ -107,7 +107,7 @@ public:
                           const void* c,
                           const VBucket& vb);
 
-    void aggregateQueueStats(ConnCounter& aggregator) override;
+    void aggregateQueueStats(ConnCounter& aggregator) const override;
 
     /**
      * ALERT: Do NOT call this function while holding ConnMap::connLock.
@@ -409,7 +409,7 @@ protected:
 
     std::unique_ptr<DcpResponse> getNextItem();
 
-    size_t getItemsRemaining();
+    size_t getItemsRemaining() const;
 
     /**
      * Map the end_stream_status_t to one the client can understand.

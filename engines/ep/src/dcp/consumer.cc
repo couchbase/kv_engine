@@ -1151,7 +1151,7 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, const void* c) {
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
 }
 
-void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {
+void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueBackoff += backoffs;
 }
 
@@ -1258,7 +1258,7 @@ void DcpConsumer::setProcessorTaskState(enum process_items_error_t to) {
     processorTaskState = to;
 }
 
-std::string DcpConsumer::getProcessorTaskStatusStr() {
+std::string DcpConsumer::getProcessorTaskStatusStr() const {
     switch (processorTaskState.load()) {
         case all_processed:
             return "ALL_PROCESSED";

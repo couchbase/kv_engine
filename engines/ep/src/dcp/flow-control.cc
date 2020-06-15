@@ -116,7 +116,7 @@ bool FlowControl::isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes) {
     return ackable_bytes > (bufferSize * .2);
 }
 
-void FlowControl::addStats(const AddStatFn& add_stat, const void* c) {
+void FlowControl::addStats(const AddStatFn& add_stat, const void* c) const {
     consumerConn->addStat("total_acked_bytes", ackedBytes, add_stat, c);
     consumerConn->addStat("max_buffer_bytes", bufferSize, add_stat, c);
     consumerConn->addStat("unacked_bytes", freedBytes, add_stat, c);

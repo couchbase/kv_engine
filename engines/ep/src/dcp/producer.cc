@@ -1551,7 +1551,7 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
     add_casted_stat("backfillRemaining", 0, add_stat, c);
 }
 
-void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
+void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
     ++aggregator.totalProducers;
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
@@ -1896,7 +1896,7 @@ size_t DcpProducer::getItemsSent() {
     return itemsSent;
 }
 
-size_t DcpProducer::getItemsRemaining() {
+size_t DcpProducer::getItemsRemaining() const {
     size_t remainingSize = 0;
     std::for_each(
             streams.begin(),

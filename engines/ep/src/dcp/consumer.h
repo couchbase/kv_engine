@@ -259,7 +259,7 @@ public:
 
     void addStats(const AddStatFn& add_stat, const void* c) override;
 
-    void aggregateQueueStats(ConnCounter& aggregator) override;
+    void aggregateQueueStats(ConnCounter& aggregator) const override;
 
     void notifyStreamReady(Vbid vbucket);
 
@@ -287,7 +287,7 @@ public:
 
     void setProcessorTaskState(enum process_items_error_t to);
 
-    std::string getProcessorTaskStatusStr();
+    std::string getProcessorTaskStatusStr() const;
 
     /**
      * Check if the enough bytes have been removed from the flow control

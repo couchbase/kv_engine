@@ -47,7 +47,7 @@ public:
 
     bool isBufferSufficientlyDrained();
 
-    void addStats(const AddStatFn& add_stat, const void* c);
+    void addStats(const AddStatFn& add_stat, const void* c) const;
 
     uint64_t getFreedBytes() const {
         return freedBytes.load();
