@@ -19,6 +19,7 @@
 #include "cb3_executorpool.h"
 #include "configuration.h"
 #include "ep_engine.h"
+#include "folly_executorpool.h"
 #include "objectregistry.h"
 
 std::mutex ExecutorPool::initGuard;
@@ -36,12 +37,27 @@ ExecutorPool *ExecutorPool::get() {
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
             NonBucketAllocationGuard guard;
-            tmp = new CB3ExecutorPool(
-                    config.getMaxThreads(),
-                    ThreadPoolConfig::ThreadCount(config.getNumReaderThreads()),
-                    ThreadPoolConfig::ThreadCount(config.getNumWriterThreads()),
-                    config.getNumAuxioThreads(),
-                    config.getNumNonioThreads());
+            if (config.getExecutorPoolBackend() == "cb3") {
+                tmp = new CB3ExecutorPool(config.getMaxThreads(),
+                                          ThreadPoolConfig::ThreadCount(
+                                                  config.getNumReaderThreads()),
+                                          ThreadPoolConfig::ThreadCount(
+                                                  config.getNumWriterThreads()),
+                                          config.getNumAuxioThreads(),
+                                          config.getNumNonioThreads());
+            } else if (config.getExecutorPoolBackend() == "folly") {
+                tmp = new FollyExecutorPool(
+                        ThreadPoolConfig::ThreadCount(
+                                config.getNumReaderThreads()),
+                        ThreadPoolConfig::ThreadCount(
+                                config.getNumWriterThreads()),
+                        config.getNumAuxioThreads(),
+                        config.getNumNonioThreads());
+            } else {
+                throw std::invalid_argument(
+                        "ExecutorPool::get() Invalid executor_pool_backend '" +
+                        config.getExecutorPoolBackend() + "'");
+            }
             instance.store(tmp);
         }
     }

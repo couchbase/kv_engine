@@ -296,6 +296,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/executorpool.cc
             src/ext_meta_parser.cc
             src/failover-table.cc
+            src/folly_executorpool.cc
             src/flusher.cc
             src/getkeys.cc
             src/globaltask.cc

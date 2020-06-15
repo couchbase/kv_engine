@@ -417,6 +417,18 @@
                 "bucket_type": "ephemeral"
             }
         },
+        "executor_pool_backend": {
+            "default": "cb3",
+            "descr": "Executor Pool backend in use",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "cb3",
+                    "folly"
+                ]
+            }
+        },
         "exp_pager_enabled": {
             "default": "true",
             "descr": "True if expiry pager task is enabled",
