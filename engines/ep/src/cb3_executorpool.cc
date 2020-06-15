@@ -88,7 +88,7 @@ CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
       totReadyTasks(0),
       isHiPrioQset(false),
       isLowPrioQset(false),
-      numBuckets(0),
+      numTaskables(0),
       numSleepers(0),
       curWorkers(numTaskSets),
       numWorkers(numTaskSets),
@@ -443,7 +443,7 @@ void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
         }
 
         taskOwners.insert(&taskable);
-        numBuckets++;
+        numTaskables++;
     }
 
     _startWorkers();
@@ -604,7 +604,7 @@ std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
 std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
                                                          bool force) {
     EP_LOG_INFO("Unregistering {} taskable {}",
-                (numBuckets == 1) ? "last" : "",
+                (numTaskables == 1) ? "last" : "",
                 taskable.getName());
 
     std::unique_lock<std::mutex> lh(tMutex);
@@ -612,7 +612,7 @@ std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
     auto rv = _stopTaskGroup(taskable.getGID(), lh, force);
 
     taskOwners.erase(&taskable);
-    if (!(--numBuckets)) {
+    if (!(--numTaskables)) {
         if (!taskLocator.empty()) {
             throw std::logic_error(
                     "CB3ExecutorPool::_unregisterTaskable: "

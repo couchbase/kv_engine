@@ -38,39 +38,50 @@ ExTask makeTask(Taskable& taskable, ThreadGate& tg, TaskId taskId) {
               << expected.auxIO << "_N" << expected.nonIO;
 }
 
-TEST_F(ExecutorPoolTest, register_taskable_test) {
-    TestExecutorPool pool(10, // MaxThreads
-                          ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
-                          ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
-                          2, // MaxNumAuxio
-                          2 // MaxNumNonio
-    );
+template <typename T>
+void ExecutorPoolTest<T>::makePool(int maxThreads,
+                                   int numReaders,
+                                   int numWriters,
+                                   int numAuxIO,
+                                   int numNonIO) {
+    pool = std::make_unique<T>(maxThreads,
+                               ThreadPoolConfig::ThreadCount(numReaders),
+                               ThreadPoolConfig::ThreadCount(numWriters),
+                               numAuxIO,
+                               numNonIO);
+}
+
+using ExecutorPoolTypes = ::testing::Types<TestExecutorPool>;
+TYPED_TEST_SUITE(ExecutorPoolTest, ExecutorPoolTypes);
+
+TYPED_TEST(ExecutorPoolTest, register_taskable_test) {
+    this->makePool(10);
 
     MockTaskable taskable;
     MockTaskable taskable2;
 
-    ASSERT_EQ(0, pool.getNumWorkersStat());
-    ASSERT_EQ(0, pool.getNumBuckets());
+    ASSERT_EQ(0, this->pool->getNumWorkersStat());
+    ASSERT_EQ(0, this->pool->getNumTaskables());
 
-    pool.registerTaskable(taskable);
+    this->pool->registerTaskable(taskable);
 
-    ASSERT_EQ(8, pool.getNumWorkersStat());
-    ASSERT_EQ(1, pool.getNumBuckets());
+    ASSERT_EQ(8, this->pool->getNumWorkersStat());
+    ASSERT_EQ(1, this->pool->getNumTaskables());
 
-    pool.registerTaskable(taskable2);
+    this->pool->registerTaskable(taskable2);
 
-    ASSERT_EQ(8, pool.getNumWorkersStat());
-    ASSERT_EQ(2, pool.getNumBuckets());
+    ASSERT_EQ(8, this->pool->getNumWorkersStat());
+    ASSERT_EQ(2, this->pool->getNumTaskables());
 
-    pool.unregisterTaskable(taskable2, false);
+    this->pool->unregisterTaskable(taskable2, false);
 
-    ASSERT_EQ(8, pool.getNumWorkersStat());
-    ASSERT_EQ(1, pool.getNumBuckets());
+    ASSERT_EQ(8, this->pool->getNumWorkersStat());
+    ASSERT_EQ(1, this->pool->getNumTaskables());
 
-    pool.unregisterTaskable(taskable, false);
+    this->pool->unregisterTaskable(taskable, false);
 
-    ASSERT_EQ(0, pool.getNumWorkersStat());
-    ASSERT_EQ(0, pool.getNumBuckets());
+    ASSERT_EQ(0, this->pool->getNumWorkersStat());
+    ASSERT_EQ(0, this->pool->getNumTaskables());
 }
 
 /* This test creates an ExecutorPool, and attempts to verify that calls to
@@ -79,7 +90,7 @@ TEST_F(ExecutorPoolTest, register_taskable_test) {
  * of type WRITER_TASK_IDX can run concurrently
  *
  */
-TEST_F(ExecutorPoolTest, increase_workers) {
+TYPED_TEST(ExecutorPoolTest, increase_workers) {
     const size_t numReaders = 1;
     const size_t numWriters = 1;
     const size_t numAuxIO = 1;
@@ -92,48 +103,39 @@ TEST_F(ExecutorPoolTest, increase_workers) {
     // concurrently after setNumWriters has been called.
     ThreadGate tg{numWriters + 1};
 
-    TestExecutorPool pool(5, // MaxThreads
-                          ThreadPoolConfig::ThreadCount(numReaders),
-                          ThreadPoolConfig::ThreadCount(numWriters),
-                          numAuxIO,
-                          numNonIO);
+    this->makePool(5, numReaders, numWriters, numAuxIO, numNonIO);
 
     MockTaskable taskable;
-    pool.registerTaskable(taskable);
+    this->pool->registerTaskable(taskable);
 
     std::vector<ExTask> tasks;
 
     for (size_t i = 0; i < numWriters + 1; ++i) {
         // Use any Writer thread task (StatSnap) for the TaskId.
         ExTask task = makeTask(taskable, tg, TaskId::StatSnap);
-        pool.schedule(task);
+        this->pool->schedule(task);
         tasks.push_back(task);
     }
 
-    EXPECT_EQ(numWriters, pool.getNumWriters());
-    ASSERT_EQ(originalWorkers, pool.getNumWorkersStat());
+    EXPECT_EQ(numWriters, this->pool->getNumWriters());
+    ASSERT_EQ(originalWorkers, this->pool->getNumWorkersStat());
 
-    pool.setNumWriters(ThreadPoolConfig::ThreadCount(numWriters + 1));
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount(numWriters + 1));
 
-    EXPECT_EQ(numWriters + 1, pool.getNumWriters());
-    ASSERT_EQ(originalWorkers + 1, pool.getNumWorkersStat());
+    EXPECT_EQ(numWriters + 1, this->pool->getNumWriters());
+    ASSERT_EQ(originalWorkers + 1, this->pool->getNumWorkersStat());
 
     tg.waitFor(std::chrono::seconds(10));
     EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for threads to run";
 
-    pool.unregisterTaskable(taskable, false);
+    this->pool->unregisterTaskable(taskable, false);
 }
 
 // Verifies the priority of the different thread types. On Windows and Linux
 // the Writer threads should be low priority.
-TEST_F(ExecutorPoolTest, ThreadPriorities) {
+TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
     // Create test pool and register a (mock) taskable to start all threads.
-    TestExecutorPool pool(10, // MaxThreads
-                          ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
-                          ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
-                          2, // MaxNumAuxio
-                          2 // MaxNumNonio
-    );
+    this->makePool(10);
 
     const size_t totalNumThreads = 8;
 
@@ -142,7 +144,7 @@ TEST_F(ExecutorPoolTest, ThreadPriorities) {
     // with a simple Task which calls threadUp() to ensure all threads
     // have started before checking priorities.
     MockTaskable taskable;
-    pool.registerTaskable(taskable);
+    this->pool->registerTaskable(taskable);
     std::vector<ExTask> tasks;
     ThreadGate tg{totalNumThreads};
 
@@ -162,7 +164,7 @@ TEST_F(ExecutorPoolTest, ThreadPriorities) {
     tasks.push_back(makeTask(taskable, tg, TaskId::ItemPager));
 
     for (auto& task : tasks) {
-        pool.schedule(task);
+        this->pool->schedule(task);
     }
     tg.waitFor(std::chrono::seconds(10));
     EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for threads to start";
@@ -173,7 +175,7 @@ TEST_F(ExecutorPoolTest, ThreadPriorities) {
     // We only set Writer threads to a non-default level on Linux.
     const int expectedWriterPriority = folly::kIsLinux ? 19 : defaultPriority;
 
-    auto threads = pool.getThreads();
+    auto threads = this->pool->getThreads();
     ASSERT_EQ(totalNumThreads, threads.size());
     for (const auto* thread : threads) {
         switch (thread->getTaskType()) {
@@ -192,36 +194,38 @@ TEST_F(ExecutorPoolTest, ThreadPriorities) {
         }
     }
 
-    pool.unregisterTaskable(taskable, false);
+    this->pool->unregisterTaskable(taskable, false);
 }
 
-TEST_F(ExecutorPoolDynamicWorkerTest, decrease_workers) {
-    ASSERT_EQ(2, pool->getNumWriters());
-    pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
-    EXPECT_EQ(1, pool->getNumWriters());
+TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);
+
+TYPED_TEST(ExecutorPoolDynamicWorkerTest, decrease_workers) {
+    ASSERT_EQ(2, this->pool->getNumWriters());
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
+    EXPECT_EQ(1, this->pool->getNumWriters());
 }
 
-TEST_F(ExecutorPoolDynamicWorkerTest, setDefault) {
-    ASSERT_EQ(2, pool->getNumWriters());
-    ASSERT_EQ(2, pool->getNumReaders());
+TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDefault) {
+    ASSERT_EQ(2, this->pool->getNumWriters());
+    ASSERT_EQ(2, this->pool->getNumReaders());
 
-    pool->setNumWriters(ThreadPoolConfig::ThreadCount::Default);
-    EXPECT_EQ(4, pool->getNumWriters())
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount::Default);
+    EXPECT_EQ(4, this->pool->getNumWriters())
             << "num_writers should be 4 with ThreadCount::Default";
 
-    pool->setNumReaders(ThreadPoolConfig::ThreadCount::Default);
-    EXPECT_EQ(16, pool->getNumReaders())
+    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount::Default);
+    EXPECT_EQ(16, this->pool->getNumReaders())
             << "num_writers should be capped at 16 with ThreadCount::Default";
 }
 
-TEST_F(ExecutorPoolDynamicWorkerTest, setDiskIOOptimized) {
-    ASSERT_EQ(2, pool->getNumWriters());
+TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDiskIOOptimized) {
+    ASSERT_EQ(2, this->pool->getNumWriters());
 
-    pool->setNumWriters(ThreadPoolConfig::ThreadCount::DiskIOOptimized);
-    EXPECT_EQ(MaxThreads, pool->getNumWriters());
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount::DiskIOOptimized);
+    EXPECT_EQ(this->MaxThreads, this->pool->getNumWriters());
 
-    pool->setNumReaders(ThreadPoolConfig::ThreadCount::DiskIOOptimized);
-    EXPECT_EQ(MaxThreads, pool->getNumReaders());
+    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount::DiskIOOptimized);
+    EXPECT_EQ(this->MaxThreads, this->pool->getNumReaders());
 }
 
 TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
@@ -282,47 +286,84 @@ INSTANTIATE_TEST_SUITE_P(ThreadCountTest,
                          ::testing::ValuesIn(threadCountValues),
                          ::testing::PrintToStringParamName());
 
-TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
-    EXPECT_EQ(2, pool->getNumWriters());
-    std::vector<std::string> names = pool->getThreadNames();
+TYPED_TEST(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
+    EXPECT_EQ(2, this->pool->getNumWriters());
 
-    EXPECT_TRUE(pool->threadExists("writer_worker_0"));
-    EXPECT_TRUE(pool->threadExists("writer_worker_1"));
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
 
-    pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
+    EXPECT_EQ(1, this->pool->getNumWriters());
 
-    EXPECT_TRUE(pool->threadExists("writer_worker_0"));
-    EXPECT_FALSE(pool->threadExists("writer_worker_1"));
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount(2));
 
-    pool->setNumWriters(ThreadPoolConfig::ThreadCount(2));
-
-    EXPECT_TRUE(pool->threadExists("writer_worker_0"));
-    EXPECT_TRUE(pool->threadExists("writer_worker_1"));
+    EXPECT_EQ(2, this->pool->getNumWriters());
 }
 
 /* Make sure that a task that has run once and been cancelled can be
  * rescheduled and will run again properly.
  */
-TEST_F(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
-    size_t runCount{0};
+TYPED_TEST(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
+    // Must have a single NonIO thread to ensure serialization of `task` and
+    // `sentinelTask`.
+    this->pool->setNumNonIO(1);
 
+    SyncObject cv;
+    size_t runCount{0};
     ExTask task = std::make_shared<LambdaTask>(
-            taskable, TaskId::ItemPager, 0, true, [&] {
+            this->taskable, TaskId::ItemPager, 0, true, [&] {
+                std::unique_lock<std::mutex> guard(cv);
                 ++runCount;
+                cv.notify_one();
                 return false;
             });
 
     ASSERT_EQ(TASK_RUNNING, task->getState())
             << "Initial task state should be RUNNING";
 
-    pool->schedule(task);
-    pool->waitForEmptyTaskLocator();
+    this->pool->schedule(task);
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&runCount] { return runCount == 1; });
+    }
+
+    // To know when `task` has actually finished running and executor thread
+    // has set it to dead (and not just got as far notifying the condvar in
+    // it's run() method), insert and schedule a "sentinal" task. Once that
+    // task has started running we know our main task must have completed
+    // all execution.
+    bool sentinelExecuted = false;
+    ExTask sentinelTask = std::make_shared<LambdaTask>(
+            this->taskable, TaskId::ItemPager, 0, true, [&] {
+                std::unique_lock<std::mutex> guard(cv);
+                sentinelExecuted = true;
+                cv.notify_one();
+                return false;
+            });
+    this->pool->schedule(sentinelTask);
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&sentinelExecuted] { return sentinelExecuted; });
+    }
 
     EXPECT_EQ(TASK_DEAD, task->getState())
             << "Task has completed and been cleaned up, state should be DEAD";
 
-    pool->schedule(task);
-    pool->waitForEmptyTaskLocator();
+    // Schedule main task again.
+    this->pool->schedule(task);
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&runCount] { return runCount == 2; });
+    }
+
+    // As above, use sentinal task to ensure task has indeed finished execution.
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        sentinelExecuted = false;
+    }
+    this->pool->schedule(sentinelTask);
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&sentinelExecuted] { return sentinelExecuted; });
+    }
 
     EXPECT_EQ(TASK_DEAD, task->getState())
             << "Task has completed and been cleaned up, state should be DEAD";
@@ -341,8 +382,8 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
 
     size_t taskId = task->getId();
 
-    ASSERT_EQ(taskId, pool->schedule(task));
-    ASSERT_EQ(taskId, pool->schedule(task));
+    ASSERT_EQ(taskId, this->pool->schedule(task));
+    ASSERT_EQ(taskId, this->pool->schedule(task));
 
     std::map<size_t, TaskQpair> taskLocator =
             dynamic_cast<SingleThreadedExecutorPool*>(ExecutorPool::get())
@@ -353,7 +394,7 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
     EXPECT_EQ(1, queue->getFutureQueueSize())
             << "Task should only appear once in the taskQueue";
 
-    pool->cancel(taskId, true);
+    this->pool->cancel(taskId, true);
 }
 
 class ScheduleOnDestruct {

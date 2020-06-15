@@ -41,24 +41,6 @@ public:
                   maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO) {
     }
 
-    size_t getNumBuckets() {
-        return numBuckets;
-    }
-
-    std::vector<std::string> getThreadNames() {
-        LockHolder lh(tMutex);
-
-        std::vector<std::string> output;
-
-        std::for_each(threadQ.begin(),
-                      threadQ.end(),
-                      [&output](const CB3ExecutorThread* v) {
-                          output.push_back(v->getName());
-                      });
-
-        return output;
-    }
-
     // Returns a vector of the registered ExecutorThreads, non-owning.
     // WARNING: Not safe to reduce thread pool size while the result of
     // this method is still in use.
@@ -68,23 +50,20 @@ public:
         return result;
     }
 
-    bool threadExists(std::string name) {
-        auto names = getThreadNames();
-        return std::find(names.begin(), names.end(), name) != names.end();
-    }
-
-    /** Waits indefinitely for the taskLocator to become empty, indicating all
-     * tasks have been cancelled and cleaned up.
-     */
-    void waitForEmptyTaskLocator() {
-        std::unique_lock<std::mutex> lh(tMutex);
-        tMutex.wait(lh, [this] { return taskLocator.empty(); });
-    }
-
     ~TestExecutorPool() override = default;
 };
 
-class ExecutorPoolTest : public ::testing::Test {};
+template <typename T>
+class ExecutorPoolTest : public ::testing::Test {
+protected:
+    void makePool(int maxThreads,
+                  int numReaders = 2,
+                  int numWriters = 2,
+                  int numAuxIO = 2,
+                  int numNonIO = 2);
+
+    std::unique_ptr<T> pool;
+};
 
 class SingleThreadedExecutorPoolTest : public ::testing::Test {
 public:
@@ -103,31 +82,24 @@ public:
     MockTaskable taskable;
 };
 
-class ExecutorPoolDynamicWorkerTest : public ExecutorPoolTest {
+template <typename T>
+class ExecutorPoolDynamicWorkerTest : public ExecutorPoolTest<T> {
 protected:
     // Simulated number of CPUs. Want a value >16 to be able to test
     // the difference between Default and DiskIOOptimized thread counts.
     const size_t MaxThreads{18};
 
     void SetUp() override {
-        ExecutorPoolTest::SetUp();
-        pool = std::unique_ptr<TestExecutorPool>(new TestExecutorPool(
-                MaxThreads,
-                ThreadPoolConfig::ThreadCount(2), // MaxNumReaders
-                ThreadPoolConfig::ThreadCount(2), // MaxNumWriters
-                2, // MaxNumAuxio
-                2 // MaxNumNonio
-                ));
-        pool->registerTaskable(taskable);
+        ExecutorPoolTest<T>::SetUp();
+        this->makePool(MaxThreads, 2, 2, 2, 2);
+        this->pool->registerTaskable(taskable);
     }
 
     void TearDown() override {
-        pool->unregisterTaskable(taskable, false);
-        pool->shutdown();
-        ExecutorPoolTest::TearDown();
+        this->pool->unregisterTaskable(taskable, false);
+        this->pool->shutdown();
+        ExecutorPoolTest<T>::TearDown();
     }
-
-    std::unique_ptr<TestExecutorPool> pool;
 
     /* ThreadGate may still be in use in threads after a test has completed,
      * must be kept around until after the taskable is unregistered and the
@@ -155,5 +127,5 @@ struct ThreadCountsParams {
                            const ThreadCountsParams& expected);
 
 class ExecutorPoolTestWithParam
-    : public ExecutorPoolTest,
+    : public ExecutorPoolTest<TestExecutorPool>,
       public ::testing::WithParamInterface<ThreadCountsParams> {};

@@ -142,6 +142,10 @@ public:
     std::vector<ExTask> unregisterTaskable(Taskable& taskable,
                                            bool force) override;
 
+    size_t getNumTaskables() const override {
+        return numTaskables;
+    }
+
     void doWorkerStat(EventuallyPersistentEngine* engine,
                       const void* cookie,
                       const AddStatFn& add_stat) override;
@@ -301,7 +305,8 @@ protected:
     TaskQ lpTaskQ; // a vector array of numTaskSets elements for low priority
     bool isLowPrioQset;
 
-    size_t numBuckets;
+    // Numbers of registered taskables.
+    size_t numTaskables;
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 

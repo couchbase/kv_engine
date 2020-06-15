@@ -114,6 +114,9 @@ public:
     virtual std::vector<ExTask> unregisterTaskable(Taskable& taskable,
                                                    bool force) = 0;
 
+    /// @returns the number of registered Taskables.
+    virtual size_t getNumTaskables() const = 0;
+
     /***************** Task Scheduling **************************************/
 
     /**
