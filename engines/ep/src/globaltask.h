@@ -227,6 +227,12 @@ public:
      */
     static std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> allTaskIds;
 
+    /**
+     * If true then this Task blocks bucket shutdown - it must complete on it's
+     * own accord and should not be cancelled.
+     */
+    const bool blockShutdown;
+
 protected:
     /**
      * The invoked function when the task is executed.
@@ -263,7 +269,6 @@ protected:
      */
     using atomic_time_point = std::atomic<int64_t>;
     using atomic_duration = std::atomic<int64_t>;
-    bool blockShutdown;
     std::atomic<task_state_t> state;
     const size_t uid;
     const TaskId taskId;

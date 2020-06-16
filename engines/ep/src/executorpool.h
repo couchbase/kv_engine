@@ -107,6 +107,7 @@ public:
      * Allows task to be scheduled for future execution by a thread of the
      * associated task->getTaskType. The task's 'wakeTime' determines
      * approximately when the task will be executed (no guarantees).
+     * @returns The unique taskId for the task object.
      */
     virtual size_t schedule(ExTask task) = 0;
 

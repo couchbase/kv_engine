@@ -65,6 +65,20 @@ protected:
     std::unique_ptr<T> pool;
 };
 
+/**
+ * Test fixture for tests which are only applicable to CB3ExecutorPool.
+ */
+class CB3ExecutorPoolTest : public ::testing::Test {
+protected:
+    void makePool(int maxThreads,
+                  int numReaders = 2,
+                  int numWriters = 2,
+                  int numAuxIO = 2,
+                  int numNonIO = 2);
+
+    std::unique_ptr<TestExecutorPool> pool;
+};
+
 class SingleThreadedExecutorPoolTest : public ::testing::Test {
 public:
     void SetUp() override {

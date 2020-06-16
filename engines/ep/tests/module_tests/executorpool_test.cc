@@ -21,6 +21,7 @@
 
 #include "executorpool_test.h"
 #include "../mock/mock_add_stat_fn.h"
+#include "folly_executorpool.h"
 #include "lambda_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include <folly/portability/GMock.h>
@@ -65,16 +66,24 @@ void ExecutorPoolTest<T>::makePool(int maxThreads,
                                numNonIO);
 }
 
-using ExecutorPoolTypes = ::testing::Types<TestExecutorPool>;
+using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
 TYPED_TEST_SUITE(ExecutorPoolTest, ExecutorPoolTypes);
 
+/**
+ * Tests basic registration / unregistration of Taskables.
+ */
 TYPED_TEST(ExecutorPoolTest, register_taskable_test) {
     this->makePool(10);
 
     MockTaskable taskable;
     MockTaskable taskable2;
 
-    ASSERT_EQ(0, this->pool->getNumWorkersStat());
+    // Only CB3ExecutorPool starts / stops threads on first / last
+    // taskable.
+    const auto expectedInitialWorkers =
+            (typeid(TypeParam) == typeid(TestExecutorPool)) ? 0 : 8;
+
+    ASSERT_EQ(expectedInitialWorkers, this->pool->getNumWorkersStat());
     ASSERT_EQ(0, this->pool->getNumTaskables());
 
     this->pool->registerTaskable(taskable);
@@ -94,7 +103,7 @@ TYPED_TEST(ExecutorPoolTest, register_taskable_test) {
 
     this->pool->unregisterTaskable(taskable, false);
 
-    ASSERT_EQ(0, this->pool->getNumWorkersStat());
+    ASSERT_EQ(expectedInitialWorkers, this->pool->getNumWorkersStat());
     ASSERT_EQ(0, this->pool->getNumTaskables());
 }
 
@@ -428,9 +437,23 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+void CB3ExecutorPoolTest::makePool(int maxThreads,
+                                   int numReaders,
+                                   int numWriters,
+                                   int numAuxIO,
+                                   int numNonIO) {
+    pool = std::make_unique<TestExecutorPool>(
+            maxThreads,
+            ThreadPoolConfig::ThreadCount(numReaders),
+            ThreadPoolConfig::ThreadCount(numWriters),
+            numAuxIO,
+            numNonIO);
+}
+
 // Verifies the priority of the different thread types. On Windows and Linux
 // the Writer threads should be low priority.
-TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
+// TODO: Convert to templated 'ExecutorPooLTest' and add Folly support.
+TEST_F(CB3ExecutorPoolTest, ThreadPriorities) {
     // Create test pool and register a (mock) taskable to start all threads.
     this->makePool(10);
 
@@ -496,6 +519,10 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
 
 // Test that Task queue stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, TaskQStats) {
+    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        // Not yet implemented for FollyExecutorPool.
+        GTEST_SKIP();
+    }
     this->makePool(1);
     // Create and register both high and low priority buckets so stats for
     // both priorities are reported.
@@ -569,6 +596,11 @@ TYPED_TEST(ExecutorPoolTest, TaskQStats) {
 
 // Test that worker stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, WorkerStats) {
+    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        // Not yet implemented for FollyExecutorPool.
+        GTEST_SKIP();
+    }
+
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
     MockTaskable bucket0;
@@ -640,6 +672,11 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 
 // Test that task stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, TaskStats) {
+    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        // Not yet implemented for FollyExecutorPool.
+        GTEST_SKIP();
+    }
+
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
     MockTaskable bucket0;
@@ -1033,6 +1070,11 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  * lock is already held by the calling thread.
  */
 TYPED_TEST(ExecutorPoolTest, cancel_can_schedule) {
+    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        // Not yet implemented for FollyExecutorPool.
+        GTEST_SKIP();
+    }
+
     // Note: Need to use global ExecutorPool (and not this->pool as typical for
     // ExecutorPoolTest) as we need an EPEngine object for testing memory
     // tracking, and EpEngine will create theglobal ExecutorPool if it doesn't
@@ -1040,7 +1082,14 @@ TYPED_TEST(ExecutorPoolTest, cancel_can_schedule) {
 
     // Config: Require only 1 NonIO thread as we want ScheduleOnDestructTask and
     // StopTask to be serialised with respect to each other.
-    std::string config = "num_nonio_threads=1";
+    std::string config = "num_nonio_threads=1;executor_pool_backend=";
+    if (typeid(TypeParam) == typeid(TestExecutorPool)) {
+        config += "cb3";
+    } else if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        config += "folly";
+    } else {
+        FAIL() << "Unsupported ExecutorPool type " << typeid(TypeParam).name();
+    }
 
     auto engine = SynchronousEPEngine::build(config);
     auto* pool = ExecutorPool::get();

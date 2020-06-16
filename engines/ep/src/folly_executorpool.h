@@ -17,10 +17,12 @@
 #pragma once
 
 #include "executorpool.h"
+#include "task_type.h"
 
 #include <memory>
 
 namespace folly {
+class CPUThreadPoolExecutor;
 class IOThreadPoolExecutor;
 }
 
@@ -125,6 +127,9 @@ class IOThreadPoolExecutor;
  */
 class FollyExecutorPool : public ExecutorPool {
 public:
+    /// Forward-declare the internal proxy object used to wrap GlobalTask.
+    struct TaskProxy;
+
     /**
      * @param maxThreads Maximum number of threads in any given thread class
      *                   (Reader, Writer, NonIO, AuxIO). A value of 0 means
@@ -139,6 +144,8 @@ public:
                       ThreadPoolConfig::ThreadCount maxWriters,
                       size_t maxAuxIO,
                       size_t maxNonIO);
+
+    ~FollyExecutorPool() override;
 
     size_t getNumWorkersStat() override;
     size_t getNumReaders() override;
@@ -172,5 +179,35 @@ public:
                      const AddStatFn& add_stat) override;
 
 private:
-    std::unique_ptr<folly::IOThreadPoolExecutor> ioPool;
+    /// @returns the CPU pool to use for the given task type.
+    folly::CPUThreadPoolExecutor* getPoolForTaskType(task_type_t type);
+
+    /// Reschedule the given task based on it's current sleepTime and if
+    /// the task is dead (or should run again).
+    void rescheduleTaskAfterRun(std::shared_ptr<TaskProxy> proxy);
+
+    struct State;
+    /**
+     * FollyExecutorPool internal state. unique_ptr for pimpl.
+     * Note: this exists before the thread pools as we must destruct the
+     * thread pools before the State (given thread pools can be accessing it
+     * on other threads).
+     */
+    std::unique_ptr<State> state;
+
+    /// Underlying Folly thread pools.
+    std::unique_ptr<folly::IOThreadPoolExecutor> futurePool;
+    std::unique_ptr<folly::CPUThreadPoolExecutor> readerPool;
+    std::unique_ptr<folly::CPUThreadPoolExecutor> writerPool;
+    std::unique_ptr<folly::CPUThreadPoolExecutor> auxPool;
+    std::unique_ptr<folly::CPUThreadPoolExecutor> nonIoPool;
+
+    size_t maxReaders;
+    size_t maxWriters;
+    size_t maxAuxIO;
+    size_t maxNonIO;
+
+    /// Grant friendship to TaskProxy as it needs to be able to re-schedule
+    /// itself using the futurePool.
+    friend TaskProxy;
 };
