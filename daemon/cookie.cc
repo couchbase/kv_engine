@@ -555,7 +555,9 @@ void Cookie::collectTimings() {
     const auto opcode = packet->getRequest().getClientOpcode();
     const auto endTime = std::chrono::steady_clock::now();
     const auto elapsed = endTime - start;
-    getTracer().end(cb::tracing::Code::Request, endTime);
+
+    // End the tracing span (Request) which is the first span in the tracer
+    tracer.end(cb::tracing::SpanId{0}, endTime);
 
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed);

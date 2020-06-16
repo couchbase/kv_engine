@@ -79,12 +79,8 @@ public:
                  std::chrono::steady_clock::time_point startTime =
                          std::chrono::steady_clock::now());
 
-    bool end(SpanId spanId,
-             std::chrono::steady_clock::time_point endTime =
-                     std::chrono::steady_clock::now());
-
     /// End a Span, stopping at the specified time point (defaults to now).
-    bool end(Code tracecode,
+    bool end(SpanId spanId,
              std::chrono::steady_clock::time_point endTime =
                      std::chrono::steady_clock::now());
 

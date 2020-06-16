@@ -46,19 +46,6 @@ bool Tracer::end(SpanId spanId, std::chrono::steady_clock::time_point endTime) {
     return true;
 }
 
-bool Tracer::end(Code tracecode,
-                 std::chrono::steady_clock::time_point endTime) {
-    // Locate the ID for this tracecode (when we begin the Span).
-    SpanId spanId = 0;
-    for (const auto& span : vecSpans) {
-        if (span.code == tracecode) {
-            break;
-        }
-        spanId++;
-    }
-    return end(spanId, endTime);
-}
-
 const std::vector<Span>& Tracer::getDurations() const {
     return vecSpans;
 }
