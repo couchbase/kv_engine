@@ -14,7 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "hash_table_test.h"
+#include "ep_time.h"
 #include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "item_freq_decayer_visitor.h"
@@ -1043,7 +1045,7 @@ TEST_F(HashTableTest, LockAfterDelete) {
 
     // Sanity check - deleted time should be set.
     auto* osv = sv->toOrderedStoredValue();
-    ASSERT_GE(osv->getCompletedOrDeletedTime(), 1985);
+    ASSERT_GE(osv->getCompletedOrDeletedTime(), ep_abs_time(1985));
 
     // Now re-create the same key (as alive).
     Item i(key, 0, 0, key.data(), key.size());

@@ -398,7 +398,7 @@ public:
             throw std::logic_error(
                     "StoredValue::lock: Called on Deleted item");
         }
-        lock_expiry_or_delete_or_complete_time = expiry;
+        lock_expiry_or_delete_or_complete_time.lock_expiry = expiry;
     }
 
     /**
@@ -409,7 +409,7 @@ public:
             // Deleted items are not locked - just skip.
             return;
         }
-        lock_expiry_or_delete_or_complete_time = 0;
+        lock_expiry_or_delete_or_complete_time.lock_expiry = 0;
     }
 
     /**
@@ -545,8 +545,8 @@ public:
             return false;
         }
 
-        if (lock_expiry_or_delete_or_complete_time == 0 ||
-            (curtime > lock_expiry_or_delete_or_complete_time)) {
+        if (lock_expiry_or_delete_or_complete_time.lock_expiry == 0 ||
+            (curtime > lock_expiry_or_delete_or_complete_time.lock_expiry)) {
             return false;
         }
         return true;
@@ -826,7 +826,7 @@ public:
      *
      * Only applicable for an OSV so we do nothing for a normal SV.
      */
-    void setCompletedOrDeletedTime(rel_time_t time);
+    void setCompletedOrDeletedTime(time_t time);
 
 protected:
     /**
@@ -998,9 +998,18 @@ protected:
     // this in ephemeral backfills with different locks (which is true, but the
     // access is we believe actually safe)
     cb::RelaxedAtomic<int64_t> bySeqno; //!< By sequence id number
+
     // For alive items: GETL lock expiration. For deleted items: delete time.
     // For prepared items: the time at which they were completed.
-    rel_time_t lock_expiry_or_delete_or_complete_time;
+    // Note that lock expiry uses rel_time_t, whereas deleted and completed
+    // uses (32bit) time_t; hence union of both types used to minimise space.
+    union LockExpiryOrDeleteTimeOrCompleteTime {
+        rel_time_t lock_expiry;
+        uint32_t delete_or_complete_time;
+        LockExpiryOrDeleteTimeOrCompleteTime() : lock_expiry{0} {
+        }
+    } lock_expiry_or_delete_or_complete_time;
+
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
     cb::uint48_t revSeqno; //!< Revision id sequence number
@@ -1103,7 +1112,7 @@ public:
      * Return the time the item was deleted. Only valid for completed
      * (SyncWrites) or deleted items.
      */
-    rel_time_t getCompletedOrDeletedTime() const;
+    time_t getCompletedOrDeletedTime() const;
 
     /**
      * Check if the contents of the StoredValue is same as that of the other
@@ -1132,7 +1141,7 @@ public:
      * Set the time the item was completed (SyncWrite) or deleted at to the
      * specified time.
      */
-    void setCompletedOrDeletedTime(rel_time_t time);
+    void setCompletedOrDeletedTime(time_t time);
 
     void setPrepareSeqno(int64_t prepareSeqno) {
         this->prepareSeqno = prepareSeqno;

@@ -765,7 +765,7 @@ TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
     // Advance to non-zero time.
     const int timeJump = 10;
     TimeTraveller nonZero(timeJump);
-    ASSERT_GE(ep_current_time(), initialDelTime + timeJump)
+    ASSERT_GE(ep_real_time(), initialDelTime + timeJump)
             << "Failed to advance at least " + std::to_string(timeJump) +
                        " seconds from when initial delete "
                        "occcured";

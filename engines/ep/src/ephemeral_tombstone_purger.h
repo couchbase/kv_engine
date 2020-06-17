@@ -108,9 +108,9 @@ protected:
     /// VBucket being visited.
     EphemeralVBucket* vbucket;
 
-    /// Time point the purge is running at. Set to ep_current_time in object
+    /// Time point the purge is running at. Set to ep_real_time in object
     /// creation.
-    const rel_time_t now;
+    const time_t now;
 
     /// Items older than this age are purged. "Age" is defined as:
     ///    now - delete_time.

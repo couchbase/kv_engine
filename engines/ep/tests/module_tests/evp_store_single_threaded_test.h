@@ -334,6 +334,9 @@ protected:
 
         SingleThreadedKVBucketTest::SetUp();
     }
+
+    // Test replicating delete times.
+    void test_replicateDeleteTime(time_t deleteTime);
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {

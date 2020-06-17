@@ -575,11 +575,10 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
         // Replica/DelWithMeta can dictate the tombstone time, check for it.
         if (queueItmCtx.generateDeleteTime == GenerateDeleteTime::No &&
             newSv->isDeleted() && newSv->getExptime()) {
-            // The deleted time is relative and the replicated tombstone time is
-            // absolute and held in the expiry field, convert the abs to rel
-            // using ep_reltime
+            // Both the deleted time and the replicated tombstone time are
+            // absolute (unix epoch) - just copy across.
             newSv->toOrderedStoredValue()->setCompletedOrDeletedTime(
-                    ep_reltime(newSv->getExptime()));
+                    newSv->getExptime());
         }
 
         notifyCtx = queueDirty(hbl, *newSv, queueItmCtx);
