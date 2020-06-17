@@ -209,9 +209,22 @@ flatbuffers::DetachedBuffer encodeScopes(
         Collections::KVStore::CommitMetaData& collectionsMeta,
         cb::const_byte_buffer scopes);
 
-/// callback to inform KV-engine that KVStore dropped key@seqno and whether or
-/// not it is an abort.
-using DroppedCb = std::function<void(const DiskDocKey&, int64_t, bool)>;
+/**
+ * Callback to inform KV-engine that KVStore dropped key@seqno and whether or
+ * not it is an abort. Also passes the PCS (Persisted Completed Seqno) which is
+ * used to avoid calling into the DM to drop keys that won't exist in the DM.
+ */
+/**
+ * Callback to inform kv_engine that KVStore dropped key@seqno.
+ *
+ * @param key - the key
+ * @param seqno - the seqno
+ * @param aborted - if the key is for an aborted SyncWrite
+ * @param pcs - the Persisted Completed Seqno in the compaction context. Used
+ *              to avoid calling into the DM to drop keys that won't exist.
+ */
+using DroppedCb = std::function<void(
+        const DiskDocKey& key, int64_t seqno, bool aborted, int64_t pcs)>;
 
 } // end namespace KVStore
 } // end namespace Collections

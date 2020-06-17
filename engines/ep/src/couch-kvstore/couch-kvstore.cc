@@ -807,7 +807,8 @@ static int time_purge_hook(Db* d,
                 try {
                     ctx->droppedKeyCb(diskKey,
                                       int64_t(info->db_seq),
-                                      metadata->isAbort());
+                                      metadata->isAbort(),
+                                      ctx->highCompletedSeqno);
                 } catch (const std::exception& e) {
                     EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
                                 e.what());

@@ -263,7 +263,8 @@ protected:
     void dropKey(Vbid vbid,
                  const DiskDocKey& key,
                  int64_t bySeqno,
-                 bool isAbort);
+                 bool isAbort,
+                 int64_t highCompletedSeqno);
 
     /**
      * @todo MB-37858: legacy from TAP, remove.

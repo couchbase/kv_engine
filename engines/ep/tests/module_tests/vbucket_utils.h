@@ -18,8 +18,10 @@
 
 #include "vbucket.h"
 
+#include "durability/durability_monitor.h"
+
 /**
- * Friend class of VBucket. Used for accessing into VBukcet for testing.
+ * Friend class of VBucket. Used for accessing into VBucket for testing.
  */
 class VBucketTestIntrospector {
 public:
@@ -37,5 +39,9 @@ public:
 
     static const EPStats& getStats(VBucket& vb) {
         return vb.stats;
+    }
+
+    static void destroyDM(VBucket& vb) {
+        vb.durabilityMonitor.reset();
     }
 };

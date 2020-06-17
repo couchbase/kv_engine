@@ -296,7 +296,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                                          seqno)) {
             // Inform vb that the key@seqno is dropped
             cbCtx.ctx->droppedKeyCb(
-                    diskKey, seqno, magmakv::isAbort(metaSlice));
+                    diskKey, seqno, magmakv::isAbort(metaSlice), cbCtx.ctx->highCompletedSeqno);
 
             { // Locking scope for magmaDbStats
                 auto dbStats = cbCtx.magmaDbStats.stats.wlock();

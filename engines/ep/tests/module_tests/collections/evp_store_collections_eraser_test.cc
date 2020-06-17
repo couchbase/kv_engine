@@ -817,6 +817,12 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterCommit) {
     createPendingWrite();
     commit();
     dropCollection();
+
+    // This is a dodgy way of testing things but in this test the only prepares
+    // we will be dropping are completed and so we should not call into the DM.
+    // If we tried to then we'd segfault
+    VBucketTestIntrospector::destroyDM(*vb.get());
+
     runCollectionsEraser();
 }
 
@@ -825,6 +831,12 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     createPendingWrite();
     abort();
     dropCollection();
+
+    // This is a dodgy way of testing things but in this test the only prepares
+    // we will be dropping are completed and so we should not call into the DM.
+    // If we tried to then we'd segfault
+    VBucketTestIntrospector::destroyDM(*vb.get());
+
     runCollectionsEraser();
 }
 

@@ -904,6 +904,13 @@ void ActiveDurabilityMonitor::eraseSyncWrite(const DocKey& key, int64_t seqno) {
             s->trackedWrites.end(),
             [key](const auto& write) -> bool { return write.getKey() == key; });
 
+    // We might call into here with a prepare that does not exist in the DM if
+    // the prepare has been completed. We /shouldn't/ do this but it's best to
+    // avoid decrementing our iterators if we were to.
+    if (toErase == s->trackedWrites.end()) {
+        return;
+    }
+
     if (toErase->getBySeqno() != seqno) {
         std::stringstream ss;
         ss << "Attempting to drop prepare for '"

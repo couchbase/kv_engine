@@ -1063,7 +1063,8 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
 void EPBucket::dropKey(Vbid vbid,
                        const DiskDocKey& diskKey,
                        int64_t bySeqno,
-                       bool isAbort) {
+                       bool isAbort,
+                       int64_t highCompletedSeqno) {
     // dropKey is called to remove a key from the in memory structures
     // (HashTable, DurabilityMonitors etc.). We skip calling this for aborts
     // as they don't exist in the HashTable and this allows us to make stricter
@@ -1083,15 +1084,16 @@ void EPBucket::dropKey(Vbid vbid,
         throw std::logic_error("EPBucket::dropKey called for a system key");
     }
 
+    if (diskKey.isPrepared() && bySeqno > highCompletedSeqno) {
+        // ... drop it from the DurabilityMonitor
+        vb->dropPendingKey(docKey, bySeqno);
+    }
+
     { // collections read lock scope
         // @todo this lock could be removed - fetchValidValue requires it
         // in-case of expiry, however dropKey doesn't generate expired values
         auto cHandle = vb->lockCollections(docKey);
 
-        if (diskKey.isPrepared()) {
-            // ... drop it from the DurabilityMonitor
-            vb->dropPendingKey(docKey, bySeqno);
-        }
         // ... drop it from the VB (hashtable)
         vb->dropKey(bySeqno, cHandle);
     }
@@ -1112,7 +1114,8 @@ std::shared_ptr<compaction_ctx> EPBucket::makeCompactionContext(
                                   config.db_file_id,
                                   std::placeholders::_1,
                                   std::placeholders::_2,
-                                  std::placeholders::_3);
+                                  std::placeholders::_3,
+                                  std::placeholders::_4);
 
     ctx->completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
                                         this,
