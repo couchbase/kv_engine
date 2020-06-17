@@ -43,7 +43,7 @@ public:
     /**
      * Initialize the Executor object
      */
-    Executor(cb::ProcessClockSource& clock)
+    explicit Executor(cb::ProcessClockSource& clock)
         : Couchbase::Thread("mc:executor"), clock(clock) {
         shutdown.store(false);
         running.store(false);

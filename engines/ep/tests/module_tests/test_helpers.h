@@ -114,7 +114,7 @@ std::string createXattrValue(const std::string& body,
  */
 class TimeTraveller {
 public:
-    TimeTraveller(int by);
+    explicit TimeTraveller(int by);
 
     ~TimeTraveller();
 

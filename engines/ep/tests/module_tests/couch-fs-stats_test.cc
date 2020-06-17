@@ -22,9 +22,9 @@
 
 class TestStatsOps : public StatsOps {
 public:
-    TestStatsOps(FileOpsInterface* ops)
-        : StatsOps(_stats, *ops),
-          wrapped_ops(ops) {}
+    explicit TestStatsOps(FileOpsInterface* ops)
+        : StatsOps(_stats, *ops), wrapped_ops(ops) {
+    }
 
     couch_file_handle constructor(couchstore_error_info_t *errinfo) override {
             FileOpsInterface* orig_ops = wrapped_ops.get();

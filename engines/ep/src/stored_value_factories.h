@@ -63,7 +63,7 @@ class StoredValueFactory : public AbstractStoredValueFactory {
 public:
     using value_type = StoredValue;
 
-    StoredValueFactory(EPStats& s) : stats(&s) {
+    explicit StoredValueFactory(EPStats& s) : stats(&s) {
     }
 
     /**
@@ -86,7 +86,7 @@ class OrderedStoredValueFactory : public AbstractStoredValueFactory {
 public:
     using value_type = OrderedStoredValue;
 
-    OrderedStoredValueFactory(EPStats& s) : stats(&s) {
+    explicit OrderedStoredValueFactory(EPStats& s) : stats(&s) {
     }
 
     /**

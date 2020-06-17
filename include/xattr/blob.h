@@ -44,7 +44,7 @@ public:
      * @param size The current allocated size in allocator_ (so that we may
      *             use that space before doing reallocations)
      */
-    Blob(std::unique_ptr<char[]>& allocator_, size_t size = 0)
+    explicit Blob(std::unique_ptr<char[]>& allocator_, size_t size = 0)
         : Blob({nullptr, 0}, allocator_, false, size) {
     }
 

@@ -34,7 +34,7 @@ public:
      * Constructor only to be used for unsuccessful rollback. Takes a single
      * bool to indicate success. Must be false or an assertion will fire.
      */
-    RollbackResult(bool success);
+    explicit RollbackResult(bool success);
 
     RollbackResult(bool success,
                    uint64_t highSeqno,

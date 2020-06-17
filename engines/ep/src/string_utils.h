@@ -45,6 +45,7 @@ bool cb_isPrefix(std::string_view input, const std::string& prefix);
 
 class invalid_argument_bool : public std::invalid_argument {
 public:
-    invalid_argument_bool(const std::string& msg) : std::invalid_argument(msg) {
+    explicit invalid_argument_bool(const std::string& msg)
+        : std::invalid_argument(msg) {
     }
 };

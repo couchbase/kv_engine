@@ -17,8 +17,14 @@
 
 #include "logtags.h"
 
+#include <spdlog/fmt/ostr.h>
+
 namespace cb {
-std::ostream& operator<<(std::ostream& os, const UserDataView& d) {
+std::ostream& operator<<(std::ostream& os, const cb::UserDataView& d) {
+    return os << d.getSanitizedValue();
+}
+
+std::ostream& operator<<(std::ostream& os, const cb::UserData& d) {
     return os << d.getSanitizedValue();
 }
 } // namespace cb

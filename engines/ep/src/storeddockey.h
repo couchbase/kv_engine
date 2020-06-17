@@ -293,7 +293,7 @@ protected:
      * storage
      * @param key a DocKey to be copied in
      */
-    SerialisedDocKey(const DocKey& key)
+    explicit SerialisedDocKey(const DocKey& key)
         : length(gsl::narrow_cast<uint8_t>(key.size())) {
         if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
             std::copy(key.data(), key.data() + key.size(), reinterpret_cast<char*>(bytes));
@@ -315,7 +315,7 @@ protected:
     /**
      * Create a SerialisedDocKey from a byte_buffer that has collection data
      */
-    SerialisedDocKey(cb::const_byte_buffer key)
+    explicit SerialisedDocKey(cb::const_byte_buffer key)
         : length(gsl::narrow_cast<uint8_t>(key.size())) {
         std::copy(key.begin(), key.end(), reinterpret_cast<char*>(bytes));
     }

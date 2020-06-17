@@ -41,7 +41,7 @@ class Vbid;
  */
 class ConnMap {
 public:
-    ConnMap(EventuallyPersistentEngine &theEngine);
+    explicit ConnMap(EventuallyPersistentEngine& theEngine);
     virtual ~ConnMap();
 
     void initialize();

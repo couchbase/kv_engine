@@ -228,7 +228,7 @@ public:
      */
     class Statistics {
     public:
-        Statistics(EPStats& epStats);
+        explicit Statistics(EPStats& epStats);
 
         /**
          * Set of properties on a StoredValue which are considerd by statistics
@@ -236,7 +236,7 @@ public:
          * Used by prologue() / epilogue() to update HashTable statistics.
          */
         struct StoredValueProperties {
-            StoredValueProperties(const StoredValue* sv);
+            explicit StoredValueProperties(const StoredValue* sv);
 
             // Following members are set to the equivalent property of the
             // given StoredValue.
@@ -652,7 +652,7 @@ public:
         }
 
         // If the StoredValue is a nullptr then the StoredValueProxy is invalid.
-        operator bool() const {
+        explicit operator bool() const {
             return value;
         }
 

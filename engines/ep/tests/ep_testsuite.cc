@@ -83,7 +83,7 @@ typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
 class ThreadData {
 public:
-    ThreadData(EngineIface* eh, int e = 0) : h(eh), extra(e) {
+    explicit ThreadData(EngineIface* eh, int e = 0) : h(eh), extra(e) {
     }
     EngineIface* h;
     int extra;

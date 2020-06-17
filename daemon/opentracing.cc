@@ -45,7 +45,7 @@ std::unique_ptr<OpenTracing> OpenTracing::instance;
 
 class OpenTracingThread : public OpenTracing, public cb::Thread {
 public:
-    OpenTracingThread(const OpenTracingConfig& config)
+    explicit OpenTracingThread(const OpenTracingConfig& config)
         : OpenTracing(config), cb::Thread("mcd:trace") {
     }
 

@@ -44,7 +44,7 @@ class unsigned_leb128<
         T,
         typename std::enable_if<std::is_unsigned<T>::value>::type> {
 public:
-    unsigned_leb128(T in) {
+    explicit unsigned_leb128(T in) {
         while (in > 0) {
             auto byte = gsl::narrow_cast<uint8_t>(in & 0x7full);
             in >>= 7;

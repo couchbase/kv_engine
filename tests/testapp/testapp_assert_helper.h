@@ -33,7 +33,7 @@ public:
     AssertHelper() : cur_failure(::testing::AssertionFailure()) {
     }
 
-    AssertHelper(::testing::AssertionResult& existing)
+    explicit AssertHelper(::testing::AssertionResult& existing)
         : cur_failure(existing), has_failure(!cur_failure) {
     }
 

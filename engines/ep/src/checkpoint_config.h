@@ -36,7 +36,7 @@ public:
                      bool keep_closed_ckpts,
                      bool persistence_enabled);
 
-    CheckpointConfig(EventuallyPersistentEngine& e);
+    explicit CheckpointConfig(EventuallyPersistentEngine& e);
 
     rel_time_t getCheckpointPeriod() const {
         return checkpointPeriod;

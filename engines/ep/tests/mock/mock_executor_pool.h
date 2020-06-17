@@ -23,7 +23,7 @@
  */
 class MockExecutorPool : public ExecutorPool {
 public:
-    MockExecutorPool(size_t numTaskSets)
+    explicit MockExecutorPool(size_t numTaskSets)
         : ExecutorPool(4 /*maxThreads*/,
                        numTaskSets,
                        ThreadPoolConfig::ThreadCount(1) /*maxReaders*/,

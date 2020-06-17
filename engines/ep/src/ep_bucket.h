@@ -35,7 +35,7 @@ struct compaction_ctx;
  */
 class EPBucket : public KVBucket {
 public:
-    EPBucket(EventuallyPersistentEngine& theEngine);
+    explicit EPBucket(EventuallyPersistentEngine& theEngine);
 
     ~EPBucket() override;
 

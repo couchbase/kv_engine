@@ -103,8 +103,7 @@ typedef std::pair<Vbid, ExTask> CompTaskEntry;
  */
 class KVBucket : public KVBucketIface {
 public:
-
-    KVBucket(EventuallyPersistentEngine &theEngine);
+    explicit KVBucket(EventuallyPersistentEngine& theEngine);
     ~KVBucket() override;
 
     bool initialize() override;
@@ -877,7 +876,7 @@ protected:
  */
 class NotifyNewSeqnoCB : public Callback<const Vbid, const VBNotifyCtx&> {
 public:
-    NotifyNewSeqnoCB(KVBucket& kvb) : kvBucket(kvb) {
+    explicit NotifyNewSeqnoCB(KVBucket& kvb) : kvBucket(kvb) {
     }
 
     void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) override {

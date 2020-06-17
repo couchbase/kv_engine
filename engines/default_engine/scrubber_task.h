@@ -37,7 +37,7 @@ class EngineManager;
  */
 class ScrubberTask {
 public:
-    ScrubberTask(EngineManager& manager);
+    explicit ScrubberTask(EngineManager& manager);
 
     /**
      *  Shutdown the task

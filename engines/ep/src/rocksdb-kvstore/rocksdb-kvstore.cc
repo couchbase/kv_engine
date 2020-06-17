@@ -192,7 +192,7 @@ public:
      * @param callback Persistence Callback
      * @param del Flag indicating if it is an item deletion or not
      */
-    RocksRequest(queued_item it)
+    explicit RocksRequest(queued_item it)
         : IORequest(std::move(it)), docBody(item->getValue()) {
         docMeta = rockskv::MetaData(
                 item->isDeleted(),
@@ -237,7 +237,7 @@ private:
 // RocksDB docs suggest to "Use `rocksdb::DB::DestroyColumnFamilyHandle()` to
 // close a column family instead of deleting the column family handle directly"
 struct ColumnFamilyDeleter {
-    ColumnFamilyDeleter(rocksdb::DB& db) : db(db) {
+    explicit ColumnFamilyDeleter(rocksdb::DB& db) : db(db) {
     }
     void operator()(rocksdb::ColumnFamilyHandle* cfh) {
         db.DestroyColumnFamilyHandle(cfh);
@@ -258,8 +258,8 @@ public:
              rocksdb::ColumnFamilyHandle* seqnoCFH,
              Vbid vbid)
         : rdb(rdb),
-          defaultCFH(ColumnFamilyPtr(defaultCFH, rdb)),
-          seqnoCFH(ColumnFamilyPtr(seqnoCFH, rdb)),
+          defaultCFH(ColumnFamilyPtr(defaultCFH, ColumnFamilyDeleter(rdb))),
+          seqnoCFH(ColumnFamilyPtr(seqnoCFH, ColumnFamilyDeleter(rdb))),
           vbid(vbid) {
     }
 
@@ -1405,7 +1405,7 @@ int64_t RocksDBKVStore::getVbstateKey() {
 
 RocksDBKVStore::RocksDBHandle::RocksDBHandle(RocksDBKVStore& kvstore,
                                              rocksdb::DB& rdb)
-    : snapshot(rdb.GetSnapshot(), rdb) {
+    : snapshot(rdb.GetSnapshot(), SnapshotDeleter(rdb)) {
 }
 
 std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) {

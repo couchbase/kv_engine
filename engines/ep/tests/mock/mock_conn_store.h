@@ -23,7 +23,8 @@
 
 class MockConnStore : public ConnStore {
 public:
-    MockConnStore(EventuallyPersistentEngine& engine) : ConnStore(engine) {
+    explicit MockConnStore(EventuallyPersistentEngine& engine)
+        : ConnStore(engine) {
     }
 
     VBToConnsMap& getVBToConnsMap() {

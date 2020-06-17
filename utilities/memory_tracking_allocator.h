@@ -66,7 +66,8 @@ public:
     }
 
     template <class U>
-    MemoryTrackingAllocator(MemoryTrackingAllocator<U> const& other) noexcept
+    explicit MemoryTrackingAllocator(
+            MemoryTrackingAllocator<U> const& other) noexcept
         /**
          * Used during a rebind and therefore need to copy over the
          * byteAllocated shared pointer.

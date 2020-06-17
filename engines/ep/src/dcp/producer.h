@@ -264,7 +264,7 @@ public:
             SpaceAvailable
         };
 
-        BufferLog(DcpProducer& p)
+        explicit BufferLog(DcpProducer& p)
             : producer(p), maxBytes(0), bytesOutstanding(0), ackedBytes(0) {
         }
 

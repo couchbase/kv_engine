@@ -30,7 +30,7 @@
  */
 class DcpMsgProducersBorderGuard : public dcp_message_producers {
 public:
-    DcpMsgProducersBorderGuard(dcp_message_producers& guarded);
+    explicit DcpMsgProducersBorderGuard(dcp_message_producers& guarded);
 
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 

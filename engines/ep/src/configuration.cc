@@ -126,7 +126,7 @@ Configuration::Configuration() {
 }
 
 struct Configuration::value_t {
-    value_t(bool dynamic) : dynamic(dynamic) {
+    explicit value_t(bool dynamic) : dynamic(dynamic) {
     }
 
     std::vector<std::unique_ptr<ValueChangedListener>> changeListener;

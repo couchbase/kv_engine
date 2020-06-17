@@ -37,8 +37,8 @@ public:
 
 class CountDownLatch {
 public:
-
-    CountDownLatch(int n=1) : count(n) {}
+    explicit CountDownLatch(int n = 1) : count(n) {
+    }
 
     void decr() {
         std::unique_lock<std::mutex> lh(so);

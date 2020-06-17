@@ -68,7 +68,7 @@ T atomic_swapIfNot(std::atomic<T> &obj, const T &badValue, const T &newValue) {
 template <typename T>
 class AtomicPtr : public std::atomic<T*> {
 public:
-    AtomicPtr(T* initial = nullptr) : std::atomic<T*>(initial) {
+    explicit AtomicPtr(T* initial = nullptr) : std::atomic<T*>(initial) {
     }
 
     ~AtomicPtr() = default;
@@ -81,7 +81,7 @@ public:
         return *std::atomic<T*>::load();
     }
 
-    operator bool() const {
+    explicit operator bool() const {
         return std::atomic<T*>::load() != NULL;
     }
 
@@ -227,7 +227,7 @@ public:
         return value == nullptr;
     }
 
-    operator bool () const {
+    operator bool() const {
         return value != nullptr;
     }
 
@@ -277,12 +277,10 @@ void swap(SingleThreadedRCPtr<T, Pointer, Deleter>& a,
 template <typename T>
 class LoggedAtomic {
 public:
-    LoggedAtomic(T initial)
-        : value(initial) {
+    explicit LoggedAtomic(T initial) : value(initial) {
         std::lock_guard<std::mutex> lock(stderr_mutex);
         std::cerr << "LoggedAtomic[" << this << "]::LoggedAtomic: "
                   << value.load() << std::endl;
-
     }
 
     T operator=(T desired) {
@@ -308,7 +306,7 @@ public:
                   << std::endl;
     }
 
-    operator T() const {
+    explicit operator T() const {
         std::lock_guard<std::mutex> lock(stderr_mutex);
         auto result = value.load();
         std::cerr << "LoggedAtomic[" << this << "]::operator T: " << result

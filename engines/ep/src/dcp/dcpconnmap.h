@@ -34,8 +34,7 @@ class DcpConsumer;
 
 class DcpConnMap : public ConnMap, public BackfillTrackingIface {
 public:
-
-    DcpConnMap(EventuallyPersistentEngine &engine);
+    explicit DcpConnMap(EventuallyPersistentEngine& engine);
 
     ~DcpConnMap() override;
 

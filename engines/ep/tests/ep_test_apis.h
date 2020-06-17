@@ -161,7 +161,8 @@ public:
         DenyAll,
     };
 
-    CouchstoreFileAccessGuard(std::string dbName, Mode mode = Mode::ReadOnly);
+    explicit CouchstoreFileAccessGuard(std::string dbName,
+                                       Mode mode = Mode::ReadOnly);
 
     ~CouchstoreFileAccessGuard();
 

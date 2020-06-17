@@ -41,7 +41,7 @@ class ConnManager : public GlobalTask {
 public:
     class ConfigChangeListener : public ValueChangedListener {
     public:
-        ConfigChangeListener(ConnManager& connManager)
+        explicit ConfigChangeListener(ConnManager& connManager)
             : connManager(connManager) {
         }
 

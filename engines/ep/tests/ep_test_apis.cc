@@ -1444,8 +1444,8 @@ void sendDcpAck(EngineIface* h,
 
 class engine_error : public std::exception {
 public:
-    engine_error(ENGINE_ERROR_CODE code_)
-        : code(code_) {}
+    explicit engine_error(ENGINE_ERROR_CODE code_) : code(code_) {
+    }
 
     const char* what() const NOEXCEPT override {
         return "engine_error";

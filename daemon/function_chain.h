@@ -37,8 +37,8 @@ public:
     /*
      * Construct a Function that stores 'f'
      */
-    Function (std::function<ReturnType(arguments...)> f)
-      : func(f) {}
+    explicit Function(std::function<ReturnType(arguments...)> f) : func(f) {
+    }
 
     /*
      * Call the stored function

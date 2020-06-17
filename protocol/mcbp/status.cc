@@ -16,7 +16,7 @@
  */
 
 #include <mcbp/protocol/status.h>
-#include <ostream>
+#include <spdlog/fmt/ostr.h>
 
 namespace cb::mcbp {
 
@@ -109,7 +109,10 @@ const std::error_category& error_category() NOEXCEPT {
     static status_category category_instance;
     return category_instance;
 }
-
+std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status) {
+    out << ::to_string(status);
+    return out;
+}
 } // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::Status status) {
@@ -248,9 +251,4 @@ std::string to_string(cb::mcbp::Status status) {
     throw std::invalid_argument(
             "to_string(cb::mcbp::Status): Invalid status code: " +
             std::to_string(int(status)));
-}
-
-std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status) {
-    out << ::to_string(status);
-    return out;
 }

@@ -71,7 +71,7 @@ protected:
 template <typename... RV>
 class CustomCallback : public StatusCallback<RV...> {
 public:
-    CustomCallback(std::function<void(RV...)> _cb) : cb(_cb) {
+    explicit CustomCallback(std::function<void(RV...)> _cb) : cb(_cb) {
     }
     CustomCallback() : cb([](RV... val) {}) {
     }
@@ -98,7 +98,8 @@ private:
  */
 class CustomRBCallback : public RollbackCB {
 public:
-    CustomRBCallback(std::function<void(GetValue)> _cb) : cb(std::move(_cb)) {
+    explicit CustomRBCallback(std::function<void(GetValue)> _cb)
+        : cb(std::move(_cb)) {
     }
     CustomRBCallback() : cb([](GetValue val) {}) {
     }

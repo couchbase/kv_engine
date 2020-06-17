@@ -188,7 +188,7 @@ EphTombstoneHTCleaner::getPurgerVisitor() {
  */
 class EphemeralVBucket::StaleItemDeleter : public PauseResumeVBVisitor {
 public:
-    StaleItemDeleter(EphemeralBucket& bucket) : bucket(bucket) {
+    explicit StaleItemDeleter(EphemeralBucket& bucket) : bucket(bucket) {
     }
 
     bool visit(VBucket& vb) override {

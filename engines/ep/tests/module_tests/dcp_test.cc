@@ -2670,7 +2670,7 @@ protected:
 
 class ConnMapNotifyTest {
 public:
-    ConnMapNotifyTest(EventuallyPersistentEngine& engine)
+    explicit ConnMapNotifyTest(EventuallyPersistentEngine& engine)
         : connMap(new MockDcpConnMap(engine)),
           callbacks(0),
           cookie(create_mock_cookie(&engine)) {

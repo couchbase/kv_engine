@@ -28,7 +28,7 @@
 
 class MockBasicLinkedList : public BasicLinkedList {
 public:
-    MockBasicLinkedList(EPStats& st) : BasicLinkedList(Vbid(0), st) {
+    explicit MockBasicLinkedList(EPStats& st) : BasicLinkedList(Vbid(0), st) {
     }
 
     OrderedLL& getSeqList() {

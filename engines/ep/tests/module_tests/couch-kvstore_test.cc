@@ -154,7 +154,8 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
 
 class CollectionsOfflineUpgradeCallback : public StatusCallback<CacheLookup> {
 public:
-    CollectionsOfflineUpgradeCallback(CollectionID cid) : expectedCid(cid) {
+    explicit CollectionsOfflineUpgradeCallback(CollectionID cid)
+        : expectedCid(cid) {
     }
 
     void callback(CacheLookup& lookup) override {
@@ -168,7 +169,7 @@ public:
 
 class CollectionsOfflineGetCallback : public StatusCallback<GetValue> {
 public:
-    CollectionsOfflineGetCallback(std::pair<int, int> deletedRange)
+    explicit CollectionsOfflineGetCallback(std::pair<int, int> deletedRange)
         : deletedRange(std::move(deletedRange)) {
     }
 
@@ -353,7 +354,7 @@ using namespace testing;
  */
 class MockBucketLogger : public BucketLogger {
 public:
-    MockBucketLogger(std::string name) : BucketLogger(name) {
+    explicit MockBucketLogger(std::string name) : BucketLogger(name) {
         // Set the log level of the BucketLogger to trace to ensure messages
         // make it through to the sink it method. Does not alter the logging
         // level of the underlying spdlogger so we will not see console

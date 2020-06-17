@@ -47,7 +47,8 @@ namespace cb {
 template <class T>
 class AtomicSharedPtr {
 public:
-    AtomicSharedPtr(std::shared_ptr<T> r) noexcept : ptr(std::move(r)) {
+    explicit AtomicSharedPtr(std::shared_ptr<T> r) noexcept
+        : ptr(std::move(r)) {
     }
 
     AtomicSharedPtr<T>& operator=(std::shared_ptr<T>&& r) {

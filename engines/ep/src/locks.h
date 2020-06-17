@@ -33,8 +33,7 @@ public:
      *
      * @param m reference to a vector of locks
      */
-    MultiLockHolder(std::vector<std::mutex>& m)
-        : mutexes(m) {
+    explicit MultiLockHolder(std::vector<std::mutex>& m) : mutexes(m) {
         lock();
     }
 

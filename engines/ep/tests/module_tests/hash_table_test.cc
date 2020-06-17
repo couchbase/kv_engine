@@ -45,7 +45,8 @@ public:
     size_t count;
     size_t deleted;
 
-    Counter(bool v) : count(), deleted(), verify(v) {}
+    explicit Counter(bool v) : count(), deleted(), verify(v) {
+    }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         if (v.isDeleted()) {

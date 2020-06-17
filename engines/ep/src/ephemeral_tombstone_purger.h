@@ -83,7 +83,7 @@ class EphTombstoneStaleItemDeleter;
 */
 class EphemeralVBucket::HTTombstonePurger : public VBucketAwareHTVisitor {
 public:
-    HTTombstonePurger(rel_time_t purgeAge);
+    explicit HTTombstonePurger(rel_time_t purgeAge);
 
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(std::chrono::steady_clock::time_point deadline);

@@ -24,7 +24,7 @@
 class DurabilityTimeoutTask::ConfigChangeListener
     : public ValueChangedListener {
 public:
-    ConfigChangeListener(DurabilityTimeoutTask& timeoutTask)
+    explicit ConfigChangeListener(DurabilityTimeoutTask& timeoutTask)
         : timeoutTask(timeoutTask) {
     }
 

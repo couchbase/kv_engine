@@ -18,7 +18,9 @@
 #include <memcached/dcp_stream_id.h>
 #include <spdlog/fmt/ostr.h>
 
-std::ostream& operator<<(std::ostream& os, const cb::mcbp::DcpStreamId id) {
+namespace cb::mcbp {
+std::ostream& operator<<(std::ostream& os, const cb::mcbp::DcpStreamId& id) {
     os << id.to_string();
     return os;
 }
+} // namespace cb::mcbp

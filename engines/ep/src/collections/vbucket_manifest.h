@@ -850,7 +850,7 @@ protected:
      * the bucket manifest.
      */
     struct ManifestChanges {
-        ManifestChanges(ManifestUid uid) : uid(uid) {
+        explicit ManifestChanges(ManifestUid uid) : uid(uid) {
         }
         ManifestUid uid{0};
         std::vector<ScopeAddition> scopesToAdd;

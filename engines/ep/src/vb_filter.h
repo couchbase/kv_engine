@@ -37,10 +37,11 @@ public:
      * Instantiate a VBucketFilter that returns true for any of the
      * given vbucket IDs.
      */
-    VBucketFilter(const std::vector<Vbid>& a) : acceptable(a.begin(), a.end()) {
+    explicit VBucketFilter(const std::vector<Vbid>& a)
+        : acceptable(a.begin(), a.end()) {
     }
 
-    VBucketFilter(std::set<Vbid> s) : acceptable(std::move(s)) {
+    explicit VBucketFilter(std::set<Vbid> s) : acceptable(std::move(s)) {
     }
 
     void assign(const std::set<Vbid>& a) {

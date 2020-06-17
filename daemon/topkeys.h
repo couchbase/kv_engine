@@ -36,7 +36,7 @@ struct tk_context;
  */
 
 struct topkey_item_t {
-    topkey_item_t(rel_time_t create_time)
+    explicit topkey_item_t(rel_time_t create_time)
         : ti_ctime(create_time), ti_access_count(0) {
     }
 

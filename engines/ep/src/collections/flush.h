@@ -37,7 +37,7 @@ struct PersistedStats;
  */
 class Flush {
 public:
-    Flush(Manifest& manifest) : manifest(manifest) {
+    explicit Flush(Manifest& manifest) : manifest(manifest) {
     }
 
     Manifest& getManifest() const {

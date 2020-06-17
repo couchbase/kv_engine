@@ -70,7 +70,7 @@ class DCPBackfill : public DCPBackfillIface {
 public:
     DCPBackfill() = default;
 
-    DCPBackfill(std::shared_ptr<ActiveStream> s);
+    explicit DCPBackfill(std::shared_ptr<ActiveStream> s);
 
     /**
      * Get the id of the vbucket for which this object is created

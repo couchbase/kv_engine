@@ -844,7 +844,7 @@ void LoadStorageKVPairCallback::purge() {
     class EmergencyPurgeVisitor : public VBucketVisitor,
                                   public HashTableVisitor {
     public:
-        EmergencyPurgeVisitor(EPBucket& store) : epstore(store) {
+        explicit EmergencyPurgeVisitor(EPBucket& store) : epstore(store) {
         }
 
         void visitBucket(const VBucketPtr& vb) override {

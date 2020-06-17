@@ -39,8 +39,9 @@ namespace VB {
  */
 class ScanContext {
 public:
-    ScanContext(const std::vector<Collections::KVStore::DroppedCollection>&
-                        droppedCollections);
+    explicit ScanContext(
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    droppedCollections);
 
     bool isLogicallyDeleted(const DocKey& key, int64_t seqno) const;
 

@@ -27,7 +27,7 @@
  */
 class CheckpointConfig::ChangeListener : public ValueChangedListener {
 public:
-    ChangeListener(CheckpointConfig& c) : config(c) {
+    explicit ChangeListener(CheckpointConfig& c) : config(c) {
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {

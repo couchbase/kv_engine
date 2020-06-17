@@ -126,11 +126,6 @@ void cb::PrintTo(cb::engine_errc ev, ::std::ostream* os) {
     *os << cb::to_string(ev);
 }
 
-std::ostream& operator<<(std::ostream& os, cb::engine_errc ec) {
-    cb::PrintTo(ec, &os);
-    return os;
-}
-
 cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
     switch (eec) {
     case ENGINE_SUCCESS:
@@ -202,3 +197,9 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
             "cb::to_engine_errc: invalid ENGINE_ERROR_CODE " +
             std::to_string(eec));
 }
+namespace cb {
+std::ostream& operator<<(std::ostream& os, cb::engine_errc ec) {
+    os << to_string(ec);
+    return os;
+}
+} // namespace cb

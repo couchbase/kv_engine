@@ -55,7 +55,7 @@ private:
 /* Callback to get the items that are found to be in the disk */
 class DiskCallback : public StatusCallback<GetValue> {
 public:
-    DiskCallback(std::shared_ptr<ActiveStream> s);
+    explicit DiskCallback(std::shared_ptr<ActiveStream> s);
 
     void callback(GetValue& val) override;
 
@@ -65,7 +65,7 @@ private:
 
 class DCPBackfillDisk : public virtual DCPBackfill {
 public:
-    DCPBackfillDisk(KVBucket& bucket);
+    explicit DCPBackfillDisk(KVBucket& bucket);
 
     ~DCPBackfillDisk() override;
 

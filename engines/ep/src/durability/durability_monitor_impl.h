@@ -249,7 +249,7 @@ private:
      * ReplicationChain, but we store an ackCount as well as an optimization.
      */
     struct ChainStatus {
-        operator bool() const {
+        explicit operator bool() const {
             return chainPtr;
         }
 
@@ -301,7 +301,7 @@ private:
 template <typename Container>
 struct DurabilityMonitor::Position {
     Position() = default;
-    Position(const typename Container::iterator& it) : it(it) {
+    explicit Position(const typename Container::iterator& it) : it(it) {
     }
     typename Container::iterator it;
     // @todo: Consider using (strictly) Monotonic here. Weakly monotonic was
@@ -403,7 +403,7 @@ struct ActiveDurabilityMonitor::State {
     /**
      * @param adm The owning ActiveDurabilityMonitor
      */
-    State(const ActiveDurabilityMonitor& adm);
+    explicit State(const ActiveDurabilityMonitor& adm);
 
     /**
      * Create a replication chain. Not static as we require an iterator from
@@ -779,7 +779,7 @@ struct PassiveDurabilityMonitor::State {
     /**
      * @param pdm The owning PassiveDurabilityMonitor
      */
-    State(const PassiveDurabilityMonitor& pdm);
+    explicit State(const PassiveDurabilityMonitor& pdm);
 
     /**
      * Returns the next position for a given Container::iterator.

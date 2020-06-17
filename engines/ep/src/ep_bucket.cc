@@ -53,7 +53,7 @@
  */
 class BloomFilterCallback : public Callback<Vbid&, const DocKey&, bool&> {
 public:
-    BloomFilterCallback(KVBucket& eps) : store(eps) {
+    explicit BloomFilterCallback(KVBucket& eps) : store(eps) {
     }
 
     void callback(Vbid& vbucketId,
@@ -184,7 +184,7 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
 
 class ExpiredItemsCallback : public Callback<Item&, time_t&> {
 public:
-    ExpiredItemsCallback(KVBucket& store) : epstore(store) {
+    explicit ExpiredItemsCallback(KVBucket& store) : epstore(store) {
     }
 
     void callback(Item& it, time_t& startTime) override {
@@ -202,7 +202,7 @@ private:
  */
 class NotifyFlusherCB : public Callback<Vbid> {
 public:
-    NotifyFlusherCB(KVShard* sh) : shard(sh) {
+    explicit NotifyFlusherCB(KVShard* sh) : shard(sh) {
     }
 
     void callback(Vbid& vb) override {
@@ -217,7 +217,7 @@ private:
 
 class EPBucket::ValueChangedListener : public ::ValueChangedListener {
 public:
-    ValueChangedListener(EPBucket& bucket) : bucket(bucket) {
+    explicit ValueChangedListener(EPBucket& bucket) : bucket(bucket) {
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {

@@ -89,7 +89,7 @@ protected:
      */
     class BufferedOutputDocuments {
     public:
-        BufferedOutputDocuments(size_t maxBufferedSize);
+        explicit BufferedOutputDocuments(size_t maxBufferedSize);
 
         /**
          * Add a document to the buffer and return true if the buffer should

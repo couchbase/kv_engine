@@ -125,7 +125,7 @@ private:
  */
 class EPStoreValueChangeListener : public ValueChangedListener {
 public:
-    EPStoreValueChangeListener(KVBucket& st) : store(st) {
+    explicit EPStoreValueChangeListener(KVBucket& st) : store(st) {
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {

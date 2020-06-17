@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <spdlog/fmt/ostr.h>
+#include <iosfwd>
 #include <string>
 
 /**
@@ -73,7 +73,7 @@ private:
     std::string_view data;
 };
 
-std::ostream& operator<<(std::ostream& os, const UserDataView& d);
+std::ostream& operator<<(std::ostream& os, const cb::UserDataView& d);
 
 /**
  * UserData class should be used whenever sensitive user data is created
@@ -84,7 +84,7 @@ class UserData {
 public:
     explicit UserData(std::string dataParam) : data(std::move(dataParam)){};
 
-    operator UserDataView() const {
+    explicit operator UserDataView() const {
         return UserDataView(data);
     }
 
@@ -101,4 +101,6 @@ public:
 private:
     std::string data;
 };
+
+std::ostream& operator<<(std::ostream& os, const cb::UserData& d);
 } // namespace cb

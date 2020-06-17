@@ -30,7 +30,7 @@ class RollbackResult;
 
 class EphemeralBucket : public KVBucket {
 public:
-    EphemeralBucket(EventuallyPersistentEngine& theEngine);
+    explicit EphemeralBucket(EventuallyPersistentEngine& theEngine);
 
     ~EphemeralBucket() override;
 
@@ -166,7 +166,7 @@ private:
      */
     class NotifyHighPriorityReqTask : public GlobalTask {
     public:
-        NotifyHighPriorityReqTask(EventuallyPersistentEngine& e);
+        explicit NotifyHighPriorityReqTask(EventuallyPersistentEngine& e);
 
         bool run() override;
 

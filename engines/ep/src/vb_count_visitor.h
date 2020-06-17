@@ -31,7 +31,7 @@ class VBucket;
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    VBucketCountVisitor(vbucket_state_t state)
+    explicit VBucketCountVisitor(vbucket_state_t state)
         : desired_state(state),
           numItems(0),
           numTempItems(0),

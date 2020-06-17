@@ -23,8 +23,7 @@
 #include <stdint.h>
 #include <iosfwd>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 /**
  * DcpStreamId - allows a client to chose a value to associate with a stream
@@ -47,7 +46,7 @@ public:
         return "sid:none";
     }
 
-    operator bool() const {
+    explicit operator bool() const {
         return id != 0;
     }
 
@@ -79,8 +78,10 @@ protected:
     uint16_t id{0};
 };
 
+std::ostream& operator<<(std::ostream& os, const cb::mcbp::DcpStreamId& id);
+
 struct DcpStreamIdFrameInfo {
-    DcpStreamIdFrameInfo(DcpStreamId sid) {
+    explicit DcpStreamIdFrameInfo(DcpStreamId sid) {
         *reinterpret_cast<uint16_t*>(this->sid) = sid.to_network();
     }
 
@@ -98,8 +99,4 @@ private:
 
 static_assert(sizeof(DcpStreamIdFrameInfo) == 3,
               "DcpStreamIdFrameInfo should be 3 bytes");
-
-} // namespace mcbp
-} // namespace cb
-
-std::ostream& operator<<(std::ostream&, const cb::mcbp::DcpStreamId);
+} // namespace cb::mcbp

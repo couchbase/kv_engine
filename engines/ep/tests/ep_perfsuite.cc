@@ -705,7 +705,7 @@ struct Handle_args {
  */
 class UniformCharacterDistribution {
 public:
-    UniformCharacterDistribution(std::string alphabet_)
+    explicit UniformCharacterDistribution(std::string alphabet_)
         : alphabet(std::move(alphabet_)), uid(0, alphabet.size()) {
     }
 

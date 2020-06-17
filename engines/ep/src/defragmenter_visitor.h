@@ -28,7 +28,7 @@
  */
 class DefragmentVisitor : public VBucketAwareHTVisitor {
 public:
-    DefragmentVisitor(size_t max_size_class);
+    explicit DefragmentVisitor(size_t max_size_class);
 
     ~DefragmentVisitor() override;
 

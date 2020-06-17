@@ -34,7 +34,7 @@ using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;
  */
 class FlushHandle {
 public:
-    FlushHandle(CheckpointManager& m) : manager(m) {
+    explicit FlushHandle(CheckpointManager& m) : manager(m) {
     }
 
     ~FlushHandle();

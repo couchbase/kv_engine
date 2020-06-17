@@ -145,10 +145,10 @@ public:
     CollectionsManifest();
 
     /// construct with no collections
-    CollectionsManifest(NoDefault);
+    explicit CollectionsManifest(NoDefault);
 
     /// construct with default and one other
-    CollectionsManifest(const CollectionEntry::Entry& entry);
+    explicit CollectionsManifest(const CollectionEntry::Entry& entry);
 
     /// Add the scope entry - allows duplicates
     CollectionsManifest& add(const ScopeEntry::Entry& entry);

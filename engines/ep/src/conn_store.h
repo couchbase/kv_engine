@@ -76,7 +76,7 @@ public:
 
     using VBToConnsMap = std::vector<std::list<VBConn>>;
 
-    ConnStore(EventuallyPersistentEngine& engine);
+    explicit ConnStore(EventuallyPersistentEngine& engine);
 
     /**
      * Locked iteration handle for consumers to iterate on one of the elements

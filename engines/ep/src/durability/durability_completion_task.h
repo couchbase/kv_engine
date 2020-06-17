@@ -39,7 +39,7 @@
  */
 class DurabilityCompletionTask : public GlobalTask {
 public:
-    DurabilityCompletionTask(EventuallyPersistentEngine& engine);
+    explicit DurabilityCompletionTask(EventuallyPersistentEngine& engine);
 
     bool run() override;
 

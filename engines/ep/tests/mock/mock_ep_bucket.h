@@ -26,7 +26,8 @@ class MockItemFreqDecayerTask;
  */
 class MockEPBucket : public EPBucket {
 public:
-    MockEPBucket(EventuallyPersistentEngine& theEngine) : EPBucket(theEngine) {
+    explicit MockEPBucket(EventuallyPersistentEngine& theEngine)
+        : EPBucket(theEngine) {
     }
 
     /**

@@ -70,7 +70,7 @@ struct AccumulatedStats {
 using Summary = std::unordered_map<CollectionID, AccumulatedStats>;
 
 struct ManifestUidNetworkOrder {
-    ManifestUidNetworkOrder(ManifestUid uid) : uid(htonll(uid)) {
+    explicit ManifestUidNetworkOrder(ManifestUid uid) : uid(htonll(uid)) {
     }
     ManifestUid to_host() const {
         return ntohll(uid);
@@ -205,7 +205,7 @@ std::string to_string(const DropScopeEventData& event);
  * byte order
  */
 struct CreateEventDcpData {
-    CreateEventDcpData(const CreateEventData& ev)
+    explicit CreateEventDcpData(const CreateEventData& ev)
         : manifestUid(ev.manifestUid),
           sid(ev.metaData.sid),
           cid(ev.metaData.cid) {
@@ -227,7 +227,7 @@ struct CreateEventDcpData {
  * the layout to be used on the wire and is in the correct byte order
  */
 struct CreateWithMaxTtlEventDcpData {
-    CreateWithMaxTtlEventDcpData(const CreateEventData& ev)
+    explicit CreateWithMaxTtlEventDcpData(const CreateEventData& ev)
         : manifestUid(ev.manifestUid),
           sid(ev.metaData.sid),
           cid(ev.metaData.cid),
@@ -253,7 +253,7 @@ struct CreateWithMaxTtlEventDcpData {
  * byte order
  */
 struct DropEventDcpData {
-    DropEventDcpData(const DropEventData& data)
+    explicit DropEventDcpData(const DropEventData& data)
         : manifestUid(data.manifestUid), sid(data.sid), cid(data.cid) {
     }
 
@@ -274,7 +274,7 @@ struct DropEventDcpData {
  * correct byte order
  */
 struct CreateScopeEventDcpData {
-    CreateScopeEventDcpData(const CreateScopeEventData& data)
+    explicit CreateScopeEventDcpData(const CreateScopeEventData& data)
         : manifestUid(data.manifestUid), sid(data.sid) {
     }
     /// The manifest uid stored in network byte order ready for sending
@@ -290,7 +290,7 @@ struct CreateScopeEventDcpData {
  * byte order
  */
 struct DropScopeEventDcpData {
-    DropScopeEventDcpData(const DropScopeEventData& data)
+    explicit DropScopeEventDcpData(const DropScopeEventData& data)
         : manifestUid(data.manifestUid), sid(data.sid) {
     }
 

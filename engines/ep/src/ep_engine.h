@@ -58,8 +58,7 @@ class ReplicationThrottle;
 **/
 class EpEngineTaskable : public Taskable {
 public:
-    EpEngineTaskable(EventuallyPersistentEngine* e) : myEngine(e) {
-
+    explicit EpEngineTaskable(EventuallyPersistentEngine* e) : myEngine(e) {
     }
 
     const std::string& getName() const override;

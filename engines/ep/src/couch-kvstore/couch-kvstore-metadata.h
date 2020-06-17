@@ -392,7 +392,7 @@ public:
      * Construct metadata from a sized_buf, the assumption is that the
      * data has come back from couchstore.
      */
-    MetaData(const sized_buf& in) : initVersion(Version::V0) {
+    explicit MetaData(const sized_buf& in) : initVersion(Version::V0) {
         // Expect metadata to be V0, V1, V2 or V3
         // V2 part is ignored, but valid to find in storage.
         if (in.size < getMetaDataSize(Version::V0) ||

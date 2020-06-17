@@ -800,7 +800,8 @@ enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, One = 1 };
 // Version 2.x
 class DcpSnapshotMarkerV2xPayload {
 public:
-    DcpSnapshotMarkerV2xPayload(DcpSnapshotMarkerV2xVersion v) : version(v) {
+    explicit DcpSnapshotMarkerV2xPayload(DcpSnapshotMarkerV2xVersion v)
+        : version(v) {
     }
     DcpSnapshotMarkerV2xVersion getVersion() const {
         return version;
@@ -1152,7 +1153,7 @@ enum class DcpOsoSnapshotFlags : uint32_t {
 
 class DcpOsoSnapshotPayload {
 public:
-    DcpOsoSnapshotPayload(uint32_t flags) : flags(htonl(flags)) {
+    explicit DcpOsoSnapshotPayload(uint32_t flags) : flags(htonl(flags)) {
     }
     uint32_t getFlags() const {
         return ntohl(flags);
@@ -2210,7 +2211,7 @@ protected:
 class GetRandomKeyPayload {
 public:
     GetRandomKeyPayload() = default;
-    GetRandomKeyPayload(uint32_t collectionId)
+    explicit GetRandomKeyPayload(uint32_t collectionId)
         : collectionId(htonl(collectionId)) {
     }
 

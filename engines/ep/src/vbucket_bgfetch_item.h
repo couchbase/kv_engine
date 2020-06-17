@@ -115,7 +115,7 @@ public:
  */
 class CompactionBGFetchItem : public BGFetchItem {
 public:
-    CompactionBGFetchItem(const Item& item)
+    explicit CompactionBGFetchItem(const Item& item)
         : BGFetchItem(nullptr /*GetValue*/, std::chrono::steady_clock::now()),
           compactionItem(item) {
     }

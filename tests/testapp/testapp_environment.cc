@@ -93,7 +93,7 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
 
 class DefaultBucketImpl : public TestBucketImpl {
 public:
-    DefaultBucketImpl(std::string extraConfig = {})
+    explicit DefaultBucketImpl(std::string extraConfig = {})
         : TestBucketImpl(extraConfig) {
     }
 
@@ -174,7 +174,7 @@ public:
 
 class EpBucketImpl : public TestBucketImpl {
 public:
-    EpBucketImpl(std::string extraConfig = {})
+    explicit EpBucketImpl(std::string extraConfig = {})
         : TestBucketImpl(extraConfig), dbPath(cb::io::mkdtemp("mc_testapp")) {
         // Cleanup any files from a previous run still on disk.
         try {

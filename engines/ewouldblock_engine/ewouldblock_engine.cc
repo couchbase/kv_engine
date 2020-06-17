@@ -100,9 +100,9 @@ static std::map<EngineIface*, EWB_Engine*> engine_map;
 
 class NotificationThread : public Couchbase::Thread {
 public:
-    NotificationThread(EWB_Engine& engine_)
-        : Thread("ewb:pendingQ"),
-          engine(engine_) {}
+    explicit NotificationThread(EWB_Engine& engine_)
+        : Thread("ewb:pendingQ"), engine(engine_) {
+    }
 
 protected:
     void run() override;
@@ -989,8 +989,9 @@ private:
     struct FaultInjectMode {
         virtual ~FaultInjectMode() = default;
 
-        FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
-          : injected_error(injected_error_) {}
+        explicit FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
+            : injected_error(injected_error_) {
+        }
 
         // In the event of injecting an EWOULDBLOCK error, should the connection
         // be added to the pending_io_ops (and subsequently notified)?
@@ -1012,9 +1013,9 @@ private:
 
     class ErrOnFirst : public FaultInjectMode {
     public:
-        ErrOnFirst(ENGINE_ERROR_CODE injected_error_)
-          : FaultInjectMode(injected_error_),
-            prev_cmd(Cmd::NONE) {}
+        explicit ErrOnFirst(ENGINE_ERROR_CODE injected_error_)
+            : FaultInjectMode(injected_error_), prev_cmd(Cmd::NONE) {
+        }
 
         bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             // Block unless the previous command from this cookie
@@ -1124,7 +1125,7 @@ private:
          * codes encoded as vector of cb::engine_errc elements in the
          * request value.
          */
-        ErrSequence(std::vector<cb::engine_errc> sequence_)
+        explicit ErrSequence(std::vector<cb::engine_errc> sequence_)
             : FaultInjectMode(ENGINE_SUCCESS),
               sequence(std::move(sequence_)),
               pos(sequence.begin()) {
@@ -1179,9 +1180,9 @@ private:
 
     class ErrOnNoNotify : public FaultInjectMode {
         public:
-            ErrOnNoNotify(ENGINE_ERROR_CODE injected_error_)
-              : FaultInjectMode(injected_error_),
-                issued_return_error(false) {}
+            explicit ErrOnNoNotify(ENGINE_ERROR_CODE injected_error_)
+                : FaultInjectMode(injected_error_), issued_return_error(false) {
+            }
 
             std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops()
                     override {
@@ -1212,9 +1213,9 @@ private:
 
     class CASMismatch : public FaultInjectMode {
     public:
-        CASMismatch(uint32_t count_)
-          : FaultInjectMode(ENGINE_KEY_EEXISTS),
-            count(count_) {}
+        explicit CASMismatch(uint32_t count_)
+            : FaultInjectMode(ENGINE_KEY_EEXISTS), count(count_) {
+        }
 
         bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
             if (cmd == Cmd::CAS && (count > 0)) {

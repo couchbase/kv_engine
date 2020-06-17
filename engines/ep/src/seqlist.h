@@ -163,7 +163,8 @@ public:
      */
     class RangeIterator {
     public:
-        RangeIterator(std::unique_ptr<RangeIteratorImpl> rangeIterImpl);
+        explicit RangeIterator(
+                std::unique_ptr<RangeIteratorImpl> rangeIterImpl);
 
         /* Needed for MSVC.
            MSVC does not do "return value optimization" if copy constructor is

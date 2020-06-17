@@ -69,7 +69,7 @@ public:
     /// Lock which must be acquired to consume (dequeue) items from the queue.
     using ConsumerLock = std::mutex;
 
-    ResolvedQueue(Vbid vbid) {
+    explicit ResolvedQueue(Vbid vbid) {
         highEnqueuedSeqno.setLabel("ActiveDM::ResolvedQueue[" +
                                    vbid.to_string() + "]");
     }

@@ -92,7 +92,8 @@ const uint8_t DEFAULT_SYNC_CONF(FLUSH_COMMIT_2 | SYNC_COMMIT_2);
  */
 class LogHeaderBlock {
 public:
-    LogHeaderBlock(MutationLogVersion version = MutationLogVersion::Current)
+    explicit LogHeaderBlock(
+            MutationLogVersion version = MutationLogVersion::Current)
         : _version(htonl(int(version))),
           _blockSize(0),
           _blockCount(0),
@@ -206,7 +207,8 @@ private:
  */
 class MutationLog {
 public:
-    MutationLog(std::string path, const size_t bs = MIN_LOG_HEADER_SIZE);
+    explicit MutationLog(std::string path,
+                         const size_t bs = MIN_LOG_HEADER_SIZE);
 
     ~MutationLog();
 
@@ -287,7 +289,8 @@ public:
      */
     class WriteException : public std::runtime_error {
     public:
-        WriteException(const std::string &s) : std::runtime_error(s) {}
+        explicit WriteException(const std::string& s) : std::runtime_error(s) {
+        }
     };
 
     /**
@@ -295,12 +298,15 @@ public:
      */
     class ReadException : public std::runtime_error {
     public:
-        ReadException(const std::string &s) : std::runtime_error(s) {}
+        explicit ReadException(const std::string& s) : std::runtime_error(s) {
+        }
     };
 
     class FileNotFoundException : public ReadException {
     public:
-        FileNotFoundException(const std::string &s) : ReadException(s) {}
+        explicit FileNotFoundException(const std::string& s)
+            : ReadException(s) {
+        }
     };
 
     /**
@@ -390,7 +396,7 @@ public:
 
         friend class MutationLog;
 
-        iterator(const MutationLog* l, bool e=false);
+        explicit iterator(const MutationLog* l, bool e = false);
 
         /// @returns the length of the entry the iterator is currently at
         size_t getCurrentEntryLen() const;
@@ -505,9 +511,9 @@ class EventuallyPersistentEngine;
  */
 class MutationLogHarvester {
 public:
-    MutationLogHarvester(MutationLog &ml, EventuallyPersistentEngine *e = nullptr) :
-        mlog(ml), engine(e)
-    {
+    explicit MutationLogHarvester(MutationLog& ml,
+                                  EventuallyPersistentEngine* e = nullptr)
+        : mlog(ml), engine(e) {
         memset(itemsSeen, 0, sizeof(itemsSeen));
     }
 

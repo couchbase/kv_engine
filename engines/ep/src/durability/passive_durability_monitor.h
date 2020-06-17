@@ -46,7 +46,7 @@ public:
     // Container type used for State::trackedWrites
     using Container = std::list<SyncWrite>;
 
-    PassiveDurabilityMonitor(VBucket& vb);
+    explicit PassiveDurabilityMonitor(VBucket& vb);
 
     /**
      * Construct a PassiveDM for the given vBucket, with the specified hps/hcs

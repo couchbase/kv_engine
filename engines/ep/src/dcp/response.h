@@ -600,7 +600,7 @@ public:
      *        Note this is non-const as the item needs to be modified for some
      *        Event types.
      */
-    MutationConsumerMessage(MutationResponse& response);
+    explicit MutationConsumerMessage(MutationResponse& response);
 
     /**
      * @return size of message on the wire
@@ -1055,7 +1055,7 @@ protected:
 
 class CreateCollectionEvent : public CollectionsEvent {
 public:
-    CreateCollectionEvent(const SystemEventMessage& e)
+    explicit CreateCollectionEvent(const SystemEventMessage& e)
         : CollectionsEvent(
                   e,
                   e.getVersion() == mcbp::systemevent::version::version0
@@ -1111,7 +1111,7 @@ public:
 
 class DropCollectionEvent : public CollectionsEvent {
 public:
-    DropCollectionEvent(const SystemEventMessage& e)
+    explicit DropCollectionEvent(const SystemEventMessage& e)
         : CollectionsEvent(e, Collections::DropEventDcpData::size) {
     }
 
@@ -1138,7 +1138,7 @@ public:
 
 class CreateScopeEvent : public CollectionsEvent {
 public:
-    CreateScopeEvent(const SystemEventMessage& e)
+    explicit CreateScopeEvent(const SystemEventMessage& e)
         : CollectionsEvent(e, Collections::CreateScopeEventDcpData::size) {
     }
 
@@ -1166,7 +1166,7 @@ public:
 
 class DropScopeEvent : public CollectionsEvent {
 public:
-    DropScopeEvent(const SystemEventMessage& e)
+    explicit DropScopeEvent(const SystemEventMessage& e)
         : CollectionsEvent(e, Collections::DropScopeEventDcpData::size) {
     }
 

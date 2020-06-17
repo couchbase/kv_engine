@@ -42,10 +42,7 @@ protected:
  */
 class BasicTestTask : public Task {
 public:
-    BasicTestTask(int max_)
-        : Task(),
-          runcount(0),
-          max(max_) {
+    explicit BasicTestTask(int max_) : Task(), runcount(0), max(max_) {
         executionComplete.store(false);
     }
 
@@ -213,7 +210,7 @@ public:
     /**
      * @param max_ Maximum number of times for the task to run
      */
-    PeriodicBasicTestTask(int max_)
+    explicit PeriodicBasicTestTask(int max_)
         : PeriodicTask(std::chrono::seconds(1)), runcount(0), max(max_) {
         executionComplete.store(false);
     }

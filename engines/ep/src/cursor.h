@@ -38,7 +38,7 @@ public:
 
     Cursor() = default;
 
-    Cursor(std::shared_ptr<CheckpointCursor> cursor) : cursor(cursor) {
+    explicit Cursor(std::shared_ptr<CheckpointCursor> cursor) : cursor(cursor) {
     }
 
     Cursor(const Cursor& in) {

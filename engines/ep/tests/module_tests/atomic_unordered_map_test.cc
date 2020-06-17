@@ -23,8 +23,8 @@
 /* Test class which inherits from RCValue */
 struct DummyValue : public RCValue {
 public:
-    DummyValue(size_t value_)
-        : value(value_) {}
+    explicit DummyValue(size_t value_) : value(value_) {
+    }
 
     bool operator==(const DummyValue& other) const {
         return value == other.value;

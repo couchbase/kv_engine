@@ -27,7 +27,7 @@
  */
 class ItemFreqDecayerVisitor : public VBucketAwareHTVisitor {
 public:
-    ItemFreqDecayerVisitor(uint16_t percentage_);
+    explicit ItemFreqDecayerVisitor(uint16_t percentage_);
 
     ~ItemFreqDecayerVisitor() override = default;
 

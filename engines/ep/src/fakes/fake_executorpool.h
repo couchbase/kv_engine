@@ -57,7 +57,7 @@ public:
         instance.store(tmp);
     }
 
-    SingleThreadedExecutorPool(size_t nTaskSets)
+    explicit SingleThreadedExecutorPool(size_t nTaskSets)
         : ExecutorPool(/*threads*/ 0,
                        nTaskSets,
                        ThreadPoolConfig::ThreadCount::Default,

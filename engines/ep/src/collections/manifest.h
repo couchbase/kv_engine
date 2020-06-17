@@ -66,7 +66,7 @@ public:
      * Validates the json as per SET_COLLECTIONS rules.
      * @param json a buffer containing the JSON manifest data
      */
-    Manifest(std::string_view json);
+    explicit Manifest(std::string_view json);
 
     Manifest(const std::string& json) : Manifest(std::string_view{json}) {
     }

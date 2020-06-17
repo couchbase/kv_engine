@@ -36,7 +36,8 @@ std::string to_string(const value_variant_t& value);
 
 class requirements_unsatisfied : public std::logic_error {
 public:
-    requirements_unsatisfied(const std::string& msg) : std::logic_error(msg) {
+    explicit requirements_unsatisfied(const std::string& msg)
+        : std::logic_error(msg) {
     }
 };
 

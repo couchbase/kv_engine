@@ -96,7 +96,7 @@ public:
     /**
      * Create a new StreamContainer with one element
      */
-    StreamContainer(Element e) : c{e}, resumePosition{c.begin()} {
+    explicit StreamContainer(Element e) : c{e}, resumePosition{c.begin()} {
     }
 
     StreamContainer(const StreamContainer&) = delete;
@@ -112,7 +112,7 @@ public:
      */
     class ResumableIterationHandle {
     public:
-        ResumableIterationHandle(StreamContainer& c)
+        explicit ResumableIterationHandle(StreamContainer& c)
             : sharedLock(c.rwlock),
               container(c),
               startPosition(container.resumePosition),
@@ -209,7 +209,7 @@ public:
      */
     class ReadLockedHandle : public Iterable<container_const_itr> {
     public:
-        ReadLockedHandle(const StreamContainer& c)
+        explicit ReadLockedHandle(const StreamContainer& c)
             : readLock(c.rwlock), container(c) {
             // sets a const iterator
             this->setIterator(container.c.begin());
@@ -233,7 +233,7 @@ public:
      */
     class WriteLockedHandle : public Iterable<container_itr> {
     public:
-        WriteLockedHandle(StreamContainer& c)
+        explicit WriteLockedHandle(StreamContainer& c)
             : writeLock(c.rwlock), container(c) {
             this->setIterator(container.c.begin());
             this->setBeforeIterator(container.c.before_begin());
@@ -266,7 +266,7 @@ public:
     };
 
     ResumableIterationHandle startResumable() {
-        return {*this};
+        return ResumableIterationHandle{*this};
     }
 
     ReadLockedHandle rlock() const {

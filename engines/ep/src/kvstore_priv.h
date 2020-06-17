@@ -32,7 +32,7 @@ class KVStoreConfig;
 
 class IORequest {
 public:
-    IORequest(queued_item item);
+    explicit IORequest(queued_item item);
     ~IORequest();
 
     /// @returns true if the document to be persisted is for a delete.

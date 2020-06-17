@@ -140,7 +140,7 @@ using MakeCompactionContextCallback =
                                                       uint64_t)>;
 
 struct kvstats_ctx {
-    kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
+    explicit kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
     }
     // @TODO consider folly::F14Set for reduced memory when set is large
     /// If key exists in set, they key exists in the VB datafile
@@ -549,7 +549,7 @@ public:
     /// Result of flushing a Mutation, passed to the PersistenceCallback.
     enum class FlushStateMutation { Insert, Update, Failed };
 
-    KVStore(bool read_only = false);
+    explicit KVStore(bool read_only = false);
 
     virtual ~KVStore();
 
@@ -1179,7 +1179,7 @@ protected:
  * callback.
  */
 struct TransactionContext {
-    TransactionContext(Vbid vbid) : vbid(vbid) {
+    explicit TransactionContext(Vbid vbid) : vbid(vbid) {
     }
     virtual ~TransactionContext(){};
 

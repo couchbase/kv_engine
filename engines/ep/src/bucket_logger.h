@@ -224,7 +224,7 @@ protected:
      * @param name Registry name for the logger
      * @param prefix Optional prefix to be appended to every message
      */
-    BucketLogger(const std::string& name, std::string prefix = "");
+    explicit BucketLogger(const std::string& name, std::string prefix = "");
 
     /// Convenience function to obtain a pointer to the ServerLogIface
     static ServerLogIface* getServerLogIface();

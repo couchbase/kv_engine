@@ -135,7 +135,7 @@ private:
  */
 class PeriodicTask : public Task {
 public:
-    PeriodicTask(std::chrono::seconds period) : period(period) {
+    explicit PeriodicTask(std::chrono::seconds period) : period(period) {
     }
 
     Status execute() final;

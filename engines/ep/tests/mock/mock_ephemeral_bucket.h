@@ -24,7 +24,7 @@
  */
 class MockEphemeralBucket : public EphemeralBucket {
 public:
-    MockEphemeralBucket(EventuallyPersistentEngine& theEngine)
+    explicit MockEphemeralBucket(EventuallyPersistentEngine& theEngine)
         : EphemeralBucket(theEngine) {
     }
 

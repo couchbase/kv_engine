@@ -35,7 +35,7 @@
  */
 class EphemeralValueChangedListener : public ValueChangedListener {
 public:
-    EphemeralValueChangedListener(EphemeralBucket& bucket)
+    explicit EphemeralValueChangedListener(EphemeralBucket& bucket)
         : bucket(bucket) {
     }
 

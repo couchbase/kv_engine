@@ -64,7 +64,8 @@ public:
     class AtomicProcessTime {
     public:
         AtomicProcessTime() {}
-        AtomicProcessTime(const std::chrono::steady_clock::time_point& tp)
+        explicit AtomicProcessTime(
+                const std::chrono::steady_clock::time_point& tp)
             : timepoint(tp) {
         }
 

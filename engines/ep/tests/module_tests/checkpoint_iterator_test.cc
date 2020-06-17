@@ -28,7 +28,7 @@
 
 class MyInt : public RCValue {
 public:
-    MyInt(int v) : value(v) {
+    explicit MyInt(int v) : value(v) {
     }
 
     int getValue() {

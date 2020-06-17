@@ -62,7 +62,7 @@
 template <class T>
 class ProbabilisticCounter {
 public:
-    ProbabilisticCounter(double incFac = 0.0) : incFactor(incFac) {
+    explicit ProbabilisticCounter(double incFac = 0.0) : incFactor(incFac) {
     }
 
     /**

@@ -53,7 +53,7 @@ class AuthProviderService {
 public:
     AuthProviderService() = delete;
     AuthProviderService(AuthProviderService&) = delete;
-    AuthProviderService(Cluster& cluster);
+    explicit AuthProviderService(Cluster& cluster);
     ~AuthProviderService();
 
     void upsertUser(UserEntry entry);

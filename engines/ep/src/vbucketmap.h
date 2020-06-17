@@ -38,8 +38,9 @@ friend class Warmup;
 
     class VBucketConfigChangeListener : public ValueChangedListener {
     public:
-        VBucketConfigChangeListener(VBucketMap& vbucketMap)
-            : map(vbucketMap) {}
+        explicit VBucketConfigChangeListener(VBucketMap& vbucketMap)
+            : map(vbucketMap) {
+        }
 
         void sizeValueChanged(const std::string &key, size_t value) override;
 

@@ -1766,7 +1766,8 @@ public:
      * using this object as the deleter.
      */
     struct DeferredDeleter {
-        DeferredDeleter(EventuallyPersistentEngine& engine) : engine(engine) {
+        explicit DeferredDeleter(EventuallyPersistentEngine& engine)
+            : engine(engine) {
         }
 
         /**

@@ -26,7 +26,7 @@
 #define hashmask(n) (hashsize(n)-1)
 
 struct Assoc {
-    Assoc(unsigned int hp) : hashpower(hp) {
+    explicit Assoc(unsigned int hp) : hashpower(hp) {
         primary_hashtable.resize(hashsize(hashpower));
     }
 

@@ -37,7 +37,7 @@ using ThreadLocal = ThreadLocalPosix<T>;
 template <typename T>
 class ThreadLocalPtr : public ThreadLocal<T*> {
 public:
-    ThreadLocalPtr(ThreadLocalDestructor dtor = nullptr)
+    explicit ThreadLocalPtr(ThreadLocalDestructor dtor = nullptr)
         : ThreadLocal<T*>(dtor) {
     }
 

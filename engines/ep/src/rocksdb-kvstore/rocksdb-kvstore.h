@@ -54,7 +54,7 @@
 // threads and deallocated in RocksDB background Compaction threads.
 class EventListener : public rocksdb::EventListener {
 public:
-    EventListener(EventuallyPersistentEngine* epe) : engine(epe) {
+    explicit EventListener(EventuallyPersistentEngine* epe) : engine(epe) {
     }
 
     void OnFlushBegin(rocksdb::DB*, const rocksdb::FlushJobInfo&) override {
@@ -536,7 +536,7 @@ private:
     cb::NonNegativeCounter<size_t> scanOldSeqnoHits;
 
     struct SnapshotDeleter {
-        SnapshotDeleter(rocksdb::DB& db) : db(db) {
+        explicit SnapshotDeleter(rocksdb::DB& db) : db(db) {
         }
         void operator()(const rocksdb::Snapshot* s) {
             db.ReleaseSnapshot(s);

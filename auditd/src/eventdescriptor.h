@@ -35,7 +35,7 @@ public:
      * @throws std::invalid_argument if called with a JSON representation which
      *         isn't what we expect
      */
-    EventDescriptor(const nlohmann::json& root);
+    explicit EventDescriptor(const nlohmann::json& root);
 
     const uint32_t getId() const {
         return id;

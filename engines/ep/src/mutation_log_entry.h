@@ -67,7 +67,7 @@ public:
         return DocKeyEncodesCollectionId::No;
     }
 
-    operator DocKey() const {
+    explicit operator DocKey() const {
         return {bytes, length, DocKeyEncodesCollectionId::No};
     }
 
@@ -268,7 +268,7 @@ public:
      * No constructor delegation, copy the values raw (so no byte swaps occur)
      * key is initialised into the default collection
      */
-    MutationLogEntryV2(const MutationLogEntryV1& mleV1)
+    explicit MutationLogEntryV2(const MutationLogEntryV1& mleV1)
         : _vbucket(mleV1._vbucket),
           magic(MagicMarker),
           _type(mleV1._type),
@@ -407,7 +407,7 @@ public:
      * For cleanliness, discard mleV2._key.docNamespace and re-encode the key
      * with the DefaultCollection prefix.
      */
-    MutationLogEntryV3(const MutationLogEntryV2& mleV2)
+    explicit MutationLogEntryV3(const MutationLogEntryV2& mleV2)
         : _vbucket(mleV2._vbucket),
           magic(MagicMarker),
           _type(mleV2._type),

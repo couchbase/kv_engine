@@ -176,7 +176,8 @@ private:
 };
 
 struct ChunkBuilderContext : public CommandContext {
-    ChunkBuilderContext(std::shared_ptr<ChunkBuilderTask>& task) : task(task) {
+    explicit ChunkBuilderContext(std::shared_ptr<ChunkBuilderTask>& task)
+        : task(task) {
     }
 
     std::shared_ptr<ChunkBuilderTask> task;

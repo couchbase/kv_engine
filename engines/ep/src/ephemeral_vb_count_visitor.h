@@ -26,8 +26,7 @@
  */
 class EphemeralVBucket::CountVisitor : public VBucketCountVisitor {
 public:
-    CountVisitor(vbucket_state_t state)
-        : VBucketCountVisitor(state) {
+    explicit CountVisitor(vbucket_state_t state) : VBucketCountVisitor(state) {
     }
 
     void visitBucket(const VBucketPtr& vb) override;

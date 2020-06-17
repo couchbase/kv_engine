@@ -23,7 +23,7 @@
 
 class encoding_error : public std::runtime_error {
 public:
-    encoding_error(const char* msg) : std::runtime_error(msg) {
+    explicit encoding_error(const char* msg) : std::runtime_error(msg) {
     }
 };
 

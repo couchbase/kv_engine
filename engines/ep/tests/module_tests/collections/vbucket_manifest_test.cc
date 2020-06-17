@@ -34,7 +34,7 @@ public:
     MockVBManifest() {
     }
 
-    MockVBManifest(const Collections::KVStore::Manifest& manifestData)
+    explicit MockVBManifest(const Collections::KVStore::Manifest& manifestData)
         : Collections::VB::Manifest(manifestData) {
     }
 

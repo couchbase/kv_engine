@@ -37,7 +37,7 @@ const uint8_t DcpConnMap::numBackfillsMemThreshold = 1;
 
 class DcpConnMap::DcpConfigChangeListener : public ValueChangedListener {
 public:
-    DcpConfigChangeListener(DcpConnMap& connMap);
+    explicit DcpConfigChangeListener(DcpConnMap& connMap);
     ~DcpConfigChangeListener() override {
     }
     void sizeValueChanged(const std::string& key, size_t value) override;

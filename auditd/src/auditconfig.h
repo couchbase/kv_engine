@@ -53,7 +53,7 @@ public:
      *
      * @param json the JSON document describing the configuration
      */
-    AuditConfig(const nlohmann::json& json);
+    explicit AuditConfig(const nlohmann::json& json);
 
     /**
      * Initialize the object from the specified JSON payload

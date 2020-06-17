@@ -41,7 +41,7 @@ class VBucketVisitor {
 public:
     VBucketVisitor();
 
-    VBucketVisitor(VBucketFilter filter);
+    explicit VBucketVisitor(VBucketFilter filter);
 
     virtual ~VBucketVisitor();
 
@@ -186,7 +186,8 @@ public:
  */
 class PauseResumeVBAdapter : public PauseResumeVBVisitor {
 public:
-    PauseResumeVBAdapter(std::unique_ptr<VBucketAwareHTVisitor> htVisitor);
+    explicit PauseResumeVBAdapter(
+            std::unique_ptr<VBucketAwareHTVisitor> htVisitor);
 
     /**
      * Visit a VBucket within an epStore. Records the place where the visit

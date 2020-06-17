@@ -26,7 +26,7 @@
  */
 class MockDcpConnMap : public DcpConnMap {
 public:
-    MockDcpConnMap(EventuallyPersistentEngine& theEngine)
+    explicit MockDcpConnMap(EventuallyPersistentEngine& theEngine)
         : DcpConnMap(theEngine) {
     }
 

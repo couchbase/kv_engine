@@ -27,7 +27,7 @@
 
 // Abstract base class for multi lookup / mutation command encoding.
 struct SubdocMultiCmd {
-    SubdocMultiCmd(cb::mcbp::ClientOpcode command_)
+    explicit SubdocMultiCmd(cb::mcbp::ClientOpcode command_)
         : cas(0),
           expiry(0),
           encode_zero_expiry_on_wire(false),

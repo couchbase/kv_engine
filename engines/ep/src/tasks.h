@@ -102,10 +102,13 @@ private:
  */
 class StatSnap : public GlobalTask {
 public:
-    StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false,
-             bool sleeptime = false, bool completeBeforeShutdown = false)
+    explicit StatSnap(EventuallyPersistentEngine* e,
+                      bool runOneTimeOnly = false,
+                      bool sleeptime = false,
+                      bool completeBeforeShutdown = false)
         : GlobalTask(e, TaskId::StatSnap, sleeptime, completeBeforeShutdown),
-          runOnce(runOneTimeOnly) {}
+          runOnce(runOneTimeOnly) {
+    }
 
     bool run() override;
 
@@ -208,8 +211,8 @@ private:
  */
 class WorkLoadMonitor : public GlobalTask {
 public:
-    WorkLoadMonitor(EventuallyPersistentEngine *e,
-                    bool completeBeforeShutdown = false);
+    explicit WorkLoadMonitor(EventuallyPersistentEngine* e,
+                             bool completeBeforeShutdown = false);
 
     bool run() override;
 

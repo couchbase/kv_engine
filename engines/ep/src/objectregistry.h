@@ -60,7 +60,7 @@ private:
  */
 class BucketAllocationGuard {
 public:
-    BucketAllocationGuard(EventuallyPersistentEngine* engine);
+    explicit BucketAllocationGuard(EventuallyPersistentEngine* engine);
     ~BucketAllocationGuard();
 
 private:

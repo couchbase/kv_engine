@@ -701,7 +701,7 @@ protected:
 
     class PrePostStateChecker {
     public:
-        PrePostStateChecker(VBucketPtr vb);
+        explicit PrePostStateChecker(VBucketPtr vb);
 
         // Not copyable, only movable.
         PrePostStateChecker(const PrePostStateChecker&) = delete;

@@ -37,7 +37,7 @@ class EventuallyPersistentEngine;
  */
 class DcpFlowControlManager {
 public:
-    DcpFlowControlManager(EventuallyPersistentEngine &engine);
+    explicit DcpFlowControlManager(EventuallyPersistentEngine& engine);
 
     virtual ~DcpFlowControlManager();
 
@@ -65,7 +65,7 @@ protected:
  */
 class DcpFlowControlManagerStatic : public DcpFlowControlManager {
 public:
-    DcpFlowControlManagerStatic(EventuallyPersistentEngine &engine);
+    explicit DcpFlowControlManagerStatic(EventuallyPersistentEngine& engine);
 
     ~DcpFlowControlManagerStatic() override;
 
@@ -83,7 +83,7 @@ public:
  */
 class DcpFlowControlManagerDynamic : public DcpFlowControlManager {
 public:
-    DcpFlowControlManagerDynamic(EventuallyPersistentEngine &engine);
+    explicit DcpFlowControlManagerDynamic(EventuallyPersistentEngine& engine);
 
     ~DcpFlowControlManagerDynamic() override;
 
@@ -107,7 +107,8 @@ private:
  */
 class DcpFlowControlManagerAggressive : public DcpFlowControlManager {
 public:
-    DcpFlowControlManagerAggressive(EventuallyPersistentEngine &engine);
+    explicit DcpFlowControlManagerAggressive(
+            EventuallyPersistentEngine& engine);
 
     ~DcpFlowControlManagerAggressive() override;
 

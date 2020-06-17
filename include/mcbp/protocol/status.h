@@ -23,8 +23,7 @@
 #include <string>
 #include <system_error>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 /**
  * Definition of the valid response status numbers.
  *
@@ -306,16 +305,13 @@ static inline std::error_condition make_error_condition(Status e) {
  *               the error context and UUID (if set)
  */
 bool isStatusSuccess(Status status);
-
-} // namespace mcbp
-} // namespace cb
+std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status);
+} // namespace cb::mcbp
 
 /**
  * Get a textual representation of the given error code
  */
 std::string to_string(cb::mcbp::Status status);
-
-std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status);
 
 namespace std {
 

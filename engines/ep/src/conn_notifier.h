@@ -27,7 +27,7 @@ class ConnMap;
  */
 class ConnNotifier : public std::enable_shared_from_this<ConnNotifier> {
 public:
-    ConnNotifier(ConnMap& cm);
+    explicit ConnNotifier(ConnMap& cm);
 
     void start();
 

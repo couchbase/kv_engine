@@ -192,7 +192,7 @@ public:
                           const std::string& value_);
     BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
                           const std::string& key_);
-    BinprotGenericCommand(cb::mcbp::ClientOpcode opcode);
+    explicit BinprotGenericCommand(cb::mcbp::ClientOpcode opcode);
     BinprotGenericCommand();
     BinprotGenericCommand& setValue(std::string value_);
     BinprotGenericCommand& setExtras(const std::vector<uint8_t>& buf);
@@ -1027,7 +1027,8 @@ protected:
 
 class BinprotObserveCommand : public BinprotGenericCommand {
 public:
-    BinprotObserveCommand(std::vector<std::pair<Vbid, std::string>> keys)
+    explicit BinprotObserveCommand(
+            std::vector<std::pair<Vbid, std::string>> keys)
         : BinprotGenericCommand(cb::mcbp::ClientOpcode::Observe),
           keys(std::move(keys)) {
     }
@@ -1061,7 +1062,7 @@ public:
 
 class BinprotUpdateUserPermissionsCommand : public BinprotGenericCommand {
 public:
-    BinprotUpdateUserPermissionsCommand(std::string payload);
+    explicit BinprotUpdateUserPermissionsCommand(std::string payload);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

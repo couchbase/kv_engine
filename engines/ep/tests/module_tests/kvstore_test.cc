@@ -68,11 +68,11 @@ private:
 
 class GetCallback : public StatusCallback<GetValue> {
 public:
-    GetCallback(ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS) :
+    explicit GetCallback(ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS) :
         expectCompressed(false),
         expectedErrorCode(_expectedErrorCode) { }
 
-    GetCallback(bool expect_compressed,
+    explicit GetCallback(bool expect_compressed,
                 ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS) :
         expectCompressed(expect_compressed),
         expectedErrorCode(_expectedErrorCode) { }

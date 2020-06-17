@@ -31,7 +31,7 @@ public:
     /** Create a ThreadGate.
      *  @param n_threads Total number of threads to wait for.
      */
-    ThreadGate(size_t n_threads_) : n_threads(n_threads_) {
+    explicit ThreadGate(size_t n_threads_) : n_threads(n_threads_) {
     }
 
     /*

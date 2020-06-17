@@ -42,7 +42,7 @@ class FailoverTable {
  public:
     typedef std::list<failover_entry_t> table_t;
 
-    FailoverTable(size_t capacity);
+    explicit FailoverTable(size_t capacity);
 
     FailoverTable(const std::string& json, size_t capacity, int64_t highSeqno);
 

@@ -20,7 +20,7 @@
 /// A listener class to update KVStore related configs at runtime.
 class CouchKVStoreConfig::ConfigChangeListener : public ValueChangedListener {
 public:
-    ConfigChangeListener(CouchKVStoreConfig& c) : config(c) {
+    explicit ConfigChangeListener(CouchKVStoreConfig& c) : config(c) {
     }
 
     void booleanValueChanged(const std::string& key, bool value) override {

@@ -31,7 +31,7 @@
  * trace dump
  */
 struct DumpContext {
-    DumpContext(phosphor::TraceContext&& _context)
+    explicit DumpContext(phosphor::TraceContext&& _context)
         : context(std::move(_context)),
           json_export(context),
           last_touch(std::chrono::steady_clock::now()) {

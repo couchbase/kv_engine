@@ -40,7 +40,7 @@ public:
      * Create an executor pool with a given number of worker threads
      * and the default clock source.
      */
-    ExecutorPool(size_t sz);
+    explicit ExecutorPool(size_t sz);
 
     /**
      * Create an executor pool with a given number of worker threads

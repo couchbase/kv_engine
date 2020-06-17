@@ -831,19 +831,19 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
     // The specific handler will know how to interpret.
     switch (event.getSystemEvent()) {
     case mcbp::systemevent::id::CreateCollection: {
-        rv = processCreateCollection(*vb, {event});
+        rv = processCreateCollection(*vb, CreateCollectionEvent(event));
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {
-        rv = processDropCollection(*vb, {event});
+        rv = processDropCollection(*vb, DropCollectionEvent(event));
         break;
     }
     case mcbp::systemevent::id::CreateScope: {
-        rv = processCreateScope(*vb, {event});
+        rv = processCreateScope(*vb, CreateScopeEvent(event));
         break;
     }
     case mcbp::systemevent::id::DropScope: {
-        rv = processDropScope(*vb, {event});
+        rv = processDropScope(*vb, DropScopeEvent(event));
         break;
     }
     default: {

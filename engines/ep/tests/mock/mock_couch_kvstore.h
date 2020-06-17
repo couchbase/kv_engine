@@ -38,7 +38,7 @@ public:
         static const size_t sizeofV2 = 19;
     };
 
-    MockCouchRequest(const queued_item it) : CouchRequest(it) {
+    explicit MockCouchRequest(const queued_item it) : CouchRequest(it) {
     }
 
     // Update what will be written as 'metadata'
@@ -50,7 +50,8 @@ public:
 
 class MockCouchKVStore : public CouchKVStore {
 public:
-    MockCouchKVStore(CouchKVStoreConfig& config) : CouchKVStore(config) {
+    explicit MockCouchKVStore(CouchKVStoreConfig& config)
+        : CouchKVStore(config) {
     }
 
     using CouchKVStore::compactDBInternal;

@@ -70,7 +70,7 @@ public:
         }
 
     private:
-        Position(Vbid vbucket_id_) : vbucket_id(vbucket_id_) {
+        explicit Position(Vbid vbucket_id_) : vbucket_id(vbucket_id_) {
         }
 
         Vbid vbucket_id;
