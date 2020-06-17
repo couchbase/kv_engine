@@ -95,8 +95,7 @@ MEMCACHED_PUBLIC_API std::ostream& operator<<(
     return os << to_string(tracer);
 }
 
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
-                                           bool raw) {
+MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer) {
     const auto& vecSpans = tracer.getDurations();
     std::ostringstream os;
     auto size = vecSpans.size();
@@ -110,7 +109,7 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
         }
         size--;
         if (size > 0) {
-            os << (raw ? " " : "\n");
+            os << " ";
         }
     }
     return os.str();

@@ -128,8 +128,7 @@ protected:
 } // namespace tracing
 } // namespace cb
 
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
-                                           bool raw = true);
+MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer);
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer);
 MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::Code tracecode);
