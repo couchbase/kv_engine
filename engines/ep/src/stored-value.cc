@@ -44,7 +44,6 @@ StoredValue::StoredValue(const Item& itm,
       chain_next_or_replacement(std::move(n)),
       cas(itm.getCas()),
       bySeqno(itm.getBySeqno()),
-      lock_expiry_or_delete_or_complete_time(0),
       exptime(itm.getExptime()),
       flags(itm.getFlags()),
       revSeqno(itm.getRevSeqno()),
@@ -277,8 +276,8 @@ bool StoredValue::operator==(const StoredValue& other) const {
     }
     return (cas == other.cas && revSeqno == other.revSeqno &&
             bySeqno == other.bySeqno &&
-            lock_expiry_or_delete_or_complete_time ==
-                    other.lock_expiry_or_delete_or_complete_time &&
+            lock_expiry_or_delete_or_complete_time.lock_expiry ==
+                    other.lock_expiry_or_delete_or_complete_time.lock_expiry &&
             exptime == other.exptime && flags == other.flags &&
             isDirty() == other.isDirty() && isDeleted() == other.isDeleted() &&
             // Note: deletionCause is only checked if the item is deleted
@@ -344,7 +343,7 @@ void StoredValue::setValueImpl(const Item& itm) {
     datatype = itm.getDataType();
     bySeqno = itm.getBySeqno();
     cas = itm.getCas();
-    lock_expiry_or_delete_or_complete_time = 0;
+    lock_expiry_or_delete_or_complete_time.lock_expiry = 0;
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
 
@@ -438,7 +437,7 @@ void StoredValue::incrementAge() {
     }
 }
 
-void StoredValue::setCompletedOrDeletedTime(rel_time_t time) {
+void StoredValue::setCompletedOrDeletedTime(time_t time) {
     if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)
                 ->setCompletedOrDeletedTime(time);
@@ -457,7 +456,8 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
     json["cas"] = sv.cas;
     json["rev"] = static_cast<uint64_t>(sv.revSeqno);
     json["seqno"] = sv.bySeqno.load();
-    json["l/e/d/c time"] = sv.lock_expiry_or_delete_or_complete_time;
+    json["l/e/d/c time"] =
+            sv.lock_expiry_or_delete_or_complete_time.lock_expiry;
     json["exp time"] = sv.exptime;
     json["flags"] = sv.flags;
     json["dirty"] = sv.isDirty();
@@ -569,7 +569,8 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << " cas:" << sv.getCas();
     os << " key:\"" << sv.getKey() << "\"";
     if (sv.isOrdered() && sv.isDeleted()) {
-        os << " del_time:" << sv.lock_expiry_or_delete_or_complete_time;
+        os << " del_time:"
+           << sv.toOrderedStoredValue()->getCompletedOrDeletedTime();
     } else {
         os << " exp:" << sv.getExptime();
     }
@@ -615,9 +616,9 @@ size_t OrderedStoredValue::getRequiredStorage(const DocKey& key) {
  * Return the time the item was deleted. Only valid for completed or deleted
  * items.
  */
-rel_time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
+time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
     if (isDeleted() || isCompleted()) {
-        return lock_expiry_or_delete_or_complete_time;
+        return lock_expiry_or_delete_or_complete_time.delete_or_complete_time;
     } else {
         throw std::logic_error(
                 "OrderedStoredValue::getDeletedItem: Called on Alive item");
@@ -628,7 +629,7 @@ bool OrderedStoredValue::deleteImpl(DeleteSource delSource) {
     if (StoredValue::deleteImpl(delSource)) {
         // Need to record the time when an item is deleted for subsequent
         //purging (ephemeral_metadata_purge_age).
-        setCompletedOrDeletedTime(ep_current_time());
+        setCompletedOrDeletedTime(ep_real_time());
         return true;
     }
     return false;
@@ -640,15 +641,15 @@ void OrderedStoredValue::setValueImpl(const Item& itm) {
     // Update the deleted time (note - even if it was already deleted we should
     // refresh this).
     if (isDeleted()) {
-        setCompletedOrDeletedTime(ep_current_time());
+        setCompletedOrDeletedTime(ep_real_time());
     }
 }
 
-void OrderedStoredValue::setCompletedOrDeletedTime(rel_time_t time) {
+void OrderedStoredValue::setCompletedOrDeletedTime(time_t time) {
     if (!(isDeleted() || isCompleted())) {
         throw std::logic_error(
                 "OrderedStoredValue::setCompletedOrDeletedTime: Called on "
                 "Alive item");
     }
-    lock_expiry_or_delete_or_complete_time = time;
+    lock_expiry_or_delete_or_complete_time.delete_or_complete_time = time;
 }

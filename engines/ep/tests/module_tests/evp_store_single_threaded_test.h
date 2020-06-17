@@ -473,6 +473,9 @@ public:
 
 protected:
     void SetUp() override;
+
+    // Test replicating delete times.
+    void test_replicateDeleteTime(time_t deleteTime);
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {

@@ -105,7 +105,7 @@ HashTable::StoredValueProxy::~StoredValueProxy() {
 void HashTable::StoredValueProxy::setCommitted(CommittedState state) {
     value->setCommitted(state);
     value->markDirty();
-    value->setCompletedOrDeletedTime(ep_current_time());
+    value->setCompletedOrDeletedTime(ep_real_time());
 }
 
 StoredValue* HashTable::StoredValueProxy::release() {
@@ -772,7 +772,7 @@ HashTable::DeleteResult HashTable::unlocked_abortPrepare(
     v.setCommitted(CommittedState::PrepareAborted);
 
     // Set the completed time so we don't prematurely purge the SV
-    v.setCompletedOrDeletedTime(ep_current_time());
+    v.setCompletedOrDeletedTime(ep_real_time());
     valueStats.epilogue(preProps, &v);
     return {DeletionStatus::Success, &v};
 }
