@@ -184,20 +184,48 @@ TYPED_TEST(UnsignedLeb128, basic_api_checks) {
     EXPECT_EQ(leb.get().data(), leb.data());
 }
 
-// Test a few non-canonical encodings decode as expected
+// Test a few non-canonical encodings decode as expected.
 TYPED_TEST(UnsignedLeb128, non_canonical) {
     std::vector<std::pair<TypeParam, std::vector<std::vector<uint8_t>>>>
             testData = {
                     {0, {{0}, {0x80, 0}, {0x80, 0x80, 0}}},
-                    {1, {{1}, {0x81, 0}}},
+                    {1, {{1}, {0x81, 0}, {0x81, 0x80, 0}}},
             };
 
     for (const auto& test : testData) {
         for (const auto& data : test.second) {
-            auto value = cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
-            EXPECT_EQ(test.first, value.first);
+            // Ignore test inputs which are invalid for TypeParam (too long)
+            if (data.size() <=
+                cb::mcbp::unsigned_leb128<TypeParam>::getMaxSize()) {
+                auto value =
+                        cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
+                EXPECT_EQ(test.first, value.first);
+            }
         }
     }
+}
+
+TYPED_TEST(UnsignedLeb128, long_input) {
+    std::vector<uint8_t> data;
+    // Generate data that used to decode ok, but was invalid. leb128 decoder
+    // detects input which is too long and fails
+    for (size_t ii = 0; ii < cb::mcbp::unsigned_leb128<TypeParam>::getMaxSize();
+         ii++) {
+        data.push_back(0x81);
+    }
+    data.push_back(0x01);
+
+    try {
+        cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
+        FAIL() << "Decode didn't throw";
+    } catch (const std::invalid_argument&) {
+    }
+
+    auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(
+            {data}, cb::mcbp::Leb128NoThrow{});
+    EXPECT_EQ(nullptr, rv.second.data());
+    EXPECT_EQ(0, rv.second.size());
+    EXPECT_EQ(0, rv.first);
 }
 
 TEST(UnsignedLeb128, collection_ID_encode) {

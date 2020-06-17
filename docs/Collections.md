@@ -11,6 +11,26 @@ unsigned LEB128 format.
 
 * See https://en.wikipedia.org/wiki/LEB128
 
+### Valid LEB128 encodings
+
+KV will only consider up-to the maximum size of bytes for the LEB128 collection-ID.
+* LEB128 collection-IDs are a maximum of 5 bytes
+* KV expects to find a stop byte within those 5-bytes, otherwise it is invalid input and the command will fail.
+
+For example encoding 0 as 6-bytes - 0x80.80.80.80.80.00 is invalid.
+
+### Non-canonical encodings
+
+LEB128 permits non-canonical encodings, e.g. 1 validly be represented as:
+* 0x01
+* 0x81.00
+* 0x81.80.00
+* 0x81.80.80.00
+* 0x81.80.80.80.00
+
+KV-engine will fail the use of non-canonical encodings, all encodings must
+use the smallest, canonical form.
+
 ### LEB128 Encoded Examples
 
 The following table shows collection-ID values and their leb128 encoding. The

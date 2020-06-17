@@ -103,7 +103,11 @@ struct Leb128NoThrow {};
  * does not throw for invalid input and the caller should always check
  * second.data() for success or error (see returns info).
  *
- * @param buf buffer containing a leb128 encoded value (of size T)
+ *
+ * @param buf buffer containing a leb128 encoded value (of size T). This can be
+ *            a prefix on some other data, the decode will only process upto the
+ *            maximum number of bytes permitted for the type T. E.g. uint32_t
+ *            use 5 bytes maximum.
  * @returns On error a std::pair where first is set to 0 and second is nullptr/0
  *          const_byte_buffer. On success a std::pair where first is the decoded
  *          value and second is a buffer initialised with the data following the
@@ -115,19 +119,26 @@ typename std::enable_if<std::is_unsigned<T>::value,
 decode_unsigned_leb128(cb::const_byte_buffer buf, struct Leb128NoThrow) {
     T rv = buf[0] & 0x7full;
     size_t end = 0;
+    // Process up to the end of buf, or the max size for T, this ensures that
+    // bad input, e.g. no stop-byte avoids invalid shifts (where shift just
+    // keeps getting better). Primarily this gives us much better control over
+    // invalid input, e.g. 20 bytes of 0x80 with a stop byte, would of
+    // previously decoded to 0, but is really not valid input.
+    size_t size =
+            std::min(buf.size(), cb::mcbp::unsigned_leb128<T>::getMaxSize());
     if ((buf[0] & 0x80) == 0x80ull) {
         T shift = 7;
         // shift in the remaining data
-        for (end = 1; end < buf.size(); end++) {
+        for (end = 1; end < size; end++) {
             rv |= (buf[end] & 0x7full) << shift;
             if ((buf[end] & 0x80ull) == 0) {
                 break; // no more
             }
             shift += 7;
         }
-
-        // We should of stopped for a stop byte, not the end of the buffer
-        if (end == buf.size()) {
+        // We should of stopped for a stop byte, not the end of the buffer or
+        // max encoding
+        if (end == size) {
             return {0, cb::const_byte_buffer{}};
         }
     }
@@ -158,8 +169,9 @@ decode_unsigned_leb128(cb::const_byte_buffer buf) {
             return rv;
         }
     }
-    throw std::invalid_argument("decode_unsigned_leb128: invalid buf size:" +
-                                std::to_string(buf.size()));
+    throw std::invalid_argument(
+            "decode_unsigned_leb128: invalid leb128 of size:" +
+            std::to_string(buf.size()));
 }
 
 /**

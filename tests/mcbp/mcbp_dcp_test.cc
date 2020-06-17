@@ -487,9 +487,10 @@ TEST_P(DcpMutationValidatorTest, InvalidKey1) {
 TEST_P(DcpMutationValidatorTest, InvalidKey2) {
     if (isCollectionsEnabled()) {
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
-        uint8_t key[10] = {};
-        std::fill(key, key + 9, 0x81ull);
-        builder.setKey({key, sizeof(key)});
+        std::array<uint8_t, 4> key;
+        std::fill(key.begin(), key.end(), 0x81ull);
+        key.back() = 0;
+        builder.setKey({key.data(), key.size()});
         EXPECT_EQ("No logical key found", validate_error_context());
     }
 }
