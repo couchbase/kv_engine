@@ -1078,7 +1078,7 @@
             "type": "float"
         },
         "magma_enable_direct_io": {
-            "default": "false",
+            "default": "true",
             "dynamic": false,
             "descr": "Using direct IO tells magma to bypass the file system cache when writing or reading sstables.",
             "type": "bool"
