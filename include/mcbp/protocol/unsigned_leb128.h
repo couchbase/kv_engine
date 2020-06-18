@@ -31,6 +31,70 @@ namespace mcbp {
  * - see https://en.wikipedia.org/wiki/LEB128
  */
 
+// Empty, non specialised version of the decoder class
+template <class T, class Enable = void>
+class unsigned_leb128 {};
+
+/**
+ * For encoding a unsigned T leb128, class constructs from a T value and
+ * provides a const_byte_buffer for access to the encoded
+ */
+template <class T>
+class unsigned_leb128<
+        T,
+        typename std::enable_if<std::is_unsigned<T>::value>::type> {
+public:
+    unsigned_leb128(T in) {
+        while (in > 0) {
+            auto byte = gsl::narrow_cast<uint8_t>(in & 0x7full);
+            in >>= 7;
+
+            // In has more data?
+            if (in > 0) {
+                byte |= 0x80;
+                encodedData[encodedSize - 1] = byte;
+                // Increase the size
+                encodedSize++;
+            } else {
+                encodedData[encodedSize - 1] = byte;
+            }
+        }
+    }
+
+    cb::const_byte_buffer get() const {
+        return {encodedData.data(), encodedSize};
+    }
+
+    const uint8_t* begin() const {
+        return encodedData.data();
+    }
+
+    const uint8_t* end() const {
+        return encodedData.data() + encodedSize;
+    }
+
+    const uint8_t* data() const {
+        return encodedData.data();
+    }
+
+    size_t size() const {
+        return encodedSize;
+    }
+
+    constexpr static size_t getMaxSize() {
+        return maxSize;
+    }
+
+private:
+    // Larger T may need a larger array
+    static_assert(sizeof(T) <= 8, "Class is only valid for uint 8/16/64");
+
+    // value is large enough to store ~0 as leb128
+    static constexpr size_t maxSize = sizeof(T) + (((sizeof(T) + 1) / 8) + 1);
+    std::array<uint8_t, maxSize> encodedData{};
+    uint8_t encodedSize{1};
+};
+
 struct Leb128NoThrow {};
 
 /**
@@ -120,70 +184,6 @@ static inline std::optional<size_t> unsigned_leb128_get_stop_byte_index(
     }
     return {};
 }
-
-// Empty, non specialised version of the decoder class
-template <class T, class Enable = void>
-class unsigned_leb128 {};
-
-/**
- * For encoding a unsigned T leb128, class constructs from a T value and
- * provides a const_byte_buffer for access to the encoded
- */
-template <class T>
-class unsigned_leb128<
-        T,
-        typename std::enable_if<std::is_unsigned<T>::value>::type> {
-public:
-    unsigned_leb128(T in) {
-        while (in > 0) {
-            auto byte = gsl::narrow_cast<uint8_t>(in & 0x7full);
-            in >>= 7;
-
-            // In has more data?
-            if (in > 0) {
-                byte |= 0x80;
-                encodedData[encodedSize - 1] = byte;
-                // Increase the size
-                encodedSize++;
-            } else {
-                encodedData[encodedSize - 1] = byte;
-            }
-        }
-    }
-
-    cb::const_byte_buffer get() const {
-        return {encodedData.data(), encodedSize};
-    }
-
-    const uint8_t* begin() const {
-        return encodedData.data();
-    }
-
-    const uint8_t* end() const {
-        return encodedData.data() + encodedSize;
-    }
-
-    const uint8_t* data() const {
-        return encodedData.data();
-    }
-
-    size_t size() const {
-        return encodedSize;
-    }
-
-    constexpr static size_t getMaxSize() {
-        return maxSize;
-    }
-
-private:
-    // Larger T may need a larger array
-    static_assert(sizeof(T) <= 8, "Class is only valid for uint 8/16/64");
-
-    // value is large enough to store ~0 as leb128
-    static constexpr size_t maxSize = sizeof(T) + (((sizeof(T) + 1) / 8) + 1);
-    std::array<uint8_t, maxSize> encodedData{};
-    uint8_t encodedSize{1};
-};
 
 } // namespace mcbp
 } // namespace cb
