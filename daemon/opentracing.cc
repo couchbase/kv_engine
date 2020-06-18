@@ -233,7 +233,7 @@ void OpenTracingThread::pushOne(
             return;
         }
 
-        for (const auto& d : entry.tracer.getDurations()) {
+        for (const auto& d : entry.traceSpans) {
             // Convert the start time to our system clock
             const auto start =
                     system_now - std::chrono::duration_cast<

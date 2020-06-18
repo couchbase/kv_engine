@@ -16,13 +16,13 @@
  */
 #pragma once
 
+#include <folly/Synchronized.h>
 #include <memcached/visibility.h>
 #include <chrono>
 #include <string>
 #include <vector>
 
-namespace cb {
-namespace tracing {
+namespace cb::tracing {
 
 enum class Code : uint8_t {
     /// Time spent in the entire request
@@ -84,8 +84,8 @@ public:
              std::chrono::steady_clock::time_point endTime =
                      std::chrono::steady_clock::now());
 
-    // get the tracepoints as ordered durations
-    const std::vector<Span>& getDurations() const;
+    // Extract the trace vector (and clears the internal trace vector)
+    std::vector<Span> extractDurations();
 
     Span::Duration getTotalMicros() const;
 
@@ -100,8 +100,11 @@ public:
     // clear the collected trace data;
     void clear();
 
+    /// Get a string representation of all of the spans
+    std::string to_string() const;
+
 protected:
-    std::vector<Span> vecSpans;
+    folly::Synchronized<std::vector<Span>, std::mutex> vecSpans;
 };
 
 class MEMCACHED_PUBLIC_CLASS Traceable {
@@ -125,10 +128,8 @@ protected:
     Tracer tracer;
 };
 
-} // namespace tracing
-} // namespace cb
+} // namespace cb::tracing
 
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer);
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer);
 MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::Code tracecode);

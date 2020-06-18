@@ -18,13 +18,12 @@
 #pragma once
 
 #include <memcached/tracer.h>
+#include <platform/sized_buffer.h>
 #include <string>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 enum class Magic : uint8_t;
-}
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * The CookieTraceContext contains the information we need to keep around
@@ -36,14 +35,14 @@ struct CookieTraceContext {
                        uint32_t opaque,
                        cb::const_byte_buffer rawKey,
                        std::string context,
-                       cb::tracing::Tracer tracer)
+                       std::vector<cb::tracing::Span> spans)
         : magic(magic),
           opcode(opcode),
           opaque(opaque),
           rawKey(std::string{reinterpret_cast<const char*>(rawKey.data()),
                              rawKey.size()}),
           context(std::move(context)),
-          tracer(std::move(tracer)) {
+          traceSpans(std::move(spans)) {
     }
 
     const cb::mcbp::Magic magic;
@@ -51,5 +50,5 @@ struct CookieTraceContext {
     const uint32_t opaque;
     const std::string rawKey;
     const std::string context;
-    const cb::tracing::Tracer tracer;
+    const std::vector<cb::tracing::Span> traceSpans;
 };
