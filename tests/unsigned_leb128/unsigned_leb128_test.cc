@@ -56,7 +56,8 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeMax) {
 TYPED_TEST(UnsignedLeb128, EncodeDecode0x80) {
     TypeParam value = 0;
     for (size_t i = 0; i < sizeof(TypeParam); i++) {
-        value |= 0x80ull << (i * 8);
+        uint64_t v = i | 0x80;
+        value |= v << (i * 8);
     }
     cb::mcbp::unsigned_leb128<TypeParam> leb(value);
     auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decode(leb.get());
@@ -221,7 +222,7 @@ TYPED_TEST(UnsignedLeb128, long_input) {
     } catch (const std::invalid_argument&) {
     }
 
-    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decodeNoThrow({data});
+    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decodeCanonical({data});
     EXPECT_EQ(nullptr, rv.second.data());
     EXPECT_EQ(0, rv.second.size());
     EXPECT_EQ(0, rv.first);
@@ -249,16 +250,23 @@ TEST(UnsignedLeb128, collection_ID_encode) {
             {0xcafef00d, {0x8D, 0xE0, 0xFB, 0xD7, 0x0C}},
             {0xffffffff, {0xFF, 0xFF, 0xFF, 0xFF, 0x0F}}};
 
-    for (size_t index = 0; index < tests.size(); index++) {
+    for (size_t index = 0; index < tests.size(); index += 100) {
         const auto& test = tests[index];
         // Encode the value
         cb::mcbp::unsigned_leb128<uint32_t> encoded(test.value);
         ASSERT_EQ(test.encoded.size(), encoded.size())
                 << "size failure for test:" << index;
+
+        // We can decode our encoded data back to expected
+        EXPECT_EQ(test.value,
+                  cb::mcbp::unsigned_leb128<uint32_t>::decode(encoded.get())
+                          .first)
+                << encoded.size();
+
+        // we can decode the tests pre-defined encoding back to what we expect
         EXPECT_EQ(test.value,
                   cb::mcbp::unsigned_leb128<uint32_t>::decode(encoded.get())
                           .first);
-
         int offset = 0;
         for (const auto byte : encoded) {
             // cast away from uint8_t so we get more readable failures
@@ -267,5 +275,56 @@ TEST(UnsignedLeb128, collection_ID_encode) {
                     << ", test.value:" << test.value << ", test:" << index;
             offset++;
         }
+    }
+}
+
+// Check the canonical only decoder fails non-canonical encodings
+TYPED_TEST(UnsignedLeb128, canonical_only) {
+    // Non exhaustive inputs, for larger types more non-canonical encodings
+    // exist, but they're all really just canonical encoding + wasteful
+    // continuation bits/bytes
+    std::vector<std::vector<uint8_t>> tests = {{
+            {0xff, 0x00}, // 0x7f with pointless stop-byte
+            {0x80, 0x00}, // 0x0 with wasted extra byte
+            {0xfe, 0xff, 0x00}, // pointless stop byte, should be ff.7f
+            {0xca, 0xD7, 0x80, 0x00}, // 11210 should be ca.57
+            {0xcb, 0xD7, 0x81, 0x80, 0x00},
+            {0xcc, 0xD7, 0x81, 0x82, 0x80, 0x00},
+
+    }};
+
+    for (auto& test : tests) {
+        while (test.size() <=
+               cb::mcbp::unsigned_leb128<TypeParam>::getMaxSize()) {
+            // first the data does decode
+            EXPECT_NO_THROW(
+                    cb::mcbp::unsigned_leb128<TypeParam>::decode({test}));
+
+            // Now do we detect non-canonical?
+            auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decodeCanonical(
+                    {test});
+
+            // null data, decode failed
+            EXPECT_EQ(nullptr, rv.second.data()) << int(test[0]);
+            EXPECT_EQ(0, rv.second.size());
+
+            // make input longer
+            test.back() = 0x80;
+            test.push_back(0x00);
+        }
+    }
+}
+
+// Code validating the constant/macro used in leb128 is_canonincal;
+TEST(UnsignedLeb128, generate_leb128_canonical_compares) {
+    std::vector<uint8_t> data;
+    data.push_back(0x7f);
+    // loop creates 7f, 7f.ff, 7f.ff.ff etc
+    for (int ii = 0; ii < 10; ii++) {
+        auto v = cb::mcbp::unsigned_leb128<uint64_t>::decode({data});
+        uint64_t expected = MAX_LEB128(data.size());
+        EXPECT_EQ(expected, v.first);
+        data.back() = 0xff;
+        data.push_back(0x7f);
     }
 }

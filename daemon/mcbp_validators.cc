@@ -58,11 +58,22 @@ bool is_document_key_valid(Cookie& cookie) {
 
     // Next the validation depends on the collection-ID, default collection
     // has legacy data so has different rules.
-    auto leb = cb::mcbp::unsigned_leb128<CollectionIDType>::decodeNoThrow(key);
+    auto leb =
+            cb::mcbp::unsigned_leb128<CollectionIDType>::decodeCanonical(key);
 
-    // Called the Leb128NoThrow variant so we must check second.data() first
+    // Failed to decode
     if (!leb.second.data()) {
-        cookie.setErrorContext("No stop-byte found");
+        // To get detailed error context, decode via the version which tolerates
+        // non-canonical encodings but will fail for bad input (no stop-byte)
+        auto check =
+                cb::mcbp::unsigned_leb128<CollectionIDType>::decodeNoThrow(key);
+
+        // If the decode was fine, the issue is no-stop byte found
+        if (check.second.data()) {
+            cookie.setErrorContext("Key contains non-canonical leb128");
+        } else {
+            cookie.setErrorContext("No stop-byte found");
+        }
         return false;
     }
     if (leb.second.empty()) {

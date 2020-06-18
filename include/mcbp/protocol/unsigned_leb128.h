@@ -92,7 +92,7 @@ public:
      * @param buf buffer containing a leb128 encoded value (of size T). This can
      *            be a prefix on some other data, the decode will only process
      *            up to the maximum number of bytes permitted for the type T.
-     *            E.g. uint32_t use 5 bytes maximum.
+     *            E.g. uint32_t use 5 bytes maximum. buf.size must be >= 1
      *
      * @returns A std::pair where first is the decoded value and second is a
      *          buffer initialised with the data following the leb128 data. Note
@@ -106,13 +106,42 @@ public:
             cb::const_byte_buffer buf);
 
     /**
-     * See unary argument version for more detail. This variant will not throw
-     * for invalid input and the caller must check the return value.
+     * decodeCanonical returns the decoded value of type T and a
+     * const_byte_buffer initialised with the data following the leb128 data.
+     *
+     * This version does not throw an exception, but returns failure for two
+     * reasons.
+     *  - no-stop byte found
+     *  - non-canonical encoding was used, e.g. 0x81.00 instead of 0x01
+     *
+     * The caller will have to inspect the input to determine the error.
      *
      * @param buf buffer containing a leb128 encoded value (of size T). This can
      *            be a prefix on some other data, the decode will only process
      *            up to the maximum number of bytes permitted for the type T.
-     *            E.g. uint32_t use 5 bytes maximum.
+     *            E.g. uint32_t use 5 bytes maximum. buf.size must be >= 1
+     *
+     * @returns On error a std::pair where the second buffer has a nullptr and
+     *          zero size, first is set to 0. On success a std::pair where first
+     *          is the decoded value and second is a buffer initialised with the
+     *          data following the leb128 data. Note if the input buf was 100%
+     *          only a leb128, the returned buffer will point outside of the
+     *          input buf, but size will be 0.
+     */
+    static std::pair<T, cb::const_byte_buffer> decodeCanonical(
+            cb::const_byte_buffer buf);
+
+    /**
+     * decodeNoThrow returns the decoded value of type T and a const_byte_buffer
+     * initialised with the data following the leb128 data.
+     *
+     * This version does not throw an exception, but returns failure if no-stop
+     * is byte found.
+     *
+     * @param buf buffer containing a leb128 encoded value (of size T). This can
+     *            be a prefix on some other data, the decode will only process
+     *            up to the maximum number of bytes permitted for the type T.
+     *            E.g. uint32_t use 5 bytes maximum. buf.size must be >= 1
      *
      * @returns On error a std::pair where the second buffer has a nullptr and
      *          zero size, first is set to 0. On success a std::pair where first
@@ -124,6 +153,41 @@ public:
     static std::pair<T, cb::const_byte_buffer> decodeNoThrow(
             cb::const_byte_buffer buf);
 
+protected:
+    struct NoThrow {};
+    /**
+     * decode returns the decoded value of type T and a const_byte_buffer
+     * initialised with the data following the leb128 data.
+     *
+     * This is the protected inner method used by the public decode, does not
+     * throw for bad input (allows public methods to decide error fate)
+     */
+    static std::pair<T, cb::const_byte_buffer> decode(cb::const_byte_buffer buf,
+                                                      NoThrow);
+
+    template <typename, typename>
+    friend class unsigned_leb128;
+
+    /**
+     * Test that a decoded value was encoded in the canonical format.
+     *
+     * The test works by examining the length and comparing against a constant.
+     * The constant is the maximum value that can be encoded as leb128 in
+     * 'encodedLength - 1' bytes.
+     *
+     * For example if the encodedLength was 2 and the value was less than or
+     * equal to 127, a non-canonical encoding was used, 127 and less can and
+     * must be encoded in only 1 byte.
+     *
+     * So the test when encoded length is 2 is that the value is greater than
+     * 127. If the encoded length is 3 the value must be greater than 16383 and
+     * so on.
+     *
+     * @param value The integer that was decoded
+     * @param encodedLength How many bytes the leb128 encoding used
+     */
+    static inline bool is_canonical(uint64_t value, size_t encodedLength);
+
 private:
     // Larger T may need a larger array
     static_assert(sizeof(T) <= 8, "Class is only valid for uint 8/16/64");
@@ -134,10 +198,71 @@ private:
     uint8_t encodedSize{1};
 };
 
+// Generate the maximum value that can be encoded in nbytes
+#define MAX_LEB128(nbytes) \
+    ((0x7full << (nbytes - 1) * 7) | ((1ull << (nbytes - 1) * 7) - 1ull))
+
+template <>
+inline bool unsigned_leb128<uint8_t>::is_canonical(uint64_t value,
+                                                   size_t encodedLength) {
+    return (encodedLength == 2 && value > MAX_LEB128(1)) || encodedLength == 1;
+}
+
+template <>
+inline bool unsigned_leb128<uint16_t>::is_canonical(uint64_t value,
+                                                    size_t encodedLength) {
+    if (unsigned_leb128<uint8_t>::is_canonical(value, encodedLength)) {
+        return true;
+    }
+    return encodedLength == 3 && value > MAX_LEB128(2);
+}
+
+template <>
+inline bool unsigned_leb128<uint32_t>::is_canonical(uint64_t value,
+                                                    size_t encodedLength) {
+    if (unsigned_leb128<uint16_t>::is_canonical(value, encodedLength)) {
+        return true;
+    }
+
+    switch (encodedLength) {
+    case 4:
+        return value > MAX_LEB128(3);
+    case 5:
+        return value > MAX_LEB128(4);
+    }
+
+    return false;
+}
+
+template <>
+inline bool unsigned_leb128<uint64_t>::is_canonical(uint64_t value,
+                                                    size_t encodedLength) {
+    // We first have to ask if this is non-canonical for the lower size, e.g.
+    // u32. Each size asks the lower size first.
+    if (unsigned_leb128<uint32_t>::is_canonical(value, encodedLength)) {
+        return true;
+    }
+
+    switch (encodedLength) {
+    case 6:
+        return value > MAX_LEB128(5);
+    case 7:
+        return value > MAX_LEB128(6);
+    case 8:
+        return value > MAX_LEB128(7);
+    case 9:
+        return value > MAX_LEB128(8);
+    case 10:
+        return value > MAX_LEB128(9);
+    }
+
+    return false;
+}
+
 template <class T>
 std::pair<T, cb::const_byte_buffer>
 unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
-        decodeNoThrow(cb::const_byte_buffer buf) {
+        decode(cb::const_byte_buffer buf, NoThrow) {
     T rv = buf[0] & 0x7full;
     size_t end = 0;
     // Process up to the end of buf, or the max size for T, this ensures that
@@ -174,7 +299,7 @@ std::pair<T, cb::const_byte_buffer>
 unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
         decode(cb::const_byte_buffer buf) {
     if (buf.size() > 0) {
-        auto rv = unsigned_leb128<T>::decodeNoThrow(buf);
+        auto rv = unsigned_leb128<T>::decode(buf, NoThrow{});
         if (rv.second.data()) {
             return rv;
         }
@@ -182,6 +307,27 @@ unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
     throw std::invalid_argument(
             "`unsigned_leb128::decode invalid leb128 of size:" +
             std::to_string(buf.size()));
+}
+
+template <class T>
+std::pair<T, cb::const_byte_buffer>
+unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
+        decodeCanonical(cb::const_byte_buffer buf) {
+    auto rv = unsigned_leb128<T>::decode(buf, NoThrow{});
+
+    if (rv.second.data() &&
+        !is_canonical(rv.first, size_t(rv.second.data() - buf.data()))) {
+        return {0, cb::const_byte_buffer{}};
+    }
+
+    return rv;
+}
+
+template <class T>
+std::pair<T, cb::const_byte_buffer>
+unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
+        decodeNoThrow(cb::const_byte_buffer buf) {
+    return unsigned_leb128<T>::decode(buf, NoThrow{});
 }
 
 /**

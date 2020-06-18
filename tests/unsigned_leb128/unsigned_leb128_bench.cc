@@ -78,7 +78,7 @@ static void bench_unsigned_leb128_decode(benchmark::State& state) {
     }
 }
 
-static void bench_unsigned_leb128_decodeNoThrow(benchmark::State& state) {
+static void bench_unsigned_leb128_decodeCanonical(benchmark::State& state) {
     auto range = getTestRange(state.range(0));
     std::array<std::vector<uint8_t>, numberOfInputs> buffers;
     size_t value = range.first;
@@ -94,7 +94,7 @@ static void bench_unsigned_leb128_decodeNoThrow(benchmark::State& state) {
     auto itr = buffers.begin();
     while (state.KeepRunning()) {
         benchmark::DoNotOptimize(
-                cb::mcbp::unsigned_leb128<uint32_t>::decodeNoThrow({*itr}));
+                cb::mcbp::unsigned_leb128<uint32_t>::decodeCanonical({*itr}));
         itr++;
         if (itr == buffers.end()) {
             itr = buffers.begin();
@@ -115,7 +115,7 @@ static void generateBenchmarkArguments(benchmark::internal::Benchmark* b) {
 }
 
 BENCHMARK(bench_unsigned_leb128_decode)->Apply(generateBenchmarkArguments);
-BENCHMARK(bench_unsigned_leb128_decodeNoThrow)
+BENCHMARK(bench_unsigned_leb128_decodeCanonical)
         ->Apply(generateBenchmarkArguments);
 
 BENCHMARK_MAIN()

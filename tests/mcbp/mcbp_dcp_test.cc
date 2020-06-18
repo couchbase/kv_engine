@@ -487,10 +487,9 @@ TEST_P(DcpMutationValidatorTest, InvalidKey1) {
 TEST_P(DcpMutationValidatorTest, InvalidKey2) {
     if (isCollectionsEnabled()) {
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
-        std::array<uint8_t, 4> key;
-        std::fill(key.begin(), key.end(), 0x81ull);
-        key.back() = 0;
-        builder.setKey({key.data(), key.size()});
+        // Just make a valid key that is all leb128 and no logical key.
+        cb::mcbp::unsigned_leb128<uint32_t> leb128(0xdaf7);
+        builder.setKey({leb128.data(), leb128.size()});
         EXPECT_EQ("No logical key found", validate_error_context());
     }
 }
