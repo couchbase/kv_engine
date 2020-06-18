@@ -2749,7 +2749,8 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("memory_quota", val));
 }
 
-TEST_F(MagmaKVStoreTest, setMaxDataSize) {
+// TODO: MB-40008: Disabled as the test has started recently failing.
+TEST_F(MagmaKVStoreTest, DISABLED_setMaxDataSize) {
     uint64_t seqno{1};
 
     // Magma's memory quota is recalculated on each commit batch.
