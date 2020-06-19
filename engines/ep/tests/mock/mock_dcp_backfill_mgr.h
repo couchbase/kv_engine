@@ -26,7 +26,9 @@
 class MockDcpBackfillManager : public BackfillManager {
 public:
     MockDcpBackfillManager(EventuallyPersistentEngine& theEngine)
-        : BackfillManager(theEngine) {
+        : BackfillManager(*theEngine.getKVBucket(),
+                          theEngine.getDcpConnMap(),
+                          theEngine.getConfiguration()) {
     }
 
     void setBackfillBufferSize(size_t newSize) {

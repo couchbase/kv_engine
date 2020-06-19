@@ -36,7 +36,10 @@ class BackfillManagerTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() {
         SingleThreadedKVBucketTest::SetUp();
-        backfillMgr = std::make_shared<BackfillManager>(*engine);
+        backfillMgr =
+                std::make_shared<BackfillManager>(*engine->getKVBucket(),
+                                                  engine->getDcpConnMap(),
+                                                  engine->getConfiguration());
     }
 
     void TearDown() {
