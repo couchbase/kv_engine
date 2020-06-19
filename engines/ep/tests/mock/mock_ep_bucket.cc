@@ -22,6 +22,18 @@
 #include "mock_checkpoint_manager.h"
 #include "mock_item_freq_decayer.h"
 
+MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
+    : EPBucket(theEngine) {
+    ON_CALL(*this, dropKey)
+            .WillByDefault([this](Vbid vbid,
+                                  const DiskDocKey& key,
+                                  int64_t seqno,
+                                  bool isAbort,
+                                  int64_t pcs) {
+                EPBucket::dropKey(vbid, key, seqno, isAbort, pcs);
+            });
+}
+
 void MockEPBucket::initializeMockBucket() {
     initializeShards();
 }

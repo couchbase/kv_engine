@@ -301,17 +301,12 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
             { // Locking scope for magmaDbStats
                 auto dbStats = cbCtx.magmaDbStats.stats.wlock();
 
-                if (!magmakv::isDeleted(metaSlice) || magmakv::isPrepared(metaSlice)) {
-                    dbStats->docCount--;
-                }
-
                 if (magmakv::isPrepared(metaSlice)) {
                     cbCtx.ctx->stats.preparesPurged++;
                     dbStats->onDiskPrepares--;
+                    dbStats->docCount--;
                 } else {
-                    if (!magmakv::isDeleted(metaSlice)) {
-                        cbCtx.ctx->stats.collectionsItemsPurged++;
-                    } else {
+                    if (magmakv::isDeleted(metaSlice)) {
                         cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
                     }
                 }
@@ -1795,6 +1790,9 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this, ctx);
     };
 
+    uint64_t collectionItemsDropped = 0;
+    LocalDbReqs localDbReqs;
+
     Status status;
     if (dropped.empty()) {
         // Compact the entire key range
@@ -1825,6 +1823,24 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
         }
 
         for (auto& dc : dropped) {
+            // Can't track number of collection items purged properly in the
+            // compaction callback for magma as it may be called multiple
+            // times per key. We CAN just subtract the number of items we know
+            // belong to the collection though before we update the vBucket doc
+            // count.
+            auto handle = makeFileHandle(vbid);
+            auto stats = getCollectionStats(*handle, dc.collectionId);
+
+            // The only case where stats shouldn't exist is if we are dropping
+            // the default collection and it has no items in it. Instead of
+            // trying to make sure those stats gets written it's easier to just
+            // do nothing as nothing should be in the default collection
+            if (stats) {
+                collectionItemsDropped += stats->itemCount;
+            } else {
+                Expects(dc.collectionId.isDefaultCollection());
+            }
+
             std::string keyString =
                     Collections::makeCollectionIdIntoString(dc.collectionId);
             Slice keySlice{keyString};
@@ -1867,6 +1883,10 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
                         cb::UserData{key.to_string()});
             }
 
+            // Drop the collection stats local doc which we kept around until
+            // now to maintain the document count when we erase the collections.
+            deleteCollectionStats(localDbReqs, dc.collectionId);
+
             ctx->eraserContext->processEndOfCollection(key.getDocKey(),
                                                        SystemEvent::Collection);
         }
@@ -1877,10 +1897,10 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
     // don't have to worry about race conditions with things like the purge
     // seqno.
     if (ctx->completionCallback) {
+        ctx->stats.collectionsItemsPurged = collectionItemsDropped;
         ctx->completionCallback(*ctx);
     }
 
-    LocalDbReqs localDbReqs;
 
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
         // Delete dropped collections.
@@ -1889,6 +1909,15 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
 
         WriteOps writeOps;
         addLocalDbReqs(localDbReqs, writeOps);
+
+        MagmaDbStats magmaDbStats;
+
+        { // locking scope for magmaDbStats
+            auto stats = magmaDbStats.stats.wlock();
+            stats->docCount -= collectionItemsDropped;
+        }
+
+        addStatUpdateToWriteOps(magmaDbStats, writeOps);
 
         status = magma->WriteDocs(
                 vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
@@ -2090,10 +2119,12 @@ void MagmaKVStore::updateDroppedCollections(
         LocalDbReqs& localDbReqs,
         std::optional<std::vector<Collections::KVStore::DroppedCollection>>
                 dropped) {
-    for (const auto& drop : collectionsMeta.droppedCollections) {
-        // Delete the 'stats' document for the collection
-        deleteCollectionStats(localDbReqs, drop.collectionId);
-    }
+    // Normally we would drop the collections stats local doc here but magma
+    // can visit old keys (during the collection erasure compaction) and we
+    // can't work out if they are the latest or not. To track the document
+    // count correctly we need to keep the stats doc around until the collection
+    // erasure compaction runs which will then delete the doc when it has
+    // processed the collection.
 
     // If the input 'dropped' is not initialised we must read the dropped
     // collection data

@@ -260,11 +260,11 @@ protected:
     void stopWarmup();
 
     /// function which is passed down to compactor for dropping keys
-    void dropKey(Vbid vbid,
-                 const DiskDocKey& key,
-                 int64_t bySeqno,
-                 bool isAbort,
-                 int64_t highCompletedSeqno);
+    virtual void dropKey(Vbid vbid,
+                         const DiskDocKey& key,
+                         int64_t bySeqno,
+                         bool isAbort,
+                         int64_t highCompletedSeqno);
 
     /**
      * @todo MB-37858: legacy from TAP, remove.

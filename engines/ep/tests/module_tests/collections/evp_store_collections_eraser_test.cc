@@ -21,6 +21,7 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
+#include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
@@ -31,6 +32,15 @@
 class CollectionsEraserTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
+        // A few of the tests in this test suite (in particular the ones that
+        // care about document counting) require
+        // "magma_commit_point_every_batch" to be set to true. In this
+        // particular case it ensures that we visit older (stale) values that
+        // may still exist during compaction.
+#ifdef EP_USE_MAGMA
+        config_string += magmaRollbackConfig;
+#endif
+
         STParameterizedBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         vb = store->getVBucket(vbid);
@@ -65,6 +75,16 @@ public:
                       store->setVBucketState(vbid, vbucket_state_active));
         }
     }
+
+    /**
+     * Test that we track the collection purged items stat correctly when we
+     * purge a collection
+     *
+     * @param cid CollectionID to drop
+     * @param seqnoOffset seqno to offset expectations by
+     */
+    void testCollectionPurgedItemsCorrectAfterDrop(CollectionEntry::Entry cid,
+                                                   int64_t seqnoOffset = 0);
 
     VBucketPtr vb;
 };
@@ -634,6 +654,76 @@ TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
     auto state = store->getRWUnderlying(vbid)->getVBucketState(vbid);
     ASSERT_TRUE(state);
     EXPECT_EQ(0, state->onDiskPrepares);
+}
+
+void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
+        CollectionEntry::Entry collection, int64_t seqnoOffset) {
+    auto key = StoredDocKey{"milk", collection};
+    store_item(vbid, key, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, key, "nice2");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // delete the collection
+    CollectionsManifest cm;
+    // Need to update manifest uid so that we don't fail to flush due to going
+    // backwards
+    cm.updateUid(4);
+    vb->updateFromManifest({cm.remove(collection)});
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
+
+    if (isPersistent()) {
+        auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+        // Magma will make two calls here. One for the first value that
+        // logically does not exist anymore, and one for the updated value.
+        if (isMagma()) {
+            EXPECT_CALL(*bucket,
+                        dropKey(vbid,
+                                DiskDocKey(key),
+                                1 + seqnoOffset,
+                                false /*isAbort*/,
+                                0 /*PCS*/))
+                    .RetiresOnSaturation();
+        }
+
+        EXPECT_CALL(*bucket,
+                    dropKey(vbid,
+                            DiskDocKey(key),
+                            2 + seqnoOffset,
+                            false /*isAbort*/,
+                            0 /*PCS*/))
+                .RetiresOnSaturation();
+    }
+
+    runEraser();
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // The warmup will definitely fail if this isn't true
+    auto kvStore = store->getRWUnderlying(vbid);
+    ASSERT_EQ(0, kvStore->getItemCount(vbid));
+
+    vb.reset();
+
+    resetEngineAndWarmup();
+
+    // Reset the vBucket as the ptr will now be bad
+    vb = store->getVBucket(vbid);
+}
+
+TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDropDefaultC) {
+    testCollectionPurgedItemsCorrectAfterDrop(CollectionEntry::defaultC);
+}
+
+TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDrop) {
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    testCollectionPurgedItemsCorrectAfterDrop(CollectionEntry::dairy,
+                                              1 /*seqnoOffset*/);
 }
 
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {

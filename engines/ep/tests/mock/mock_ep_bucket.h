@@ -19,6 +19,8 @@
 
 #include "ep_bucket.h"
 
+#include <folly/portability/GMock.h>
+
 class MockItemFreqDecayerTask;
 
 /*
@@ -26,9 +28,10 @@ class MockItemFreqDecayerTask;
  */
 class MockEPBucket : public EPBucket {
 public:
-    explicit MockEPBucket(EventuallyPersistentEngine& theEngine)
-        : EPBucket(theEngine) {
-    }
+    explicit MockEPBucket(EventuallyPersistentEngine& theEngine);
+
+    MOCK_METHOD5(dropKey,
+                 void(Vbid, const DiskDocKey&, int64_t, bool, int64_t));
 
     /**
      * Mock specific initialization. Does not override initialize function as
