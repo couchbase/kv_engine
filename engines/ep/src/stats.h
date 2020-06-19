@@ -20,8 +20,8 @@
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 
-#include <folly/AtomicHashMap.h>
 #include <folly/CachelinePadded.h>
+#include <folly/Synchronized.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/cb_arena_malloc.h>
@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <mutex>
 
 // If we're running with TSAN/ASAN our global new operator replacement does
 // not work, so any new/delete will not call through cb_malloc so ArenaMalloc
@@ -570,13 +571,13 @@ public:
     /**
      * Map of collection id to the memory usage tracked for that collection.
      *
-     * Uses AtomicHashMap to avoid additional locking for safe concurrent
-     * access. AtomicHashMap performance decreases if more items are inserted
-     * than initially predicted; this map is initialised with an estimate of
-     * 100.
+     folly::AtomicHashMap would avoid locking here but is unsuitable - it has a
+     max capacity, and erased elements still count towards that capacity. It
+     would either need to be grossly oversized, or would eventually be filled by
+     collection creation/deletions.
      */
-    folly::AtomicHashMap<CollectionID, std::atomic<size_t>> collectionMemUsed{
-            100};
+    folly::Synchronized<std::unordered_map<CollectionID, size_t>, std::mutex>
+            collectionMemUsed;
 
     // Thread-safe type for counting occurances of discrete,
     // non-negative entities (# events, sizes).  Relaxed memory

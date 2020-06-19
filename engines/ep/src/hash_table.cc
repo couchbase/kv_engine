@@ -610,11 +610,11 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
             // either of pre or post may be invalid, but if either is
             // valid use the collection id from that.
             auto cid = pre.isValid ? pre.cid : post.cid;
-            auto& collectionMemUsed =
-                    epStats.coreLocal.get()->collectionMemUsed;
-            auto itr = collectionMemUsed.find(cid);
-            if (itr != collectionMemUsed.end()) {
-                itr->second.fetch_add(sizeDelta);
+            auto collectionMemUsed =
+                    epStats.coreLocal.get()->collectionMemUsed.lock();
+            auto itr = collectionMemUsed->find(cid);
+            if (itr != collectionMemUsed->end()) {
+                itr->second += sizeDelta;
             }
         }
 

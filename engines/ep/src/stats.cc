@@ -211,9 +211,10 @@ size_t EPStats::getNumItem() const {
 size_t EPStats::getCollectionMemUsed(CollectionID cid) const {
     size_t result = 0;
     for (const auto& core : coreLocal) {
-        auto itr = core->collectionMemUsed.find(cid);
-        if (itr != core->collectionMemUsed.end()) {
-            result += itr->second.load();
+        auto collectionMemUsed = core->collectionMemUsed.lock();
+        auto itr = collectionMemUsed->find(cid);
+        if (itr != collectionMemUsed->end()) {
+            result += itr->second;
         }
     }
     return result;
@@ -223,8 +224,9 @@ std::unordered_map<CollectionID, size_t> EPStats::getAllCollectionsMemUsed()
         const {
     std::unordered_map<CollectionID, size_t> result;
     for (const auto& core : coreLocal) {
-        for (auto& pair : core->collectionMemUsed) {
-            result[pair.first] += pair.second.load();
+        auto collectionMemUsed = core->collectionMemUsed.lock();
+        for (auto& pair : *collectionMemUsed) {
+            result[pair.first] += pair.second;
         }
     }
     return result;
@@ -232,13 +234,13 @@ std::unordered_map<CollectionID, size_t> EPStats::getAllCollectionsMemUsed()
 
 void EPStats::trackCollectionStats(CollectionID cid) {
     for (auto& core : coreLocal) {
-        core->collectionMemUsed.emplace(cid, 0);
+        core->collectionMemUsed.lock()->emplace(cid, 0);
     }
 }
 
 void EPStats::dropCollectionStats(CollectionID cid) {
     for (auto& core : coreLocal) {
-        core->collectionMemUsed.erase(cid);
+        core->collectionMemUsed.lock()->erase(cid);
     }
 }
 
