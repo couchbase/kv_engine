@@ -389,9 +389,9 @@ PrivilegeContext PrivilegeDatabase::createContext(
 }
 
 std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
-        const std::string& user, Domain domain) const {
-    const auto& ue = lookup(user);
-    return {PrivilegeContext(generation, domain, ue.getPrivileges(), {}),
+        const UserIdent& user) const {
+    const auto& ue = lookup(user.name);
+    return {PrivilegeContext(generation, user.domain, ue.getPrivileges(), {}),
             ue.isInternal()};
 }
 
@@ -504,7 +504,7 @@ PrivilegeContext createContext(const UserIdent& user,
 
 std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user) {
     auto& ctx = contexts[to_index(user.domain)];
-    return (*ctx.db.rlock())->createInitialContext(user.name, user.domain);
+    return (*ctx.db.rlock())->createInitialContext(user);
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {

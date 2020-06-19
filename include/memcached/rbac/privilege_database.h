@@ -450,7 +450,7 @@ public:
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
     std::pair<PrivilegeContext, bool> createInitialContext(
-            const std::string& user, Domain domain) const;
+            const UserIdent& user) const;
 
     std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
                                                   Domain domain,
