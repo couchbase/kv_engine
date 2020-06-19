@@ -144,6 +144,14 @@ BackfillManager::~BackfillManager() {
         managerTask.reset();
     }
 
+    while (!initializingBackfills.empty()) {
+        UniqueDCPBackfillPtr backfill =
+                std::move(initializingBackfills.front());
+        initializingBackfills.pop_front();
+        backfill->cancel();
+        backfillTracker.decrNumActiveSnoozingBackfills();
+    }
+
     while (!activeBackfills.empty()) {
         UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
         activeBackfills.pop_front();
