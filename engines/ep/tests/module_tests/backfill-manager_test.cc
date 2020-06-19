@@ -32,13 +32,19 @@ public:
     MOCK_CONST_METHOD0(isStreamDead, bool());
 };
 
+class GMockBackfillTracker : public BackfillTrackingIface {
+public:
+    MOCK_METHOD0(canAddBackfillToActiveQ, bool());
+    MOCK_METHOD0(decrNumActiveSnoozingBackfills, void());
+};
+
 class BackfillManagerTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() {
         SingleThreadedKVBucketTest::SetUp();
         backfillMgr =
                 std::make_shared<BackfillManager>(*engine->getKVBucket(),
-                                                  engine->getDcpConnMap(),
+                                                  backfillTracker,
                                                   engine->getConfiguration());
     }
 
@@ -49,6 +55,18 @@ protected:
         SingleThreadedKVBucketTest::TearDown();
     }
 
+    /**
+     * For tests which are not interested in backfilLTracker, configure it
+     * to accept an arbirary number of concurrent backfills.
+     */
+    void ignoreBackfillTracker() {
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+                .WillRepeatedly(Return(true));
+        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+                .WillRepeatedly(Return());
+    }
+
+    GMockBackfillTracker backfillTracker;
     std::shared_ptr<BackfillManager> backfillMgr;
 };
 
@@ -57,6 +75,9 @@ protected:
  * (0, 1, 2, 0, 1, 2, ...) until they complete.
  */
 TEST_F(BackfillManagerTest, RoundRobin) {
+    // Not interested in behaviour of backfillTracker for this test.
+    ignoreBackfillTracker();
+
     auto backfill0 = std::make_unique<GMockDCPBackfill>();
     auto backfill1 = std::make_unique<GMockDCPBackfill>();
     auto backfill2 = std::make_unique<GMockDCPBackfill>();
@@ -106,6 +127,9 @@ TEST_F(BackfillManagerTest, RoundRobin) {
  * backfillOrder is set to Sequential.
  */
 TEST_F(BackfillManagerTest, Sequential) {
+    // Not interested in behaviour of backfillTracker for this test.
+    ignoreBackfillTracker();
+
     auto backfill0 = std::make_unique<GMockDCPBackfill>();
     auto backfill1 = std::make_unique<GMockDCPBackfill>();
     auto backfill2 = std::make_unique<GMockDCPBackfill>();

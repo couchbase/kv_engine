@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "backfill.h"
 #include "connmap.h"
 #include "ep_types.h"
 
@@ -32,8 +33,7 @@ class CheckpointCursor;
 class DcpProducer;
 class DcpConsumer;
 
-class DcpConnMap : public ConnMap {
-
+class DcpConnMap : public ConnMap, public BackfillTrackingIface {
 public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
@@ -106,7 +106,7 @@ public:
 
     void shutdownAllConnections();
 
-    bool isDeadConnectionsEmpty() {
+    bool isDeadConnectionsEmpty() override {
         LockHolder lh(connsLock);
         return deadConnections.empty();
     }
@@ -120,11 +120,11 @@ public:
 
     void disconnect(const void *cookie);
 
-    void manageConnections();
+    void manageConnections() override;
 
-    bool canAddBackfillToActiveQ();
+    bool canAddBackfillToActiveQ() override;
 
-    void decrNumActiveSnoozingBackfills();
+    void decrNumActiveSnoozingBackfills() override;
 
     void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
 
@@ -156,7 +156,7 @@ public:
 
     std::shared_ptr<ConnHandler> findByName(const std::string& name);
 
-    bool isConnections() {
+    bool isConnections() override {
         LockHolder lh(connsLock);
         return !map_.empty();
     }

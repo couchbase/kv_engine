@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dcp/backfill-manager.h"
+#include "dcp/dcpconnmap.h"
 
 /*
  * Mock of the BackfillManager class.  Wraps the real BackfillManager, but

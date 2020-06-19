@@ -96,11 +96,11 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() {
 }
 
 BackfillManager::BackfillManager(KVBucket& kvBucket,
-                                 DcpConnMap& dcpConnMap,
+                                 BackfillTrackingIface& backfillTracker,
                                  size_t scanByteLimit,
                                  size_t scanItemLimit,
                                  size_t backfillByteLimit)
-    : kvBucket(kvBucket), dcpConnMap(dcpConnMap), managerTask(NULL) {
+    : kvBucket(kvBucket), backfillTracker(backfillTracker), managerTask(NULL) {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
     scanBuffer.maxBytes = scanByteLimit;
@@ -113,10 +113,10 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
 }
 
 BackfillManager::BackfillManager(KVBucket& kvBucket,
-                                 DcpConnMap& dcpConnmap,
+                                 BackfillTrackingIface& backfillTracker,
                                  const Configuration& config)
     : BackfillManager(kvBucket,
-                      dcpConnmap,
+                      backfillTracker,
                       config.getDcpScanByteLimit(),
                       config.getDcpScanItemLimit(),
                       config.getDcpBackfillByteLimit()) {
@@ -148,7 +148,7 @@ BackfillManager::~BackfillManager() {
         UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
         activeBackfills.pop_front();
         backfill->cancel();
-        dcpConnMap.decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumActiveSnoozingBackfills();
     }
 
     while (!snoozingBackfills.empty()) {
@@ -156,7 +156,7 @@ BackfillManager::~BackfillManager() {
                 std::move((snoozingBackfills.front()).second);
         snoozingBackfills.pop_front();
         backfill->cancel();
-        dcpConnMap.decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumActiveSnoozingBackfills();
     }
 
     while (!pendingBackfills.empty()) {
@@ -174,7 +174,7 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
         UniqueDCPBackfillPtr backfill) {
     LockHolder lh(lock);
     ScheduleResult result;
-    if (dcpConnMap.canAddBackfillToActiveQ()) {
+    if (backfillTracker.canAddBackfillToActiveQ()) {
         initializingBackfills.push_back(std::move(backfill));
         result = ScheduleResult::Active;
     } else {
@@ -305,7 +305,7 @@ backfill_status_t BackfillManager::backfill() {
                 (*a_itr)->cancel();
                 toDelete.push_back(std::move(*a_itr));
                 a_itr = activeBackfills.erase(a_itr);
-                dcpConnMap.decrNumActiveSnoozingBackfills();
+                backfillTracker.decrNumActiveSnoozingBackfills();
             } else {
                 ++a_itr;
             }
@@ -364,7 +364,7 @@ backfill_status_t BackfillManager::backfill() {
             break;
         case backfill_finished:
             lh.unlock();
-            dcpConnMap.decrNumActiveSnoozingBackfills();
+            backfillTracker.decrNumActiveSnoozingBackfills();
             break;
         case backfill_snooze: {
             snoozingBackfills.emplace_back(ep_current_time(),
@@ -377,7 +377,8 @@ backfill_status_t BackfillManager::backfill() {
 }
 
 void BackfillManager::movePendingToInitializing() {
-    while (!pendingBackfills.empty() && dcpConnMap.canAddBackfillToActiveQ()) {
+    while (!pendingBackfills.empty() &&
+           backfillTracker.canAddBackfillToActiveQ()) {
         initializingBackfills.splice(initializingBackfills.end(),
                                      pendingBackfills,
                                      pendingBackfills.begin());

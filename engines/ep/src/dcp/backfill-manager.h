@@ -116,7 +116,7 @@
 #include <mutex>
 
 class Configuration;
-class DcpConnMap;
+struct BackfillTrackingIface;
 class DcpProducer;
 class GlobalTask;
 class KVBucket;
@@ -136,9 +136,9 @@ public:
      * Construct a BackfillManager to manage backfills for a DCP Producer.
      * @param kvBucket Bucket DCP Producer belongs to (used to check memory
      *        usage and if Backfills should be paused).
-     * @param dcpConnMap DCP connection map this Backfill is assocated with.
-     *        Allows BackfillManager to inform connection map when backfills
-     *        start / stop so an overall limit can be imposed.
+     * @param backfillTracker Object which tracks how many backfills are
+     *        in progress, and tells BackfillManager when it should
+     *        set new backfills as pending.
      * @param scanByteLimit Maximum number of bytes a single scan() call can
      *        produce from disk before yielding.
      * @param scanItemLimit Maximum number of items a single scan() call can
@@ -148,7 +148,7 @@ public:
      *        bytesSent()).
      */
     BackfillManager(KVBucket& kvBucket,
-                    DcpConnMap& dcpConnMap,
+                    BackfillTrackingIface& backfillTracker,
                     size_t scanByteLimit,
                     size_t scanItemLimit,
                     size_t backfillByteLimit);
@@ -159,7 +159,7 @@ public:
      * object.
      */
     BackfillManager(KVBucket& kvBucket,
-                    DcpConnMap& dcpConnmap,
+                    BackfillTrackingIface& dcpConnmap,
                     const Configuration& config);
 
     virtual ~BackfillManager();
@@ -309,8 +309,10 @@ private:
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
     // KVBucket this BackfillManager is associated with.
     KVBucket& kvBucket;
-    // DCP Connection map this BackfillManager is associated with.
-    DcpConnMap& dcpConnMap;
+    // The object tracking how many backfills are in progress. This tells
+    // BackfillManager when to place new Backfills on the pending list (if
+    // too many are already in progress).
+    BackfillTrackingIface& backfillTracker;
     ExTask managerTask;
     ScheduleOrder scheduleOrder{ScheduleOrder::RoundRobin};
 };
