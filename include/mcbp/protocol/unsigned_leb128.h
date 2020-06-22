@@ -85,6 +85,45 @@ public:
         return maxSize;
     }
 
+    /**
+     * decode returns the decoded T and a const_byte_buffer initialised with the
+     * data following the leb128 data.
+     *
+     * @param buf buffer containing a leb128 encoded value (of size T). This can
+     *            be a prefix on some other data, the decode will only process
+     *            up to the maximum number of bytes permitted for the type T.
+     *            E.g. uint32_t use 5 bytes maximum.
+     *
+     * @returns A std::pair where first is the decoded value and second is a
+     *          buffer initialised with the data following the leb128 data. Note
+     *          if the input buf was 100% only a leb128, the returned buffer
+     *          will point outside of the input buf, but size will be 0.
+     *
+     * @throws std::invalid_argument if the input is not a valid leb128, this
+     *         means decode processed 'getMaxSize' bytes without a stop byte.
+     */
+    static std::pair<T, cb::const_byte_buffer> decode(
+            cb::const_byte_buffer buf);
+
+    /**
+     * See unary argument version for more detail. This variant will not throw
+     * for invalid input and the caller must check the return value.
+     *
+     * @param buf buffer containing a leb128 encoded value (of size T). This can
+     *            be a prefix on some other data, the decode will only process
+     *            up to the maximum number of bytes permitted for the type T.
+     *            E.g. uint32_t use 5 bytes maximum.
+     *
+     * @returns On error a std::pair where the second buffer has a nullptr and
+     *          zero size, first is set to 0. On success a std::pair where first
+     *          is the decoded value and second is a buffer initialised with the
+     *          data following the leb128 data. Note if the input buf was 100%
+     *          only a leb128, the returned buffer will point outside of the
+     *          input buf, but size will be 0.
+     */
+    static std::pair<T, cb::const_byte_buffer> decodeNoThrow(
+            cb::const_byte_buffer buf);
+
 private:
     // Larger T may need a larger array
     static_assert(sizeof(T) <= 8, "Class is only valid for uint 8/16/64");
@@ -95,28 +134,10 @@ private:
     uint8_t encodedSize{1};
 };
 
-struct Leb128NoThrow {};
-
-/**
- * decode_unsigned_leb128 returns the decoded T and a const_byte_buffer
- * initialised with the data following the leb128 data. This form of the decode
- * does not throw for invalid input and the caller should always check
- * second.data() for success or error (see returns info).
- *
- *
- * @param buf buffer containing a leb128 encoded value (of size T). This can be
- *            a prefix on some other data, the decode will only process upto the
- *            maximum number of bytes permitted for the type T. E.g. uint32_t
- *            use 5 bytes maximum.
- * @returns On error a std::pair where first is set to 0 and second is nullptr/0
- *          const_byte_buffer. On success a std::pair where first is the decoded
- *          value and second is a buffer initialised with the data following the
- *          leb128 data.
- */
 template <class T>
-typename std::enable_if<std::is_unsigned<T>::value,
-                        std::pair<T, cb::const_byte_buffer>>::type
-decode_unsigned_leb128(cb::const_byte_buffer buf, struct Leb128NoThrow) {
+std::pair<T, cb::const_byte_buffer>
+unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
+        decodeNoThrow(cb::const_byte_buffer buf) {
     T rv = buf[0] & 0x7full;
     size_t end = 0;
     // Process up to the end of buf, or the max size for T, this ensures that
@@ -148,29 +169,18 @@ decode_unsigned_leb128(cb::const_byte_buffer buf, struct Leb128NoThrow) {
                                   buf.size() - (end + 1)}};
 }
 
-/**
- * decode_unsigned_leb128 returns the decoded T and a const_byte_buffer
- * initialised with the data following the leb128 data. This form of the decode
- * throws for invalid input.
- *
- * @param buf buffer containing a leb128 encoded value (of size T)
- * @returns std::pair first is the decoded value and second a buffer for the
- *          remaining data (size will be 0 for no more data)
- * @throws std::invalid_argument if buf[0] does not encode a leb128 value with
- *         a stop byte.
- */
 template <class T>
-typename std::enable_if<std::is_unsigned<T>::value,
-                        std::pair<T, cb::const_byte_buffer>>::type
-decode_unsigned_leb128(cb::const_byte_buffer buf) {
+std::pair<T, cb::const_byte_buffer>
+unsigned_leb128<T, typename std::enable_if<std::is_unsigned<T>::value>::type>::
+        decode(cb::const_byte_buffer buf) {
     if (buf.size() > 0) {
-        auto rv = decode_unsigned_leb128<T>(buf, Leb128NoThrow());
+        auto rv = unsigned_leb128<T>::decodeNoThrow(buf);
         if (rv.second.data()) {
             return rv;
         }
     }
     throw std::invalid_argument(
-            "decode_unsigned_leb128: invalid leb128 of size:" +
+            "`unsigned_leb128::decode invalid leb128 of size:" +
             std::to_string(buf.size()));
 }
 
@@ -180,7 +190,7 @@ decode_unsigned_leb128(cb::const_byte_buffer buf) {
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, cb::const_byte_buffer>::type
 skip_unsigned_leb128(cb::const_byte_buffer buf) {
-    return decode_unsigned_leb128<T>(buf).second;
+    return unsigned_leb128<T>::decode(buf).second;
 }
 
 /// @return the index of the stop byte within buf

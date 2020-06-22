@@ -74,7 +74,7 @@ CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKey& key) {
     // This function skips (1), checks (2) and returns 3
     auto se = getSystemEventType(key);
     Expects(se.first == SystemEvent::Collection); // expected Collection
-    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(se.second).first;
+    return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(se.second).first;
 }
 
 ScopeID SystemEventFactory::getScopeIDFromKey(const DocKey& key) {
@@ -82,7 +82,7 @@ ScopeID SystemEventFactory::getScopeIDFromKey(const DocKey& key) {
     // be a scope event.
     auto se = getSystemEventType(key);
     Expects(se.first == SystemEvent::Scope);
-    return cb::mcbp::decode_unsigned_leb128<ScopeIDType>(se.second).first;
+    return cb::mcbp::unsigned_leb128<ScopeIDType>::decode(se.second).first;
 }
 
 std::pair<SystemEvent, cb::const_byte_buffer>
@@ -94,7 +94,7 @@ SystemEventFactory::getSystemEventType(const DocKey& key) {
     // This function skips (1) and returns (2)
     auto event = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
             {key.data(), key.size()});
-    auto type = cb::mcbp::decode_unsigned_leb128<uint32_t>(event);
+    auto type = cb::mcbp::unsigned_leb128<uint32_t>::decode(event);
     return {SystemEvent(type.first), type.second};
 }
 

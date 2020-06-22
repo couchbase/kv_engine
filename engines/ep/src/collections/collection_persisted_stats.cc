@@ -24,11 +24,11 @@ PersistedStats::PersistedStats(const char* buf, size_t size) {
     std::pair<uint64_t, cb::const_byte_buffer> decoded = {
             0, {reinterpret_cast<uint8_t*>(const_cast<char*>(buf)), size}};
 
-    decoded = cb::mcbp::decode_unsigned_leb128<uint64_t>(decoded.second);
+    decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
     itemCount = decoded.first;
-    decoded = cb::mcbp::decode_unsigned_leb128<uint64_t>(decoded.second);
+    decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
     highSeqno = decoded.first;
-    decoded = cb::mcbp::decode_unsigned_leb128<uint64_t>(decoded.second);
+    decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
     diskSize = decoded.first;
 
     if (!decoded.second.empty()) {

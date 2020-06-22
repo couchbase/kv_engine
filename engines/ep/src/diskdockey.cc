@@ -54,7 +54,7 @@ std::size_t DiskDocKey::hash() const {
 
 DocKey DiskDocKey::getDocKey() const {
     // Skip past Prepared prefix if present.
-    const auto decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    const auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
     if (decoded.first == CollectionID::DurabilityPrepare) {
         return {decoded.second.data(),
@@ -69,18 +69,18 @@ bool DiskDocKey::isCommitted() const {
 }
 
 bool DiskDocKey::isPrepared() const {
-    const auto prefix = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    const auto prefix = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
     return prefix.first == CollectionID::DurabilityPrepare;
 }
 
 std::string DiskDocKey::to_string() const {
     std::stringstream ss;
-    auto decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
     if (decoded.first == CollectionID::DurabilityPrepare) {
         ss << "pre:";
-        decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+        decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
                 decoded.second);
     }
     ss << getDocKey().to_string();

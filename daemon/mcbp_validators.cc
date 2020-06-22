@@ -58,8 +58,7 @@ bool is_document_key_valid(Cookie& cookie) {
 
     // Next the validation depends on the collection-ID, default collection
     // has legacy data so has different rules.
-    auto leb = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-            key, cb::mcbp::Leb128NoThrow());
+    auto leb = cb::mcbp::unsigned_leb128<CollectionIDType>::decodeNoThrow(key);
 
     // Called the Leb128NoThrow variant so we must check second.data() first
     if (!leb.second.data()) {

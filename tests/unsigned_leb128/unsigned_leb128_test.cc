@@ -38,7 +38,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecode0) {
     cb::mcbp::unsigned_leb128<TypeParam> zero(0);
     EXPECT_EQ(1, zero.get().size());
     EXPECT_EQ(0, zero.get().data()[0]);
-    auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(zero.get());
+    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decode(zero.get());
     EXPECT_EQ(0, rv.first);
     EXPECT_EQ(0, rv.second.size()); // All input consumed
     EXPECT_EQ(0, *cb::mcbp::unsigned_leb128_get_stop_byte_index(zero.get()));
@@ -47,7 +47,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecode0) {
 TYPED_TEST(UnsignedLeb128, EncodeDecodeMax) {
     cb::mcbp::unsigned_leb128<TypeParam> max(
             std::numeric_limits<TypeParam>::max());
-    auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(max.get());
+    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decode(max.get());
     EXPECT_EQ(std::numeric_limits<TypeParam>::max(), rv.first);
     EXPECT_EQ(0, rv.second.size());
 }
@@ -59,7 +59,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecode0x80) {
         value |= 0x80ull << (i * 8);
     }
     cb::mcbp::unsigned_leb128<TypeParam> leb(value);
-    auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(leb.get());
+    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decode(leb.get());
     EXPECT_EQ(value, rv.first);
     EXPECT_EQ(0, rv.second.size());
     EXPECT_EQ(leb.get().size() - 1,
@@ -70,7 +70,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeRandomValue) {
     std::mt19937_64 twister(sizeof(TypeParam));
     auto value = gsl::narrow_cast<TypeParam>(twister());
     cb::mcbp::unsigned_leb128<TypeParam> leb(value);
-    auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(leb.get());
+    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decode(leb.get());
     EXPECT_EQ(value, rv.first);
     EXPECT_EQ(0, rv.second.size());
     EXPECT_EQ(leb.get().size() - 1,
@@ -98,7 +98,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeValues) {
         if (v <= std::numeric_limits<TypeParam>::max()) {
             cb::mcbp::unsigned_leb128<TypeParam> leb(
                     gsl::narrow_cast<TypeParam>(v));
-            auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(leb.get());
+            auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decode(leb.get());
             EXPECT_EQ(v, rv.first);
             EXPECT_EQ(0, rv.second.size());
             EXPECT_EQ(
@@ -128,7 +128,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeMultipleValues) {
 
     // Decode
     do {
-        decoded = cb::mcbp::decode_unsigned_leb128<TypeParam>(decoded.second);
+        decoded = cb::mcbp::unsigned_leb128<TypeParam>::decode(decoded.second);
         EXPECT_EQ(values[index], decoded.first);
         index++;
     } while (!decoded.second.empty());
@@ -152,7 +152,7 @@ TYPED_TEST(UnsignedLeb128, DecodeInvalidInput) {
 
     EXPECT_FALSE(cb::mcbp::unsigned_leb128_get_stop_byte_index({data}));
     try {
-        cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
+        cb::mcbp::unsigned_leb128<TypeParam>::decode({data});
         FAIL() << "Decode didn't throw";
     } catch (const std::invalid_argument&) {
     }
@@ -198,7 +198,7 @@ TYPED_TEST(UnsignedLeb128, non_canonical) {
             if (data.size() <=
                 cb::mcbp::unsigned_leb128<TypeParam>::getMaxSize()) {
                 auto value =
-                        cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
+                        cb::mcbp::unsigned_leb128<TypeParam>::decode({data});
                 EXPECT_EQ(test.first, value.first);
             }
         }
@@ -216,13 +216,12 @@ TYPED_TEST(UnsignedLeb128, long_input) {
     data.push_back(0x01);
 
     try {
-        cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
+        cb::mcbp::unsigned_leb128<TypeParam>::decode({data});
         FAIL() << "Decode didn't throw";
     } catch (const std::invalid_argument&) {
     }
 
-    auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(
-            {data}, cb::mcbp::Leb128NoThrow{});
+    auto rv = cb::mcbp::unsigned_leb128<TypeParam>::decodeNoThrow({data});
     EXPECT_EQ(nullptr, rv.second.data());
     EXPECT_EQ(0, rv.second.size());
     EXPECT_EQ(0, rv.first);
@@ -257,7 +256,7 @@ TEST(UnsignedLeb128, collection_ID_encode) {
         ASSERT_EQ(test.encoded.size(), encoded.size())
                 << "size failure for test:" << index;
         EXPECT_EQ(test.value,
-                  cb::mcbp::decode_unsigned_leb128<uint32_t>(encoded.get())
+                  cb::mcbp::unsigned_leb128<uint32_t>::decode(encoded.get())
                           .first);
 
         int offset = 0;

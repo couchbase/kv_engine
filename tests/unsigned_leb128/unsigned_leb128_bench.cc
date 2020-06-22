@@ -70,7 +70,7 @@ static void bench_unsigned_leb128_decode(benchmark::State& state) {
     auto itr = buffers.begin();
     while (state.KeepRunning()) {
         benchmark::DoNotOptimize(
-                cb::mcbp::decode_unsigned_leb128<uint32_t>({*itr}));
+                cb::mcbp::unsigned_leb128<uint32_t>::decode({*itr}));
         itr++;
         if (itr == buffers.end()) {
             itr = buffers.begin();
@@ -93,8 +93,8 @@ static void bench_unsigned_leb128_decodeNoThrow(benchmark::State& state) {
 
     auto itr = buffers.begin();
     while (state.KeepRunning()) {
-        benchmark::DoNotOptimize(cb::mcbp::decode_unsigned_leb128<uint32_t>(
-                {*itr}, cb::mcbp::Leb128NoThrow{}));
+        benchmark::DoNotOptimize(
+                cb::mcbp::unsigned_leb128<uint32_t>::decodeNoThrow({*itr}));
         itr++;
         if (itr == buffers.end()) {
             itr = buffers.begin();

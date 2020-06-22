@@ -1207,7 +1207,7 @@ void GetSetTest::doTestGetRandomKey(bool collections) {
     const auto stored = conn.getRandomKey(Vbid(0));
 
     try {
-        CollectionID prefix(cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+        CollectionID prefix(cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
                                     {reinterpret_cast<const uint8_t*>(
                                              stored.info.id.data()),
                                      stored.info.id.size()})

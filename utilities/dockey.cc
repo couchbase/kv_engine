@@ -39,7 +39,7 @@ std::string ScopeID::to_string() const {
 
 std::string DocKey::to_string() const {
     // Get the sid of the key and add it to the string
-    auto [cid, key] = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    auto [cid, key] = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
 
     std::string_view remainingKey{reinterpret_cast<const char*>(key.data()),
@@ -47,11 +47,12 @@ std::string DocKey::to_string() const {
     if (getCollectionID().isSystem()) {
         // Get the hex value of the type of system event
         auto [systemEventID, keyWithoutEvent] =
-                cb::mcbp::decode_unsigned_leb128<uint32_t>(
+                cb::mcbp::unsigned_leb128<uint32_t>::decode(
                         {key.data(), key.size()});
         // Get the cid or sid of the system event is for
-        auto [cidOrSid, keySuffix] = cb::mcbp::decode_unsigned_leb128<uint32_t>(
-                {keyWithoutEvent.data(), keyWithoutEvent.size()});
+        auto [cidOrSid, keySuffix] =
+                cb::mcbp::unsigned_leb128<uint32_t>::decode(
+                        {keyWithoutEvent.data(), keyWithoutEvent.size()});
         // Get the string view to the remaining string part of the key
         remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
                         keySuffix.size()};
@@ -76,14 +77,14 @@ CollectionID DocKey::getCollectionID() const {
     // Note that only pending SyncWrite get the additional prefix, non-durable
     // writes and committed SyncWrites don't get any.
     if (encoding == DocKeyEncodesCollectionId::Yes) {
-        auto cid = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer)
+        auto cid = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer)
                            .first;
         if (cid != CollectionID::DurabilityPrepare) {
             return cid;
         }
         auto noPreparePrefix =
                 cb::mcbp::skip_unsigned_leb128<CollectionIDType>(buffer);
-        return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+        return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
                        noPreparePrefix)
                 .first;
     }
@@ -92,7 +93,7 @@ CollectionID DocKey::getCollectionID() const {
 
 std::pair<CollectionID, cb::const_byte_buffer> DocKey::getIdAndKey() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
-        return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer);
+        return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer);
     }
     return {CollectionID::Default, {data(), size()}};
 }

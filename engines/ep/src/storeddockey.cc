@@ -60,13 +60,13 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(const DocKey& key, CollectionID cid) {
 
 template <template <class> class Allocator>
 CollectionID StoredDocKeyT<Allocator>::getCollectionID() const {
-    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>({data(), size()})
+    return cb::mcbp::unsigned_leb128<CollectionIDType>::decode({data(), size()})
             .first;
 }
 
 template <template <class> class Allocator>
 DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
-    auto decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
     return {decoded.second.data(),
             decoded.second.size(),
@@ -94,13 +94,13 @@ template class StoredDocKeyT<std::allocator>;
 template class StoredDocKeyT<MemoryTrackingAllocator>;
 
 CollectionID SerialisedDocKey::getCollectionID() const {
-    return cb::mcbp::decode_unsigned_leb128<CollectionIDType>({bytes, length})
+    return cb::mcbp::unsigned_leb128<CollectionIDType>::decode({bytes, length})
             .first;
 }
 
 bool SerialisedDocKey::operator==(const DocKey& rhs) const {
     auto rhsIdAndData = rhs.getIdAndKey();
-    auto lhsIdAndData = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+    auto lhsIdAndData = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
     return lhsIdAndData.first == rhsIdAndData.first &&
            lhsIdAndData.second.size() == rhsIdAndData.second.size() &&
