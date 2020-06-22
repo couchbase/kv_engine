@@ -75,7 +75,7 @@ bool DcpProducer::BufferLog::insert(size_t bytes) {
 
 void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
     if (bytes > bytesOutstanding) {
-        EP_LOG_INFO(
+        EP_LOG_WARN(
                 "{} Attempting to release {} bytes which is greater than "
                 "bytesOutstanding:{}",
                 producer.logHeader(),
