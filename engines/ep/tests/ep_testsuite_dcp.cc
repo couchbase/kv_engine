@@ -18,6 +18,11 @@
 /*
  * Testsuite for 'dcp' functionality in ep-engine.
  */
+
+// We need to include the tracer _before_ the header which defines
+// the check macros to avoid conflicts with folly's headers
+#include <memcached/tracer.h>
+
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "mock/mock_dcp.h"

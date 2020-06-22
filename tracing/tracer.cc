@@ -33,48 +33,44 @@ namespace tracing {
 
 SpanId Tracer::begin(Code tracecode,
                      std::chrono::steady_clock::time_point startTime) {
-    vecSpans.emplace_back(tracecode, startTime);
-    return vecSpans.size() - 1;
+    return vecSpans.withLock([tracecode, startTime](auto& spans) {
+        spans.emplace_back(tracecode, startTime);
+        return spans.size() - 1;
+    });
 }
 
 bool Tracer::end(SpanId spanId, std::chrono::steady_clock::time_point endTime) {
-    if (spanId >= vecSpans.size()) {
-        return false;
-    }
-    auto& span = vecSpans[spanId];
-    span.duration =
-            std::chrono::duration_cast<Span::Duration>(endTime - span.start);
-    return true;
-}
-
-bool Tracer::end(Code tracecode,
-                 std::chrono::steady_clock::time_point endTime) {
-    // Locate the ID for this tracecode (when we begin the Span).
-    SpanId spanId = 0;
-    for (const auto& span : vecSpans) {
-        if (span.code == tracecode) {
-            break;
+    return vecSpans.withLock([spanId, endTime](auto& spans) {
+        if (spanId >= spans.size()) {
+            return false;
         }
-        spanId++;
-    }
-    return end(spanId, endTime);
+
+        auto& span = spans.at(spanId);
+        span.duration = std::chrono::duration_cast<Span::Duration>(endTime -
+                                                                   span.start);
+        return true;
+    });
 }
 
-const std::vector<Span>& Tracer::getDurations() const {
-    return vecSpans;
+std::vector<Span> Tracer::extractDurations() {
+    std::vector<Span> ret;
+    vecSpans.swap(ret);
+    return ret;
 }
 
 Span::Duration Tracer::getTotalMicros() const {
-    if (vecSpans.empty()) {
-        return std::chrono::microseconds(0);
-    }
-    const auto& top = vecSpans[0];
-    // If the Span has not yet been closed; return the duration up to now.
-    if (top.duration == Span::Duration::max()) {
-        return std::chrono::duration_cast<Span::Duration>(
-                std::chrono::steady_clock::now() - top.start);
-    }
-    return top.duration;
+    return vecSpans.withLock([](auto& spans) -> Span::Duration {
+        if (spans.empty()) {
+            return {};
+        }
+        const auto& top = spans.at(0);
+        // If the Span has not yet been closed; return the duration up to now.
+        if (top.duration == Span::Duration::max()) {
+            return std::chrono::duration_cast<Span::Duration>(
+                    std::chrono::steady_clock::now() - top.start);
+        }
+        return top.duration;
+    });
 }
 
 /**
@@ -99,7 +95,28 @@ std::chrono::microseconds Tracer::decodeMicros(uint16_t encoded) {
 }
 
 void Tracer::clear() {
-    vecSpans.clear();
+    vecSpans.lock()->clear();
+}
+
+std::string Tracer::to_string() const {
+    return vecSpans.withLock([](auto& spans) {
+        std::ostringstream os;
+        auto size = spans.size();
+        for (const auto& span : spans) {
+            os << ::to_string(span.code) << "="
+               << span.start.time_since_epoch().count() << ":";
+            if (span.duration == std::chrono::microseconds::max()) {
+                os << "--";
+            } else {
+                os << span.duration.count();
+            }
+            size--;
+            if (size > 0) {
+                os << " ";
+            }
+        }
+        return os.str();
+    });
 }
 
 } // end namespace tracing
@@ -107,28 +124,7 @@ void Tracer::clear() {
 
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer) {
-    return os << to_string(tracer);
-}
-
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
-                                           bool raw) {
-    const auto& vecSpans = tracer.getDurations();
-    std::ostringstream os;
-    auto size = vecSpans.size();
-    for (const auto& span : vecSpans) {
-        os << to_string(span.code) << "="
-           << span.start.time_since_epoch().count() << ":";
-        if (span.duration == std::chrono::microseconds::max()) {
-            os << "--";
-        } else {
-            os << span.duration.count();
-        }
-        size--;
-        if (size > 0) {
-            os << (raw ? " " : "\n");
-        }
-    }
-    return os.str();
+    return os << tracer.to_string();
 }
 
 MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {

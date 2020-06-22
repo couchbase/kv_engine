@@ -479,14 +479,13 @@ void Cookie::maybeLogSlowCommand(
                         "connection_id",
                         c.getId());
 
-        const std::string traceData = to_string(tracer);
         LOG_WARNING(
                 R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}","bucket":"{}","packet":{}}})",
                 c.getId(),
                 c.getConnectionId().data(),
                 ntohl(getHeader().getOpaque()),
                 cb::time2text(timings),
-                traceData,
+                tracer.to_string(),
                 command,
                 c.getPeername(),
                 c.getBucket().name,
@@ -543,5 +542,5 @@ CookieTraceContext Cookie::extractTraceContext() {
                               header.getOpaque(),
                               header.getKey(),
                               std::move(openTracingContext),
-                              std::move(tracer)};
+                              tracer.extractDurations()};
 }

@@ -1,6 +1,6 @@
 add_library(mcd_tracing STATIC tracer.cc)
 set_property(TARGET mcd_tracing PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(mcd_tracing engine_utilities platform)
+target_link_libraries(mcd_tracing engine_utilities platform ${FOLLY_LIBRARIES})
 add_sanitizers(mcd_tracing)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)

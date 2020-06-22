@@ -16,6 +16,21 @@
  */
 #pragma once
 
+// Unfortunately folly/Synchronized includes glog/logging.h and reference
+// a few symbols in there, and on windows that'll make us want to do a
+// dllimport for some reason (but we've only built a static folly library
+// and don't use google logging).
+#ifndef GOOGLE_GLOG_DLL_DECL
+#define GOOGLE_GLOG_DLL_DECL
+#define UNDEF_GOOGLE_GLOG_DLL_DECL
+#endif
+
+#include <folly/Synchronized.h>
+
+#ifdef UNDEF_GOOGLE_GLOG_DLL_DECL
+#undef GOOGLE_GLOG_DLL_DECL
+#endif
+
 #include <memcached/visibility.h>
 #include <chrono>
 #include <string>
@@ -79,17 +94,13 @@ public:
                  std::chrono::steady_clock::time_point startTime =
                          std::chrono::steady_clock::now());
 
+    /// End a Span, stopping at the specified time point (defaults to now).
     bool end(SpanId spanId,
              std::chrono::steady_clock::time_point endTime =
                      std::chrono::steady_clock::now());
 
-    /// End a Span, stopping at the specified time point (defaults to now).
-    bool end(Code tracecode,
-             std::chrono::steady_clock::time_point endTime =
-                     std::chrono::steady_clock::now());
-
-    // get the tracepoints as ordered durations
-    const std::vector<Span>& getDurations() const;
+    // Extract the trace vector (and clears the internal trace vector)
+    std::vector<Span> extractDurations();
 
     Span::Duration getTotalMicros() const;
 
@@ -104,8 +115,11 @@ public:
     // clear the collected trace data;
     void clear();
 
+    /// Get a string representation of all of the spans
+    std::string to_string() const;
+
 protected:
-    std::vector<Span> vecSpans;
+    folly::Synchronized<std::vector<Span>, std::mutex> vecSpans;
 };
 
 class MEMCACHED_PUBLIC_CLASS Traceable {
@@ -132,8 +146,6 @@ protected:
 } // namespace tracing
 } // namespace cb
 
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Tracer& tracer,
-                                           bool raw = true);
 MEMCACHED_PUBLIC_API std::ostream& operator<<(
         std::ostream& os, const cb::tracing::Tracer& tracer);
 MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::Code tracecode);

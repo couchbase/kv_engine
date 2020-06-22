@@ -45,10 +45,10 @@ TEST_F(TracingTest, Basic) {
     std::this_thread::sleep_for(std::chrono::microseconds(10000));
 
     // invalid end check
-    EXPECT_FALSE(tracer.end(cb::tracing::Code::Get));
+    EXPECT_FALSE(tracer.end(cb::tracing::SpanId{1}));
 
     // valid end
-    EXPECT_TRUE(tracer.end(cb::tracing::Code::Request));
+    EXPECT_TRUE(tracer.end(cb::tracing::SpanId{0}));
 
     // valid micros
     EXPECT_GE(tracer.getTotalMicros().count(), 10000);
