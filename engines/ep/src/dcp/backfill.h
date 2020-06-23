@@ -105,4 +105,24 @@ protected:
     const Vbid vbid{0};
 };
 
+/**
+ * Interface for classes which support tracking the total number of
+ * Backfills across an entire Bucket.
+ */
+struct BackfillTrackingIface {
+    virtual ~BackfillTrackingIface() = default;
+
+    /**
+     * Checks if one more backfill can be added to the active set. If so
+     * then returns true, and notes that one more backfill is active.
+     * If no more backfills can be added to the active set, returns false.
+     */
+    virtual bool canAddBackfillToActiveQ() = 0;
+
+    /**
+     * Decrement by one the number of active / snoozing backfills.
+     */
+    virtual void decrNumActiveSnoozingBackfills() = 0;
+};
+
 using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfillIface>;

@@ -115,9 +115,11 @@
 #include <list>
 #include <mutex>
 
+class Configuration;
+struct BackfillTrackingIface;
 class DcpProducer;
-class EventuallyPersistentEngine;
 class GlobalTask;
+class KVBucket;
 class VBucket;
 using ExTask = std::shared_ptr<GlobalTask>;
 
@@ -130,7 +132,35 @@ struct BackfillScanBuffer {
 
 class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
 public:
-    BackfillManager(EventuallyPersistentEngine& e);
+    /**
+     * Construct a BackfillManager to manage backfills for a DCP Producer.
+     * @param kvBucket Bucket DCP Producer belongs to (used to check memory
+     *        usage and if Backfills should be paused).
+     * @param backfillTracker Object which tracks how many backfills are
+     *        in progress, and tells BackfillManager when it should
+     *        set new backfills as pending.
+     * @param scanByteLimit Maximum number of bytes a single scan() call can
+     *        produce from disk before yielding.
+     * @param scanItemLimit Maximum number of items a single scan() call can
+     *        produce from disk before yielding.
+     * @param backfillByteLimit Maximum number of bytes allowed in backfill
+     *        buffer before pausing Backfills (until bytes are drained via
+     *        bytesSent()).
+     */
+    BackfillManager(KVBucket& kvBucket,
+                    BackfillTrackingIface& backfillTracker,
+                    size_t scanByteLimit,
+                    size_t scanItemLimit,
+                    size_t backfillByteLimit);
+
+    /**
+     * Construct a BackfillManager, using values for scanByteLimit,
+     * scanItemLimit and backfillByteLimit from the specified Configuration
+     * object.
+     */
+    BackfillManager(KVBucket& kvBucket,
+                    BackfillTrackingIface& dcpConnmap,
+                    const Configuration& config);
 
     virtual ~BackfillManager();
 
@@ -284,7 +314,12 @@ private:
     //! When the number of (activeBackfills + snoozingBackfills) crosses a
     //!   threshold we use pendingBackfills
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
-    EventuallyPersistentEngine& engine;
+    // KVBucket this BackfillManager is associated with.
+    KVBucket& kvBucket;
+    // The object tracking how many backfills are in progress. This tells
+    // BackfillManager when to place new Backfills on the pending list (if
+    // too many are already in progress).
+    BackfillTrackingIface& backfillTracker;
     ExTask managerTask;
     ScheduleOrder scheduleOrder{ScheduleOrder::RoundRobin};
 };
