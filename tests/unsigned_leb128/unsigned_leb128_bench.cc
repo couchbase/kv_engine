@@ -118,4 +118,4 @@ BENCHMARK(bench_unsigned_leb128_decode)->Apply(generateBenchmarkArguments);
 BENCHMARK(bench_unsigned_leb128_decodeNoThrow)
         ->Apply(generateBenchmarkArguments);
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()
