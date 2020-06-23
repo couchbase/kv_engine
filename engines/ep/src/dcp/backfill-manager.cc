@@ -22,7 +22,6 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
-#include "ep_engine.h"
 #include "ep_time.h"
 #include "executorpool.h"
 #include "kv_bucket.h"
@@ -98,19 +97,33 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() {
     return std::chrono::milliseconds(300);
 }
 
-BackfillManager::BackfillManager(EventuallyPersistentEngine& e)
-    : engine(e), managerTask(nullptr) {
-    Configuration& config = e.getConfiguration();
-
+BackfillManager::BackfillManager(KVBucket& kvBucket,
+                                 BackfillTrackingIface& backfillTracker,
+                                 size_t scanByteLimit,
+                                 size_t scanItemLimit,
+                                 size_t backfillByteLimit)
+    : kvBucket(kvBucket),
+      backfillTracker(backfillTracker),
+      managerTask(nullptr) {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
-    scanBuffer.maxBytes = config.getDcpScanByteLimit();
-    scanBuffer.maxItems = config.getDcpScanItemLimit();
+    scanBuffer.maxBytes = scanByteLimit;
+    scanBuffer.maxItems = scanItemLimit;
 
     buffer.bytesRead = 0;
-    buffer.maxBytes = config.getDcpBackfillByteLimit();
+    buffer.maxBytes = backfillByteLimit;
     buffer.nextReadSize = 0;
     buffer.full = false;
+}
+
+BackfillManager::BackfillManager(KVBucket& kvBucket,
+                                 BackfillTrackingIface& backfillTracker,
+                                 const Configuration& config)
+    : BackfillManager(kvBucket,
+                      backfillTracker,
+                      config.getDcpScanByteLimit(),
+                      config.getDcpScanItemLimit(),
+                      config.getDcpBackfillByteLimit()) {
 }
 
 void BackfillManager::addStats(DcpProducer& conn,
@@ -135,11 +148,19 @@ BackfillManager::~BackfillManager() {
         managerTask.reset();
     }
 
+    while (!initializingBackfills.empty()) {
+        UniqueDCPBackfillPtr backfill =
+                std::move(initializingBackfills.front());
+        initializingBackfills.pop_front();
+        backfill->cancel();
+        backfillTracker.decrNumActiveSnoozingBackfills();
+    }
+
     while (!activeBackfills.empty()) {
         UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
         activeBackfills.pop_front();
         backfill->cancel();
-        engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumActiveSnoozingBackfills();
     }
 
     while (!snoozingBackfills.empty()) {
@@ -147,7 +168,7 @@ BackfillManager::~BackfillManager() {
                 std::move((snoozingBackfills.front()).second);
         snoozingBackfills.pop_front();
         backfill->cancel();
-        engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumActiveSnoozingBackfills();
     }
 
     while (!pendingBackfills.empty()) {
@@ -165,7 +186,7 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
         UniqueDCPBackfillPtr backfill) {
     LockHolder lh(lock);
     ScheduleResult result;
-    if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
+    if (backfillTracker.canAddBackfillToActiveQ()) {
         initializingBackfills.push_back(std::move(backfill));
         result = ScheduleResult::Active;
     } else {
@@ -176,7 +197,8 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
     if (managerTask && !managerTask->isdead()) {
         ExecutorPool::get()->wake(managerTask->getId());
     } else {
-        managerTask.reset(new BackfillManagerTask(engine, shared_from_this()));
+        managerTask.reset(new BackfillManagerTask(kvBucket.getEPEngine(),
+                                                  shared_from_this()));
         ExecutorPool::get()->schedule(managerTask);
     }
     return result;
@@ -274,7 +296,7 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_finished;
     }
 
-    if (engine.getKVBucket()->isMemoryUsageTooHigh()) {
+    if (kvBucket.isMemoryUsageTooHigh()) {
         EP_LOG_INFO(
                 "DCP backfilling task temporarily suspended "
                 "because the current memory usage is too high");
@@ -295,7 +317,7 @@ backfill_status_t BackfillManager::backfill() {
                 (*a_itr)->cancel();
                 toDelete.push_back(std::move(*a_itr));
                 a_itr = activeBackfills.erase(a_itr);
-                engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
+                backfillTracker.decrNumActiveSnoozingBackfills();
             } else {
                 ++a_itr;
             }
@@ -354,7 +376,7 @@ backfill_status_t BackfillManager::backfill() {
             break;
         case backfill_finished:
             lh.unlock();
-            engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
+            backfillTracker.decrNumActiveSnoozingBackfills();
             break;
         case backfill_snooze: {
             snoozingBackfills.emplace_back(ep_current_time(),
@@ -368,7 +390,7 @@ backfill_status_t BackfillManager::backfill() {
 
 void BackfillManager::movePendingToInitializing() {
     while (!pendingBackfills.empty() &&
-           engine.getDcpConnMap().canAddBackfillToActiveQ()) {
+           backfillTracker.canAddBackfillToActiveQ()) {
         initializingBackfills.splice(initializingBackfills.end(),
                                      pendingBackfills,
                                      pendingBackfills.begin());

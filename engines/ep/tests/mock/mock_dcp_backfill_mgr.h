@@ -18,6 +18,8 @@
 #pragma once
 
 #include "dcp/backfill-manager.h"
+#include "dcp/dcpconnmap.h"
+#include "ep_engine.h"
 
 /*
  * Mock of the BackfillManager class.  Wraps the real BackfillManager, but
@@ -26,7 +28,9 @@
 class MockDcpBackfillManager : public BackfillManager {
 public:
     MockDcpBackfillManager(EventuallyPersistentEngine& theEngine)
-        : BackfillManager(theEngine) {
+        : BackfillManager(*theEngine.getKVBucket(),
+                          theEngine.getDcpConnMap(),
+                          theEngine.getConfiguration()) {
     }
 
     void setBackfillBufferSize(size_t newSize) {

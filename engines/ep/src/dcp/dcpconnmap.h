@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "backfill.h"
 #include "conn_store_fwd.h"
 #include "connmap.h"
 #include "ep_types.h"
@@ -31,8 +32,7 @@ class CheckpointCursor;
 class DcpProducer;
 class DcpConsumer;
 
-class DcpConnMap : public ConnMap {
-
+class DcpConnMap : public ConnMap, public BackfillTrackingIface {
 public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
@@ -121,9 +121,9 @@ public:
 
     void manageConnections() override;
 
-    bool canAddBackfillToActiveQ();
+    bool canAddBackfillToActiveQ() override;
 
-    void decrNumActiveSnoozingBackfills();
+    void decrNumActiveSnoozingBackfills() override;
 
     void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
 
