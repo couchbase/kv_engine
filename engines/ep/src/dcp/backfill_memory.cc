@@ -253,8 +253,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // time field, this must be copied to the expiry time so that DCP
             // can transmit the original time of deletion
             if (item->isDeleted()) {
-                item->setExpTime(
-                        ep_abs_time((*rangeItr).getCompletedOrDeletedTime()));
+                item->setExpTime((*rangeItr).getCompletedOrDeletedTime());
             }
         } catch (const std::bad_alloc&) {
             stream->log(spdlog::level::level_enum::warn,

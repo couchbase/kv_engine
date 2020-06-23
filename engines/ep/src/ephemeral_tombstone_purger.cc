@@ -29,7 +29,7 @@
 #include <climits>
 
 EphemeralVBucket::HTTombstonePurger::HTTombstonePurger(rel_time_t purgeAge)
-    : now(ep_current_time()), purgeAge(purgeAge), numPurgedItems(0) {
+    : now(ep_real_time()), purgeAge(purgeAge), numPurgedItems(0) {
 }
 
 void EphemeralVBucket::HTTombstonePurger::setDeadline(

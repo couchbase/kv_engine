@@ -2216,17 +2216,42 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
 }
 
 /*
- * Test that the consumer will use the delete time given
+ * Test that the consumer will use the delete time given, and that
+ * a delete time far in the future is handled correctly.
  */
-TEST_P(STParameterizedBucketTest, MB_27457) {
+TEST_P(STParameterizedBucketTest, MB_27457_ReplicateDeleteTimeFuture) {
+    // Choose a delete time in the future (2032-01-24T23:52:45).
+    time_t futureTime = 1958601165;
+    struct timeval now;
+    ASSERT_EQ(0, cb_get_timeofday(&now));
+    ASSERT_LT(now.tv_sec, futureTime);
+    test_replicateDeleteTime(futureTime);
+}
+
+/*
+ * Test that the consumer will use the delete time given, and that
+ * a delete time before this node started is handled correctly (for example
+ * a replica node started after the active node's item was deleted.
+ */
+TEST_P(STParameterizedBucketTest, MB_39993_ReplicateDeleteTimePast) {
+    // Choose a delete time in the past, but less than the metadata purge
+    // interval (so tombstone isn't immediately purged).
+    struct timeval now;
+    ASSERT_EQ(0, cb_get_timeofday(&now));
+    // 6 hours in the past.
+    time_t pastTime = now.tv_sec - (6 * 60 * 60);
+    test_replicateDeleteTime(pastTime);
+}
+
+void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     // Create a MockDcpConsumer
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
 
-    // Bump forwards so ep_current_time cannot be 0
-    TimeTraveller biff(64000);
+    // Bump forwards by 1 hour so ep_current_time cannot be 0
+    TimeTraveller biff(3600);
 
     // Add the stream
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -2252,7 +2277,6 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
                          /*revSeqno*/ 0,
                          /*deleteTime*/ 0);
 
-    const uint32_t deleteTime = 1958601165;
     consumer->deletionV2(/*opaque*/ 1,
                          {"key2", DocKeyEncodesCollectionId::No},
                          /*value*/ {},
@@ -2274,7 +2298,7 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    uint64_t tombstoneTime;
+    time_t tombstoneTime;
     if (persistent()) {
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   store->getMetaData(makeStoredDocKey("key1"),
@@ -2291,7 +2315,7 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
                                      metadata,
                                      deleted,
                                      datatype));
-        tombstoneTime = uint64_t(metadata.exptime);
+        tombstoneTime = metadata.exptime;
     } else {
         //  Ephemeral tombstone time is not in the expiry field, we can only
         // check the value by directly peeking at the StoredValue
@@ -2302,8 +2326,7 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
         auto* sv = ro.storedValue;
         ASSERT_NE(nullptr, sv);
         deleted = sv->isDeleted();
-        tombstoneTime = uint64_t(
-                sv->toOrderedStoredValue()->getCompletedOrDeletedTime());
+        tombstoneTime = sv->toOrderedStoredValue()->getCompletedOrDeletedTime();
     }
 
     EXPECT_EQ(1, deleted);
@@ -2331,7 +2354,7 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
                                      deleted,
                                      datatype));
 
-        tombstoneTime = uint64_t(metadata.exptime);
+        tombstoneTime = metadata.exptime;
     } else {
         auto vb = store->getVBucket(vbid);
         auto ro = vb->ht.findForRead(makeStoredDocKey("key2"),
@@ -2340,8 +2363,7 @@ TEST_P(STParameterizedBucketTest, MB_27457) {
         auto* sv = ro.storedValue;
         ASSERT_NE(nullptr, sv);
         deleted = sv->isDeleted();
-        tombstoneTime = ep_abs_time(
-                (sv->toOrderedStoredValue()->getCompletedOrDeletedTime()));
+        tombstoneTime = sv->toOrderedStoredValue()->getCompletedOrDeletedTime();
     }
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
