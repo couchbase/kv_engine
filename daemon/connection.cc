@@ -503,7 +503,7 @@ bool Connection::processAllReadyCookies() {
 
         if (cookie->execute()) {
             // The command executed successfully
-            if (iter == cookies.begin()) {
+            if (iter == cookies.begin() || cookie->getRefcount()) {
                 cookie->reset();
                 ++iter;
             } else {
@@ -544,37 +544,25 @@ void Connection::executeCommandPipeline() {
         bool stop = (getSendQueueSize() >= maxSendQueueSize);
         while (!stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0) {
-            std::unique_ptr<Cookie> cookie;
-            if (cookies.back()->empty()) {
-                // we want to reuse the cookie
-                cookie = std::move(cookies.back());
-                cookies.pop_back();
-            } else {
-                cookie = std::make_unique<Cookie>(*this);
+            if (!cookies.back()->empty()) {
+                // Create a new entry if we can't reuse the last entry
+                cookies.emplace_back(std::make_unique<Cookie>(*this));
             }
 
-            cookie->initialize(getPacket(), isTracingEnabled());
-            auto drainSize = cookie->getPacket().size();
+            auto& cookie = *cookies.back();
+            cookie.initialize(getPacket(), isTracingEnabled());
+            auto drainSize = cookie.getPacket().size();
 
-            const auto status = cookie->validate();
-            if (status != cb::mcbp::Status::Success) {
-                cookie->sendResponse(status);
-                if (cookies.empty()) {
-                    // Add back the empty slot
-                    cookie->reset();
-                    cookies.push_back(std::move(cookie));
-                }
-            } else {
+            const auto status = cookie.validate();
+            if (status == cb::mcbp::Status::Success) {
                 // We may only start execute the packet if:
                 //  * We don't have any ongoing commands
                 //  * We have an ongoing command and this command allows
                 //    for reorder
-                if ((!active || cookie->mayReorder()) && cookie->execute()) {
-                    if (cookies.empty()) {
-                        // Add back the empty slot
-                        cookie->reset();
-                        cookies.push_back(std::move(cookie));
-                    }
+                if ((!active || cookie.mayReorder()) && cookie.execute()) {
+                    // Command executed successfully, reset the cookie to allow
+                    // it to be reused
+                    cookie.reset();
                     // Check that we're not reserving too much memory for
                     // this client...
                     stop = (getSendQueueSize() >= maxSendQueueSize);
@@ -582,15 +570,18 @@ void Connection::executeCommandPipeline() {
                     active = true;
                     // We need to block so we need to preserve the request
                     // as we'll drain the data from the buffer)
-                    cookie->preserveRequest();
-                    cookies.push_back(std::move(cookie));
-                    if (!cookies.back()->mayReorder()) {
+                    cookie.preserveRequest();
+                    if (!cookie.mayReorder()) {
                         // Don't add commands as we need the last one to
                         // complete
                         stop = true;
                     }
                 }
                 --numEvents;
+            } else {
+                // Packet validation failed
+                cookie.sendResponse(status);
+                cookie.reset();
             }
 
             if (evbuffer_drain(input, drainSize) == -1) {

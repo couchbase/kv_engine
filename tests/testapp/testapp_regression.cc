@@ -421,3 +421,19 @@ TEST_P(RegressionTest, MB39441) {
     EXPECT_EQ(ssize_t{-1}, nb);
     cb::net::closesocket(socket);
 }
+
+/// MB-40076 was caused by the fact that a command on a DCP connection (cookie
+/// was reserved) threw an exception, but an earlier refactor in the command
+/// execution path had _removed_ the cookie from the cookies array so the
+/// cookie was no longer part of the cookies array when we checked if it was
+/// safe to kill the object during shutdown
+TEST_P(RegressionTest, MB40076) {
+    auto& conn = getConnection();
+
+    conn.sendCommand(
+            BinprotEWBCommand{EWBEngineMode::ThrowException, {}, {}, {}});
+    auto s = conn.releaseSocket();
+    char byte;
+    EXPECT_EQ(0, cb::net::recv(s, &byte, 1, 0));
+    cb::net::closesocket(s);
+}

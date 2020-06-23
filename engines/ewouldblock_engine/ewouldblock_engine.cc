@@ -572,6 +572,22 @@ public:
 
                 case EWBEngineMode::CheckLogLevels:
                     return checkLogLevels(cookie, value, response);
+
+                case EWBEngineMode::ThrowException:
+                    // Reserve the cookie and schedule a release of the
+                    // cookie and throw an exception for the cookie
+                    {
+                        auto* cookie_api = gsa()->cookie;
+                        cookie_api->reserve(cookie);
+                        std::thread release{[cookie_api, cookie]() {
+                            // This will block on the thread mutex
+                            cookie_api->release(cookie);
+                        }};
+                        release.detach();
+                    }
+                    throw std::runtime_error(
+                            "EWB::unknown_command: you told me to throw an "
+                            "exception");
             }
 
             if (new_mode == nullptr) {

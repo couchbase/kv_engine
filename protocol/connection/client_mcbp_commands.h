@@ -1096,3 +1096,18 @@ protected:
     const vbucket_state_t state;
     const nlohmann::json payload;
 };
+
+class BinprotEWBCommand : public BinprotGenericCommand {
+public:
+    BinprotEWBCommand(EWBEngineMode mode,
+                      ENGINE_ERROR_CODE err_code,
+                      uint32_t value,
+                      const std::string& key);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    EWBEngineMode mode;
+    ENGINE_ERROR_CODE err_code;
+    uint32_t value;
+};

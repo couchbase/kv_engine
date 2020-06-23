@@ -92,4 +92,7 @@ enum class EWBEngineMode : uint32_t {
     // This allows us to verify that all of the registered logger instances are
     // set to the correct level.
     CheckLogLevels = 11,
+
+    // Throw an exception
+    ThrowException = 12,
 };
