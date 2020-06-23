@@ -18,6 +18,7 @@
 #include "dcp/backfill_by_id_disk.h"
 #include "dcp/active_stream_impl.h"
 #include "kv_bucket.h"
+#include "kvstore.h"
 #include "vbucket.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>

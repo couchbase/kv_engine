@@ -33,6 +33,7 @@
 #include "ep_bucket.h"
 #include "flusher.h"
 #include "item_eviction.h"
+#include "kvstore.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"

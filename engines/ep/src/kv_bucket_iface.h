@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "kvstore.h"
 #include "permitted_vb_states.h"
 #include "task_type.h"
 #include "vbucket.h"
@@ -33,12 +32,14 @@ class Flusher;
 class HashTable;
 class ItemMetaData;
 class KVBucket;
+struct KVStoreRWRO;
 class MutationLog;
 class PauseResumeVBVisitor;
 class PersistenceCallback;
 class VBucketMap;
 class VBucketVisitor;
 class PausableVBucketVisitor;
+class StorageProperties;
 class Warmup;
 namespace Collections {
 class Manager;

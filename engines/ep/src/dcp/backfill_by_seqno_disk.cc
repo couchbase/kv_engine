@@ -19,6 +19,7 @@
 #include "dcp/active_stream_impl.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "kvstore.h"
 #include "vbucket.h"
 
 // Here we must force call the baseclass (DCPBackfill(s) )because of the use of

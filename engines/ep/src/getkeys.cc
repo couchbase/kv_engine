@@ -19,6 +19,7 @@
 
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "kvstore.h"
 
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>

@@ -565,6 +565,11 @@ void KVBucket::getValue(Item& it) {
     it.setDataType(gv.item->getDataType());
 }
 
+const StorageProperties KVBucket::getStorageProperties() const {
+    KVStore* store = vbMap.shards[0]->getROUnderlying();
+    return store->getStorageProperties();
+}
+
 void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
     it.decompressValue(); // A no-op for already decompressed items
     auto info =
@@ -795,6 +800,20 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     }
 
     return result;
+}
+
+GetValue KVBucket::get(const DocKey& key,
+                       Vbid vbucket,
+                       const void* cookie,
+                       get_options_t options) {
+    return getInternal(key, vbucket, cookie, ForGetReplicaOp::No, options);
+}
+
+GetValue KVBucket::getReplica(const DocKey& key,
+                              Vbid vbucket,
+                              const void* cookie,
+                              get_options_t options) {
+    return getInternal(key, vbucket, cookie, ForGetReplicaOp::Yes, options);
 }
 
 void KVBucket::releaseRegisteredSyncWrites() {
@@ -2640,6 +2659,16 @@ void KVBucket::setMaxTtl(size_t max) {
 
 uint16_t KVBucket::getNumOfVBucketsInState(vbucket_state_t state) const {
     return vbMap.getVBStateCount(state);
+}
+
+size_t KVBucket::getMemFootPrint() {
+    size_t mem = 0;
+    for (auto& i : vbMap.shards) {
+        KVShard* shard = i.get();
+        mem += shard->getRWUnderlying()->getMemFootPrint();
+        mem += shard->getROUnderlying()->getMemFootPrint();
+    }
+    return mem;
 }
 
 SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {

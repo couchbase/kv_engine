@@ -29,6 +29,7 @@
 #include "executorpool.h"
 #include "failover-table.h"
 #include "item.h"
+#include "kvstore.h"
 #include "mutation_log.h"
 #include "statwriter.h"
 #include "vb_visitors.h"

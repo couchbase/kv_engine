@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include "collections/kvstore.h"
 #include "kv_bucket.h"
+#include "kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 
 /**

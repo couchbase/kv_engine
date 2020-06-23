@@ -1,7 +1,7 @@
 #include "mock_ephemeral_vb.h"
-
 #include "ephemeral_tombstone_purger.h"
 #include "failover-table.h"
+#include "kvstore.h"
 
 MockEphemeralVBucket::MockEphemeralVBucket(
         Vbid i,

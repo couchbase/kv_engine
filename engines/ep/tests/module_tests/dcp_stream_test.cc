@@ -31,6 +31,7 @@
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
+#include "kvstore.h"
 #include "replicationthrottle.h"
 #include "test_helpers.h"
 #include "tests/test_fileops.h"

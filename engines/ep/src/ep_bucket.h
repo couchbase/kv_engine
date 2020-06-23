@@ -19,6 +19,12 @@
 
 #include "kv_bucket.h"
 
+namespace VB {
+class Commit;
+}
+enum class ValueFilter;
+struct compaction_ctx;
+
 /**
  * Eventually Persistent Bucket
  *
@@ -27,7 +33,6 @@
  * Uses hash partitioning of the keyspace into VBuckets, to support
  * replication, rebalance, failover.
  */
-
 class EPBucket : public KVBucket {
 public:
     EPBucket(EventuallyPersistentEngine& theEngine);

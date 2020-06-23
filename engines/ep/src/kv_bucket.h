@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "callbacks.h"
 #include "ep_types.h"
 #include "kv_bucket_iface.h"
 #include "mutation_log.h"
@@ -123,18 +124,14 @@ public:
     GetValue get(const DocKey& key,
                  Vbid vbucket,
                  const void* cookie,
-                 get_options_t options) override {
-        return getInternal(key, vbucket, cookie, ForGetReplicaOp::No, options);
-    }
+                 get_options_t options) override;
 
     GetValue getRandomKey(CollectionID cid, const void* cookie) override;
 
     GetValue getReplica(const DocKey& key,
                         Vbid vbucket,
                         const void* cookie,
-                        get_options_t options) override {
-        return getInternal(key, vbucket, cookie, ForGetReplicaOp::Yes, options);
-    }
+                        get_options_t options) override;
 
     ENGINE_ERROR_CODE getMetaData(const DocKey& key,
                                   Vbid vbucket,
@@ -253,15 +250,7 @@ public:
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
-    size_t getMemFootPrint() {
-        size_t mem = 0;
-        for (auto& i : vbMap.shards) {
-            KVShard* shard = i.get();
-            mem += shard->getRWUnderlying()->getMemFootPrint();
-            mem += shard->getROUnderlying()->getMemFootPrint();
-        }
-        return mem;
-    }
+    size_t getMemFootPrint();
 
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override {
         // No persistence at the KVBucket class level.
@@ -449,10 +438,7 @@ public:
      */
     void getValue(Item& it);
 
-    const StorageProperties getStorageProperties() const override {
-        KVStore* store  = vbMap.shards[0]->getROUnderlying();
-        return store->getStorageProperties();
-    }
+    const StorageProperties getStorageProperties() const override;
 
     void scheduleVBStatePersist() override;
 

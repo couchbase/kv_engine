@@ -16,6 +16,7 @@
  */
 
 #include "collections/flush.h"
+#include "../kvstore.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "ep_bucket.h"
