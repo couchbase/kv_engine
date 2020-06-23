@@ -2090,6 +2090,11 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues
 TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
+    // MB-37159: Skipping for magma as this has been seen to timeout
+    if (kvstoreConfig->getBackend() == "magma") {
+        return;
+    }
+
     std::atomic<bool> stop{false};
     bool okToDelete{false};
     uint32_t deletes{0};
