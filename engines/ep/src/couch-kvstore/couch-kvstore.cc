@@ -906,10 +906,8 @@ static int time_purge_hook(Db* d,
         auto key = makeDiskDocKey(info->id);
 
         try {
-            ctx->bloomFilterCallback->callback(
-                    reinterpret_cast<Vbid&>(ctx->compactConfig.db_file_id),
-                    key.getDocKey(),
-                    deleted);
+            auto vbid{ctx->compactConfig.db_file_id};
+            ctx->bloomFilterCallback->callback(vbid, key.getDocKey(), deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(
                     "time_purge_hook: exception occurred when invoking the "
@@ -964,7 +962,6 @@ bool CouchKVStore::compactDBInternal(
     std::string           compact_file;
     std::string               new_file;
     Vbid vbid = hook_ctx->compactConfig.db_file_id;
-    hook_ctx->config = &configuration;
 
     TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
 

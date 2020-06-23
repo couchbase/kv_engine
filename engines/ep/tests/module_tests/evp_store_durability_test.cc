@@ -2723,7 +2723,8 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
-    cctx->compactConfig.purge_before_ts = std::numeric_limits<uint64_t>::max();
+    config.purge_before_ts = std::numeric_limits<uint64_t>::max();
+    cctx = std::make_shared<compaction_ctx>(config, 0);
     EXPECT_TRUE(kvstore->compactDB(cctx));
 
     // Now the Abort should be gone

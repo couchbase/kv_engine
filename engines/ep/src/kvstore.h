@@ -28,7 +28,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
-#include <deque>
 #include <list>
 #include <map>
 #include <string>
@@ -79,17 +78,6 @@ enum class SnapshotSource { Historical, Head };
  * Generic information about a KVStore file
  */
 struct FileInfo {
-    FileInfo() = default;
-
-    FileInfo(uint64_t items,
-             uint64_t deletedItems,
-             uint64_t size,
-             uint64_t purgeSeqno)
-        : items(items),
-          deletedItems(deletedItems),
-          size(size),
-          purgeSeqno(purgeSeqno) {
-    }
     /// The number of items stored
     uint64_t items = 0;
 
@@ -126,9 +114,10 @@ struct compaction_ctx {
         : compactConfig(config), max_purged_seq(purgeSeq) {
     }
 
-    CompactionConfig compactConfig;
+    /// The configuration for this compaction.
+    const CompactionConfig compactConfig;
+
     uint64_t max_purged_seq;
-    const KVStoreConfig* config;
     BloomFilterCBPtr bloomFilterCallback;
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;
