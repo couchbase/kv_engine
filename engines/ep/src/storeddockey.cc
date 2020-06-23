@@ -99,14 +99,19 @@ CollectionID SerialisedDocKey::getCollectionID() const {
 }
 
 bool SerialisedDocKey::operator==(const DocKey& rhs) const {
-    auto rhsIdAndData = rhs.getIdAndKey();
-    auto lhsIdAndData = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
-            {data(), size()});
-    return lhsIdAndData.first == rhsIdAndData.first &&
-           lhsIdAndData.second.size() == rhsIdAndData.second.size() &&
-           std::equal(lhsIdAndData.second.begin(),
-                      lhsIdAndData.second.end(),
-                      rhsIdAndData.second.begin());
+    // Does 'rhs' encode a collection-ID
+    if (rhs.getEncoding() == DocKeyEncodesCollectionId::Yes) {
+        // compare size and then the entire key
+        return rhs.size() == size() &&
+               std::equal(rhs.begin(), rhs.end(), data());
+    }
+
+    // 'rhs' does not encode a collection - it is therefore a key in the default
+    // collection. We can check byte 0 of this key to see if this key is also
+    // in the default collection. if so compare sizes (discounting the
+    // default collection prefix) and finally the key data.
+    return data()[0] == CollectionID::Default && rhs.size() == size() - 1 &&
+           std::equal(rhs.begin(), rhs.end(), data() + 1);
 }
 
 SerialisedDocKey::SerialisedDocKey(cb::const_byte_buffer key,
