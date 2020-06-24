@@ -693,23 +693,10 @@ TEST_P(McdTestappTest, test_MB_16333) {
  * It should be rejected with EINVAL.
  */
 TEST_P(McdTestappTest, test_MB_16197) {
-    reconnect_to_server();
-
-    std::vector<uint8_t> buffer(1024);
-    RequestBuilder builder({buffer.data(), buffer.size()});
-    builder.setMagic(Magic::ClientRequest);
-    builder.setOpcode(ClientOpcode::SaslAuth);
-    builder.setKey("PLAIN");
-    // This is a malformed request where we don't contain a username at all
-    builder.setValue({"\0", 1});
-    builder.setOpaque(0xdeadbeef);
-    safe_send(builder.getFrame()->getFrame());
-
-    safe_recv_packet(buffer);
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(buffer.data()),
-                                  ClientOpcode::SaslAuth,
-                                  Status::Einval,
-                                  false);
+    auto& conn = getConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{
+            ClientOpcode::SaslAuth, "PLAIN", std::string{"\0", 1}});
+    ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
 TEST_F(TestappTest, CollectionsSelectBucket) {
