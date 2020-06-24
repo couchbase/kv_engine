@@ -103,7 +103,8 @@ void CollectionsDcpTest::createDcpConsumer() {
 void CollectionsDcpTest::createDcpObjects(
         std::optional<std::string_view> collections,
         bool enableOutOfOrderSnapshots,
-        uint32_t flags) {
+        uint32_t flags,
+        bool enableSyncRep) {
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
@@ -113,6 +114,13 @@ void CollectionsDcpTest::createDcpObjects(
     // Give the producers object access to the consumer and vbid of replica
     producers->consumer = consumer.get();
     producers->replicaVB = replicaVB;
+
+    if (enableSyncRep) {
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  producer->control(1, "enable_sync_writes", "true"));
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  producer->control(1, "consumer_name", "mock_replication"));
+    }
 
     createDcpStream(collections, vbid, cb::engine_errc::success, flags);
 }

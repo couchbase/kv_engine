@@ -48,7 +48,8 @@ public:
 
     void createDcpObjects(std::optional<std::string_view> collections,
                           bool enableOutOfOrderSnapshots = false,
-                          uint32_t flags = 0);
+                          uint32_t flags = 0,
+                          bool enableSyncRep = false);
 
     void TearDown() override;
 

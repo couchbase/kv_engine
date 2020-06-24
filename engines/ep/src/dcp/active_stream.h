@@ -602,10 +602,30 @@ private:
             folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
 
     /**
-     * Check and enqueue a SeqnoAdvanced op if needed
-     * @return true if an SeqnoAdvanced has been queue
+     * Checks if a DcpSeqnoAdvanced can be sent on this stream
+     * @return true if enabled; false otherwise
      */
-    bool queueSeqnoAdvancedIfNeeded();
+    bool isSeqnoAdvancedEnabled() const;
+
+    /**
+     * Method to check if there's a seqno gap between the snapEnd and the seqno
+     * of the last item in the snapshot.
+     * @return true if lastSeqno in the snapshot < the snapEnd.
+     */
+    bool isSeqnoGapAtEndOfSnapshot() const;
+
+    /**
+     * Method to check if a SeqnoAdvanced is needed at the end of backfill
+     * snapshot
+     * @return true if a SeqnoAdvanced is needed
+     */
+    bool isSeqnoAdvancedNeededBackFill() const;
+
+    /**
+     * Method to enqueue a SeqnoAdvanced op with the seqno being the value of
+     * lastSentSnapEndSeqno
+     */
+    void queueSeqnoAdvanced();
 
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */

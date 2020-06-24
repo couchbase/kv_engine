@@ -469,27 +469,10 @@ void ActiveStream::completeBackfill() {
             lastReadSeqno.store(lastBackfilledSeqno);
         }
 
-        /**
-         * In most cases we want to send a SeqnoAdvanced op if we have not sent
-         * the final seqno in the snapshot at the end of backfill. However,
-         * replica vbucket may transition their snapshot from backfill to
-         * streaming from memory without sending another snapshot. Thus, in this
-         * case we do not want to send a SeqnoAdvanced at the end of backfill.
-         * So check that we don't have an in memory range to stream from.
-         */
-        auto vb = engine->getVBucket(vb_);
-        if (vb) {
-            if (isCurrentSnapshotCompleted() ||
-                (vb->getState() == vbucket_state_replica &&
-                 maxScanSeqno > lastBackfilledSeqno &&
-                 maxScanSeqno == lastSentSnapEndSeqno.load())) {
-                queueSeqnoAdvancedIfNeeded();
-            }
-        } else {
-            log(spdlog::level::level_enum::warn,
-                "{} completeBackfill for vbucket which does not exist",
-                logPrefix);
+        if (isSeqnoAdvancedNeededBackFill()) {
+            queueSeqnoAdvanced();
         }
+
         // reset last seqno seen by backfill
         maxScanSeqno = 0;
 
@@ -1313,7 +1296,7 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                             qi, SendCommitSyncWriteAs::Commit));
                 }
 
-            } else if (isCollectionEnabledStream() && !supportSyncWrites()) {
+            } else if (isSeqnoAdvancedEnabled()) {
                 /*
                  * If we're a collection stream that does not support sync
                  * writes then we want to be able to send a SeqnoAdvanced op.
@@ -1334,18 +1317,26 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
                      outstandingItemsResult.highCompletedSeqno,
                      visibleSeqno,
                      highNonVisibleSeqno);
-        } else if (isCollectionEnabledStream() && !supportSyncWrites() &&
-                   readyQ.empty()) {
-            auto vbState = engine->getVBucket(getVBucket())->getState();
-            if (vbState == vbucket_state_replica) {
+        } else if (readyQ.empty() && isSeqnoAdvancedEnabled() &&
+                   isSeqnoGapAtEndOfSnapshot()) {
+            auto vb = engine->getVBucket(getVBucket());
+            if (vb && vb->getState() == vbucket_state_replica) {
                 /*
                  * If this is a collection stream and we're not sending any
                  * mutations from memory and we haven't queued a snapshot shot
-                 * and we're a replica then our snapshot covers backfill and in
-                 * memory. Thus, we need to send a SeqnoAdvanced to push the
-                 * consumer's seqno to the end of the snapshot.
+                 * and we're a replica. Then our snapshot covers backfill and in
+                 * memory. So we have one snapshot marker for both items on disk
+                 * and in memory. Thus, we need to send a SeqnoAdvanced to push
+                 * the consumer's seqno to the end of the snapshot. This is need
+                 * when no items for the collection we're streaming are present
+                 * in memory.
                  */
-                queueSeqnoAdvancedIfNeeded();
+                queueSeqnoAdvanced();
+            } else {
+                log(spdlog::level::level_enum::warn,
+                    "{} processItems() for vbucket which does not "
+                    "exist",
+                    logPrefix);
             }
         }
     }
@@ -1477,7 +1468,9 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
         pushToReadyQ(std::move(item));
     }
 
-    queueSeqnoAdvancedIfNeeded();
+    if (isSeqnoAdvancedEnabled() && isSeqnoGapAtEndOfSnapshot()) {
+        queueSeqnoAdvanced();
+    }
 }
 
 void ActiveStream::setDeadInner(end_stream_status_t status) {
@@ -2160,18 +2153,9 @@ void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
     }
 }
 
-bool ActiveStream::queueSeqnoAdvancedIfNeeded() {
-    if (!isCollectionEnabledStream()) {
-        return false;
-    }
-
-    if (lastSentSnapEndSeqno.load() > lastReadSeqno.load()) {
-        pushToReadyQ(std::make_unique<SeqnoAdvanced>(
-                opaque_, vb_, sid, lastSentSnapEndSeqno.load()));
-        return true;
-    }
-
-    return false;
+void ActiveStream::queueSeqnoAdvanced() {
+    pushToReadyQ(std::make_unique<SeqnoAdvanced>(
+            opaque_, vb_, sid, lastSentSnapEndSeqno.load()));
 }
 
 bool ActiveStream::isDiskOnly() const {
@@ -2180,4 +2164,39 @@ bool ActiveStream::isDiskOnly() const {
 
 bool ActiveStream::isTakeoverStream() const {
     return flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER;
+}
+
+bool ActiveStream::isSeqnoAdvancedEnabled() const {
+    return isCollectionEnabledStream() && !supportSyncReplication();
+}
+
+bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
+    if (!isSeqnoAdvancedEnabled() || !isSeqnoGapAtEndOfSnapshot()) {
+        return false;
+    }
+    /**
+     * In most cases we want to send a SeqnoAdvanced op if we have not sent
+     * the final seqno in the snapshot at the end of backfill. However,
+     * replica vbucket may transition their snapshot from backfill to
+     * streaming from memory without sending another snapshot. Thus, in this
+     * case we do not want to send a SeqnoAdvanced at the end of backfill.
+     * So check that we don't have an in memory range to stream from.
+     */
+    auto vb = engine->getVBucket(vb_);
+    if (vb) {
+        if (vb->getState() == vbucket_state_replica) {
+            return maxScanSeqno > lastBackfilledSeqno &&
+                   maxScanSeqno == lastSentSnapEndSeqno.load();
+        }
+    } else {
+        log(spdlog::level::level_enum::warn,
+            "{} isSeqnoAdvancedNeededBackFill() for vbucket which does not "
+            "exist",
+            logPrefix);
+    }
+    return isCurrentSnapshotCompleted();
+}
+
+bool ActiveStream::isSeqnoGapAtEndOfSnapshot() const {
+    return (lastSentSnapEndSeqno.load() > lastReadSeqno.load());
 }

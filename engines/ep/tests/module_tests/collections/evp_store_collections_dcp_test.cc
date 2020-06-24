@@ -2431,6 +2431,103 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(producers->last_byseqno.load(), 5);
 }
 
+TEST_P(CollectionsDcpParameterizedTest,
+       no_seqno_advanced_from_disk_to_memory_sync_rep) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(
+            vbid, StoredDocKey{"dairy::one", CollectionEntry::dairy}, "dairy");
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 4);
+    }
+    ensureDcpWillBackfill();
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["8"]})"}}, false, 0, true);
+    store_item(
+            vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+    store_item(vbid,
+               StoredDocKey{"dairy::three", CollectionEntry::dairy},
+               "dairy123");
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+    EXPECT_EQ(producers->last_key, "meat::one");
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+    EXPECT_EQ(producers->last_key, "meat::two");
+
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm{};
+    store->setCollections(std::string{
+            cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
+    store_item(
+            vbid, StoredDocKey{"dairy::one", CollectionEntry::dairy}, "dairy");
+    // 2 collections + 2 mutations
+    if (persistent()) {
+        flush_vbucket_to_disk(vbid, 4);
+    }
+    ensureDcpWillBackfill();
+    // filter only CollectionEntry::dairy
+    createDcpObjects({{R"({"collections":["8"]})"}});
+    store_item(
+            vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
+    store_item(vbid,
+               StoredDocKey{"dairy::three", CollectionEntry::dairy},
+               "dairy123");
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+    EXPECT_EQ(producers->last_key, "meat::one");
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_byseqno.load(), 4);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
+    EXPECT_EQ(producers->last_key, "meat::two");
+
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
