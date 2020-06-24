@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include "callbacks.h"
 #include "collections/vbucket_manifest.h"
+#include "kvstore.h"
 #include "vb_commit.h"
 
 #include <folly/portability/GTest.h>
@@ -60,3 +62,69 @@ protected:
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
     std::unique_ptr<KVStore> kvstore;
 };
+
+/**
+ * Utility template for generating callbacks for various
+ * KVStore functions from a lambda/std::function
+ */
+template <typename... RV>
+class CustomCallback : public StatusCallback<RV...> {
+public:
+    CustomCallback(std::function<void(RV...)> _cb) : cb(_cb) {
+    }
+    CustomCallback() : cb([](RV... val) {}) {
+    }
+
+    void callback(RV&... result) override {
+        cb(std::forward<RV>(result)...);
+        processed++;
+    }
+
+    uint32_t getProcessedCount() {
+        return processed;
+    }
+
+protected:
+    std::function<void(RV...)> cb;
+
+private:
+    uint32_t processed = 0;
+};
+
+/**
+ * Callback that can be given a lambda to use, specifically
+ * for the Rollback callback
+ */
+class CustomRBCallback : public RollbackCB {
+public:
+    CustomRBCallback(std::function<void(GetValue)> _cb) : cb(std::move(_cb)) {
+    }
+    CustomRBCallback() : cb([](GetValue val) {}) {
+    }
+
+    void callback(GetValue& result) override {
+        cb(std::move(result));
+    }
+
+protected:
+    std::function<void(GetValue)> cb;
+};
+
+void checkGetValue(GetValue& result,
+                   ENGINE_ERROR_CODE expectedErrorCode = ENGINE_SUCCESS,
+                   bool expectCompressed = false);
+
+// Initializes a KVStore
+void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0));
+
+// Creates and initializes a KVStore with the given config
+std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
+                                        std::vector<Vbid> vbids = {Vbid(0)});
+
+/* Test callback for stats handling.
+ * 'cookie' is a std::unordered_map<std::string, std::string) which stats
+ * are accumulated in.
+ */
+void add_stat_callback(std::string_view key,
+                       std::string_view value,
+                       gsl::not_null<const void*> cookie);
