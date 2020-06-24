@@ -2149,8 +2149,7 @@ public:
     }
 };
 
-// MB-30301: Temporarily disabling due to intermittent timeouts.
-TEST_F(WorkerConcurrencyTest, DISABLED_SubdocArrayPushLast_Concurrent) {
+TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     // Concurrently add to two different array documents, using two connections.
 
     // Setup the initial empty objects.
@@ -2175,7 +2174,9 @@ TEST_F(WorkerConcurrencyTest, DISABLED_SubdocArrayPushLast_Concurrent) {
                                  "a",
                                  "",
                                  std::to_string(i));
-        cmd.encode(send_buf);
+        std::vector<uint8_t> cmd_buf;
+        cmd.encode(cmd_buf);
+        send_buf.insert(send_buf.end(), cmd_buf.begin(), cmd_buf.end());
     }
     *current_sock = sock1;
     safe_send(send_buf.data(), send_buf.size(), false);
@@ -2189,7 +2190,9 @@ TEST_F(WorkerConcurrencyTest, DISABLED_SubdocArrayPushLast_Concurrent) {
                                  "b",
                                  "",
                                  std::to_string(i));
-        cmd.encode(send_buf);
+        std::vector<uint8_t> cmd_buf;
+        cmd.encode(cmd_buf);
+        send_buf.insert(send_buf.end(), cmd_buf.begin(), cmd_buf.end());
     }
     *current_sock = sock2;
     safe_send(send_buf.data(), send_buf.size(), false);
