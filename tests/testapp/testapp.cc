@@ -217,66 +217,6 @@ std::string get_sasl_mechs() {
     return std::string{reinterpret_cast<const char*>(val.data()), val.size()};
 }
 
-cb::mcbp::Status TestappTest::sasl_auth(const char* username,
-                                        const char* password) {
-    cb::sasl::client::ClientContext client(
-            [username]() -> std::string { return username; },
-            [password]() -> std::string { return password; },
-            get_sasl_mechs());
-
-    auto client_data = client.start();
-    EXPECT_EQ(cb::sasl::Error::OK, client_data.first);
-    if (::testing::Test::HasFailure()) {
-        // Can't continue if we didn't suceed in starting SASL auth.
-        return cb::mcbp::Status::Einternal;
-    }
-
-    std::vector<uint8_t> blob;
-    {
-        BinprotSaslAuthCommand cmd;
-        cmd.setMechanism(client.getName());
-        cmd.setChallenge(client_data.second);
-        cmd.encode(blob);
-        safe_send(blob);
-    }
-
-    blob.resize(0);
-    safe_recv_packet(blob);
-
-    bool stepped = false;
-    auto* response = reinterpret_cast<cb::mcbp::Response*>(blob.data());
-    while (response->getStatus() == cb::mcbp::Status::AuthContinue) {
-        stepped = true;
-        auto challenge = response->getValue();
-        client_data = client.step(std::string_view{
-                reinterpret_cast<const char*>(challenge.data()),
-                challenge.size()});
-        EXPECT_EQ(cb::sasl::Error::CONTINUE, client_data.first);
-        BinprotSaslStepCommand cmd;
-        cmd.setMechanism(client.getName());
-        cmd.setChallenge(client_data.second);
-        blob.resize(0);
-        cmd.encode(blob);
-
-        safe_send(blob);
-        blob.resize(0);
-        safe_recv_packet(blob);
-        response = reinterpret_cast<cb::mcbp::Response*>(blob.data());
-    }
-
-    if (stepped) {
-        mcbp_validate_response_header(*response,
-                                      cb::mcbp::ClientOpcode::SaslStep,
-                                      response->getStatus());
-    } else {
-        mcbp_validate_response_header(*response,
-                                      cb::mcbp::ClientOpcode::SaslAuth,
-                                      response->getStatus());
-    }
-
-    return response->getStatus();
-}
-
 bool TestappTest::isJSON(std::string_view value) {
     JSON_checker::Validator validator;
     return validator.validate(value);

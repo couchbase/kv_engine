@@ -94,9 +94,6 @@ public:
     // Called after the last test in this test case.
     static void TearDownTestCase();
 
-    static cb::mcbp::Status sasl_auth(const char* username,
-                                      const char* password);
-
     /// Helper which which returns true if the specified value is correctly
     /// encoded as JSON.
     static bool isJSON(std::string_view value);
