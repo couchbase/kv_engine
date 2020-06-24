@@ -451,16 +451,10 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
 }
 
 TEST_P(McdTestappTest, Config_Validate_Empty) {
-    sasl_auth("@admin", "password");
-    BinprotGenericCommand cmd(ClientOpcode::ConfigValidate);
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
-
-    safe_send(blob);
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::ConfigValidate,
-                                  Status::Einval);
+    auto& conn = getAdminConnection();
+    auto rsp =
+            conn.execute(BinprotGenericCommand{ClientOpcode::ConfigValidate});
+    ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
 TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
