@@ -68,10 +68,6 @@ static bool embedded_memcached_server;
 
 static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
-bool sock_is_ssl() {
-    return current_phase == phase_ssl;
-}
-
 time_t get_server_start_time() {
     return server_start_time;
 }

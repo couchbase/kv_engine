@@ -601,62 +601,6 @@ TEST_P(McdTestappTest, SetQE2BIG) {
                        GetTestBucket().getMaximumDocSize() + 1);
 }
 
-/* Send one character to the SSL port, then check memcached correctly closes
- * the connection (and doesn't hold it open for ever trying to read) more bytes
- * which will never come.
- */
-TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
-
-    // Requires SSL.
-    if (!sock_is_ssl()) {
-        return;
-    }
-
-    /* Setup: Close the existing (handshaked) SSL connection, and create a
-     * 'plain' TCP connection to the SSL port - i.e. without any SSL handshake.
-     */
-    cb::net::closesocket(sock_ssl);
-    sock_ssl = create_connect_plain_socket(ssl_port);
-
-    /* Send a payload which is NOT a valid SSL handshake: */
-    char buf[] = {'a', '\n'};
-    ssize_t len = cb::net::send(sock_ssl, buf, sizeof(buf), 0);
-    cb_assert(len == 2);
-
-/* Done writing, close the socket for writing. This triggers the bug: a
- * conn_read -> conn_waiting -> conn_read_packet_header ... loop in memcached */
-#if defined(WIN32)
-    int res = shutdown(sock_ssl, SD_SEND);
-#else
-    int res = shutdown(sock_ssl, SHUT_WR);
-#endif
-    cb_assert(res == 0);
-
-    /* Check status of the FD - expected to be ready (as it's just been closed
-     * by peer), and should not have hit the timeout.
-     */
-    fd_set fdset;
-#ifndef __clang_analyzer__
-    /* FD_ZERO() is often implemented as inline asm(), which Clang
-     * static analyzer cannot parse. */
-    FD_ZERO(&fdset);
-    FD_SET(sock_ssl, &fdset);
-#endif
-    struct timeval timeout = {0};
-    timeout.tv_sec = 5;
-    int ready_fds = select((int)(sock_ssl + 1), &fdset, nullptr, nullptr, &timeout);
-    cb_assert(ready_fds == 1);
-
-    /* Verify that attempting to read from the socket returns 0 (peer has
-     * indeed closed the connection).
-     */
-    len = cb::net::recv(sock_ssl, buf, 1, 0);
-    cb_assert(len == 0);
-
-    /* Restore the SSL connection to a sane state :) */
-    reconnect_to_server();
-}
-
 TEST_P(McdTestappTest, ExceedMaxPacketSize) {
     Request request;
     request.setMagic(Magic::ClientRequest);

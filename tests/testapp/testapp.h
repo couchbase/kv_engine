@@ -465,9 +465,6 @@ bool safe_recv_packet(std::vector<char>& buf);
  */
 ssize_t phase_recv(void* buf, size_t len);
 
-/* Whether the current socket is SSL */
-bool sock_is_ssl();
-
 SOCKET create_connect_plain_socket(in_port_t port);
 
 time_t get_server_start_time();
