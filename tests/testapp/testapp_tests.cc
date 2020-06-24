@@ -381,19 +381,12 @@ TEST_P(McdTestappTest, PrependQ) {
 }
 
 TEST_P(McdTestappTest, IOCTL_Set) {
-    sasl_auth("@admin", "password");
-
     // release_free_memory always returns OK, regardless of how much was
     // freed.
-    BinprotGenericCommand cmd(ClientOpcode::IoctlSet, "release_free_memory");
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
-
-    safe_send(blob);
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  cb::mcbp::ClientOpcode::IoctlSet,
-                                  cb::mcbp::Status::Success);
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::IoctlSet,
+                                                  "release_free_memory"});
+    ASSERT_TRUE(rsp.isSuccess());
 }
 
 TEST_P(McdTestappTest, IOCTL_Tracing) {
