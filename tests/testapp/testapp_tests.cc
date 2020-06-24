@@ -458,18 +458,10 @@ TEST_P(McdTestappTest, Config_Validate_Empty) {
 }
 
 TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
-    sasl_auth("@admin", "password");
-
-    BinprotGenericCommand cmd(ClientOpcode::ConfigValidate);
-    cmd.setValue("This isn't JSON");
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
-
-    safe_send(blob);
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::ConfigValidate,
-                                  Status::Einval);
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{
+            ClientOpcode::ConfigValidate, "", "This isn't JSON"});
+    ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
 static uint64_t get_session_ctrl_token() {
