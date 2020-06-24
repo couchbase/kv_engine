@@ -678,14 +678,9 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize) {
  * Test that opcode 255 is rejected and the server doesn't crash
  */
 TEST_P(McdTestappTest, test_MB_16333) {
-    BinprotGenericCommand cmd(ClientOpcode::Invalid);
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
-    safe_send(blob);
-    ASSERT_TRUE(safe_recv_packet(blob));
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::Invalid,
-                                  Status::UnknownCommand);
+    auto& conn = getConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::Invalid});
+    ASSERT_EQ(Status::UnknownCommand, rsp.getStatus());
 }
 
 /**
