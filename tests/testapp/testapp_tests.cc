@@ -457,93 +457,39 @@ TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
     ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
-static uint64_t get_session_ctrl_token() {
-    Request request = {};
-    request.setMagic(Magic::ClientRequest);
-    request.setOpcode(ClientOpcode::GetCtrlToken);
-
-    safe_send(request.getFrame());
-    std::vector<uint8_t> blob;
-    safe_recv_packet(blob);
-
-    auto& response = *reinterpret_cast<Response*>(blob.data());
-    cb_assert(response.getStatus() == Status::Success);
-
-    const auto ret = response.getCas();
-    cb_assert(ret != 0);
-
-    return ret;
-}
-
-static size_t prepare_set_session_ctrl_token(cb::byte_buffer buf,
-                                             uint64_t old,
-                                             uint64_t new_cas) {
-    request::SetCtrlTokenPayload payload;
-    payload.setCas(new_cas);
-
-    FrameBuilder<Request> builder(buf);
-    builder.setMagic(Magic::ClientRequest);
-    builder.setOpcode(ClientOpcode::SetCtrlToken);
-    builder.setCas(old);
-    builder.setExtras(payload.getBuffer());
-    return builder.getFrame()->getFrame().size();
-}
-
 TEST_P(McdTestappTest, SessionCtrlToken) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        uint8_t bytes[1024];
-    } buffer;
+    // Validate that you may successfully set the token to a legal value
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::GetCtrlToken});
+    ASSERT_TRUE(rsp.isSuccess());
 
-    sasl_auth("@admin", "password");
-
-    uint64_t old_token = get_session_ctrl_token();
+    uint64_t old_token = rsp.getCas();
+    ASSERT_NE(0, old_token);
     uint64_t new_token = 0x0102030405060708;
 
-    /* Validate that you may successfully set the token to a legal value */
-    auto size = prepare_set_session_ctrl_token(
-            {buffer.bytes, sizeof(buffer.bytes)}, old_token, new_token);
-    safe_send(buffer.bytes, size, false);
-    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
-
-    cb_assert(buffer.response.message.header.response.getStatus() ==
-              Status::Success);
-    cb_assert(new_token == buffer.response.message.header.response.getCas());
+    // Test that you can set it with the correct ctrl token
+    rsp = conn.execute(BinprotSetControlTokenCommand{new_token, old_token});
+    ASSERT_TRUE(rsp.isSuccess());
+    EXPECT_EQ(new_token, rsp.getCas());
     old_token = new_token;
 
-    /* Validate that you can't set it to 0 */
-    size = prepare_set_session_ctrl_token(
-            {buffer.bytes, sizeof(buffer.bytes)}, old_token, 0);
-    safe_send(buffer.bytes, size, false);
-    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
-    cb_assert(buffer.response.message.header.response.getStatus() ==
-              Status::Einval);
-    reconnect_to_server();
-    sasl_auth("@admin", "password");
+    // Validate that you can't set 0 as the ctrl token
+    rsp = conn.execute(BinprotSetControlTokenCommand{0ull, old_token});
+    ASSERT_FALSE(rsp.isSuccess())
+            << "It shouldn't be possible to set token to 0";
 
-    cb_assert(old_token == get_session_ctrl_token());
+    // Validate that you can't set it by providing an incorrect cas
+    rsp = conn.execute(BinprotSetControlTokenCommand{1234ull, old_token - 1});
+    ASSERT_EQ(Status::KeyEexists, rsp.getStatus());
 
-    /* Validate that you can't set it by providing an incorrect cas */
-    size = prepare_set_session_ctrl_token(
-            {buffer.bytes, sizeof(buffer.bytes)}, old_token + 1, new_token - 1);
-    safe_send(buffer.bytes, size, false);
-    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
+    // Validate that you can set it by providing the correct token
+    rsp = conn.execute(BinprotSetControlTokenCommand{0xdeadbeefull, old_token});
+    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_EQ(0xdeadbeefull, rsp.getCas());
 
-    cb_assert(buffer.response.message.header.response.getStatus() ==
-              Status::KeyEexists);
-    cb_assert(new_token == buffer.response.message.header.response.getCas());
-    cb_assert(new_token == get_session_ctrl_token());
-
-    /* Validate that you may set it by overriding the cas with 0 */
-    size = prepare_set_session_ctrl_token(
-            {buffer.bytes, sizeof(buffer.bytes)}, 0, 0xdeadbeef);
-    safe_send(buffer.bytes, size, false);
-    cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
-    cb_assert(buffer.response.message.header.response.getStatus() ==
-              Status::Success);
-    cb_assert(0xdeadbeef == buffer.response.message.header.response.getCas());
-    cb_assert(0xdeadbeef == get_session_ctrl_token());
+    rsp = conn.execute(BinprotGenericCommand{ClientOpcode::GetCtrlToken});
+    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_EQ(0xdeadbeefull, rsp.getCas());
 }
 
 TEST_P(McdTestappTest, MB_10114) {
