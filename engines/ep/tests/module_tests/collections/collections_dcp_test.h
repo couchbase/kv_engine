@@ -19,43 +19,13 @@
 
 #include "collections/kvstore.h"
 #include "tests/mock/mock_dcp.h"
+#include "tests/module_tests/collections/collections_dcp_producers.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include <memcached/dcp_stream_id.h>
 
 class MockDcpConsumer;
 class MockDcpProducer;
-
-class CollectionsDcpTestProducers : public MockDcpMessageProducers {
-public:
-    CollectionsDcpTestProducers(EngineIface* engine = nullptr)
-        : MockDcpMessageProducers(engine) {
-    }
-    ~CollectionsDcpTestProducers() override {
-    }
-
-    ENGINE_ERROR_CODE system_event(uint32_t opaque,
-                                   Vbid vbucket,
-                                   mcbp::systemevent::id event,
-                                   uint64_t bySeqno,
-                                   mcbp::systemevent::version version,
-                                   cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData,
-                                   cb::mcbp::DcpStreamId sid) override;
-
-    ENGINE_ERROR_CODE marker(uint32_t opaque,
-                             Vbid vbucket,
-                             uint64_t start_seqno,
-                             uint64_t end_seqno,
-                             uint32_t flags,
-                             std::optional<uint64_t> high_completed_seqno,
-                             std::optional<uint64_t> maxVisibleSeqno,
-                             std::optional<uint64_t> timestamp,
-                             cb::mcbp::DcpStreamId sid) override;
-
-    MockDcpConsumer* consumer = nullptr;
-    Vbid replicaVB;
-};
 
 class CollectionsDcpTest : virtual public SingleThreadedKVBucketTest {
 public:
