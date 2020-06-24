@@ -22,6 +22,7 @@
 #include "kvstore.h"
 #include "vb_commit.h"
 
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
 #include <memory>
@@ -128,3 +129,14 @@ std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
 void add_stat_callback(std::string_view key,
                        std::string_view value,
                        gsl::not_null<const void*> cookie);
+
+class MockTransactionContext : public TransactionContext {
+public:
+    MockTransactionContext(Vbid vb) : TransactionContext(vb) {
+    }
+
+    MOCK_METHOD2(setCallback,
+                 void(const queued_item&, KVStore::FlushStateMutation));
+    MOCK_METHOD2(deleteCallback,
+                 void(const queued_item&, KVStore::FlushStateDeletion));
+};
