@@ -44,8 +44,8 @@ Item::Item(const DocKey& k,
       key(k),
       bySeqno(i),
       vbucketId(vbid),
-      op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
-                                                     : queue_op::mutation),
+      op(k.isInSystemCollection() ? queue_op::system_event
+                                  : queue_op::mutation),
       deleted(0), // false
       maybeVisible(0),
       preserveTtl(0),
@@ -73,8 +73,8 @@ Item::Item(const DocKey& k,
       key(k),
       bySeqno(i),
       vbucketId(vbid),
-      op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
-                                                     : queue_op::mutation),
+      op(k.isInSystemCollection() ? queue_op::system_event
+                                  : queue_op::mutation),
       deleted(0), // false
       maybeVisible(0),
       preserveTtl(0),

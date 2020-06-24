@@ -91,6 +91,20 @@ CollectionID DocKey::getCollectionID() const {
     return CollectionID::Default;
 }
 
+// Inspect the leb128 key prefixes without doing a full leb decode
+bool DocKey::isInSystemCollection() const {
+    if (encoding == DocKeyEncodesCollectionId::Yes) {
+        // Note: when encoding == Yes the size is 2 bytes at a minimum. This is
+        // as mcbp_validators will fail 0-byte logical keys, thus we always have
+        // at least 1 byte of collection and 1 byte of key so size() checks are
+        // not needed. System keys additionally never have empty logical keys.
+        // Finally we do not need to consider the Prepared namespace as system
+        // events are never created in that way.
+        return data()[0] == CollectionID::System;
+    }
+    return false;
+}
+
 std::pair<CollectionID, cb::const_byte_buffer> DocKey::getIdAndKey() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer);
