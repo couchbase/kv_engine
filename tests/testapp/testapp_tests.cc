@@ -14,41 +14,21 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <getopt.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <time.h>
-#include <evutil.h>
-#include <valgrind/valgrind.h>
-
-#include <folly/CPortability.h>
-#include <folly/portability/GTest.h>
-#include <algorithm>
-#include <atomic>
-#include <string>
-#include <thread>
-#include <vector>
 
 #include "testapp.h"
-#include "testapp_subdoc_common.h"
 
-#include "memcached/openssl.h"
+#include <cstring>
+#include <ctime>
+
+#include <folly/portability/GTest.h>
+#include <atomic>
+#include <string>
+#include <vector>
+
 #include <mcbp/protocol/framebuilder.h>
-#include <memcached/config_parser.h>
 #include <memcached/util.h>
-#include <platform/backtrace.h>
-#include <platform/cb_malloc.h>
-#include <platform/cbassert.h>
-#include <platform/compress.h>
-#include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
-#include <fstream>
-#include <gsl/gsl>
 
 using namespace cb::mcbp;
 
