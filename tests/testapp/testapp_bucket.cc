@@ -146,9 +146,10 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
     }
 }
 
-// Regression test for MB-19756 - if a bucket delete is attempted while there
-// is connection in the conn_read_packet_body state, then delete will hang.
-TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
+// Unit test to verify that a connection currently sending a command to the
+// server won't block bucket deletion (the server don't wait for the client
+// send all of the data, but shut down the connection immediately)
+TEST_P(BucketTest, DeleteWhileClientSendCommand) {
     auto& conn = getAdminConnection();
     conn.createBucket("bucket", "", BucketType::Memcached);
 
@@ -163,43 +164,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     Frame frame =
             second_conn->encodeCmdGet("dummy_key_which_we_will_crop", Vbid(0));
     second_conn->sendPartialFrame(frame, frame.payload.size() - 1);
-
-    // Once we call deleteBucket below, it will hang forever (if the bug is
-    // present), so we need a watchdog thread which will send the remainder
-    // of the GET frame to un-stick bucket deletion. If the watchdog fires
-    // the test has failed.
-    std::mutex cv_m;
-    std::condition_variable cv;
-    std::atomic<bool> bucket_deleted{false};
-    std::atomic<bool> watchdog_fired{false};
-    std::thread watchdog{
-        [&second_conn, &frame, &cv_m, &cv, &bucket_deleted,
-         &watchdog_fired]() {
-            std::unique_lock<std::mutex> lock(cv_m);
-            cv.wait_for(lock, std::chrono::seconds(5),
-                        [&bucket_deleted](){return bucket_deleted == true;});
-            if (!bucket_deleted) {
-                watchdog_fired = true;
-                try {
-                    second_conn->sendFrame(frame);
-                } catch (std::runtime_error&) {
-                    // It is ok for sendFrame to fail - the connection might have
-                    // been closed by the server due to the bucket deletion.
-                }
-            }
-        }
-    };
-
     conn.deleteBucket("bucket");
-    // Check that the watchdog didn't fire.
-    EXPECT_FALSE(watchdog_fired) << "Bucket deletion (with connected client in "
-                                    "conn_read_packet_body) only "
-                                    "completed after watchdog fired";
-
-    // Cleanup - stop the watchdog (if it hasn't already fired).
-    bucket_deleted = true;
-    cv.notify_one();
-    watchdog.join();
 }
 
 // Test delete of a bucket while we've got a client connected to the bucket
