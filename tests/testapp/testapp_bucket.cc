@@ -283,31 +283,6 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     resume.join();
 }
 
-intptr_t getConnectionId(MemcachedConnection& conn) {
-    const std::string agent_name{"getConnectionId 1.0"};
-    conn.hello("getConnectionId", "1.0", "test connections test");
-    auto stats = conn.stats("connections");
-    if (stats.empty()) {
-        throw std::runtime_error("getConnectionId: stats connections failed");
-    }
-
-    for (const auto& entry : stats) {
-        auto agent = entry.find("agent_name");
-        if (agent != entry.end()) {
-            // "agent_name" definitely exists, but we might still want to throw
-            // if it's the wrong type. Just use this helper function because we
-            // need to get the value out anyway and it's easier to read.
-            if (agent_name == cb::jsonGet<std::string>(entry, "agent_name")) {
-                return gsl::narrow<intptr_t>(
-                        cb::jsonGet<size_t>(entry, "socket"));
-            }
-        }
-    }
-
-    throw std::runtime_error(
-            "getConnectionId: Failed to locate the connection");
-}
-
 int64_t getTotalSent(const nlohmann::json& payload) {
     return cb::jsonGet<int64_t>(payload, "total_send");
 }
@@ -337,7 +312,7 @@ static nlohmann::json getConnectionStats(MemcachedConnection& conn,
  */
 TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
     auto& conn = getAdminConnection();
-    const auto id = getConnectionId(conn);
+    const auto id = conn.getServerConnectionId();
     conn.createBucket("MB29639",
                       "cache_size=67108864;item_size_max=22020096",
                       BucketType::Memcached);

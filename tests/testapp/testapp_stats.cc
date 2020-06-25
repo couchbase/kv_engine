@@ -405,51 +405,45 @@ TEST_P(StatsTest, TestAggregate) {
 
 TEST_P(StatsTest, TestPrivilegedConnections) {
     MemcachedConnection& conn = getAdminConnection();
-    conn.hello("TestConnections", "1.0", "test connections test");
+    conn.hello("TestPrivilegedConnections", "1.0", "test connections test");
 
     auto stats = conn.stats("connections");
     // We have at _least_ 2 connections
     ASSERT_LE(2, stats.size());
 
-    int sock = -1;
-
-    // Unfortuately they're all mapped as a " " : "json" pairs, so lets
-    // validate that at least thats true:
-    for (const auto& entry : stats) {
-        EXPECT_NE(entry.end(), entry.find("connection"));
-        if (sock == -1) {
-            auto agent = entry.find("agent_name");
-            if (agent != entry.end()) {
-                ASSERT_EQ(nlohmann::json::value_t::string, agent->type());
-                if (agent->get<std::string>() == "TestConnections 1.0") {
-                    auto socket = entry.find("socket");
-                    if (socket != entry.end()) {
-                        EXPECT_EQ(nlohmann::json::value_t::number_unsigned,
-                                  socket->type());
-                        sock = gsl::narrow<int>(socket->get<size_t>());
-                    }
-                }
-            }
-        }
-    }
-
-    ASSERT_NE(-1, sock) << "Failed to locate the connection object";
-    stats = conn.stats("connections " + std::to_string(sock));
-
+    stats = conn.stats("connections self");
     ASSERT_EQ(1, stats.size());
-    EXPECT_EQ(sock, stats.front()["socket"].get<size_t>());
+    EXPECT_EQ("TestPrivilegedConnections 1.0",
+              stats.front()["agent_name"].get<std::string>());
+
+    stats = conn.stats("connections " +
+                       std::to_string(stats.front()["socket"].get<size_t>()));
+    ASSERT_EQ(1, stats.size());
+    EXPECT_EQ("TestPrivilegedConnections 1.0",
+              stats.front()["agent_name"].get<std::string>());
 }
 
 TEST_P(StatsTest, TestUnprivilegedConnections) {
     // Everyone should be allowed to see its own connection details
     MemcachedConnection& conn = getConnection();
-    conn.hello("TestConnections", "1.0", "test connections test");
+    conn.hello("TestUnprivilegedConnections", "1.0", "test connections test");
     auto stats = conn.stats("connections");
     ASSERT_LE(1, stats.size());
+    EXPECT_EQ("TestUnprivilegedConnections 1.0",
+              stats.front()["agent_name"].get<std::string>());
+
     const auto me = stats.front()["socket"].get<size_t>();
     stats = conn.stats("connections " + std::to_string(me));
     ASSERT_EQ(1, stats.size());
     EXPECT_EQ(me, stats.front()["socket"].get<size_t>());
+    EXPECT_EQ("TestUnprivilegedConnections 1.0",
+              stats.front()["agent_name"].get<std::string>());
+    stats = conn.stats("connections self");
+    ASSERT_EQ(1, stats.size());
+    EXPECT_EQ(me, stats.front()["socket"].get<size_t>());
+    EXPECT_EQ("TestUnprivilegedConnections 1.0",
+              stats.front()["agent_name"].get<std::string>());
+    EXPECT_EQ(me, conn.getServerConnectionId());
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {

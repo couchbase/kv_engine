@@ -382,7 +382,8 @@ static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
 
 /**
  * Handler for the <code>stats connection[ fd]</code> command to retrieve
- * information about connection specific details.
+ * information about connection specific details. An fd specified as "self"
+ * means the calling connection.
  *
  * @param arg an optional file descriptor representing the connection
  *            object to retrieve information about. If empty dump all.
@@ -393,10 +394,14 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
     int64_t fd = -1;
 
     if (!arg.empty()) {
-        try {
-            fd = std::stoll(arg);
-        } catch (...) {
-            return ENGINE_EINVAL;
+        if (arg == "self") {
+            fd = int64_t(cookie.getConnection().getId());
+        } else {
+            try {
+                fd = std::stoll(arg);
+            } catch (...) {
+                return ENGINE_EINVAL;
+            }
         }
     }
 

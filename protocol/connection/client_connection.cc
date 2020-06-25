@@ -299,6 +299,17 @@ SOCKET MemcachedConnection::releaseSocket() {
     return ret;
 }
 
+intptr_t MemcachedConnection::getServerConnectionId() {
+    auto st = stats("connections self");
+    if (st.size() != 1) {
+        throw std::runtime_error(
+                "MemcachedConnection::getServerConnectionId: Unexpected stats "
+                "size returned");
+    }
+
+    return st.front()["socket"].get<size_t>();
+}
+
 long tls_protocol_to_options(const std::string& protocol) {
     /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
     long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;

@@ -296,6 +296,12 @@ public:
         return tag;
     }
 
+    /**
+     * Get the connection identifier used by the server to identify this
+     * connection
+     */
+    intptr_t getServerConnectionId();
+
     // Creates clone (copy) of the given connection - i.e. a second independent
     // channel to memcached. Used for multi-connection testing.
     std::unique_ptr<MemcachedConnection> clone();
