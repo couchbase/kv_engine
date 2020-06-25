@@ -20,9 +20,9 @@
 #include "collections/kvstore.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/module_tests/collections/collections_dcp_producers.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include <memcached/dcp_stream_id.h>
+#include <utilities/test_manifest.h>
 
 class MockDcpConsumer;
 class MockDcpProducer;

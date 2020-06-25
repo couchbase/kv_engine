@@ -46,7 +46,6 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         module_tests/collections/evp_store_collections_test.cc
         module_tests/collections/filter_test.cc
         module_tests/collections/manifest_test.cc
-        module_tests/collections/test_manifest.cc
         module_tests/collections/vbucket_manifest_test.cc
         module_tests/collections/vbucket_manifest_entry_test.cc
         module_tests/configuration_test.cc
@@ -108,7 +107,8 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         $<TARGET_OBJECTS:couchstore_test_fileops>
         $<TARGET_OBJECTS:couchfile_upgrade_objects>
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-        ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
+        ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc
+        ${Memcached_SOURCE_DIR}/utilities/test_manifest.cc)
 IF(EP_USE_MAGMA)
     TARGET_SOURCES(ep-engine_ep_unit_tests PUBLIC module_tests/magma-kvstore_test.cc)
 ENDIF()

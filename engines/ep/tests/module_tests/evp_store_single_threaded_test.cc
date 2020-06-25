@@ -54,13 +54,13 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 #include "tests/module_tests/thread_gate.h"
 #include "tests/test_fileops.h"
 #include "vb_commit.h"
 #include "vbucket_state.h"
+#include <utilities/test_manifest.h>
 
 #include <platform/dirutils.h>
 #include <string_utilities.h>

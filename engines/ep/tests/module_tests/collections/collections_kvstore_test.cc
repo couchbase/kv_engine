@@ -24,8 +24,8 @@
 #include "kvstore.h"
 #include "kvstore_config.h"
 #include "stats.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/kvstore_test.h"
+#include <utilities/test_manifest.h>
 
 struct WriteCallback {
     void operator()(TransactionContext&, KVStore::FlushStateMutation) {

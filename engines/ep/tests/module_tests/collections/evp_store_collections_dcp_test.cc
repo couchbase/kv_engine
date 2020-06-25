@@ -39,7 +39,6 @@
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/dcp_utils.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
@@ -48,6 +47,8 @@
 #include <engines/ep/src/collections/collections_types.h>
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <engines/ep/tests/ep_test_apis.h>
+#include <utilities/test_manifest.h>
+
 #include <functional>
 #include <thread>
 

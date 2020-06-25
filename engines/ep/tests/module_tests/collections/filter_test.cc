@@ -23,10 +23,10 @@
 #include "failover-table.h"
 #include "stats.h"
 #include "tests/module_tests/collections/collections_test.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include <folly/portability/GTest.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <utilities/test_manifest.h>
 
 #include <limits>
 

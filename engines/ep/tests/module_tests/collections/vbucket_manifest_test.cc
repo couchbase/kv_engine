@@ -24,8 +24,8 @@
 #include "failover-table.h"
 #include "item.h"
 #include "stats.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
+#include <utilities/test_manifest.h>
 
 #include <folly/portability/GTest.h>
 

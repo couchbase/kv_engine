@@ -27,9 +27,9 @@
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_stream.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
+#include <utilities/test_manifest.h>
 
 #include <engines/ep/tests/ep_test_apis.h>
 

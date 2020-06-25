@@ -33,10 +33,10 @@
 #include "tests/ep_request_utils.h"
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_global_task.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
+#include <utilities/test_manifest.h>
 
 #include <folly/portability/GMock.h>
 

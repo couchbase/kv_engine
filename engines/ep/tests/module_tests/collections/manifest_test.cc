@@ -16,7 +16,7 @@
  */
 
 #include "collections/manifest.h"
-#include "tests/module_tests/collections/test_manifest.h"
+#include <utilities/test_manifest.h>
 
 #include <folly/portability/GTest.h>
 #include <memcached/engine_error.h>

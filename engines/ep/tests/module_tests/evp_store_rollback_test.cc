@@ -41,9 +41,9 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
+#include <utilities/test_manifest.h>
 
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/server_cookie_iface.h>

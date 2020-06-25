@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "tests/module_tests/collections/test_manifest.h"
+#include <utilities/test_manifest.h>
 
 #include <memcached/dockey.h>
 

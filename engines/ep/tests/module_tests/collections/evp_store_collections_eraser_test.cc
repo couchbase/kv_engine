@@ -22,11 +22,11 @@
 #include "kv_bucket.h"
 #include "kvstore.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
-#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
 #include "vbucket_state.h"
+#include <utilities/test_manifest.h>
 
 class CollectionsEraserTest : public STParameterizedBucketTest {
 public:

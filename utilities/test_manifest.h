@@ -88,7 +88,7 @@ namespace ScopeName {
 constexpr char defaultS[] = "_default";
 constexpr char shop1[] = "supermarket";
 constexpr char shop2[] = "minimart";
-}
+} // namespace ScopeName
 
 // For building ScopeEntry we need a UID
 namespace ScopeUid {
