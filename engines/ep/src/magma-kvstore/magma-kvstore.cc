@@ -264,6 +264,21 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
     }
 
     if (!cbCtx.ctx) {
+        // Don't already have a compaction context (i.e. this is the first
+        // key for an implicit compaction) - atempt to create one.
+
+        // Note that Magma implicit (internal) compactions can start _as soon
+        // as_ the Magma instance is Open()'d, which means this method can be
+        // called beforew Warmup has completed - and hence before
+        // makeCompactionContextCallback is assigned to a non-empty value.
+        // Until warmup *does* complete it isn't possible for us to know how
+        // to correctly deal with those keys - for example need to have
+        // initialised document counters during warmup to be able to update
+        // counter on TTL expiry. As such, until we have a non-empty
+        // makeCompactionContextCallback, simply return false.
+        if (!makeCompactionContextCallback) {
+            return false;
+        }
         cbCtx.ctx = makeCompactionContext(vbid);
     }
 

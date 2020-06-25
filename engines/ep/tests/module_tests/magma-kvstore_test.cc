@@ -18,6 +18,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #include "kvstore_test.h"
 #include "magma-kvstore/magma-kvstore_config.h"
+#include "magma-kvstore/magma-kvstore_metadata.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
 #include "workload.h"
@@ -205,4 +206,22 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
     EXPECT_CALL(*mockTC, deleteCallback(_, KVStore::FlushStateDeletion::Failed))
             .Times(1);
     EXPECT_FALSE(kvstore->commit(flush));
+}
+
+// Check that if Magma performs an internal (implicit) compaction before
+// ep-engine has completed warmup, then any compaction callbacks into
+// MagmaKVStore are ignored - until a later compaction after warmup.
+TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
+    // Simulate a compaction callback early on - before Warmup has completed.
+    auto newCompaction = kvstoreConfig->magmaCfg.MakeCompactionCallback();
+    magma::Slice key;
+    magma::Slice value;
+    // Require a valid metadata slice to (a) ensure the item isn't just
+    // skipped (zero-length meta == local document) and (b) to provide a valid
+    // Vbid.
+    magmakv::MetaData metadata;
+    metadata.vbid = 0;
+    magma::Slice meta{reinterpret_cast<char*>(&metadata), sizeof(metadata)};
+    // Compaction callback should return false for anything before warmup.
+    EXPECT_FALSE(newCompaction->operator()(key, meta, value));
 }

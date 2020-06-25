@@ -295,15 +295,6 @@ bool EPBucket::initialize() {
     }
     startFlusher();
 
-    // We do this in EPBucket::initialize because we can't do it when we create
-    // our shards as this is EPBucket specific code which we'd normally have in
-    // a virtual function and we create our KVShards in the constructor of
-    // VBucketMap which is called from the constructor of KVBucket, our parent.
-    // Attempting to do this cause us to call a pure virtual function on
-    // KVBucket as we've not finished constructing things yet. This is also a
-    // bunch less code.
-    initializeShards();
-
     return true;
 }
 
@@ -1984,6 +1975,11 @@ void EPBucket::warmupCompleted() {
     statsSnapshotTaskId = iom->schedule(task);
 
     collectionsManager->warmupCompleted(*this);
+
+    // Now warmup is completed, reconfigure each KVStore to use the "proper"
+    // makeCompactionContext which allows expiry via compaction, purging
+    // collections etc..
+    void initializeShards();
 }
 
 void EPBucket::stopWarmup() {

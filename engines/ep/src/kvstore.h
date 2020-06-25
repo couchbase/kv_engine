@@ -1097,6 +1097,10 @@ protected:
     /// Metadata that the underlying implementation must persist
     Collections::KVStore::CommitMetaData collectionsMeta;
 
+    /**
+     * Callback function to be invoked when the underlying KVStore needs to
+     * create a compaction context.
+     */
     MakeCompactionContextCallback makeCompactionContextCallback;
 
     // This variable is used to verify that the KVStore API is used correctly
