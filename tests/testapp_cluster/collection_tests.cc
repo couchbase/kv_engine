@@ -217,3 +217,32 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     cluster->getAuthProviderService().removeUser(username);
 }
+
+TEST_F(CollectionsTests, ResurrectCollection) {
+    // Store a key to the collection
+    auto conn = getConnection();
+    mutate(*conn,
+           createKey(CollectionEntry::vegetable, "Generation1"),
+           MutationType::Add);
+
+    auto bucket = cluster->getBucket("default");
+    ASSERT_NE(nullptr, bucket);
+    cluster->collections.remove(CollectionEntry::vegetable);
+    bucket->setCollectionManifest(cluster->collections.getJson());
+    cluster->collections.add(CollectionEntry::vegetable);
+    bucket->setCollectionManifest(cluster->collections.getJson());
+    mutate(*conn,
+           createKey(CollectionEntry::vegetable, "Generation2"),
+           MutationType::Add);
+
+    // Generation 1 is lost, the first drop was accepted and the keys created
+    // before the resurrection of vegetable are dropped.
+    try {
+        conn->get(createKey(CollectionEntry::vegetable, "Generation1"),
+                  Vbid{0});
+        FAIL() << "Should not be able to fetch in Generation1 key";
+    } catch (const ConnectionError& error) {
+        ASSERT_TRUE(error.isNotFound()) << to_string(error.getReason());
+    }
+    conn->get(createKey(CollectionEntry::vegetable, "Generation2"), Vbid{0});
+}

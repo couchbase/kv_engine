@@ -151,22 +151,6 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
                 meta.maxTtl.value_or(std::chrono::seconds::zero()).count(),
                 builder.CreateString(meta.name.data(), meta.name.size()));
         openCollections.push_back(newEntry);
-
-        // Validate we are not adding a dropped collection
-        auto itr = std::find_if(
-                droppedCollections.begin(),
-                droppedCollections.end(),
-                [&meta](const Collections::KVStore::DroppedCollection&
-                                dropped) {
-                    return dropped.collectionId == meta.cid;
-                });
-        if (itr != droppedCollections.end()) {
-            // we have found the created collection in the drop list, not good
-            throw std::logic_error(
-                    "Collections::KVStore::encodeOpenCollections found a new "
-                    "collection in dropped list, cid:" +
-                    meta.cid.to_string());
-        }
     }
 
     // And 'merge' with the data we read

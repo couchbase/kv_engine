@@ -309,26 +309,6 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
                    CollectionUid::defaultC});
 }
 
-// Recreate a dropped collection not ideal whilst it still exists
-TEST_P(CollectionsKVStoreTest, add_of_dropped) {
-    CollectionsManifest cm;
-    cm.add(CollectionEntry::vegetable);
-    applyAndCheck(cm, 2, 1);
-    cm.remove(CollectionEntry::vegetable);
-    applyAndCheck(cm, 1, 1, {CollectionUid::vegetable});
-    cm.add(CollectionEntry::vegetable);
-    try {
-        applyAndCheck(cm, 1, 1);
-        FAIL() << "Expected an exception";
-    } catch (const std::exception& e) {
-        EXPECT_STREQ(
-                "Collections::KVStore::encodeOpenCollections found a new "
-                "collection in "
-                "dropped list, cid:0xa",
-                e.what());
-    }
-}
-
 static std::string kvstoreTestParams[] = {"couchdb"};
 
 INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
