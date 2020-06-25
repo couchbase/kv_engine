@@ -441,10 +441,8 @@ int main(int argc, char** argv) {
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha
-        connection.hello("mctimings",
-                         MEMCACHED_VERSION,
-                         "command line utitilty to fetch command timings");
-        connection.setXerrorSupport(true);
+        connection.setAgentName("mctimings " MEMCACHED_VERSION);
+        connection.setFeatures({cb::mcbp::Feature::XERROR});
 
         if (!user.empty()) {
             connection.authenticate(user, password,

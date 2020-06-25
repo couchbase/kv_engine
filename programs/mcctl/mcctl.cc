@@ -256,10 +256,8 @@ int main(int argc, char** argv) {
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha
-        connection.hello("mcctl",
-                         MEMCACHED_VERSION,
-                         "command line utility to get/set properties");
-        connection.setXerrorSupport(true);
+        connection.setAgentName("mcctl " MEMCACHED_VERSION);
+        connection.setFeatures({cb::mcbp::Feature::XERROR});
 
         if (!user.empty()) {
             connection.authenticate(user, password,

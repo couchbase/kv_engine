@@ -26,7 +26,7 @@
 #include <platform/socket.h>
 #include <optional>
 
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <cstdlib>
@@ -626,15 +626,6 @@ public:
     }
 
     /**
-     * Identify ourself to the server.
-     *
-     * @throws std::runtime_error if an error occurs
-     */
-    void hello(const std::string& userAgent,
-               const std::string& userAgentVersion,
-               const std::string& comment);
-
-    /**
      * Get the servers SASL mechanisms.
      *
      * @throws std::runtime_error if an error occurs
@@ -844,12 +835,10 @@ public:
     /**
      * Set the connection features to use
      *
-     * @param agent the agent name to report to the server
      * @param features a vector containing all of the features to try
      *                 to enable on the server
      */
-    void setFeatures(const std::string& agent,
-                     const std::vector<cb::mcbp::Feature>& features);
+    void setFeatures(const std::vector<cb::mcbp::Feature>& features);
 
     void setVbucket(Vbid vbid,
                     vbucket_state_t state,
@@ -892,6 +881,18 @@ public:
     cb::mcbp::request::GetScopeIDPayload getScopeId(std::string_view path);
 
     nlohmann::json getCollectionsManifest();
+
+    /// Set the agent name used on the server for this connection
+    /// (need to call setFeatures() to push it to the server)
+    void setAgentName(std::string name) {
+        agentInfo["a"] = std::move(name);
+    }
+
+    /// Set the connection id used on the server for this connection
+    /// (need to call setFeatures() to push it to the server)
+    void setConnectionId(std::string id) {
+        agentInfo["i"] = std::move(id);
+    }
 
 protected:
     void read(Frame& frame, size_t bytes);
@@ -944,6 +945,7 @@ protected:
     BIO* bio = nullptr;
     SOCKET sock = INVALID_SOCKET;
     std::string tag;
+    nlohmann::json agentInfo;
     std::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;
@@ -962,10 +964,9 @@ protected:
      * The internal `features` array is updated with the result sent back
      * from the server.
      *
-     * @param agent the agent name provided by the client
      * @param feat the featureset to enable.
      */
-    void applyFeatures(const std::string& agent, const Featureset& features);
+    void applyFeatures(const Featureset& features);
 
     Featureset effective_features;
 };

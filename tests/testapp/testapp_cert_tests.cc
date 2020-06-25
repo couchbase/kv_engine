@@ -153,9 +153,9 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
     MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
     try {
         connection.connect();
-        connection.hello("LoginWhenMandatoryWithoutCert", "1.0", "");
+        connection.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
         FAIL() << "It should not be possible to connect without certificate";
-    } catch (const std::exception&) {
+    } catch (const std::runtime_error&) {
     }
 }
 

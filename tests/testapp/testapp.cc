@@ -1338,7 +1338,7 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     }
 
     connection.reconnect();
-    connection.setFeatures("testapp", features);
+    connection.setFeatures(features);
     return connection;
 }
 

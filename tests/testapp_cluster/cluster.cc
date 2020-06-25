@@ -133,13 +133,13 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             auto connection = nodes[node_idx]->getConnection();
             connection->connect();
             connection->authenticate("@admin", "password", "plain");
-            connection->setFeatures("cluster_testapp",
-                                    {{cb::mcbp::Feature::MUTATION_SEQNO,
-                                      cb::mcbp::Feature::XATTR,
-                                      cb::mcbp::Feature::XERROR,
-                                      cb::mcbp::Feature::SELECT_BUCKET,
-                                      cb::mcbp::Feature::JSON,
-                                      cb::mcbp::Feature::SNAPPY}});
+            connection->setAgentName("cluster_testapp");
+            connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                                     cb::mcbp::Feature::XATTR,
+                                     cb::mcbp::Feature::XERROR,
+                                     cb::mcbp::Feature::SELECT_BUCKET,
+                                     cb::mcbp::Feature::JSON,
+                                     cb::mcbp::Feature::SNAPPY});
             std::string fname = nodes[node_idx]->directory + "/" + name;
             std::replace(fname.begin(), fname.end(), '\\', '/');
             json["dbname"] = fname;

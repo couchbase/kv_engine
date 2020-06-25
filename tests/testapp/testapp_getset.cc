@@ -1194,14 +1194,11 @@ void GetSetTest::doTestGetRandomKey(bool collections) {
 
     MemcachedConnection& conn = getConnection();
     if (collections) {
-        conn.setFeatures("doTestGetRandomKey",
-                         {{cb::mcbp::Feature::Collections,
-                           cb::mcbp::Feature::SNAPPY,
-                           cb::mcbp::Feature::JSON}});
+        conn.setFeatures({cb::mcbp::Feature::Collections,
+                          cb::mcbp::Feature::SNAPPY,
+                          cb::mcbp::Feature::JSON});
     } else {
-        conn.setFeatures(
-                "doTestGetRandomKey",
-                {{cb::mcbp::Feature::SNAPPY, cb::mcbp::Feature::JSON}});
+        conn.setFeatures({cb::mcbp::Feature::SNAPPY, cb::mcbp::Feature::JSON});
     }
 
     const auto stored = conn.getRandomKey(Vbid(0));

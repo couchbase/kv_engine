@@ -405,8 +405,8 @@ TEST_P(StatsTest, TestAggregate) {
 
 TEST_P(StatsTest, TestPrivilegedConnections) {
     MemcachedConnection& conn = getAdminConnection();
-    conn.hello("TestPrivilegedConnections", "1.0", "test connections test");
-
+    conn.setAgentName("TestPrivilegedConnections 1.0");
+    conn.setFeatures({cb::mcbp::Feature::XERROR});
     auto stats = conn.stats("connections");
     // We have at _least_ 2 connections
     ASSERT_LE(2, stats.size());
@@ -426,7 +426,8 @@ TEST_P(StatsTest, TestPrivilegedConnections) {
 TEST_P(StatsTest, TestUnprivilegedConnections) {
     // Everyone should be allowed to see its own connection details
     MemcachedConnection& conn = getConnection();
-    conn.hello("TestUnprivilegedConnections", "1.0", "test connections test");
+    conn.setAgentName("TestUnprivilegedConnections 1.0");
+    conn.setFeatures({cb::mcbp::Feature::XERROR});
     auto stats = conn.stats("connections");
     ASSERT_LE(1, stats.size());
     EXPECT_EQ("TestUnprivilegedConnections 1.0",

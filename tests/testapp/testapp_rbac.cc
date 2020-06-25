@@ -244,15 +244,12 @@ protected:
     }
 
     MemcachedConnection& prepare(MemcachedConnection& c) {
-        c.setFeatures("rbac-test",
-                      {{cb::mcbp::Feature::MUTATION_SEQNO,
-                        cb::mcbp::Feature::XATTR,
-                        cb::mcbp::Feature::XERROR,
-                        cb::mcbp::Feature::SELECT_BUCKET,
-                        cb::mcbp::Feature::SNAPPY,
-                        cb::mcbp::Feature::JSON
-
-                      }});
+        c.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                       cb::mcbp::Feature::XATTR,
+                       cb::mcbp::Feature::XERROR,
+                       cb::mcbp::Feature::SELECT_BUCKET,
+                       cb::mcbp::Feature::SNAPPY,
+                       cb::mcbp::Feature::JSON});
         c.selectBucket("rbac_test");
         return c;
     }

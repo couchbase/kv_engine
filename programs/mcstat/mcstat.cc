@@ -212,13 +212,8 @@ int main(int argc, char** argv) {
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha
-        connection.hello("mcstat", MEMCACHED_VERSION,
-                         "command line utility to fetch stats");
-        try {
-            connection.setXerrorSupport(true);
-        } catch(std::runtime_error& e) {
-            std::cerr << e.what() << std::endl;
-        }
+        connection.setAgentName("mcstat " MEMCACHED_VERSION);
+        connection.setFeatures({cb::mcbp::Feature::XERROR});
 
         if (!user.empty()) {
             connection.authenticate(user, password,

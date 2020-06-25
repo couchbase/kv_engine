@@ -89,6 +89,8 @@ MemcachedConnection::MemcachedConnection(std::string host,
             setSslKeyFile(std::string{env} + "/client.key");
         }
     }
+
+    agentInfo["a"] = "MemcachedConnection";
 }
 
 MemcachedConnection::~MemcachedConnection() {
@@ -727,7 +729,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
     result->setSslCertFile(this->ssl_cert_file);
     result->setSslKeyFile(this->ssl_key_file);
     result->connect();
-    result->applyFeatures("", this->effective_features);
+    result->applyFeatures(this->effective_features);
     return result;
 }
 
@@ -1144,15 +1146,8 @@ void MemcachedConnection::reloadAuditConfiguration(
     }
 }
 
-void MemcachedConnection::hello(const std::string& userAgent,
-                                const std::string& userAgentVersion,
-                                const std::string& comment) {
-    applyFeatures(userAgent + " " + userAgentVersion, effective_features);
-}
-
-void MemcachedConnection::applyFeatures(const std::string& agent,
-                                        const Featureset& featureset) {
-    BinprotHelloCommand command(agent);
+void MemcachedConnection::applyFeatures(const Featureset& featureset) {
+    BinprotHelloCommand command(agentInfo.dump());
     for (const auto& feature : featureset) {
         command.enableFeature(cb::mcbp::Feature(feature), true);
     }
@@ -1169,9 +1164,8 @@ void MemcachedConnection::applyFeatures(const std::string& agent,
 }
 
 void MemcachedConnection::setFeatures(
-        const std::string& agent,
         const std::vector<cb::mcbp::Feature>& features) {
-    BinprotHelloCommand command(agent);
+    BinprotHelloCommand command(agentInfo.dump());
     for (const auto& feature : features) {
         command.enableFeature(cb::mcbp::Feature(feature), true);
     }
@@ -1211,7 +1205,7 @@ void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
         currFeatures.erase(uint16_t(feature));
     }
 
-    applyFeatures("mcbp", currFeatures);
+    applyFeatures(currFeatures);
 
     if (enabled && !hasFeature(feature)) {
         throw std::runtime_error("Failed to enable " + ::to_string(feature));

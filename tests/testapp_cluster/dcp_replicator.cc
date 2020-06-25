@@ -234,7 +234,8 @@ void DcpReplicatorImpl::createDcpPipe(const Cluster& cluster,
     connection->selectBucket(bucket.getName());
     std::string name("n_" + std::to_string(specific.producer) + "->n_" +
                      std::to_string(specific.consumer));
-    connection->setFeatures(name, features);
+    connection->setAgentName(name);
+    connection->setFeatures(features);
 
     // Create and send a DCP open
     auto rsp = connection->execute(BinprotDcpOpenCommand{
@@ -250,7 +251,8 @@ void DcpReplicatorImpl::createDcpPipe(const Cluster& cluster,
     auto mine = cluster.getConnection(specific.consumer);
     mine->authenticate("@admin", "password", "PLAIN");
     mine->selectBucket(bucket.getName());
-    mine->setFeatures(name, features);
+    mine->setAgentName(name);
+    mine->setFeatures(features);
     BinprotDcpOpenCommand consumerOpenCommand{name};
 
     consumerOpenCommand.setFlags(specific.dcpOpenFlags);

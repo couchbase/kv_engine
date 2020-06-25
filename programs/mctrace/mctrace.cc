@@ -202,15 +202,9 @@ int main(int argc, char** argv) {
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha
-        connection.hello(
-                "mctrace",
-                MEMCACHED_VERSION,
-                "command line utility for performing phosphor trace dumps");
-
+        connection.setAgentName("mctrace " MEMCACHED_VERSION);
         connection.setFeatures(
-                "mctrace " MEMCACHED_VERSION,
-                std::vector<cb::mcbp::Feature>{cb::mcbp::Feature::XERROR,
-                                               cb::mcbp::Feature::JSON});
+                {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
 
         if (!user.empty()) {
             connection.authenticate(
