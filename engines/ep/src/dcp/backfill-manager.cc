@@ -255,9 +255,13 @@ void BackfillManager::bytesForceRead(size_t bytes) {
 void BackfillManager::bytesSent(size_t bytes) {
     LockHolder lh(lock);
     if (bytes > buffer.bytesRead) {
-        throw std::invalid_argument("BackfillManager::bytesSent: bytes "
-                "(which is" + std::to_string(bytes) + ") is greater than "
-                "buffer.bytesRead (which is" + std::to_string(buffer.bytesRead) + ")");
+        throw std::invalid_argument(
+                "BackfillManager::bytesSent: bytes "
+                "(which is " +
+                std::to_string(bytes) +
+                ") is greater than "
+                "buffer.bytesRead (which is " +
+                std::to_string(buffer.bytesRead) + ")");
     }
     buffer.bytesRead -= bytes;
 
