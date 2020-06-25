@@ -202,18 +202,15 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     watchdog.join();
 }
 
-// Regression test for MB-19981 - if a bucket delete is attempted while there
-// is connection in the conn_read_packet_body state.  And that connection is
-// currently blocked waiting for a response from the server; the connection will
-// not have an event registered in libevent.  Therefore a call to updateEvent
-// will fail.
-
-// Note before the fix, if the event_active function call is removed from the
-// signalIfIdle function the test will hang.  The reason the test works with
-// the event_active function call in place is that the event_active function
-// can be invoked regardless of whether the event is registered
-// (i.e. in a pending state) or not.
-TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
+// Test delete of a bucket while we've got a client connected to the bucket
+// which is currently running a backround operation in the engine (the engine
+// returned EWB and started a longrunning task which would complete some
+// time in the future).
+//
+// To simulate this we'll instruct ewb engine to monitor the existence of
+// a file and the removal of the file simulates that the background task
+// completes and the cookie should be signalled.
+TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     auto& conn = getAdminConnection();
     conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
     auto second_conn = conn.clone();
@@ -233,12 +230,10 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
                                             0,
                                             testfile);
 
-    Frame frame =
-            second_conn->encodeCmdGet("dummy_key_where_never_return", Vbid(0));
-
     // Send the get operation, however we will not get a response from the
     // engine, and so it will block indefinitely.
-    second_conn->sendFrame(frame);
+    second_conn->sendCommand(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Get, "dummy_key_where_never_return"});
     std::thread resume{
         [&connection, &testfile]() {
             // wait until we've started to delete the bucket
@@ -264,7 +259,7 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             } while (!deleting && std::chrono::system_clock::now() < timeout);
             if (!deleting) {
                 throw std::runtime_error(
-                        "MB19981TestDeleteWhileClientConnectedAndEWouldBlocked:"
+                        "DeleteWhileClientConnectedAndEWouldBlocked:"
                         " time out waiting for bucket to get into deleting "
                         "state");
             }
@@ -273,7 +268,7 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             cb::io::rmrf(testfile);
             if (std::chrono::system_clock::now() > timeout) {
                 throw std::runtime_error(
-                        "MB19981TestDeleteWhileClientConnectedAndEWouldBlocked:"
+                        "DeleteWhileClientConnectedAndEWouldBlocked:"
                         " It took more than 5 seconds to initiate bucket "
                         "deletion");
             }
