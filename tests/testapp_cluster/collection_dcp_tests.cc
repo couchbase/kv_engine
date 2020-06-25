@@ -112,7 +112,7 @@ TEST_F(CollectionsRbacBucket, BucketAccessCollectionSuccess) {
 
 TEST_F(CollectionsRbacBucket, BucketAccessCollection2Success) {
     conn->dcpStreamRequest(
-            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["8"]})"_json);
+            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
 }
 
 TEST_F(CollectionsRbacBucket, BucketAccessFail) {
@@ -128,17 +128,17 @@ TEST_F(CollectionsRbacBucket, BucketAccessFail) {
     } catch (const ConnectionError& e) {
         // No access and 0 privs == unknown scope
         EXPECT_TRUE(e.isUnknownScope());
-        EXPECT_EQ("1",
+        EXPECT_EQ(cluster->collections.getUidString(),
                   e.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
     try {
         connNoStream->dcpStreamRequest(
-                Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["8"]})"_json);
+                Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
         FAIL() << "Expected a throw";
     } catch (const ConnectionError& e) {
         // No access and 0 privs == unknown collection
         EXPECT_TRUE(e.isUnknownCollection());
-        EXPECT_EQ("1",
+        EXPECT_EQ(cluster->collections.getUidString(),
                   e.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 }
@@ -202,7 +202,7 @@ TEST_F(CollectionsRbacScope, ScopeAccessCollectionSuccess) {
 
 TEST_F(CollectionsRbacScope, ScopeAccessCollection2Success) {
     conn->dcpStreamRequest(
-            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["8"]})"_json);
+            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
 }
 
 // Setup will add a user that can do collection:0 streams
@@ -285,7 +285,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionSuccess) {
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
     try {
         conn->dcpStreamRequest(
-                Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["8"]})"_json);
+                Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
     } catch (const ConnectionError& e) {
         EXPECT_TRUE(e.isUnknownCollection());
     }
@@ -294,7 +294,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown2) {
     try {
         // Even though we can see collection 0, this test checks we get unknown
-        // collection because of the 0 privs on collection 8
+        // collection because of the 0 privs on collection 9
         conn->dcpStreamRequest(Vbid(0),
                                0,
                                0,
@@ -302,7 +302,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown2) {
                                0,
                                0,
                                0,
-                               R"({"collections":["0", "8", "a"]})"_json);
+                               R"({"collections":["0", "9", "a"]})"_json);
     } catch (const ConnectionError& e) {
         EXPECT_TRUE(e.isUnknownCollection());
     }

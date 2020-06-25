@@ -107,8 +107,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         $<TARGET_OBJECTS:couchstore_test_fileops>
         $<TARGET_OBJECTS:couchfile_upgrade_objects>
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-        ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc
-        ${Memcached_SOURCE_DIR}/utilities/test_manifest.cc)
+        ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 IF(EP_USE_MAGMA)
     TARGET_SOURCES(ep-engine_ep_unit_tests PUBLIC module_tests/magma-kvstore_test.cc)
 ENDIF()
@@ -130,6 +129,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         memcached_logger
         mcbp
         mcd_util
+        mcd_test_util
         mcd_time
         mcd_tracing
         mock_server

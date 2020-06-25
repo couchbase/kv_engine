@@ -12,6 +12,7 @@ target_include_directories(cluster_framework PRIVATE SYSTEM
 target_link_libraries(cluster_framework PUBLIC
                       mc_client_connection
                       dirutils
+                      mcd_test_util
                       platform
                       gtest
                       ${FOLLY_LIBRARIES})

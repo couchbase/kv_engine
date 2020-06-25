@@ -28,10 +28,10 @@
 
 #pragma once
 
-#include "collections/collections_types.h"
-
 #include <memcached/dockey.h>
+#include <memcached/types.h>
 #include <nlohmann/json.hpp>
+#include <spdlog/fmt/fmt.h>
 
 // For building CollectionEntry we need a name
 namespace CollectionName {
@@ -42,6 +42,7 @@ constexpr char vegetable[] = "vegetable";
 constexpr char vegetable2[] = "vegetable";
 constexpr char dairy[] = "dairy";
 constexpr char dairy2[] = "dairy";
+constexpr char customer1[] = "customer_collection1";
 } // namespace CollectionName
 
 // For building CollectionEntry we need a UID
@@ -53,6 +54,7 @@ const CollectionID vegetable = 0xa;
 const CollectionID vegetable2 = 0xb;
 const CollectionID dairy = 0xc;
 const CollectionID dairy2 = 0xd;
+const CollectionID customer1 = 0xb;
 } // namespace CollectionUid
 
 namespace CollectionEntry {
@@ -79,6 +81,7 @@ Entry_(vegetable);
 Entry_(vegetable2);
 Entry_(dairy);
 Entry_(dairy2);
+Entry_(customer1);
 
 #undef Entry_
 } // namespace CollectionEntry
@@ -88,6 +91,7 @@ namespace ScopeName {
 constexpr char defaultS[] = "_default";
 constexpr char shop1[] = "supermarket";
 constexpr char shop2[] = "minimart";
+constexpr char customer[] = "customer_scope";
 } // namespace ScopeName
 
 // For building ScopeEntry we need a UID
@@ -95,6 +99,7 @@ namespace ScopeUid {
 const ScopeID defaultS = 0;
 const ScopeID shop1 = 8;
 const ScopeID shop2 = 9;
+const ScopeID customer = 8;
 } // namespace ScopeUid
 
 namespace ScopeEntry {
@@ -124,6 +129,7 @@ struct Entry {
 Entry_(defaultS);
 Entry_(shop1);
 Entry_(shop2);
+Entry_(customer);
 #undef Entry_
 } // namespace ScopeEntry
 
@@ -170,16 +176,21 @@ public:
             const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
     /// Return the manifest UID
-    Collections::ManifestUid getUid() const {
+    uint64_t getUid() const {
         return uid;
     }
 
+    /// Return the manifest UID
+    std::string getUidString() const {
+        return fmt::format("{0:x}", uid);
+    }
+
     /// Set the uid, useful for tests which may want to assert uid values
-    void setUid(Collections::ManifestUid uid) {
+    void setUid(uint64_t uid) {
         this->uid = uid;
     }
 
-    void updateUid(Collections::ManifestUid uid);
+    void updateUid(uint64_t uid);
 
     void setUid(const std::string& uid);
 
@@ -188,14 +199,13 @@ public:
         return toJson();
     }
 
-    // Convert the manifest to a vector of objects
-    // primarily for CollectionsKVStore tests
-    std::vector<Collections::CollectionMetaData> getCreateEventVector() const;
-    std::vector<ScopeID> getScopeIdVector() const;
+    const nlohmann::json& getJson() const {
+        return json;
+    }
 
 private:
     void updateUid();
     std::string toJson() const;
     nlohmann::json json;
-    Collections::ManifestUid uid = 0;
+    uint64_t uid = 0;
 };

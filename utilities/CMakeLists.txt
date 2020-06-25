@@ -48,6 +48,10 @@ target_link_libraries(mcd_util memcached_logger engine_utilities
                       hdr_histogram_static platform ${BREAKPAD_LIBRARIES} ${OPENSSL_LIBRARIES})
 add_sanitizers(mcd_util)
 
+add_library(mcd_test_util STATIC test_manifest.h test_manifest.cc)
+set_property(TARGET mcd_test_util PROPERTY POSITION_INDEPENDENT_CODE 1)
+add_sanitizers(mcd_test_util)
+
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(utilities_testapp util_test.cc)
     target_link_libraries(utilities_testapp

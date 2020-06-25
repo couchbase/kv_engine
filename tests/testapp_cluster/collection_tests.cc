@@ -52,13 +52,13 @@ protected:
 TEST_F(CollectionsTests, TestBasicOperations) {
     auto conn = getConnection();
     mutate(*conn,
-           createKey(Collection::Fruit, "TestBasicOperations"),
+           createKey(CollectionEntry::fruit, "TestBasicOperations"),
            MutationType::Add);
     mutate(*conn,
-           createKey(Collection::Fruit, "TestBasicOperations"),
+           createKey(CollectionEntry::fruit, "TestBasicOperations"),
            MutationType::Set);
     mutate(*conn,
-           createKey(Collection::Fruit, "TestBasicOperations"),
+           createKey(CollectionEntry::fruit, "TestBasicOperations"),
            MutationType::Replace);
 }
 
@@ -96,7 +96,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
                 "Read"
               ]
             },
-            "8": {
+            "9": {
               "privileges": [
                 "Read",
                 "Insert",
@@ -115,13 +115,13 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     auto conn = getConnection();
     mutate(*conn,
-           createKey(Collection::Default, "TestBasicRbac"),
+           createKey(CollectionEntry::defaultC, "TestBasicRbac"),
            MutationType::Add);
     mutate(*conn,
-           createKey(Collection::Fruit, "TestBasicRbac"),
+           createKey(CollectionEntry::fruit, "TestBasicRbac"),
            MutationType::Add);
     mutate(*conn,
-           createKey(Collection::Vegetable, "TestBasicRbac"),
+           createKey(CollectionEntry::vegetable, "TestBasicRbac"),
            MutationType::Add);
 
     // I'm allowed to read from the default collection and read and write
@@ -129,39 +129,40 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     conn->authenticate(username, password);
     conn->selectBucket("default");
 
-    conn->get(createKey(Collection::Default, "TestBasicRbac"), Vbid{0});
-    conn->get(createKey(Collection::Fruit, "TestBasicRbac"), Vbid{0});
+    conn->get(createKey(CollectionEntry::defaultC, "TestBasicRbac"), Vbid{0});
+    conn->get(createKey(CollectionEntry::fruit, "TestBasicRbac"), Vbid{0});
 
     // I cannot get from the vegetable collection
     try {
-        conn->get(createKey(Collection::Vegetable, "TestBasicRbac"), Vbid{0});
+        conn->get(createKey(CollectionEntry::vegetable, "TestBasicRbac"),
+                  Vbid{0});
         FAIL() << "Should not be able to fetch in vegetable collection";
     } catch (const ConnectionError& error) {
         // No privileges so we would get unknown collection error
         ASSERT_TRUE(error.isUnknownCollection())
                 << to_string(error.getReason());
         EXPECT_EQ(
-                "1",
+                cluster->collections.getUidString(),
                 error.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 
     // I'm only allowed to write in Fruit
     mutate(*conn,
-           createKey(Collection::Fruit, "TestBasicRbac"),
+           createKey(CollectionEntry::fruit, "TestBasicRbac"),
            MutationType::Set);
-    for (auto c : std::vector<Collection>{
-                 {Collection::Default, Collection::Vegetable}}) {
+    for (auto c : std::vector<CollectionID>{
+                 {CollectionEntry::defaultC, CollectionEntry::vegetable}}) {
         try {
             mutate(*conn, createKey(c, "TestBasicRbac"), MutationType::Set);
             FAIL() << "Should only be able to store in the fruit collection";
         } catch (const ConnectionError& error) {
-            if (c == Collection::Default) {
+            if (c == CollectionEntry::defaultC.getId()) {
                 // Default: we have read, but not write so access denied
                 ASSERT_TRUE(error.isAccessDenied());
             } else {
                 // Nothing at all in vegetable, so unknown
                 ASSERT_TRUE(error.isUnknownCollection());
-                EXPECT_EQ("1",
+                EXPECT_EQ(cluster->collections.getUidString(),
                           error.getErrorJsonContext()["manifest_uid"]
                                   .get<std::string>());
             }
@@ -169,9 +170,9 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     }
 
     auto fruit = conn->getCollectionId("_default.fruit");
-    EXPECT_EQ(8, fruit.getCollectionId());
+    EXPECT_EQ(CollectionEntry::fruit.getId(), fruit.getCollectionId());
     auto defaultScope = conn->getScopeId("_default");
-    EXPECT_EQ(0, defaultScope.getScopeId());
+    EXPECT_EQ(CollectionEntry::defaultC.getId(), defaultScope.getScopeId());
     // Now failure, we have no privs in customer_scope
     try {
         conn->getCollectionId("customer_scope.customer_collection1");
@@ -179,7 +180,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isUnknownCollection());
         EXPECT_EQ(
-                "1",
+                cluster->collections.getUidString(),
                 error.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
     try {
@@ -188,7 +189,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isUnknownScope());
         EXPECT_EQ(
-                "1",
+                cluster->collections.getUidString(),
                 error.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
 
@@ -211,7 +212,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
                             json["scopes"][0]["collections"].end(),
                             [](nlohmann::json entry) {
                                 return entry["name"] == "fruit" &&
-                                       entry["uid"] == "8";
+                                       entry["uid"] == "9";
                             }));
 
     cluster->getAuthProviderService().removeUser(username);

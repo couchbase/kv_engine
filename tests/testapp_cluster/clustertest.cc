@@ -53,38 +53,14 @@ void cb::test::ClusterTest::createDefaultBucket() {
     if (!bucket) {
         throw std::runtime_error("Failed to create default bucket");
     }
-    bucket->setCollectionManifest(R"({
-  "uid": "1",
-  "scopes": [
-    {
-      "name": "_default",
-      "uid": "0",
-      "collections": [
-        {
-          "name": "_default",
-          "uid": "0"
-        },
-        {
-          "name": "fruit",
-          "uid": "8"
-        },
-        {
-          "name": "vegetable",
-          "uid": "9"
-        }
-      ]
-    },
-    {
-      "name" : "customer_scope",
-      "uid" : "8",
-      "collections": [
-        {
-          "name": "customer_collection1",
-          "uid": "a"
-        }]
-    }
-  ]
-})"_json);
+
+    // Add fruit, vegetable to default scope
+    // Add a second scope and collection
+    cluster->collections.add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable);
+    cluster->collections.add(ScopeEntry::customer);
+    cluster->collections.add(CollectionEntry::customer1, ScopeEntry::customer);
+    bucket->setCollectionManifest(cluster->collections.getJson());
 }
 
 void cb::test::ClusterTest::SetUp() {
@@ -109,7 +85,7 @@ void cb::test::ClusterTest::getReplica(MemcachedConnection& conn,
     EXPECT_TRUE(rsp.isSuccess());
 }
 
-std::string cb::test::ClusterTest::createKey(CollectionIDType cid,
+std::string cb::test::ClusterTest::createKey(CollectionID cid,
                                              const std::string& key) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb(cid);
     std::string ret;

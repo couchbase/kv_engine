@@ -17,6 +17,7 @@
 #pragma once
 
 #include "dcp_packet_filter.h"
+#include "utilities/test_manifest.h"
 
 #include <memcached/vbucket.h>
 #include <nlohmann/json_fwd.hpp>
@@ -98,6 +99,8 @@ public:
 
     /// Get the auth provider
     virtual AuthProviderService& getAuthProviderService() = 0;
+
+    CollectionsManifest collections;
 
     /**
      * Factory method to create a cluster

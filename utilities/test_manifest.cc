@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <utilities/test_manifest.h>
+#include "test_manifest.h"
 
 #include <memcached/dockey.h>
 
@@ -139,8 +139,8 @@ void CollectionsManifest::updateUid() {
     json["uid"] = ss.str();
 }
 
-void CollectionsManifest::updateUid(Collections::ManifestUid uid) {
-    this->uid.reset(uid);
+void CollectionsManifest::updateUid(uint64_t uid) {
+    this->uid = uid;
 
     std::stringstream ss;
     ss << std::hex << uid;
@@ -156,32 +156,4 @@ void CollectionsManifest::setUid(const std::string& uid) {
     updateUid();
 }
 
-std::vector<Collections::CollectionMetaData>
-CollectionsManifest::getCreateEventVector() const {
-    std::vector<Collections::CollectionMetaData> rv;
-    for (const auto& scope : json["scopes"]) {
-        for (const auto& collection : scope["collections"]) {
-            cb::ExpiryLimit maxTtl;
-            auto ttl = collection.find("maxTTL");
-            if (ttl != collection.end()) {
-                maxTtl = std::chrono::seconds(ttl->get<int32_t>());
-            }
-            ScopeID sid =
-                    Collections::makeScopeID(scope["uid"].get<std::string>());
-            CollectionID cid = Collections::makeCollectionID(
-                    collection["uid"].get<std::string>());
-            std::string name = collection["name"].get<std::string>();
 
-            rv.push_back({sid, cid, name, maxTtl});
-        }
-    }
-    return rv;
-}
-
-std::vector<ScopeID> CollectionsManifest::getScopeIdVector() const {
-    std::vector<ScopeID> rv;
-    for (const auto& scope : json["scopes"]) {
-        rv.push_back(Collections::makeScopeID(scope["uid"].get<std::string>()));
-    }
-    return rv;
-}

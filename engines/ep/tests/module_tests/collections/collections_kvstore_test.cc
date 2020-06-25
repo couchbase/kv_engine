@@ -102,13 +102,47 @@ public:
         EXPECT_EQ(cm.getUid(), md.manifestUid);
     }
 
+    static std::vector<Collections::CollectionMetaData> getCreateEventVector(
+            const CollectionsManifest& cm) {
+        std::vector<Collections::CollectionMetaData> rv;
+        auto& json = cm.getJson();
+        for (const auto& scope : json["scopes"]) {
+            for (const auto& collection : scope["collections"]) {
+                cb::ExpiryLimit maxTtl;
+                auto ttl = collection.find("maxTTL");
+                if (ttl != collection.end()) {
+                    maxTtl = std::chrono::seconds(ttl->get<int32_t>());
+                }
+                ScopeID sid = Collections::makeScopeID(
+                        scope["uid"].get<std::string>());
+                CollectionID cid = Collections::makeCollectionID(
+                        collection["uid"].get<std::string>());
+                auto name = collection["name"].get<std::string>();
+
+                rv.push_back({sid, cid, name, maxTtl});
+            }
+        }
+        return rv;
+    }
+
+    static std::vector<ScopeID> getScopeIdVector(
+            const CollectionsManifest& cm) {
+        std::vector<ScopeID> rv;
+        auto& json = cm.getJson();
+        for (const auto& scope : json["scopes"]) {
+            rv.push_back(
+                    Collections::makeScopeID(scope["uid"].get<std::string>()));
+        }
+        return rv;
+    }
+
     void checkCollections(
             const Collections::KVStore::Manifest& md,
             const CollectionsManifest& cm,
             size_t expectedMatches,
             std::vector<CollectionID> expectedDropped = {}) const {
         EXPECT_EQ(expectedMatches, md.collections.size());
-        auto expected = cm.getCreateEventVector();
+        auto expected = getCreateEventVector(cm);
 
         EXPECT_EQ(expectedMatches, expected.size());
 
@@ -156,7 +190,7 @@ public:
     void checkScopes(const Collections::KVStore::Manifest& md,
                      const CollectionsManifest& cm,
                      int expectedMatches) const {
-        auto expectedScopes = cm.getScopeIdVector();
+        auto expectedScopes = getScopeIdVector(cm);
         EXPECT_EQ(expectedMatches, expectedScopes.size());
         EXPECT_EQ(expectedMatches, md.scopes.size());
 
