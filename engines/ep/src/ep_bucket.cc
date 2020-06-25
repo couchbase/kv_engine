@@ -1999,3 +1999,12 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
     }
     folly::assume_unreachable();
 }
+
+std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res) {
+    os << std::boolalpha << "moreAvailable:{"
+       << (res.moreAvailable == EPBucket::MoreAvailable::Yes) << "} "
+       << "numFlushed:{" << res.numFlushed << "} "
+       << "wakeupCkptRemover:{"
+       << (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) << "}";
+    return os;
+}

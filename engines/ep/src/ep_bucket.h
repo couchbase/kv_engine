@@ -319,3 +319,5 @@ protected:
 
     std::unique_ptr<Warmup> warmupTask;
 };
+
+std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);
