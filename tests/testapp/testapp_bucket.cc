@@ -146,6 +146,55 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
     }
 }
 
+/**
+ * Delete a bucket with a 5 second timeout
+ *
+ * @param conn The connection to send the delete bucket over
+ * @param name The name of the bucket to delete
+ * @param stateCallback A callback function called _every_ time we fetch the
+ *                      state for the bucket during bucket deletion
+ */
+static void deleteBucket(
+        MemcachedConnection& conn,
+        const std::string& name,
+        std::function<void(const std::string&)> stateCallback) {
+    auto clone = conn.clone();
+    clone->authenticate("@admin", "password", "PLAIN");
+    const auto timeout =
+            std::chrono::system_clock::now() + std::chrono::seconds{5};
+    conn.sendCommand(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::DeleteBucket, name});
+
+    bool found = false;
+    do {
+        // Avoid busy-wait ;-)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto details = clone->stats("bucket_details");
+        auto bucketDetails = details["bucket details"];
+        found = false;
+        for (const auto& bucket : bucketDetails["buckets"]) {
+            auto name = bucket.find("name");
+            if (name != bucket.end()) {
+                if (name->get<std::string>() == "bucket") {
+                    if (stateCallback) {
+                        stateCallback(bucket["state"].get<std::string>());
+                    }
+                    found = true;
+                }
+            }
+        }
+    } while (found && std::chrono::system_clock::now() < timeout);
+
+    if (found) {
+        throw std::runtime_error("Timed out waiting for bucket '" + name +
+                                 "' to be deleted");
+    }
+
+    // read out the delete response
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+}
+
 // Unit test to verify that a connection currently sending a command to the
 // server won't block bucket deletion (the server don't wait for the client
 // send all of the data, but shut down the connection immediately)
@@ -199,53 +248,16 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     // engine, and so it will block indefinitely.
     second_conn->sendCommand(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Get, "dummy_key_where_never_return"});
-    std::thread resume{
-        [&connection, &testfile]() {
-            // wait until we've started to delete the bucket
-            bool deleting = false;
-            const auto timeout =
-                    std::chrono::system_clock::now() + std::chrono::seconds{5};
-            do {
-                // Avoid busy-wait ;-)
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                auto details = connection->stats("bucket_details");
-                auto bucketDetails = details["bucket details"];
-                for (const auto& bucket : bucketDetails["buckets"]) {
-                    auto name = bucket.find("name");
-                    if (name != bucket.end()) {
-                        if (name->get<std::string>() == "bucket") {
-                            if (bucket["state"].get<std::string>() ==
-                                "destroying") {
-                                deleting = true;
-                            }
-                        }
-                    }
-                }
-            } while (!deleting && std::chrono::system_clock::now() < timeout);
-            if (!deleting) {
-                throw std::runtime_error(
-                        "DeleteWhileClientConnectedAndEWouldBlocked:"
-                        " time out waiting for bucket to get into deleting "
-                        "state");
-            }
 
-            // resume the connection
-            cb::io::rmrf(testfile);
-            if (std::chrono::system_clock::now() > timeout) {
-                throw std::runtime_error(
-                        "DeleteWhileClientConnectedAndEWouldBlocked:"
-                        " It took more than 5 seconds to initiate bucket "
-                        "deletion");
-            }
+    deleteBucket(conn, "bucket", [&testfile](const std::string& state) {
+        if (testfile.empty()) {
+            return;
         }
-    };
-
-    // On a different connection we now instruct the bucket to be deleted.
-    // The connection that is currently blocked needs to be sent a fake
-    // event to allow the connection to be closed.
-    conn.deleteBucket("bucket");
-
-    resume.join();
+        if (state == "destroying") {
+            cb::io::rmrf(testfile);
+            testfile.clear();
+        }
+    });
 }
 
 int64_t getTotalSent(const nlohmann::json& payload) {
