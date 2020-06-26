@@ -426,12 +426,12 @@ static enum test_result test_multi_set(EngineIface* h) {
     struct multi_set_args msa1, msa2;
     msa1.h = h;
     msa1.prefix = "ONE_";
-    msa1.count = 50000;
+    msa1.count = 10000;
     cb_assert(cb_create_thread(&thread1, multi_set_thread, &msa1, 0) == 0);
 
     msa2.h = h;
     msa2.prefix = "TWO_";
-    msa2.count = 50000;
+    msa2.count = 10000;
     cb_assert(cb_create_thread(&thread2, multi_set_thread, &msa2, 0) == 0);
 
     cb_assert(cb_join_thread(thread1) == 0);
@@ -439,10 +439,10 @@ static enum test_result test_multi_set(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    checkeq(100000,
+    checkeq(20000,
             get_int_stat(h, "curr_items"),
             "Mismatch in number of items inserted");
-    checkeq(100000,
+    checkeq(20000,
             get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
             "Unexpected high sequence number");
 
