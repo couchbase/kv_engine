@@ -154,13 +154,11 @@ HashTable::HashTable(EPStats& st,
 }
 
 HashTable::~HashTable() {
+    Expects(visitors == 0);
+
     // Use unlocked clear for the destructor, avoids lock inversions on VBucket
     // delete
     clear_UNLOCKED(true);
-    // Wait for any outstanding visitors to finish.
-    while (visitors > 0) {
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
-    }
 }
 
 void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
