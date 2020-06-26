@@ -1412,9 +1412,14 @@ int main(int argc, char** argv) {
      * If not running in embedded mode we need the McdEnvironment to manageSSL
      * initialization and shutdown.
      */
-    mcd_env = new McdEnvironment(
-            !embedded_memcached_server, engine_name, engine_config);
-
+    try {
+        mcd_env = new McdEnvironment(
+                !embedded_memcached_server, engine_name, engine_config);
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "Failed to set up test environment: " << e.what()
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
     ::testing::AddGlobalTestEnvironment(mcd_env);
 
     cb_initialize_sockets();
