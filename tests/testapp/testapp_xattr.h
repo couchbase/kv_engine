@@ -47,6 +47,10 @@ protected:
         return mcd_env->getTestBucket().supportsSyncWrites();
     }
 
+    /// Constructs a Subdoc multi-mutation matching the style of an SDK
+    // Transactions mutation.
+    BinprotSubdocMultiMutationCommand makeSDKTxnMultiMutation() const;
+
     void testRequiresMkdocOrAdd();
     void testRequiresXattrPath();
     void testSinglePathDictAdd();
@@ -57,6 +61,7 @@ protected:
     void testMultipathArrayAddUnique();
     void testMultipathCounter();
     void testMultipathCombo();
+    void testMultipathAccessDeletedCreateAsDeleted();
 
     boost::optional<cb::durability::Requirements> durReqs = {};
 };

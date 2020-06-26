@@ -332,31 +332,7 @@ void XattrNoDocTest::testMultipathCombo() {
         GTEST_SKIP("Requires SyncReplication support");
     }
 
-    BinprotSubdocMultiMutationCommand cmd;
-    cmd.setKey(name);
-    cmd.addMutation(
-            ClientOpcode::SubdocDictAdd, SUBDOC_FLAG_XATTR_PATH, "txn", "{}");
-    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
-                    "txn.id",
-                    "2");
-    cmd.addMutation(ClientOpcode::SubdocArrayPushLast,
-                    SUBDOC_FLAG_XATTR_PATH,
-                    "txn.array",
-                    "2");
-    cmd.addMutation(ClientOpcode::SubdocArrayPushFirst,
-                    SUBDOC_FLAG_XATTR_PATH,
-                    "txn.array",
-                    "0");
-    cmd.addMutation(ClientOpcode::SubdocArrayAddUnique,
-                    SUBDOC_FLAG_XATTR_PATH,
-                    "txn.array",
-                    "3");
-    cmd.addMutation(ClientOpcode::SubdocCounter,
-                    SUBDOC_FLAG_XATTR_PATH,
-                    "txn.counter",
-                    "1");
-
+    auto cmd = makeSDKTxnMultiMutation();
     cmd.addDocFlag(doc_flag::Mkdoc);
     cmd.addDocFlag(doc_flag::CreateAsDeleted);
 
@@ -383,4 +359,44 @@ TEST_P(XattrNoDocTest, MultipathCombo) {
 
 TEST_P(XattrNoDocDurabilityTest, MultipathCombo) {
     testMultipathCombo();
+}
+
+// Positive test: Can User XAttrs be added to a document which doesn't exist
+// (and doesn't have a tombstone) using the new CreateAsDeleted flag alongside
+// AccessDeleted (to check for an existing tombstone).
+// This is also a regression test for MB-40162.
+void XattrNoDocTest::testMultipathAccessDeletedCreateAsDeleted() {
+    if (durReqs && !supportSyncRepl()) {
+        GTEST_SKIP("Requires SyncReplication support");
+    }
+
+    auto cmd = makeSDKTxnMultiMutation();
+
+    cmd.addDocFlag(doc_flag::Add);
+    cmd.addDocFlag(doc_flag::AccessDeleted);
+    cmd.addDocFlag(doc_flag::CreateAsDeleted);
+
+    if (durReqs) {
+        cmd.setDurabilityReqs(*durReqs);
+    }
+
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+    BinprotSubdocResponse resp;
+    conn.recvResponse(resp);
+    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    // Check the last path was created correctly.
+    resp = subdoc_get(
+            "txn.counter", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+    EXPECT_EQ("1", resp.getValue());
+}
+
+TEST_P(XattrNoDocTest, MultipathAccessDeletedCreateAsDeleted) {
+    testMultipathAccessDeletedCreateAsDeleted();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathAccessDeletedCreateAsDeleted) {
+    testMultipathAccessDeletedCreateAsDeleted();
 }

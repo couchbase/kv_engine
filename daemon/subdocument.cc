@@ -57,7 +57,7 @@ using namespace mcbp::subdoc;
  */
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE ret,
+                         ENGINE_ERROR_CODE& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas);
 
@@ -461,7 +461,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 // else false.
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE ret,
+                         ENGINE_ERROR_CODE& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
@@ -516,6 +516,9 @@ static bool subdoc_fetch(Cookie& cookie,
             ctx.needs_new_doc = true;
             ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             ctx.in_document_state = ctx.createState;
+            // Change 'ret' back to success - conceptually the fetch did
+            // "succeed" and execution should continue.
+            ret = ENGINE_SUCCESS;
             return true;
 
         case ENGINE_EWOULDBLOCK:

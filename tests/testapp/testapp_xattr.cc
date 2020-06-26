@@ -21,6 +21,36 @@
 
 #include <array>
 
+BinprotSubdocMultiMutationCommand XattrNoDocTest::makeSDKTxnMultiMutation()
+        const {
+    using namespace cb::mcbp;
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(
+            ClientOpcode::SubdocDictAdd, SUBDOC_FLAG_XATTR_PATH, "txn", "{}");
+    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.id",
+                    "2");
+    cmd.addMutation(ClientOpcode::SubdocArrayPushLast,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.array",
+                    "2");
+    cmd.addMutation(ClientOpcode::SubdocArrayPushFirst,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.array",
+                    "0");
+    cmd.addMutation(ClientOpcode::SubdocArrayAddUnique,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.array",
+                    "3");
+    cmd.addMutation(ClientOpcode::SubdocCounter,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.counter",
+                    "1");
+    return cmd;
+}
+
 // @todo add the other transport protocols
 // Note: We always need XattrSupport::Yes for these tests
 INSTANTIATE_TEST_CASE_P(
