@@ -27,6 +27,14 @@
 using namespace mcbp::subdoc;
 using namespace cb::mcbp;
 
+// Naive backport of GTEST_SKIP macro from v1.10. Remove once this is merged
+// to master branch (where we have gtest 1.10).
+#define GTEST_SKIP(message)                              \
+    do {                                                 \
+        fprintf(stderr, "Skipping test: " message "\n"); \
+        return;                                          \
+    } while (false)
+
 // Negative test: The subdoc operation returns Einval as
 // doc_flag::CreateAsDeleted requires one of doc_flag::Mkdoc/Add.
 void XattrNoDocTest::testRequiresMkdocOrAdd() {
@@ -73,7 +81,7 @@ TEST_P(XattrNoDocDurabilityTest, RequiresXattrPath) {
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag.
 void XattrNoDocTest::testSinglePathDictAdd() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     // let's add a user XATTR to a non-existing document
@@ -105,7 +113,7 @@ TEST_P(XattrNoDocDurabilityTest, SinglePathDictAdd) {
 // multi-mutation with each mutation opcode.
 void XattrNoDocTest::testMultipathDictAdd() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd(
@@ -136,7 +144,7 @@ TEST_P(XattrNoDocDurabilityTest, MultipathDictAdd) {
 
 void XattrNoDocTest::testMultipathDictUpsert() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd(
@@ -166,7 +174,7 @@ TEST_P(XattrNoDocDurabilityTest, MultipathDictUpsert) {
 
 void XattrNoDocTest::testMultipathArrayPushLast() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd(
@@ -196,7 +204,7 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayPushLast) {
 
 void XattrNoDocTest::testMultipathArrayPushFirst() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd(
@@ -256,7 +264,7 @@ TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
 
 void XattrNoDocTest::testMultipathArrayAddUnique() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd(
@@ -286,7 +294,7 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayAddUnique) {
 
 void XattrNoDocTest::testMultipathCounter() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd(
@@ -317,11 +325,11 @@ TEST_P(XattrNoDocDurabilityTest, MultipathCounter) {
 }
 
 // Positive test: Can User XAttrs be added to a document which doesn't exist
-// (and doesn't have a tombstone) using the new CreateAsDeleted flag, using
-// a combination of subdoc-multi mutation types.
+// using the new CreateAsDeleted flag, using a combination of subdoc-multi
+// mutation types.
 void XattrNoDocTest::testMultipathCombo() {
     if (durReqs && !supportSyncRepl()) {
-        return;
+        GTEST_SKIP("Requires SyncReplication support");
     }
 
     BinprotSubdocMultiMutationCommand cmd;
