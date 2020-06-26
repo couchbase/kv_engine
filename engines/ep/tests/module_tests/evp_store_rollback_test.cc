@@ -65,6 +65,9 @@ class RollbackTest
     void SetUp() override {
         config_string += "backend=" + getBackend();
         config_string += ";item_eviction_policy=" + getEvictionMode();
+#ifdef EP_USE_MAGMA
+        config_string += ";" + magmaRollbackConfig;
+#endif
         SingleThreadedEPBucketTest::SetUp();
         if (getVBStateAtRollback() == "pending") {
             vbStateAtRollback = vbucket_state_pending;

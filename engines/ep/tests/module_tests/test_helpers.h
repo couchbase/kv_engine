@@ -30,18 +30,22 @@
 
 #include <chrono>
 
-// Couchstore defaults to creating a rollback point at each batch
-// commit. In order to simulate that with magma, we need to set
-// magma_commit_point_interval=0 and
-// magma_commit_point_every_batch=true. Also create the number of
-// commit points retained. Run 2 flushers and compactors to attempt to find any
-// race conditions.
+// The way magma set its memory quota is to use 10% of the
+// max_size per shard. Set this to allow for 3MB per shard assuming
+// there are 4 shards.
+// 3145728 * 4 / 0.1 = 125829120
 static std::string magmaConfig =
-        "magma_max_commit_points=10;"
-        "magma_commit_point_interval=0;"
-        "magma_commit_point_every_batch=true;"
+        "max_size=125829120;"
         "magma_num_flushers=2;"
         "magma_num_compactors=2";
+
+// When a test needs to do a rollback, we need to configure magma
+// to generate a rollback point with each item batch, similar to what
+// couchstore does.
+static std::string magmaRollbackConfig =
+        "magma_max_commit_points=10;"
+        "magma_commit_point_interval=0;"
+        "magma_commit_point_every_batch=true";
 
 class VBucket;
 

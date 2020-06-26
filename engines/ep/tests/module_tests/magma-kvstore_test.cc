@@ -34,6 +34,9 @@ protected:
 
         auto configStr =
                 "dbname="s + data_dir + ";"s + "backend=magma;" + magmaConfig;
+        if (rollbackTest) {
+            configStr += ";" + magmaRollbackConfig;
+        }
         Configuration config;
         config.parseConfiguration(configStr.c_str(), get_mock_server_api());
         WorkLoadPolicy workload(config.getMaxNumWorkers(),
@@ -50,9 +53,23 @@ protected:
 
     std::unique_ptr<MagmaKVStoreConfig> kvstoreConfig;
     std::unique_ptr<MockMagmaKVStore> kvstore;
+    void SetRollbackTest() {
+        rollbackTest = true;
+    }
+
+private:
+    bool rollbackTest{false};
 };
 
-TEST_F(MagmaKVStoreTest, Rollback) {
+class MagmaKVStoreRollbackTest : public MagmaKVStoreTest {
+protected:
+    void SetUp() override {
+        MagmaKVStoreTest::SetRollbackTest();
+        MagmaKVStoreTest::SetUp();
+    }
+};
+
+TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {
@@ -89,7 +106,7 @@ TEST_F(MagmaKVStoreTest, Rollback) {
     ASSERT_EQ(size_t(5), kvstore->getItemCount(Vbid(0)));
 }
 
-TEST_F(MagmaKVStoreTest, RollbackNoValidCommitPoint) {
+TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCommitPoint) {
     uint64_t seqno = 1;
 
     auto cfg = reinterpret_cast<MagmaKVStoreConfig*>(kvstoreConfig.get());
