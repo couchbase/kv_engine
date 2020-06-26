@@ -260,12 +260,7 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     });
 }
 
-int64_t getTotalSent(const nlohmann::json& payload) {
-    return cb::jsonGet<int64_t>(payload, "total_send");
-}
-
-static nlohmann::json getConnectionStats(MemcachedConnection& conn,
-                                         intptr_t id) {
+static int64_t getTotalSent(MemcachedConnection& conn, intptr_t id) {
     const auto stats = conn.stats("connections " + std::to_string(id));
     if (stats.empty()) {
         throw std::runtime_error("getConnectionStats(): nothing returned");
@@ -276,7 +271,7 @@ static nlohmann::json getConnectionStats(MemcachedConnection& conn,
                 "getConnectionStats(): Expected a single entry");
     }
 
-    return stats.front();
+    return stats.front()["total_send"].get<int64_t>();
 }
 
 /**
@@ -287,17 +282,17 @@ static nlohmann::json getConnectionStats(MemcachedConnection& conn,
  * tries to fetch that document until the socket buffer is full
  * (because we never try to read the data)
  */
-TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
+TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
     auto& conn = getAdminConnection();
     const auto id = conn.getServerConnectionId();
-    conn.createBucket("MB29639",
+    conn.createBucket("bucket",
                       "cache_size=67108864;item_size_max=22020096",
                       BucketType::Memcached);
-    conn.selectBucket("MB29639");
+    conn.selectBucket("bucket");
 
     auto second_conn = conn.clone();
     second_conn->authenticate("@admin", "password", "PLAIN");
-    second_conn->selectBucket("MB29639");
+    second_conn->selectBucket("bucket");
 
     // Store the document I want to fetch
     Document document;
@@ -325,59 +320,25 @@ TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
                 conn.sendCommand(cmd);
             } while (!blocked.load());
         } catch (const std::exception& e) {
-            std::cerr << e.what() << std::endl;
+            std::cerr << "DeleteWhileSendDataAndFullWriteBuffer: Failed to "
+                         "send data to the server: "
+                      << e.what() << std::endl;
+            exit(EXIT_FAILURE);
         }
     }};
 
+    // Wait until the server filled up all of the socket buffers in the
+    // kernel so we don't make any progress when trying to send more data.
     do {
-        // Is the server currently blocked?
-        auto json = getConnectionStats(*second_conn, id);
-        int64_t totalSend = getTotalSent(json);
-
-        // We're in the drain_send_buffer state, but we might not be blocked
-        // yet.. take a quick pause and check that we're still in
-        // drain_send_buffer and that we haven't sent any data!
+        const auto totalSend = getTotalSent(*second_conn, id);
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-
-        json = getConnectionStats(*second_conn, id);
-        if (totalSend == getTotalSent(json)) {
+        if (totalSend == getTotalSent(*second_conn, id)) {
             blocked.store(true);
         }
     } while (!blocked);
 
-    // Once we call deleteBucket below, it will hang forever (if the bug is
-    // present), so we need a watchdog thread which will close the connection
-    // if the bucket was not deleted.
-    std::mutex cv_m;
-    std::condition_variable cv;
-    std::atomic<bool> bucket_deleted{false};
-    std::atomic<bool> watchdog_fired{false};
-    std::thread watchdog{
-            [&conn, &cv_m, &cv, &bucket_deleted, &watchdog_fired]() {
-                std::unique_lock<std::mutex> lock(cv_m);
-                cv.wait_for(lock, std::chrono::seconds(5), [&bucket_deleted]() {
-                    return bucket_deleted == true;
-                });
-
-                if (!bucket_deleted) {
-                    watchdog_fired = true;
-                    conn.close();
-                }
-            }};
-
-    // Now try to delete the bucket
-    second_conn->deleteBucket("MB29639");
-
-    // Cleanup - stop the watchdog (if it hasn't already fired).
-    bucket_deleted = true;
-    cv.notify_one();
-    watchdog.join();
-
-    // Check that the watchdog didn't fire.
-    EXPECT_FALSE(watchdog_fired)
-            << "Bucket deletion (with connected client blocked in send_data "
-               "due to full send buffer) only completed after watchdog fired";
-
+    // The socket is blocked so we may delete the bucket
+    deleteBucket(*second_conn, "bucket", {});
     client.join();
 }
 
