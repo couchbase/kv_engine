@@ -314,47 +314,40 @@ bool Filter::processCollectionEvent(const Item& item) {
     }
 
     CollectionID cid;
-    ManifestUid manifestUid = 0;
     std::optional<ScopeID> sid;
     if (!item.isDeleted()) {
         auto dcpData = VB::Manifest::getCreateEventData(
                 {item.getData(), item.getNBytes()});
-        manifestUid = dcpData.manifestUid;
         sid = dcpData.metaData.sid;
         cid = dcpData.metaData.cid;
     } else {
         auto dcpData = VB::Manifest::getDropEventData(
                 {item.getData(), item.getNBytes()});
-        manifestUid = dcpData.manifestUid;
         sid = dcpData.sid;
         cid = dcpData.cid;
     }
 
-    // Only consider this if it is an event the client hasn't observed
-    if (!uid || (manifestUid > *uid)) {
-        if (passthrough || deleted ||
-            (cid.isDefaultCollection() && defaultAllowed)) {
-            return true;
-        }
-
-        // If scopeID is initialized then we are filtering on a scope
-        if (sid && scopeID && (sid == scopeID)) {
-            if (item.isDeleted()) {
-                // The item is a drop collection from the filtered scope. The
-                // ::filter std::set should not store this collection, but it
-                // should be included in a DCP stream which cares for the scope.
-                // Return true and take no further actions.
-                return true;
-            } else {
-                // update the filter set as this collection is in our scope
-                filter.insert({cid, *sid});
-            }
-        }
-
-        // When filtered allow only if there is a match
-        return filter.count(cid) > 0;
+    if (passthrough || deleted ||
+        (cid.isDefaultCollection() && defaultAllowed)) {
+        return true;
     }
-    return false;
+
+    // If scopeID is initialized then we are filtering on a scope
+    if (sid && scopeID && (sid == scopeID)) {
+        if (item.isDeleted()) {
+            // The item is a drop collection from the filtered scope. The
+            // ::filter std::set should not store this collection, but it
+            // should be included in a DCP stream which cares for the scope.
+            // Return true and take no further actions.
+            return true;
+        } else {
+            // update the filter set as this collection is in our scope
+            filter.insert({cid, *sid});
+        }
+    }
+
+    // When filtered allow only if there is a match
+    return filter.count(cid) > 0;
 }
 
 bool Filter::processScopeEvent(const Item& item) {
@@ -386,10 +379,7 @@ bool Filter::processScopeEvent(const Item& item) {
             }
         }
 
-        // Only consider this if it is an event the client hasn't observed
-        if (!uid || (manifestUid > *uid)) {
-            return sid == scopeID || passthrough;
-        }
+        return sid == scopeID || passthrough;
     }
 
     return false;
