@@ -174,6 +174,8 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
         return cb::engine_errc::unknown_collection;
     case ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD:
         return cb::engine_errc::collections_manifest_is_ahead;
+    case ENGINE_UNKNOWN_SCOPE:
+        return cb::engine_errc::unknown_scope;
     case ENGINE_FAILED:
         return cb::engine_errc::failed;
     case ENGINE_PREDICATE_FAILED:

@@ -53,6 +53,9 @@
 #include "warmup.h"
 
 #include <JSON_checker.h>
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/engine.h>
@@ -4456,51 +4459,133 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
     return ENGINE_ERROR_CODE(res.result);
 }
 
+cb::EngineErrorGetCollectionIDResult
+EventuallyPersistentEngine::parseKeyStatCollection(
+        std::string_view expectedStatPrefix,
+        std::string_view statKeyArg,
+        std::string_view collectionStr) {
+    CollectionID cid(CollectionID::Default);
+    if (statKeyArg == expectedStatPrefix) {
+        // provided argument should be a collection path
+        auto res = kvBucket->getCollectionsManager().getCollectionID(
+                collectionStr);
+        cid = res.getCollectionId();
+        if (res.result != cb::engine_errc::success) {
+            EP_LOG_WARN(
+                    "EventuallyPersistentEngine::parseKeyStatCollection could "
+                    "not find collection arg:{} error:{}",
+                    collectionStr,
+                    res.result);
+        }
+        return res;
+    } else if (statKeyArg == (std::string(expectedStatPrefix) + "-byid") &&
+               collectionStr.size() > 2) {
+        // provided argument should be a hex collection ID N, 0xN or 0XN
+        try {
+            cid = std::stoul(collectionStr.data(), nullptr, 16);
+        } catch (const std::logic_error& e) {
+            EP_LOG_WARN(
+                    "EventuallyPersistentEngine::parseKeyStatCollection "
+                    "invalid collection arg:{}, exception:{}",
+                    collectionStr,
+                    e.what());
+            return cb::EngineErrorGetCollectionIDResult{
+                    cb::engine_errc::invalid_arguments};
+        }
+        // Collection's scope is needed for privilege check
+        auto scope = kvBucket->getCollectionsManager().getScopeID(cid);
+        if (scope.second) {
+            return cb::EngineErrorGetCollectionIDResult(
+                    scope.first, scope.second.value(), cid);
+        } else {
+            return cb::EngineErrorGetCollectionIDResult(
+                    cb::engine_errc::unknown_collection, scope.first);
+        }
+    }
+    return cb::EngineErrorGetCollectionIDResult(
+            cb::engine_errc::invalid_arguments);
+}
+
+std::tuple<ENGINE_ERROR_CODE,
+           std::optional<Vbid>,
+           std::optional<std::string>,
+           std::optional<CollectionID>>
+EventuallyPersistentEngine::parseStatKeyArg(const void* cookie,
+                                            std::string_view statKeyPrefix,
+                                            std::string_view statKey) {
+    std::vector<std::string> args;
+    std::string trimmedStatKey(statKey);
+    boost::algorithm::trim(trimmedStatKey);
+    boost::split(args, trimmedStatKey, boost::is_space());
+    if (args.size() != 3 && args.size() != 4) {
+        return {ENGINE_EINVAL, std::nullopt, std::nullopt, std::nullopt};
+    }
+
+    Vbid vbid(0);
+    try {
+        vbid = Vbid(gsl::narrow<uint16_t>(std::stoi(args[2])));
+    } catch (const std::exception& e) {
+        EP_LOG_WARN(
+                "EventuallyPersistentEngine::doKeyStats invalid "
+                "vbucket arg:{}, exception:{}",
+                args[2],
+                e.what());
+        return {ENGINE_EINVAL, std::nullopt, std::nullopt, std::nullopt};
+    }
+
+    CollectionID cid(CollectionID::Default);
+    if (args.size() == 4) {
+        cb::EngineErrorGetCollectionIDResult res{
+                cb::engine_errc::unknown_collection};
+        // An argument was provided, maybe an id or a 'path'
+        auto cidResult =
+                parseKeyStatCollection(statKeyPrefix, args[0], args[3]);
+        if (cidResult.result != cb::engine_errc::success) {
+            if (cidResult.result == cb::engine_errc::unknown_collection) {
+                setUnknownCollectionErrorContext(cookie,
+                                                 cidResult.getManifestId());
+            }
+            return {ENGINE_ERROR_CODE(cidResult.result),
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt};
+        }
+        cid = cidResult.getCollectionId();
+    }
+
+    return {ENGINE_SUCCESS, vbid, args[1], cid};
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(
         const void* cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
-    std::string key;
-    std::string vbid;
-    std::string s_key(statKey.data() + 4, statKey.size() - 4);
-    std::stringstream ss(s_key);
-    ss >> key;
-    ss >> vbid;
-    uint16_t vbucket_id(0);
-    parseUint16(vbid.c_str(), &vbucket_id);
-    Vbid vbucketId = Vbid(vbucket_id);
-    // Non-validating, non-blocking version
-    // @todo MB-30524: Collection - getStats needs DocNamespace
-    return doKeyStats(cookie,
-                      add_stat,
-                      vbucketId,
-                      DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                             key.size(),
-                             DocKeyEncodesCollectionId::No),
-                      false);
+    ENGINE_ERROR_CODE status;
+    std::optional<Vbid> vbid;
+    std::optional<std::string> key;
+    std::optional<CollectionID> cid;
+    std::tie(status, vbid, key, cid) = parseStatKeyArg(cookie, "key", statKey);
+    if (status != ENGINE_SUCCESS) {
+        return status;
+    }
+    auto docKey = StoredDocKey(*key, *cid);
+    return doKeyStats(cookie, add_stat, *vbid, docKey, false);
 }
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVKeyStats(
         const void* cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
-    std::string key;
-    std::string vbid;
-    std::string s_key(statKey.data() + 5, statKey.size() - 5);
-    std::stringstream ss(s_key);
-    ss >> key;
-    ss >> vbid;
-    uint16_t vbucket_id(0);
-    parseUint16(vbid.c_str(), &vbucket_id);
-    Vbid vbucketId = Vbid(vbucket_id);
-    // Validating version; blocks
-    // @todo MB-30524: Collection - getStats needs DocNamespace
-    return doKeyStats(cookie,
-                      add_stat,
-                      vbucketId,
-                      DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                             key.size(),
-                             DocKeyEncodesCollectionId::No),
-                      true);
+    ENGINE_ERROR_CODE status;
+    std::optional<Vbid> vbid;
+    std::optional<std::string> key;
+    std::optional<CollectionID> cid;
+    std::tie(status, vbid, key, cid) = parseStatKeyArg(cookie, "vkey", statKey);
+    if (status != ENGINE_SUCCESS) {
+        return status;
+    }
+    auto docKey = StoredDocKey(*key, *cid);
+    return doKeyStats(cookie, add_stat, *vbid, docKey, true);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpVbTakeoverStats(
@@ -4678,10 +4763,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         add_casted_stat("uuid", configuration.getUuid(), add_stat, cookie);
         return ENGINE_SUCCESS;
     }
-    if (key.size() > 4 && cb_isPrefix(key, "key ")) {
+    if (cb_isPrefix(key, "key ") || cb_isPrefix(key, "key-byid ")) {
         return doKeyStats(cookie, add_stat, key);
     }
-    if (key.size() > 5 && cb_isPrefix(key, "vkey ")) {
+    if (cb_isPrefix(key, "vkey ") || cb_isPrefix(key, "vkey-byid ")) {
         return doVKeyStats(cookie, add_stat, key);
     }
     if (key == "kvtimings"sv) {

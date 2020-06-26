@@ -2242,6 +2242,167 @@ TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
 }
 
+static bool wasKeyStatsResponseHandlerCalled = false;
+bool getKeyStatsResponseHandler(std::string_view key,
+                                std::string_view value,
+                                gsl::not_null<const void*> cookie) {
+    wasKeyStatsResponseHandlerCalled = true;
+    return true;
+}
+
+TEST_F(CollectionsTest, TestGetKeyStatsBadVbids) {
+    store_item(vbid,
+               makeStoredDocKey("defKey", CollectionEntry::defaultC),
+               "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    std::string key("key-byid defKey -1");
+    EXPECT_EQ(ENGINE_EINVAL,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    key = "key-byid defKey asd";
+    EXPECT_EQ(ENGINE_EINVAL,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    key = "key-byid defKey 1000000";
+    EXPECT_EQ(ENGINE_EINVAL,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    key = "key-byid defKey 1";
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+}
+
+TEST_F(CollectionsTest, TestGetKeyStats) {
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid,
+               makeStoredDocKey("defKey", CollectionEntry::defaultC),
+               "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    // non collection style request with trailing whitespace
+    std::string key("key-byid defKey 0   ");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key-byid beef 0 0x8";
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key beef 0 _default.meat";
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key beef 0 _default.fruit";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key-byid beef 0 0x9";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key beef2 0 _default._default";
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+}
+
+TEST_F(CollectionsTest, TestGetVKeyStats) {
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid,
+               makeStoredDocKey("defKey", CollectionEntry::defaultC),
+               "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    // non collection style request with trailing whitespace
+    std::string key("vkey defKey 0   ");
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // VKeyStatBGFetchTask task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Fetching item from disk for vkey stat: key{defKey} vb:0");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey-byid beef 0 0x8";
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // VKeyStatBGFetchTask task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey beef 0 _default.meat";
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // VKeyStatBGFetchTask task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey beef 0 _default.fruit";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey-byid beef 0 0x9";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey beef2 0 _default._default";
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+}
+
 class CollectionsRbacTest : public CollectionsTest {
 public:
     void SetUp() override {
@@ -2331,6 +2492,112 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
     EXPECT_EQ(std::set<std::string>(), lastGetKeysResult);
+}
+
+TEST_F(CollectionsRbacTest, TestKeyStats) {
+    mock_set_collections_support(cookie, true);
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid,
+               makeStoredDocKey("defKey", CollectionEntry::defaultC),
+               "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setNoAccess(CollectionEntry::defaultC);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    std::string key("key-byid beef 0 0x8");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key beef 0 _default.meat";
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key-byid defKey 0 0x0";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key defKey 0 _default._default";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "key defKey 0 rubbish_scope._default";
+    EXPECT_EQ(ENGINE_UNKNOWN_SCOPE,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+}
+
+TEST_F(CollectionsRbacTest, TestVKeyStats) {
+    mock_set_collections_support(cookie, true);
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    engine->set_collection_manifest(cookie, std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid,
+               makeStoredDocKey("defKey", CollectionEntry::defaultC),
+               "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, makeStoredDocKey("beef", CollectionEntry::meat), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setNoAccess(CollectionEntry::defaultC);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    std::string key("vkey-byid beef 0 0x8");
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // VKeyStatBGFetchTask task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey beef 0 _default.meat";
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // VKeyStatBGFetchTask task
+    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey-byid defKey 0 0x0";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey defKey 0 _default._default";
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
+
+    wasKeyStatsResponseHandlerCalled = false;
+    key = "vkey defKey 0 rubbish_scope._default";
+    EXPECT_EQ(ENGINE_UNKNOWN_SCOPE,
+              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+    EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,

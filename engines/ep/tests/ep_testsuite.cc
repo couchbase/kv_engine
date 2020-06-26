@@ -7795,7 +7795,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
     // all of these should be const, but g++ seems to have problems with that
     std::map<std::string, std::vector<std::string> > statsKeys{
             {"dispatcher", {}}, // Depends on how how long the dispatcher ran..
-            {"key mykey",
+            {"key mykey 0",
              {"key_cas",
               "key_exptime",
               "key_flags",
@@ -7825,12 +7825,13 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
     }
 
     if (isPersistentBucket(h)) {
-        statsKeys.insert( { "vkey mykey", { "key_cas",
-                                            "key_exptime",
-                                            "key_flags",
-                                            "key_is_dirty",
-                                            "key_valid",
-                                            "key_vb_state" } });
+        statsKeys.insert({"vkey mykey 0",
+                          {"key_cas",
+                           "key_exptime",
+                           "key_flags",
+                           "key_is_dirty",
+                           "key_valid",
+                           "key_vb_state"}});
     }
 
     item_info info;

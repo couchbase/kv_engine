@@ -491,16 +491,46 @@ def histograms(mc, raw_stats):
         print("    %s : (%s)" % ("Avg".ljust(max_label_len),
                                  dp['lb_fun'](current_hist_data['avg']).rjust(7)))
 
+
+def parse_collection_arg(*args):
+    if len(args) == 0:
+        return False, ""
+    elif len(args) == 1:
+        # assume single argument is collection path
+        return False, args[0]
+    elif len(args) == 2 and args[0] == "id":
+        cidStr = args[1].lower()
+        base = 16 if cidStr.startswith("0x") else 10
+        try:
+            cid = int(cidStr, base)
+        except ValueError:
+            raise ValueError(
+                'Specified collection ID "%s" is not valid decimal or '
+                '"0x" prefixed hex.' % cidStr)
+        return True, "{:#x}".format(cid)
+    else:
+        raise ValueError(
+            'Specified collection "%s" is not valid' % " ".join(args))
+
 @cmd
-def stats_key(mc, key, vb):
-    cmd = "key %s %s" % (key, str(vb))
+def stats_key(mc, key, vb, *args):
+    cmd = ""
     try:
+        byId, collection = parse_collection_arg(*args)
+        requestStatKey = "key"
+        if byId:
+            requestStatKey = requestStatKey + "-byid"
+        cmd = "%s %s %s %s" % (requestStatKey, key, str(vb), collection)
+        print(cmd)
         vbs = mc.stats(cmd)
     except mc_bin_client.MemcachedError as e:
         print(e.message)
         sys.exit(1)
+    except ValueError as e:
+        print("Failed to parse collection: %s" % str(e))
+        sys.exit(1)
     except Exception as e:
-        print("Stats '%s' are not available from the requested engine." % cmd)
+        print("Stats '{}' are not available from the requested engine. Error:{}".format(cmd, str(e)))
         sys.exit(1)
 
     if vbs:
@@ -508,18 +538,27 @@ def stats_key(mc, key, vb):
         stats_formatter(vbs)
 
 @cmd
-def stats_vkey(mc, key, vb):
-    cmd = "vkey %s %s" % (key, str(vb))
+def stats_vkey(mc, key, vb, *args):
+    cmd = ""
+    vbs = None
     try:
+        byId, collection = parse_collection_arg(*args)
+        requestStatKey = "vkey"
+        if byId:
+            requestStatKey = requestStatKey + "-byid"
+        cmd = "%s %s %s %s" % (requestStatKey, key, str(vb), collection)
         vbs = mc.stats(cmd)
     except mc_bin_client.MemcachedError as e:
         print(e.message)
         sys.exit(1)
+    except ValueError as e:
+        print("Failed to parse collection: %s" % str(e))
+        sys.exit(1)
     except Exception as e:
-        print("Stats '%s' are not available from the requested engine." % cmd)
+        print("Stats '{}' are not available from the requested engine. Error:{}".format(cmd, str(e)))
         sys.exit(1)
 
-    if vbs:
+    if vbs is not None:
         print("verification for key", key)
         stats_formatter(vbs)
 
@@ -547,27 +586,17 @@ def stats_dcp(mc):
 
 @cmd
 def stats_collections(mc, *args):
-    if not args:
-        cmd = 'collections'
-    else:
-        if len(args) == 1:
-            # assume single argument is collection path
-            cmd = "collections %s" % args[0]
-        elif args[0] == "id":
-            cidStr = args[1].lower()
-            base = 16 if cidStr.startswith("0x") else 10
-            try:
-                cid = int(cidStr, base)
-            except ValueError:
-                print('Specified collection ID "%s" is not valid decimal or '
-                      '"0x" prefixed hex.' % cidStr)
-                return
-            cmd = "collections-byid %s" % ("0x{:x}".format(cid))
-        else:
-            print('Specified collection "%s" is not valid' % " ".join(args))
-            return
-    stats_formatter(stats_perform(mc, cmd))
-
+    cmd = 'collections'
+    try:
+        if args:
+            byId, collection = parse_collection_arg(*args)
+            if byId:
+                cmd = cmd + "-byid"
+            cmd = cmd + " " + collection
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError as e:
+        print("Failed to parse collection: %s" % str(e))
+        sys.exit(1)
 
 @cmd
 def stats_collections_details(mc, vb=-1):
@@ -927,7 +956,7 @@ def main():
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
     c.addCommand('items', stats_items, 'items (memcached bucket only)')
-    c.addCommand('key', stats_key, 'key keyname vbid')
+    c.addCommand('key', stats_key, 'key keyname vbid [scope.collection | id collectionID]')
     c.addCommand('kvstore', stats_kvstore, 'kvstore [args]')
     c.addCommand('kvtimings', stats_kvtimings, 'kvtimings')
     c.addCommand('memory', stats_memory, 'memory')
@@ -944,7 +973,7 @@ def main():
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details [vbid]')
     c.addCommand('vbucket-durability-state', stats_vbucket_durability_state, 'vbucket-durability-state [vbid]')
     c.addCommand('vbucket-seqno', stats_vbucket_seqno, 'vbucket-seqno [vbid]')
-    c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
+    c.addCommand('vkey', stats_vkey, 'vkey keyname vbid [scope.collection | id collectionID]')
     c.addCommand('warmup', stats_warmup, 'warmup')
     c.addCommand('uuid', stats_uuid, 'uuid')
     c.addCommand('collections', stats_collections, 'collections [scope.collection | id collectionID]')

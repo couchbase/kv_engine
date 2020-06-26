@@ -209,6 +209,7 @@ typedef enum {
     ENGINE_UNKNOWN_COLLECTION = int(cb::engine_errc::unknown_collection),
     ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD =
             int(cb::engine_errc::collections_manifest_is_ahead),
+    ENGINE_UNKNOWN_SCOPE = int(cb::engine_errc::unknown_scope),
     ENGINE_FAILED = int(cb::engine_errc::failed),
     ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed),
     ENGINE_DURABILITY_INVALID_LEVEL =

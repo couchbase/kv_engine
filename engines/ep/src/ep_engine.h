@@ -1189,6 +1189,21 @@ protected:
      */
     static void waitForTasks(std::vector<ExTask>& tasks);
 
+private:
+    cb::EngineErrorGetCollectionIDResult parseKeyStatCollection(
+            std::string_view expectedStatPrefix,
+            std::string_view statKeyArg,
+            std::string_view collectionStr);
+
+    std::tuple<ENGINE_ERROR_CODE,
+               std::optional<Vbid>,
+               std::optional<std::string>,
+               std::optional<CollectionID>>
+    parseStatKeyArg(const void* cookie,
+                    std::string_view statKeyPrefix,
+                    std::string_view statKey);
+
+protected:
     SERVER_HANDLE_V1 *serverApi;
 
     // Engine statistics. First concrete member as a number of other members
