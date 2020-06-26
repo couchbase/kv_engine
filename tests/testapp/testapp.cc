@@ -632,7 +632,11 @@ void TestappTest::start_external_server() {
         argv[arg++] = config_file.c_str();
 
         argv[arg++] = nullptr;
-        cb_assert(execvp(argv[0], const_cast<char**>(argv)) != -1);
+        execvp(argv[0], const_cast<char**>(argv));
+        // execvp only returns on erro and set errno to the reason
+        std::cerr << "Failed to start memcached server: " << strerror(errno)
+                  << std::endl;
+        abort();
     }
 #endif // !WIN32
 }
