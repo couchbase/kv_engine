@@ -100,6 +100,9 @@ enum class DocStateFilter : uint8_t {
     AliveOrDeleted = uint8_t(uint8_t(Alive) | uint8_t(Deleted))
 };
 
+std::string to_string(const DocStateFilter& filter);
+std::ostream& operator<<(std::ostream& os, const DocStateFilter& ds);
+
 struct item_info {
     uint64_t cas{0};
     uint64_t vbucket_uuid{0};

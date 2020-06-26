@@ -102,11 +102,15 @@ ENGINE_ERROR_CODE bucket_store(
     auto ret = c.getBucketEngine()->store(
             &cookie, item_, cas, operation, durability, document_state);
 
-    LOG_TRACE("bucket_store() item:{} cas:{} op:{} -> {}",
-              item_.get(),
-              cas,
-              operation,
-              ret);
+    LOG_TRACE(
+            "bucket_store() item:{} cas:{} op:{} durability:{} doc_state:{} -> "
+            "{}",
+            item_.get(),
+            cas,
+            operation,
+            (durability ? to_string(*durability) : "--"),
+            document_state,
+            cb::to_engine_errc(ret));
 
     if (ret == ENGINE_SUCCESS) {
         using namespace cb::audit::document;
@@ -189,6 +193,12 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                     c.getDescription());
         c.setTerminationReason("Engine forced disconnect");
     }
+    LOG_TRACE("bucket_get() key:{} vbucket:{} docStateFilter:{} -> {}",
+              cb::UserDataView(cb::const_char_buffer(key)),
+              vbucket,
+              documentStateFilter,
+              ret.first);
+
     return ret;
 }
 
