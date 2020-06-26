@@ -71,7 +71,7 @@ void update_topkeys(const Cookie& cookie) {
         const auto key = cookie.getRequestKey();
         // MB-32828: ChesireCat will deprecate top-keys and until removal
         // only the default collection will be tracked
-        if (bucket.topkeys && key.getCollectionID().isDefaultCollection()) {
+        if (bucket.topkeys && key.isInDefaultCollection()) {
             // Update top-keys using the un-prefixed key (logical key)
             const auto defaultKey = key.makeDocKeyWithoutCollectionID();
             bucket.topkeys->updateKey(defaultKey.data(),

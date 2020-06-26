@@ -352,6 +352,11 @@ struct DocKey : DocKeyInterface<DocKey> {
      */
     bool isInSystemCollection() const;
 
+    /**
+     * @return true if the DocKey has a collection of CollectionID::Default
+     */
+    bool isInDefaultCollection() const;
+
     /// Certain key prefixes are internal and not to be seen
     bool isPrivate() const {
         auto id = getCollectionID();

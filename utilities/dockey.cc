@@ -105,6 +105,14 @@ bool DocKey::isInSystemCollection() const {
     return false;
 }
 
+// Inspect the leb128 key prefixes without doing a full leb decode
+bool DocKey::isInDefaultCollection() const {
+    if (encoding == DocKeyEncodesCollectionId::Yes) {
+        return data()[0] == CollectionID::Default;
+    }
+    return true;
+}
+
 std::pair<CollectionID, cb::const_byte_buffer> DocKey::getIdAndKey() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer);
