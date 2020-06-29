@@ -1403,7 +1403,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         // Determine if the key is logically deleted, if it is we skip the key
         // Note that system event keys (like create scope) are never skipped
         // here
-        if (!docKey.getCollectionID().isSystem()) {
+        if (!docKey.isInSystemCollection()) {
             if (ctx.docFilter !=
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
                 if (ctx.collectionsContext.isLogicallyDeleted(docKey, seqno)) {
@@ -1927,7 +1927,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                     const Slice& metaSlice) {
                 auto diskKey = makeDiskDocKey(keySlice);
                 auto docKey = diskKey.getDocKey();
-                if (!docKey.getCollectionID().isSystem() &&
+                if (!docKey.isInSystemCollection() &&
                     ec->isLogicallyDeleted(docKey, seqno)) {
                     return;
                 }

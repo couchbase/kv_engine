@@ -1889,7 +1889,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     // Determine if the key is logically deleted, if it is we skip the key
     // Note that system event keys (like create scope) are never skipped here
     auto docKey = diskKey.getDocKey();
-    if (!docKey.getCollectionID().isSystem()) {
+    if (!docKey.isInSystemCollection()) {
         if (sctx->docFilter !=
             DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
             if (sctx->collectionsContext.isLogicallyDeleted(docKey, byseqno)) {

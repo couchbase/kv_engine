@@ -1546,7 +1546,7 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
         }
         int64_t byseqno = itm->getBySeqno();
 
-        if (!key.getDocKey().getCollectionID().isSystem()) {
+        if (!key.getDocKey().isInSystemCollection()) {
             if (ctx.docFilter !=
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
                 if (ctx.collectionsContext.isLogicallyDeleted(key.getDocKey(),
