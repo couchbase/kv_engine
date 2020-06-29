@@ -2523,6 +2523,21 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             HdrMicroSecStopwatch(stats.storeCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::Store));
 
+    // MB-37374: Ensure that documents in deleted state have no user value.
+    if (mcbp::datatype::is_xattr(item.getDataType()) && item.isDeleted()) {
+        const auto& value = item.getValue();
+        auto value_size = cb::xattr::get_body_size(
+                item.getDataType(), {value->getData(), value->valueSize()});
+        if (value_size != 0) {
+            EP_LOG_WARN(
+                    "EventuallyPersistentEngine::storeIfInner: attempting to "
+                    "store a deleted document with non-zero value size which "
+                    "is {}",
+                    value_size);
+            return {cb::engine_errc::invalid_arguments, {}};
+        }
+    }
+
     // Check if this is a in-progress durable store which has now completed -
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SyncWrite is durable).

@@ -421,6 +421,10 @@ public:
         std::string path;
     };
 
+    BinprotSubdocMultiLookupCommand(std::string key,
+                                    std::vector<LookupSpecifier> specs,
+                                    mcbp::subdoc::doc_flag docFlags);
+
     void encode(std::vector<uint8_t>& buf) const override;
 
     BinprotSubdocMultiLookupCommand& addLookup(const LookupSpecifier& spec);

@@ -21,6 +21,23 @@
 
 #include <array>
 
+BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
+        std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
+        mcbp::subdoc::doc_flag docFlags) {
+    BinprotSubdocMultiLookupCommand cmd{name, specs, docFlags};
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    return multiResp;
+}
+
+GetMetaResponse XattrNoDocTest::get_meta() {
+    auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
+    return meta.second;
+}
+
 BinprotSubdocMultiMutationCommand XattrNoDocTest::makeSDKTxnMultiMutation()
         const {
     using namespace cb::mcbp;

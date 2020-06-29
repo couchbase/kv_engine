@@ -94,10 +94,26 @@ void XattrNoDocTest::testSinglePathDictAdd() {
                        durReqs);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
+    // Check that the User XATTR is present.
     resp = subdoc_get(
             "txn.deleted", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
+
+    // Check that the value is deleted and empty - which is treated as
+    // not existing with normal subdoc operations.
+    auto lookup = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
+              lookup.getStatus());
+
+    // Also check via getMeta - which should show the document exists but
+    // as deleted.
+    auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
+    EXPECT_EQ(1, meta.second.deleted);
 }
 
 TEST_P(XattrNoDocTest, SinglePathDictAdd) {
@@ -132,6 +148,21 @@ void XattrNoDocTest::testMultipathDictAdd() {
     resp = subdoc_get("txn", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("\"foo\"", resp.getValue());
+
+    // Check that the value is deleted and empty - which is treated as
+    // not existing with normal subdoc operations.
+    auto lookup = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
+              lookup.getStatus());
+
+    // Also check via getMeta - which should show the document exists but
+    // as deleted.
+    auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
+    EXPECT_EQ(1, meta.second.deleted);
 }
 
 TEST_P(XattrNoDocTest, MultipathDictAdd) {
