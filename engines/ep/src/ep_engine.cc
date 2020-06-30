@@ -72,22 +72,16 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
-#include <xattr/blob.h>
 #include <xattr/utils.h>
 
-#include <fcntl.h>
 #include <chrono>
-#include <cstdarg>
-#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <utility>
-
 #include <vector>
 
 using cb::tracing::Code;
