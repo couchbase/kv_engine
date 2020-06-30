@@ -147,7 +147,7 @@ bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
         return false;
     }
 
-    if (v.getKey().getCollectionID().isSystem()) {
+    if (v.getKey().isInSystemCollection()) {
         // The system event documents must not be paged-out
         return false;
     }
@@ -325,8 +325,7 @@ std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
                                              int64_t bySeqno,
                                              bool pending) {
-    auto cid = key.getCollectionID();
-    if (cid.isSystem()) {
+    if (key.isInSystemCollection()) {
         return false;
     }
     auto cHandle = lockCollections(key);
@@ -919,7 +918,7 @@ void EphemeralVBucket::dropKey(
     const auto& key = cHandle.getKey();
 
     // The system event doesn't get dropped here (tombstone purger will deal)
-    if (key.getCollectionID().isSystem()) {
+    if (key.isInSystemCollection()) {
         return;
     }
 
