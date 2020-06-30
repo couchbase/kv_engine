@@ -60,14 +60,14 @@ std::string makeCollectionIdIntoString(CollectionID collection) {
 }
 
 CollectionID getCollectionIDFromKey(const DocKey& key) {
-    if (!key.getCollectionID().isSystem()) {
+    if (!key.isInSystemCollection()) {
         throw std::invalid_argument("getCollectionIDFromKey: non-system key");
     }
     return SystemEventFactory::getCollectionIDFromKey(key);
 }
 
 ScopeID getScopeIDFromKey(const DocKey& key) {
-    if (!key.getCollectionID().isSystem()) {
+    if (!key.isInSystemCollection()) {
         throw std::invalid_argument("getScopeIDFromKey: non-system key");
     }
     return SystemEventFactory::getScopeIDFromKey(key);

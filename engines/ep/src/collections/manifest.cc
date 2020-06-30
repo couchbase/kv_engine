@@ -455,8 +455,7 @@ std::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
 }
 
 std::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
-    if (key.getCollectionID().isDefaultCollection() &&
-        defaultCollectionExists) {
+    if (key.isInDefaultCollection() && defaultCollectionExists) {
         return ScopeID{ScopeID::Default};
     } else {
         auto itr = collections.find(key.getCollectionID());

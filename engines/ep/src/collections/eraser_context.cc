@@ -28,7 +28,7 @@ EraserContext::EraserContext(
 }
 
 void EraserContext::processEndOfCollection(const DocKey& key, SystemEvent se) {
-    if (!key.getCollectionID().isSystem() || se != SystemEvent::Collection) {
+    if (!key.isInSystemCollection() || se != SystemEvent::Collection) {
         return;
     }
 

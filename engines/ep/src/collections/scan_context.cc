@@ -36,17 +36,13 @@ ScanContext::ScanContext(
 }
 
 bool ScanContext::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
-    if (dropped.empty()) {
-        return false;
-    }
-
-    auto id = key.getCollectionID();
-    if (id.isSystem()) {
+    if (dropped.empty() || key.isInSystemCollection()) {
         return false;
     }
 
     // Is the key in a range which contains dropped collections and in the set?
-    return (seqno >= startSeqno && seqno <= endSeqno) && dropped.count(id) > 0;
+    return (seqno >= startSeqno && seqno <= endSeqno) &&
+           dropped.count(key.getCollectionID()) > 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext) {

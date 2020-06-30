@@ -508,8 +508,7 @@ Manifest::ManifestChanges Manifest::processManifest(
 }
 
 bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
-    if (defaultCollectionExists &&
-        key.getCollectionID().isDefaultCollection()) {
+    if (defaultCollectionExists && key.isInDefaultCollection()) {
         return true;
     }
     return map.count(key.getCollectionID()) > 0;
@@ -535,7 +534,7 @@ Manifest::container::const_iterator Manifest::getManifestIterator(
 
 bool Manifest::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
     // Only do the searching/scanning work for keys in the deleted range.
-    if (key.getCollectionID().isDefaultCollection()) {
+    if (key.isInDefaultCollection()) {
         return !defaultCollectionExists;
     }
 

@@ -40,21 +40,21 @@ void Collections::VB::Flush::saveCollectionStats(
 }
 
 void Collections::VB::Flush::incrementDiskCount(const DocKey& key) {
-    if (key.getCollectionID() != CollectionID::System) {
+    if (!key.isInSystemCollection()) {
         mutated.insert(key.getCollectionID());
         manifest.lock(key).incrementDiskCount();
     }
 }
 
 void Collections::VB::Flush::decrementDiskCount(const DocKey& key) {
-    if (key.getCollectionID() != CollectionID::System) {
+    if (!key.isInSystemCollection()) {
         mutated.insert(key.getCollectionID());
         manifest.lock(key).decrementDiskCount();
     }
 }
 
 void Collections::VB::Flush::updateDiskSize(const DocKey& key, ssize_t delta) {
-    if (key.getCollectionID() != CollectionID::System) {
+    if (!key.isInSystemCollection()) {
         mutated.insert(key.getCollectionID());
         manifest.lock(key).updateDiskSize(delta);
     }
@@ -63,7 +63,7 @@ void Collections::VB::Flush::updateDiskSize(const DocKey& key, ssize_t delta) {
 void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
                                                    uint64_t value,
                                                    bool deleted) {
-    if (key.getCollectionID() == CollectionID::System) {
+    if (key.isInSystemCollection()) {
         auto eventType = SystemEventFactory::getSystemEventType(key);
         if (eventType.first == SystemEvent::Collection) {
             // this method is called from persistence, so the collection is not
@@ -74,8 +74,7 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
             auto handle = manifest.lock(key, /*allowSystem */ true);
             handle.setPersistedHighSeqno(value);
         }
-    }
-    else {
+    } else {
         mutated.insert(key.getCollectionID());
         manifest.lock(key).setPersistedHighSeqno(value);
     }
