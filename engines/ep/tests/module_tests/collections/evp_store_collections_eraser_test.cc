@@ -656,6 +656,103 @@ TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
     EXPECT_EQ(0, state->onDiskPrepares);
 }
 
+TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
+    // Ephemeral doesn't have comparable compaction so not valid to test here
+    if (!persistent()) {
+        return;
+    }
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto* kvStore = store->getRWUnderlying(vbid);
+    EXPECT_EQ(1, kvStore->getItemCount(vbid));
+
+    // Do our SyncWrite
+    auto key = StoredDocKey{"milk", CollectionEntry::dairy};
+    auto item = makePendingItem(key, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (isMagma()) {
+        // Magma does not track prepares in doc count
+        EXPECT_EQ(1, kvStore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(2, kvStore->getItemCount(vbid));
+    }
+
+    // And commit it
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(key,
+                         2 /*prepareSeqno*/,
+                         {} /*commitSeqno*/,
+                         vb->lockCollections(key)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (isMagma()) {
+        // Magma does not track prepares in doc count
+        EXPECT_EQ(2, kvStore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(3, kvStore->getItemCount(vbid));
+    }
+
+    // Do our SyncWrite
+    item = makePendingItem(key, "value2");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (isMagma()) {
+        EXPECT_EQ(2, kvStore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(3, kvStore->getItemCount(vbid));
+    }
+
+    // And commit it
+    EXPECT_EQ(ENGINE_SUCCESS,
+              vb->commit(key,
+                         4 /*prepareSeqno*/,
+                         {} /*commitSeqno*/,
+                         vb->lockCollections(key)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (isMagma()) {
+        EXPECT_EQ(2, kvStore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(3, kvStore->getItemCount(vbid));
+    }
+
+    if (isMagma()) {
+        EXPECT_EQ(2, kvStore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(3, kvStore->getItemCount(vbid));
+    }
+
+    // delete the collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
+
+    runEraser();
+
+    // Check doc and prepare counts
+    EXPECT_EQ(0, kvStore->getItemCount(vbid));
+
+    auto state = kvStore->getVBucketState(vbid);
+    ASSERT_TRUE(state);
+    EXPECT_EQ(0, state->onDiskPrepares);
+
+    vb.reset();
+
+    // Warmup would have triggered an underflow when we set the VBucket doc
+    // count before we stopped tracking number of prepares for magma.
+    resetEngineAndWarmup();
+}
+
 void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
         CollectionEntry::Entry collection, int64_t seqnoOffset) {
     auto key = StoredDocKey{"milk", collection};

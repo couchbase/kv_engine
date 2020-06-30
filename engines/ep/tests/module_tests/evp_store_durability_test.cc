@@ -2598,8 +2598,15 @@ TEST_P(DurabilityEPBucketTest,
     DiskDocKey prefixedKey(key, true /*prepare*/);
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
-    EXPECT_EQ(2, kvstore->getItemCount(vbid));
+
+    if (isMagma()) {
+        // Magma doesn't track number of prepares
+        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(2, kvstore->getItemCount(vbid));
+    }
 
     EXPECT_TRUE(kvstore->compactDB(cctx));
 
@@ -2607,16 +2614,29 @@ TEST_P(DurabilityEPBucketTest,
     gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
-    // Check onDiskPrepares is updated correctly too.
-    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
-    EXPECT_EQ(2, kvstore->getItemCount(vbid));
+    if (isMagma()) {
+        // Magma doesn't track number of prepares
+        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    } else {
+        // Check onDiskPrepares is updated correctly too.
+        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(2, kvstore->getItemCount(vbid));
+    }
 
     auto vb = store->getVBucket(vbid);
     vb.reset();
     resetEngineAndWarmup();
     kvstore = store->getOneRWUnderlying();
-    EXPECT_EQ(2, kvstore->getItemCount(vbid));
-    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+
+    if (isMagma()) {
+        // Magma doesn't track number of prepares
+        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(2, kvstore->getItemCount(vbid));
+        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    }
 }
 
 // @TODO Rocksdb when we have manual compaction/compaction filtering this test
@@ -2652,8 +2672,15 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     DiskDocKey prefixedKey(key, true /*prepare*/);
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
-    EXPECT_EQ(2, kvstore->getItemCount(vbid));
+
+    if (isMagma()) {
+        // Magma doesn't track number of prepares
+        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getItemCount(vbid));
+    } else {
+        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(2, kvstore->getItemCount(vbid));
+    }
 
     EXPECT_TRUE(kvstore->compactDB(cctx));
 

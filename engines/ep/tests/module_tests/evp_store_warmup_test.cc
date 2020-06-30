@@ -1502,8 +1502,10 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // HPS and prepare counter incremented
     vbstate = *kvstore->getVBucketState(vbid);
     EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
+
     // @TODO: RocksDB currently does not track the prepare count
-    if ((std::get<0>(GetParam()).find("Rocksdb") == std::string::npos)) {
+    // Magma does not track the prepare count
+    if (!isRocksDB() && !isMagma()) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
     }
 
@@ -1514,8 +1516,10 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
     vbstate = *kvstore->getVBucketState(vbid);
     EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
-    // @TODO: RocksDB currently only has an estimated prepare count
-    if ((std::get<0>(GetParam()).find("Rocksdb") == std::string::npos)) {
+
+    // @TODO: RocksDB currently does not track the prepare count
+    // Magma does not track the prepare count
+    if (!isRocksDB() && !isMagma()) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
     }
 }

@@ -304,7 +304,6 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 if (magmakv::isPrepared(metaSlice)) {
                     cbCtx.ctx->stats.preparesPurged++;
                     dbStats->onDiskPrepares--;
-                    dbStats->docCount--;
                 } else {
                     if (magmakv::isDeleted(metaSlice)) {
                         cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
@@ -374,7 +373,6 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                 { // Locking scope for magmaDbStats
                     auto dbStats = cbCtx.magmaDbStats.stats.wlock();
                     dbStats->onDiskPrepares--;
-                    dbStats->docCount--;
                 }
 
                 cbCtx.ctx->stats.preparesPurged++;
@@ -1088,8 +1086,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 req->markOldItemIsDelete();
                 // Old item is a delete and new is an insert.
                 if (!req->isDelete()) {
-                    ninserts++;
                     if (diskDocKey.isCommitted()) {
+                        ninserts++;
                         commitData.collections.incrementDiskCount(docKey);
                     } else {
                         kvctx.onDiskPrepareDelta++;
@@ -1097,8 +1095,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 }
             } else if (req->isDelete()) {
                 // Old item is insert and new is delete.
-                ndeletes++;
                 if (diskDocKey.isCommitted()) {
+                    ndeletes++;
                     commitData.collections.decrementDiskCount(docKey);
                 } else {
                     kvctx.onDiskPrepareDelta--;
@@ -1107,8 +1105,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         } else {
             // Old item doesn't exist and new is an insert.
             if (!req->isDelete()) {
-                ninserts++;
                 if (diskDocKey.isCommitted()) {
+                    ninserts++;
                     commitData.collections.incrementDiskCount(docKey);
                 } else {
                     kvctx.onDiskPrepareDelta++;
@@ -1160,7 +1158,6 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
         auto& vbstate = commitData.proposedVBState;
-        vbstate.onDiskPrepares += kvctx.onDiskPrepareDelta;
 
         // Write out current vbstate to the CommitBatch.
         addVBStateUpdateToLocalDbReqs(
@@ -1519,7 +1516,9 @@ void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
     auto lockedStats = dbStats.stats.rlock();
     vbstate.highSeqno = lockedStats->highSeqno;
     vbstate.purgeSeqno = lockedStats->purgeSeqno;
-    vbstate.onDiskPrepares = lockedStats->onDiskPrepares;
+
+    // We don't update the number of onDiskPrepares because we can't easily
+    // track the number for magma
 }
 
 vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
