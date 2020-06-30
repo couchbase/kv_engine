@@ -439,7 +439,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isResident = sv->isResident();
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
-    isSystemItem = sv->getKey().getCollectionID().isSystem();
+    isSystemItem = sv->getKey().isInSystemCollection();
     isPreparedSyncWrite = sv->isPending() || sv->isCompleted();
     cid = sv->getKey().getCollectionID();
 }

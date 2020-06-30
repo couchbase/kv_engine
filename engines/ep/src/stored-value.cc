@@ -476,7 +476,7 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
 static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
     using namespace Collections::VB;
 
-    if (!sv.getKey().getCollectionID().isSystem()) {
+    if (!sv.getKey().isInSystemCollection()) {
         throw std::invalid_argument(
                 "getSystemEventsValueFromStoredValue(): StoredValue must be a "
                 "SystemEvent");
@@ -581,7 +581,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     if (sv.getValue().get()) {
         os << " val age:" << uint32_t(sv.getValue()->getAge()) << " :\"";
         if (sv.valuelen() > 0) {
-            if (sv.getKey().getCollectionID().isSystem()) {
+            if (sv.getKey().isInSystemCollection()) {
                 os << getSystemEventsValueFromStoredValue(sv);
             } else {
                 const char* data = sv.getValue()->getData();
