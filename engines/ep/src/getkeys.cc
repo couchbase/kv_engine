@@ -44,7 +44,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
             return;
         }
     } else {
-        if (outKey.getCollectionID().isDefaultCollection()) {
+        if (outKey.isInDefaultCollection()) {
             outKey = outKey.makeDocKeyWithoutCollectionID();
         } else {
             // Only default collection key can be sent back if collections is
