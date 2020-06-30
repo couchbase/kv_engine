@@ -1079,8 +1079,7 @@ void EPBucket::dropKey(Vbid vbid,
     }
 
     auto docKey = diskKey.getDocKey();
-    auto collectionId = docKey.getCollectionID();
-    if (collectionId.isSystem()) {
+    if (docKey.isInSystemCollection()) {
         throw std::logic_error("EPBucket::dropKey called for a system key");
     }
 
@@ -1423,7 +1422,7 @@ public:
         }
 
         // Skip system keys, they aren't stored in the hashtable
-        if (val.item->getKey().getCollectionID().isSystem()) {
+        if (val.item->getKey().isInSystemCollection()) {
             return;
         }
 
@@ -1594,7 +1593,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
         for (const auto& item : items) {
             if (item->getBySeqno() <= rollbackSeqno ||
                 item->isCheckPointMetaItem() ||
-                item->getKey().getCollectionID().isSystem()) {
+                item->getKey().isInSystemCollection()) {
                 continue;
             }
 
