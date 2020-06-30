@@ -67,26 +67,10 @@ std::string DocKey::to_string() const {
 }
 
 CollectionID DocKey::getCollectionID() const {
-    // Durability introduces the new "Prepare" namespace in DocKey.
-    // So, the new generic format for a DocKey is:
-    //
-    // [prepare-prefix] [collection-id] [user-key]
-    //
-    // prepare-prefix is a 1-byte reserved CollectionID value, so it is a leb128
-    // type by definition.
-    // Note that only pending SyncWrite get the additional prefix, non-durable
-    // writes and committed SyncWrites don't get any.
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         auto cid = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer)
                            .first;
-        if (cid != CollectionID::DurabilityPrepare) {
-            return cid;
-        }
-        auto noPreparePrefix =
-                cb::mcbp::skip_unsigned_leb128<CollectionIDType>(buffer);
-        return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
-                       noPreparePrefix)
-                .first;
+        return cid;
     }
     return CollectionID::Default;
 }

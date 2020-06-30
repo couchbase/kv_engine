@@ -65,6 +65,16 @@ CollectionID StoredDocKeyT<Allocator>::getCollectionID() const {
 }
 
 template <template <class> class Allocator>
+bool StoredDocKeyT<Allocator>::isInSystemCollection() const {
+    return data()[0] == CollectionID::System;
+}
+
+template <template <class> class Allocator>
+bool StoredDocKeyT<Allocator>::isInDefaultCollection() const {
+    return data()[0] == CollectionID::Default;
+}
+
+template <template <class> class Allocator>
 DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
     auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
@@ -96,6 +106,14 @@ template class StoredDocKeyT<MemoryTrackingAllocator>;
 CollectionID SerialisedDocKey::getCollectionID() const {
     return cb::mcbp::unsigned_leb128<CollectionIDType>::decode({bytes, length})
             .first;
+}
+
+bool SerialisedDocKey::isInSystemCollection() const {
+    return data()[0] == CollectionID::System;
+}
+
+bool SerialisedDocKey::isInDefaultCollection() const {
+    return data()[0] == CollectionID::Default;
 }
 
 bool SerialisedDocKey::operator==(const DocKey& rhs) const {

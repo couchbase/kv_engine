@@ -103,6 +103,16 @@ public:
 
     CollectionID getCollectionID() const;
 
+    /**
+     * @return true if the key has a collection of CollectionID::System
+     */
+    bool isInSystemCollection() const;
+
+    /**
+     * @return true if the key has a collection of CollectionID::Default
+     */
+    bool isInDefaultCollection() const;
+
     DocKeyEncodesCollectionId getEncoding() const {
         return DocKeyEncodesCollectionId::Yes;
     }
@@ -200,6 +210,16 @@ public:
     }
 
     CollectionID getCollectionID() const;
+
+    /**
+     * @return true if the key has a collection of CollectionID::System
+     */
+    bool isInSystemCollection() const;
+
+    /**
+     * @return true if the key has a collection of CollectionID::Default
+     */
+    bool isInDefaultCollection() const;
 
     DocKeyEncodesCollectionId getEncoding() const {
         return DocKeyEncodesCollectionId::Yes;

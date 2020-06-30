@@ -39,6 +39,11 @@ TEST_P(StoredDocKeyTest, constructors) {
     EXPECT_NE(0, std::memcmp("key", key1.data(), sizeof("key")));
     // We expect to get back the CollectionID used in initialisation
     EXPECT_EQ(GetParam(), key1.getCollectionID());
+    if (GetParam() == CollectionID::System) {
+        EXPECT_TRUE(key1.isInSystemCollection());
+    } else {
+        EXPECT_FALSE(key1.isInSystemCollection());
+    }
 
     // Test construction from a DocKey which is a view onto unsigned_leb128
     // prefixed key - i.e. a collection-aware key
@@ -61,6 +66,12 @@ TEST_P(StoredDocKeyTest, constructors) {
 
     // Expect we can get back the CollectionID
     EXPECT_EQ(GetParam(), key3.getCollectionID());
+
+    if (GetParam() == CollectionID::System) {
+        EXPECT_TRUE(key3.isInSystemCollection());
+    } else {
+        EXPECT_FALSE(key3.isInSystemCollection());
+    }
 }
 
 // Test that a StoredDocKey cannot be created with a reserved namespace.
@@ -86,10 +97,17 @@ TEST(StoredDocKey, no_encoded_collectionId) {
     EXPECT_NE(docKey.data(), key3.data());
     EXPECT_NE(docKey.data()[0], key3.data()[0]);
     EXPECT_EQ(0, key3.getCollectionID());
+    EXPECT_FALSE(key3.isInSystemCollection());
 }
 
 TEST_P(StoredDocKeyTest, copy_constructor) {
     StoredDocKey key1("key1", GetParam());
+    if (GetParam() == CollectionID::System) {
+        EXPECT_TRUE(key1.isInSystemCollection());
+    } else if (GetParam() == CollectionID::Default) {
+        EXPECT_TRUE(key1.isInDefaultCollection());
+    }
+
     StoredDocKey key2(key1);
 
     // exterally check rather than just use ==
@@ -98,6 +116,11 @@ TEST_P(StoredDocKeyTest, copy_constructor) {
     EXPECT_NE(key1.data(), key2.data()); // must be different pointers
     EXPECT_TRUE(std::memcmp(key1.data(), key2.data(), key1.size()) == 0);
     EXPECT_EQ(key1, key2);
+    if (GetParam() == CollectionID::System) {
+        EXPECT_TRUE(key2.isInSystemCollection());
+    } else if (GetParam() == CollectionID::Default) {
+        EXPECT_TRUE(key2.isInDefaultCollection());
+    }
 }
 
 TEST_P(StoredDocKeyTest, assignment) {

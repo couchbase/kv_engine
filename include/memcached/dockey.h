@@ -250,6 +250,20 @@ struct DocKeyInterface {
         return static_cast<const T*>(this)->getCollectionID();
     }
 
+    /**
+     * @return true if the key has a collection of CollectionID::System
+     */
+    bool isInSystemCollection() const {
+        return static_cast<const T*>(this)->isInSystemCollection();
+    }
+
+    /**
+     * @return true if the key has a collection of CollectionID::Default
+     */
+    bool isInDefaultCollection() const {
+        return static_cast<const T*>(this)->isInDefaultCollection();
+    }
+
     DocKeyEncodesCollectionId getEncoding() const {
         return static_cast<const T*>(this)->getEncoding();
     }
@@ -289,9 +303,17 @@ struct DocKey : DocKeyInterface<DocKey> {
      */
     DocKey(const uint8_t* key, size_t nkey, DocKeyEncodesCollectionId encoding)
         : buffer(key, nkey), encoding(encoding) {
-        if (encoding == DocKeyEncodesCollectionId::Yes && nkey == 0) {
-            throw std::invalid_argument("DocKey: invalid nkey:" +
-                                        std::to_string(nkey));
+        if (encoding == DocKeyEncodesCollectionId::Yes) {
+            if (nkey == 0) {
+                throw std::invalid_argument("DocKey: invalid nkey:" +
+                                            std::to_string(nkey));
+            } else if (key == nullptr) {
+                throw std::invalid_argument("DocKey: invalid key:");
+            } else if (key[0] == CollectionID::DurabilityPrepare) {
+                // DurabilityPrepare is special-case that we disallow a view on
+                throw std::invalid_argument(
+                        "DocKey: cannot use DurabilityPrepare");
+            }
         }
         if (key == nullptr && nkey > 0) {
             throw std::invalid_argument("DocKey: invalid key/nkey:" +
@@ -356,12 +378,6 @@ struct DocKey : DocKeyInterface<DocKey> {
      * @return true if the DocKey has a collection of CollectionID::Default
      */
     bool isInDefaultCollection() const;
-
-    /// Certain key prefixes are internal and not to be seen
-    bool isPrivate() const {
-        auto id = getCollectionID();
-        return id.isSystem() || id.isDurabilityPrepare();
-    }
 
     DocKeyEncodesCollectionId getEncoding() const {
         return encoding;
