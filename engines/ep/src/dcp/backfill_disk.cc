@@ -70,8 +70,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
 
     // Check if the stream will allow the key, this is here to avoid reading
     // the value when dropping keys
-    if (!stream_->collectionAllowed(
-                lookup.getKey().getDocKey().getCollectionID())) {
+    if (!stream_->collectionAllowed(lookup.getKey().getDocKey())) {
         setStatus(ENGINE_KEY_EEXISTS);
         return;
     }

@@ -234,27 +234,27 @@ void Filter::insertCollection(CollectionID cid, ScopeID sid) {
     }
 }
 
-bool Filter::checkAndUpdateSlow(CollectionID cid, Item& item) {
+bool Filter::checkAndUpdateSlow(Item& item) {
     bool allowed = false;
-    if (cid == CollectionID::System) {
+    if (item.getKey().isInSystemCollection()) {
         item.decompressValue();
         allowed = checkAndUpdateSystemEvent(item);
     } else {
-        allowed = filter.count(cid);
+        allowed = filter.count(item.getKey().getCollectionID());
     }
 
     return allowed;
 }
 
-bool Filter::checkSlow(CollectionID cid) const {
+bool Filter::checkSlow(DocKey key) const {
     bool allowed = false;
-    if (cid == CollectionID::System && systemEventsAllowed) {
+    if (key.isInSystemCollection() && systemEventsAllowed) {
         // For a collection filter, we could figure out from the entire DocKey
         // however we will just defer the decision to the more comprehensive
         // checkAndUpdate
         allowed = true;
     } else {
-        allowed = filter.count(cid);
+        allowed = filter.count(key.getCollectionID());
     }
 
     return allowed;

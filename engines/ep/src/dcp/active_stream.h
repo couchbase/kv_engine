@@ -323,7 +323,7 @@ public:
 
     void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
 
-    bool collectionAllowed(CollectionID cid) const;
+    bool collectionAllowed(DocKey key) const;
 
     /**
      * reassess the streams required privileges and call endStream if required

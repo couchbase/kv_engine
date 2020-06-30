@@ -117,13 +117,12 @@ public:
             return true;
         }
 
-        const auto cid = item.getKey().getCollectionID();
         // The presence of _default is a simple check against defaultAllowed
-        if (cid.isDefaultCollection() && defaultAllowed) {
+        if (item.getKey().isInDefaultCollection() && defaultAllowed) {
             return true;
         }
         // More complex checks needed...
-        return checkAndUpdateSlow(cid, item);
+        return checkAndUpdateSlow(item);
     }
 
     /**
@@ -135,18 +134,18 @@ public:
      * @param cid The collection-ID to check.
      * @return if the key should be allowed to be sent on the DcpStream
      */
-    bool check(CollectionID cid) const {
+    bool check(DocKey key) const {
         // passthrough, everything is allowed.
         if (passthrough) {
             return true;
         }
 
         // The presence of _default is a simple check against defaultAllowed
-        if (cid.isDefaultCollection() && defaultAllowed) {
+        if (key.isInDefaultCollection() && defaultAllowed) {
             return true;
         }
         // More complex checks needed...
-        return checkSlow(cid);
+        return checkSlow(key);
     }
 
     /**
@@ -252,10 +251,10 @@ protected:
     bool checkAndUpdateSystemEvent(const Item& item);
 
     /// Non-inline, slow path of checkAndUpdate().
-    bool checkAndUpdateSlow(CollectionID cid, Item& item);
+    bool checkAndUpdateSlow(Item& item);
 
     /// Non-inline slow path of check(key)
-    bool checkSlow(CollectionID cid) const;
+    bool checkSlow(DocKey key) const;
 
     /**
      * Remove the collection of the item from the filter

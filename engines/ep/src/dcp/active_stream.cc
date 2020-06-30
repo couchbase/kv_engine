@@ -2146,8 +2146,8 @@ std::string ActiveStream::to_string(StreamState st) {
                                 std::to_string(int(st)));
 }
 
-bool ActiveStream::collectionAllowed(CollectionID cid) const {
-    return filter.check(cid);
+bool ActiveStream::collectionAllowed(DocKey key) const {
+    return filter.check(key);
 }
 
 void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
