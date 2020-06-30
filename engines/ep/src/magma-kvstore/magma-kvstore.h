@@ -60,11 +60,10 @@ public:
     explicit MagmaDbStats() = default;
 
     MagmaDbStats(int64_t docCount,
-                 int64_t onDiskPrepares,
                  uint64_t highSeqno,
                  uint64_t purgeSeqno) {
         auto locked = stats.wlock();
-        locked->reset(docCount, onDiskPrepares, highSeqno, purgeSeqno);
+        locked->reset(docCount, highSeqno, purgeSeqno);
     }
 
     MagmaDbStats(const MagmaDbStats& other) {
@@ -82,7 +81,6 @@ public:
         auto locked = stats.wlock();
         auto otherLocked = other.stats.rlock();
         locked->reset(otherLocked->docCount,
-                      otherLocked->onDiskPrepares,
                       otherLocked->highSeqno,
                       otherLocked->purgeSeqno);
     }
@@ -125,23 +123,19 @@ public:
 
         Stats(const Stats& other) {
             docCount = other.docCount;
-            onDiskPrepares = other.onDiskPrepares;
             highSeqno = other.highSeqno;
             purgeSeqno = other.purgeSeqno;
         }
 
         void reset(int64_t docCount,
-                   int64_t onDiskPrepares,
                    uint64_t highSeqno,
                    uint64_t purgeSeqno) {
             this->docCount = docCount;
-            this->onDiskPrepares = onDiskPrepares;
             this->highSeqno.reset(highSeqno);
             this->purgeSeqno.reset(purgeSeqno);
         }
 
         int64_t docCount{0};
-        int64_t onDiskPrepares{0};
         Monotonic<uint64_t> highSeqno{0};
         Monotonic<uint64_t> purgeSeqno{0};
     };

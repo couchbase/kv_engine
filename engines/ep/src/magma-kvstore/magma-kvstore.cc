@@ -303,7 +303,6 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
 
                 if (magmakv::isPrepared(metaSlice)) {
                     cbCtx.ctx->stats.preparesPurged++;
-                    dbStats->onDiskPrepares--;
                 } else {
                     if (magmakv::isDeleted(metaSlice)) {
                         cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
@@ -370,11 +369,6 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
         // consistent on a replica.
         if (magmakv::isPrepared(metaSlice)) {
             if (seqno <= cbCtx.ctx->highCompletedSeqno) {
-                { // Locking scope for magmaDbStats
-                    auto dbStats = cbCtx.magmaDbStats.stats.wlock();
-                    dbStats->onDiskPrepares--;
-                }
-
                 cbCtx.ctx->stats.preparesPurged++;
 
                 if (logger->should_log(spdlog::level::TRACE)) {
@@ -1150,7 +1144,6 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         {
             auto lockedStats = magmaDbStats.stats.wlock();
             lockedStats->docCount = ninserts - ndeletes;
-            lockedStats->onDiskPrepares = kvctx.onDiskPrepareDelta;
 
             // Set highSeqno
             lockedStats->highSeqno = lastSeqno;
@@ -2340,11 +2333,9 @@ void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
     auto locked = dbStats.stats.rlock();
-    json = nlohmann::json{
-            {"docCount", std::to_string(locked->docCount)},
-            {"highSeqno", std::to_string(locked->highSeqno)},
-            {"purgeSeqno", std::to_string(locked->purgeSeqno)},
-            {"onDiskPrepares", std::to_string(locked->onDiskPrepares)}};
+    json = nlohmann::json{{"docCount", std::to_string(locked->docCount)},
+                          {"highSeqno", std::to_string(locked->highSeqno)},
+                          {"purgeSeqno", std::to_string(locked->purgeSeqno)}};
 }
 
 void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
@@ -2353,8 +2344,6 @@ void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
     locked->highSeqno.reset(std::stoull(j.at("highSeqno").get<std::string>()));
     locked->purgeSeqno.reset(
             std::stoull(j.at("purgeSeqno").get<std::string>()));
-    locked->onDiskPrepares =
-            std::stoull(j.at("onDiskPrepares").get<std::string>());
 }
 
 void MagmaDbStats::Merge(const UserStats& other) {
@@ -2366,7 +2355,6 @@ void MagmaDbStats::Merge(const UserStats& other) {
     auto otherLocked = otherStats->stats.rlock();
 
     locked->docCount += otherLocked->docCount;
-    locked->onDiskPrepares += otherLocked->onDiskPrepares;
     if (otherLocked->highSeqno > locked->highSeqno) {
         locked->highSeqno = otherLocked->highSeqno;
     }
