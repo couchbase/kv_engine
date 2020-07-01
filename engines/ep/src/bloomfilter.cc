@@ -159,3 +159,11 @@ size_t BloomFilter::getFilterSize() {
         return 0;
     }
 }
+
+size_t BloomFilter::getNoOfHashes() const {
+    if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
+        return noOfHashes;
+    } else {
+        return 0;
+    }
+}

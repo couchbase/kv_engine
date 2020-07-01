@@ -49,6 +49,7 @@ public:
 
     size_t getNumOfKeysInFilter();
     size_t getFilterSize();
+    size_t getNoOfHashes() const;
 
 protected:
     size_t estimateFilterSize(size_t key_count, double false_positive_prob);

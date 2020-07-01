@@ -17,10 +17,88 @@
 #include <unordered_set>
 
 #include <folly/portability/GTest.h>
+#include <random>
 
 #include "bloomfilter.h"
 #include "murmurhash3.h"
 #include "tests/module_tests/test_helpers.h"
+
+class BloomFilterTest : public ::testing::Test {};
+
+// Test the size calculation when creating a bloom filter.
+// See: https://en.wikipedia.org/wiki/Bloom_filter
+TEST_F(BloomFilterTest, SizeCalculation) {
+    struct Params {
+        size_t keys;
+        size_t bits;
+        size_t hashes;
+    };
+    std::vector<Params> params{{1, 10, 7},
+                               {10, 96, 7},
+                               {100, 959, 7},
+                               {1000, 9585, 7},
+                               {10000, 95851, 7},
+                               {100000, 958506, 7}};
+
+    for (const auto& p : params) {
+        BloomFilter bf(p.keys, 0.01, BFILTER_ENABLED);
+        EXPECT_EQ(p.bits, bf.getFilterSize()) << "For keys=" << p.keys;
+        EXPECT_EQ(p.hashes, bf.getNoOfHashes()) << "For keys=" << p.keys;
+    }
+}
+
+// Test the filtering of the bloom filter.
+// Add N keys, then test that all N keys "may" exist in filter.
+TEST_F(BloomFilterTest, PositiveCheck) {
+    // Generate N keys. First insert them all, then check they all exist.
+    const int numKeys = 10000;
+    const double targetFalsePositive = 0.01;
+
+    // Create bloom filter sized for the given number of keys, and insert them
+    // all.
+    BloomFilter bf(numKeys, targetFalsePositive, BFILTER_ENABLED);
+    for (int i = 0; i < numKeys; i++) {
+        bf.addKey(makeStoredDocKey("key_" + std::to_string(i)));
+    }
+
+    // Test - check the N keys for existence
+    for (int i = 0; i < numKeys; i++) {
+        auto key = makeStoredDocKey("key_" + std::to_string(i));
+        EXPECT_TRUE(bf.maybeKeyExists(key)) << "For key:" << key.to_string();
+    }
+}
+
+// Test the false positive rate of the bloom filter.
+// Only expect a FP _close_ to the estimated (given the probabilstic nature
+// of the Bloom filter).
+TEST_F(BloomFilterTest, FalsePositiveRate) {
+    // Generate 2 x N keys. First half will be inserted, second half
+    // will be tested for membership - any which are found are false positives.
+    const int numKeys = 10000;
+    const double targetFalsePositive = 0.01;
+
+    // Create bloom filter sized for the given number of keys, and insert them
+    // all.
+    BloomFilter bf(numKeys, targetFalsePositive, BFILTER_ENABLED);
+    for (int i = 0; i < numKeys; i++) {
+        bf.addKey(makeStoredDocKey("key_" + std::to_string(i)));
+    }
+
+    // Test - check the next N keys for existence
+    int falsePositives = 0;
+    for (int i = 0; i < numKeys; i++) {
+        if (bf.maybeKeyExists(
+                    makeStoredDocKey("key_" + std::to_string(numKeys + i)))) {
+            falsePositives++;
+        }
+    }
+
+    // Allow a FP rate 10% either way.
+    const int expectedFalsePositives = numKeys * targetFalsePositive;
+    EXPECT_NEAR(expectedFalsePositives,
+                falsePositives,
+                expectedFalsePositives * 0.1);
+}
 
 class BloomFilterDocKeyTest
     : public BloomFilter,
