@@ -520,12 +520,30 @@ std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user) {
 
 void loadPrivilegeDatabase(const std::string& filename) {
     const auto content = cb::io::loadFile(filename, std::chrono::seconds{5});
-    nlohmann::json json;
+    std::unique_ptr<PrivilegeDatabase> database;
+    std::string error;
+
+    // In MB-40238 we saw something we think might be an invalid configuration
+    // being provided to us from ns_server, but we didn't log the content
+    // of the database because it wasn't one of the nlohmann exceptions being
+    // thrown. Extend the logging to also include logic_errors (std::stoi may
+    // throw std::invalid_argument), and runtime_error to make sure we push
+    // the content of the database to the caller.
     try {
+        nlohmann::json json;
         json = nlohmann::json::parse(content);
-    } catch (nlohmann::json::exception& exception) {
+        database = std::make_unique<PrivilegeDatabase>(json, Domain::Local);
+    } catch (nlohmann::json::exception& e) {
+        error = e.what();
+    } catch (const std::logic_error& e) {
+        error = e.what();
+    } catch (const std::runtime_error& e) {
+        error = e.what();
+    }
+
+    if (!error.empty()) {
         std::stringstream ss;
-        ss << "Failed to parse RBAC database: " << exception.what() << std::endl
+        ss << "Failed to parse RBAC database: " << error << std::endl
            << cb::userdataStartTag << "RBAC database content: " << std::endl
            << "===========================================" << std::endl
            << content << std::endl
@@ -534,7 +552,6 @@ void loadPrivilegeDatabase(const std::string& filename) {
 
         throw std::runtime_error(ss.str());
     }
-    auto database = std::make_unique<PrivilegeDatabase>(json, Domain::Local);
 
     auto& ctx = contexts[to_index(Domain::Local)];
 

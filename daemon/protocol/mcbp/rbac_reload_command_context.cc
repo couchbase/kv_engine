@@ -46,9 +46,9 @@ public:
             LOG_INFO("{}: RBAC configuration updated {}",
                      connection.getId(),
                      connection.getDescription());
-        } catch (const std::runtime_error& error) {
-            LOG_WARNING(
-                    "{}: RbacConfigReloadTask(): An error occured while "
+        } catch (const std::exception& error) {
+            LOG_CRITICAL(
+                    "{}: RbacConfigReloadTask(): An error occurred while "
                     "loading RBAC configuration from [{}] {}: {}",
                     connection.getId(),
                     Settings::instance().getRbacFile(),
