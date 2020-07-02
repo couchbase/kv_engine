@@ -3030,6 +3030,7 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
                 kvstore.getCollectionStats(*kvstoreContext, collection.first);
         if (stats) {
             collection.second.setDiskCount(stats->itemCount);
+            collection.second.setDiskSize(stats->diskSize);
             collection.second.resetPersistedHighSeqno(stats->highSeqno);
             collection.second.resetHighSeqno(
                     collection.second.getPersistedHighSeqno());

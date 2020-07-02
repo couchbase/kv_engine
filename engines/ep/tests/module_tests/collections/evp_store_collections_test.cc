@@ -1907,6 +1907,66 @@ TEST_F(CollectionsTest, PerCollectionDiskSize) {
     }
 }
 
+TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
+    // test that the per-collection disk size (updated by saveDocsCallback)
+    // changes when items in the collection are added/updated/deleted (but not
+    // when evicted) and does not change when items in other collections are
+    // similarly changed.
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+    KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+
+    {
+        SCOPED_TRACE("Rollback");
+        // post rollback, stats should have been reset to what they are
+        // currently
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+        auto seqnoToRollbackTo = vb->getHighSeqno();
+
+        {
+            // now add another item to change the stats. This item will be
+            // removed by rollback
+            SCOPED_TRACE("new item added to collection");
+            // default collection disk size should _increase_ as we add the item
+            auto d = DiskChecker(
+                    *vb, CollectionEntry::defaultC, std::greater<>());
+            // meta collection disk size should _stay the same_
+            auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+
+            store_item(vbid,
+                       StoredDocKey{"key2", CollectionEntry::defaultC},
+                       "value");
+            KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+
+            // checkers go out of scope and confirm expected stat changes
+        }
+
+        // force to replica to allow rollback
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  store->setVBucketState(vbid, vbucket_state_replica));
+
+        // definitely will be rolling back an item
+        ASSERT_NE(seqnoToRollbackTo, vb->getHighSeqno());
+
+        store->rollback(vbid, seqnoToRollbackTo);
+
+        // definitely rolled back
+        ASSERT_EQ(seqnoToRollbackTo, vb->getHighSeqno());
+
+        // Checkers go out of scope and verify stats were reset to
+        // original values
+    }
+}
+
 // Test to ensure we use the vbuckets manifest when passing a vbid to
 // EventuallyPersistentEngine::get_scope_id()
 TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
