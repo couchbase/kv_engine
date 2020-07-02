@@ -280,6 +280,29 @@ TEST_P(McdTestappTest, GetKQ) {
     test_getq_impl("test_getkq", ClientOpcode::Getkq);
 }
 
+static std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
+                                                    std::string_view key,
+                                                    uint64_t delta,
+                                                    uint64_t initial,
+                                                    uint32_t exp) {
+    using namespace cb::mcbp;
+    using request::ArithmeticPayload;
+
+    ArithmeticPayload extras;
+    extras.setDelta(delta);
+    extras.setInitial(initial);
+    extras.setExpiration(exp);
+
+    std::vector<uint8_t> buffer(sizeof(Request) + sizeof(extras) + key.size());
+    RequestBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(cmd);
+    builder.setExtras(extras.getBuffer());
+    builder.setOpaque(0xdeadbeef);
+    builder.setKey(key);
+    return buffer;
+}
+
 TEST_P(McdTestappTest, IncrQ) {
     const std::string key = "test_incrq";
     const auto command =

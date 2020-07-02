@@ -20,30 +20,6 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 
-std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
-                                             std::string_view key,
-                                             uint64_t delta,
-                                             uint64_t initial,
-                                             uint32_t exp) {
-    using namespace cb::mcbp;
-    using request::ArithmeticPayload;
-
-    ArithmeticPayload extras;
-    extras.setDelta(delta);
-    extras.setInitial(initial);
-    extras.setExpiration(exp);
-
-    std::vector<uint8_t> buffer(sizeof(Request) + sizeof(extras) + key.size());
-    RequestBuilder builder({buffer.data(), buffer.size()});
-    builder.setMagic(Magic::ClientRequest);
-    builder.setOpcode(cmd);
-    builder.setExtras(
-            {reinterpret_cast<const uint8_t*>(&extras), sizeof(extras)});
-    builder.setOpaque(0xdeadbeef);
-    builder.setKey(key);
-    return buffer;
-}
-
 std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
                                           std::string_view key,
                                           std::string_view value,

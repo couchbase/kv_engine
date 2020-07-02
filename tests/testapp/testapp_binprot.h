@@ -26,12 +26,6 @@
 
 #include <memcached/protocol_binary.h>
 
-std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
-                                             std::string_view key,
-                                             uint64_t delta,
-                                             uint64_t initial,
-                                             uint32_t exp);
-
 /**
  * Constructs a storage command using the give arguments into buf.
  *
