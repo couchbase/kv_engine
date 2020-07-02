@@ -32,6 +32,17 @@ BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
     return multiResp;
 }
 
+BinprotSubdocMultiMutationResponse XattrNoDocTest::subdoc_multi_mutation(
+        std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier> specs,
+        mcbp::subdoc::doc_flag docFlags) {
+    BinprotSubdocMultiMutationCommand cmd{name, specs, docFlags};
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    return multiResp;
+}
+
 GetMetaResponse XattrNoDocTest::get_meta() {
     auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
@@ -147,6 +158,93 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
 
     testBodyAndXattrCmd(cmd);
+}
+
+// Test setting just an XATTR path without a value using a single-path
+// dictionary operation.
+// Regression test for MB-40262.
+TEST_P(XattrTest, SetXattrNoValueNewDocDict) {
+    // Ensure we are working on a new doc
+    getConnection().remove(name, Vbid(0));
+
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                       name,
+                       "meta.deleted",
+                       "true",
+                       SUBDOC_FLAG_XATTR_PATH,
+                       mcbp::subdoc::doc_flag::Mkdoc);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+    auto doc = getConnection().get(name, Vbid(0));
+    EXPECT_EQ("{}", doc.value);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
+              get_meta().datatype);
+}
+
+// Test setting just an XATTR path without a value using a single-path
+// array operation.
+// Regression test for MB-40262.
+TEST_P(XattrTest, SetXattrNoValueNewDocArray) {
+    // Ensure we are working on a new doc
+    getConnection().remove(name, Vbid(0));
+
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                       name,
+                       "array",
+                       "0",
+                       SUBDOC_FLAG_XATTR_PATH,
+                       mcbp::subdoc::doc_flag::Mkdoc);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+    // Expect value to be empty JSON object.
+    auto doc = getConnection().get(name, Vbid(0));
+    EXPECT_EQ("{}", doc.value);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
+              get_meta().datatype);
+}
+
+// Test setting just an XATTR path without a value using a multi-mutation
+// dictionary operation.
+// Regression test for MB-40262.
+TEST_P(XattrTest, SetXattrNoValueNewDocMultipathDict) {
+    // Ensure we are working on a new doc
+    getConnection().remove(name, Vbid(0));
+
+    auto response =
+            subdoc_multi_mutation({{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                    SUBDOC_FLAG_XATTR_PATH,
+                                    "meta.deleted",
+                                    "true"}},
+                                  mcbp::subdoc::doc_flag::Mkdoc);
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+
+    // Expect value to be empty JSON object.
+    auto doc = getConnection().get(name, Vbid(0));
+    EXPECT_EQ("{}", doc.value);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
+              get_meta().datatype);
+}
+
+// Test setting just an XATTR path without a value using a multi-mutation
+// dictionary operation.
+// Regression test for MB-40262.
+TEST_P(XattrTest, SetXattrNoValueNewDocMultipathArray) {
+    // Ensure we are working on a new doc
+    getConnection().remove(name, Vbid(0));
+
+    auto response =
+            subdoc_multi_mutation({{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                                    SUBDOC_FLAG_XATTR_PATH,
+                                    "meta.ids",
+                                    "123"}},
+                                  mcbp::subdoc::doc_flag::Mkdoc);
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+
+    // Expect value to be empty JSON dict.
+    auto doc = getConnection().get(name, Vbid(0));
+    EXPECT_EQ("{}", doc.value);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
+              get_meta().datatype);
 }
 
 TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {

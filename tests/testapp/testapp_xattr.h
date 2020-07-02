@@ -47,6 +47,11 @@ protected:
             std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
             mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
 
+    BinprotSubdocMultiMutationResponse subdoc_multi_mutation(
+            std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier>
+                    specs,
+            mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
+
     GetMetaResponse get_meta();
 
     bool supportSyncRepl() const {
