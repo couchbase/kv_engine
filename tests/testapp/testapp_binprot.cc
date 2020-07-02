@@ -20,36 +20,6 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 
-std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
-                                          std::string_view key,
-                                          std::string_view value,
-                                          uint32_t flags,
-                                          uint32_t exp) {
-    using namespace cb::mcbp;
-    std::vector<uint8_t> buffer;
-    size_t size = sizeof(Request) + key.size() + value.size();
-    if (cmd != ClientOpcode::Append && cmd != ClientOpcode::Appendq &&
-        cmd != ClientOpcode::Prepend && cmd != ClientOpcode::Prependq) {
-        size += sizeof(request::MutationPayload);
-    }
-    buffer.resize(size);
-    FrameBuilder<Request> builder({buffer.data(), buffer.size()});
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(cmd);
-    builder.setOpaque(0xdeadbeef);
-
-    if (cmd != ClientOpcode::Append && cmd != ClientOpcode::Appendq &&
-        cmd != ClientOpcode::Prepend && cmd != ClientOpcode::Prependq) {
-        request::MutationPayload extras;
-        extras.setFlags(flags);
-        extras.setExpiration(exp);
-        builder.setExtras(extras.getBuffer());
-    }
-    builder.setKey(key);
-    builder.setValue(value);
-    return buffer;
-}
-
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,

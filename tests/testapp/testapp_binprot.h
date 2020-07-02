@@ -26,21 +26,6 @@
 
 #include <memcached/protocol_binary.h>
 
-/**
- * Constructs a storage command using the give arguments into buf.
- *
- * @param cmd the command opcode to use
- * @param key the key to use
- * @param value the value for the key
- * @param flags the value to use for the flags
- * @param exp the expiry time
- */
-std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
-                                          std::string_view key,
-                                          std::string_view value,
-                                          uint32_t flags,
-                                          uint32_t exp);
-
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
