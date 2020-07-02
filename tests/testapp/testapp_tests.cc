@@ -622,8 +622,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
     auto& conn = getAdminConnection();
 
     // Create and select a bucket on which we will be able to hello collections
-    ASSERT_NO_THROW(
-            conn.createBucket("collections", "", BucketType::Couchbase));
+    conn.createBucket("collections", "", BucketType::Couchbase);
     conn.selectBucket("collections");
 
     // Hello collections to enable collections for this connection
