@@ -36,6 +36,10 @@ Flags are specified as a bitmask in network byte order with the following bits d
   value in the delete-time field. See DCP deletion command. Note when enabled on
   a consumer, the consumer expects the client to send the delete-time format DCP
   delete.
+* 0x40: __No value with underlying datatype__. Requests that the server preserves the original
+  datatype when it strips off the document value.
+* 0x100: __Include deleted user xattrs__. Requests that the server includes the document
+  User Xattrs within deletion values.
 
 When setting the Producer or Consumer flag the sender is telling the server what type of connection will be created. For example, if the Producer type is set then the sender of the Open Connection message will be a Consumer.
 

@@ -57,7 +57,7 @@ using namespace mcbp::subdoc;
  */
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE ret,
+                         ENGINE_ERROR_CODE& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas);
 
@@ -170,7 +170,8 @@ static void create_single_path_context(SubdocCmdContext& context,
                 traits, flags, {path.data(), path.size()}});
     }
 
-    if (impliesMkdir_p(doc_flags)) {
+    bool isXAttrPath = flags & SUBDOC_FLAG_XATTR_PATH;
+    if (impliesMkdir_p(doc_flags) && !isXAttrPath) {
         context.jroot_type = Subdoc::Util::get_root_type(
                 traits.subdocCommand, path.data(), path.size());
     }
@@ -233,9 +234,13 @@ static void create_multi_path_context(SubdocCmdContext& context,
         }
 
         auto traits = get_subdoc_cmd_traits(binprot_cmd);
-        if (impliesMkdir_p(doc_flags) &&
-            context.jroot_type == 0) {
-            // Determine the root type
+        bool isXAttrPath = flags & SUBDOC_FLAG_XATTR_PATH;
+        if (traits.scope == CommandScope::SubJSON &&
+            impliesMkdir_p(doc_flags) && !isXAttrPath &&
+            context.jroot_type == JSONSL_T_ROOT) {
+            // First subdoc operation targetting the body, determine what the
+            // root of the document should be _if_ we need to create an empty
+            // one.
             context.jroot_type = Subdoc::Util::get_root_type(
                     traits.subdocCommand, path.data(), path.size());
         }
@@ -483,7 +488,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 // else false.
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE ret,
+                         ENGINE_ERROR_CODE& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
@@ -514,30 +519,31 @@ static bool subdoc_fetch(Cookie& cookie,
             break;
 
         case ENGINE_KEY_ENOENT:
-            if (ctx.traits.is_mutator &&
-                ctx.mutationSemantics == MutationSemantics::Replace) {
+            if (!ctx.traits.is_mutator) {
+                // Lookup operation against a non-existent document is not
+                // possible.
                 cookie.sendResponse(cb::engine_errc(ret));
                 return false;
             }
 
-            // The item does not exist. Check the current command context to
-            // determine if we should at all write a new document (i.e. pretend
-            // it exists) and defer insert until later.. OR if we should simply
-            // bail.
-
-            if (ctx.jroot_type == JSONSL_T_LIST) {
-                ctx.in_doc = {"[]", 2};
-            } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
-                ctx.in_doc = {"{}", 2};
-            } else {
+            // Mutation operation with Replace semantics - cannot continue
+            // withot an existing document.
+            if (ctx.mutationSemantics == MutationSemantics::Replace) {
                 cookie.sendResponse(cb::engine_errc(ret));
                 return false;
             }
+
+            // The item does not exist, but we are performing a mutation
+            // and the mutation semantics are Add or Set (i.e. this mutation
+            // can create the document during execution) therefore can
+            // continue without an existing document.
 
             // Indicate that a new document is required:
             ctx.needs_new_doc = true;
-            ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             ctx.in_document_state = ctx.createState;
+            // Change 'ret' back to success - conceptually the fetch did
+            // "succeed" and execution should continue.
+            ret = ENGINE_SUCCESS;
             return true;
 
         case ENGINE_EWOULDBLOCK:
@@ -1108,6 +1114,22 @@ static bool do_body_phase(SubdocCmdContext& context) {
         // We shouldn't have any documents like that!
         xattrsize = cb::xattr::get_body_offset(document);
         document.remove_prefix(xattrsize);
+    }
+
+    if (document.empty()) {
+        // No input document, create an empty JSON object of the correct
+        // type to operate on.
+        // Note: OR in the JSON bit as the XATTR phase may have already
+        // set the XATTR bit and we don't want to lose that bit.
+        if (context.jroot_type == JSONSL_T_LIST) {
+            document = {"[]", 2};
+            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+        } else if (context.jroot_type == JSONSL_T_OBJECT) {
+            document = {"{}", 2};
+            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+        } else {
+            // Otherwise a wholedoc operation.
+        }
     }
 
     std::unique_ptr<char[]> temp_doc;

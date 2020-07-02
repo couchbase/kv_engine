@@ -43,9 +43,19 @@ protected:
                       docFlag);
     }
 
+    BinprotSubdocMultiLookupResponse subdoc_multi_lookup(
+            std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
+            mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
+
+    GetMetaResponse get_meta();
+
     bool supportSyncRepl() const {
         return mcd_env->getTestBucket().supportsSyncWrites();
     }
+
+    /// Constructs a Subdoc multi-mutation matching the style of an SDK
+    // Transactions mutation.
+    BinprotSubdocMultiMutationCommand makeSDKTxnMultiMutation() const;
 
     void testRequiresMkdocOrAdd();
     void testRequiresXattrPath();
@@ -57,6 +67,7 @@ protected:
     void testMultipathArrayAddUnique();
     void testMultipathCounter();
     void testMultipathCombo();
+    void testMultipathAccessDeletedCreateAsDeleted();
 
     std::optional<cb::durability::Requirements> durReqs = {};
 };
@@ -256,10 +267,14 @@ protected:
      * Takes a subdoc multimutation command, sends it and checks that the
      * values set correctly
      * @param cmd The command to send
+     * @param expectedDatatype The expected datatype of the resulting document.
      * @return Returns the response from the multi-mutation
      */
     BinprotSubdocMultiMutationResponse testBodyAndXattrCmd(
-            BinprotSubdocMultiMutationCommand& cmd) {
+            BinprotSubdocMultiMutationCommand& cmd,
+            protocol_binary_datatype_t expectedDatatype =
+                    PROTOCOL_BINARY_DATATYPE_JSON |
+                    PROTOCOL_BINARY_DATATYPE_XATTR) {
         auto& conn = getConnection();
         conn.sendCommand(cmd);
 
@@ -274,6 +289,10 @@ protected:
         // Check the xattr was set correctly
         auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(xattrVal, resp.getValue());
+
+        // Check the datatype.
+        auto meta = get_meta();
+        EXPECT_EQ(expectedDatatype, meta.datatype);
 
         return multiResp;
     }
