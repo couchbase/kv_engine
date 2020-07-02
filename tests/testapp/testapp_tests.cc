@@ -375,14 +375,10 @@ TEST_P(McdTestappTest, DecrQ) {
 }
 
 TEST_P(McdTestappTest, Version) {
-    BinprotGenericCommand cmd(ClientOpcode::Version);
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
-    safe_send(blob);
-    ASSERT_TRUE(safe_recv_packet(blob));
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::Version,
-                                  Status::Success);
+    const auto rsp = getConnection().execute(
+            BinprotGenericCommand{ClientOpcode::Version});
+    EXPECT_EQ(ClientOpcode::Version, rsp.getOp());
+    EXPECT_TRUE(rsp.isSuccess());
 }
 
 void test_concat_impl(const std::string& key, ClientOpcode cmd) {
