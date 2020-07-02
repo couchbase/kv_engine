@@ -17,6 +17,7 @@
 
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
+#include <stdexcept>
 #include <vector>
 
 namespace cb {

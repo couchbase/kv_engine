@@ -17,6 +17,8 @@
 
 #include "datatype_filter.h"
 
+#include <stdexcept>
+
 void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     switch (feature) {
     case cb::mcbp::Feature::XATTR:

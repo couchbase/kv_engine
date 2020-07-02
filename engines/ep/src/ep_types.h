@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 
 // Forward declarations for types defined elsewhere.
