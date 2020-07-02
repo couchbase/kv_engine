@@ -2036,7 +2036,10 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
         // collection purger runs (was scheduled by the drop of default)
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                     "Compact DB file 0");
-        runCompaction(ep_real_time() + 10000, 3);
+
+        TimeTraveller alex(
+                engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+        runCompaction(3);
     } else {
         auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
         evb->purgeStaleItems();
@@ -2335,7 +2338,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     // Purge toumb stones
     if (persistent()) {
-        runCompaction(0, 0, true);
+        runCompaction(0, true);
     } else {
         auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
         EphemeralVBucket::HTTombstonePurger purger(0);

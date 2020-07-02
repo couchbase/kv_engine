@@ -2226,8 +2226,6 @@ std::shared_ptr<compaction_ctx> MagmaKVStore::makeCompactionContext(Vbid vbid) {
 
     CompactionConfig config{};
     config.db_file_id = vbid;
-    config.purge_before_ts =
-            ep_real_time() - configuration.getMetadataPurgeAge().count();
 
     auto ctx = makeCompactionContextCallback(config, 0 /*purgeSeqno*/);
 

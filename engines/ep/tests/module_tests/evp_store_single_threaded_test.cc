@@ -324,11 +324,9 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
                                      {}));
 }
 
-void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
-                                               uint64_t purgeBeforeSeq,
+void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeSeq,
                                                bool dropDeletes) {
     CompactionConfig compactConfig;
-    compactConfig.purge_before_ts = purgeBeforeTime;
     compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = dropDeletes;
     compactConfig.db_file_id = vbid;
@@ -718,7 +716,9 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
 
     // Advance the purgeSeqno
     if (persistent()) {
-        runCompaction(~0, 3);
+        TimeTraveller jordan(
+                engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+        runCompaction(3);
     } else {
         EphemeralVBucket::HTTombstonePurger purger(0);
         auto vbptr = store->getVBucket(vbid);
@@ -3487,7 +3487,9 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
 
     // 4) Compact drop tombstones less than time=maxint and below seqno 3
     // as per earlier comment, only seqno 1 will be purged...
-    runCompaction(~0, 3);
+    TimeTraveller blair(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+    runCompaction(3);
 
     // 5) Begin cursor dropping
     mock_stream->handleSlowStream();
@@ -3587,7 +3589,9 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
 
     // 5) Now compaction kicks in, which will purge the deletes of k1/k2 setting
     //    the purgeSeqno to seq 4 (the last purged seqno)
-    runCompaction(~0, 5);
+    TimeTraveller quinn(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+    runCompaction(5);
 
     EXPECT_EQ(vb->getPurgeSeqno(), 4);
 
@@ -4226,7 +4230,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     ASSERT_EQ(0, metadata.exptime);
 
     // Run compaction. Ensure that compaction hasn't purged the tombstone
-    runCompaction(~0, 3);
+    runCompaction(3);
     EXPECT_EQ(0, vb->getPurgeSeqno());
 
     // Now, make sure erroneous tombstones get purged by the compactor
@@ -4234,7 +4238,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     ASSERT_FALSE(epstore.isRetainErroneousTombstones());
 
     // Run compaction and verify that the tombstone is purged
-    runCompaction(~0, 3);
+    runCompaction(3);
 
     size_t expected;
     if (isMagma()) {
@@ -4299,7 +4303,9 @@ TEST_P(STParamPersistentBucketTest,
     ASSERT_NE(0, metadata.exptime); // A locally created deleteTime
 
     // deleted key1 should be purged
-    runCompaction(~0, 3);
+    TimeTraveller jamie(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+    runCompaction(3);
 
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }

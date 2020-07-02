@@ -100,12 +100,9 @@ public:
 
     /**
      * Run the compaction task
-     * @param purgeBeforeTime purge tombstones with timestamps less than this
      * @param purgeBeforeSeq purge tombstones with seqnos less than this
      */
-    void runCompaction(uint64_t purgeBeforeTime = 0,
-                       uint64_t purgeBeforeSeq = 0,
-                       bool dropDeletes = false);
+    void runCompaction(uint64_t purgeBeforeSeq = 0, bool dropDeletes = false);
 
     /**
      * Run the task responsible for iterating the documents and erasing them
