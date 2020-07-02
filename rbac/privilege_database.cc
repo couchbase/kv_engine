@@ -159,7 +159,12 @@ Scope::Scope(const nlohmann::json& json) {
     iter = json.find("collections");
     if (iter != json.end()) {
         for (auto it = iter->begin(); it != iter->end(); ++it) {
-            uint32_t cid = std::stoi(it.key());
+            size_t pos = 0;
+            uint32_t cid = std::stoul(it.key(), &pos, 16);
+            if (it.key().length() != pos) {
+                throw std::invalid_argument(
+                        "Scope::Scope(): Extra characters present for CID");
+            }
             collections.emplace(cid, Collection(it.value()));
         }
     }
@@ -224,7 +229,13 @@ Bucket::Bucket(const nlohmann::json& json) {
         iter = json.find("scopes");
         if (iter != json.end()) {
             for (auto it = iter->begin(); it != iter->end(); ++it) {
-                uint32_t sid = std::stoi(it.key());
+                size_t pos = 0;
+                uint32_t sid = std::stoul(it.key(), &pos, 16);
+                if (it.key().length() != pos) {
+                    throw std::invalid_argument(
+                            "Bucket::Bucket(): Extra characters present for "
+                            "SID");
+                }
                 scopes.emplace(sid, Scope(it.value()));
             }
         }

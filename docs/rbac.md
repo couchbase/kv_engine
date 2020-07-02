@@ -116,7 +116,8 @@ The bucket object is an object containing one of the following
 keys:
 
 * `scopes` An object containing all of the scopes the user have
-           access to. The key is the scope id, and the value is
+           access to. The key is the scope id written in hex
+           preferred with a 0x prefix), and the value is
            a scope object (see below).
 
 * `privileges` The privileges the user have to this bucket
@@ -131,7 +132,8 @@ The scope object is an object containing one of the following
 keys:
 
 * `collections` An object containing all of the collections the
-                user have access to. The key is the collection id,
+                user have access to. The key is the collection id
+                written in hex (preferred with a 0x prefix),
                 and the value is a collection object (see below).
 
 * `privileges` The privileges the user have to this scope

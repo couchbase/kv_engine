@@ -64,7 +64,7 @@ public:
 TEST(ScopeTest, ParseLegalConfigWithCollections) {
     MockScope scope(nlohmann::json::parse(R"(
 { "collections" : {
-    "32" : {
+    "0x32a" : {
       "privileges" : [ "Read" ]
     }
   }
@@ -74,11 +74,27 @@ TEST(ScopeTest, ParseLegalConfigWithCollections) {
     ASSERT_TRUE(scope.getPrivileges().none());
 
     // Check that we can access the collection!
-    EXPECT_TRUE(scope.check(Privilege::Read, 32, 0).success());
+    EXPECT_TRUE(scope.check(Privilege::Read, 0x32a, 0).success());
     // but only with the desired access
-    EXPECT_TRUE(scope.check(Privilege::Upsert, 32, 0).failed());
+    EXPECT_TRUE(scope.check(Privilege::Upsert, 0x32a, 0).failed());
     // but not an unknown collection
-    EXPECT_TRUE(scope.check(Privilege::Read, 33, 0).failed());
+    EXPECT_TRUE(scope.check(Privilege::Read, 0x33, 0).failed());
+}
+
+TEST(ScopeTest, ParseIllegalConfigWithCollections) {
+    try {
+        MockScope scope(nlohmann::json::parse(R"(
+{ "collections" : {
+    "0x32a " : {
+      "privileges" : [ "Read" ]
+    }
+  }
+})"));
+        FAIL() << "Should not accept trailing characters";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ("Scope::Scope(): Extra characters present for CID",
+                     e.what());
+    }
 }
 
 TEST(ScopeTest, ParseLegalConfigWithoutCollections) {
@@ -116,7 +132,7 @@ TEST(BucketTest, ParseLegalConfigWithScopes) {
     // access to all collections within the scope
     MockBucket bucket(nlohmann::json::parse(R"(
 { "scopes" : {
-    "32" : {
+    "0x32a" : {
       "privileges" : [ "Read" ]
     }
   }
@@ -126,11 +142,27 @@ TEST(BucketTest, ParseLegalConfigWithScopes) {
     ASSERT_TRUE(bucket.getPrivileges().none());
 
     // Check that we can access the scope!
-    EXPECT_TRUE(bucket.check(Privilege::Read, 32, 23).success());
+    EXPECT_TRUE(bucket.check(Privilege::Read, 0x32a, 0x23).success());
     // but only with the desired access
-    EXPECT_TRUE(bucket.check(Privilege::Upsert, 32, 23).failed());
+    EXPECT_TRUE(bucket.check(Privilege::Upsert, 0x32a, 0x23).failed());
     // but not an unknown scope
-    EXPECT_TRUE(bucket.check(Privilege::Read, 33, 23).failed());
+    EXPECT_TRUE(bucket.check(Privilege::Read, 0x33, 0x23).failed());
+}
+
+TEST(ScopeTest, ParseIllegalConfigWithScopes) {
+    try {
+        MockBucket bucket(nlohmann::json::parse(R"(
+{ "scopes" : {
+    "0x32a " : {
+      "privileges" : [ "Read" ]
+    }
+  }
+})"));
+        FAIL() << "Should not accept trailing characters";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ("Bucket::Bucket(): Extra characters present for SID",
+                     e.what());
+    }
 }
 
 TEST(BucketTest, ParseLegalConfigWithoutScopes) {
@@ -169,10 +201,10 @@ void BucketPrivCollectionVisibility::test(std::optional<nlohmann::json> scope) {
 
     // Can Read everything
     EXPECT_TRUE(bucket.check(Privilege::Read, {}, {}).success());
-    // Can Read all in scope:32
-    EXPECT_TRUE(bucket.check(Privilege::Read, 32, {}).success());
-    // Can Read all in collection:32 (in scope:32)
-    EXPECT_TRUE(bucket.check(Privilege::Read, 32, 32).success());
+    // Can Read all in scope:0x32
+    EXPECT_TRUE(bucket.check(Privilege::Read, 0x32, {}).success());
+    // Can Read all in collection:0x32 (in scope:0x32)
+    EXPECT_TRUE(bucket.check(Privilege::Read, 0x32, 0x32).success());
 
     // Now check for failure
     auto status = bucket.check(Privilege::Upsert, {}, {});
@@ -182,8 +214,8 @@ void BucketPrivCollectionVisibility::test(std::optional<nlohmann::json> scope) {
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 
     // Try check with scopes only
-    for (int ii = 32; ii < 34; ++ii) {
-        auto status = bucket.check(Privilege::Upsert, ii, {});
+    for (int ii = 0x32; ii < 0x34; ++ii) {
+        status = bucket.check(Privilege::Upsert, ii, {});
         // User definitely doesn't have Upsert for the scope
         EXPECT_TRUE(status.failed());
         // Exact error says Fail, which should translate to an access error
@@ -192,8 +224,8 @@ void BucketPrivCollectionVisibility::test(std::optional<nlohmann::json> scope) {
     }
 
     // Try check with collections
-    for (int ii = 32; ii < 34; ++ii) {
-        auto status = bucket.check(Privilege::Upsert, ii, ii);
+    for (int ii = 0x32; ii < 0x34; ++ii) {
+        status = bucket.check(Privilege::Upsert, ii, ii);
         // User definitely doesn't have Upsert for the collection
         EXPECT_TRUE(status.failed());
         // Exact error says Fail, which should translate to an access error
@@ -209,27 +241,28 @@ TEST_F(BucketPrivCollectionVisibility, bucketOnly) {
 }
 
 TEST_F(BucketPrivCollectionVisibility, scope) {
-    // Run the test, but below bucket add scope:32 with Delete privs
-    test(nlohmann::json{{"32", {{"privileges", {"Delete"}}}}});
+    // Run the test, but below bucket add scope:0x32 with Delete privs
+    test(nlohmann::json{{"0x32", {{"privileges", {"Delete"}}}}});
 }
 
 TEST_F(BucketPrivCollectionVisibility, scopeAndCollection) {
-    // Run the test, but below bucket add scope:32,collection:32 with Delete
+    // Run the test, but below bucket add scope:0x32,collection:0x32 with Delete
     // privs
     test(nlohmann::json{
-            {"32", {{"collections", {{"32", {{"privileges", {"Delete"}}}}}}}}});
+            {"0x32",
+             {{"collections", {{"0x32", {{"privileges", {"Delete"}}}}}}}}});
 }
 
 class ScopePrivCollectionVisibility : public ::testing::Test {
 public:
     // In this test fixture, the 'user' has no collection privileges for the
-    // bucket, they always have collection privileges @ scope 32. This means
-    // they can Read everything under scope 32, any failure under scope 32 is
-    // a plain failure, and any other failure (e.g. check under scope 33) can be
-    // differentiated as Fail vs FailNoPrivileges
+    // bucket, they always have collection privileges @ scope 0x32. This means
+    // they can Read everything under scope 0x32, any failure under scope 0x32
+    // is a plain failure, and any other failure (e.g. check under scope 0x33)
+    // can be differentiated as Fail vs FailNoPrivileges
     nlohmann::json scopeAccess = {
             {"privileges", {"Audit"}},
-            {"scopes", {{"32", {{"privileges", {"Read"}}}}}}};
+            {"scopes", {{"0x32", {{"privileges", {"Read"}}}}}}};
     void test(std::optional<nlohmann::json> collection);
 };
 
@@ -246,43 +279,43 @@ void ScopePrivCollectionVisibility::test(
     EXPECT_TRUE(status.failed());
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 
-    // Can Read all in scope:32
-    EXPECT_TRUE(bucket.check(Privilege::Read, 32, {}).success());
-    // Can Read all in collection:32 (because it is in scope:32)
-    EXPECT_TRUE(bucket.check(Privilege::Read, 32, 32).success());
+    // Can Read all in scope:0x32
+    EXPECT_TRUE(bucket.check(Privilege::Read, 0x32, {}).success());
+    // Can Read all in collection:0x32 (because it is in scope:0x32)
+    EXPECT_TRUE(bucket.check(Privilege::Read, 0x32, 0x32).success());
 
-    // User definitely doesn't have Upsert for the scope:32
-    status = bucket.check(Privilege::Upsert, 32, {});
+    // User definitely doesn't have Upsert for the scope:0x32
+    status = bucket.check(Privilege::Upsert, 0x32, {});
     EXPECT_TRUE(status.failed());
     // Exact error says Fail, which should translate to an access error
-    // collections in scope:32 cannot be upserted, but they're not 'invisible'
+    // collections in scope:0x32 cannot be upserted, but they're not 'invisible'
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 
-    // User definitely doesn't have Upsert for the scope:33 (or any access)
-    status = bucket.check(Privilege::Upsert, 33, {});
+    // User definitely doesn't have Upsert for the scope:0x33 (or any access)
+    status = bucket.check(Privilege::Upsert, 0x33, {});
     EXPECT_TRUE(status.failed());
     // Failed but distinguishable from the other failure
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::FailNoPrivileges,
               status.getStatus());
 
-    // Try a couple of collections, 33 will never be mentioned in either test
-    // variant, but should still be 'visible' because of scope 32 Read
-    for (int cid : {32, 33}) {
+    // Try a couple of collections, 0x33 will never be mentioned in either test
+    // variant, but should still be 'visible' because of scope 0x32 Read
+    for (int cid : {0x32, 0x33}) {
         // Try checks with scope.collection
-        status = bucket.check(Privilege::Upsert, 32, cid);
+        status = bucket.check(Privilege::Upsert, 0x32, cid);
         // User definitely doesn't have Upsert for the scope/collection
         EXPECT_TRUE(status.failed());
         // Exact error says Fail, which should translate to an access error
-        // collections in scope:32 cannot be upserted, but they're not
+        // collections in scope:0x32 cannot be upserted, but they're not
         // 'invisible'
         EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus())
                 << cid;
     }
 
-    // User definitely doesn't have Upsert for the scope:33 (or any access)
-    status = bucket.check(Privilege::Upsert, 33, 32);
+    // User definitely doesn't have Upsert for the scope:0x33 (or any access)
+    status = bucket.check(Privilege::Upsert, 0x33, 0x32);
     EXPECT_TRUE(status.failed());
-    // However user has no privileges at all for scope:33 so it should be
+    // However user has no privileges at all for scope:0x33 so it should be
     // distinguishable from plain Fail
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::FailNoPrivileges,
               status.getStatus());
@@ -293,7 +326,7 @@ TEST_F(ScopePrivCollectionVisibility, scopeOnly) {
 }
 
 TEST_F(ScopePrivCollectionVisibility, collections) {
-    test(nlohmann::json{{"32", {{"privileges", {"Delete"}}}}});
+    test(nlohmann::json{{"0x32", {{"privileges", {"Delete"}}}}});
 }
 
 // case is scope{c1,c2}  privs scope{c1} lookup for c2
@@ -305,15 +338,15 @@ public:
     // collections (depending on the test)
 };
 
-TEST_F(CollectionPrivVisibility, can_read_32_only) {
+TEST_F(CollectionPrivVisibility, can_read_0x32_only) {
     nlohmann::json access = R"({
   "privileges": [
     "Audit"
   ],
   "scopes": {
-    "32": {
+    "0x32": {
       "collections": {
-        "32": {
+        "0x32": {
           "privileges": [
             "Read"
           ]
@@ -323,8 +356,8 @@ TEST_F(CollectionPrivVisibility, can_read_32_only) {
   }
 })"_json;
 
-    // Read for collection 32 only
-    // access["collections"] = {{"32", {{"privileges", {"Read"}}}}};
+    // Read for collection 0x32 only
+    // access["collections"] = {{"0x32", {{"privileges", {"Read"}}}}};
     MockBucket bucket(access);
     EXPECT_FALSE(bucket.doesCollectionPrivilegeExists());
 
@@ -334,27 +367,28 @@ TEST_F(CollectionPrivVisibility, can_read_32_only) {
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 
     // Cannot Read a scope
-    status = bucket.check(Privilege::Read, 32, {});
+    status = bucket.check(Privilege::Read, 0x32, {});
     EXPECT_TRUE(status.failed());
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 
-    // Cannot Read or Upsert collection 32.33 and it's not visible (no privs)
-    status = bucket.check(Privilege::Read, 32, 33);
+    // Cannot Read or Upsert collection 0x32.0x33 and it's not visible (no
+    // privs)
+    status = bucket.check(Privilege::Read, 0x32, 0x33);
     EXPECT_TRUE(status.failed());
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::FailNoPrivileges,
               status.getStatus());
 
-    status = bucket.check(Privilege::Upsert, 32, 33);
+    status = bucket.check(Privilege::Upsert, 0x32, 0x33);
     EXPECT_TRUE(status.failed());
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::FailNoPrivileges,
               status.getStatus());
 
-    // Can read 32,32
-    status = bucket.check(Privilege::Read, 32, 32);
+    // Can read 0x32,0x32
+    status = bucket.check(Privilege::Read, 0x32, 0x32);
     EXPECT_TRUE(status.success());
 
-    // Plain fail for Upsert 32.32
-    status = bucket.check(Privilege::Upsert, 32, 32);
+    // Plain fail for Upsert 0x32.0x32
+    status = bucket.check(Privilege::Upsert, 0x32, 0x32);
     EXPECT_TRUE(status.failed());
     EXPECT_EQ(cb::rbac::PrivilegeAccess::Status::Fail, status.getStatus());
 }
