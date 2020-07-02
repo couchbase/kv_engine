@@ -21,6 +21,53 @@
 
 #include <array>
 
+BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
+        std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
+        mcbp::subdoc::doc_flag docFlags) {
+    BinprotSubdocMultiLookupCommand cmd{name, specs, docFlags};
+    auto& conn = getConnection();
+    conn.sendCommand(cmd);
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    return multiResp;
+}
+
+GetMetaResponse XattrNoDocTest::get_meta() {
+    auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
+    return meta.second;
+}
+
+BinprotSubdocMultiMutationCommand XattrNoDocTest::makeSDKTxnMultiMutation()
+        const {
+    using namespace cb::mcbp;
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(
+            ClientOpcode::SubdocDictAdd, SUBDOC_FLAG_XATTR_PATH, "txn", "{}");
+    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.id",
+                    "2");
+    cmd.addMutation(ClientOpcode::SubdocArrayPushLast,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.array",
+                    "2");
+    cmd.addMutation(ClientOpcode::SubdocArrayPushFirst,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.array",
+                    "0");
+    cmd.addMutation(ClientOpcode::SubdocArrayAddUnique,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.array",
+                    "3");
+    cmd.addMutation(ClientOpcode::SubdocCounter,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "txn.counter",
+                    "1");
+    return cmd;
+}
+
 // @todo add the other transport protocols
 // Note: We always need XattrSupport::Yes for these tests
 INSTANTIATE_TEST_SUITE_P(

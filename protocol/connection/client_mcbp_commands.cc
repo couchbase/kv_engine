@@ -1139,6 +1139,15 @@ BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand()
                       cb::mcbp::ClientOpcode::SubdocMultiLookup>(),
       docFlags(mcbp::subdoc::doc_flag::None) {
 }
+
+BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand(
+        std::string key,
+        std::vector<LookupSpecifier> specs,
+        mcbp::subdoc::doc_flag docFlags)
+    : specs(std::move(specs)), docFlags(docFlags) {
+    setKey(key);
+}
+
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
         const BinprotSubdocMultiLookupCommand::LookupSpecifier& spec) {
     specs.push_back(spec);
@@ -1218,6 +1227,7 @@ void BinprotSubdocMultiLookupResponse::decode() {
     // Check if this is a success - either full or partial.
     switch (getStatus()) {
     case cb::mcbp::Status::Success:
+    case cb::mcbp::Status::SubdocSuccessDeleted:
     case cb::mcbp::Status::SubdocMultiPathFailure:
     case cb::mcbp::Status::SubdocMultiPathFailureDeleted:
         break;

@@ -198,6 +198,10 @@ public:
         // Increase bucket quota from 100MB to 200MB as there are some
         // testapp tests requiring more than the default.
         settings += ";max_size=200000000";
+        // Disable bloom_filters - for all memcahed testapp tests we want
+        // to see things like gets of tombstones going to disk and not
+        // getting skipped (to ensure correct EWOULDBLOCK handling etc).
+        settings += ";bfilter_enabled=false";
 
         if (!config.empty()) {
             settings += ";" + config;
