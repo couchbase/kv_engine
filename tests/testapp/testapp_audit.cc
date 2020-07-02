@@ -254,23 +254,11 @@ TEST_P(AuditTest, splitJsonData) {
  * Validate that a rejected illegal packet is audit logged.
  */
 TEST_P(AuditTest, AuditIllegalPacket) {
-    const std::string k("AuditTest::AuditIllegalPacket");
-    auto blob = mcbp_storage_command(cb::mcbp::ClientOpcode::Set, k, k, 0, 0);
-
-    // Now make packet illegal. The validator for SET requires an extlen of
-    // 8 bytes.. let's just include them in the key.
-    auto& request = *reinterpret_cast<cb::mcbp::Request*>(blob.data());
-    ASSERT_EQ(8, request.getExtlen());
-    request.setKeylen(uint16_t(k.size() + 8));
-    request.setExtlen(uint8_t(0));
-    safe_send(blob);
-
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(
-            *reinterpret_cast<cb::mcbp::Response*>(blob.data()),
-            cb::mcbp::ClientOpcode::Set,
-            cb::mcbp::Status::Einval);
-
+    auto& conn = getConnection();
+    // A set command should have 8 bytes of extra;
+    auto rsp = conn.execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Set, "AuditTest::AuditIllegalPacket"});
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_INVALID_PACKET));
 }
 
