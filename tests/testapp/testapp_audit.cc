@@ -275,27 +275,26 @@ TEST_P(AuditTest, AuditIllegalFrame_MB31071) {
     EXPECT_EQ(0, phase_recv(blob.data(), blob.size()));
     reconnect_to_server();
 
-    // Wait up to 5 secs for the entry to appear
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    do {
-        for (auto& entry : readAuditData()) {
-            auto iter = entry.find("id");
-            ASSERT_NE(entry.end(), iter);
-            if (iter->get<int>() == MEMCACHED_AUDIT_INVALID_PACKET) {
-                // Ok, this is the entry types i want... is this the one with
-                // the blob of 300 'a'?
-                // The audit daemon dumps the first 256 bytes and tells us
-                // the number it truncated. For simplicity we'll just search
-                // for that...
-                auto str = entry.dump();
-                if (str.find(" [truncated 44 bytes]") != std::string::npos) {
-                    return;
-                }
+    bool found = false;
+    iterate([&found](const nlohmann::json& entry) -> bool {
+        auto iter = entry.find("id");
+        if (iter != entry.cend() &&
+            iter->get<int>() == MEMCACHED_AUDIT_INVALID_PACKET) {
+            // Ok, this is the entry types i want... is this the one with
+            // the blob of 300 'a'?
+            // The audit daemon dumps the first 256 bytes and tells us
+            // the number it truncated. For simplicity we'll just search
+            // for that...
+            auto str = entry.dump();
+            if (str.find(" [truncated 44 bytes]") != std::string::npos) {
+                found = true;
+                return true;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-    } while (std::chrono::steady_clock::now() < timeout);
-    FAIL() << "TImed out waiting for log entry to appear";
+        return false;
+    });
+
+    EXPECT_TRUE(found) << "Timed out waiting for log entry to appear";
 }
 
 /**
