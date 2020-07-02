@@ -312,18 +312,10 @@ TEST_P(AuditTest, AuditFailedAuth) {
     BinprotSaslAuthCommand cmd;
     cmd.setChallenge({"\0nouser\0nopassword", 18});
     cmd.setMechanism("PLAIN");
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
 
-    safe_send(blob.data(), blob.size(), false);
-
-    blob.resize(0);
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(
-            *reinterpret_cast<cb::mcbp::Response*>(blob.data()),
-            cb::mcbp::ClientOpcode::SaslAuth,
-            cb::mcbp::Status::AuthError);
-
+    auto rsp = getConnection().execute(cmd);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::SaslAuth, rsp.getOp());
+    EXPECT_EQ(cb::mcbp::Status::AuthError, rsp.getStatus());
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "nouser"));
 }
