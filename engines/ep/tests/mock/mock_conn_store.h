@@ -19,6 +19,8 @@
 
 #include "conn_store.h"
 
+#include <memcached/vbucket.h>
+
 class MockConnStore : public ConnStore {
 public:
     MockConnStore(EventuallyPersistentEngine& engine) : ConnStore(engine) {
