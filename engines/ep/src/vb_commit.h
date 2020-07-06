@@ -20,11 +20,9 @@
 #include "collections/flush.h"
 #include "vbucket_state.h"
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 class Manifest;
-}
-} // namespace Collections
+} // namespace Collections::VB
 
 namespace VB {
 
@@ -39,9 +37,8 @@ public:
      * given vbucket_state. The  vbucket_state use a default parameter for test
      * code which just wants to all kvstore::commit
      */
-    Commit(Collections::VB::Manifest& manifest, const vbucket_state& vbs = {})
-        : collections(manifest), proposedVBState(vbs) {
-    }
+    explicit Commit(Collections::VB::Manifest& manifest,
+                    vbucket_state vbs = {});
 
     /// Object for updating the collection's meta-data during commit
     Collections::VB::Flush collections;
