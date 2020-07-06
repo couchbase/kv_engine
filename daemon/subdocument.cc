@@ -170,8 +170,10 @@ static void create_single_path_context(SubdocCmdContext& context,
                 traits, flags, {path.data(), path.size()}});
     }
 
-    bool isXAttrPath = flags & SUBDOC_FLAG_XATTR_PATH;
-    if (impliesMkdir_p(doc_flags) && !isXAttrPath) {
+    if (impliesMkdir_p(doc_flags) &&
+        context.createState == DocumentState::Alive) {
+        // For requests to create the key in the Alive state, set the JSON
+        // of the to-be-created document root.
         context.jroot_type = Subdoc::Util::get_root_type(
                 traits.subdocCommand, path.data(), path.size());
     }
@@ -234,13 +236,12 @@ static void create_multi_path_context(SubdocCmdContext& context,
         }
 
         auto traits = get_subdoc_cmd_traits(binprot_cmd);
-        bool isXAttrPath = flags & SUBDOC_FLAG_XATTR_PATH;
         if (traits.scope == CommandScope::SubJSON &&
-            impliesMkdir_p(doc_flags) && !isXAttrPath &&
+            impliesMkdir_p(doc_flags) &&
+            context.createState == DocumentState::Alive &&
             context.jroot_type == JSONSL_T_ROOT) {
-            // First subdoc operation targetting the body, determine what the
-            // root of the document should be _if_ we need to create an empty
-            // one.
+            // For requests to create the key in the Alive state, set the JSON
+            // of the to-be-created document root.
             context.jroot_type = Subdoc::Util::get_root_type(
                     traits.subdocCommand, path.data(), path.size());
         }
@@ -537,6 +538,18 @@ static bool subdoc_fetch(Cookie& cookie,
             // and the mutation semantics are Add or Set (i.e. this mutation
             // can create the document during execution) therefore can
             // continue without an existing document.
+
+            // Assign a template JSON document of the correct type to operate
+            // on.
+            if (ctx.jroot_type == JSONSL_T_LIST) {
+                ctx.in_doc = {"[]", 2};
+                ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+            } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
+                ctx.in_doc = {"{}", 2};
+                ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+            } else {
+                // Otherwise a wholedoc operation.
+            }
 
             // Indicate that a new document is required:
             ctx.needs_new_doc = true;
@@ -1114,22 +1127,6 @@ static bool do_body_phase(SubdocCmdContext& context) {
         // We shouldn't have any documents like that!
         xattrsize = cb::xattr::get_body_offset(document);
         document.remove_prefix(xattrsize);
-    }
-
-    if (document.empty()) {
-        // No input document, create an empty JSON object of the correct
-        // type to operate on.
-        // Note: OR in the JSON bit as the XATTR phase may have already
-        // set the XATTR bit and we don't want to lose that bit.
-        if (context.jroot_type == JSONSL_T_LIST) {
-            document = {"[]", 2};
-            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-        } else if (context.jroot_type == JSONSL_T_OBJECT) {
-            document = {"{}", 2};
-            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-        } else {
-            // Otherwise a wholedoc operation.
-        }
     }
 
     std::unique_ptr<char[]> temp_doc;
