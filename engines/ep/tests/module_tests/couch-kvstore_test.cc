@@ -35,6 +35,7 @@
 #include <folly/portability/GMock.h>
 #include <platform/dirutils.h>
 
+#include <fstream>
 #include <memory>
 
 /// Test fixture for tests which run only on Couchstore.
@@ -1656,4 +1657,165 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(FLEX_META_CODE, copy2->getFlexCode());
     EXPECT_EQ(deleteSource, copy2->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
+}
+
+// Test the protected method works as expected for a variety of inputs. Inside
+// the class this will be given files that match *.couch.*
+TEST_F(CouchstoreTest, getVbucketRevisions) {
+    std::vector<std::string> filenames = {""};
+    auto map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_TRUE(map.empty());
+
+    filenames = {"junk"};
+    map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_TRUE(map.empty());
+
+    filenames = {"x.couch.y"};
+    map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_TRUE(map.empty());
+
+    filenames = {"/dir/5.couch.16", "/dir/5.couch.16"};
+    map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_EQ(1, map.size());
+    EXPECT_THAT(map, UnorderedElementsAre(Key(Vbid(5))));
+    EXPECT_EQ(1, map[Vbid(5)].size());
+    EXPECT_THAT(map[Vbid(5)], UnorderedElementsAre(16));
+
+    filenames = {
+            "/dir/5.couch.0",
+            "/dir/5.couch.2",
+            "/dir/5.couch.3",
+            "/dir/5..couch..4", // will be ignored
+            "/dir/.5.couch.4.", // will be ignored
+            "/dir/5.couch.4.", // will be ignored
+            "/dir/.5couch.4", // will be ignored
+            "/dir/99.couch.100",
+            "/dir/99.couch.101",
+            "/dir/99.couch.102",
+    };
+    map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_EQ(2, map.size());
+    EXPECT_THAT(map, UnorderedElementsAre(Key(Vbid(5)), Key(Vbid(99))));
+
+    EXPECT_EQ(3, map[Vbid(5)].size());
+    EXPECT_EQ(3, map[Vbid(99)].size());
+
+    EXPECT_THAT(map[Vbid(5)], UnorderedElementsAre(0, 2, 3));
+    EXPECT_THAT(map[Vbid(99)], UnorderedElementsAre(100, 101, 102));
+
+    // acceptable limits
+    filenames = {"/dir/65535.couch.18446744073709551615"};
+    map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_EQ(1, map.size());
+    EXPECT_EQ(1, map.count(Vbid(std::numeric_limits<uint16_t>::max())));
+    EXPECT_EQ(1, map[Vbid(std::numeric_limits<uint16_t>::max())].size());
+    EXPECT_EQ(1,
+              map[Vbid(std::numeric_limits<uint16_t>::max())].count(
+                      std::numeric_limits<uint64_t>::max()));
+
+    // unacceptable limits, Vbid allows for 2^16 values and we use stoul for
+    // conversion of the id, these inputs exceed two different checks
+    filenames = {"/dir/65536.couch.0", "/dir/8589934591.couch.0"};
+    // this throw comes from our own check that the id is in range
+    map = kvstore->public_getVbucketRevisions(filenames);
+    EXPECT_TRUE(map.empty());
+}
+
+// Add stale files to data directory and create a RW store which will clean
+// up. Add more files, create RO store and nothing happens
+TEST_F(CouchstoreTest, CouchKVStore_construct_and_cleanup) {
+    struct CouchstoreFile {
+        uint16_t id;
+        uint64_t revision;
+    };
+    // We'll create these as minimal couchstore files (they all need vbstate)
+    std::vector<CouchstoreFile> filenames = {
+            {5, 0}, // 5.couch.0
+            {5, 2}, // 5.couch.2
+            {5, 3}, // 5.couch.3
+            {99, 100}, // 99.couch.100
+            {99, 101}, // 99.couch.101
+            {99, 102} // 99.couch.102
+    };
+
+    // And we create some other files which should be ignored or removed, these
+    // can be empty files.
+    // Note: 6.couch.3.compact will not removed as we have no 6.couch.*
+    //       5.couch.1.compact will not removed as kvstore only looks for rev:3
+    std::vector<std::string> otherFilenames = {
+            data_dir + cb::io::DirectorySeparator + "5.couch.3.compact",
+            data_dir + cb::io::DirectorySeparator + "6.couch.3.compact",
+            data_dir + cb::io::DirectorySeparator + "5.couch.1.compact",
+            data_dir + cb::io::DirectorySeparator + "junk",
+            data_dir + cb::io::DirectorySeparator + "master.couch.0",
+            data_dir + cb::io::DirectorySeparator + "stats.json",
+            data_dir + cb::io::DirectorySeparator + "stats.json.old"};
+
+    // Finally two sets of files for EXPECT after creating CouchKVStore
+    std::vector<std::string> expectedFilenames = {
+            data_dir + cb::io::DirectorySeparator + "5.couch.3",
+            data_dir + cb::io::DirectorySeparator + "6.couch.3.compact",
+            data_dir + cb::io::DirectorySeparator + "5.couch.1.compact",
+            data_dir + cb::io::DirectorySeparator + "99.couch.102",
+            data_dir + cb::io::DirectorySeparator + "junk",
+            data_dir + cb::io::DirectorySeparator + "master.couch.0",
+            data_dir + cb::io::DirectorySeparator + "stats.json",
+            data_dir + cb::io::DirectorySeparator + "stats.json.old"};
+
+    std::vector<std::string> removedFilenames = {
+            data_dir + cb::io::DirectorySeparator + "5.couch.0",
+            data_dir + cb::io::DirectorySeparator + "5.couch.2",
+            data_dir + cb::io::DirectorySeparator + "99.couch.100",
+            data_dir + cb::io::DirectorySeparator + "99.couch.101",
+            data_dir + cb::io::DirectorySeparator + "5.couch.3.compact"};
+
+    auto createFiles = [&filenames, &otherFilenames, this]() {
+        for (const auto& filename : filenames) {
+            rewriteCouchstoreVBState(
+                    Vbid(filename.id), data_dir, filename.revision);
+        }
+        for (const auto& filename : otherFilenames) {
+            std::ofstream output(filename);
+            output.close();
+            EXPECT_TRUE(cb::io::isFile(filename));
+        }
+    };
+    createFiles();
+
+    // new instance, construction will clean up stale files
+    kvstore = std::make_unique<MockCouchKVStore>(config);
+
+    // 1) Check db revisions are the most recent
+    EXPECT_EQ(3, kvstore->public_getDbRevision(Vbid(5)));
+    EXPECT_EQ(102, kvstore->public_getDbRevision(Vbid(99)));
+
+    // 2) Check clean-up removed some files and left the others
+    for (const auto& filename : expectedFilenames) {
+        EXPECT_TRUE(cb::io::isFile(filename));
+    }
+    for (const auto& filename : removedFilenames) {
+        EXPECT_FALSE(cb::io::isFile(filename))
+                << "File should not exist filename:" << filename;
+    }
+
+    // Finally, create the RO store which only initialises and doesn't remove
+    // anything. Start by putting all files back, stale and all
+    createFiles();
+    auto roStore = kvstore->makeReadOnlyStore();
+
+    EXPECT_EQ(3, kvstore->public_getDbRevision(Vbid(5)));
+    EXPECT_EQ(102, kvstore->public_getDbRevision(Vbid(99)));
+    EXPECT_EQ(3, roStore->public_getDbRevision(Vbid(5)));
+    EXPECT_EQ(102, roStore->public_getDbRevision(Vbid(99)));
+
+    for (const auto& filename : expectedFilenames) {
+        EXPECT_TRUE(cb::io::isFile(filename));
+    }
+
+    // RO store does nothing to disk, so the files which RW store originally
+    // removed but were put back should still exist
+    for (const auto& filename : removedFilenames) {
+        EXPECT_TRUE(cb::io::isFile(filename))
+                << "File should exist filename:" << filename;
+    }
 }

@@ -149,9 +149,7 @@ public:
      *
      * @return a unique_ptr holding a RO 'sibling' to this object.
      */
-    std::unique_ptr<CouchKVStore> makeReadOnlyStore();
-
-    void initialize();
+    std::unique_ptr<CouchKVStore> makeReadOnlyStore() const;
 
     /**
      * Reset vbucket to a clean state.
@@ -536,8 +534,41 @@ protected:
     void close();
     bool commit2couchstore(VB::Commit& commitData);
 
-    void populateFileNameMap(std::vector<std::string>& filenames,
-                             std::vector<Vbid>* vbids);
+    /**
+     * Populate CouchKVStore::dbFileRevMap and remove any couch files that are
+     * not the most recent revision.
+     *
+     * This is done by getting a directory listing of dbname and then for each
+     * vbucket file storing the greatest revision in the dbFileRevMap. Any files
+     * found that are not the most recent are deleted.
+     *
+     * The data used in population, a map of vbid to revisions is returned
+     * so that a second directory scan isn't needed for further initialisation.
+     *
+     * @return map of vbid to revisions used in populating dbFileRevMap
+     */
+    std::unordered_map<Vbid, std::unordered_set<uint64_t>>
+    populateRevMapAndRemoveStaleFiles();
+
+    /**
+     * Get a map of vbucket => revision(s), created from the given filenames.
+     * The expected usage is that a list of *.couch files found in the dbname
+     * directory is created and handed to this function.
+     *
+     * Multiple revisions can exist on disk primarily from an unclean shutdown.
+     *
+     * Testing/usage note: the input file list is expected to be effectively
+     * "ls *.couch*", CouchKVStore uses the following for input:
+     *   cb::io::findFilesContaining(dbname, ".couch")
+     *
+     * master.couch is ignored and any other files are logged as a warning
+     *
+     * @param a vector of file names (can be absolute paths to files)
+     * @return map of vbid to revisions
+     */
+    std::unordered_map<Vbid, std::unordered_set<uint64_t>> getVbucketRevisions(
+            const std::vector<std::string>& filenames) const;
+
     /**
      * Set the revision of the vbucket
      * @param vbucketId vbucket to update
@@ -546,7 +577,7 @@ protected:
     void updateDbFileMap(Vbid vbucketId, uint64_t newFileRev);
 
     /// @return the current file revision for the vbucket
-    uint64_t getDbRevision(Vbid vbucketId);
+    uint64_t getDbRevision(Vbid vbucketId) const;
 
     couchstore_error_t openDB(Vbid vbucketId,
                               DbHolder& db,
@@ -768,6 +799,7 @@ protected:
 
     CouchKVStoreConfig& configuration;
 
+    // The directory for the database
     const std::string dbname;
 
     using RevisionMap = folly::Synchronized<
@@ -781,7 +813,6 @@ protected:
      */
     std::shared_ptr<RevisionMap> dbFileRevMap;
 
-    uint16_t numDbFiles;
     PendingRequestQueue pendingReqsQ;
 
     /**
@@ -828,7 +859,6 @@ protected:
     // to disk but before we call back into the PersistenceCallback.
     std::function<void()> postFlushHook;
 
-private:
     /**
      * Construct the store, this constructor does the object initialisation and
      * is used by the public read/write constructors and the private read-only
@@ -845,16 +875,58 @@ private:
                  bool readOnly,
                  std::shared_ptr<RevisionMap> revMap);
 
+    struct CreateReadWrite {};
     /**
-     * Construct a read-only store - private as should be called via
-     * CouchKVStore::makeReadOnlyStore
+     * Construction for a read-write CouchKVStore.
+     * This constructor:
+     *  - Attempts to create the data directory
+     *    Removes stale data files (e.g. when multiple copies of a vbucket file
+     *    exist).
+     *  - Removes any .compact files, but only for the most recent revision of
+     *    a vbucket. E.g. if x.couch.y then delete x.couch.y.compact
+     *  - Creates and initialises a vbucket revision 'map'
+     *  - Initialises from the vbucket files that remain in the data directory
      *
-     * @param config configuration data for the store
-     * @param dbFileRevMap The revisionMap to use (which should be intially
-     * created owned by the RW store).
+     * @param CreateReadWrite tag to clearly differentiate from ReadOnly method
+     * @param config config to use
+     * @param ops The ops interface to use for File I/O
      */
-    CouchKVStore(CouchKVStoreConfig& config,
+    CouchKVStore(CreateReadWrite,
+                 CouchKVStoreConfig& config,
+                 FileOpsInterface& ops);
+
+    struct CreateReadOnly {};
+    /**
+     * Construction for a read-only CouchKVStore.
+     * This constructor will initialise from files it finds in the data
+     * directory and use the given RevisionMap for operations.
+     *
+     * @param CreateReadOnly tag to clearly differentiate from ReadWrite method
+     * @param config config to use
+     * @param ops The ops interface to use for File I/O
+     * @param dbFileRevMap to use
+     */
+    CouchKVStore(CreateReadOnly,
+                 CouchKVStoreConfig& config,
+                 FileOpsInterface& ops,
                  std::shared_ptr<RevisionMap> dbFileRevMap);
+
+    /**
+     * Common RO/RW initialisation
+     *
+     * @param map reference to data created by RW construction this method needs
+     *        the keys of the map
+     */
+    void initialize(
+            const std::unordered_map<Vbid, std::unordered_set<uint64_t>>& map);
+
+    /**
+     * Construction helper method, creates the wrapped vector and resizes it
+     *
+     * @param vbucketCount size of RevisionMap
+     * @returns An initialised RevisionMap accessed via the shared_ptr
+     */
+    static std::shared_ptr<RevisionMap> makeRevisionMap(size_t vbucketCount);
 
     class CouchKVFileHandle : public ::KVFileHandle {
     public:

@@ -55,25 +55,26 @@ static bool endWithCompact(const std::string &filename) {
     return pos != std::string::npos && (pos + suffix.size()) == filename.size();
 }
 
-static void discoverDbFiles(const std::string &dir,
-                            std::vector<std::string> &v) {
-    auto files = cb::io::findFilesContaining(dir, ".couch");
+static std::vector<std::string> discoverDbFiles(const std::string& dir) {
+    auto files = cb::io::findFilesContaining(dir, ".couch.");
     std::vector<std::string>::iterator ii;
+    std::vector<std::string> filenames;
     for (ii = files.begin(); ii != files.end(); ++ii) {
         if (!endWithCompact(*ii)) {
-            v.push_back(*ii);
+            filenames.push_back(*ii);
         }
     }
+    return filenames;
 }
 
-static bool allDigit(std::string &input) {
+static bool allDigit(const std::string& input) {
     size_t numchar = input.length();
     for(size_t i = 0; i < numchar; ++i) {
         if (!isdigit(input[i])) {
             return false;
         }
     }
-    return true;
+    return !input.empty();
 }
 
 static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
@@ -161,6 +162,13 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
         }
     }
     return item;
+}
+
+static std::string getDBFileName(const std::string& dbname,
+                                 Vbid vbid,
+                                 uint64_t rev) {
+    return dbname + "/" + std::to_string(vbid.get()) + ".couch." +
+           std::to_string(rev);
 }
 
 struct GetMultiCbCtx {
@@ -284,19 +292,12 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
       base_ops(ops) {
-    // todo: consider refactor of construction to separate out RW/RO
-    if (!readOnly) {
-        // Must post-initialise the vector behind the folly::Synchonised
-        (*dbFileRevMap->wlock()).resize(config.getMaxVBuckets());
-    }
-
-    createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
     statCollectingFileOpsCompaction = getCouchstoreStatsOps(
         st.fsStatsCompaction, base_ops);
 
     // init db file map with default revision number, 1
-    numDbFiles = configuration.getMaxVBuckets();
+    auto numDbFiles = configuration.getMaxVBuckets();
 
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
@@ -305,69 +306,91 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
     cachedFileSize.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedSpaceUsed.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedVBStates.resize(numDbFiles);
+}
 
-    initialize();
+// Helper function to create and resize the 'locked' vector
+std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
+        size_t vbucketCount) {
+    auto map = std::make_shared<RevisionMap>();
+    (*map->wlock()).resize(vbucketCount);
+    return map;
+}
+
+CouchKVStore::CouchKVStore(CreateReadWrite,
+                           CouchKVStoreConfig& config,
+                           FileOpsInterface& ops)
+    : CouchKVStore(
+              config, ops, false, makeRevisionMap(config.getMaxVBuckets())) {
+    // 1) Create the data directory
+    createDataDir(dbname);
+
+    // 2) populate the dbFileRevMap which can remove old revisions, this returns
+    //    a map, which the keys (vbid) will be needed for step 3 and 4.
+    auto map = populateRevMapAndRemoveStaleFiles();
+
+    // 3) clean up any .compact files
+    for (const auto& id : map) {
+        removeCompactFile(dbname, id.first);
+    }
+
+    // 4) continue to intialise the store (reads vbstate etc...)
+    initialize(map);
+}
+
+CouchKVStore::CouchKVStore(CreateReadOnly,
+                           CouchKVStoreConfig& config,
+                           FileOpsInterface& ops,
+                           std::shared_ptr<RevisionMap> dbFileRevMap)
+    : CouchKVStore(config, ops, true, dbFileRevMap) {
+    // intialise the store (reads vbstate etc...)
+    initialize(getVbucketRevisions(discoverDbFiles(dbname)));
 }
 
 CouchKVStore::CouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops)
-    : CouchKVStore(config,
-                   ops,
-                   false /*readonly*/,
-                   std::make_shared<RevisionMap>()) {
+    : CouchKVStore(CreateReadWrite{}, config, ops) {
 }
 
-/**
- * Make a read-only CouchKVStore from this object
- */
-std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() {
+// Make a read-only CouchKVStore from this object
+std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() const {
+    // Can only make the RO store from an RW store
+    Expects(isReadWrite());
     // Not using make_unique due to the private constructor we're calling
     return std::unique_ptr<CouchKVStore>(
-            new CouchKVStore(configuration, dbFileRevMap));
+            new CouchKVStore(CreateReadOnly{},
+                             configuration,
+                             *couchstore_get_default_file_ops(),
+                             dbFileRevMap));
 }
 
-CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
-                           std::shared_ptr<RevisionMap> dbFileRevMap)
-    : CouchKVStore(config,
-                   *couchstore_get_default_file_ops(),
-                   true /*readonly*/,
-                   dbFileRevMap) {
-}
-
-void CouchKVStore::initialize() {
-    std::vector<Vbid> vbids;
-    std::vector<std::string> files;
-    discoverDbFiles(dbname, files);
-    populateFileNameMap(files, &vbids);
-
+void CouchKVStore::initialize(
+        const std::unordered_map<Vbid, std::unordered_set<uint64_t>>& map) {
     couchstore_error_t errorCode;
 
-    for (auto id : vbids) {
+    for (const auto& [vbid, revisions] : map) {
+        (void)revisions;
         DbHolder db(*this);
-        errorCode = openDB(id, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+        errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
         bool abort = false;
         if (errorCode == COUCHSTORE_SUCCESS) {
-            auto readStatus = readVBStateAndUpdateCache(db, id).status;
+            auto readStatus = readVBStateAndUpdateCache(db, vbid).status;
             if (readStatus == ReadVBStateStatus::Success) {
                 /* update stat */
                 ++st.numLoadedVb;
             } else if (readStatus != ReadVBStateStatus::CorruptSnapshot) {
                 logger.warn(
                         "CouchKVStore::initialize: readVBState"
-                        " readVBState:{}, name:{}/{}.couch.{}",
+                        " readVBState:{}, name:{}",
                         int(readStatus),
-                        dbname,
-                        id.get(),
-                        db.getFileRev());
+                        getDBFileName(dbname, vbid, db.getFileRev()));
+
                 abort = true;
             }
         } else {
             logger.warn(
                     "CouchKVStore::initialize: openDB"
-                    " error:{}, name:{}/{}.couch.{}",
+                    " error:{}, name:{}",
                     couchstore_strerror(errorCode),
-                    dbname,
-                    id.get(),
-                    db.getFileRev());
+                    getDBFileName(dbname, vbid, db.getFileRev()));
             abort = true;
         }
 
@@ -380,16 +403,12 @@ void CouchKVStore::initialize() {
         if (abort) {
             throw std::runtime_error(
                     "CouchKVStore::initialize: no vbstate for " +
-                    id.to_string());
+                    getDBFileName(dbname, vbid, db.getFileRev()));
         }
 
         // Setup cachedDocCount
-        cachedDocCount[id.get()] =
+        cachedDocCount[vbid.get()] =
                 cb::couchstore::getHeader(*db.getDb()).docCount;
-
-        if (!isReadOnly()) {
-            removeCompactFile(dbname, id);
-        }
     }
 }
 
@@ -727,13 +746,6 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
     for (auto it = json.begin(); it != json.end(); ++it) {
         stats[it.key()] = it.value().get<std::string>();
     }
-}
-
-static std::string getDBFileName(const std::string& dbname,
-                                 Vbid vbid,
-                                 uint64_t rev) {
-    return dbname + "/" + std::to_string(vbid.get()) + ".couch." +
-           std::to_string(rev);
 }
 
 /**
@@ -1640,7 +1652,7 @@ void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
     }
 }
 
-uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) {
+uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) const {
     return (*dbFileRevMap->rlock())[vbucketId.get()];
 }
 
@@ -1737,70 +1749,112 @@ couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
     return errorCode;
 }
 
-void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
-                                       std::vector<Vbid>* vbids) {
-    std::vector<std::string>::iterator fileItr;
+std::unordered_map<Vbid, std::unordered_set<uint64_t>>
+CouchKVStore::getVbucketRevisions(
+        const std::vector<std::string>& filenames) const {
+    std::unordered_map<Vbid, std::unordered_set<uint64_t>> vbids;
+    for (const auto& filename : filenames) {
+        // vbid.couch.rev
+        auto basename = cb::io::basename(filename);
+        std::string_view couchfile(basename);
 
-    for (fileItr = filenames.begin(); fileItr != filenames.end(); ++fileItr) {
-        const std::string &filename = *fileItr;
-        size_t secondDot = filename.rfind(".");
-        std::string nameKey = filename.substr(0, secondDot);
-        size_t firstDot = nameKey.rfind(".");
-        size_t firstSlash = nameKey.rfind(cb::io::DirectorySeparator);
+        // vbid.couch
+        auto name = couchfile.substr(0, couchfile.rfind("."));
 
-        std::string revNumStr = filename.substr(secondDot + 1);
-        char* ptr = nullptr;
-        uint64_t revNum = strtoull(revNumStr.c_str(), &ptr, 10);
+        // vbid
+        std::string vbid(name.substr(0, name.find(".")));
 
-        std::string vbIdStr = nameKey.substr(firstSlash + 1,
-                                            (firstDot - firstSlash) - 1);
-        if (allDigit(vbIdStr)) {
-            int vbId = atoi(vbIdStr.c_str());
-            if (vbids) {
-                vbids->push_back(static_cast<Vbid>(vbId));
+        // rev
+        std::string rev(couchfile.substr(couchfile.rfind('.') + 1));
+
+        // possible to get x..couch..y which is invalid
+        bool valid = std::count(couchfile.begin(), couchfile.end(), '.') == 2;
+
+        Vbid id;
+        uint64_t revision = 0;
+        if (valid && allDigit(vbid) && allDigit(rev)) {
+            try {
+                id = Vbid(gsl::narrow<uint16_t>(std::stoul(vbid)));
+                revision = std::stoull(rev);
+            } catch (const std::exception&) {
+                valid = false;
             }
-            uint64_t old_rev_num = getDbRevision(Vbid(vbId));
-            if (old_rev_num == revNum) {
-                continue;
-            } else if (old_rev_num < revNum) { // stale revision found
-                updateDbFileMap(Vbid(vbId), revNum);
-            } else { // stale file found (revision id has rolled over)
-                old_rev_num = revNum;
-            }
-
-            const auto old_file =
-                    getDBFileName(dbname, Vbid(uint16_t(vbId)), old_rev_num);
-            if (cb::io::isFile(old_file)) {
-                if (!isReadOnly()) {
-                    if (remove(old_file.c_str()) == 0) {
-                        logger.debug(
-                                "CouchKVStore::populateFileNameMap: Removed "
-                                "stale file:{}",
-                                old_file);
-                    } else {
-                        logger.warn(
-                                "CouchKVStore::populateFileNameMap: remove "
-                                "error:{}, file:{}",
-                                cb_strerror(),
-                                old_file);
-                    }
-                } else {
-                    logger.warn(
-                            "CouchKVStore::populateFileNameMap: A read-only "
-                            "instance of the underlying store "
-                            "was not allowed to delete a stale file:{}",
-                            old_file);
-                }
-            }
+        } else if (vbid == "master") {
+            // master.couch.x is expected and can be silently ignored
+            continue;
         } else {
-            // skip non-vbucket database file, master.couch etc
-            logger.debug(
-                    "CouchKVStore::populateFileNameMap: Non-vbucket "
-                    "database file, {}, skip adding "
-                    "to CouchKVStore dbFileMap",
-                    filename);
+            valid = false;
+        }
+
+        if (valid) {
+            // update map or create new element
+            if (vbids.count(id)) {
+                // id is mapped, add the revision
+                vbids[id].emplace(revision);
+            } else {
+                // nothing mapped, create new vector with revision
+                auto inserted =
+                        vbids.emplace(Vbid(id), std::unordered_set<uint64_t>{});
+                inserted.first->second.emplace(revision);
+            }
+
+        } else {
+            // Dump all the bits we extracted from the input
+            logger.warn(
+                    "CouchKVStore::getVbucketRevisions: invalid filename:{}, "
+                    "basename:{}, name:{}, vbid:{}, rev:{}",
+                    filename,
+                    basename,
+                    name,
+                    vbid,
+                    rev);
         }
     }
+    return vbids;
+}
+
+std::unordered_map<Vbid, std::unordered_set<uint64_t>>
+CouchKVStore::populateRevMapAndRemoveStaleFiles() {
+    Expects(isReadWrite());
+
+    // For each vb, more than 1 file could be found. This occurs if we had an
+    // unclean shutdown before deleting a stale file. getVbucketRevisions will
+    // return a list of 'revisions' for each vb
+    auto map = getVbucketRevisions(discoverDbFiles(dbname));
+
+    for (const auto& [vbid, revisions] : map) {
+        for (const auto revision : revisions) {
+            uint64_t current = getDbRevision(vbid);
+            if (current == revision) {
+                continue;
+            } else if (current < revision) {
+                // current file is stale, update to the new revision
+                updateDbFileMap(vbid, revision);
+            } else { // stale file found (revision id has rolled over)
+                current = revision;
+            }
+
+            // stale file left behind to be removed
+            const auto staleFile = getDBFileName(dbname, vbid, current);
+
+            if (cb::io::isFile(staleFile)) {
+                if (remove(staleFile.c_str()) == 0) {
+                    logger.debug(
+                            "CouchKVStore::populateRevMapAndRemoveStaleFiles: "
+                            "Removed stale file:{}",
+                            staleFile);
+                } else {
+                    logger.warn(
+                            "CouchKVStore::populateRevMapAndRemoveStaleFiles: "
+                            "remove(\"{}\") returned error:{}",
+                            staleFile,
+                            cb_strerror());
+                }
+            }
+        }
+    }
+
+    return map;
 }
 
 couchstore_error_t CouchKVStore::fetchDoc(Db* db,
@@ -2686,7 +2740,7 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
      * If the vbucket is dead, then its value would
      * be zero.
      */
-    for (uint16_t vbid = 0; vbid < numDbFiles; vbid++) {
+    for (uint16_t vbid = 0; vbid < cachedFileSize.size(); vbid++) {
         kvsFileInfo.fileSize += cachedFileSize[vbid].load();
         kvsFileInfo.spaceUsed += cachedSpaceUsed[vbid].load();
     }

@@ -50,8 +50,18 @@ public:
 
 class MockCouchKVStore : public CouchKVStore {
 public:
+    /// Read-write constructor
     explicit MockCouchKVStore(CouchKVStoreConfig& config)
         : CouchKVStore(config) {
+    }
+
+    /// Read-Only constructor where we are given a RevisionMap
+    MockCouchKVStore(CouchKVStoreConfig& config,
+                     std::shared_ptr<RevisionMap> dbFileRevMap)
+        : CouchKVStore(CreateReadOnly{},
+                       config,
+                       *couchstore_get_default_file_ops(),
+                       dbFileRevMap) {
     }
 
     using CouchKVStore::compactDBInternal;
@@ -90,6 +100,20 @@ public:
      */
     void setPreCommitHook(std::function<void()> cb) {
         preCommitHook = std::move(cb);
+    }
+
+    std::unordered_map<Vbid, std::unordered_set<uint64_t>>
+    public_getVbucketRevisions(
+            const std::vector<std::string>& filenames) const {
+        return getVbucketRevisions(filenames);
+    }
+
+    uint64_t public_getDbRevision(Vbid vbucketId) const {
+        return getDbRevision(vbucketId);
+    }
+
+    std::unique_ptr<MockCouchKVStore> makeReadOnlyStore() const {
+        return std::make_unique<MockCouchKVStore>(configuration, dbFileRevMap);
     }
 
     std::function<void()> preCommitHook = [] {};
