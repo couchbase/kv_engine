@@ -544,7 +544,16 @@ protected:
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string>& filenames,
                              std::vector<Vbid>* vbids);
+    /**
+     * Set the revision of the vbucket
+     * @param vbucketId vbucket to update
+     * @param newFileRev new value
+     */
     void updateDbFileMap(Vbid vbucketId, uint64_t newFileRev);
+
+    /// @return the current file revision for the vbucket
+    uint64_t getDbRevision(Vbid vbucketId);
+
     couchstore_error_t openDB(Vbid vbucketId,
                               DbHolder& db,
                               couchstore_open_flags options,
@@ -783,7 +792,7 @@ protected:
 
     using MonotonicRevision = AtomicMonotonic<uint64_t, ThrowExceptionPolicy>;
 
-    using RevisionMap = std::vector<MonotonicRevision>;
+    using RevisionMap = folly::Synchronized<std::vector<MonotonicRevision>>;
 
     /**
      * Per-vbucket file revision atomic to ensure writer threads see increments.
@@ -792,15 +801,6 @@ protected:
      * RW/RO pair.
      */
     std::shared_ptr<RevisionMap> dbFileRevMap;
-
-    /**
-     * An internal rwlock used to keep openDB and compaction in sync
-     * Primarily that compaction and scans can be ran concurrently, we must
-     * ensure that a scan doesn't read the fileRev then compaction moves the
-     * fileRev (and the real file) before the scan performs an open.
-     * Many opens are allowed in parallel, just compact must block.
-     */
-    folly::SharedMutex openDbMutex;
 
     uint16_t numDbFiles;
     PendingRequestQueue pendingReqsQ;
