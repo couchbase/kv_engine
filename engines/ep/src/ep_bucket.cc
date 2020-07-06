@@ -1134,8 +1134,7 @@ void EPBucket::compactionCompletionCallback(compaction_ctx& ctx) {
     }
 
     vb->setPurgeSeqno(ctx.max_purged_seq);
-    vb->setNumTotalItems(vb->getNumTotalItems() -
-                         ctx.stats.collectionsItemsPurged);
+    vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 }
 
 void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {

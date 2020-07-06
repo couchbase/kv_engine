@@ -379,12 +379,12 @@ void EPVBucket::setNumTotalItems(size_t totalItems) {
     onDiskTotalItems = totalItems;
 }
 
-void EPVBucket::incrNumTotalItems() {
-    ++onDiskTotalItems;
+void EPVBucket::incrNumTotalItems(size_t numItemsAdded) {
+    onDiskTotalItems += numItemsAdded;
 }
 
-void EPVBucket::decrNumTotalItems() {
-    --onDiskTotalItems;
+void EPVBucket::decrNumTotalItems(size_t numItemsRemoved) {
+    onDiskTotalItems -= numItemsRemoved;
 }
 
 size_t EPVBucket::getNumNonResidentItems() const {

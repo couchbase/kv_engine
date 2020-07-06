@@ -534,11 +534,19 @@ public:
     void incrMetaDataDisk(const Item& qi);
     void decrMetaDataDisk(const Item& qi);
 
-    /// Increase the total count of items in this VBucket by 1.
-    virtual void incrNumTotalItems() = 0;
+    /**
+     * Increase the total count of items in this VBucket
+     * @param numItemsAdded will be incremented the total item count with
+     * default value of 1.
+     */
+    virtual void incrNumTotalItems(size_t numItemsAdded = 1) = 0;
 
-    /// Decrease the total count of items in this VBucket by 1.
-    virtual void decrNumTotalItems() = 0;
+    /**
+     * Decrease the total count of items in this VBucket
+     * @param numItemsRemoved will be decremented from the total item count with
+     * default value of 1.
+     */
+    virtual void decrNumTotalItems(size_t numItemsRemoved = 1) = 0;
 
     /**
      * Set the total count of items in this VBucket to the specified value.

@@ -91,9 +91,9 @@ public:
 
     size_t getNumTotalItems() const override;
 
-    void incrNumTotalItems() override;
+    void incrNumTotalItems(size_t numItemsAdded) override;
 
-    void decrNumTotalItems() override;
+    void decrNumTotalItems(size_t numItemsRemoved) override;
 
     size_t getNumNonResidentItems() const override;
 

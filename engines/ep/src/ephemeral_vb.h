@@ -177,12 +177,12 @@ public:
         return 0;
     }
 
-    void incrNumTotalItems() override {
+    void incrNumTotalItems(size_t itemsDelta) override {
         throw std::logic_error(
                 "EphemeralVBucket::incrNumTotalItems not supported");
     }
 
-    void decrNumTotalItems() override {
+    void decrNumTotalItems(size_t itemsDelta) override {
         throw std::logic_error(
                 "EphemeralVBucket::decrNumTotalItems not supported");
     }
