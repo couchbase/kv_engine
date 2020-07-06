@@ -23,7 +23,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <condition_variable>
 #include <mutex>
 #include <thread>
 
@@ -165,7 +164,7 @@ static void deleteBucket(
     conn.sendCommand(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::DeleteBucket, name});
 
-    bool found = false;
+    bool found;
     do {
         // Avoid busy-wait ;-)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -173,9 +172,9 @@ static void deleteBucket(
         auto bucketDetails = details["bucket details"];
         found = false;
         for (const auto& bucket : bucketDetails["buckets"]) {
-            auto name = bucket.find("name");
-            if (name != bucket.end()) {
-                if (name->get<std::string>() == "bucket") {
+            auto nm = bucket.find("name");
+            if (nm != bucket.end()) {
+                if (nm->get<std::string>() == name) {
                     if (stateCallback) {
                         stateCallback(bucket["state"].get<std::string>());
                     }
