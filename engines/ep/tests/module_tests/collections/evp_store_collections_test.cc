@@ -1967,6 +1967,83 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
     }
 }
 
+TEST_P(CollectionsParameterizedTest, PerCollectionDiskSizeDurability) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+
+    if (isMagma()) {
+        // Magma does not yet track disk_size, will be enabled
+        // when it does
+        GTEST_SKIP();
+    }
+    // test that the per-collection disk size (updated by saveDocsCallback)
+    // changes when items in the collection are added/updated/deleted (but not
+    // when evicted) and does not change when items in other collections are
+    // similarly changed.
+    auto vb = store->getVBucket(vbid);
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto key = StoredDocKey{"key", CollectionEntry::defaultC};
+
+    {
+        SCOPED_TRACE("Prepare item");
+        // default collection disk size should _stay the same_ - prepares are
+        // not included
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+
+        using namespace cb::durability;
+        store_item(vbid,
+                   key,
+                   "value",
+                   0 /* exptime */,
+                   {cb::engine_errc::sync_write_pending} /* expected */,
+                   PROTOCOL_BINARY_DATATYPE_JSON /* datatype */,
+                   Requirements(Level::Majority, Timeout(10)));
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("Commit item");
+        // default collection disk size should _increase_
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+
+        vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("Prepare item round 2");
+        // default collection disk size should _stay the same_ - prepares are
+        // not included
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+
+        using namespace cb::durability;
+        store_item(vbid,
+                   key,
+                   "value",
+                   0 /* exptime */,
+                   {cb::engine_errc::sync_write_pending} /* expected */,
+                   PROTOCOL_BINARY_DATATYPE_JSON /* datatype */,
+                   Requirements(Level::Majority, Timeout(10)));
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+
+    {
+        SCOPED_TRACE("Abort item");
+        // default collection disk size should _stay the same_ - aborts are
+        // not included
+        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+
+        vb->abort(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
+    }
+}
+
 // Test to ensure we use the vbuckets manifest when passing a vbid to
 // EventuallyPersistentEngine::get_scope_id()
 TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {

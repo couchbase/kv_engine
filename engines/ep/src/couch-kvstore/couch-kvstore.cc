@@ -2119,6 +2119,7 @@ static void saveDocsCallback(const DocInfo* oldInfo,
 
     // Do not need to update high seqno if we are calling this for a prepare and
     // it will error if we do so return early.
+    // We only want committed items to be counted in the disk size stat.
     if (!newKey.isCommitted()) {
         return;
     }
