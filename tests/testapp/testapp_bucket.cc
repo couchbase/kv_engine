@@ -26,7 +26,25 @@
 #include <mutex>
 #include <thread>
 
-class BucketTest : public TestappClientTest {};
+class BucketTest : public TestappClientTest {
+public:
+    static void SetUpTestCase() {
+        memcached_cfg = generate_config();
+        // Change the number of worker threads to one so we guarantee that
+        // multiple connections are handled by a single worker.
+        memcached_cfg["threads"] = 1;
+        start_memcached_server();
+
+        if (HasFailure()) {
+            std::cerr << "Error in BucketTest::SetUpTestCase, "
+                         "terminating process"
+                      << std::endl;
+            exit(EXIT_FAILURE);
+        } else {
+            CreateTestBucket();
+        }
+    }
+};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          BucketTest,
@@ -192,6 +210,8 @@ static void deleteBucket(
     // read out the delete response
     BinprotResponse rsp;
     conn.recvResponse(rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_EQ(cb::mcbp::ClientOpcode::DeleteBucket, rsp.getOp());
 }
 
 // Unit test to verify that a connection currently sending a command to the
@@ -224,39 +244,59 @@ TEST_P(BucketTest, DeleteWhileClientSendCommand) {
 // a file and the removal of the file simulates that the background task
 // completes and the cookie should be signalled.
 TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
-    auto& conn = getAdminConnection();
-    conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
-    auto second_conn = conn.clone();
-    second_conn->authenticate("@admin", "password", "PLAIN");
-    second_conn->selectBucket("bucket");
-    auto connection = conn.clone();
-    connection->authenticate("@admin", "password", "PLAIN");
+    // The test was refactored to run 50k deletions under TSAN to try to
+    // identify a race condition. I _think_ it was because of a race condition
+    // in the tests and not the delete bucket logic. In this test we first tell
+    // ewb to start a block monitor thread before we send the get call. Then we
+    // immediately send a delete bucket. Given that the server use multiple
+    // threads to serve the clients it could be that the get() wasn't processed
+    // on that worker thread and would delete the connection immediately. At a
+    // later time the server detects that the file is gone and tries to signal
+    // the cookie (which now is deleted). The test have now been refactored
+    // to use a single worker thread which would make sure that this won't
+    // happen.
+    for (int ii = 0; ii < 2; ++ii) {
+        auto& conn = getAdminConnection();
+        conn.createBucket(
+                "bucket", "default_engine.so", BucketType::EWouldBlock);
 
-    auto cwd = cb::io::getcwd();
-    auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
+        std::vector<std::unique_ptr<MemcachedConnection>> connections;
+        std::vector<std::string> lockfiles;
 
-    // Configure so that the engine will return ENGINE_EWOULDBLOCK and
-    // not process any operation given to it.  This means the connection
-    // will remain in a blocked state.
-    second_conn->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
-                                            ENGINE_EWOULDBLOCK /* unused */,
-                                            0,
-                                            testfile);
+        for (int jj = 0; jj < 5; ++jj) {
+            connections.emplace_back(conn.clone());
+            auto& c = connections.back();
+            c->authenticate("@admin", "password", "PLAIN");
+            c->selectBucket("bucket");
 
-    // Send the get operation, however we will not get a response from the
-    // engine, and so it will block indefinitely.
-    second_conn->sendCommand(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::Get, "dummy_key_where_never_return"});
+            auto cwd = cb::io::getcwd();
+            auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
 
-    deleteBucket(conn, "bucket", [&testfile](const std::string& state) {
-        if (testfile.empty()) {
-            return;
+            // Configure so that the engine will return ENGINE_EWOULDBLOCK and
+            // not process any operation given to it.  This means the connection
+            // will remain in a blocked state.
+            c->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
+                                          ENGINE_EWOULDBLOCK /* unused */,
+                                          jj,
+                                          testfile);
+            lockfiles.emplace_back(std::move(testfile));
+            c->sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
+                                                 "mykey"});
         }
-        if (state == "destroying") {
-            cb::io::rmrf(testfile);
-            testfile.clear();
-        }
-    });
+
+        deleteBucket(conn, "bucket", [&lockfiles](const std::string& state) {
+            if (lockfiles.empty()) {
+                return;
+            }
+            if (state == "destroying") {
+                for (const auto& f : lockfiles) {
+                    cb::io::rmrf(f);
+                }
+
+                lockfiles.clear();
+            }
+        });
+    }
 }
 
 static int64_t getTotalSent(MemcachedConnection& conn, intptr_t id) {

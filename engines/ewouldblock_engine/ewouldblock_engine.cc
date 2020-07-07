@@ -1348,6 +1348,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 }
 
 EWB_Engine::~EWB_Engine() {
+    threads.clear();
     stop_notification_thread = true;
     condvar.notify_all();
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
