@@ -234,24 +234,6 @@ bool BackfillManager::bytesCheckAndRead(size_t bytes) {
     return true;
 }
 
-void BackfillManager::bytesForceRead(size_t bytes) {
-    LockHolder lh(lock);
-
-    /* Irrespective of the scan buffer usage and overall backfill buffer usage
-       we want to complete this backfill */
-    ++scanBuffer.itemsRead;
-    scanBuffer.bytesRead += bytes;
-    buffer.bytesRead += bytes;
-
-    if (buffer.bytesRead > buffer.maxBytes) {
-        /* Setting this flag prevents running other backfills and hence prevents
-           further increase in the memory usage.
-           Note: The current backfill will run to completion and that is desired
-                 here. */
-        buffer.full = true;
-    }
-}
-
 void BackfillManager::bytesSent(size_t bytes) {
     LockHolder lh(lock);
     if (bytes > buffer.bytesRead) {

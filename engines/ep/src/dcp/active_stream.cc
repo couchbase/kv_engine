@@ -409,8 +409,7 @@ bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
 }
 
 bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
-                                    backfill_source_t backfill_source,
-                                    bool force) {
+                                    backfill_source_t backfill_source) {
     if (!itm) {
         return false;
     }
@@ -431,7 +430,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
                 makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation));
         auto producer = producerPtr.lock();
         if (!producer || !producer->recordBackfillManagerBytesRead(
-                                 resp->getApproximateSize(), force)) {
+                                 resp->getApproximateSize())) {
             // Deleting resp may also delete itm (which is owned by
             // resp)
             resp.reset();

@@ -37,6 +37,10 @@ public:
         buffer.maxBytes = newSize;
     }
 
+    void setBackfillBufferBytesRead(size_t newSize) {
+        buffer.bytesRead = newSize;
+    }
+
     bool getBackfillBufferFullStatus() {
         return buffer.full;
     }

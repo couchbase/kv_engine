@@ -206,14 +206,6 @@ public:
      */
     bool bytesCheckAndRead(size_t bytes);
 
-    /**
-     * Reads the backfill item irrespective of whether backfill buffer or
-     * scan buffer is full.
-     *
-     * @param bytes read size
-     */
-    void bytesForceRead(size_t bytes);
-
     void bytesSent(size_t bytes);
 
     // Called by the managerTask to acutally perform backfilling & manage

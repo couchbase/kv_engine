@@ -86,8 +86,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
 
         if (gv.item->getBySeqno() == lookup.getBySeqno()) {
             if (stream_->backfillReceived(std::move(gv.item),
-                                          BACKFILL_FROM_MEMORY,
-                                          /*force */ false)) {
+                                          BACKFILL_FROM_MEMORY)) {
                 setStatus(ENGINE_KEY_EEXISTS);
                 return;
             }
@@ -119,9 +118,7 @@ void DiskCallback::callback(GetValue& val) {
     // evict this before any cached item if they get into memory pressure.
     val.item->setFreqCounterValue(0);
 
-    if (!stream_->backfillReceived(std::move(val.item),
-                                   BACKFILL_FROM_DISK,
-                                   /*force*/ false)) {
+    if (!stream_->backfillReceived(std::move(val.item), BACKFILL_FROM_DISK)) {
         setStatus(ENGINE_ENOMEM); // Pause the backfill
     } else {
         setStatus(ENGINE_SUCCESS);

@@ -141,6 +141,11 @@ void MockDcpProducer::setBackfillBufferSize(size_t newSize) {
             ->setBackfillBufferSize(newSize);
 }
 
+void MockDcpProducer::setBackfillBufferBytesRead(size_t newSize) {
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+            ->setBackfillBufferBytesRead(newSize);
+}
+
 bool MockDcpProducer::getBackfillBufferFullStatus() {
     return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
             ->getBackfillBufferFullStatus();
@@ -149,8 +154,4 @@ bool MockDcpProducer::getBackfillBufferFullStatus() {
 BackfillScanBuffer& MockDcpProducer::public_getBackfillScanBuffer() {
     return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
             ->public_getBackfillScanBuffer();
-}
-
-void MockDcpProducer::bytesForceRead(size_t bytes) {
-    backfillMgr->bytesForceRead(bytes);
 }

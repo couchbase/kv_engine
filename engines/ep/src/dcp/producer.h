@@ -175,12 +175,16 @@ public:
     void notifyStreamReady(Vbid vbucket);
 
     void notifyBackfillManager();
-    bool recordBackfillManagerBytesRead(size_t bytes, bool force);
+
+    bool recordBackfillManagerBytesRead(size_t bytes);
+
     void recordBackfillManagerBytesSent(size_t bytes);
+
     virtual bool scheduleBackfillManager(VBucket& vb,
                                          std::shared_ptr<ActiveStream> s,
                                          uint64_t start,
                                          uint64_t end);
+
     bool scheduleBackfillManager(VBucket& vb,
                                  std::shared_ptr<ActiveStream> s,
                                  CollectionID cid);

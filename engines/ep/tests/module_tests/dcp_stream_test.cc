@@ -1480,7 +1480,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
      * to one.
      */
     producer->setBackfillBufferSize(0);
-    producer->bytesForceRead(1);
+    producer->setBackfillBufferBytesRead(1);
 
     CacheCallback callback(*engine->getKVBucket(), stream);
 

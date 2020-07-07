@@ -4084,8 +4084,7 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
 
         // Simulate the Cache/Disk callbacks here
         ret = stream->backfillReceived(std::move(item),
-                                       backfill_source_t::BACKFILL_FROM_DISK,
-                                       false /*force*/);
+                                       backfill_source_t::BACKFILL_FROM_DISK);
 
         if (limitType == BackfillBufferLimit::ConnectionByte) {
             // Check that we are constantly well below the stream-limits.

@@ -125,14 +125,14 @@ public:
      */
     void setBackfillBufferSize(size_t newSize);
 
+    void setBackfillBufferBytesRead(size_t newSize);
+
     bool getBackfillBufferFullStatus();
 
     /*
      * @return A reference to BackfillManager::scanBuffer
      */
     BackfillScanBuffer& public_getBackfillScanBuffer();
-
-    void bytesForceRead(size_t bytes);
 
     BackfillManager& getBFM() {
         return *(backfillMgr.load());

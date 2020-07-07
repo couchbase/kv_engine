@@ -197,8 +197,7 @@ public:
     bool markOSODiskSnapshot(uint64_t endSeqno);
 
     bool backfillReceived(std::unique_ptr<Item> itm,
-                          backfill_source_t backfill_source,
-                          bool force);
+                          backfill_source_t backfill_source);
 
     void completeBackfill();
 

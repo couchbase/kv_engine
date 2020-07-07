@@ -1391,11 +1391,7 @@ void DcpProducer::notifyBackfillManager() {
     backfillMgr->wakeUpTask();
 }
 
-bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes, bool force) {
-    if (force) {
-        backfillMgr->bytesForceRead(bytes);
-        return true;
-    }
+bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes) {
     return backfillMgr->bytesCheckAndRead(bytes);
 }
 
