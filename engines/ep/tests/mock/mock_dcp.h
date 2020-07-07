@@ -227,5 +227,6 @@ protected:
                                               uint64_t rev_seqno,
                                               uint32_t lock_time,
                                               std::string_view meta,
-                                              uint8_t nru);
+                                              uint8_t nru,
+                                              cb::mcbp::DcpStreamId sid);
 };

@@ -261,6 +261,5 @@ DcpMsgProducersBorderGuard::seqno_advanced(uint32_t opaque,
                                            uint64_t seqno,
                                            cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.seqno_advanced(
-            opaque, vbucket, seqno, cb::mcbp::DcpStreamId());
+    return guarded.seqno_advanced(opaque, vbucket, seqno, sid);
 }

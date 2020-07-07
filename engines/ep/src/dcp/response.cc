@@ -111,7 +111,7 @@ uint32_t MutationResponse::getMessageSize() const {
         keySize = item_->getKey().makeDocKeyWithoutCollectionID().size();
     }
     uint32_t body = keySize + item_->getNBytes();
-
+    body += (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     return header + body;
 }
 
@@ -183,5 +183,6 @@ uint32_t SnapshotMarker::getMessageSize() const {
     } else {
         rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
     }
+    rv += (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     return rv;
 }

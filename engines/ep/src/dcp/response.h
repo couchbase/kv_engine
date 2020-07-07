@@ -836,7 +836,8 @@ public:
 
     uint32_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + getKey().size() +
-               getEventData().size();
+               getEventData().size() +
+               (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
 
     mcbp::systemevent::id getSystemEvent() const override {

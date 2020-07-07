@@ -204,6 +204,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
     vb->updateFromManifest({cm});
+    store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
 
     producer->enableMultipleStreamRequests();
 
@@ -214,12 +215,24 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     // Calling this will swallow the first snapshot marker
     notifyAndStepToCheckpoint();
 
+    // snapshot marker + 3 bytes of stream-id in the buffer log. Manually
+    // calculate the expected size. Header + extras + frame-info (streamid)
+    size_t snapshotSz = sizeof(cb::mcbp::Request) +
+                        sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
+                        sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+
+    size_t outstanding = snapshotSz;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+
     // Step and get the second snapshot marker (for second stream)
     EXPECT_EQ(
             ENGINE_SUCCESS,
             producer->stepAndExpect(producers.get(),
                                     cb::mcbp::ClientOpcode::DcpSnapshotMarker));
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
+
+    outstanding += snapshotSz;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 
     // The producer will send the create fruit event twice, once per stream!
     // SystemEvent createCollection
@@ -232,6 +245,14 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(32), producers->last_stream_id);
 
+    size_t systemEventSz = sizeof(cb::mcbp::Request) +
+                           sizeof(cb::mcbp::request::DcpSystemEventPayload) +
+                           sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
+                           sizeof(Collections::CreateEventDcpData) +
+                           sizeof("fruit") - 1; // adjust for \0
+    outstanding += systemEventSz;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+
     producers->clear_dcp_data();
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
@@ -241,6 +262,28 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
+    outstanding += systemEventSz;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+
+    // And mutations
+    size_t mutSize = sizeof(cb::mcbp::Request) +
+                     sizeof(cb::mcbp::request::DcpMutationPayload) +
+                     sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
+                     (sizeof("orange") - 1) + (sizeof("nice") - 1) +
+                     1 /*collection-id*/;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(cb::mcbp::DcpStreamId(32), producers->last_stream_id);
+    outstanding += mutSize;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
+    outstanding += mutSize;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 }
 
 TEST_F(CollectionsDcpStreamsTest, two_streams_different) {

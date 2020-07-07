@@ -177,7 +177,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint32_t lock_time,
                                                     uint8_t nru,
                                                     cb::mcbp::DcpStreamId sid) {
-    last_stream_id = sid;
     auto result = handleMutationOrPrepare(cb::mcbp::ClientOpcode::DcpMutation,
                                           opaque,
                                           std::move(itm),
@@ -186,7 +185,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                           rev_seqno,
                                           lock_time,
                                           {},
-                                          nru);
+                                          nru,
+                                          sid);
     return result;
 }
 
@@ -199,7 +199,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
         uint64_t rev_seqno,
         uint32_t lock_time,
         std::string_view meta,
-        uint8_t nru) {
+        uint8_t nru,
+        cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm.get());
     last_op = opcode;
@@ -212,7 +213,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::handleMutationOrPrepare(
     last_meta = meta;
     last_value.assign(item->getData(), item->getNBytes());
     last_nru = nru;
-
+    last_stream_id = sid;
     last_packet_size =
             sizeof(cb::mcbp::Request) +
             (last_stream_id ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -438,7 +439,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::prepare(uint32_t opaque,
                                    rev_seqno,
                                    lock_time,
                                    {},
-                                   nru);
+                                   nru,
+                                   {});
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::seqno_acknowledged(
