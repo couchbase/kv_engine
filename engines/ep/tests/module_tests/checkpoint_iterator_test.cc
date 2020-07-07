@@ -92,7 +92,7 @@ TEST(CheckpointIteratorTest, decrementBeyondBegin) {
 // Iterate forwards with only a null element in the list.
 TEST(CheckpointIteratorTest, nullFirstElementIterateForwards) {
     ListContainer c;
-    c.push_back(nullptr);
+    c.emplace_back();
     ASSERT_EQ(1, c.size());
 
     int iteratorCount = 0;
@@ -106,7 +106,7 @@ TEST(CheckpointIteratorTest, nullFirstElementIterateForwards) {
 // Iterate backwards with only a null element in the list.
 TEST(CheckpointIteratorTest, nullFirstElementIterateBackwards) {
     ListContainer c;
-    c.push_back(nullptr);
+    c.emplace_back();
     ASSERT_EQ(1, c.size());
 
     int iteratorCount = 0;
@@ -120,7 +120,7 @@ TEST(CheckpointIteratorTest, nullFirstElementIterateBackwards) {
 // Iterate forwards with only a non-null element in the list.
 TEST(CheckpointIteratorTest, nonNullFirstElementIterateForwards) {
     ListContainer c;
-    c.push_back(std::make_unique<MyInt>(1));
+    c.emplace_back(new MyInt(1));
     ASSERT_EQ(1, c.size());
 
     int iteratorCount = 0;
@@ -134,7 +134,7 @@ TEST(CheckpointIteratorTest, nonNullFirstElementIterateForwards) {
 // Iterate backwards with only a non-null element in the list.
 TEST(CheckpointIteratorTest, nonNullFirstElementIterateBackwards) {
     ListContainer c;
-    c.push_back(std::make_unique<MyInt>(1));
+    c.emplace_back(new MyInt(1));
     ASSERT_EQ(1, c.size());
 
     int iteratorCount = 0;
@@ -150,9 +150,9 @@ TEST(CheckpointIteratorTest, nonNullFirstElementIterateBackwards) {
 TEST(CheckpointIteratorTest, forwardsNullAndNonNullElements) {
     ListContainer c;
     // Populate with 3 elements, one of which is pointing to null
-    c.push_back(std::make_unique<MyInt>(1));
-    c.push_back(nullptr);
-    c.push_back(std::make_unique<MyInt>(2));
+    c.emplace_back(new MyInt(1));
+    c.emplace_back();
+    c.emplace_back(new MyInt(2));
     ASSERT_EQ(3, c.size());
 
     // Should only find the 2 non-null elements
@@ -182,9 +182,9 @@ TEST(CheckpointIteratorTest, forwardsNullAndNonNullElements) {
 TEST(CheckpointIteratorTest, forwardsNullAndNonNullElementsWithFirstNull) {
     ListContainer c;
     // Populate with 3 elements, with first element pointing to null.
-    c.push_back(nullptr);
-    c.push_back(std::make_unique<MyInt>(1));
-    c.push_back(std::make_unique<MyInt>(2));
+    c.emplace_back();
+    c.emplace_back(new MyInt(1));
+    c.emplace_back(new MyInt(2));
     ASSERT_EQ(3, c.size());
 
     // Should only find the 2 non-null elements
@@ -213,9 +213,9 @@ TEST(CheckpointIteratorTest, forwardsNullAndNonNullElementsWithFirstNull) {
 TEST(CheckpointIteratorTest, backwardsNullAndNonNullElements) {
     ListContainer c;
     // Populate with 3 elements, one of which is pointing to null
-    c.push_back(std::make_unique<MyInt>(1));
-    c.push_back(nullptr);
-    c.push_back(std::make_unique<MyInt>(2));
+    c.emplace_back(new MyInt(1));
+    c.emplace_back();
+    c.emplace_back(new MyInt(2));
     ASSERT_EQ(3, c.size());
 
     // Should only find the 2 non-null elements
@@ -248,9 +248,9 @@ TEST(CheckpointIteratorTest, backwardsNullAndNonNullElements) {
 TEST(CheckpointIteratorTest, backwardsNullAndNonNullElementsWithFirstNull) {
     ListContainer c;
     // Populate with 3 elements, with first element pointing to null.
-    c.push_back(nullptr);
-    c.push_back(std::make_unique<MyInt>(1));
-    c.push_back(std::make_unique<MyInt>(2));
+    c.emplace_back();
+    c.emplace_back(new MyInt(1));
+    c.emplace_back(new MyInt(2));
     ASSERT_EQ(3, c.size());
 
     // Should only find the 2 non-null elements

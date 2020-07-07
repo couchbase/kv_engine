@@ -128,7 +128,7 @@ private:
 template <class T, class Pointer = T*, class Deleter = std::default_delete<T>>
 class SingleThreadedRCPtr {
 public:
-    SingleThreadedRCPtr(Pointer init = nullptr) : value(init) {
+    explicit SingleThreadedRCPtr(Pointer init = nullptr) : value(init) {
         if (init != nullptr) {
             ++value->_rc_refcount;
         }
@@ -146,11 +146,12 @@ public:
     }
 
     template <typename Y, typename P>
-    SingleThreadedRCPtr(const SingleThreadedRCPtr<Y, P, Deleter>& other)
+    explicit SingleThreadedRCPtr(
+            const SingleThreadedRCPtr<Y, P, Deleter>& other)
         : value(other.gimme()) {
     }
 
-    SingleThreadedRCPtr(std::unique_ptr<T>&& other)
+    explicit SingleThreadedRCPtr(std::unique_ptr<T>&& other)
         : SingleThreadedRCPtr(other.release()) {
     }
 
@@ -227,8 +228,12 @@ public:
         return value == nullptr;
     }
 
-    operator bool() const {
+    explicit operator bool() const {
         return value != nullptr;
+    }
+
+    bool operator==(const SingleThreadedRCPtr& other) const {
+        return value == other.value;
     }
 
 private:
@@ -257,7 +262,10 @@ private:
     Pointer value;
 };
 
-template <typename T, typename Pointer, typename Deleter, class... Args>
+template <class T,
+          class Pointer = T*,
+          class Deleter = std::default_delete<T>,
+          class... Args>
 SingleThreadedRCPtr<T, Pointer, Deleter> make_STRCPtr(Args&&... args) {
     return SingleThreadedRCPtr<T, Pointer, Deleter>(
             new T(std::forward<Args>(args)...));

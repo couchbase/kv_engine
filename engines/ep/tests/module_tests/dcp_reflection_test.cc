@@ -443,18 +443,19 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
     // to recreate the Item as operation==mutation otherwise the Consumer cannot
     // handle it.
     if (mutation->getItem()->getOperation() == queue_op::commit_sync_write) {
-        auto* newItem = new Item(mutation->getItem()->getKey(),
-                                 mutation->getItem()->getFlags(),
-                                 mutation->getItem()->getExptime(),
-                                 mutation->getItem()->getValue()->getData(),
-                                 mutation->getItem()->getValue()->valueSize(),
-                                 mutation->getItem()->getDataType(),
-                                 mutation->getItem()->getCas(),
-                                 mutation->getItem()->getBySeqno(),
-                                 mutation->getItem()->getVBucketId(),
-                                 mutation->getItem()->getRevSeqno(),
-                                 mutation->getItem()->getFreqCounterValue());
-        msg.reset(new MutationConsumerMessage(
+        auto newItem =
+                make_STRCPtr<Item>(mutation->getItem()->getKey(),
+                                   mutation->getItem()->getFlags(),
+                                   mutation->getItem()->getExptime(),
+                                   mutation->getItem()->getValue()->getData(),
+                                   mutation->getItem()->getValue()->valueSize(),
+                                   mutation->getItem()->getDataType(),
+                                   mutation->getItem()->getCas(),
+                                   mutation->getItem()->getBySeqno(),
+                                   mutation->getItem()->getVBucketId(),
+                                   mutation->getItem()->getRevSeqno(),
+                                   mutation->getItem()->getFreqCounterValue());
+        msg = std::make_unique<MutationConsumerMessage>(
                 newItem,
                 mutation->getOpaque(),
                 mutation->getIncludeValue(),
@@ -463,7 +464,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
                 mutation->getIncludeDeletedUserXattrs(),
                 mutation->getDocKeyEncodesCollectionId(),
                 mutation->getExtMetaData(),
-                mutation->getStreamId()));
+                mutation->getStreamId());
         mutation = static_cast<MutationConsumerMessage*>(msg.get());
     }
 

@@ -636,7 +636,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      * the message size is less than the size of original item
      */
     uint32_t keyAndValueMessageSize = getItemSize(*item2);
-    qi.reset(std::move(item2));
+    qi = queued_item(std::move(item2));
     dcpResponse = stream->public_makeResponseFromItem(
             qi, SendCommitSyncWriteAs::Commit);
     mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
@@ -706,7 +706,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
      * the message size is greater than the size of original item
      */
     auto keyAndSnappyValueMessageSize = getItemSize(*item);
-    queued_item qi = std::move(item);
+    queued_item qi(std::move(item));
     auto dcpResponse = stream->public_makeResponseFromItem(
             qi, SendCommitSyncWriteAs::Commit);
     auto* mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
@@ -772,7 +772,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
      * the message size is less than the size of the original item
      */
     auto keyAndValueMessageSize = getItemSize(*item);
-    queued_item qi = std::move(item);
+    queued_item qi(std::move(item));
     auto dcpResponse = stream->public_makeResponseFromItem(
             qi, SendCommitSyncWriteAs::Commit);
     auto* mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());

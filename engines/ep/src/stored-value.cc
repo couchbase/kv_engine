@@ -357,7 +357,7 @@ void StoredValue::setValueImpl(const Item& itm) {
         setResident(false);
     } else {
         setResident(true);
-        replaceValue(itm.getValue().get());
+        replaceValue(itm.getValue());
     }
     setCommitted(itm.getCommitted());
 }

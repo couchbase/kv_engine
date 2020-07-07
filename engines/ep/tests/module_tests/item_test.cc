@@ -32,11 +32,11 @@ public:
 
     SingleThreadedRCPtr<Item> item;
     void SetUp() override {
-        item = std::make_unique<Item>(makeStoredDocKey("key"),
-                                      Vbid(0),
-                                      queue_op::empty,
-                                      /*revSeq*/ 0,
-                                      /*bySeq*/ 0);
+        item = make_STRCPtr<Item>(makeStoredDocKey("key"),
+                                  Vbid(0),
+                                  queue_op::empty,
+                                  /*revSeq*/ 0,
+                                  /*bySeq*/ 0);
     }
 };
 
@@ -78,24 +78,19 @@ public:
         protocol_binary_datatype_t datatype = (PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_XATTR);
 
-         item = std::make_unique<Item>(
-                makeStoredDocKey("key"),
-                0,
-                0,
-                data.data(),
-                data.size(),
-                datatype);
+        item = make_STRCPtr<Item>(makeStoredDocKey("key"),
+                                  0,
+                                  0,
+                                  data.data(),
+                                  data.size(),
+                                  datatype);
     }
 };
 
 TEST_F(ItemTest, getAndSetCachedDataType) {
     std::string valueData = R"(raw data)";
-    item = std::make_unique<Item>(
-            makeStoredDocKey("key"),
-            0,
-            0,
-            valueData.c_str(),
-            valueData.size());
+    item = make_STRCPtr<Item>(
+            makeStoredDocKey("key"), 0, 0, valueData.c_str(), valueData.size());
 
     // Item was created with no extended meta data so datatype should be
     // the default PROTOCOL_BINARY_RAW_BYTES
@@ -121,17 +116,17 @@ TEST_F(ItemTest, getAndSetCachedDataType) {
 
 TEST_F(ItemTest, checkNRUandFreqCounterValueSetCorrectly) {
     std::string valueData = R"(raw data)";
-    item = std::make_unique<Item>(makeStoredDocKey("key"),
-                                  0 /* flags */,
-                                  0 /* exptime */,
-                                  valueData.c_str(),
-                                  valueData.size(),
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  0 /* cas */,
-                                  -1 /* bySeqno */,
-                                  Vbid(0),
-                                  1 /* revSeqno */,
-                                  128 /* freqCount */);
+    item = make_STRCPtr<Item>(makeStoredDocKey("key"),
+                              0 /* flags */,
+                              0 /* exptime */,
+                              valueData.c_str(),
+                              valueData.size(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              0 /* cas */,
+                              -1 /* bySeqno */,
+                              Vbid(0),
+                              1 /* revSeqno */,
+                              128 /* freqCount */);
     EXPECT_EQ(128, item->getFreqCounterValue());
 }
 
@@ -268,13 +263,12 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
     std::string valueData = R"({"json":"yes"})";
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
-    item = std::make_unique<Item>(
-            makeStoredDocKey("key"),
-            0,
-            0,
-            const_cast<char*>(valueData.data()),
-            valueData.size(),
-            datatype);
+    item = make_STRCPtr<Item>(makeStoredDocKey("key"),
+                              0,
+                              0,
+                              const_cast<char*>(valueData.data()),
+                              valueData.size(),
+                              datatype);
 
     item->removeBodyAndOrXattrs(
             IncludeValue::No, IncludeXattrs::Yes, IncludeDeletedUserXattrs::No);
@@ -293,12 +287,12 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
     std::string valueData = R"({"json":"yes"})";
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
-    item = std::make_unique<Item>(makeStoredDocKey("key"),
-                                  0,
-                                  0,
-                                  const_cast<char*>(valueData.data()),
-                                  valueData.size(),
-                                  datatype);
+    item = make_STRCPtr<Item>(makeStoredDocKey("key"),
+                              0,
+                              0,
+                              const_cast<char*>(valueData.data()),
+                              valueData.size(),
+                              datatype);
 
     item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::Yes,

@@ -1182,7 +1182,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                              includeDeletedUserXattrs,
                              isForceValueCompressionEnabled(),
                              isSnappyEnabled())) {
-            auto finalItem = std::make_unique<Item>(*item);
+            auto finalItem = make_STRCPtr<Item>(*item);
             finalItem->removeBodyAndOrXattrs(
                     includeValue, includeXattributes, includeDeletedUserXattrs);
 

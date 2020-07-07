@@ -1361,14 +1361,14 @@ VBNotifyCtx VBucket::queueAbortForUnseenPrepare(queued_item item,
 queued_item VBucket::createNewAbortedItem(const DocKey& key,
                                           int64_t prepareSeqno,
                                           int64_t abortSeqno) {
-    queued_item item = std::make_unique<Item>(key,
-                                              0 /*flags*/,
-                                              ep_real_time() /*exp*/,
-                                              value_t{},
-                                              PROTOCOL_BINARY_RAW_BYTES,
-                                              0,
-                                              abortSeqno,
-                                              getId());
+    auto item = make_STRCPtr<Item>(key,
+                                   0 /*flags*/,
+                                   ep_real_time() /*exp*/,
+                                   value_t{},
+                                   PROTOCOL_BINARY_RAW_BYTES,
+                                   0,
+                                   abortSeqno,
+                                   getId());
 
     item->setAbortSyncWrite();
     item->setDeleted();

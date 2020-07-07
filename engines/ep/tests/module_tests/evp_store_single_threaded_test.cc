@@ -4183,7 +4183,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         // Release the item (from the unique ptr) as the queued_item we create
         // will destroy it later
-        kvstore->del(itm.release());
+        kvstore->del(queued_item(std::move(itm)));
         VB::Commit f(epstore.getVBucket(vbid)->getManifest());
         kvstore->commit(f);
     }
