@@ -18,6 +18,7 @@
 
 #include "bucket_logger.h"
 #include "couch-kvstore/couch-kvstore-config.h"
+#include "couch-kvstore/couch-kvstore.h"
 #include "item.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
@@ -273,6 +274,13 @@ void KVStoreParamTest::SetUp() {
     }
 #endif
     kvstore = setup_kv_store(*kvstoreConfig);
+    if (config.getBackend() == "couchdb") {
+        kvsReadOnly =
+                static_cast<CouchKVStore*>(kvstore.get())->makeReadOnlyStore();
+        kvstoreReadOnly = kvsReadOnly.get();
+    } else {
+        kvstoreReadOnly = kvstore.get();
+    }
 }
 
 void KVStoreParamTest::TearDown() {
@@ -516,7 +524,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         for (int i = 0; i < 10; i++) {
             auto cb = std::make_unique<GetCallback>(true /*expectcompressed*/);
             auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0));
-            auto scanCtx = kvstore->initBySeqnoScanContext(
+            auto scanCtx = kvstoreReadOnly->initBySeqnoScanContext(
                     std::make_unique<GetCallback>(true /*expectcompressed*/),
                     std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
                     Vbid(0),

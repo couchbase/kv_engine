@@ -275,13 +275,20 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config)
 CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
                            FileOpsInterface& ops,
                            bool readOnly,
-                           std::shared_ptr<RevisionMap> dbFileRevMap)
+                           std::shared_ptr<RevisionMap> revMap)
     : KVStore(readOnly),
       configuration(config),
       dbname(config.getDBName()),
-      dbFileRevMap(std::move(dbFileRevMap)),
+      dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
       base_ops(ops) {
+    // todo: consider refactor of construction to separate out RW/RO
+    if (!readOnly) {
+        // Must post-initialise the vector behind the folly::Synchonised
+        std::vector<MonotonicRevision> revMap(config.getMaxVBuckets());
+        dbFileRevMap->swap(revMap);
+    }
+
     createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
     statCollectingFileOpsCompaction = getCouchstoreStatsOps(
@@ -305,7 +312,7 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops)
     : CouchKVStore(config,
                    ops,
                    false /*readonly*/,
-                   std::make_shared<RevisionMap>(config.getMaxVBuckets())) {
+                   std::make_shared<RevisionMap>()) {
 }
 
 /**
@@ -408,7 +415,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
         // pending delete doesn't delete us. Note that the expectation is that
         // some higher level per VB lock is required to prevent data-races here.
         // KVBucket::vb_mutexes is used in this case.
-        unlinkCouchFile(vbucketId, (*dbFileRevMap)[vbucketId.get()]);
+        unlinkCouchFile(vbucketId, getDbRevision(vbucketId));
         prepareToCreateImpl(vbucketId);
 
         writeVBucketState(vbucketId, *state);
@@ -1614,20 +1621,19 @@ void CouchKVStore::close() {
 }
 
 void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
-    if (vbucketId.get() >= numDbFiles) {
+    try {
+        (*dbFileRevMap->wlock()).at(vbucketId.get()) = newFileRev;
+    } catch (std::out_of_range const&) {
         logger.warn(
                 "CouchKVStore::updateDbFileMap: Cannot update db file map "
                 "for an invalid vbucket, {}, rev:{}",
                 vbucketId,
                 newFileRev);
-        return;
     }
-    // MB-27963: obtain write access whilst we update the file map openDB also
-    // obtains this mutex to ensure the fileRev it obtains doesn't become stale
-    // by the time it hits sys_open.
-    std::unique_lock<folly::SharedMutex> lg(openDbMutex);
+}
 
-    (*dbFileRevMap)[vbucketId.get()] = newFileRev;
+uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) {
+    return (*dbFileRevMap->rlock())[vbucketId.get()];
 }
 
 couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
@@ -1637,8 +1643,8 @@ couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
-    std::shared_lock<folly::SharedMutex> lg(openDbMutex);
-    uint64_t fileRev = (*dbFileRevMap)[vbucketId.get()];
+    auto lockedRevMap = dbFileRevMap->rlock();
+    uint64_t fileRev = (*lockedRevMap)[vbucketId.get()];
     return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
 
@@ -1745,11 +1751,11 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string>& filenames,
             if (vbids) {
                 vbids->push_back(static_cast<Vbid>(vbId));
             }
-            uint64_t old_rev_num = (*dbFileRevMap)[vbId];
+            uint64_t old_rev_num = getDbRevision(Vbid(vbId));
             if (old_rev_num == revNum) {
                 continue;
             } else if (old_rev_num < revNum) { // stale revision found
-                (*dbFileRevMap)[vbId] = revNum;
+                updateDbFileMap(Vbid(vbId), revNum);
             } else { // stale file found (revision id has rolled over)
                 old_rev_num = revNum;
             }
@@ -2909,7 +2915,7 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
 
 void CouchKVStore::removeCompactFile(const std::string& filename, Vbid vbid) {
     const auto compact_file =
-            getDBFileName(filename, vbid, (*dbFileRevMap)[vbid.get()]) +
+            getDBFileName(filename, vbid, getDbRevision(vbid)) +
             ".compact";
 
     if (!isReadOnly()) {
@@ -2963,7 +2969,7 @@ std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) {
 
 void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
     if (!isReadOnly()) {
-        (*dbFileRevMap)[vbid.get()]++;
+        (*dbFileRevMap->wlock())[vbid.get()]++;
     }
 }
 
@@ -2974,7 +2980,7 @@ uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     cachedDeleteCount[vbid.get()] = 0;
     cachedFileSize[vbid.get()] = 0;
     cachedSpaceUsed[vbid.get()] = 0;
-    return (*dbFileRevMap)[vbid.get()];
+    return getDbRevision(vbid);
 }
 
 CouchKVStore::LocalDocHolder CouchKVStore::readLocalDoc(Db& db,
