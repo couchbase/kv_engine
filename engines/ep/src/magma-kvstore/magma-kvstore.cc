@@ -479,7 +479,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
 
     cachedVBStates.resize(configuration.getMaxVBuckets());
-    kvstoreRevList.resize(configuration.getMaxVBuckets(), 1);
+    kvstoreRevList.resize(configuration.getMaxVBuckets(), 0);
 
     useUpsertForSet = configuration.getMagmaEnableUpsert();
     if (useUpsertForSet) {

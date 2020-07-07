@@ -133,7 +133,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
     state.transition.state = vbucket_state_active;
     kvstore->snapshotVBucket(vbid, state);
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
-    ASSERT_EQ(1, int(kvsRev));
+    ASSERT_EQ(0, int(kvsRev));
     EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
 }
 
