@@ -134,7 +134,8 @@ public:
      * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
      * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
      */
-    FollyExecutorPool(ThreadPoolConfig::ThreadCount maxReaders,
+    FollyExecutorPool(size_t maxThreads,
+                      ThreadPoolConfig::ThreadCount maxReaders,
                       ThreadPoolConfig::ThreadCount maxWriters,
                       size_t maxAuxIO,
                       size_t maxNonIO);

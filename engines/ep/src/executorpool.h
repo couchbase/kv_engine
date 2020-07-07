@@ -165,7 +165,38 @@ public:
     virtual ~ExecutorPool() = default;
 
 protected:
+    ExecutorPool(size_t maxThreads);
+
+    /**
+     * Calculate the number of Reader threads to use for the given thread limit.
+     */
+    size_t calcNumReaders(ThreadPoolConfig::ThreadCount threadCount) const;
+
+    /**
+     * Calculate the number of Writer threads to use for the given thread limit.
+     */
+    size_t calcNumWriters(ThreadPoolConfig::ThreadCount threadCount) const;
+
+    /**
+     * Calculate the number of Auxiliary IO threads to use for the given thread
+     * limit.
+     */
+    size_t calcNumAuxIO(size_t threadCount) const;
+
+    /**
+     * Calculate the number of Non-IO threads to use for the given thread limit.
+     */
+    size_t calcNumNonIO(size_t threadCount) const;
+
     // Singleton creation
     static std::mutex initGuard;
     static std::atomic<ExecutorPool*> instance;
+
+    /**
+     * Maximum number of threads of any given class (Reader, Writer, AuxIO,
+     * NonIO).
+     * If not overridden by maxThreads ctor arg, set to the number
+     * of available CPU cores.
+     */
+    const size_t maxGlobalThreads;
 };

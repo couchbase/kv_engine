@@ -19,11 +19,13 @@
 
 #include <folly/executors/IOThreadPoolExecutor.h>
 
-FollyExecutorPool::FollyExecutorPool(ThreadPoolConfig::ThreadCount maxReaders,
+FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
+                                     ThreadPoolConfig::ThreadCount maxReaders,
                                      ThreadPoolConfig::ThreadCount maxWriters,
                                      size_t maxAuxIO,
                                      size_t maxNonIO)
-    : ioPool(std::make_unique<folly::IOThreadPoolExecutor>(1)) {
+    : ExecutorPool(maxThreads),
+      ioPool(std::make_unique<folly::IOThreadPoolExecutor>(1)) {
 }
 
 size_t FollyExecutorPool::getNumWorkersStat() {

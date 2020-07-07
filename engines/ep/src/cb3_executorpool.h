@@ -253,25 +253,7 @@ protected:
     TaskQueue* _getTaskQueue(const Taskable& t, task_type_t qidx);
     void _stopAndJoinThreads();
 
-    /**
-     * Calculate the number of Reader threads to use for the given thread limit.
-     */
-    size_t calcNumReaders(ThreadPoolConfig::ThreadCount threadCount) const;
-
-    /**
-     * Calculate the number of Writer threads to use for the given thread limit.
-     */
-    size_t calcNumWriters(ThreadPoolConfig::ThreadCount threadCount) const;
-
     const size_t numTaskSets{NUM_TASK_GROUPS};
-
-    /**
-     * Maximum number of threads of any given class (Reader, Writer, AuxIO,
-     * NonIO).
-     * If not overridden by Configuration::getMaxThreads, set to the number
-     * of available CPU cores.
-     */
-    const size_t maxGlobalThreads;
 
     std::atomic<size_t> totReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex
