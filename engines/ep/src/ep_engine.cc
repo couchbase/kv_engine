@@ -4186,15 +4186,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(
         const void* cookie, const AddStatFn& add_stat) {
-    ExecutorPool::get()->doWorkerStat(ObjectRegistry::getCurrentEngine(),
-                                      cookie, add_stat);
+    ExecutorPool::get()->doWorkerStat(
+            ObjectRegistry::getCurrentEngine()->getTaskable(),
+            cookie,
+            add_stat);
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTasksStats(
         const void* cookie, const AddStatFn& add_stat) {
     ExecutorPool::get()->doTasksStat(
-            ObjectRegistry::getCurrentEngine(), cookie, add_stat);
+            ObjectRegistry::getCurrentEngine()->getTaskable(),
+            cookie,
+            add_stat);
     return ENGINE_SUCCESS;
 }
 
@@ -4249,8 +4253,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(
                          "ep_workload:num_sleepers");
         add_casted_stat(statname, numSleepers, add_stat, cookie);
 
-        expool->doTaskQStat(ObjectRegistry::getCurrentEngine(),
-                            cookie, add_stat);
+        expool->doTaskQStat(ObjectRegistry::getCurrentEngine()->getTaskable(),
+                            cookie,
+                            add_stat);
 
     } catch (std::exception& error) {
         EP_LOG_WARN("doWorkloadStats: Error building stats: {}", error.what());
@@ -6778,6 +6783,15 @@ void EpEngineTaskable::logQTime(
 void EpEngineTaskable::logRunTime(
         TaskId id, const std::chrono::steady_clock::duration runTime) {
     myEngine->getKVBucket()->logRunTime(id, runTime);
+}
+bool EpEngineTaskable::isShutdown() {
+    return myEngine->getEpStats().isShutdown;
+}
+
+uint64_t EpEngineTaskable::getRunCount(TaskId id) {
+    return myEngine->getEpStats()
+            .taskRuntimeHisto[static_cast<int>(id)]
+            .getValueCount();
 }
 
 item_info EventuallyPersistentEngine::getItemInfo(const Item& item) {

@@ -46,3 +46,11 @@ void MockTaskable::logQTime(TaskId id,
 void MockTaskable::logRunTime(
         TaskId id, const std::chrono::steady_clock::duration runTime) {
 }
+
+bool MockTaskable::isShutdown() {
+    return false;
+}
+
+uint64_t MockTaskable::getRunCount(TaskId id) {
+    return 0;
+}

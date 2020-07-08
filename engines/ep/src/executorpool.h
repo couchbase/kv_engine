@@ -22,7 +22,6 @@
 #include <memory>
 #include <mutex>
 
-class EventuallyPersistentEngine;
 class GlobalTask;
 class Taskable;
 using ExTask = std::shared_ptr<GlobalTask>;
@@ -159,7 +158,7 @@ public:
     /**
      * @returns statistics about worker threads.
      */
-    virtual void doWorkerStat(EventuallyPersistentEngine* engine,
+    virtual void doWorkerStat(Taskable& taskable,
                               const void* cookie,
                               const AddStatFn& add_stat) = 0;
 
@@ -167,14 +166,14 @@ public:
      * Generates stats regarding currently running tasks, as displayed by
      * cbstats tasks.
      */
-    virtual void doTasksStat(EventuallyPersistentEngine* engine,
+    virtual void doTasksStat(Taskable& taskable,
                              const void* cookie,
                              const AddStatFn& add_stat) = 0;
 
     /**
      * Generates stats regarding queued tasks.
      */
-    virtual void doTaskQStat(EventuallyPersistentEngine* engine,
+    virtual void doTaskQStat(Taskable& taskable,
                              const void* cookie,
                              const AddStatFn& add_stat) = 0;
 

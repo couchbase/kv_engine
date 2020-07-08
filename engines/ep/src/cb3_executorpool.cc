@@ -665,10 +665,10 @@ std::vector<ExTask> CB3ExecutorPool::unregisterTaskable(Taskable& taskable,
     return _unregisterTaskable(taskable, force);
 }
 
-void CB3ExecutorPool::doTaskQStat(EventuallyPersistentEngine* engine,
+void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
                                   const void* cookie,
                                   const AddStatFn& add_stat) {
-    if (engine->getEpStats().isShutdown) {
+    if (taskable.isShutdown()) {
         return;
     }
 
@@ -766,10 +766,10 @@ static void addWorkerStats(const char* prefix,
     }
 }
 
-void CB3ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
+void CB3ExecutorPool::doWorkerStat(Taskable& taskable,
                                    const void* cookie,
                                    const AddStatFn& add_stat) {
-    if (engine->getEpStats().isShutdown) {
+    if (taskable.isShutdown()) {
         return;
     }
 
@@ -781,10 +781,10 @@ void CB3ExecutorPool::doWorkerStat(EventuallyPersistentEngine* engine,
     }
 }
 
-void CB3ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
+void CB3ExecutorPool::doTasksStat(Taskable& taskable,
                                   const void* cookie,
                                   const AddStatFn& add_stat) {
-    if (engine->getEpStats().isShutdown) {
+    if (taskable.isShutdown()) {
         return;
     }
 
@@ -824,10 +824,7 @@ void CB3ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
         obj["last_starttime_ns"] =
                 to_ns_since_epoch(task->getLastStartTime()).count();
         obj["previous_runtime_ns"] = task->getPrevRuntime().count();
-        obj["num_runs"] =
-                engine->getEpStats()
-                        .taskRuntimeHisto[static_cast<int>(task->getTaskId())]
-                        .getValueCount();
+        obj["num_runs"] = taskable.getRunCount(task->getTaskId());
         obj["type"] = TaskQueue::taskType2Str(
                 GlobalTask::getTaskType(task->getTaskId()));
 

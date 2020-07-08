@@ -146,7 +146,7 @@ public:
         return numTaskables;
     }
 
-    void doWorkerStat(EventuallyPersistentEngine* engine,
+    void doWorkerStat(Taskable& taskable,
                       const void* cookie,
                       const AddStatFn& add_stat) override;
 
@@ -154,11 +154,11 @@ public:
      * Generates stats regarding currently running tasks, as displayed by
      * cbstats tasks.
      */
-    void doTasksStat(EventuallyPersistentEngine* engine,
+    void doTasksStat(Taskable& taskable,
                      const void* cookie,
                      const AddStatFn& add_stat) override;
 
-    void doTaskQStat(EventuallyPersistentEngine* engine,
+    void doTaskQStat(Taskable& taskable,
                      const void* cookie,
                      const AddStatFn& add_stat) override;
 

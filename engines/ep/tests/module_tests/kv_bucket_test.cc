@@ -976,7 +976,7 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
                        gsl::not_null<const void*> cookie) {};
 
     for (uint64_t i = 0; i < 10; ++i) {
-        pool->doWorkerStat(engine.get(),
+        pool->doWorkerStat(engine->getTaskable(),
                            // The callback don't use the cookie at all, but
                            // the API requires it to be set.. use the pool
                            // as the cookie
