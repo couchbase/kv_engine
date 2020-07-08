@@ -3717,6 +3717,33 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     checkPersistedSnapshot(3, 3);
 }
 
+// Check stream-id and sync-repl cannot be enabled
+TEST_P(StreamTest, multi_stream_control_denied) {
+    setup_dcp_stream();
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->control(0, "enable_sync_writes", "true"));
+    EXPECT_TRUE(producer->isSyncWritesEnabled());
+    EXPECT_FALSE(producer->isMultipleStreamEnabled());
+
+    EXPECT_EQ(ENGINE_ENOTSUP, producer->control(0, "enable_stream_id", "true"));
+    EXPECT_TRUE(producer->isSyncWritesEnabled());
+    EXPECT_FALSE(producer->isMultipleStreamEnabled());
+    destroy_dcp_stream();
+}
+
+TEST_P(StreamTest, sync_writes_denied) {
+    setup_dcp_stream();
+    EXPECT_EQ(ENGINE_SUCCESS, producer->control(0, "enable_stream_id", "true"));
+    EXPECT_FALSE(producer->isSyncWritesEnabled());
+    EXPECT_TRUE(producer->isMultipleStreamEnabled());
+
+    EXPECT_EQ(ENGINE_ENOTSUP,
+              producer->control(0, "enable_sync_writes", "true"));
+    EXPECT_FALSE(producer->isSyncWritesEnabled());
+    EXPECT_TRUE(producer->isMultipleStreamEnabled());
+    destroy_dcp_stream();
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamPersistentTest,
                          STParameterizedBucketTest::persistentConfigValues(),

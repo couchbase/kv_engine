@@ -215,6 +215,10 @@ public:
         return supportsCursorDropping.load();
     }
 
+    bool isMultipleStreamEnabled() const {
+        return multipleStreamRequests == MultipleStreamRequests::Yes;
+    }
+
     /**
      * Notifies the front-end synchronously on this thread that this paused
      * connection should be re-considered for work.

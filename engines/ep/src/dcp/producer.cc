@@ -1056,15 +1056,22 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
 
         return ENGINE_SUCCESS;
     } else if (keyStr == "enable_stream_id") {
-        if (valueStr != "true") {
-            // For simplicity, user cannot turn this off, it is by default off
-            // and can only be enabled one-way per Producer.
-            return ENGINE_EINVAL;
+        // For simplicity, user cannot turn this off, it is by default off
+        // and can only be enabled one-way per Producer.
+        if (valueStr == "true") {
+            if (supportsSyncReplication != SyncReplication::No) {
+                // MB-32318: stream-id and sync-replication denied
+                return ENGINE_ENOTSUP;
+            }
+            multipleStreamRequests = MultipleStreamRequests::Yes;
+            return ENGINE_SUCCESS;
         }
-        multipleStreamRequests = MultipleStreamRequests::Yes;
-        return ENGINE_SUCCESS;
     } else if (key == "enable_sync_writes") {
         if (valueStr == "true") {
+            if (multipleStreamRequests != MultipleStreamRequests::No) {
+                // MB-32318: stream-id and sync-replication denied
+                return ENGINE_ENOTSUP;
+            }
             supportsSyncReplication = SyncReplication::SyncWrites;
             if (!consumerName.empty()) {
                 supportsSyncReplication = SyncReplication::SyncReplication;
