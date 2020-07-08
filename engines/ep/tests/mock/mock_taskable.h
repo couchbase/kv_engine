@@ -24,7 +24,7 @@
  */
 class MockTaskable : public Taskable {
 public:
-    MockTaskable();
+    MockTaskable(bucket_priority_t priority = HIGH_BUCKET_PRIORITY);
 
     const std::string& getName() const override;
 
@@ -45,6 +45,8 @@ public:
     uint64_t getRunCount(TaskId id) override;
 
     bool isShutdown() override;
+
+    void setName(std::string name);
 
 protected:
     std::string name;

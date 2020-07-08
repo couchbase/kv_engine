@@ -17,7 +17,7 @@
 
 #include "mock_taskable.h"
 
-MockTaskable::MockTaskable() : policy(HIGH_BUCKET_PRIORITY, 1) {
+MockTaskable::MockTaskable(bucket_priority_t priority) : policy(priority, 1) {
 }
 
 const std::string& MockTaskable::getName() const {
@@ -29,7 +29,7 @@ task_gid_t MockTaskable::getGID() const {
 }
 
 bucket_priority_t MockTaskable::getWorkloadPriority() const {
-    return HIGH_BUCKET_PRIORITY;
+    return policy.getBucketPriority();
 }
 
 void MockTaskable::setWorkloadPriority(bucket_priority_t prio) {
@@ -53,4 +53,8 @@ bool MockTaskable::isShutdown() {
 
 uint64_t MockTaskable::getRunCount(TaskId id) {
     return 0;
+}
+
+void MockTaskable::setName(std::string name_) {
+    name = name_;
 }

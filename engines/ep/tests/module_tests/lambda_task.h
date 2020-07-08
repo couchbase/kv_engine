@@ -20,6 +20,7 @@
 #include "globaltask.h"
 
 #include <functional>
+#include <utility>
 
 class LambdaTask : public GlobalTask {
 public:
@@ -27,12 +28,13 @@ public:
                TaskId taskId,
                double sleeptime,
                bool completeBeforeShutdown,
-               std::function<bool()> f)
-        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown), func(f) {
+               std::function<bool(LambdaTask&)> f)
+        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown),
+          func(std::move(f)) {
     }
 
     bool run() override {
-        return func();
+        return func(*this);
     }
 
     std::string getDescription() override {
@@ -45,5 +47,5 @@ public:
     }
 
 protected:
-    std::function<bool()> func;
+    std::function<bool(LambdaTask&)> func;
 };

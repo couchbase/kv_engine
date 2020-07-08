@@ -53,6 +53,13 @@ public:
         cond.wait_for(lock, nanoSecs);
     }
 
+    template <class Predicate>
+    void wait_for(std::unique_lock<std::mutex>& lock,
+                  const std::chrono::nanoseconds nanoSecs,
+                  Predicate pred) {
+        cond.wait_for(lock, nanoSecs, pred);
+    }
+
     void notify_all() {
         cond.notify_all();
     }

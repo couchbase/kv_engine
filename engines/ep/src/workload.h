@@ -59,7 +59,7 @@ public:
         return maxNumShards;
     }
 
-    bucket_priority_t getBucketPriority() {
+    bucket_priority_t getBucketPriority() const {
         if (maxNumWorkers < HIGH_BUCKET_PRIORITY) {
             return LOW_BUCKET_PRIORITY;
         }

@@ -20,12 +20,25 @@
  */
 
 #include "executorpool_test.h"
+#include "../mock/mock_add_stat_fn.h"
 #include "lambda_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include <folly/portability/GMock.h>
+#include <nlohmann/json.hpp>
 
-ExTask makeTask(Taskable& taskable, ThreadGate& tg, TaskId taskId) {
+using namespace std::chrono_literals;
+using namespace std::string_literals;
+using namespace std::string_view_literals;
+
+/**
+ * Creates a LambdaTask which increments the given ThreadGate when run
+ */
+ExTask makeTask(Taskable& taskable,
+                ThreadGate& tg,
+                TaskId taskId,
+                double initialSleepTime = 0) {
     return std::make_shared<LambdaTask>(
-            taskable, taskId, 0, true, [&]() -> bool {
+            taskable, taskId, initialSleepTime, true, [&](LambdaTask&) -> bool {
                 tg.threadUp();
                 return false;
             });
@@ -82,6 +95,251 @@ TYPED_TEST(ExecutorPoolTest, register_taskable_test) {
 
     ASSERT_EQ(0, this->pool->getNumWorkersStat());
     ASSERT_EQ(0, this->pool->getNumTaskables());
+}
+
+/// Test that forcefully unregistering a tasktable cancels all outstanding
+/// tasks.
+TYPED_TEST(ExecutorPoolTest, UnregisterForce) {
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a task which should never run, as when taskable is unregistered
+    // it is done forcefully.
+    const auto sleepTime = 60.0 * 60.0; // 1 hour
+    std::atomic<bool> taskRan = false;
+    ExTask task{new LambdaTask(
+            taskable, TaskId::ItemPager, sleepTime, true, [&](LambdaTask&) {
+                taskRan = true;
+                return false;
+            })};
+    this->pool->schedule(task);
+
+    // Test: Unregister the taskable forcefully - task should be cancelled and
+    // not run.
+    this->pool->unregisterTaskable(taskable, true);
+
+    EXPECT_FALSE(taskRan);
+}
+
+/// Test that tasks are run immediately when they are woken.
+TYPED_TEST(ExecutorPoolTest, Wake) {
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a lambda task which when run increments ThreadGate, but whose
+    // initial sleep time is 1 hour and hence will not run until then.
+    ThreadGate tg{1};
+    auto sleepTime = 60.0 * 60.0; // 1 hour.
+    const auto taskId = this->pool->schedule(
+            makeTask(taskable, tg, TaskId::ItemPager, sleepTime));
+
+    // Test: Wake the task, and expect to run "immediately" (give a generous
+    // deadline of 10s.
+    EXPECT_TRUE(this->pool->wake(taskId));
+    tg.waitFor(std::chrono::seconds(10));
+    EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for task to wake";
+
+    this->pool->unregisterTaskable(taskable, true);
+}
+
+/// Test that calling wake() on a Task multiple times while it is executing
+// only wakes it once.
+TYPED_TEST(ExecutorPoolTest, WakeMultiple) {
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a task which increments runCount everytime it runs, then re-wakes
+    // itself twice on first run.
+    // We expect the two wake-ups to be coaleacsed into one execution, _after_
+    // this task run completes - i.e. the task shouldn't run again concurrently
+    // in a different thread.
+    // Using a thread gate with count 2 - we only expect one thread to checkin
+    // to the gate, the second count will be used to unblock the task.
+    ThreadGate threadGate{2};
+    SyncObject cv;
+    int runCount = 0;
+    auto task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, 0, false, [&](LambdaTask& task) {
+                // Initially put the task to sleep "forever".
+                task.snooze(INT_MAX);
+                {
+                    std::unique_lock<std::mutex> guard(cv);
+                    runCount++;
+                    if (runCount == 1) {
+                        // Attempt to wake multiple times. This should only
+                        // run the task once (a second time), wake while
+                        // already queued to run should have no effect.
+                        this->pool->wake(task.getId());
+                        this->pool->wake(task.getId());
+                        this->pool->wake(task.getId());
+                    }
+                    cv.notify_one();
+                }
+                // Block on threadGate; will be unblocked later
+                // by main thread.
+                threadGate.threadUp();
+
+                return true;
+            });
+    this->pool->schedule(task);
+
+    // Test - wait for the task to run the first time (and hence wake() to have
+    // been called).
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&runCount] { return runCount >= 1; });
+    }
+
+    // Increment ThreadGate to allow the task to finish it's first execution
+    // and perform the second execution.
+    threadGate.threadUp();
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&runCount] { return runCount >= 2; });
+    }
+
+    // Check runCount - shouldn't exceed 2.
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        EXPECT_EQ(2, runCount)
+                << "Task should only have run twice after wakeup";
+    }
+
+    // Unregister the taskable. This should run any pending tasks to run
+    // to completion (note the above task is created with
+    // completeBeforeShutdown==true).
+    this->pool->unregisterTaskable(taskable, false);
+    // Check the runCount again - no more instances should have occurred
+    // while shutting down.
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        EXPECT_EQ(2, runCount)
+                << "Task should only have run twice after wakeup";
+    }
+}
+
+// Wake negative test - attempt to wake a task which hasn't been scheduled.
+TYPED_TEST(ExecutorPoolTest, WakeWithoutSchedule) {
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Doesn't matter what the task is, we shouldn't run it.
+    ExTask task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, 0, true, [&](LambdaTask&) {
+                return false;
+            });
+
+    EXPECT_FALSE(this->pool->wake(task->getId()));
+
+    this->pool->unregisterTaskable(taskable, false);
+}
+
+/// Test that snooze correctly updates the waketime of a task.
+TYPED_TEST(ExecutorPoolTest, Snooze) {
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a task which when run increments ThreadGate, but whose
+    // initial sleep time is 1 hour and hence will not run until then.
+    ThreadGate tg{1};
+    auto initialSleepTime = 60.0 * 60.0; // 1 hour.
+    const auto taskId = this->pool->schedule(
+            makeTask(taskable, tg, TaskId::ItemPager, initialSleepTime));
+
+    // Test: Wake the task, and expect to run "immediately" (give a generous
+    // deadline of 10s.
+    // Test: re-snooze the task to run in a fraction of a second.
+    EXPECT_TRUE(this->pool->snooze(taskId, std::numeric_limits<double>::min()));
+    tg.waitFor(std::chrono::seconds(10));
+    EXPECT_TRUE(tg.isComplete())
+            << "Timeout waiting for task to run after snooze";
+
+    // Cleanup.
+    this->pool->unregisterTaskable(taskable, false);
+}
+
+// Test that waking a task supercedes any previous schedule time, and the task
+// runs just once.
+TYPED_TEST(ExecutorPoolTest, SnoozeThenWake) {
+    using namespace std::chrono;
+
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a task which increments runCount everytime it runs, initally
+    // sleeping for 10ms.
+    // It also blocks on a threadGate - this is because if the task finishes
+    // it'll either be re-scheduled to run (return true), or
+    // be cancelled (return false) - either way this wouldn't allow us to
+    // test what happens to the original scheduled time.
+    duration<double> sleepTime{0.01};
+    // Using a thread gate with count 2 - we only expect one thread to checkin
+    // to the gate, the second count will be used to unblock the task.
+    ThreadGate tg{2};
+    SyncObject cv;
+    int runCount = 0;
+    auto task = std::make_shared<LambdaTask>(
+            taskable,
+            TaskId::ItemPager,
+            sleepTime.count(),
+            true,
+            [&](LambdaTask& t) {
+                {
+                    std::unique_lock<std::mutex> guard(cv);
+                    runCount++;
+                    cv.notify_one();
+                }
+                tg.threadUp();
+                return false;
+            });
+    this->pool->schedule(task);
+
+    // Test: Wake the task, expecting it to run immediately, but not a second
+    // time (the previous schedule time should have been superceded).
+    EXPECT_TRUE(this->pool->wake(task->getId()));
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&runCount] { return runCount == 1; });
+    }
+
+    // Wait for a further 2x 'sleepTime' s to check that the original scheduled
+    // wake time was correcty cancelled, and the task isn't run more than once.
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait_for(guard,
+                    duration_cast<nanoseconds>(2 * sleepTime),
+                    [&runCount] { return runCount > 1; });
+    }
+    EXPECT_EQ(1, runCount);
+
+    // Cleanup - increment thread gate to unblock task.
+    tg.threadUp();
+    EXPECT_EQ(2, tg.getCount());
+
+    this->pool->unregisterTaskable(taskable, false);
+}
+
+// Snooze negative test - attempt to wake a task which hasn't been scheduled.
+TYPED_TEST(ExecutorPoolTest, SnoozeWithoutSchedule) {
+    this->makePool(1);
+    MockTaskable taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Doesn't matter what the task is, we shouldn't run it.
+    ExTask task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, 0, true, [&](LambdaTask&) {
+                return false;
+            });
+
+    EXPECT_FALSE(this->pool->snooze(task->getId(), 1.0));
+
+    this->pool->unregisterTaskable(taskable, false);
 }
 
 /* This test creates an ExecutorPool, and attempts to verify that calls to
@@ -197,6 +455,229 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+// Test that Task queue stats are reported correctly.
+TYPED_TEST(ExecutorPoolTest, TaskQStats) {
+    this->makePool(1);
+    // Create and register both high and low priority buckets so stats for
+    // both priorities are reported.
+    MockTaskable lowPriBucket{LOW_BUCKET_PRIORITY};
+    MockTaskable highPriBucket;
+    this->pool->registerTaskable(lowPriBucket);
+    this->pool->registerTaskable(highPriBucket);
+
+    // Create some tasks with long sleep times to check for non-zero InQueue
+    // (futureQueue) sizes.
+    auto scheduleTask = [&](Taskable& bucket, TaskId id) {
+        this->pool->schedule(ExTask(new LambdaTask(
+                bucket, id, 600.0, true, [&](LambdaTask&) { return false; })));
+    };
+
+    // Reader.
+    scheduleTask(lowPriBucket, TaskId::MultiBGFetcherTask);
+    scheduleTask(lowPriBucket, TaskId::MultiBGFetcherTask);
+    // Writer
+    scheduleTask(highPriBucket, TaskId::FlusherTask);
+    scheduleTask(highPriBucket, TaskId::FlusherTask);
+    scheduleTask(highPriBucket, TaskId::FlusherTask);
+    // AuxIO
+    scheduleTask(highPriBucket, TaskId::AccessScanner);
+    // NonIO - left empty.
+
+    MockAddStat mockAddStat;
+
+    using ::testing::_;
+    const void* cookie = this;
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Writer:InQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Writer:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Reader:InQsize", "2", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Reader:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_AuxIO:InQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_AuxIO:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", cookie));
+
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_Writer:InQsize", "3", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_Writer:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_Reader:InQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_Reader:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_AuxIO:InQsize", "1", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_AuxIO:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_NonIO:InQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_NonIO:OutQsize", "0", cookie));
+
+    this->pool->doTaskQStat(lowPriBucket, this, mockAddStat.asStdFunction());
+
+    // Set force==true to cancel all the pending tasks.
+    this->pool->unregisterTaskable(lowPriBucket, true);
+    this->pool->unregisterTaskable(highPriBucket, true);
+}
+
+// Test that worker stats are reported correctly.
+TYPED_TEST(ExecutorPoolTest, WorkerStats) {
+    this->makePool(1, 1, 1, 1, 1);
+    // Create two buckets so they have different names.
+    MockTaskable bucket0;
+    bucket0.setName("bucket0");
+    MockTaskable bucket1;
+    bucket1.setName("bucket1");
+    this->pool->registerTaskable(bucket0);
+    this->pool->registerTaskable(bucket1);
+
+    // Create a task which just runs forever (until task is cancelled) so
+    // we have a running task to show stats for.
+    ThreadGate tg{1};
+    this->pool->schedule(ExTask(new LambdaTask(
+            bucket0, TaskId::ItemPager, 0, false, [&tg](LambdaTask& me) {
+                tg.threadUp();
+                while (!me.isdead()) {
+                    std::this_thread::yield();
+                }
+                return false;
+            })));
+    tg.waitFor(std::chrono::seconds(10));
+    ASSERT_TRUE(tg.isComplete());
+
+    MockAddStat mockAddStat;
+
+    using namespace testing;
+    const void* cookie = this;
+    EXPECT_CALL(mockAddStat, callback("reader_worker_0:state", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("reader_worker_0:task", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("reader_worker_0:cur_time", _, cookie));
+
+    EXPECT_CALL(mockAddStat, callback("writer_worker_0:state", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("writer_worker_0:task", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("writer_worker_0:cur_time", _, cookie));
+
+    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:state", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:task", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:cur_time", _, cookie));
+
+    // NonIO pool has the above ItemPager task running on it.
+    EXPECT_CALL(mockAddStat,
+                callback("nonIO_worker_0:bucket", "bucket0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("nonIO_worker_0:state", "running", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("nonIO_worker_0:task", "Lambda Task", cookie));
+    // The 'runtime' stat is only reported if the thread is in state
+    // EXECUTOR_RUNNING. Nominally it will only be in that state when actually
+    // running a task, however it also briefly exists in that state when
+    // first started, before it determines if there is a Task to run.
+    // As such, allow 'runtime' to be reported, but it is optional for all but
+    // the NonIO pool, where we *know* we have the above test task running.
+    EXPECT_CALL(mockAddStat, callback("reader_worker_0:runtime", _, cookie))
+            .Times(AtMost(1));
+    EXPECT_CALL(mockAddStat, callback("writer_worker_0:runtime", _, cookie))
+            .Times(AtMost(1));
+    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:runtime", _, cookie))
+            .Times(AtMost(1));
+
+    EXPECT_CALL(mockAddStat, callback("nonIO_worker_0:runtime", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("nonIO_worker_0:cur_time", _, cookie));
+
+    this->pool->doWorkerStat(bucket0, this, mockAddStat.asStdFunction());
+
+    // Set force==true to cancel all the pending tasks.
+    this->pool->unregisterTaskable(bucket0, true);
+    this->pool->unregisterTaskable(bucket1, true);
+}
+
+// Test that task stats are reported correctly.
+TYPED_TEST(ExecutorPoolTest, TaskStats) {
+    this->makePool(1, 1, 1, 1, 1);
+    // Create two buckets so they have different names.
+    MockTaskable bucket0;
+    bucket0.setName("bucket0");
+    MockTaskable bucket1;
+    bucket1.setName("bucket1");
+    this->pool->registerTaskable(bucket0);
+    this->pool->registerTaskable(bucket1);
+
+    // Create two tasks which just run once, then sleep forever, so we have
+    // some task stats to report.
+    ThreadGate tg{2};
+    auto sleepyFn = [&tg](LambdaTask& me) {
+        tg.threadUp();
+        me.snooze(INT_MAX);
+        return true;
+    };
+    this->pool->schedule(std::make_shared<LambdaTask>(
+            bucket0, TaskId::ItemPager, 0, false, sleepyFn));
+    this->pool->schedule(std::make_shared<LambdaTask>(
+            bucket1, TaskId::FlusherTask, 0, false, sleepyFn));
+    tg.waitFor(std::chrono::seconds(10));
+    ASSERT_TRUE(tg.isComplete());
+
+    MockAddStat mockAddStat;
+
+    using ::testing::_;
+    const void* cookie = this;
+
+    // "ep_tasks:tasks" is returned as a JSON object.
+    // To check it's value, use a function which decodes the JSON and checks
+    // various expected fields.
+    auto tasksChecker = [](std::string s) -> std::string {
+        auto tasks = nlohmann::json::parse(s);
+        if (!tasks.is_array()) {
+            return "Not an array:" + tasks.dump();
+        }
+        for (auto t : tasks) {
+            if (!t.is_object()) {
+                return "Task not an object: " + t.dump();
+            }
+            for (auto field : {"tid"s,
+                               "state"s,
+                               "name"s,
+                               "this"s,
+                               "bucket"s,
+                               "description"s,
+                               "priority"s,
+                               "waketime_ns"s,
+                               "total_runtime_ns"s,
+                               "last_starttime_ns"s,
+                               "previous_runtime_ns"s,
+                               "num_runs"s,
+                               "type"s}) {
+                if (t.count(field) != 1) {
+                    return "Missing field '" + field + "':" + t.dump();
+                }
+            }
+        }
+        // Return empty string to indicate success
+        return "";
+    };
+
+    EXPECT_CALL(mockAddStat,
+                callback("ep_tasks:tasks",
+                         testing::ResultOf(tasksChecker, ""),
+                         cookie));
+    EXPECT_CALL(mockAddStat, callback("ep_tasks:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("ep_tasks:uptime_s", _, cookie));
+
+    this->pool->doTasksStat(bucket0, this, mockAddStat.asStdFunction());
+
+    // Set force==true to cancel all the pending tasks.
+    this->pool->unregisterTaskable(bucket0, true);
+    this->pool->unregisterTaskable(bucket1, true);
+}
+
 TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);
 
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, decrease_workers) {
@@ -309,7 +790,7 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
     SyncObject cv;
     size_t runCount{0};
     ExTask task = std::make_shared<LambdaTask>(
-            this->taskable, TaskId::ItemPager, 0, true, [&] {
+            this->taskable, TaskId::ItemPager, 0, true, [&](LambdaTask&) {
                 std::unique_lock<std::mutex> guard(cv);
                 ++runCount;
                 cv.notify_one();
@@ -332,7 +813,7 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
     // all execution.
     bool sentinelExecuted = false;
     ExTask sentinelTask = std::make_shared<LambdaTask>(
-            this->taskable, TaskId::ItemPager, 0, true, [&] {
+            this->taskable, TaskId::ItemPager, 0, true, [&](LambdaTask&) {
                 std::unique_lock<std::mutex> guard(cv);
                 sentinelExecuted = true;
                 cv.notify_one();
@@ -378,7 +859,9 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
  */
 TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
     ExTask task = std::make_shared<LambdaTask>(
-            taskable, TaskId::ItemPager, 10, true, [&] { return false; });
+            taskable, TaskId::ItemPager, 10, true, [&](LambdaTask&) {
+                return false;
+            });
 
     size_t taskId = task->getId();
 

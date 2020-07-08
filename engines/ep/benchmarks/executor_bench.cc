@@ -89,7 +89,7 @@ BENCHMARK_DEFINE_F(ExecutorBench, OneShotScheduleRun)(benchmark::State& state) {
 
     // Simple producer function to run in the our Task - increments
     // producerCount and notifies the waiting thread via a condition variable.
-    auto producerFn = [&cv, &producerCount, &state] {
+    auto producerFn = [&cv, &producerCount, &state](LambdaTask&) {
         producerCount++;
         cv.post();
         return false;
@@ -150,7 +150,7 @@ BENCHMARK_DEFINE_F(ExecutorBench, TimeoutAddCancel)(benchmark::State& state) {
                 TaskId::ItemPager,
                 std::numeric_limits<int>::max(),
                 true,
-                [] {
+                [](LambdaTask&) {
                     throw std::logic_error("Timeout should never be executed.");
                     return false;
                 });
