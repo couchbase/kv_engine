@@ -285,8 +285,7 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
     // todo: consider refactor of construction to separate out RW/RO
     if (!readOnly) {
         // Must post-initialise the vector behind the folly::Synchonised
-        std::vector<MonotonicRevision> revMap(config.getMaxVBuckets());
-        dbFileRevMap->swap(revMap);
+        (*dbFileRevMap->wlock()).resize(config.getMaxVBuckets());
     }
 
     createDataDir(dbname);

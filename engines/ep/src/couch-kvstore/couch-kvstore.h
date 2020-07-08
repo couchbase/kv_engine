@@ -767,9 +767,8 @@ protected:
 
     const std::string dbname;
 
-    using MonotonicRevision = AtomicMonotonic<uint64_t, ThrowExceptionPolicy>;
-
-    using RevisionMap = folly::Synchronized<std::vector<MonotonicRevision>>;
+    using RevisionMap = folly::Synchronized<
+            std::vector<Monotonic<uint64_t, ThrowExceptionPolicy>>>;
 
     /**
      * Per-vbucket file revision atomic to ensure writer threads see increments.
