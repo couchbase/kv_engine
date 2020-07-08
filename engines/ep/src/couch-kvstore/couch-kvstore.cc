@@ -959,24 +959,20 @@ bool CouchKVStore::compactDBInternal(
         compaction_ctx* hook_ctx,
         cb::couchstore::CompactRewriteDocInfoCallback docinfo_hook) {
     if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
-                        "on a read-only instance.");
+        throw std::logic_error(
+                "CouchKVStore::compactDB: Cannot perform "
+                "on a read-only instance.");
     }
     auto* def_iops = statCollectingFileOpsCompaction.get();
-    DbHolder compactdb(*this);
-    DbHolder targetDb(*this);
-    couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
-    std::string                 dbfile;
-    std::string           compact_file;
-    std::string               new_file;
     Vbid vbid = hook_ctx->compactConfig.db_file_id;
 
     TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
 
     // Open the source VBucket database file ...
-    errCode = openDB(
+    DbHolder compactdb(*this);
+    auto errCode = openDB(
             vbid, compactdb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::compactDB openDB error:{}, {}, fileRev:{}",
@@ -992,8 +988,8 @@ bool CouchKVStore::compactDBInternal(
     uint64_t new_rev = compactdb.getFileRev() + 1;
 
     // Build the temporary vbucket.compact file name
-    dbfile = getDBFileName(dbname, vbid, compactdb.getFileRev());
-    compact_file = dbfile + ".compact";
+    const auto dbfile = getDBFileName(dbname, vbid, compactdb.getFileRev());
+    const auto compact_file = dbfile + ".compact";
 
     couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
 
@@ -1006,7 +1002,7 @@ bool CouchKVStore::compactDBInternal(
      * a detrimental impact on performance and is only intended
      * for testing.
      */
-    if(!configuration.getBuffered()) {
+    if (!configuration.getBuffered()) {
         flags |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
     }
 
@@ -1097,7 +1093,7 @@ bool CouchKVStore::compactDBInternal(
     compactdb.close();
 
     // Rename the .compact file to one with the next revision number
-    new_file = getDBFileName(dbname, vbid, new_rev);
+    const auto new_file = getDBFileName(dbname, vbid, new_rev);
     if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
         logger.warn("CouchKVStore::compactDB: rename error:{}, old:{}, new:{}",
                     cb_strerror(),
@@ -1110,6 +1106,7 @@ bool CouchKVStore::compactDBInternal(
 
     // Open the newly compacted VBucket database file in write mode, we will be
     // updating vbstate
+    DbHolder targetDb(*this);
     errCode = openSpecificDB(vbid, new_rev, targetDb, 0);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
