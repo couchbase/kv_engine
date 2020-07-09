@@ -687,7 +687,7 @@ private:
     /// a WeaklyMonotonic, but many unit tests will violate that.
     uint64_t visibleSnapEndSeqno = 0;
     /// The seqno of the highest expelled item.
-    Monotonic<int64_t> highestExpelledSeqno = 0;
+    Monotonic<int64_t> highestExpelledSeqno{0};
     Vbid vbucketId;
     rel_time_t                     creationTime;
     folly::Synchronized<checkpoint_state> checkpointState;
@@ -748,7 +748,7 @@ private:
     // checkpoint has been persisted, the state on disk definitely has a
     // state which could be warmed up and validly have this seqno as the
     // high prepared seqno.
-    Monotonic<uint64_t> highPreparedSeqno = 0;
+    Monotonic<uint64_t> highPreparedSeqno{0};
 
     // queueDirty inspects each queued_item looking for isDeleted():true
     // this value tracks the largest rev seqno of those deleted items,

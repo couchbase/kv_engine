@@ -2006,9 +2006,10 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
 
     replicaVb->checkpointManager->createSnapshot(
             0, 2, std::nullopt, CheckpointType::Memory, 3);
-    replicaVb->replicaAddScope(1, ScopeUid::shop1, ScopeName::shop1, 1);
+    replicaVb->replicaAddScope(
+            Collections::ManifestUid(1), ScopeUid::shop1, ScopeName::shop1, 1);
     replicaVb->replicaAddCollection(
-            2,
+            Collections::ManifestUid(2),
             {ScopeUid::shop1, CollectionEntry::meat.getId()},
             CollectionEntry::meat.name,
             {},

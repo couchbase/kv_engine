@@ -692,23 +692,23 @@ public:
     // Always stores the seqno of the last SyncWrite added for tracking.
     // Useful for sanity checks, necessary because the tracked container
     // can by emptied by Commit/Abort.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno = 0;
+    Monotonic<int64_t, ThrowExceptionPolicy> lastTrackedSeqno{0};
 
     // Stores the last committed seqno. Throws as this could be the result of an
     // out of order completion that would break durability.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastCommittedSeqno = 0;
+    Monotonic<int64_t, ThrowExceptionPolicy> lastCommittedSeqno{0};
 
     // Stores the last aborted seqno. Throws as this could be the result of an
     // out of order completion that would break durability.
-    Monotonic<int64_t, ThrowExceptionPolicy> lastAbortedSeqno = 0;
+    Monotonic<int64_t, ThrowExceptionPolicy> lastAbortedSeqno{0};
 
     // Stores the highPreparedSeqno. Throws as an incorrect value may mean we
     // are doing durability wrong.
-    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> highPreparedSeqno = 0;
+    WeaklyMonotonic<int64_t, ThrowExceptionPolicy> highPreparedSeqno{0};
 
     // Stores the highCompletedSeqno. Does not throw as this is a stat used for
     // debugging.
-    Monotonic<int64_t> highCompletedSeqno = 0;
+    Monotonic<int64_t> highCompletedSeqno{0};
 
     // Cumulative count of accepted (tracked) SyncWrites.
     size_t totalAccepted = 0;

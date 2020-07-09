@@ -735,7 +735,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
 
     // Process a deletion of fruit
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::fruit,
             CollectionName::fruit,
             {ScopeUid::defaultS, {}, 0},
@@ -763,7 +763,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
 
     // Process a deletion of meat
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::defaultS, {}, 0},
@@ -801,7 +801,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
 
     // Process a deletion of $default
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
             {ScopeUid::defaultS, {}, 0},
@@ -826,7 +826,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
 
     // Process a deletion of meat
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::defaultS, {}, 0},
@@ -903,7 +903,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
 
     // meat system event is allowed by the meat filter
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::defaultS, {}, 0},
@@ -913,7 +913,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
 
     // $default system event is allowed by the filter
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
             {ScopeUid::defaultS, {}, 0},
@@ -923,7 +923,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
 
     // dairy system event is not allowed by the filter
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
             {ScopeUid::defaultS, {}, 0},
@@ -951,7 +951,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
 
     // default (default) system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
             {ScopeUid::defaultS, {}, 0},
@@ -961,7 +961,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
 
     // dairy (default) system events are allowed
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
             {ScopeUid::defaultS, {}, 0},
@@ -971,7 +971,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
 
     // meat (shop1) system events are not allowed
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::shop1, {}, 0},
@@ -999,7 +999,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
 
     // meat (shop1) system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::shop1, {}, 0},
@@ -1009,7 +1009,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
 
     // default (default) system events are not allowed
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
             {ScopeUid::defaultS, {}, 0},
@@ -1019,7 +1019,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
 
     // dairy (default) system events are not allowed
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
             {ScopeUid::defaultS, {}, 0},
@@ -1076,7 +1076,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
 
     // Shop1 system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
             {ScopeUid::shop1, {}, 0},
@@ -1108,7 +1108,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
 
     // Create an event which represents a drop of dairy/shop1
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
             {ScopeUid::shop1, {}, 0},
@@ -1119,7 +1119,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
 
     // Create an event which represents a drop of meat/shop1
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::shop1, {}, 0},
@@ -1154,7 +1154,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
 
     // Meat system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
             {ScopeUid::shop1, {}, 0},
@@ -1188,7 +1188,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
 
     // Process a deletion of fruit
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
-            0,
+            Collections::ManifestUid(0),
             CollectionUid::fruit,
             CollectionName::fruit,
             {ScopeUid::defaultS, {}, 0},

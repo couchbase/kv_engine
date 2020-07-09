@@ -680,7 +680,7 @@ CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
     if (collection->ttlValid()) {
         maxTtl = std::chrono::seconds(collection->maxTtl());
     }
-    return {collection->uid(),
+    return {ManifestUid(collection->uid()),
             {collection->scopeId(),
              collection->collectionId(),
              collection->name()->str(),
@@ -693,7 +693,7 @@ DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
     auto droppedCollection = flatbuffers::GetRoot<DroppedCollection>(
             (const uint8_t*)flatbufferData.data());
 
-    return {droppedCollection->uid(),
+    return {ManifestUid(droppedCollection->uid()),
             droppedCollection->scopeId(),
             droppedCollection->collectionId()};
 }
@@ -704,7 +704,7 @@ CreateScopeEventData Manifest::getCreateScopeEventData(
     auto scope = flatbuffers::GetRoot<Scope>(
             reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
-    return {scope->uid(), scope->scopeId(), scope->name()->str()};
+    return {ManifestUid(scope->uid()), scope->scopeId(), scope->name()->str()};
 }
 
 DropScopeEventData Manifest::getDropScopeEventData(
@@ -714,7 +714,7 @@ DropScopeEventData Manifest::getDropScopeEventData(
     auto droppedScope = flatbuffers::GetRoot<DroppedScope>(
             reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
-    return {droppedScope->uid(), droppedScope->scopeId()};
+    return {ManifestUid(droppedScope->uid()), droppedScope->scopeId()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,

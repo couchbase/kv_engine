@@ -38,8 +38,7 @@ struct IgnorePolicy {
 /// Policy class for handling non-monotonic updates by throwing std::logic_error
 template <class T>
 struct ThrowExceptionPolicy {
-    ThrowExceptionPolicy() {
-    }
+    ThrowExceptionPolicy() = default;
     ThrowExceptionPolicy(const ThrowExceptionPolicy& other)
         : label(other.label) {
     }
@@ -57,8 +56,8 @@ struct ThrowExceptionPolicy {
      * Set the label to give this monotonic value. Used in nonMonotonic() to
      * give a more descriptive exception message to aid debugging.
      */
-    void setLabel(const std::string& label) {
-        this->label = label;
+    void setLabel(const std::string& newLabel) {
+        this->label = newLabel;
     }
 
 private:
@@ -122,7 +121,7 @@ class Monotonic : public OrderReversedPolicy<T> {
 public:
     using value_type = T;
 
-    Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
+    explicit Monotonic(const T val = std::numeric_limits<T>::min()) : val(val) {
     }
 
     Monotonic(const Monotonic& other)
@@ -147,6 +146,9 @@ public:
         return *this;
     }
 
+    // Add no lint to allow implicit casting back to the value_type of the
+    // template.
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator T() const noexcept {
         return load();
     }
@@ -198,7 +200,7 @@ template <typename T,
           template <class> class Invariant = cb::greater>
 class AtomicMonotonic : public OrderReversedPolicy<T> {
 public:
-    AtomicMonotonic(T val = std::numeric_limits<T>::min()) : val(val) {
+    explicit AtomicMonotonic(T val = std::numeric_limits<T>::min()) : val(val) {
     }
 
     AtomicMonotonic(const AtomicMonotonic<T>& other) = delete;
@@ -227,6 +229,9 @@ public:
         return store(desired);
     }
 
+    // Add no lint to allow implicit casting back to the value_type of the
+    // template.
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator T() const {
         return val;
     }

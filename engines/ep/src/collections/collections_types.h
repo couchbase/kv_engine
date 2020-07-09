@@ -73,7 +73,7 @@ struct ManifestUidNetworkOrder {
     explicit ManifestUidNetworkOrder(ManifestUid uid) : uid(htonll(uid)) {
     }
     ManifestUid to_host() const {
-        return ntohll(uid);
+        return ManifestUid(ntohll(uid));
     }
     ManifestUid::value_type uid;
 };

@@ -61,7 +61,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
     ScopeID sid = ScopeEntry::shop1.getId();
-    Collections::ManifestUid manifestUid = 0xcafef00d;
+    Collections::ManifestUid manifestUid(0xcafef00d);
     Collections::CreateEventData createEventData{
             manifestUid, {sid, cid, collection, {/*no ttl*/}}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
@@ -154,7 +154,7 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
     ScopeID sid = ScopeEntry::shop1.getId();
-    Collections::ManifestUid manifestUid = 0xcafef00d;
+    Collections::ManifestUid manifestUid(0xcafef00d);
     Collections::CreateEventData createEventData{
             manifestUid, {sid, cid, collection, {/*no ttl*/}}};
     Collections::CreateEventDcpData eventDcpData{createEventData};
@@ -321,12 +321,21 @@ TEST_F(CollectionsDcpTest, MB_38019) {
     // node, then go ahead by two extra changes.
     replica->checkpointManager->createSnapshot(
             1, 3, 0, CheckpointType::Memory, 3);
-    replica->replicaAddCollection(
-            uid, {ScopeID::Default, CollectionEntry::fruit}, "fruit", {}, 1);
-    replica->replicaAddCollection(
-            ++uid, {ScopeID::Default, CollectionEntry::meat}, "meat", {}, 2);
-    replica->replicaAddCollection(
-            ++uid, {ScopeID::Default, CollectionEntry::dairy}, "dairy", {}, 3);
+    replica->replicaAddCollection(Collections::ManifestUid(uid),
+                                  {ScopeID::Default, CollectionEntry::fruit},
+                                  "fruit",
+                                  {},
+                                  1);
+    replica->replicaAddCollection(Collections::ManifestUid(++uid),
+                                  {ScopeID::Default, CollectionEntry::meat},
+                                  "meat",
+                                  {},
+                                  2);
+    replica->replicaAddCollection(Collections::ManifestUid(++uid),
+                                  {ScopeID::Default, CollectionEntry::dairy},
+                                  "dairy",
+                                  {},
+                                  3);
 
     // Would of seen a monotonic exception
     EXPECT_NO_THROW(

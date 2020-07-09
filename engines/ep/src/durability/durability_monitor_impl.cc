@@ -259,8 +259,7 @@ std::ostream& operator<<(std::ostream& os,
                          const DurabilityMonitor::ActiveSyncWrite& sw) {
     os << static_cast<const DurabilityMonitor::SyncWrite&>(sw) << " maj:"
        << std::to_string(sw.firstChain ? sw.firstChain.chainPtr->majority : 0)
-       << " #1stChainAcks:" << std::to_string(sw.firstChain.ackCount)
-       << " 1stChainAcks:[";
+       << " #1stChainAcks:" << sw.firstChain.ackCount << " 1stChainAcks:[";
     std::string acks;
     if (sw.firstChain) {
         for (const auto& ack : sw.firstChain.chainPtr->positions) {
@@ -272,7 +271,7 @@ std::ostream& operator<<(std::ostream& os,
             }
         }
     }
-    os << acks << "] #2ndChainAcks:" << std::to_string(sw.secondChain.ackCount)
+    os << acks << "] #2ndChainAcks:" << sw.secondChain.ackCount
        << " 2ndChainAcks:[";
     acks = "";
     if (sw.secondChain) {

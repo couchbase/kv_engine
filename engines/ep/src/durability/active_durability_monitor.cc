@@ -135,7 +135,7 @@ private:
 
     // Track the highest Enqueued Seqno to enforce enqueue ordering. Throws as
     // this could otherwise allow out of order commit on active.
-    Monotonic<int64_t, ThrowExceptionPolicy> highEnqueuedSeqno = {0};
+    Monotonic<int64_t, ThrowExceptionPolicy> highEnqueuedSeqno{0};
 
     /// The lock guarding consumption of items.
     ConsumerLock consumerLock;
@@ -1273,8 +1273,8 @@ void ActiveDurabilityMonitor::State::transitionFromNullTopology(
             }
         }
 
-        activePos.lastWriteSeqno = fence;
-        highPreparedSeqno = fence;
+        activePos.lastWriteSeqno = static_cast<int64_t>(fence);
+        highPreparedSeqno = static_cast<int64_t>(fence);
     }
 }
 

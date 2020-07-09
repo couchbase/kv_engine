@@ -50,7 +50,7 @@ ManifestUid makeUid(const char* uid, size_t len) {
         }
     }
 
-    return std::strtoul(uid, nullptr, 16);
+    return ManifestUid(std::strtoul(uid, nullptr, 16));
 }
 
 std::string makeCollectionIdIntoString(CollectionID collection) {

@@ -1232,7 +1232,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
-                    {} /* vb_manifest_uid */));
+                    Collections::ManifestUid{} /* vb_manifest_uid */));
 
     uint64_t snapshotStart = 1;
     const uint64_t snapshotEnd = 10;
@@ -1349,7 +1349,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
-                    {} /* vb_manifest_uid */));
+                    Collections::ManifestUid{} /* vb_manifest_uid */));
 
     uint64_t snapshotStart = 1;
     const uint64_t snapshotEnd = 10;
@@ -2474,9 +2474,9 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
     std::vector<queued_item> items;
     cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
 
-    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno = 0;
+    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno(0);
     for (const auto& item : items) {
-        seqno = item->getBySeqno();
+        seqno = static_cast<uint64_t>(item->getBySeqno());
     }
 }
 
@@ -2510,9 +2510,9 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
     std::vector<queued_item> items;
     cm.getItemsForCursor(cursor.get(), items, 10 /*approxLimit*/);
 
-    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno = 0;
+    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> seqno{0};
     for (const auto& item : items) {
-        seqno = item->getBySeqno();
+        seqno = static_cast<uint64_t>(item->getBySeqno());
     }
 }
 

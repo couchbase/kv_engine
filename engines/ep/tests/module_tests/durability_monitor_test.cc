@@ -3475,7 +3475,7 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
     ASSERT_EQ(0, pdm.getNumTracked());
 
     // Throws if not monotonic.
-    Monotonic<int64_t, ThrowExceptionPolicy> ackedSeqno = 0;
+    Monotonic<int64_t, ThrowExceptionPolicy> ackedSeqno(0);
 
     // Set up our function hooks
     pdm.notifySnapEndSeqnoAckPreProcessHook = [this, &pdm]() {
@@ -3488,7 +3488,9 @@ TEST_P(PassiveDurabilityMonitorTest, SendSeqnoAckRace) {
 
     // Test: Assert the monotonicity of the ack that we attempt to send
     VBucketTestIntrospector::setSeqnoAckCb(
-            *vb, [&ackedSeqno](Vbid vbid, uint64_t hps) { ackedSeqno = hps; });
+            *vb, [&ackedSeqno](Vbid vbid, uint64_t hps) {
+                ackedSeqno = static_cast<int64_t>(hps);
+            });
 
     // Load two SyncWrites. For this test we want a snapshot end to attempt to
     // seqno ack with seqno 1 but be "descheduled" before it can and for a

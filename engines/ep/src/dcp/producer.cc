@@ -103,7 +103,7 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
                 "DcpProducer::BufferLog is full; ackedBytes:{}"
                 ", bytesSent:{}, maxBytes:{}",
                 producer.logHeader(),
-                uint64_t(ackedBytes),
+                ackedBytes,
                 uint64_t(bytesOutstanding),
                 uint64_t(maxBytes));
     } else {
@@ -124,7 +124,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
                     "DcpProducer::BufferLog is no longer full; ackedBytes:{}"
                     ", bytesSent:{}, maxBytes:{}",
                     producer.logHeader(),
-                    uint64_t(ackedBytes),
+                    ackedBytes,
                     uint64_t(bytesOutstanding),
                     uint64_t(maxBytes));
             producer.scheduleNotify();

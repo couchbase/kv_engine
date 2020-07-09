@@ -222,7 +222,7 @@ void BasicLinkedList::maybeUpdateMaxVisibleSeqno(
     case CommittedState::CommittedViaMutation:
     case CommittedState::CommittedViaPrepare:
     case CommittedState::PrepareCommitted:
-        maxVisibleSeqno = newSV.getBySeqno();
+        maxVisibleSeqno = static_cast<uint64_t>(newSV.getBySeqno());
         return;
     case CommittedState::Pending:
     case CommittedState::PreparedMaybeVisible:

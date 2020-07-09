@@ -360,7 +360,7 @@ bool Filter::processScopeEvent(const Item& item) {
     // passthrough we check if the event manifest-id is greater than the clients
     if (scopeID || passthrough) {
         ScopeID sid = 0;
-        ManifestUid manifestUid = 0;
+        ManifestUid manifestUid{0};
 
         if (!item.isDeleted()) {
             auto dcpData = VB::Manifest::getCreateScopeEventData(

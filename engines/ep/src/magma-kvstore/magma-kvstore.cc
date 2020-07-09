@@ -466,7 +466,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
 
     cachedVBStates.resize(configuration.getMaxVBuckets());
-    kvstoreRevList.resize(configuration.getMaxVBuckets(), 0);
+    kvstoreRevList.resize(configuration.getMaxVBuckets(),
+                          Monotonic<uint64_t>(0));
 
     useUpsertForSet = configuration.getMagmaEnableUpsert();
     if (useUpsertForSet) {
@@ -1146,7 +1147,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             lockedStats->docCount = ninserts - ndeletes;
 
             // Set highSeqno
-            lockedStats->highSeqno = lastSeqno;
+            lockedStats->highSeqno = static_cast<uint64_t>(lastSeqno);
         }
         addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
