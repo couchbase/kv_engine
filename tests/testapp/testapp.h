@@ -310,11 +310,9 @@ protected:
     static const std::string bucketName;
 };
 
-#define TESTAPP__DOSKIP(cond, reason)                                         \
-    if ((cond)) {                                                             \
-        std::cerr << __FILE__ << ":" << __LINE__ << ": Skipping - '" << #cond \
-                  << "' (" << reason << ")" << std::endl;                     \
-        return;                                                               \
+#define TESTAPP__DOSKIP(cond, reason) \
+    if ((cond)) {                     \
+        GTEST_SKIP();                 \
     }
 
 #define TESTAPP_SKIP_IF_UNSUPPORTED(op)                        \
