@@ -65,13 +65,13 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     cb::mcbp::unsigned_leb128<CollectionIDType> end(cid + 1);
 
     std::vector<ByIdRange> ranges;
-    ranges.push_back({DiskDocKey{sysStart}, DiskDocKey{sysEnd}});
-    ranges.push_back({DiskDocKey{{start.data(),
-                                  start.size(),
-                                  DocKeyEncodesCollectionId::Yes}},
-                      DiskDocKey{{end.data(),
-                                  end.size(),
-                                  DocKeyEncodesCollectionId::Yes}}});
+    ranges.emplace_back(ByIdRange{DiskDocKey{sysStart}, DiskDocKey{sysEnd}});
+    ranges.emplace_back(ByIdRange{
+            DiskDocKey{{start.data(),
+                        start.size(),
+                        DocKeyEncodesCollectionId::Yes}},
+            DiskDocKey{
+                    {end.data(), end.size(), DocKeyEncodesCollectionId::Yes}}});
 
     scanCtx = kvstore->initByIdScanContext(
             std::make_unique<DiskCallback>(stream),

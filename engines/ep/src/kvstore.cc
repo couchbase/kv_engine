@@ -120,7 +120,8 @@ ByIdScanContext::ByIdScanContext(
                   std::move(cl),
                   droppedCollections,
                   maxSeqno),
-      ranges(std::move(ranges)) {
+      ranges(std::move(ranges)),
+      lastReadKey(nullptr, 0) {
 }
 
 void FileStats::reset() {

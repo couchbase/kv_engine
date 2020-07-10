@@ -45,6 +45,8 @@
 #include <utility>
 
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
+static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx);
+
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
 static bool endWithCompact(const std::string &filename) {
@@ -1552,7 +1554,10 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
     auto& db = couchKvHandle.getDbHolder();
 
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
-    for (const auto& range : ctx.ranges) {
+    for (auto& range : ctx.ranges) {
+        if (range.rangeScanSuccess) {
+            continue;
+        }
         std::array<sized_buf, 2> ids;
         ids[0] = sized_buf{const_cast<char*>(reinterpret_cast<const char*>(
                                    range.startKey.data())),
@@ -1565,10 +1570,17 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
                                               ids.data(),
                                               2,
                                               RANGES,
-                                              bySeqnoScanCallback,
+                                              byIdScanCallback,
                                               static_cast<void*>(&ctx));
         if (errorCode != COUCHSTORE_SUCCESS) {
+            if (errorCode == COUCHSTORE_ERROR_CANCEL) {
+                // Update the startKey so backfill can resume from lastReadKey
+                range.startKey = ctx.lastReadKey;
+            }
             break;
+        } else {
+            // This range has been fully scanned and should not be scanned again
+            range.rangeScanSuccess = true;
         }
     }
     TRACE_EVENT_END1(
@@ -1986,6 +1998,16 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     sctx->lastReadSeqno = byseqno;
     return COUCHSTORE_SUCCESS;
+}
+
+static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
+    auto status = couchstore_error_t(bySeqnoScanCallback(db, docinfo, ctx));
+    if (status == COUCHSTORE_ERROR_CANCEL) {
+        auto* sctx = static_cast<ByIdScanContext*>(ctx);
+        // save the resume point
+        sctx->lastReadKey = makeDiskDocKey(docinfo->id);
+    }
+    return int(status);
 }
 
 bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {

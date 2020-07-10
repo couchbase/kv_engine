@@ -35,6 +35,8 @@ public:
         store->setVBucketState(vbid, vbucket_state_active);
     }
 
+    void testTwoCollections(bool backfillWillPause);
+
     std::pair<CollectionsManifest, uint64_t> setupTwoCollections();
 };
 
@@ -106,7 +108,7 @@ TEST_F(CollectionsOSODcpTest, basic) {
               producers->last_oso_snapshot_flags);
 }
 
-TEST_F(CollectionsOSODcpTest, two_collections) {
+void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {
     auto setup = setupTwoCollections();
 
     // Reset so we have to stream from backfill
@@ -115,11 +117,29 @@ TEST_F(CollectionsOSODcpTest, two_collections) {
     // Filter on vegetable collection (this will request from seqno:0)
     createDcpObjects({{R"({"collections":["a"]})"}}, true /* enable oso */);
 
+    if (backfillWillPause) {
+        producer->setBackfillBufferSize(1);
+    }
+
     // We have a single filter, expect the backfill to be OSO
     runBackfill();
 
     // see comment in CollectionsOSODcpTest.basic
     consumer->snapshotMarker(1, replicaVB, 0, setup.second, 0, 0, setup.second);
+
+    auto step = [this, &backfillWillPause]() {
+        auto result = producer->stepWithBorderGuard(*producers);
+        if (backfillWillPause) {
+            // backfill paused, step does nothing
+            EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+            auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+            runNextTask(lpAuxioQ);
+            EXPECT_EQ(ENGINE_SUCCESS,
+                      producer->stepWithBorderGuard(*producers));
+        } else {
+            EXPECT_EQ(ENGINE_SUCCESS, result);
+        }
+    };
 
     // Manually step the producer and inspect all callbacks
     EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
@@ -138,17 +158,25 @@ TEST_F(CollectionsOSODcpTest, two_collections) {
     for (auto& k : keys) {
         // Now we get the mutations, they aren't guaranteed to be in seqno
         // order, but we know that for now they will be in key order.
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        step();
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(k, producers->last_key);
         EXPECT_EQ(CollectionUid::vegetable, producers->last_collection_id);
     }
 
     // Now we get the end message
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    step();
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
+}
+
+TEST_F(CollectionsOSODcpTest, two_collections) {
+    testTwoCollections(false);
+}
+
+TEST_F(CollectionsOSODcpTest, two_collections_backfill_pause) {
+    testTwoCollections(true);
 }
 
 TEST_F(CollectionsOSODcpTest, dropped_collection) {

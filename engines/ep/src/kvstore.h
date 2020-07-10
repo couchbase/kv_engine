@@ -32,6 +32,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 /* Forward declarations */
@@ -306,8 +307,12 @@ public:
  *    {"b", "ba", "bb"}
  */
 struct ByIdRange {
+    ByIdRange(DiskDocKey start, DiskDocKey end)
+        : startKey(std::move(start)), endKey(std::move(end)) {
+    }
     DiskDocKey startKey;
     DiskDocKey endKey;
+    bool rangeScanSuccess{false};
 };
 
 class ByIdScanContext : public ScanContext {
@@ -322,7 +327,10 @@ public:
                     const std::vector<Collections::KVStore::DroppedCollection>&
                             droppedCollections,
                     int64_t maxSeqno);
-    const std::vector<ByIdRange> ranges;
+    std::vector<ByIdRange> ranges;
+    // Key should be set by KVStore when a scan must be paused, this is where
+    // a scan can resume from
+    DiskDocKey lastReadKey;
 };
 
 struct FileStats {
