@@ -1194,7 +1194,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
             {ScopeUid::defaultS, {}, 0},
             true,
             {});
-    ev->compressValue(true /*force*/);
+    ev->compressValue();
     auto sz = vbf.size();
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
     EXPECT_EQ(sz - 1, vbf.size());

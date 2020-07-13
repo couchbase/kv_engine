@@ -250,27 +250,31 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
     return os;
 }
 
-bool Item::compressValue(bool force) {
+bool Item::compressValue() {
+    // Attempt compression only if datatype indicates
+    // that the value is not compressed already.
     auto datatype = getDataType();
-    if (!mcbp::datatype::is_snappy(datatype)) {
-        // Attempt compression only if datatype indicates
-        // that the value is not compressed already.
-        cb::compression::Buffer deflated;
-        if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                     {getData(), getNBytes()}, deflated)) {
-            if (deflated.size() > getNBytes() && !force) {
-                //No point doing the compression if the deflated length
-                //is greater than the original length
-                return true;
-            }
-            setData(deflated.data(), deflated.size());
-
-            datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            setDataType(datatype);
-        } else {
-            return false;
-        }
+    if (mcbp::datatype::is_snappy(datatype)) {
+        return true;
     }
+
+    cb::compression::Buffer deflated;
+    if (!cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                  {getData(), getNBytes()},
+                                  deflated)) {
+        // Compression failed
+        return false;
+    }
+
+    if (deflated.size() > getNBytes()) {
+        // No point doing the compression if the deflated length is greater
+        // than the original length - but this is still considered "success".
+        return true;
+    }
+    setData(deflated.data(), deflated.size());
+
+    datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    setDataType(datatype);
     return true;
 }
 

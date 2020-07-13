@@ -151,11 +151,13 @@ public:
         return ret;
     }
 
-    /* Snappy compress value and update datatype
-     * @param force force compression regardless if it makes
-     *              the value larger than the original
+    /**
+     * Snappy compress value and update datatype.
+     * @returns True if value was successfully compressed (or compression was
+     * skipped as it wouldn't reduce the value size), or false if compression
+     * failed.
      */
-    bool compressValue(bool force = false);
+    bool compressValue();
 
     /**
      * Snappy uncompress value and update datatype.
