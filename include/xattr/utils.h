@@ -110,19 +110,6 @@ XATTR_PUBLIC_API
 size_t get_system_xattr_size(uint8_t datatype, const cb::const_char_buffer doc);
 
 /**
- * Get both the total size (body_offset) and the number of bytes the system
- * xattrs contains in the provided document (which may not contain xattrs at
- * all)
- *
- * @param datatype the datatype for the provided document
- * @param doc the document to inspect
- * @return pair of size, first is the total, second is the system size
- */
-XATTR_PUBLIC_API
-std::pair<size_t, size_t> get_size_and_system_xattr_size(
-        uint8_t datatype, const cb::const_char_buffer doc);
-
-/**
  * Get the size of the body chunk in the provided value, which may not contain
  * any xattr.
  *
