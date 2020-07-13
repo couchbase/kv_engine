@@ -131,6 +131,6 @@ std::pair<size_t, size_t> get_size_and_system_xattr_size(
  * @return the body size
  */
 XATTR_PUBLIC_API
-size_t get_body_size(uint8_t datatype, const cb::const_char_buffer value);
+size_t get_body_size(uint8_t datatype, cb::const_char_buffer value);
 }
 }

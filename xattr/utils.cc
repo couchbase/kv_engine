@@ -176,10 +176,25 @@ std::pair<size_t, size_t> get_size_and_system_xattr_size(
     return {blob.size(), blob.get_system_size()};
 }
 
-size_t get_body_size(uint8_t datatype, const cb::const_char_buffer value) {
+size_t get_body_size(uint8_t datatype, cb::const_char_buffer value) {
+    cb::compression::Buffer uncompressed;
+    if (::mcbp::datatype::is_snappy(datatype)) {
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy, value, uncompressed)) {
+            throw std::invalid_argument(
+                    "get_body_size: Failed to inflate data");
+        }
+        value = uncompressed;
+    }
+
+    if (value.size() == 0) {
+        return 0;
+    }
+
     if (!::mcbp::datatype::is_xattr(datatype)) {
         return value.size();
     }
+
     return value.size() - get_body_offset(value);
 }
 }
