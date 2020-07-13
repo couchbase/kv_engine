@@ -635,6 +635,16 @@ bool Manifest::isDropInProgress() const {
     return dropInProgress;
 }
 
+size_t Manifest::getSystemEventItemCount() const {
+    // Every 'live' collection has 1 'live' item, except for the default
+    // collection which has no creation event.
+    size_t rv = map.size();
+    if (rv && map.count(CollectionID::Default)) {
+        rv--;
+    }
+    return rv;
+}
+
 template <class T>
 static void verifyFlatbuffersData(std::string_view buf,
                                   const std::string& caller) {

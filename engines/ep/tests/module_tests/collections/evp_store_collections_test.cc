@@ -2738,6 +2738,41 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
+class CollectionsPersistentParameterizedTest
+    : public CollectionsParameterizedTest {};
+
+TEST_P(CollectionsPersistentParameterizedTest, SystemEventsDoNotCount) {
+    // Run through some manifest changes and warmup a few times.
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit).add(CollectionEntry::meat);
+    store->setCollections(std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Now get the engine warmed up
+    resetEngineAndWarmup();
+    { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
+    cm.remove(CollectionEntry::meat);
+    store->setCollections(std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    resetEngineAndWarmup();
+    { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
+
+    cm.remove(CollectionEntry::fruit);
+    store->setCollections(std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    resetEngineAndWarmup();
+    { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
+
+    cm.remove(CollectionEntry::defaultC);
+    store->setCollections(std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    resetEngineAndWarmup();
+    { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
@@ -2747,4 +2782,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
                          CollectionsParameterizedTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsPersistent,
+                         CollectionsPersistentParameterizedTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

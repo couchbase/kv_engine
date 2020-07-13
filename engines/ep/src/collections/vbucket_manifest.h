@@ -266,6 +266,13 @@ public:
             manifest = nullptr;
         }
 
+        /**
+         * @return the number of system events that exist (as items)
+         */
+        size_t getSystemEventItemCount() const {
+            return manifest->getSystemEventItemCount();
+        }
+
     protected:
         friend std::ostream& operator<<(std::ostream& os,
                                         const Manifest::ReadHandle& readHandle);
@@ -1293,6 +1300,11 @@ protected:
      *         is in the state isDeleting
      */
     bool isDropInProgress() const;
+
+    /**
+     * @return the number of system events that exist (as items)
+     */
+    size_t getSystemEventItemCount() const;
 
     /**
      * Return a string for use in throwException, returns:

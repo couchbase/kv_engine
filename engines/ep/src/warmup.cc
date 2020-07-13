@@ -1186,8 +1186,7 @@ void Warmup::scheduleEstimateDatabaseItemCount()
     }
 }
 
-void Warmup::estimateDatabaseItemCount(uint16_t shardId)
-{
+void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
     auto st = std::chrono::steady_clock::now();
     size_t item_count = 0;
 
@@ -1205,7 +1204,9 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 
         auto itr = warmedUpVbuckets.find(vbid.get());
         if (itr != warmedUpVbuckets.end()) {
-            itr->second->setNumTotalItems(vbItemCount);
+            itr->second->setNumTotalItems(
+                    vbItemCount -
+                    itr->second->lockCollections().getSystemEventItemCount());
         }
         item_count += vbItemCount;
     }
