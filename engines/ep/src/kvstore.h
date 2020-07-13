@@ -189,8 +189,12 @@ enum class DocumentFilter {
 };
 
 enum class ValueFilter {
+    /// Only return the key & metadata (no value).
     KEYS_ONLY,
+    /// Return key & metadata, and value. If value is compressed then return
+    /// in compressed form.
     VALUES_COMPRESSED,
+    /// Return key & metadata, and value. Value will be returned uncompressed.
     VALUES_DECOMPRESSED
 };
 

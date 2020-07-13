@@ -49,6 +49,9 @@
 using namespace std::string_literals;
 using namespace testing;
 
+// Value to use when testing Snappy compression.
+static const std::string COMPRESSIBLE_VALUE = "xxyyzzxxyyzzxxyyzzxxyyzz";
+
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
 public:
     KVStoreTestCacheCallback(int64_t s, int64_t e, Vbid vbid)
@@ -87,10 +90,7 @@ public:
                 result.item->decompressValue();
             }
 
-            EXPECT_EQ(0,
-                      strncmp("value",
-                              result.item->getData(),
-                              result.item->getNBytes()));
+            EXPECT_EQ(COMPRESSIBLE_VALUE, result.item->getValue()->to_s());
         }
     }
 
@@ -187,7 +187,7 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
 
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
-        auto qi = makeCommittedItem(makeStoredDocKey(key), "value");
+        auto qi = makeCommittedItem(makeStoredDocKey(key), COMPRESSIBLE_VALUE);
         qi->setBySeqno(5);
         kvstore->set(qi);
     }

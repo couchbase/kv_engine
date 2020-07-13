@@ -160,6 +160,19 @@ TEST_F(ItemTest, retainInfoUponItemCopy) {
     EXPECT_EQ(item1, item2) << "Item values not retained on copy";
 }
 
+/// Check behaviour of compressValue if value is null - it should be
+/// unaffected.
+TEST_F(ItemTest, compressNullValue) {
+    auto item1 = make_STRCPtr<Item>(makeStoredDocKey("key"), 0, 0, nullptr, 0);
+    auto item2 = make_STRCPtr<Item>(makeStoredDocKey("key"), 0, 0, nullptr, 0);
+    // Sanity - should start identical.
+    ASSERT_EQ(*item1, *item2);
+    // Test - after compressing the items should still be the same - cannot
+    // compress a zero-length value to a smaller size ;)
+    item2->compressValue();
+    EXPECT_EQ(*item1, *item2);
+}
+
 TEST_F(ItemPruneTest, testPruneNothing) {
     item->removeBodyAndOrXattrs(IncludeValue::Yes,
                                 IncludeXattrs::Yes,

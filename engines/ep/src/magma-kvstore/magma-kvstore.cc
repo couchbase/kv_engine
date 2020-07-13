@@ -1466,11 +1466,11 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         auto itm =
                 makeItem(ctx.vbid, keySlice, metaSlice, valSlice, isMetaOnly);
 
-        // When we are suppose to return the values as compressed AND
-        // the value isn't compressed, we need to compress the value.
+        // When we are requested to return the values as compressed AND
+        // the value isn't compressed, attempt to compress the value.
         if (ctx.valFilter == ValueFilter::VALUES_COMPRESSED &&
             !magmakv::isCompressed(metaSlice)) {
-            if (!itm->compressValue(true)) {
+            if (!itm->compressValue()) {
                 logger->warn(
                         "MagmaKVStore::scan failed to compress value - {} "
                         "key:{} "
