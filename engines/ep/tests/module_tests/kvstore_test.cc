@@ -1466,6 +1466,10 @@ public:
                            couchstore_docinfo_hook dhook) {
         return CouchKVStore::compactDBInternal(hook_ctx, dhook);
     }
+
+    void setMb40415RegressionHook(bool value) {
+        CouchKVStore::setMb40415RegressionHook(value);
+    }
 };
 
 //
@@ -1913,6 +1917,22 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     gc.callback(gv);
+}
+
+// Verify that if the precommit hook fails (we didn't update the
+// _local/vbstate) the compaction would fail (so that during restart
+// we wouldn't potentially get a database header without the _local/document
+TEST_F(CouchstoreTest, MB40415_regression_test) {
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
+    cctx.curr_time = 0;
+
+    cctx.expiryCallback = std::make_shared<ExpiryCallback>();
+
+    // Verify that if we would "fail" the precommit hook for some reason
+    // the entire compaction would fail...
+    kvstore->setMb40415RegressionHook(true);
+    EXPECT_FALSE(kvstore->compactDBInternal(&cctx, {}));
 }
 
 class CouchKVStoreMetaData : public ::testing::Test {

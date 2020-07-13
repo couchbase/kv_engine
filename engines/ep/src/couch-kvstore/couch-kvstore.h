@@ -735,6 +735,8 @@ protected:
     bool compactDBInternal(compaction_ctx* hook_ctx,
                            couchstore_docinfo_hook dhook);
 
+    couchstore_error_t compactPrecommitCallback(Db& db, compaction_ctx& ctx);
+
     /// Copy relevant DbInfo stats to the common FileStats struct
     static FileInfo toFileInfo(const DbInfo& info);
 
@@ -845,6 +847,10 @@ protected:
     // to disk but before we call back into the PersistenceCallback.
     std::function<void()> postFlushHook;
 
+    void setMb40415RegressionHook(bool value) {
+        mb40415_regression_hook = value;
+    }
+
 private:
     /**
      * Construct the store, this constructor does the object initialisation and
@@ -894,4 +900,7 @@ private:
     private:
         DbHolder db;
     };
+
+    /// Allow the unit tests to add a hook into compaction
+    bool mb40415_regression_hook{false};
 };
