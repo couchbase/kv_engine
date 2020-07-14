@@ -774,15 +774,12 @@ public:
      * to a plain ReadHandle which provides more functionality (more methods
      * for the caller), but may result in extra lookups and key-scans.
      * @param key A key to use for constructing the read handle.
-     * @param allowSystem true if system keys are allowed (the KV
-     *        internal keys like create collection). A frontend operation
-     *        should not be allowed, whereas a disk backfill is allowed
      * @return a CachingReadHandle which the caller should test is valid with
      *         CachingReadHandle::valid
      */
     Collections::VB::Manifest::CachingReadHandle lockCollections(
-            const DocKey& key, bool allowSystem = false) const {
-        return manifest->lock(key, allowSystem);
+            const DocKey& key) const {
+        return manifest->lock(key);
     }
 
     /**

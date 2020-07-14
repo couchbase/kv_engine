@@ -506,12 +506,17 @@ bool Manifest::isScopeValid(ScopeID scopeID) const {
 }
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
-        const DocKey& key, bool allowSystem) const {
+        const DocKey& key, AllowSystemKeys) const {
     CollectionID lookup = key.getCollectionID();
-    if (allowSystem && lookup == CollectionID::System) {
+    if (lookup == CollectionID::System) {
         lookup = getCollectionIDFromKey(key);
     } // else we lookup with CID which if is System => fail
     return map.find(lookup);
+}
+
+Manifest::container::const_iterator Manifest::getManifestEntry(
+        const DocKey& key) const {
+    return map.find(key.getCollectionID());
 }
 
 Manifest::container::const_iterator Manifest::getManifestIterator(

@@ -71,7 +71,8 @@ void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
             // CachingReadHandle::setPersistedHighSeqno(...) will silently
             // return if the handle is not valid (i.e., the collection is not
             // present)
-            auto handle = manifest.lock(key, /*allowSystem */ true);
+            auto handle = manifest.lock(
+                    key, Collections::VB::Manifest::AllowSystemKeys{});
             handle.setPersistedHighSeqno(value);
         }
     } else {

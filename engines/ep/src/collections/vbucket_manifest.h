@@ -280,6 +280,7 @@ public:
         const Manifest* manifest{nullptr};
     };
 
+    struct AllowSystemKeys {};
     /**
      * CachingReadHandle provides a limited set of functions to allow various
      * functional paths in KV-engine to perform multiple collection 'legality'
@@ -303,17 +304,23 @@ public:
     class CachingReadHandle : private ReadHandle {
     public:
         /**
-         * @param allowSystem true if system keys are allowed (the KV
-         *        internal keys like create collection). A frontend operation
-         *        should not be allowed, whereas a disk backfill is allowed
+         * @param m Manifest object to use for lookups
+         * @param lock which to pass to parent ReadHandle
+         * @param key the key to use for lookups, if the key is a system key
+         *        the collection-id is extracted from the key
+         * @param tag to differentiate from more common construction below
          */
         CachingReadHandle(const Manifest* m,
                           mutex_type& lock,
                           DocKey key,
-                          bool allowSystem)
+                          AllowSystemKeys tag)
             : ReadHandle(m, lock),
-              itr(m->getManifestEntry(key, allowSystem)),
+              itr(m->getManifestEntry(key, tag)),
               key(key) {
+        }
+
+        CachingReadHandle(const Manifest* m, mutex_type& lock, DocKey key)
+            : ReadHandle(m, lock), itr(m->getManifestEntry(key)), key(key) {
         }
 
         /**
@@ -734,12 +741,37 @@ public:
      */
     Manifest(const KVStore::Manifest& data);
 
+    /**
+     * @return ReadHandle, no iterator is held on the collection container
+     */
     ReadHandle lock() const {
         return {this, rwlock};
     }
 
-    CachingReadHandle lock(DocKey key, bool allowSystem = false) const {
-        return {this, rwlock, key, allowSystem};
+    /*
+     * @param key The key to use in look-ups. Will call getCollectionID on the
+     *        key and use that value in the map find.
+     * @return CachingReadHandle, an iterator is held on the collection
+     *         container
+     */
+    CachingReadHandle lock(DocKey key) const {
+        return {this, rwlock, key};
+    }
+
+    /**
+     * @param key The key to use in look-ups. This variant of 'lock' accepts
+     *        keys of system-event Items (which embed the collection-ID). Thus
+     *        when a system key is used, the event's collection should be
+     *        looked-up.
+     * @param tag differentiate this special lock call from the more commonly
+     *         used lock (above).
+     * @return CachingReadHandle, an iterator is held on the collection
+     *         container so no further lookups are required. This call accepts
+     *         'system-event' keys which will be 'split' to get the collection
+     *         of the event.
+     */
+    CachingReadHandle lock(DocKey key, AllowSystemKeys tag) const {
+        return {this, rwlock, key, tag};
     }
 
     /**
@@ -754,8 +786,9 @@ public:
     // create a view of the original key, so that key must have a life-span
     // which is longer than the handle. Only test-code trips over this as they
     // may create keys at the point of calling a method.
-    CachingReadHandle lock(StoredDocKey&&,
-                           bool allowSystem = false) const = delete;
+    CachingReadHandle lock(StoredDocKey&&) const = delete;
+
+    CachingReadHandle lock(StoredDocKey&&, AllowSystemKeys tag) const = delete;
 
     WriteHandle wlock() {
         return {*this, rwlock};
@@ -1200,7 +1233,13 @@ protected:
      * return map.end() for unknown collections.
      */
     container::const_iterator getManifestEntry(const DocKey& key,
-                                               bool allowSystem) const;
+                                               AllowSystemKeys tag) const;
+
+    /**
+     * Get a manifest entry for the collection associated with the key. Can
+     * return map.end() for unknown collections.
+     */
+    container::const_iterator getManifestEntry(const DocKey& key) const;
 
     /**
      * Get a map iterator for the collection. Can return map.end() for unknown
