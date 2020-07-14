@@ -17,6 +17,8 @@
 
 #include "rocksdb-kvstore_config.h"
 
+#include "configuration.h"
+
 RocksDBKVStoreConfig::RocksDBKVStoreConfig(Configuration& config,
                                            uint16_t numShards,
                                            uint16_t shardid)

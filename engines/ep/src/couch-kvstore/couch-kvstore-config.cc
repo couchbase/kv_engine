@@ -17,6 +17,8 @@
 
 #include "couch-kvstore-config.h"
 
+#include "configuration.h"
+
 /// A listener class to update KVStore related configs at runtime.
 class CouchKVStoreConfig::ConfigChangeListener : public ValueChangedListener {
 public:

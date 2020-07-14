@@ -18,6 +18,7 @@
 #include "kvstore_config.h"
 
 #include "bucket_logger.h"
+#include "configuration.h"
 #include "environment.h"
 
 #include <memory>

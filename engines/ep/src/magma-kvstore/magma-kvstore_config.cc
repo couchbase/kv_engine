@@ -17,6 +17,7 @@
 
 #include "magma-kvstore_config.h"
 
+#include "configuration.h"
 #include "magma-kvstore.h"
 
 /// A listener class to update MagmaKVSTore related configs at runtime.

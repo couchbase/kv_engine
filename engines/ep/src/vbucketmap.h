@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "configuration.h"
 #include "kvshard.h"
 #include "utility.h"
 

@@ -17,12 +17,12 @@
 
 #pragma once
 
-#include "configuration.h"
-
 #include <atomic>
+#include <chrono>
 #include <string>
 
 class BucketLogger;
+class Configuration;
 
 class KVStoreConfig {
 public:
