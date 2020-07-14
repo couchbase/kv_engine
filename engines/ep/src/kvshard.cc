@@ -33,13 +33,16 @@
 #endif
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
-KVShard::KVShard(id_type numShards, id_type id, Configuration& config)
+KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
     : // Size vBuckets to have sufficient slots for the maximum number of
       // vBuckets each shard is responsible for. To ensure correct behaviour
       // when vbuckets isn't a multiple of num_shards, apply ceil() to the
       // division so we round up where necessary.
-      vbuckets(std::ceil(float(config.getMaxVbuckets()) / numShards)),
+      vbuckets(std::ceil(float(engine.getConfiguration().getMaxVbuckets()) /
+                         engine.getWorkLoadPolicy().getNumShards())),
       highPriorityCount(0) {
+    const auto numShards = engine.getWorkLoadPolicy().getNumShards();
+    auto& config = engine.getConfiguration();
     const std::string backend = config.getBackend();
     if (backend == "couchdb") {
         kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
