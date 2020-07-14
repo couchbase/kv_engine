@@ -23,6 +23,8 @@
 #include "systemevent.h"
 
 #include <platform/non_negative_counter.h>
+#include <relaxed_atomic.h>
+
 #include <memory>
 
 namespace Collections {
@@ -168,13 +170,13 @@ public:
         numOpsGet++;
     }
     uint64_t getOpsStore() const {
-        return numOpsStore.load(std::memory_order_relaxed);
+        return numOpsStore.load();
     }
     uint64_t getOpsDelete() const {
-        return numOpsDelete.load(std::memory_order_relaxed);
+        return numOpsDelete.load();
     }
     uint64_t getOpsGet() const {
-        return numOpsGet.load(std::memory_order_relaxed);
+        return numOpsGet.load();
     }
     AccumulatedStats getStatsForSummary() const {
         return {getDiskCount(),
@@ -270,11 +272,11 @@ private:
     mutable AtomicMonotonic<uint64_t, IgnorePolicy> persistedHighSeqno;
 
     //! The number of basic store (add, set, arithmetic, touch, etc.) operations
-    mutable AtomicMonotonic<uint64_t, IgnorePolicy> numOpsStore;
+    mutable cb::RelaxedAtomic<uint64_t> numOpsStore;
     //! The number of basic delete operations
-    mutable AtomicMonotonic<uint64_t, IgnorePolicy> numOpsDelete;
+    mutable cb::RelaxedAtomic<uint64_t> numOpsDelete;
     //! The number of basic get operations
-    mutable AtomicMonotonic<uint64_t, IgnorePolicy> numOpsGet;
+    mutable cb::RelaxedAtomic<uint64_t> numOpsGet;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

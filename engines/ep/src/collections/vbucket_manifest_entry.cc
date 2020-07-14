@@ -32,20 +32,24 @@ Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
     scopeID = other.scopeID;
     maxTtl = other.maxTtl;
     diskCount = other.diskCount;
+    diskSize = other.diskSize;
     highSeqno.reset(other.highSeqno);
     persistedHighSeqno.store(other.persistedHighSeqno,
                              std::memory_order_relaxed);
+    numOpsStore = other.numOpsStore;
+    numOpsDelete = other.numOpsDelete;
+    numOpsGet = other.numOpsGet;
     return *this;
 }
 
 bool Collections::VB::ManifestEntry::operator==(
         const ManifestEntry& other) const {
-    if (scopeID == other.scopeID && startSeqno == other.startSeqno &&
-        maxTtl == other.maxTtl && highSeqno == other.highSeqno &&
-        persistedHighSeqno == other.persistedHighSeqno) {
-        return true;
-    }
-    return false;
+    return scopeID == other.scopeID && startSeqno == other.startSeqno &&
+           maxTtl == other.maxTtl && highSeqno == other.highSeqno &&
+           diskCount == other.diskCount && diskSize == other.diskSize &&
+           persistedHighSeqno == other.persistedHighSeqno &&
+           numOpsGet == other.numOpsGet && numOpsDelete == other.numOpsDelete &&
+           numOpsStore == other.numOpsStore;
 }
 
 std::string Collections::VB::ManifestEntry::getExceptionString(
