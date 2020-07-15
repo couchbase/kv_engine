@@ -102,10 +102,9 @@ void XattrNoDocTest::testSinglePathDictAdd() {
 
     // Also check via getMeta - which should show the document exists but
     // as deleted.
-    auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
-    EXPECT_EQ(1, meta.second.deleted);
+    auto meta = get_meta();
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(1, meta.deleted);
 }
 
 TEST_P(XattrNoDocTest, SinglePathDictAdd) {
@@ -151,10 +150,9 @@ void XattrNoDocTest::testMultipathDictAdd() {
 
     // Also check via getMeta - which should show the document exists but
     // as deleted.
-    auto meta = getConnection().getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
-    EXPECT_EQ(1, meta.second.deleted);
+    auto meta = get_meta();
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(1, meta.deleted);
 }
 
 TEST_P(XattrNoDocTest, MultipathDictAdd) {

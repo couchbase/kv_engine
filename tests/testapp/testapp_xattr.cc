@@ -21,6 +21,8 @@
 
 #include <array>
 
+using namespace cb::mcbp;
+
 BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
         std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
         mcbp::subdoc::doc_flag docFlags) {
@@ -51,7 +53,6 @@ GetMetaResponse XattrNoDocTest::get_meta() {
 
 BinprotSubdocMultiMutationCommand XattrNoDocTest::makeSDKTxnMultiMutation()
         const {
-    using namespace cb::mcbp;
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(
@@ -129,17 +130,12 @@ TEST_P(XattrTest, GetXattrAndBody) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              sysXattr},
+             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
-
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
@@ -267,14 +263,8 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     adjust_memcached_clock(
             4, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
-    auto& conn = getConnection();
-    BinprotSubdocMultiLookupCommand getCmd;
-    getCmd.setKey(name);
-    getCmd.addLookup("", cb::mcbp::ClientOpcode::Get);
-    conn.sendCommand(getCmd);
-
-    BinprotSubdocMultiLookupResponse getResp;
-    conn.recvResponse(getResp);
+    auto getResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Restore time.
@@ -336,15 +326,9 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
 
 TEST_P(XattrTest, SetBodyInMultiLookup) {
     // Check that we can't put a CMD_SET in a multi lookup
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    // Should not be able to put a set in a multi lookup
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE);
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, ""}});
 
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, multiResp.getStatus());
 }
 
@@ -1031,20 +1015,13 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
-
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$document.CAS", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$document.foobar", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
-
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
-
+    auto multiResp = subdoc_multi_lookup(
+            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document"},
+             {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document.CAS"},
+             {ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              "$document.foobar"},
+             {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "_sync.eg"}});
     auto& results = multiResp.getResults();
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
@@ -1116,17 +1093,12 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              "$document.deleted"},
+             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$document.deleted", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
-
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ("false", multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
@@ -1151,15 +1123,11 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
 }
 
 TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$documents", SUBDOC_FLAG_XATTR_PATH); // should be $document
+    auto multiResp =
+            subdoc_multi_lookup({{cb::mcbp::ClientOpcode::SubdocGet,
+                                  SUBDOC_FLAG_XATTR_PATH,
+                                  "$documents"}}); // should be $document
 
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownVattr,
               multiResp.getResults()[0].status);
@@ -1336,17 +1304,13 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get);
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              sysXattr},
+             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
 
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
@@ -1360,17 +1324,13 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
     getConnection().store(name, Vbid(0), value);
 
     // Attempt to request both the body and a non-existent XATTR.
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get);
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              sysXattr},
+             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
 
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
 
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
@@ -1389,17 +1349,13 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
     getConnection().remove(name, Vbid(0));
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get);
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              sysXattr},
+             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
 
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
@@ -1417,17 +1373,13 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     value = "non-JSON value";
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get);
+    auto multiResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              sysXattr},
+             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
 
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
@@ -1443,20 +1395,14 @@ TEST_P(XattrTest, MB_35388_VATTR_Vbucket) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     // Sanity checks and setup done lets try the multi-lookup
-
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$vbucket", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$vbucket.HLC", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$vbucket.HLC.now", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
-
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
-
+    auto multiResp = subdoc_multi_lookup({
+            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$vbucket"},
+            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$vbucket.HLC"},
+            {ClientOpcode::SubdocGet,
+             SUBDOC_FLAG_XATTR_PATH,
+             "$vbucket.HLC.now"},
+            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "_sync.eg"},
+    });
     auto& results = multiResp.getResults();
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1486,16 +1432,11 @@ TEST_P(XattrTest, MB_35388_VATTR_Vbucket) {
 TEST_P(XattrTest, MB_35388_VATTR_Document_Vbucket) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$vbucket", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
+    auto multiResp = subdoc_multi_lookup({
+            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document"},
+            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$vbucket"},
+            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "_sync.eg"},
+    });
     auto& results = multiResp.getResults();
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1516,16 +1457,17 @@ TEST_P(XattrTest, MB_35388_VbucketHlcNowIsValid) {
 
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addGet("$document.last_modified", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$vbucket.HLC.mode", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("$vbucket.HLC.now", SUBDOC_FLAG_XATTR_PATH);
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
-
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
+    auto multiResp = subdoc_multi_lookup({
+            {cb::mcbp::ClientOpcode::SubdocGet,
+             SUBDOC_FLAG_XATTR_PATH,
+             "$document.last_modified"},
+            {cb::mcbp::ClientOpcode::SubdocGet,
+             SUBDOC_FLAG_XATTR_PATH,
+             "$vbucket.HLC.mode"},
+            {cb::mcbp::ClientOpcode::SubdocGet,
+             SUBDOC_FLAG_XATTR_PATH,
+             "$vbucket.HLC.now"},
+    });
     auto& results = multiResp.getResults();
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1555,19 +1497,15 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     getConnection().remove(name, Vbid(0));
 
     // Lookup two XATTRs - one which exists and one which doesn't.
-    BinprotSubdocMultiLookupCommand cmd;
-    cmd.setKey(name);
-    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    cmd.addGet("_sync.non_existant", SUBDOC_FLAG_XATTR_PATH);
-
-    auto& conn = getConnection();
-    conn.sendCommand(cmd);
+    auto multiResp = subdoc_multi_lookup(
+            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, sysXattr},
+             {ClientOpcode::SubdocGet,
+              SUBDOC_FLAG_XATTR_PATH,
+              "_sync.non_existant"}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
 
     // We expect to successfully access the first (existing) XATTR; but not
     // the second.
-    BinprotSubdocMultiLookupResponse multiResp;
-    conn.recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
@@ -1594,11 +1532,10 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
+    auto meta = get_meta();
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.second.deleted);
+    EXPECT_EQ(1, meta.deleted);
 
     auto resp = subdoc_get(sysXattr,
                            SUBDOC_FLAG_XATTR_PATH,
@@ -1610,19 +1547,14 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 
-    BinprotSubdocMultiLookupCommand getCmd;
-    getCmd.setKey(name);
-    getCmd.addLookup("", cb::mcbp::ClientOpcode::Get);
-    conn.sendCommand(getCmd);
-
-    BinprotSubdocMultiLookupResponse getResp;
-    conn.recvResponse(getResp);
+    auto getResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Worth noting the difference in the way it fails if AccessDeleted is set.
-    getCmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    conn.sendCommand(getCmd);
-    conn.recvResponse(getResp);
+    getResp = subdoc_multi_lookup(
+            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               getResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
@@ -1646,11 +1578,10 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
+    auto meta = get_meta();
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.second.deleted);
+    EXPECT_EQ(1, meta.deleted);
 
     auto resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
@@ -1714,11 +1645,10 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
+    auto meta = get_meta();
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.second.deleted);
+    EXPECT_EQ(1, meta.deleted);
 }
 
 /**
@@ -1867,14 +1797,12 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
 
     // Problem 1 : The order of the virtual xattr and key matters:
     {
-        BinprotSubdocMultiLookupCommand cmd;
-        cmd.setKey(name);
-        cmd.addGet("tnx", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addGet("$document.CAS", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addGet("value", SUBDOC_FLAG_NONE);
-
-        auto& conn = getConnection();
-        BinprotSubdocMultiLookupResponse resp{conn.execute(cmd)};
+        auto resp = subdoc_multi_lookup(
+                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"},
+                 {ClientOpcode::SubdocGet,
+                  SUBDOC_FLAG_XATTR_PATH,
+                  "$document.CAS"},
+                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
@@ -1888,14 +1816,12 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
     }
     // Try it with cas first and then the xattr
     {
-        BinprotSubdocMultiLookupCommand cmd;
-        cmd.setKey(name);
-        cmd.addGet("$document.CAS", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addGet("tnx", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addGet("value", SUBDOC_FLAG_NONE);
-
-        auto& conn = getConnection();
-        BinprotSubdocMultiLookupResponse resp{conn.execute(cmd)};
+        auto resp = subdoc_multi_lookup(
+                {{ClientOpcode::SubdocGet,
+                  SUBDOC_FLAG_XATTR_PATH,
+                  "$document.CAS"},
+                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"},
+                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
@@ -1910,14 +1836,10 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
 
     // Problem 2 : Requesting XTOC with another xattr fails to populate XTOC
     {
-        BinprotSubdocMultiLookupCommand cmd;
-        cmd.setKey(name);
-        cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addGet("tnx", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addGet("value", SUBDOC_FLAG_NONE);
-
-        auto& conn = getConnection();
-        BinprotSubdocMultiLookupResponse resp{conn.execute(cmd)};
+        auto resp = subdoc_multi_lookup(
+                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$XTOC"},
+                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"},
+                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
