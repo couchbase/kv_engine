@@ -1,0 +1,2 @@
+add_executable(dcplatency dcplatency.cc)
+target_link_libraries(dcplatency mc_program_utils mc_client_connection mcbp)
