@@ -31,6 +31,22 @@ std::ostream& operator<<(std::ostream& os, const DocumentState& ds) {
     return os << to_string(ds);
 }
 
+std::string to_string(const DocStateFilter& filter) {
+    switch (filter) {
+    case DocStateFilter::Deleted:
+        return "Deleted";
+    case DocStateFilter::Alive:
+        return "Alive";
+    case DocStateFilter::AliveOrDeleted:
+        return "Alive|Deleted";
+    }
+    return "Invalid DocStateFilter:" + std::to_string(int(filter));
+}
+
+std::ostream& operator<<(std::ostream& os, const DocStateFilter& filter) {
+    return os << to_string(filter);
+}
+
 std::string to_string(DeleteSource deleteSource) {
     switch (deleteSource) {
     case DeleteSource::Explicit:
