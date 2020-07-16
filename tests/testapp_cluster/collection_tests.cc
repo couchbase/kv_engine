@@ -27,6 +27,7 @@
 
 class CollectionsTests : public cb::test::ClusterTest {
 protected:
+    void testSubdocRbac(MemcachedConnection& conn, const std::string& key);
     static std::unique_ptr<MemcachedConnection> getConnection() {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
@@ -40,9 +41,9 @@ protected:
                        std::string id,
                        MutationType type) {
         Document doc{};
-        doc.value = "body";
+        doc.value = R"({"json":true})";
         doc.info.id = std::move(id);
-        doc.info.datatype = cb::mcbp::Datatype::Raw;
+        doc.info.datatype = cb::mcbp::Datatype::JSON;
         const auto info = conn.mutate(doc, Vbid{0}, type);
         EXPECT_NE(0, info.cas);
     }
@@ -82,6 +83,46 @@ TEST_F(CollectionsTests, TestInvalidCollection) {
     }
 }
 
+static BinprotSubdocCommand subdocInsertXattrPath(const std::string& key,
+                                                  const std::string& path) {
+    using namespace cb::mcbp;
+    return BinprotSubdocCommand(ClientOpcode::SubdocDictAdd,
+                                key,
+                                path,
+                                "{}",
+                                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                                mcbp::subdoc::doc_flag::Mkdoc);
+}
+
+void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,
+                                      const std::string& key) {
+    auto fruit = createKey(CollectionEntry::fruit, "TestBasicRbac");
+    auto vegetable = createKey(CollectionEntry::vegetable, "TestBasicRbac");
+
+    // Check subdoc, privilege checks happen in 2 places
+    // 1) we're checking we can do the xattr write
+    auto subdoc = subdocInsertXattrPath(fruit, "nosys");
+    auto response = BinprotMutationResponse(conn.execute(subdoc));
+    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+    subdoc = subdocInsertXattrPath(fruit, "_sys");
+    response = BinprotMutationResponse(conn.execute(subdoc));
+    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+
+    // 2) XTOC evaluates xattr read privs separately.
+    // connection only has xattr read, 1 entry comes back
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(fruit);
+    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    conn.sendCommand(cmd);
+    BinprotSubdocMultiLookupResponse resp;
+    resp.clear();
+    conn.recvResponse(resp);
+    EXPECT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+    ASSERT_EQ(1, resp.getResults().size());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getResults().front().status);
+    EXPECT_EQ(R"(["nosys"])", resp.getResults().front().value);
+}
+
 TEST_F(CollectionsTests, TestBasicRbac) {
     const std::string username{"TestBasicRbac"};
     const std::string password{"TestBasicRbac"};
@@ -101,7 +142,10 @@ TEST_F(CollectionsTests, TestBasicRbac) {
                 "Read",
                 "Insert",
                 "Delete",
-                "Upsert"
+                "Upsert",
+                "XattrRead",
+                "XattrWrite",
+                "SystemXattrWrite"
               ]
             }
           }
@@ -128,6 +172,8 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     // to the fruit collection
     conn->authenticate(username, password);
     conn->selectBucket("default");
+
+    testSubdocRbac(*conn, "TestBasicRbac");
 
     conn->get(createKey(CollectionEntry::defaultC, "TestBasicRbac"), Vbid{0});
     conn->get(createKey(CollectionEntry::fruit, "TestBasicRbac"), Vbid{0});
