@@ -128,7 +128,9 @@ private:
 template <class T, class Pointer = T*, class Deleter = std::default_delete<T>>
 class SingleThreadedRCPtr {
 public:
-    explicit SingleThreadedRCPtr(Pointer init = nullptr) : value(init) {
+    SingleThreadedRCPtr() : value(Pointer()){};
+
+    explicit SingleThreadedRCPtr(Pointer init) : value(init) {
         if (init != nullptr) {
             ++value->_rc_refcount;
         }
@@ -165,7 +167,11 @@ public:
         }
     }
 
-    void reset(Pointer newValue = nullptr) {
+    void reset() {
+        swap(Pointer());
+    }
+
+    void reset(Pointer newValue) {
         if (newValue != nullptr) {
             ++newValue->_rc_refcount;
         }

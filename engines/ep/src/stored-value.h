@@ -575,8 +575,7 @@ public:
     void replaceValue(std::unique_ptr<Blob> data) {
         // Maintain the tag
         auto tag = getValueTag();
-        value.reset(data.release());
-        setValueTag(tag);
+        value.reset({data.release(), tag.raw});
     }
 
     /**
@@ -1078,7 +1077,8 @@ public:
         // point to the updated version of this StoredValue. _BUT_ we do not
         // own the new SV. At destruction, we must release this ptr if
         // we are stale.
-        chain_next_or_replacement.reset(newSv);
+        chain_next_or_replacement.reset(
+                TaggedPtr<StoredValue>(newSv, TaggedPtrBase::NoTagValue));
         setStale(true);
     }
 

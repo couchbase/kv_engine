@@ -28,7 +28,9 @@ bool vbucket_transition_state::needsToBePersisted(
 void vbucket_transition_state::toItem(Item& item) const {
     nlohmann::json json = *this;
     std::string jsonState = json.dump();
-    item.replaceValue(Blob::New(jsonState.data(), jsonState.size()));
+    item.replaceValue(
+            TaggedPtr<Blob>(Blob::New(jsonState.data(), jsonState.size()),
+                            TaggedPtrBase::NoTagValue));
 }
 
 void vbucket_transition_state::fromItem(const Item& item) {

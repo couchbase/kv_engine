@@ -3881,7 +3881,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
         rv->setFlags(itemMeta.flags);
         rv->setExpTime(itemMeta.exptime);
         rv->setRevSeqno(itemMeta.revSeqno);
-        rv->replaceValue(newValue);
+        rv->replaceValue(TaggedPtr<Blob>(newValue, TaggedPtrBase::NoTagValue));
         rv->setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
         return rv;
     } else {

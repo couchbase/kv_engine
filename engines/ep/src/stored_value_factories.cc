@@ -23,38 +23,42 @@ StoredValue::UniquePtr StoredValueFactory::operator()(
         const Item& itm, StoredValue::UniquePtr next) {
     // Allocate a buffer to store the StoredValue and any trailing bytes
     // that maybe required.
-    return StoredValue::UniquePtr(
+    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
             new (::operator new(StoredValue::getRequiredStorage(itm.getKey())))
                     StoredValue(itm,
                                 std::move(next),
                                 *stats,
-                                /*isOrdered*/ false));
+                                /*isOrdered*/ false),
+            TaggedPtrBase::NoTagValue));
 }
 
 StoredValue::UniquePtr StoredValueFactory::copyStoredValue(
         const StoredValue& other, StoredValue::UniquePtr next) {
     // Allocate a buffer to store the copy of StoredValue and any
     // trailing bytes required for the key.
-    return StoredValue::UniquePtr(
+    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
             new (::operator new(other.getObjectSize()))
-                    StoredValue(other, std::move(next), *stats));
+                    StoredValue(other, std::move(next), *stats),
+            TaggedPtrBase::NoTagValue));
 }
 
 StoredValue::UniquePtr OrderedStoredValueFactory::operator()(
         const Item& itm, StoredValue::UniquePtr next) {
     // Allocate a buffer to store the OrderStoredValue and any trailing
     // bytes required for the key.
-    return StoredValue::UniquePtr(
+    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
             new (::operator new(
                     OrderedStoredValue::getRequiredStorage(itm.getKey())))
-                    OrderedStoredValue(itm, std::move(next), *stats));
+                    OrderedStoredValue(itm, std::move(next), *stats),
+            TaggedPtrBase::NoTagValue));
 }
 
 StoredValue::UniquePtr OrderedStoredValueFactory::copyStoredValue(
         const StoredValue& other, StoredValue::UniquePtr next) {
     // Allocate a buffer to store the copy ofOrderStoredValue and any
     // trailing bytes required for the key.
-    return StoredValue::UniquePtr(
+    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
             new (::operator new(other.getObjectSize()))
-                    OrderedStoredValue(other, std::move(next), *stats));
+                    OrderedStoredValue(other, std::move(next), *stats),
+            TaggedPtrBase::NoTagValue));
 }

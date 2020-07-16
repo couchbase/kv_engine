@@ -56,7 +56,7 @@ void verifyDcpPrepare(const Item& expected, const DcpResponse& actual) {
     EXPECT_EQ(DcpResponse::Event::Prepare, actual.getEvent());
     const auto& dcpPrepare = dynamic_cast<const MutationResponse&>(actual);
     EXPECT_EQ(makeStoredDocKey("1"), dcpPrepare.getItem()->getKey());
-    EXPECT_EQ(expected.getValue(), dcpPrepare.getItem()->getValue());
+    EXPECT_EQ(*expected.getValue(), *dcpPrepare.getItem()->getValue());
     EXPECT_EQ(expected.isDeleted(), dcpPrepare.getItem()->isDeleted());
     EXPECT_EQ(expected.getCas(), dcpPrepare.getItem()->getCas());
     EXPECT_EQ(expected.getDurabilityReqs().getLevel(),

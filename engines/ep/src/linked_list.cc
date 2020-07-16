@@ -500,10 +500,12 @@ std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
 
 OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
                                                    bool isStale) {
-    StoredValue::UniquePtr purged(&*it);
+    std::unique_ptr<OrderedStoredValue> purged;
+    auto next = it;
     {
         std::lock_guard<std::mutex> lckGd(getListWriteLock());
-        it = seqList.erase(it);
+        next = seqList.erase(it);
+        purged.reset(&*it);
     }
 
     if (isStale) {
@@ -523,7 +525,7 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
         purged->getBySeqno() > highestPurgedDeletedSeqno.load()) {
         highestPurgedDeletedSeqno = purged->getBySeqno();
     }
-    return it;
+    return next;
 }
 
 std::unique_ptr<BasicLinkedList::RangeIteratorLL>

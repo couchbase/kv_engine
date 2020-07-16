@@ -1429,7 +1429,7 @@ void DurabilityPassiveStreamTest::
 
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
-        item->replaceValue(nullptr);
+        item->replaceValue({});
     }
 
     // Send the logical commit
@@ -1577,7 +1577,7 @@ void DurabilityPassiveStreamTest::
 
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
-        item->replaceValue(nullptr);
+        item->replaceValue({});
     }
 
     EXPECT_EQ(ENGINE_SUCCESS,

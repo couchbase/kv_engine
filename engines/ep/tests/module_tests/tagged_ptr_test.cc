@@ -26,7 +26,7 @@
 /// Test constructor taking object
 TEST(TaggedPtrTest, constructorObjectTest) {
     uint32_t data = 123;
-    TaggedPtr<uint32_t> taggedPtr(&data);
+    TaggedPtr<uint32_t> taggedPtr(&data, TaggedPtrBase::NoTagValue);
     ASSERT_EQ(&data, taggedPtr.get());
 }
 
@@ -41,7 +41,7 @@ TEST(TaggedPtrTest, constructorObjectAndTagTest) {
 /// Test equal operator of TaggedPtr
 TEST(TaggedPtrTest, equalTest) {
     uint32_t data = 0;
-    TaggedPtr<uint32_t> taggedPtr(&data);
+    TaggedPtr<uint32_t> taggedPtr(&data, TaggedPtrBase::NoTagValue);
     EXPECT_TRUE(taggedPtr.get() == &data);
 }
 
@@ -49,14 +49,14 @@ TEST(TaggedPtrTest, equalTest) {
 TEST(TaggedPtrTest, notEqualTest) {
     uint32_t data = 0;
     uint32_t newData = 0;
-    TaggedPtr<uint32_t> taggedPtr(&data);
+    TaggedPtr<uint32_t> taggedPtr(&data, TaggedPtrBase::NoTagValue);
     EXPECT_TRUE(taggedPtr.get() != &newData);
 }
 
 /// Test boolean operator of TaggedPtr - True case
 TEST(TaggedPtrTest, boolTrueTest) {
     uint32_t data = 123;
-    TaggedPtr<uint32_t> taggedPtr(&data);
+    TaggedPtr<uint32_t> taggedPtr(&data, TaggedPtrBase::NoTagValue);
     EXPECT_TRUE(taggedPtr);
 }
 
@@ -78,29 +78,28 @@ TEST(TaggedPtrTest, boolWithTagFalseTest) {
 TEST(TaggedPtrTest, ptrTest) {
     class TestObject {
     public:
-        TestObject() {
-        }
+        TestObject() = default;
         uint32_t data;
     };
 
     TestObject testObject;
     testObject.data = 123;
 
-    TaggedPtr<TestObject> taggedPtr(&testObject);
+    TaggedPtr<TestObject> taggedPtr(&testObject, TaggedPtrBase::NoTagValue);
     EXPECT_EQ(123, taggedPtr->data);
 }
 
 /// Test set and get of TaggedPtr
 TEST(TaggedPtrTest, setObjTest) {
     uint32_t data = 0;
-    TaggedPtr<uint32_t> taggedPtr(nullptr);
+    TaggedPtr<uint32_t> taggedPtr;
     taggedPtr.set(&data);
     EXPECT_EQ(&data, taggedPtr.get());
 }
 
 /// Test setTag and getTag of TaggedPtr
 TEST(TaggedPtrTest, setTagTest) {
-    TaggedPtr<uint32_t> taggedPtr(nullptr);
+    TaggedPtr<uint32_t> taggedPtr;
     taggedPtr.setTag(123);
     EXPECT_EQ(123, taggedPtr.getTag());
 }
@@ -110,7 +109,7 @@ TEST(TaggedPtrTest, setTagTest) {
 TEST(TaggedPtrTest, pointerUnaffectedTest) {
     uint32_t data = 123;
 
-    TaggedPtr<uint32_t> taggedPtr(&data);
+    TaggedPtr<uint32_t> taggedPtr(&data, TaggedPtrBase::NoTagValue);
     auto obj = taggedPtr.get();
 
     // Tag should start at zero i.e. empty
@@ -159,7 +158,7 @@ TEST(TaggedPtrTest, updateTagTest) {
 
     TestObject to;
     SingleThreadedRCPtr<TestObject, TaggedPtr<TestObject>, Deleter> ptr{
-            TaggedPtr<TestObject>(&to)};
+            TaggedPtr<TestObject>(&to, TaggedPtrBase::NoTagValue)};
     TaggedPtr<TestObject>::updateTag(ptr, 456);
     EXPECT_EQ(456, ptr.get().getTag());
 }
@@ -182,7 +181,7 @@ TEST(TaggedPtrTest, updateTagTestUniquePtr) {
 
     // Custom deleter for TestObject objects
     struct Deleter {
-        void operator()(TaggedPtr<TestObject> val) {
+        void operator()(TestObject* val) {
             // Does not do anything
         }
     };
@@ -191,7 +190,7 @@ TEST(TaggedPtrTest, updateTagTestUniquePtr) {
             std::unique_ptr<TestObject, TaggedPtrDeleter<TestObject, Deleter>>;
 
     TestObject to;
-    UniquePtr ptr{TaggedPtr<TestObject>(&to)};
+    UniquePtr ptr{TaggedPtr<TestObject>(&to, TaggedPtrBase::NoTagValue)};
     TaggedPtr<TestObject>::updateTag(ptr, 456);
     EXPECT_EQ(456, ptr.get().getTag());
 }

@@ -577,12 +577,14 @@ void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
     auto result = engine.getServerApi()->document->pre_expiry(info);
     if (!result.empty()) {
         // A modified value was returned, use it
-        it.replaceValue(Blob::New(result.data(), result.size()));
+        it.replaceValue(TaggedPtr<Blob>(Blob::New(result.data(), result.size()),
+                                        TaggedPtrBase::NoTagValue));
         // The API states only uncompressed xattr values are returned
         it.setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
     } else {
         // Make the document empty and raw
-        it.replaceValue(Blob::New(0));
+        it.replaceValue(
+                TaggedPtr<Blob>(Blob::New(0), TaggedPtrBase::NoTagValue));
         it.setDataType(PROTOCOL_BINARY_RAW_BYTES);
     }
 }

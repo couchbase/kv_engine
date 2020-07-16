@@ -603,7 +603,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                 }
             } else {
                 // MB-31141: Deletes cannot have a value
-                item->replaceValue(Blob::New(0));
+                item->replaceValue(TaggedPtr<Blob>(Blob::New(0),
+                                                   TaggedPtrBase::NoTagValue));
                 item->setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
         }

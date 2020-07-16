@@ -559,7 +559,7 @@ private:
         } else {
             data = Blob::New(dta, nb);
         }
-        replaceValue(data);
+        replaceValue(TaggedPtr<Blob>(data, TaggedPtrBase::NoTagValue));
     }
 
     ItemMetaData metaData;

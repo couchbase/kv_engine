@@ -21,6 +21,11 @@
 
 #if (defined(__x86_64__) || defined(_M_X64) || defined(__s390x__))
 
+class TaggedPtrBase {
+public:
+    static const uint16_t NoTagValue = 0;
+};
+
 /*
  * This class provides a tagged pointer, which means it is a pointer however
  * the top 16 bits (the tag) can be used to hold user data.  This works
@@ -36,16 +41,12 @@
  */
 
 template <typename T>
-class TaggedPtr {
+class TaggedPtr : public TaggedPtrBase {
 public:
     using element_type = T;
 
     // Need to define all methods which unique_ptr expects from a pointer type
-    TaggedPtr() : raw(0) {
-    }
-
-    TaggedPtr(T* obj) : TaggedPtr() {
-        set(obj);
+    TaggedPtr() : raw(NoTagValue) {
     }
 
     TaggedPtr(T* obj, uint16_t tag) : TaggedPtr() {
@@ -61,7 +62,15 @@ public:
         return !operator!=(other);
     }
 
-    operator bool() const {
+    bool operator==(const TaggedPtr& other) const {
+        return get() == other.get();
+    }
+
+    bool operator!=(const TaggedPtr& other) const {
+        return get() != other.get();
+    }
+
+    explicit operator bool() const {
         return extractPointer(raw) != 0;
     }
 

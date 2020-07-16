@@ -498,5 +498,5 @@ TYPED_TEST(StoredValueProtectedTest, MB_32835) {
     this->setDeleteSource(DeleteSource::Explicit, sv2);
     ASSERT_EQ(false, sv2->isDeleted());
 
-    EXPECT_EQ(this->sv, sv2);
+    EXPECT_EQ(*this->sv, *sv2);
 }
