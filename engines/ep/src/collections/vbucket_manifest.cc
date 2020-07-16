@@ -31,14 +31,12 @@
 
 namespace Collections::VB {
 
-Manifest::Manifest()
-    : scopes({{ScopeID::Default}}), defaultCollectionExists(true) {
+Manifest::Manifest() : scopes({{ScopeID::Default}}) {
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default}, {});
 }
 
 Manifest::Manifest(const KVStore::Manifest& data)
-    : defaultCollectionExists(false),
-      manifestUid(data.manifestUid),
+    : manifestUid(data.manifestUid),
       dropInProgress(data.droppedCollectionsExist) {
     for (const auto sid : data.scopes) {
         scopes.insert(sid);
@@ -293,10 +291,6 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
             map.emplace(identifiers.second,
                         ManifestEntry(identifiers.first, maxTtl, startSeqno));
 
-    if (identifiers.second.isDefaultCollection() && inserted.second) {
-        defaultCollectionExists = true;
-    }
-
     return (*inserted.first).second;
 }
 
@@ -349,10 +343,6 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
             seqno,
             manifestUid,
             processingTombstone);
-
-    if (cid.isDefaultCollection()) {
-        defaultCollectionExists = false;
-    }
 
     map.erase(itr);
 }
@@ -508,9 +498,6 @@ Manifest::ManifestChanges Manifest::processManifest(
 }
 
 bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
-    if (defaultCollectionExists && key.isInDefaultCollection()) {
-        return true;
-    }
     return map.count(key.getCollectionID()) > 0;
 }
 
@@ -533,11 +520,6 @@ Manifest::container::const_iterator Manifest::getManifestIterator(
 }
 
 bool Manifest::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
-    // Only do the searching/scanning work for keys in the deleted range.
-    if (key.isInDefaultCollection()) {
-        return !defaultCollectionExists;
-    }
-
     CollectionID lookup = key.getCollectionID();
     if (lookup == CollectionID::System) {
         lookup = getCollectionIDFromKey(key);
@@ -817,9 +799,6 @@ bool Manifest::addCollectionStats(Vbid vbid,
         char buffer[bsize];
         checked_snprintf(buffer, bsize, "vb_%d:manifest:entries", vbid.get());
         add_casted_stat(buffer, map.size(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:manifest:default_exists", vbid.get());
-        add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
         checked_snprintf(buffer, bsize, "vb_%d:manifest:uid", vbid.get());
         add_casted_stat(buffer, manifestUid, add_stat, cookie);
     } catch (const std::exception& e) {
@@ -949,7 +928,6 @@ bool Manifest::operator!=(const Manifest& rhs) const {
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest: "
        << "uid:" << manifest.manifestUid
-       << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
     for (auto& m : manifest.map) {

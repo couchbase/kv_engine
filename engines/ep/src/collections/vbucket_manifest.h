@@ -149,7 +149,7 @@ public:
         }
 
         /**
-         * @returns true/false if $default exists
+         * @returns true/false if _default exists
          */
         bool doesDefaultCollectionExist() const {
             return manifest->doesDefaultCollectionExist();
@@ -1096,10 +1096,10 @@ protected:
                              std::chrono::seconds bucketTtl) const;
 
     /**
-     * @returns true/false if $default exists
+     * @returns true/false if _default exists
      */
     bool doesDefaultCollectionExist() const {
-        return defaultCollectionExists;
+        return exists(CollectionID::Default);
     }
 
     /**
@@ -1328,11 +1328,6 @@ protected:
      * The current scopes.
      */
     std::unordered_set<ScopeID> scopes;
-
-    /**
-     * Does the current set contain the default collection?
-     */
-    bool defaultCollectionExists{false};
 
     /// The manifest UID which updated this vb::manifest
     ManifestUid manifestUid{0};
