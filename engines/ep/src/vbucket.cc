@@ -823,21 +823,9 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
         // The API states only uncompressed xattr values are returned
         auto datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
         if (!result.empty()) {
-            Item new_item(v.getKey(),
-                          v.getFlags(),
-                          v.getExptime(),
-                          result.data(),
-                          result.size(),
-                          datatype,
-                          v.getCas(),
-                          v.getBySeqno(),
-                          id,
-                          v.getRevSeqno());
-
-            new_item.setNRUValue(v.getNRUValue());
-            new_item.setFreqCounterValue(v.getFreqCounterValue());
-            new_item.setDeleted(DeleteSource::TTL);
-            ht.unlocked_updateStoredValue(hbl, v, new_item);
+            std::unique_ptr<Blob> val(Blob::New(result.data(), result.size()));
+            ht.unlocked_replaceValueAndDatatype(
+                    hbl, v, std::move(val), datatype);
         }
     }
 }
