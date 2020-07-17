@@ -2319,23 +2319,30 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       store(s),
       visitor(std::move(v)),
       label(l),
-      maxDuration(std::chrono::microseconds::max()),
-      currentvb(0) {
+      maxDuration(std::chrono::microseconds::max()) {
 }
 
 std::string VBCBAdaptor::getDescription() {
-    return std::string(label) + " on " + Vbid(currentvb).to_string();
+    auto value = currentvb.load();
+    if (value == None) {
+        return std::string(label) + " no vbucket assigned";
+    } else {
+        return std::string(label) + " on " + Vbid(value).to_string();
+    }
 }
 
 bool VBCBAdaptor::run() {
     visitor->begin();
-    for (; currentvb < store->getVBuckets().getSize(); currentvb++) {
-        const auto vbid = Vbid(currentvb);
+    // start at 0 or from currentvb?
+    Vbid::id_type id = currentvb.load() == None ? 0 : currentvb.load();
+    for (; id < store->getVBuckets().getSize(); id++) {
+        const auto vbid = Vbid(id);
         if (!visitor->getVBucketFilter()(vbid)) {
             continue;
         }
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
+            currentvb = id;
             if (visitor->pauseVisitor()) {
                 snooze(0);
                 return true;

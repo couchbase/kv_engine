@@ -250,11 +250,11 @@ protected:
             runNextTask(lpNonioQ, "Paging out items.");
             ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
             ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-            runNextTask(lpNonioQ, "Item pager on vb:0");
+            runNextTask(lpNonioQ, "Item pager no vbucket assigned");
         } else {
             runNextTask(lpNonioQ, "Paging expired items.");
             // Multiple vBuckets are processed in a single task run.
-            runNextTask(lpNonioQ, "Expired item remover on vb:0");
+            runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
         }
         // Once complete, should have the same number of tasks we initially
         // had.
@@ -404,7 +404,7 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     store->setVBucketState(replicaVB, vbucket_state_replica);
 
     runNextTask(lpNonioQ, "Paging out items.");
-    runNextTask(lpNonioQ, "Item pager on vb:0");
+    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
 
     if (std::get<0>(GetParam()) == "ephemeral") {
         // We should have not evicted from replica vbuckets
@@ -900,7 +900,7 @@ protected:
         runNextTask(lpNonioQ, "Paging expired items.");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-        runNextTask(lpNonioQ, "Expired item remover on vb:0");
+        runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }

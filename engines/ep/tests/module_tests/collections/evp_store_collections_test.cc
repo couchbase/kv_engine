@@ -1404,7 +1404,7 @@ TEST_P(CollectionsParameterizedTest,
             engine.get(), engine->getEpStats(), 0);
     static_cast<ExpiredItemPager*>(task.get())->run();
     runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
-                "Expired item remover on vb:0");
+                "Expired item remover no vbucket assigned");
 
     std::vector<queued_item> items;
     vb->checkpointManager->getNextItemsForPersistence(items);

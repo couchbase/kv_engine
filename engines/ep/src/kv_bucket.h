@@ -82,10 +82,14 @@ private:
 
     /**
      * Current VBucket.
+     * This value starts as "None" and is only changed to another value when
+     * we attempt to work on a valid vbucket.
+     *
      * RelaxedAtomic as this is used by getDescription to generate the task
      * description, which can be called by threads other than the one executing.
      */
-    cb::RelaxedAtomic<Vbid::id_type> currentvb;
+    const Vbid::id_type None = std::numeric_limits<Vbid::id_type>::max();
+    cb::RelaxedAtomic<Vbid::id_type> currentvb{None};
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
