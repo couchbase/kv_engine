@@ -118,7 +118,7 @@ public:
         return !(begin == 0 && end == 0);
     }
 
-    operator bool() const {
+    explicit operator bool() const {
         return valid();
     }
 

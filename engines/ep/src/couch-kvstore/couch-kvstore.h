@@ -432,6 +432,9 @@ protected:
             return db;
         }
 
+        // Add no lint to allow implicit casting to the Db* to be used with
+        // couchstore lib.
+        // NOLINTNEXTLINE(google-explicit-constructor)
         operator Db*() {
             return db;
         }

@@ -115,7 +115,8 @@ public:
      * that we can easily guard access with folly::Synchronized.
      */
     struct CookieToConnMapHandle {
-        CookieToConnMapHandle(ConnStore& connStore) : connStore(connStore) {
+        explicit CookieToConnMapHandle(ConnStore& connStore)
+            : connStore(connStore) {
         }
 
         CookieToConnectionMap::const_iterator begin() const {

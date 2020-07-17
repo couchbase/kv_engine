@@ -21,7 +21,7 @@
 #include "ep_engine.h"
 
 ConnStore::ConnStore(EventuallyPersistentEngine& engine)
-    : cookieToConnHandle(*this),
+    : cookieToConnHandle(CookieToConnMapHandle(*this)),
       vbToConns(engine.getConfiguration().getMaxVbuckets()) {
 }
 

@@ -119,8 +119,8 @@ void RangeGuard::reset() {
  * the second argument is expected to be valid.
  */
 SeqRange rangeUnion(const SeqRange& a, const SeqRange& b) {
-    Expects(b);
-    if (!a) {
+    Expects(b.valid());
+    if (!a.valid()) {
         return b;
     }
     return {std::min(a.getBegin(), b.getBegin()),
