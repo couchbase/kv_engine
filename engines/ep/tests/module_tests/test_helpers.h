@@ -61,7 +61,8 @@ Item make_item(
 queued_item makePendingItem(StoredDocKey key,
                             std::string value,
                             cb::durability::Requirements reqs = {
-                                    cb::durability::Level::Majority, {}});
+                                    cb::durability::Level::Majority,
+                                    cb::durability::Timeout()});
 
 /// Make a queued_item representing a commited (normal mutation).
 queued_item makeCommittedItem(StoredDocKey key, std::string value);

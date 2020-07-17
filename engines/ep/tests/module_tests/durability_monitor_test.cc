@@ -1315,7 +1315,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     const auto level = cb::durability::Level::Majority;
 
-    addSyncWrite(1 /*seqno*/, {level, 1 /*timeout*/});
+    addSyncWrite(1 /*seqno*/, {level, cb::durability::Timeout(1)});
     EXPECT_EQ(1, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -1344,9 +1344,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
      * Multiple SyncWrites, ordered by timeout
      */
 
-    addSyncWrite(101 /*seqno*/, {level, 1 /*timeout*/});
-    addSyncWrite(102 /*seqno*/, {level, 10});
-    addSyncWrite(103 /*seqno*/, {level, 20});
+    addSyncWrite(101 /*seqno*/, {level, cb::durability::Timeout(1)});
+    addSyncWrite(102 /*seqno*/, {level, cb::durability::Timeout(10)});
+    addSyncWrite(103 /*seqno*/, {level, cb::durability::Timeout(20)});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -1369,9 +1369,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
      * Multiple SyncWrites, not ordered by timeout
      */
 
-    addSyncWrite(201 /*seqno*/, {level, 20 /*timeout*/});
-    addSyncWrite(202 /*seqno*/, {level, 1});
-    addSyncWrite(203 /*seqno*/, {level, 50000});
+    addSyncWrite(201 /*seqno*/, {level, cb::durability::Timeout(20)});
+    addSyncWrite(202 /*seqno*/, {level, cb::durability::Timeout(1)});
+    addSyncWrite(203 /*seqno*/, {level, cb::durability::Timeout(50000)});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -1410,9 +1410,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
      * Note that we must complete SyncWrites in order, thus even if a later
      * SyncWrite has timed out we must wait for the earlier one to complete.
      */
-    addSyncWrite(301 /*seqno*/, {level, 20000 /*timeout*/});
-    addSyncWrite(302 /*seqno*/, {level, 10000});
-    addSyncWrite(303 /*seqno*/, {level, 1});
+    addSyncWrite(301 /*seqno*/, {level, cb::durability::Timeout(20000)});
+    addSyncWrite(302 /*seqno*/, {level, cb::durability::Timeout(10000)});
+    addSyncWrite(303 /*seqno*/, {level, cb::durability::Timeout(1)});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
         SCOPED_TRACE("");
@@ -3418,10 +3418,13 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     using namespace cb::durability;
 
     // Add a PersistToMajority to "block" the active to prevent immediate acking
-    addSyncWrite(1, Requirements(Level::PersistToMajority, 30000));
+    addSyncWrite(1,
+                 Requirements(Level::PersistToMajority,
+                              cb::durability::Timeout(30000)));
 
     // This SW should not be satisfied by just replica acks
-    addSyncWrite(2, Requirements(Level::Majority, 30000));
+    addSyncWrite(2,
+                 Requirements(Level::Majority, cb::durability::Timeout(30000)));
     {
         SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(2, 0, 0);

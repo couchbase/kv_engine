@@ -2961,7 +2961,9 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     // seqno:3 A new prepare
     auto key1 = makeStoredDocKey("crikey3");
     auto pending3 = makePendingItem(
-            key1, "pending", {cb::durability::Level::Majority, {5000}});
+            key1,
+            "pending",
+            {cb::durability::Level::Majority, cb::durability::Timeout(5000)});
     pending3->setCas(1);
     pending3->setBySeqno(3);
     EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*pending3, cookie));

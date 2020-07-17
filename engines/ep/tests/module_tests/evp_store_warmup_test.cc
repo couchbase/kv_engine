@@ -1624,7 +1624,8 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     auto item = makePendingItem(key, "dokey");
     item->setCas(1);
     item->setBySeqno(1);
-    item->setPendingSyncWrite({cb::durability::Level::Majority, 5000});
+    item->setPendingSyncWrite(
+            {cb::durability::Level::Majority, cb::durability::Timeout(5000)});
 
     auto vb = engine->getVBucket(vbid);
 

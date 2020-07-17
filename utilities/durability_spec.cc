@@ -91,7 +91,8 @@ Requirements::Requirements(cb::const_byte_buffer buffer) {
     }
     level = Level(buffer.front());
     if (buffer.size() == 3) {
-        timeout = ntohs(*reinterpret_cast<const uint16_t*>(buffer.data() + 1));
+        timeout = Timeout(
+                ntohs(*reinterpret_cast<const uint16_t*>(buffer.data() + 1)));
     }
     if (!isValid()) {
         throw std::runtime_error(

@@ -57,7 +57,8 @@ protected:
                                    const std::string& key,
                                    const std::string& value,
                                    cb::durability::Requirements reqs = {
-                                           cb::durability::Level::Majority, 0});
+                                           cb::durability::Level::Majority,
+                                           cb::durability::Timeout(0)});
 
     /**
      * Store a pending SyncDelete into the given vbucket.
@@ -67,7 +68,7 @@ protected:
                                      const std::string& key,
                                      cb::durability::Requirements reqs = {
                                              cb::durability::Level::Majority,
-                                             0});
+                                             cb::durability::Timeout(0)});
 
     /// Stored a committed SyncWrite into the given vbucket.
     void store_committed_item(Vbid vbid,

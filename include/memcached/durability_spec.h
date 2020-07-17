@@ -23,8 +23,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace cb {
-namespace durability {
+namespace cb::durability {
 
 /**
  * The legal values for durability requirements.
@@ -76,7 +75,7 @@ public:
      * Does *not allow specifying the special 'Infinite' timeout (0xffff) -
      * that is reserved for internal usage.
      */
-    constexpr Timeout(uint16_t val) {
+    explicit constexpr Timeout(uint16_t val) {
         if (val == BucketDefaultVal) {
             throw std::invalid_argument(
                     "Timeout(): Cannot specify bucket default timeout");
@@ -159,14 +158,14 @@ public:
     Level getLevel() const {
         return level;
     }
-    void setLevel(Level level) {
-        Requirements::level = level;
+    void setLevel(Level newLevel) {
+        level = newLevel;
     }
     Timeout getTimeout() const {
         return timeout;
     }
-    void setTimeout(Timeout timeout) {
-        Requirements::timeout = timeout;
+    void setTimeout(Timeout newTimeout) {
+        timeout = newTimeout;
     }
 
     /**
@@ -200,11 +199,11 @@ bool operator==(const Requirements& lhs, const Requirements& rhs);
 // std::optional for requirements in VBucket, and Item uses the queue_op
 // to determine it's CommittedState. Check if any references remain.
 // (Can also remove Level::None).
-static constexpr Requirements NoRequirements = {Level::None, Timeout{}};
+static constexpr Requirements NoRequirements =
+        Requirements{Level::None, Timeout{}};
 
 std::string to_string(Requirements r);
 std::string to_string(Level l);
 Level to_level(const std::string& s);
 
-} // namespace durability
-} // namespace cb
+} // namespace cb::durability

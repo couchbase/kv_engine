@@ -73,7 +73,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
             key,
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
@@ -396,7 +396,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
             key,
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
@@ -464,7 +464,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
             key,
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
@@ -547,7 +547,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
             key,
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
@@ -731,7 +731,7 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
             key,
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     VBQueueItemCtx ctx;
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
@@ -912,7 +912,7 @@ TEST_P(DurabilityActiveStreamTest,
                 key,
                 value,
                 cb::durability::Requirements(cb::durability::Level::Majority,
-                                             1 /*timeout*/));
+                                             cb::durability::Timeout(1)));
         VBQueueItemCtx ctx;
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
@@ -936,7 +936,7 @@ TEST_P(DurabilityActiveStreamTest,
                 key,
                 value,
                 cb::durability::Requirements(cb::durability::Level::Majority,
-                                             1 /*timeout*/));
+                                             cb::durability::Timeout(1)));
         VBQueueItemCtx ctx;
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
@@ -5176,7 +5176,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
             makeStoredDocKey("prep1"),
             "value",
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
@@ -5195,7 +5195,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
             makeStoredDocKey("prep2"),
             "value",
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         1 /*timeout*/));
+                                         cb::durability::Timeout(1)));
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
