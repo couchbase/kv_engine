@@ -19,8 +19,14 @@
 
 #include "dcp/backfill_by_seqno.h"
 #include "dcp/backfill_disk.h"
+#include <optional>
 
+namespace Collections::VB {
+class Filter;
+}
+class BySeqnoScanContext;
 class KVBucket;
+class KVStore;
 
 /**
  * Concrete class that does backfill from the disk and informs the DCP stream
@@ -72,4 +78,20 @@ private:
      *                  cancelled in between; for debug
      */
     void complete(bool cancelled) override;
+
+    /**
+     * Method to get hold of the highest high seqno of collections that are in
+     * a streams filter.
+     * @param seqnoScanCtx needed to get handle to KV data file
+     * @param kvStore to get the high collection seqnos from
+     * @param filter of the stream, which contains the collections we need to
+     *        check against.
+     * @return Returns the highest seqno of the collection in filter. No seqno
+     *         value is returned if the filter is a pass-through filter or
+     *         seqnoScanCtx is null.
+     */
+    std::pair<bool, std::optional<uint64_t>> getHighSeqnoOfCollections(
+            const BySeqnoScanContext& seqnoScanCtx,
+            KVStore& kvStore,
+            const Collections::VB::Filter& filter) const;
 };

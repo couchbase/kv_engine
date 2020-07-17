@@ -354,6 +354,14 @@ public:
         maxScanSeqno = seqno;
     }
 
+    /**
+     * Method to get the collections filter of the stream
+     * @return the filter object
+     */
+    const Collections::VB::Filter& getFilter() const {
+        return filter;
+    }
+
 protected:
     /**
      * @param vb reference to the associated vbucket

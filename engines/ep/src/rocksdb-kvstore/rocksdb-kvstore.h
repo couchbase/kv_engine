@@ -306,8 +306,9 @@ public:
     std::optional<Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle,
             CollectionID collection) override {
-        // TODO JWW 2018-07-30 implement this
-        return {};
+        // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
+        // values of 0 to imply the function didn't fail
+        return {Collections::VB::PersistedStats()};
     }
 
     void prepareToCreateImpl(Vbid vbid) override {

@@ -19,8 +19,7 @@
 
 #include <string>
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 /**
  * The collection stats that we persist on disk. Provides encoding and
  * decoding of stats.
@@ -65,5 +64,4 @@ struct PersistedStats {
     uint64_t highSeqno;
     uint64_t diskSize;
 };
-} // end namespace VB
-} // end namespace Collections
+} // namespace Collections::VB

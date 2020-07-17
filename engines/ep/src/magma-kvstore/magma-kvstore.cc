@@ -1715,13 +1715,13 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
     if (!status && status.ErrorCode() != Status::Code::NotExists) {
         retStatus = magma::Status(
                 status.ErrorCode(),
-                "MagmaKVStore::readLocalDoc vbid:" + vbid.to_string() +
+                "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                         " key:" + keySlice.ToString() + " " + status.String());
     } else {
         if (!found) {
             retStatus = magma::Status(
                     magma::Status::Code::NotFound,
-                    "MagmaKVStore::readLocalDoc(vbid:" + vbid.to_string() +
+                    "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                             " key:" + keySlice.ToString() + " not found.");
         } else if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE("MagmaKVStore::readLocalDoc {} key:{} valueLen:{}",
@@ -2234,7 +2234,14 @@ std::optional<Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
     Status status;
     std::string stats;
     std::tie(status, stats) = readLocalDoc(vbid, keySlice);
-    if (!status) {
+    if (!status.IsOK()) {
+        logger->warn("MagmaKVStore::getCollectionStats(): {}",
+                     status.Message());
+        if (status.ErrorCode() == Status::Code::NotFound) {
+            // Return Collections::VB::PersistedStats() with everything set to
+            // 0 as the collection might have not been persisted to disk yet.
+            return {Collections::VB::PersistedStats()};
+        }
         return {};
     }
     return Collections::VB::PersistedStats(stats.c_str(), stats.size());

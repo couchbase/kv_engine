@@ -28,6 +28,10 @@ PersistedStats StatsReadHandle::getPersistedStats() const {
             itr->second.getDiskSize()};
 }
 
+uint64_t StatsReadHandle::getHighSeqno() const {
+    return itr->second.getHighSeqno();
+}
+
 void ReadHandle::dump() const {
     std::cerr << *manifest << std::endl;
 }

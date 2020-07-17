@@ -63,6 +63,13 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     }
 
     KVStore* kvstore = bucket.getROUnderlying(vbid);
+    if (!kvstore) {
+        stream->log(spdlog::level::level_enum::warn,
+                    "DCPBackfillBySeqnoDisk::create(): couldn't get KVStore "
+                    "for vbucket {}",
+                    vbid);
+        return backfill_finished;
+    }
     ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
     if (stream->isKeyOnly()) {
         valFilter = ValueFilter::KEYS_ONLY;
@@ -83,35 +90,67 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     ? SnapshotSource::Historical
                     : SnapshotSource::Head);
 
+    if (!scanCtx) {
+        stream->log(spdlog::level::level_enum::warn,
+                    "DCPBackfillBySeqnoDisk::create() failed to create scan "
+                    "for {}, startSeqno:{}, PointInTimeEnabled:{}",
+                    getVBucketId(),
+                    startSeqno,
+                    stream->isPointInTimeEnabled() == PointInTimeEnabled::Yes);
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        transitionState(backfill_state_done);
+        return backfill_finished;
+    }
+
+    auto [collHighSuccess, collHigh] =
+            getHighSeqnoOfCollections(*scanCtx, *kvstore, stream->getFilter());
+    if (!collHighSuccess) {
+        stream->log(spdlog::level::level_enum::warn,
+                    "DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(): "
+                    "failed to access collections stats on disk for {}.",
+                    getVBucketId());
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        transitionState(backfill_state_done);
+        return backfill_finished;
+    }
+
+    bool allowNonRollBackCollectionStream = false;
+    if (collHigh.has_value()) {
+        allowNonRollBackCollectionStream =
+                stream->getStartSeqno() < scanCtx->purgeSeqno &&
+                stream->getStartSeqno() >= collHigh.value() &&
+                collHigh.value() <= scanCtx->purgeSeqno;
+    }
+
     // Check startSeqno against the purge-seqno of the opened datafile.
     // 1) A normal stream request would of checked inside streamRequest, but
     //    compaction may have changed the purgeSeqno
     // 2) Cursor dropping can also schedule backfills and they must not re-start
     //    behind the current purge-seqno
+    //
+    // If allowNonRollBackCollectionStream is false then the purge seqno,
+    // collections high seqno must have moved or the stream isn't a
+    // collection stream, making it not valid to prevent the stream from
+    // rolling back.
+    //
     // If the startSeqno != 1 (a client 0 to n request becomes 1 to n) then
     // start-seqno must be above purge-seqno
-    if (!scanCtx || (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno))) {
+    if (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno) &&
+        !allowNonRollBackCollectionStream) {
         auto vb = bucket.getVBucket(vbid);
-        std::stringstream log;
-        log << "DCPBackfillBySeqnoDisk::create(): (" << getVBucketId()
-            << ") cannot be scanned. Associated stream is set to dead state.";
-        auto status = cb::mcbp::DcpStreamEndStatus::BackfillFail;
-        if (scanCtx) {
-            log << " startSeqno:" << startSeqno
-                << " < purgeSeqno:" << scanCtx->purgeSeqno;
-            status = cb::mcbp::DcpStreamEndStatus::Rollback;
-        } else {
-            log << " failed to create scan";
-        }
-        log << ". The vbucket state:";
-        if (vb) {
-            log << VBucket::toString(vb->getState());
-        } else {
-            log << "vb not found!!";
-        }
+        stream->log(spdlog::level::level_enum::warn,
+                    "DCPBackfillBySeqnoDisk::create(): ({}) cannot be "
+                    "scanned. Associated stream is set to dead state. "
+                    "startSeqno:{} < purgeSeqno:{}. The vbucket state:{}, "
+                    "collHigh-valid:{}, collHigh:{}",
+                    getVBucketId(),
+                    startSeqno,
+                    scanCtx->purgeSeqno,
+                    vb ? VBucket::toString(vb->getState()) : "vb not found!!",
+                    collHigh.has_value(),
+                    collHigh.value_or(-1));
 
-        stream->log(spdlog::level::level_enum::warn, "{}", log.str());
-        stream->setDead(status);
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
         transitionState(backfill_state_done);
     } else {
         bool markerSent =
@@ -190,4 +229,31 @@ void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
                 cancelled ? "cancelled" : "finished");
 
     transitionState(backfill_state_done);
+}
+
+std::pair<bool, std::optional<uint64_t>>
+DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
+        const BySeqnoScanContext& seqnoScanCtx,
+        KVStore& kvStore,
+        const Collections::VB::Filter& filter) const {
+    if (!seqnoScanCtx.handle) {
+        return {false, std::nullopt};
+    }
+
+    if (filter.isPassThroughFilter()) {
+        return {true, std::nullopt};
+    }
+
+    std::optional<uint64_t> collHigh;
+
+    const auto& handle = *seqnoScanCtx.handle.get();
+    for (auto cid : filter) {
+        auto collStats = kvStore.getCollectionStats(handle, cid.first);
+        if (!collStats.has_value()) {
+            return {false, std::nullopt};
+        }
+        collHigh = std::max(collHigh.value_or(0), collStats->highSeqno);
+    }
+
+    return {true, collHigh};
 }

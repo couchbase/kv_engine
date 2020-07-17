@@ -123,6 +123,7 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
         uint64_t snap_end_seqno,
         uint64_t purge_seqno,
         bool strictVbUuidMatch,
+        std::optional<uint64_t> maxCollectionHighSeqno,
         uint64_t* rollback_seqno) const {
     /* Start with upper as vb highSeqno */
     uint64_t upper = cur_seqno;
@@ -145,10 +146,25 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
        use those values for rollback calculations below */
     adjustSnapshotRange(start_seqno, snap_start_seqno, snap_end_seqno);
 
+    /*
+     * If this request is for a collection stream then check if we can really
+     * need to roll the client back if the start_seqno < purge_seqno.
+     * We should allow the request if the start_seqno indicates that the client
+     * has all mutations/events for the collections the stream is for.
+     */
+    bool allowNonRollBackCollectionStream = false;
+    if (maxCollectionHighSeqno.has_value()) {
+        allowNonRollBackCollectionStream =
+                start_seqno < purge_seqno &&
+                start_seqno >= maxCollectionHighSeqno.value() &&
+                maxCollectionHighSeqno.value() <= purge_seqno;
+    }
+
     /* There may be items that are purged during compaction. We need
        to rollback to seq no 0 in that case, only if we have purged beyond
        start_seqno and if start_seqno is not 0 */
-    if (start_seqno < purge_seqno && start_seqno != 0) {
+    if (start_seqno < purge_seqno && start_seqno != 0 &&
+        !allowNonRollBackCollectionStream) {
         return std::make_pair(true,
                               std::string("purge seqno (") +
                                       std::to_string(purge_seqno) +

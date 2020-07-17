@@ -22,6 +22,8 @@
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "collections/vbucket_filter.h"
+#include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "common.h"
 #include "connhandler_impl.h"
 #include "dcp/active_stream.h"
@@ -406,15 +408,16 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
     }
 
-    std::pair<bool, std::string> need_rollback =
-            vb->failovers->needsRollback(start_seqno,
-                                         vb->getHighSeqno(),
-                                         vbucket_uuid,
-                                         snap_start_seqno,
-                                         snap_end_seqno,
-                                         vb->getPurgeSeqno(),
-                                         flags & DCP_ADD_STREAM_STRICT_VBUUID,
-                                         rollback_seqno);
+    std::pair<bool, std::string> need_rollback = vb->failovers->needsRollback(
+            start_seqno,
+            vb->getHighSeqno(),
+            vbucket_uuid,
+            snap_start_seqno,
+            snap_end_seqno,
+            vb->getPurgeSeqno(),
+            flags & DCP_ADD_STREAM_STRICT_VBUUID,
+            getHighSeqnoOfCollections(filter, vbucket),
+            rollback_seqno);
 
     if (need_rollback.first) {
         logger->warn(
@@ -2059,4 +2062,33 @@ std::string DcpProducer::getConsumerName() const {
 bool DcpProducer::isOutOfOrderSnapshotsEnabled() const {
     return outOfOrderSnapshots == OutOfOrderSnapshots::Yes &&
            engine_.getKVBucket()->isByIdScanSupported();
+}
+
+std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
+        const Collections::VB::Filter& filter, Vbid vbucket) const {
+    if (filter.isPassThroughFilter()) {
+        return std::nullopt;
+    }
+
+    uint64_t maxHighSeqno = 0;
+    auto vb = engine_.getVBucket(vbucket);
+    for (auto& coll : filter) {
+        auto handle = vb->getManifest().lock(coll.first);
+        if (!handle.valid()) {
+            logger->warn(
+                    "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
+                    "to find collectionID:{}, scopeID:{}, in the manifest",
+                    vbucket,
+                    coll.first,
+                    coll.second);
+            // return std::nullopt as we don't want our caller to use rollback
+            // optimisation for collections streams as we weren't able to find
+            // the collections for the stream in the manifest.
+            return std::nullopt;
+        }
+        auto collHighSeqno = handle.getHighSeqno();
+        maxHighSeqno = std::max(maxHighSeqno, collHighSeqno);
+    }
+
+    return {maxHighSeqno};
 }

@@ -480,6 +480,7 @@ public:
     }
 
     PersistedStats getPersistedStats() const;
+    uint64_t getHighSeqno() const;
 
     bool valid() const {
         return itr != manifest->end();

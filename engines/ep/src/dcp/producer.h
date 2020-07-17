@@ -36,6 +36,9 @@ class CheckpointCursor;
 class DcpResponse;
 class MutationResponse;
 class VBucket;
+namespace Collections::VB {
+class Filter;
+}
 
 class DcpProducer : public ConnHandler,
                     public std::enable_shared_from_this<DcpProducer> {
@@ -367,6 +370,17 @@ public:
     void setIdleTimeout(size_t newValue);
 
     bool isOutOfOrderSnapshotsEnabled() const;
+
+    /**
+     * For filtered DCP, method returns the maximum of all the high-seqnos of
+     * the collections in the filter. std::nullopt is returned for and
+     * passthrough streams.
+     * @param filter that states which collections are being streamed
+     * @param vbucket that the request is for
+     * @return high seqno of all the collection in the filter.
+     */
+    std::optional<uint64_t> getHighSeqnoOfCollections(
+            const Collections::VB::Filter& filter, Vbid vbucket) const;
 
 protected:
     /** We may disconnect if noop messages are enabled and the last time we

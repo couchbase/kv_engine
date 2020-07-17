@@ -15,12 +15,15 @@
  *   limitations under the License.
  */
 
+#include "collections/manifest.h"
+#include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
+#include "failover-table.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
-#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include <utilities/test_manifest.h>
@@ -84,6 +87,383 @@ TEST_F(CollectionsDcpStreamsTest, request_validation) {
         EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid,
                   cb::engine_errc(e.code().value()));
     }
+}
+
+TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(
+            5, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+    auto streamSeqno = vb->getHighSeqno();
+    EXPECT_EQ(streamSeqno,
+              vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit));
+
+    store_items(4, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    delete_item(vbid, StoredDocKey{"Beef1", CollectionEntry::meat});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"Beef5", CollectionEntry::meat}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCompaction(0, true);
+
+    EXPECT_EQ(7, streamSeqno);
+    EXPECT_EQ(13, vb->getHighSeqno());
+
+    ensureDcpWillBackfill();
+
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      streamSeqno, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      streamSeqno, // snap_start_seqno,
+                                      streamSeqno, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["9"]})"}}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
+    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(
+            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_item(vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    delete_item(vbid, StoredDocKey{"orange1", CollectionEntry::fruit});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCompaction(0, true);
+
+    auto streamSeqno = vb->getHighSeqno();
+    EXPECT_EQ(6, vb->getHighSeqno());
+    EXPECT_EQ(streamSeqno,
+              vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit));
+
+    store_item(vbid, StoredDocKey{"Apple1", CollectionEntry::fruit}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ensureDcpWillBackfill();
+
+    store_item(vbid, StoredDocKey{"Apple2", CollectionEntry::fruit}, "nice");
+    // flushVBucketToDiskIfPersistent(vbid, 1);
+
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      streamSeqno, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      streamSeqno, // snap_start_seqno,
+                                      streamSeqno, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["9"]})"}}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno() - 1, producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno() - 1, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ("Apple1", producers->last_key);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, true);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ("Apple2", producers->last_key);
+
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_F(CollectionsDcpStreamsTest,
+       streamRequestNoRollbackPurgeBetweenRequestAndSnapshot) {
+    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(
+            5, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    auto streamSeqno = vb->getHighSeqno();
+    EXPECT_EQ(7, streamSeqno);
+    EXPECT_EQ(streamSeqno,
+              vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit));
+
+    store_items(4, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    delete_item(vbid, StoredDocKey{"Beef1", CollectionEntry::meat});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"Chicken", CollectionEntry::meat}, "soup");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    ensureDcpWillBackfill();
+
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      streamSeqno, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      streamSeqno, // snap_start_seqno,
+                                      streamSeqno, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["9"]})"}}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    runCompaction(0, true);
+
+    EXPECT_EQ(13, vb->getHighSeqno());
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
+    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(
+            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto streamSeqno = vb->getHighSeqno();
+
+    store_item(vbid, StoredDocKey{"Key", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    delete_item(vbid, StoredDocKey{"Key", CollectionEntry::defaultC});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(
+            vbid, StoredDocKey{"KeyTwo", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCompaction(0, true);
+
+    EXPECT_EQ(6, streamSeqno);
+    EXPECT_EQ(9, vb->getHighSeqno());
+    EXPECT_EQ(8, vb->getPurgeSeqno());
+
+    ensureDcpWillBackfill();
+
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      streamSeqno, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      streamSeqno, // snap_start_seqno,
+                                      streamSeqno, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["8","9"]})"}}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+
+    store_item(vbid, StoredDocKey{"Apple", CollectionEntry::fruit}, "value");
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, true);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ("Apple", producers->last_key);
+
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
+}
+
+TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
+    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(
+            2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_items(2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto streamSeqno = vb->getHighSeqno();
+
+    store_item(vbid, StoredDocKey{"Key", CollectionEntry::defaultC}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    delete_item(vbid, StoredDocKey{"Key", CollectionEntry::defaultC});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"Lamb", CollectionEntry::meat}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    runCompaction(0, true);
+
+    EXPECT_EQ(6, streamSeqno);
+    EXPECT_EQ(9, vb->getHighSeqno());
+    EXPECT_EQ(8, vb->getPurgeSeqno());
+
+    ensureDcpWillBackfill();
+
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(ENGINE_ROLLBACK,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      streamSeqno, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      streamSeqno, // snap_start_seqno,
+                                      streamSeqno, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["8","9"]})"}}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    streamSeqno = rollbackSeqno;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      streamSeqno, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      streamSeqno, // snap_start_seqno,
+                                      streamSeqno, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["8","9"]})"}}));
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+    EXPECT_EQ("meat", producers->last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ("fruit", producers->last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+
+    uint64_t expectedSeqno{3};
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(expectedSeqno++, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ("orange0", producers->last_key);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(expectedSeqno++, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ("orange1", producers->last_key);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(expectedSeqno++, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+    EXPECT_EQ("Beef0", producers->last_key);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(expectedSeqno++, producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+    EXPECT_EQ("Beef1", producers->last_key);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+    EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+    EXPECT_EQ("Lamb", producers->last_key);
+
+    // should be no more ops
+    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+              producer->step(producers.get()));
 }
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {

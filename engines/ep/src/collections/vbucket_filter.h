@@ -32,8 +32,7 @@
 class EventuallyPersistentEngine;
 class SystemEventMessage;
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 
 class Manifest;
 class ReadHandle;
@@ -208,6 +207,14 @@ public:
     }
 
     /**
+     * Method to check if the filter dose not filter collections
+     * @return true if the filter is a pass-through filter
+     */
+    bool isPassThroughFilter() const {
+        return passthrough;
+    }
+
+    /**
      * Dump this to std::cerr
      */
     void dump() const;
@@ -312,5 +319,4 @@ protected:
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter);
 
-} // end namespace VB
-} // end namespace Collections
+} // namespace Collections::VB

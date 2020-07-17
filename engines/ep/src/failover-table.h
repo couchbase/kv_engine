@@ -107,18 +107,24 @@ class FailoverTable {
      * @param purge_seqno last seq no purged during compaction
      * @param strictVbUuidMatch indicates if vb_uuid should match even at
      *                          start_seqno 0
+     * @param maxCollectionHighSeqno maximum high seqno of the collections in
+     *                               the streams collection filter. std::nullopt
+     *                               if collection based rollback is not to be
+     *                               used.
      * @param rollback_seqno the sequence number to rollback to if necessary
      *
      * @return true and reason if a rollback is needed, false otherwise
      */
-    std::pair<bool, std::string> needsRollback(uint64_t start_seqno,
-                                               uint64_t cur_seqno,
-                                               uint64_t vb_uuid,
-                                               uint64_t snap_start_seqno,
-                                               uint64_t snap_end_seqno,
-                                               uint64_t purge_seqno,
-                                               bool strictVbUuidMatch,
-                                               uint64_t* rollback_seqno) const;
+    std::pair<bool, std::string> needsRollback(
+            uint64_t start_seqno,
+            uint64_t cur_seqno,
+            uint64_t vb_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t purge_seqno,
+            bool strictVbUuidMatch,
+            std::optional<uint64_t> maxCollectionHighSeqno,
+            uint64_t* rollback_seqno) const;
 
     /**
      * Delete all entries in failover table uptil the specified sequence

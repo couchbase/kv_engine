@@ -2706,9 +2706,12 @@ std::optional<Collections::VB::PersistedStats> CouchKVStore::getCollectionStats(
                     "couchstore_open_local_document error:{}",
                     collection.to_string(),
                     couchstore_strerror(errCode));
+            return {};
         }
 
-        return {};
+        // Return Collections::VB::PersistedStats() with everything set to
+        // 0 as the collection might have not been persisted to disk yet.
+        return {Collections::VB::PersistedStats()};
     }
 
     DbInfo info;
