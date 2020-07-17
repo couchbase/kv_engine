@@ -101,6 +101,18 @@ protected:
             uint32_t flags,
             const boost::optional<cb::durability::Requirements>& durReqs);
 
+    enum class Xattrs : uint8_t { None, User, UserAndSys };
+
+    /**
+     * Verify that at Expiration we remove everything from the value but System
+     * Xattrs.
+     *
+     * @param flags DcpOpen flags for simulating a pre-6.6 and 6.6 connections
+     * @param xattrs Whether the value contain only the body or user/sys xattrs
+     *  too
+     */
+    void testExpirationRemovesBody(uint32_t flags, Xattrs xattrs);
+
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
 };
