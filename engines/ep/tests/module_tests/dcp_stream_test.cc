@@ -2746,7 +2746,8 @@ TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInSyncDelete) {
 
 void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
         bool sysXattrs,
-        const std::optional<cb::durability::Requirements>& durReqs) {
+        const std::optional<cb::durability::Requirements>& durReqs,
+        bool compressed) {
     // UserXattrs in deletion are valid only for connections that enable it
     consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
 
@@ -2766,9 +2767,13 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     // - no body
     // - some user-xattrs ("ABCUser[1..6]" + "meta")
     // - maybe the "_sync" sys-xattr
-    auto value = createXattrValue("", sysXattrs);
+    auto value = createXattrValue("", sysXattrs, compressed);
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
+    auto datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    if (compressed) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    }
 
     if (durReqs) {
         EXPECT_EQ(ENGINE_SUCCESS,
@@ -2776,7 +2781,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                                     {"key", DocKeyEncodesCollectionId::No},
                                     valueBuf,
                                     0 /*priv_bytes*/,
-                                    PROTOCOL_BINARY_DATATYPE_XATTR,
+                                    datatype,
                                     0 /*cas*/,
                                     vbid,
                                     0 /*flags*/,
@@ -2793,7 +2798,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                                      {"key", DocKeyEncodesCollectionId::No},
                                      valueBuf,
                                      0 /*priv_bytes*/,
-                                     PROTOCOL_BINARY_DATATYPE_XATTR,
+                                     datatype,
                                      0 /*cas*/,
                                      vbid,
                                      bySeqno,
@@ -2821,17 +2826,21 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                   doc.item->getCommitted());
     }
 
-    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, doc.item->getDataType());
+    ASSERT_EQ(datatype, doc.item->getDataType());
     const auto* data = doc.item->getData();
     const auto nBytes = doc.item->getNBytes();
 
     // Checkout on-disk value
 
     // No body
-    ASSERT_EQ(std::string_view(""), cb::xattr::get_body({data, nBytes}));
-    cb::xattr::Blob blob({const_cast<char*>(data), nBytes}, false);
+    ASSERT_EQ(0,
+              cb::xattr::get_body_size(
+                      datatype,
+                      std::string_view(const_cast<char*>(data), nBytes)));
 
     // Must have user-xattrs
+    cb::xattr::Blob blob(cb::char_buffer(const_cast<char*>(data), nBytes),
+                         compressed);
     for (uint8_t i = 1; i <= 6; ++i) {
         EXPECT_FALSE(blob.get("ABCuser" + std::to_string(i)).empty());
     }
@@ -2863,6 +2872,17 @@ TEST_P(SingleThreadedPassiveStreamTest,
        ConsumerReceivesUserXattrsInSyncDelete_NoSysXattr) {
     testConsumerReceivesUserXattrsInDelete(false,
                                            cb::durability::Requirements());
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ConsumerReceivesUserXattrsInDelete_Compressed) {
+    testConsumerReceivesUserXattrsInDelete(true, {}, true);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ConsumerReceivesUserXattrsInSyncDelete_Compressed) {
+    testConsumerReceivesUserXattrsInDelete(
+            true, cb::durability::Requirements(), true);
 }
 
 TEST_P(SingleThreadedActiveStreamTest,

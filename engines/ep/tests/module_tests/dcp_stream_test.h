@@ -172,10 +172,12 @@ protected:
      *
      * @param sysXattrs Does the tested payload contain sys-xattrs?
      * @param durReqs (optional) The Dur Reqs, if we are testing SyncDelete
+     * @param compressed Is the tested payload compressed?
      */
     void testConsumerReceivesUserXattrsInDelete(
             bool sysXattrs,
-            const std::optional<cb::durability::Requirements>& durReqs);
+            const std::optional<cb::durability::Requirements>& durReqs,
+            bool compressed = false);
 
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
