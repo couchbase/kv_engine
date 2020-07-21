@@ -62,7 +62,8 @@ public:
      *
      * @param key DocKey that is to be copied-in
      */
-    StoredDocKeyT(const DocKey& key) : StoredDocKeyT(key, allocator_type()) {
+    explicit StoredDocKeyT(const DocKey& key)
+        : StoredDocKeyT(key, allocator_type()) {
     }
 
     /**
@@ -151,6 +152,17 @@ public:
         return keydata < rhs.keydata;
     }
 
+    bool operator==(const DocKey& rhs) const {
+        return keydata == StoredDocKeyT(rhs).keydata;
+    }
+
+    bool operator!=(const DocKey& rhs) const {
+        return !(*this == rhs);
+    }
+
+    // Add no lint to allow implicit casting to class DocKey as we use this to
+    // implicitly cast to other forms of DocKeys thought out code.
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator DocKey() const {
         return {keydata, DocKeyEncodesCollectionId::Yes};
     }
@@ -258,6 +270,9 @@ public:
         }
     };
 
+    // Add no lint to allow implicit casting to class DocKey as we use this to
+    // implicitly cast to other forms of DocKeys thought out code.
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator DocKey() const {
         return {bytes, length, DocKeyEncodesCollectionId::Yes};
     }

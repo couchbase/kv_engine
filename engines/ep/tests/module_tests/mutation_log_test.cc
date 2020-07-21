@@ -171,7 +171,7 @@ TEST_F(MutationLogTest, SyncSet) {
 
 static bool loaderFun(void* arg, Vbid vb, const DocKey& k) {
     auto* sets = reinterpret_cast<std::set<StoredDocKey> *>(arg);
-    sets[vb.get()].insert(k);
+    sets[vb.get()].insert(StoredDocKey(k));
     return true;
 }
 

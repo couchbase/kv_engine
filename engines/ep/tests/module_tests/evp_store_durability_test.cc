@@ -323,7 +323,9 @@ protected:
                                              vb.getHighSeqno());
 
         auto item = *makePendingItem(
-                key, value, Requirements(Level::Majority, Timeout::Infinity()));
+                StoredDocKey(key),
+                value,
+                Requirements(Level::Majority, Timeout::Infinity()));
         item.setCas();
         item.setBySeqno(seqno);
         item.setPreparedMaybeVisible();

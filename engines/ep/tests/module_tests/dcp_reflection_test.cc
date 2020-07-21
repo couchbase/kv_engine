@@ -251,7 +251,7 @@ protected:
     }
 
     ENGINE_ERROR_CODE storeSet(const DocKey& docKey) {
-        return store->set(*makeCommittedItem(docKey, {}), cookie);
+        return store->set(*makeCommittedItem(StoredDocKey(docKey), {}), cookie);
     }
 
     /**

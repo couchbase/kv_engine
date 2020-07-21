@@ -284,7 +284,7 @@ VBucketTestBase::public_processSoftDelete(HashTable::FindUpdateResult& htRes,
 }
 
 bool VBucketTestBase::public_deleteStoredValue(const DocKey& key) {
-    auto hbl_sv = lockAndFind(key);
+    auto hbl_sv = lockAndFind(StoredDocKey(key));
     if (!hbl_sv.second) {
         return false;
     }
@@ -295,7 +295,7 @@ std::pair<MutationStatus, GetValue> VBucketTestBase::public_getAndUpdateTtl(
         const DocKey& key, time_t exptime) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
-    auto hbl = lockAndFind(key);
+    auto hbl = lockAndFind(StoredDocKey(key));
     return vbucket->processGetAndUpdateTtl(
             hbl.first, hbl.second, exptime, cHandle);
 }
