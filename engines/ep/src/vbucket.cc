@@ -2922,8 +2922,8 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
 
     // Delete the item in the hash table iff:
     //  1. Item is existent in hashtable, and deleted flag is true
-    //  2. rev seqno of queued item matches rev seqno of hash table item
-    if (v && v->isDeleted() && (queuedItem.getRevSeqno() == v->getRevSeqno())) {
+    //  2. seqno of queued item matches seqno of hash table item
+    if (v && v->isDeleted() && queuedItem.getBySeqno() == v->getBySeqno()) {
         bool isDeleted = deleteStoredValue(res.lock, *v);
         if (!isDeleted) {
             throw std::logic_error(
