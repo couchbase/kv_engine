@@ -1164,13 +1164,11 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         {
             auto lockedStats = magmaDbStats.stats.wlock();
             lockedStats->docCount = ninserts - ndeletes;
-
-            // Set highSeqno
-            lockedStats->highSeqno = static_cast<uint64_t>(lastSeqno);
         }
         addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
         auto& vbstate = commitData.proposedVBState;
+        vbstate.highSeqno = lastSeqno;
 
         // Write out current vbstate to the CommitBatch.
         addVBStateUpdateToLocalDbReqs(
@@ -1180,7 +1178,6 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             updateCollectionsMeta(vbid, localDbReqs, commitData.collections);
         }
         addLocalDbReqs(localDbReqs, postWriteOps);
-        vbstate.highSeqno = lastSeqno;
     };
 
     auto begin = std::chrono::steady_clock::now();
@@ -1527,7 +1524,6 @@ void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
                                                 Vbid vbid) {
     auto dbStats = getMagmaDbStats(vbid);
     auto lockedStats = dbStats.stats.rlock();
-    vbstate.highSeqno = lockedStats->highSeqno;
     vbstate.purgeSeqno = lockedStats->purgeSeqno;
 
     // We don't update the number of onDiskPrepares because we can't easily
@@ -2407,14 +2403,12 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {
     auto locked = dbStats.stats.rlock();
     json = nlohmann::json{{"docCount", std::to_string(locked->docCount)},
-                          {"highSeqno", std::to_string(locked->highSeqno)},
                           {"purgeSeqno", std::to_string(locked->purgeSeqno)}};
 }
 
 void from_json(const nlohmann::json& j, MagmaDbStats& dbStats) {
     auto locked = dbStats.stats.wlock();
     locked->docCount = std::stoull(j.at("docCount").get<std::string>());
-    locked->highSeqno.reset(std::stoull(j.at("highSeqno").get<std::string>()));
     locked->purgeSeqno.reset(
             std::stoull(j.at("purgeSeqno").get<std::string>()));
 }
@@ -2428,9 +2422,6 @@ void MagmaDbStats::Merge(const UserStats& other) {
     auto otherLocked = otherStats->stats.rlock();
 
     locked->docCount += otherLocked->docCount;
-    if (otherLocked->highSeqno > locked->highSeqno) {
-        locked->highSeqno = otherLocked->highSeqno;
-    }
     if (otherLocked->purgeSeqno > locked->purgeSeqno) {
         locked->purgeSeqno = otherLocked->purgeSeqno;
     }
