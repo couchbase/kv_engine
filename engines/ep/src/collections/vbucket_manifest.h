@@ -739,7 +739,7 @@ public:
      *
      * @param data object storing flatbuffer manifest data (or empty)
      */
-    Manifest(const KVStore::Manifest& data);
+    explicit Manifest(const KVStore::Manifest& data);
 
     /**
      * @return ReadHandle, no iterator is held on the collection container
