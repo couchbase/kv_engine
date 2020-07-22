@@ -936,7 +936,7 @@ protected:
     union value_ptr_tag {
         value_ptr_tag() : raw{0} {
         }
-        value_ptr_tag(uint16_t raw) : raw(raw) {
+        explicit value_ptr_tag(uint16_t raw) : raw(raw) {
         }
         uint16_t raw;
 
@@ -948,7 +948,7 @@ protected:
 
     /// @return the tag part of the value TaggedPtr
     value_ptr_tag getValueTag() const {
-        return value.get().getTag();
+        return value_ptr_tag(value.get().getTag());
     }
 
     /// set the tag part of the value TaggedPtr
