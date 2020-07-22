@@ -1143,3 +1143,51 @@ TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
                                   /*keyMetaOnly*/ false,
                                   EvictionPolicy::Full));
 }
+
+TEST_F(HashTableTest, ReplaceValueAndDatatype) {
+    HashTable ht(global_stats, makeFactory(), 1, 1);
+
+    // Store a deleted item
+    StoredDocKey key = makeStoredDocKey("key");
+    std::string val = "initialVal";
+    Item item(key, 0, 0, val.c_str(), val.size());
+    item.setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+
+    // Verify preconditions
+    const auto findRes = ht.findForWrite(key);
+    auto* sv = findRes.storedValue;
+    ASSERT_EQ(val,
+              std::string(sv->getValue()->getData(),
+                          sv->getValue()->valueSize()));
+    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, sv->getDatatype());
+    ASSERT_FALSE(sv->isDeleted());
+
+    const auto initialSeqno = sv->getBySeqno();
+    const auto initialCAS = sv->getCas();
+    const auto initialRevSeqno = sv->getRevSeqno();
+    const auto initialFreqCounter = sv->getFreqCounterValue();
+    const auto initialAge = sv->getAge();
+    const auto initialCommittedState = sv->getCommitted();
+
+    // Replace value and datatype
+    val = "newVal";
+    std::unique_ptr<Blob> newVal(Blob::New(val.data(), val.size()));
+    auto res = ht.unlocked_replaceValueAndDatatype(
+            findRes.lock, *sv, std::move(newVal), PROTOCOL_BINARY_RAW_BYTES);
+    EXPECT_EQ(MutationStatus::WasDirty, res.status);
+    ASSERT_EQ(sv, res.storedValue);
+
+    // Verify that value and datatype have changed, other properties unchanged
+    EXPECT_EQ(val,
+              std::string(sv->getValue()->getData(),
+                          sv->getValue()->valueSize()));
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, sv->getDatatype());
+    EXPECT_FALSE(sv->isDeleted());
+    EXPECT_EQ(initialSeqno, sv->getBySeqno());
+    EXPECT_EQ(initialCAS, sv->getCas());
+    EXPECT_EQ(initialRevSeqno, sv->getRevSeqno());
+    EXPECT_EQ(initialFreqCounter, sv->getFreqCounterValue());
+    EXPECT_EQ(initialAge, sv->getAge());
+    EXPECT_EQ(initialCommittedState, sv->getCommitted());
+}

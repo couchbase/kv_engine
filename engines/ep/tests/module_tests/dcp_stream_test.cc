@@ -27,6 +27,7 @@
 #include "dcp_utils.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "ephemeral_vb.h"
 #include "executorpool.h"
 #include "failover-table.h"
@@ -3393,6 +3394,173 @@ TEST_P(SingleThreadedActiveStreamTest,
 TEST_P(SingleThreadedActiveStreamTest,
        ProducerPrunesUserXattrsForSyncDelete_NoXattrs) {
     testProducerPrunesUserXattrsForDelete(0, cb::durability::Requirements());
+}
+
+void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
+                                                               Xattrs xattrs) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+
+    auto& vb = *engine->getVBucket(vbid);
+    recreateProducerAndStream(vb, DcpOpenFlag::IncludeXattrs | flags);
+
+    const auto currIncDelUserXattr =
+            (flags & DcpOpenFlag::IncludeDeletedUserXattrs) != 0
+                    ? IncludeDeletedUserXattrs::Yes
+                    : IncludeDeletedUserXattrs::No;
+    ASSERT_EQ(currIncDelUserXattr,
+              producer->public_getIncludeDeletedUserXattrs());
+    ASSERT_EQ(currIncDelUserXattr,
+              stream->public_getIncludeDeletedUserXattrs());
+    ASSERT_EQ(IncludeXattrs::Yes, producer->public_getIncludeXattrs());
+    ASSERT_EQ(IncludeXattrs::Yes, stream->public_getIncludeXattrs());
+    ASSERT_EQ(IncludeValue::Yes, producer->public_getIncludeValue());
+    ASSERT_EQ(IncludeValue::Yes, stream->public_getIncludeValue());
+
+    std::string value;
+    switch (xattrs) {
+    case Xattrs::None:
+        value = "body";
+        break;
+    case Xattrs::User:
+        value = createXattrValue("body", false);
+        break;
+    case Xattrs::UserAndSys:
+        value = createXattrValue("body", true);
+        break;
+    }
+
+    auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    if (xattrs != Xattrs::None) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+
+    // Store an item with exptime != 0
+    const std::string key = "key";
+    const auto docKey = DocKey{key, DocKeyEncodesCollectionId::No};
+    store_item(vbid,
+               docKey,
+               value,
+               ep_real_time() + 1 /*1 second TTL*/,
+               {cb::engine_errc::success} /*expected*/,
+               datatype);
+
+    const auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+    auto* ckpt = list.front().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    ASSERT_EQ(2, ckpt->getNumMetaItems());
+    ASSERT_EQ(1, ckpt->getNumItems());
+    auto it = ckpt->begin(); // empty-item
+    it++; // checkpoint-start
+    it++; // set-vbstate
+    it++;
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_FALSE((*it)->isDeleted());
+    EXPECT_EQ(value, (*it)->getValue()->to_s());
+
+    TimeTraveller tt(5000);
+
+    // Just need to access key for expiring
+    GetValue gv = store->get(docKey, vbid, nullptr, get_options_t::NONE);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    ASSERT_EQ(2, list.size());
+    ckpt = list.back().get();
+    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+    it = ckpt->begin(); // empty-item
+    it++; // checkpoint-start
+    it++;
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_TRUE((*it)->isDeleted());
+
+    // Note: I inspect the Expiration payload directly by looking at the message
+    // in the ActiveStream::readyQ, see below
+
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Push items to the readyQ and check what we get
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(4, readyQ.size());
+
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    auto* msg = dynamic_cast<MutationResponse*>(resp.get());
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
+
+    // Inspect payload for DCP Expiration
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    msg = dynamic_cast<MutationResponse*>(resp.get());
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::Expiration, msg->getEvent());
+    ASSERT_TRUE(msg->getItem()->isDeleted());
+    ASSERT_EQ(currIncDelUserXattr, msg->getIncludeDeletedUserXattrs());
+
+    const auto& item = *msg->getItem();
+    const auto* data = item.getData();
+    const auto nBytes = item.getNBytes();
+
+    if (xattrs == Xattrs::UserAndSys) {
+        // No body
+        EXPECT_EQ(0,
+                  cb::xattr::get_body_size(item.getDataType(), {data, nBytes}));
+
+        // Only xattrs in deletion, dt must be XATTR only
+        ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, item.getDataType());
+        // We must keep only SysXa
+        const auto valueBuf = cb::char_buffer(const_cast<char*>(data), nBytes);
+        cb::xattr::Blob blob(valueBuf, false);
+        EXPECT_EQ(blob.size(), blob.get_system_size());
+        // Note: "_sync" sys-xattr created by createXattrValue()
+        EXPECT_FALSE(blob.get("_sync").empty());
+    } else {
+        // We must remove everything
+        // Note: DT for no-value must be RAW
+        ASSERT_EQ(PROTOCOL_BINARY_RAW_BYTES, item.getDataType());
+        EXPECT_EQ(0, nBytes);
+    }
+}
+
+TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_Pre66) {
+    testExpirationRemovesBody(0, Xattrs::None);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_Pre66_UserXa) {
+    testExpirationRemovesBody(0, Xattrs::User);
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       testExpirationRemovesBody_Pre66_UserXa_SysXa) {
+    testExpirationRemovesBody(0, Xattrs::UserAndSys);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::None);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::User);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa_SysXa) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::UserAndSys);
 }
 
 class SingleThreadedBackfillTest : public SingleThreadedActiveStreamTest {

@@ -813,24 +813,13 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
          * value after pre-expiry is performed.
          */
         auto result = sapi->document->pre_expiry(itm_info);
-        // The API states only uncompressed xattr values are returned
-        auto datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-        if (!result.empty()) {
-            Item new_item(v.getKey(),
-                          v.getFlags(),
-                          v.getExptime(),
-                          result.data(),
-                          result.size(),
-                          datatype,
-                          v.getCas(),
-                          v.getBySeqno(),
-                          id,
-                          v.getRevSeqno());
 
-            new_item.setFreqCounterValue(v.getFreqCounterValue());
-            new_item.setDeleted(DeleteSource::TTL);
-            ht.unlocked_updateStoredValue(hbl, v, new_item);
-        }
+        // The API states only uncompressed xattr values are returned, but an
+        // empty value has datatype:raw
+        auto datatype = result.empty() ? PROTOCOL_BINARY_RAW_BYTES
+                                       : PROTOCOL_BINARY_DATATYPE_XATTR;
+        std::unique_ptr<Blob> val(Blob::New(result.data(), result.size()));
+        ht.unlocked_replaceValueAndDatatype(hbl, v, std::move(val), datatype);
     }
 }
 

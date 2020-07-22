@@ -398,6 +398,36 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
     return {status, &v};
 }
 
+HashTable::UpdateResult HashTable::unlocked_replaceValueAndDatatype(
+        const HashBucketLock& hbl,
+        StoredValue& v,
+        std::unique_ptr<Blob> newValue,
+        protocol_binary_datatype_t newDT) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_replaceValueAndDatatype: htLock "
+                "not held");
+    }
+
+    if (!isActive()) {
+        throw std::logic_error(
+                "HashTable::unlocked_replaceValueAndDatatype: Cannot "
+                "call on a non-active HT object");
+    }
+
+    const auto preStatus =
+            v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
+
+    const auto preProps = valueStats.prologue(&v);
+
+    v.setDatatype(newDT);
+    v.replaceValue(std::move(newValue));
+
+    valueStats.epilogue(preProps, &v);
+
+    return {preStatus, &v};
+}
+
 StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
                                                    const Item& itm) {
     if (!hbl.getHTLock()) {

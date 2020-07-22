@@ -933,6 +933,21 @@ public:
                                             const Item& itm);
 
     /**
+     * Sets the new value and datatype and updates HashTable stats.
+     * Leaves any other SV's property unchanged.
+     *
+     * @param hbl
+     * @param v The StoredValue to update
+     * @param newValue
+     * @param newDT
+     */
+    UpdateResult unlocked_replaceValueAndDatatype(
+            const HashBucketLock& hbl,
+            StoredValue& v,
+            std::unique_ptr<Blob> newValue,
+            protocol_binary_datatype_t newDT);
+
+    /**
      * Adds a new StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *
