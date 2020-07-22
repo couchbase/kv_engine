@@ -83,7 +83,7 @@ public:
     }
 
     void applyEvents(const CollectionsManifest& cm) {
-        manifest.update(vbucket, {cm});
+        manifest.update(vbucket, Collections::Manifest{cm});
 
         std::vector<queued_item> events;
         getEventsFromCheckpoint(events);

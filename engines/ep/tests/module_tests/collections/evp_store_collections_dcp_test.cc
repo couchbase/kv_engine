@@ -252,7 +252,8 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     // the bucket::manifest still thinks fruit exists. This is done so that
     // the promotion to active/replica makes no further changes to the
     // collection state.
-    active->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+    active->updateFromManifest(
+            Collections::Manifest{cm.remove(CollectionEntry::fruit)});
 
     notifyAndStepToCheckpoint();
 
@@ -364,7 +365,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
     // Add a collection, then remove it. This adds events into the CP which
     // we'll manually replicate with calls to step
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
 
     // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
@@ -392,7 +393,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // remove meat
-    vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
+    vb->updateFromManifest(
+            Collections::Manifest{cm.remove(CollectionEntry::meat)});
 
     // The delete collection event still exists
     if (!persistent()) {
@@ -443,7 +445,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
         // we'll manually replicate with calls to step
         CollectionsManifest cm;
         cm.add(CollectionEntry::meat, std::chrono::seconds(100) /*maxttl*/);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
 
         notifyAndStepToCheckpoint();
 
@@ -484,7 +486,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     cm.setUid(88); // set non-zero for better validation
 
     cm.add(ScopeEntry::shop1);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
@@ -497,7 +499,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     EXPECT_EQ(89, producers->last_collection_manifest_uid);
 
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
 
     notifyAndStepToCheckpoint();
 
@@ -522,8 +524,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // remove meat
-    vb->updateFromManifest(
-            {cm.remove(CollectionEntry::meat, ScopeEntry::shop1)});
+    vb->updateFromManifest(Collections::Manifest{
+            cm.remove(CollectionEntry::meat, ScopeEntry::shop1)});
 
     notifyAndStepToCheckpoint();
 
@@ -546,9 +548,10 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     // Add 3 collections in one update
     CollectionsManifest cm;
-    vb->updateFromManifest({cm.add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy)
-                                    .add(CollectionEntry::meat)});
+    vb->updateFromManifest(
+            Collections::Manifest{cm.add(CollectionEntry::fruit)
+                                          .add(CollectionEntry::dairy)
+                                          .add(CollectionEntry::meat)});
 
     notifyAndStepToCheckpoint();
 
@@ -593,8 +596,8 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
     // Remove two
-    vb->updateFromManifest(
-            {cm.remove(CollectionEntry::fruit).remove(CollectionEntry::dairy)});
+    vb->updateFromManifest(Collections::Manifest{
+            cm.remove(CollectionEntry::fruit).remove(CollectionEntry::dairy)});
 
     notifyAndStepToCheckpoint();
 
@@ -609,8 +612,8 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(7, replica->lockCollections().getManifestUid());
 
     // Add and remove
-    vb->updateFromManifest(
-            {cm.add(CollectionEntry::dairy2).remove(CollectionEntry::meat)});
+    vb->updateFromManifest(Collections::Manifest{
+            cm.add(CollectionEntry::dairy2).remove(CollectionEntry::meat)});
 
     notifyAndStepToCheckpoint();
 
@@ -630,7 +633,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy & fruit
         CollectionsManifest cm(CollectionEntry::fruit);
-        vb->updateFromManifest({cm.add(CollectionEntry::dairy)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.add(CollectionEntry::dairy)});
 
         // Mutate dairy
         for (int ii = 0; ii < items; ii++) {
@@ -647,7 +651,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
         }
 
         // Delete dairy
-        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.remove(CollectionEntry::dairy)});
 
         // Persist everything ready for warmup and check.
         // Flusher will merge create/delete and we only flush the delete
@@ -702,8 +707,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
     {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy & fruit
-        vb->updateFromManifest(
-                {cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy)});
+        vb->updateFromManifest(Collections::Manifest{
+                cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy)});
 
         // Mutate dairy
         for (int ii = 0; ii < items; ii++) {
@@ -729,7 +734,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
     // Now delete the dairy collection
     {
         store->getVBucket(vbid)->updateFromManifest(
-                {cm.remove(CollectionEntry::dairy)});
+                Collections::Manifest{cm.remove(CollectionEntry::dairy)});
 
         // Front-end will be stopping dairy mutations...
         EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
@@ -775,7 +780,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
         CollectionsManifest cm(CollectionEntry::dairy);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
 
         // Mutate dairy
         const int items = 3;
@@ -786,10 +791,12 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         }
 
         // Delete dairy
-        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.remove(CollectionEntry::dairy)});
 
         // Create dairy (new uid)
-        vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.add(CollectionEntry::dairy2)});
 
         // Persist everything ready for warmup and check.
         // Flush the items + 1 delete (dairy) and 1 create (dairy2)
@@ -823,7 +830,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
         CollectionsManifest cm(CollectionEntry::dairy);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
 
         // Mutate dairy
         const int items = 3;
@@ -834,8 +841,9 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         }
 
         // Delete dairy/create dairy in *one* update
-        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
-                                        .add(CollectionEntry::dairy2)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.remove(CollectionEntry::dairy)
+                                              .add(CollectionEntry::dairy2)});
 
         // Persist everything ready for warmup and check.
         // Flush the items + 1 delete (dairy) and 1 create (dairy2)
@@ -872,11 +880,11 @@ TEST_F(CollectionsDcpTest, MB_26455) {
         auto vb = store->getVBucket(vbid);
 
         CollectionsManifest cm;
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
         for (uint32_t n = 2; n < m; n++) {
 
             // add fruit (new generation), + 10 to use valid collection range
-            vb->updateFromManifest({cm.add(
+            vb->updateFromManifest(Collections::Manifest{cm.add(
                     CollectionEntry::Entry{CollectionName::fruit, n + 10})});
 
             // Mutate fruit
@@ -892,7 +900,8 @@ TEST_F(CollectionsDcpTest, MB_26455) {
                 dropped.push_back(
                         CollectionEntry::Entry{CollectionName::fruit, n + 10});
                 // Drop fruit, except for the last 'generation'
-                vb->updateFromManifest({cm.remove(dropped.back())});
+                vb->updateFromManifest(
+                        Collections::Manifest{cm.remove(dropped.back())});
 
                 flush_vbucket_to_disk(vbid, 1);
             }
@@ -922,7 +931,7 @@ TEST_P(CollectionsDcpParameterizedTest, collections_manifest_is_ahead) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
     store_item(vbid, makeStoredDocKey("k", CollectionEntry::dairy), "v");
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
@@ -961,7 +970,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy
         CollectionsManifest cm(CollectionEntry::dairy);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
 
         // Mutate dairy
         const int items = 3;
@@ -972,8 +981,9 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
         }
 
         // Delete dairy/create dairy in *one* update
-        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
-                                        .add(CollectionEntry::dairy2)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.remove(CollectionEntry::dairy)
+                                              .add(CollectionEntry::dairy2)});
 
         // Persist everything ready for warmup and check.
         // Flush the items + 1 delete (dairy) and 1 create (dairy2)
@@ -1012,12 +1022,12 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
         CollectionsManifest cm;
         cm.add(ScopeEntry::shop1);
         cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
         flush_vbucket_to_disk(vbid, 2);
 
         // remove the scope (and the collection)
         cm.remove(ScopeEntry::shop1);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
         flush_vbucket_to_disk(vbid, 2);
     }
 
@@ -1059,7 +1069,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         CollectionsManifest cm;
         cm.add(CollectionEntry::fruit);
         cm.add(CollectionEntry::dairy);
-        vb->updateFromManifest({cm});
+        vb->updateFromManifest(Collections::Manifest{cm});
         store_item(vbid, StoredDocKey{"d_k1", CollectionEntry::defaultC}, "v");
         store_item(vbid, StoredDocKey{"d_k2", CollectionEntry::defaultC}, "v");
         flushVBucketToDiskIfPersistent(Vbid(0), 4);
@@ -1068,7 +1078,8 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         store_item(vbid, StoredDocKey{"dairy", CollectionEntry::dairy}, "v");
         store_item(vbid, StoredDocKey{"k2", CollectionEntry::fruit}, "v");
 
-        vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+        vb->updateFromManifest(
+                Collections::Manifest{cm.remove(CollectionEntry::fruit)});
         flushVBucketToDiskIfPersistent(Vbid(0), 4);
 
         uuid = vb->failovers->getLatestUUID();

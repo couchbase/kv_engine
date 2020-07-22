@@ -47,7 +47,7 @@ TEST_F(CollectionsDcpStreamsTest, request_validation) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
 
     // Cannot do this without enabling the feature
     createDcpStream({{R"({"collections":["9"], "sid":99})"}},
@@ -89,7 +89,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
     producer->enableMultipleStreamRequests();
     createDcpStream({{R"({"collections":["9"], "sid":99})"}}, vbid);
 
@@ -100,7 +100,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
 
     createDcpStream({{R"({"collections":["9"]})"}}, vbid);
 
@@ -116,7 +116,7 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
     if (enableStreamEnd) {
         producer->enableStreamEndOnClientStreamClose();
     }
@@ -203,7 +203,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
     store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
 
     producer->enableMultipleStreamRequests();
@@ -290,7 +290,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
 
     producer->enableMultipleStreamRequests();
 

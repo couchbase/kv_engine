@@ -194,7 +194,7 @@ public:
 
     ::testing::AssertionResult update(const std::string& json) {
         try {
-            active.update(vbA, {json});
+            active.update(vbA, Collections::Manifest{json});
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
                    << "Exception thrown for update with " << json
@@ -725,7 +725,8 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     // Apply same manifest (different revision). Nothing will be created or
     // deleted. Apply direct to vbm, not via manifest.update as that would
     // complain about the lack of events
-    manifest.getActiveManifest().update(manifest.getActiveVB(), {cm});
+    manifest.getActiveManifest().update(manifest.getActiveVB(),
+                                        Collections::Manifest{cm});
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
     seqno = manifest.getActiveVB().getHighSeqno();
@@ -737,7 +738,8 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     seqno = manifest.getActiveVB().getHighSeqno();
 
     // same again, should have nothing created or deleted
-    manifest.getActiveManifest().update(manifest.getActiveVB(), {cm});
+    manifest.getActiveManifest().update(manifest.getActiveVB(),
+                                        Collections::Manifest{cm});
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
 }

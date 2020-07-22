@@ -44,7 +44,8 @@ std::pair<CollectionsManifest, uint64_t>
 CollectionsOSODcpTest::setupTwoCollections() {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::fruit);
-    vb->updateFromManifest({cm.add(CollectionEntry::vegetable)});
+    vb->updateFromManifest(
+            Collections::Manifest{cm.add(CollectionEntry::vegetable)});
 
     // Interleave the writes to two collections and then OSO backfill one
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::fruit), "q");
@@ -193,7 +194,8 @@ TEST_F(CollectionsOSODcpTest, dropped_collection) {
     // stream should only return a dropped vegetable event and no vegetable
     // items in the OSO snapshot
     VBucketPtr vb = store->getVBucket(vbid);
-    vb->updateFromManifest({setup.first.remove(CollectionEntry::vegetable)});
+    vb->updateFromManifest(Collections::Manifest{
+            setup.first.remove(CollectionEntry::vegetable)});
     flush_vbucket_to_disk(vbid, 1);
 
     // We have a single filter, expect the backfill to be OSO

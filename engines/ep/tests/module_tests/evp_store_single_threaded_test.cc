@@ -5332,7 +5332,7 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
 
     CollectionsManifest cm(CollectionEntry::dairy);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    vb->updateFromManifest({cm});
+    vb->updateFromManifest(Collections::Manifest{cm});
 
     // Check nothing persisted to disk, only default collection exists
     auto* kvstore = store->getRWUnderlying(vbid);
