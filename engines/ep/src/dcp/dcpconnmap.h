@@ -195,6 +195,11 @@ protected:
     void idleTimeoutConfigChanged(size_t newValue);
 
     /**
+     * Enable/disable the logging on FTS connections
+     */
+    void blacklistFtsConnectionLogsConfigChanged(bool newValue);
+
+    /**
      * @param engine The engine
      * @param cookie The cookie that identifies the connection
      * @param connName The name that identifies the connection

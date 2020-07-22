@@ -21,10 +21,16 @@
 
 #include "bucket_logger_test.h"
 
+#include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_dcp_conn_map.h"
 #include "bucket_logger.h"
+#include "dcp/producer.h"
 #include "thread_gate.h"
+#include "evp_store_single_threaded_test.h"
 
 #include <programs/engine_testapp/mock_server.h>
+
+#include "spdlog/spdlog.h"
 
 void BucketLoggerTest::SetUp() {
     // Store the oldLogLevel for tearDown
@@ -236,4 +242,76 @@ TEST_F(BucketLoggerTest, RaceInFlushDueToPtrOwnership) {
     // Shutdown of the logger will keep the ThreadGates in scope until the flush
     // has finished as it locks on the logger_map_mutex_ in spdlog::registry
     cb::logger::shutdown();
+}
+
+/**
+ * Test that we adjust log levels correctly for FTS connections.
+ */
+class FtsLoggerTest : virtual public SingleThreadedKVBucketTest {};
+
+TEST_F(FtsLoggerTest, testDynamicChanges) {
+    // Set default log level to err instead of critical so that we can test
+    // log level changes (as the fts default level is critical).
+    get_mock_server_api()->log->set_level(spdlog::level::level_enum::err);
+
+    auto startLevel = globalBucketLogger->level();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Default state is to blacklist FTS connection logs
+    ASSERT_TRUE(engine->getConfiguration().isDcpBlacklistFtsConnectionLogs());
+
+    // Create our FTS Producer and manually add it to the DcpConnMap which is
+    // responsible for passing down config changes. When we create the Producer
+    // we create a logger for it. As the name of the producer implies it's an
+    // FTS producer we set the log level and unregister it from the spdlog
+    // registry.
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              DcpProducer::ftsConnectionName,
+                                              /*flags*/ 0);
+    MockDcpConnMap& mockConnMap =
+        static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookie, producer);
+
+    // The logger should default to critical level
+    EXPECT_EQ(spdlog::level::level_enum::critical,
+              producer->getLogger().level());
+
+    // Changing global log levels should not change that of the logger as it is
+    // not registered.
+    get_mock_server_api()->log->set_level(spdlog::level::level_enum::off);
+    EXPECT_EQ(spdlog::level::level_enum::critical,
+              producer->getLogger().level());
+    get_mock_server_api()->log->set_level(startLevel);
+
+    // Set our config which should update the log level and register the logger
+    engine->getConfiguration().setDcpBlacklistFtsConnectionLogs(false);
+    EXPECT_EQ(globalBucketLogger->level(), producer->getLogger().level());
+
+    // Logger is registered so a log level change updates it's level.
+    get_mock_server_api()->log->set_level(spdlog::level::level_enum::off);
+    EXPECT_EQ(spdlog::level::level_enum::off, producer->getLogger().level());
+    get_mock_server_api()->log->set_level(startLevel);
+    EXPECT_EQ(startLevel, producer->getLogger().level());
+
+    // Set the blacklist again which should set the level to critical and
+    // unregsiter the logger.
+    engine->getConfiguration().setDcpBlacklistFtsConnectionLogs(true);
+
+    EXPECT_EQ(spdlog::level::level_enum::critical,
+              producer->getLogger().level());
+
+    // Changing global log levels should not change that of the logger as it is
+    // not registered.
+    get_mock_server_api()->log->set_level(spdlog::level::level_enum::off);
+    EXPECT_EQ(spdlog::level::level_enum::critical,
+              producer->getLogger().level());
+    get_mock_server_api()->log->set_level(startLevel);
+
+    // Needed to close connection references to prevent heap-use-after-free and
+    // recreate our cookie after
+    mockConnMap.disconnect(cookie);
+    mockConnMap.manageConnections();
+    cookie = create_mock_cookie();
 }

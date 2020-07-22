@@ -349,6 +349,11 @@ public:
 
     void setIdleTimeout(size_t newValue);
 
+    void setBlacklistFtsConnectionLogs(bool newValue);
+
+    // FTS connection name prefix used to enable/disable logging.
+    static const std::string ftsConnectionName;
+
 protected:
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.

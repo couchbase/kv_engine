@@ -212,6 +212,7 @@ struct MockServerLogApi : public ServerLogIface {
 
     void set_level(spdlog::level::level_enum severity) override {
         log_level = severity;
+        cb::logger::setLogLevels(log_level);
     }
 };
 
