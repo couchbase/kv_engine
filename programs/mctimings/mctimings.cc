@@ -37,6 +37,16 @@
 
 #define JSON_DUMP_INDENT_SIZE 4
 
+const static std::string_view histogramInfo = R"(Histogram Legend:
+[1. - 2.]3. (4.)    5.|
+    1. All values in this bucket were recorded for a higher value than this.
+    2. The maximum value inclusive that could have been recorded in this bucket.
+    3. The unit for the values of that (1.) and (2.) are in microseconds, milliseconds or seconds.
+    4. Percentile of recorded values to the histogram that has values <= the value at (2.).
+    5. The number of recorded values that were in the range (1.) to (2.) inclusive.
+
+)";
+
 class Timings {
 public:
     explicit Timings(const nlohmann::json& json) {
@@ -62,44 +72,43 @@ public:
                 maxCount = count;
             }
         }
-        using namespace std::chrono;
+        // If no buckets have no recorded values do not try to render buckets
+        if (maxCount > 0) {
+            // create double versions of sec, ms, us so we can print them to 2dp
+            using namespace std::chrono;
+            using doubleMicroseconds = duration<long double, std::micro>;
+            using doubleMilliseconds = duration<long double, std::milli>;
+            using doubleSeconds = duration<long double>;
 
-        // loop though all the buckets in the json object and print them
-        // to std out
-        uint64_t lastBuckLow = bucketsLow;
-        for (auto bucket : dataArray) {
-            // Get the current bucket's highest value it would track counts for
-            auto buckHigh = bucket[0].get<uint64_t>();
-            // Get the counts for this bucket
-            auto count = bucket[1].get<uint64_t>();
-            // Get the percentile of counts that are <= buckHigh
-            auto percentile = bucket[2].get<double>();
+            // loop though all the buckets in the json object and print them
+            // to std out
+            uint64_t lastBuckLow = bucketsLow;
+            for (auto bucket : dataArray) {
+                // Get the current bucket's highest value it would track counts
+                // for
+                auto buckHigh = bucket[0].get<int64_t>();
+                // Get the counts for this bucket
+                auto count = bucket[1].get<int64_t>();
+                // Get the percentile of counts that are <= buckHigh
+                auto percentile = bucket[2].get<double>();
 
-            if (lastBuckLow != buckHigh) {
                 // Cast the high bucket width to us, ms and seconds so we
                 // can check which units we should be using for this bucket
-                auto buckHighUs = microseconds(buckHigh);
-                auto buckHighMs = duration_cast<milliseconds>(buckHighUs);
-                auto buckHighS = duration_cast<seconds>(buckHighUs);
+                auto buckHighUs = doubleMicroseconds(buckHigh);
+                auto buckHighMs = duration_cast<doubleMilliseconds>(buckHighUs);
+                auto buckHighS = duration_cast<doubleSeconds>(buckHighUs);
 
-                // If the bucket width values are in the order of tens of
-                // seconds or milli seconds then print them as seconds or milli
-                // seconds respectively. Otherwise print them as micro seconds
-
-                // We're using tens of unit thresh holds so that each bucket
-                // has 2 sig fig of differentiation in their width, so we dont
-                // have buckets that are [1 - 1]s    100     (90.000%)
-                if (buckHighS.count() > 10) {
-                    auto low =
-                            duration_cast<seconds>(microseconds(lastBuckLow));
+                if (buckHighS.count() > 1) {
+                    auto low = duration_cast<doubleSeconds>(
+                            microseconds(lastBuckLow));
                     dump("s",
                          low.count(),
                          buckHighS.count(),
                          count,
                          percentile);
-                } else if (buckHighMs.count() > 10) {
-                    auto low = duration_cast<milliseconds>(
-                            microseconds(lastBuckLow));
+                } else if (buckHighMs.count() > 1) {
+                    auto low = duration_cast<doubleMilliseconds>(
+                            doubleMicroseconds(lastBuckLow));
                     dump("ms",
                          low.count(),
                          buckHighMs.count(),
@@ -108,9 +117,10 @@ public:
                 } else {
                     dump("us", lastBuckLow, buckHigh, count, percentile);
                 }
+
+                // Set the low bucket value to this buckets high width value.
+                lastBuckLow = buckHigh;
             }
-            // Set the low bucket value to this buckets high width value.
-            lastBuckLow = buckHigh;
         }
 
         fmt::print(stdout, "Total: {} operations\n", total);
@@ -130,19 +140,20 @@ private:
     }
 
     void dump(const char* timeunit,
-              int64_t low,
-              int64_t high,
+              long double low,
+              long double high,
               int64_t count,
               double percentile) {
         // Calculations for histogram size rendering
-        double factionOfHashes = (count / static_cast<double>(maxCount));
+        double factionOfHashes =
+                maxCount > 0 ? (count / static_cast<double>(maxCount)) : 0.0;
         int num = static_cast<int>(44.0 * factionOfHashes);
 
         // Calculations for padding around the count in each histogram bucket
-        auto numberOfSpaces = fmt::formatted_size("{}", maxCount);
+        auto numberOfSpaces = fmt::formatted_size("{}", maxCount) + 1;
 
         fmt::print(stdout,
-                   "[{:5} - {:5}]{} ({:6.4f}%) \t{}| {}\n",
+                   "[{:6.2f} - {:6.2f}]{} ({:6.4f}%)\t{}| {}\n",
                    low,
                    high,
                    timeunit,
@@ -463,6 +474,7 @@ int main(int argc, char** argv) {
 
     if (!file.empty()) {
         try {
+            fmt::print(stdout, histogramInfo);
             dumpHistogramFromFile(file);
         } catch (const std::exception& ex) {
             fmt::print(stderr, "{}\n", ex.what());
@@ -503,6 +515,10 @@ int main(int argc, char** argv) {
 
         if (!bucket.empty() && bucket != "/all/") {
             connection.selectBucket(bucket);
+        }
+
+        if (verbose) {
+            fmt::print(stdout, histogramInfo);
         }
 
         std::optional<nlohmann::json> jsonOutput;
