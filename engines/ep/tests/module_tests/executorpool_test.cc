@@ -358,3 +358,116 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
 
     pool->cancel(taskId, true);
 }
+
+class ScheduleOnDestruct {
+public:
+    ScheduleOnDestruct(ExecutorPool& pool,
+                       Taskable& taskable,
+                       ExecutorThread& thread)
+        : pool(pool), taskable(taskable), thread(thread) {
+    }
+    ~ScheduleOnDestruct();
+
+    ExecutorPool& pool;
+    Taskable& taskable;
+    ExecutorThread& thread;
+};
+
+class ScheduleOnDestructTask : public GlobalTask {
+public:
+    ScheduleOnDestructTask(Taskable& t,
+                           TaskId taskId,
+                           double sleeptime,
+                           bool completeBeforeShutdown,
+                           ExecutorPool& pool,
+                           Taskable& taskable,
+                           ExecutorThread& thread)
+        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown),
+          scheduleOnDestruct(pool, taskable, thread) {
+    }
+
+    bool run() override {
+        return false;
+    }
+
+    std::string getDescription() override {
+        return "ScheduleOnDestructTask";
+    }
+
+    std::chrono::microseconds maxExpectedDuration() override {
+        return std::chrono::seconds(60);
+    }
+
+    ScheduleOnDestruct scheduleOnDestruct;
+};
+
+class StopTask : public GlobalTask {
+public:
+    StopTask(Taskable& t,
+             TaskId taskId,
+             double sleeptime,
+             bool completeBeforeShutdown,
+             ExecutorThread& thread)
+        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown),
+          thread(thread) {
+    }
+
+    bool run() override {
+        thread.stop(false);
+        return false;
+    }
+
+    std::string getDescription() override {
+        return "StopTask";
+    }
+
+    std::chrono::microseconds maxExpectedDuration() override {
+        return std::chrono::seconds(60);
+    }
+
+    ExecutorThread& thread;
+};
+
+ScheduleOnDestruct::~ScheduleOnDestruct() {
+    // Schedule StopTask from the destructor. This task will ensure that
+    // ::run terminates its inner run-loop.
+    ExTask task = std::make_shared<StopTask>(
+            taskable, TaskId::ItemPager, 10, true, thread);
+    // MB-40517: This deadlocked
+    pool.schedule(task);
+    pool.wake(task->getId());
+}
+
+/*
+ * At least one object in KV-engine (VBucket) requires to schedule a new
+ * task from its destructor - and that destructor can be called from a task's
+ * destructor. Thus it's a requirement of ExecutorPool/KV that a task
+ * destructing within the scope of ExecutorPool::cancel() can safely call
+ * ExecutorPool::schedule(). MB-40517 broke this as a double lock (deadlock)
+ * occurred.
+ *
+ * This test simulates the requirements with the following:
+ * 1) schedule the "ScheduleOnDestructTask", a task which will schedule another
+ *    task when it destructs.
+ * 2) Use the real ExecutorThread and run the task
+ * 3) ~ScheduleOnDestructTask is called from ExecutorThread::run
+ * 4) From the destructor, schedule a new task, StopTask. When this task runs it
+ *    calls into ExeuctorThread::stop so the run-loop terminates and the test
+ *    can finish.
+ * Without the MB-40517 fix, step 4 would deadlock because the ExecutorPool
+ * lock is already held by the calling thread.
+ */
+TEST_F(SingleThreadedExecutorPoolTest, cancel_can_schedule) {
+    ExecutorThread thr(pool, NONIO_TASK_IDX, "cancel_can_schedule");
+    ExTask task = std::make_shared<ScheduleOnDestructTask>(
+            taskable, TaskId::ItemPager, 10, true, *pool, taskable, thr);
+
+    auto id = task->getId();
+    ASSERT_EQ(id, pool->schedule(task));
+    task.reset(); // only the pool has a reference
+
+    // Wake our task and call run. The task is a 'one-shot' task which will
+    // then be cancelled, which as part of cancel calls schedule
+    pool->wake(id);
+    thr.run();
+}

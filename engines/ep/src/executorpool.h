@@ -111,7 +111,16 @@ public:
         return isHiPrioQset ? hpTaskQ[curTaskType] : lpTaskQ[curTaskType];
     }
 
-    bool cancel(size_t taskId, bool eraseTask=false);
+    /**
+     * cancel the task with taskId and optionally remove from taskLocator.
+     * Removing from the taskLocator will eventually trigger deletion of the
+     * task as references to the shared_ptr are dropped.
+     *
+     * @param taskId Task to cancel
+     * @param remove true if the task should be removed from taskLocator
+     * @return true if the task was found and cancelled
+     */
+    bool cancel(size_t taskId, bool remove = false);
 
     bool wake(size_t taskId);
 
@@ -234,7 +243,16 @@ protected:
     virtual ~ExecutorPool();
 
     TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
-    bool _cancel(size_t taskId, bool eraseTask=false);
+
+    /**
+     * see cancel() for detail
+     *
+     * @param taskId Task to cancel
+     * @param remove true if the task should be removed from taskLocator
+     * @return if the task is located it is returned
+     */
+    ExTask _cancel(size_t taskId, bool remove = false);
+
     bool _wake(size_t taskId);
     virtual bool _startWorkers();
 

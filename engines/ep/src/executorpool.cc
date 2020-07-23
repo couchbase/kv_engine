@@ -253,12 +253,12 @@ void ExecutorPool::doneWork(task_type_t taskType) {
     }
 }
 
-bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
+ExTask ExecutorPool::_cancel(size_t taskId, bool remove) {
     LockHolder lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
         EP_LOG_DEBUG("Task id {} not found", uint64_t(taskId));
-        return false;
+        return {};
     }
 
     ExTask task = itr->second.first;
@@ -266,11 +266,11 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
                  task->getDescription(),
                  task->getId(),
                  task->getTaskable().getName(),
-                 eraseTask ? "final erase" : "!");
+                 remove ? "removed task" : "");
 
     task->cancel(); // must be idempotent, just set state to dead
 
-    if (eraseTask) { // only internal threads can erase tasks
+    if (remove) { // only internal threads can remove tasks
         if (!task->isdead()) {
             throw std::logic_error("ExecutorPool::_cancel: task '" +
                                    task->getDescription() +
@@ -278,24 +278,32 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
                                    "cancel() on it");
         }
         taskLocator.erase(itr);
-        {
-            // Account the task reset to its engine
-            BucketAllocationGuard guard(task->getEngine());
-            task.reset();
-        }
         tMutex.notify_all();
     } else { // wake up the task from the TaskQ so a thread can safely erase it
              // otherwise we may race with unregisterTaskable where a unlocated
              // task runs in spite of its bucket getting unregistered
         itr->second.second->wake(task);
     }
-    return true;
+    return task;
 }
 
-bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
-    NonBucketAllocationGuard guard;
-    bool rv = _cancel(taskId, eraseTask);
-    return rv;
+bool ExecutorPool::cancel(size_t taskId, bool remove) {
+    ExTask task;
+    {
+        NonBucketAllocationGuard guard;
+        task = _cancel(taskId, remove);
+    }
+
+    // Critical to the structure of this function is that task (a shared_ptr)
+    // is destructed 1) after ExecutorPool::tMutex is released (which happens
+    // when _cancel returns) and 2) with the memory tracking associated back to
+    // the callers engine, which happens when the above _cancel scope ends.
+    //
+    // 1) The mutex must not be held because if the task object referenced from
+    // the shared_ptr does destruct, it is allowed to call other ExecutorPool
+    // methods, e.g. call schedule(my_cleanup_task); and we must not hold the
+    // lock for that path.
+    return task != nullptr;
 }
 
 bool ExecutorPool::_wake(size_t taskId) {
