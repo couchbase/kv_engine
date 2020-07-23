@@ -20,6 +20,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 #include <platform/string_hex.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -32,7 +33,6 @@
 #include <cinttypes>
 #include <cstdlib>
 #include <stdexcept>
-#include <streambuf>
 #include <string>
 
 #define JSON_DUMP_INDENT_SIZE 4
@@ -187,7 +187,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
                                 cb::mcbp::ClientOpcode opcode,
                                 bool verbose,
                                 bool skip,
-                                bool json) {
+                                std::optional<nlohmann::json>& jsonOutput) {
     BinprotGetCmdTimerCommand cmd;
     cmd.setBucket(bucket);
     cmd.setOpcode(opcode);
@@ -222,7 +222,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
 
     try {
         auto command = opcode2string(opcode);
-        if (json) {
+        if (jsonOutput.has_value()) {
             auto timings = resp.getTimings();
             if (timings == nullptr) {
                 if (!skip) {
@@ -233,7 +233,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
                 }
             } else {
                 timings["command"] = command;
-                fmt::print(stdout, "{}\n", timings.dump(JSON_DUMP_INDENT_SIZE));
+                jsonOutput->push_back(timings);
             }
         } else {
             Timings timings(resp.getTimings());
@@ -265,7 +265,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
 static void request_stat_timings(MemcachedConnection& connection,
                                  const std::string& key,
                                  bool verbose,
-                                 bool json_output) {
+                                 std::optional<nlohmann::json>& json_output) {
     std::map<std::string, std::string> map;
     try {
         map = connection.statsMap(key);
@@ -301,9 +301,9 @@ static void request_stat_timings(MemcachedConnection& connection,
         exit(EXIT_FAILURE);
     }
     try {
-        if (json_output) {
+        if (json_output.has_value()) {
             json["command"] = key;
-            fmt::print(stdout, "{}\n", json.dump(JSON_DUMP_INDENT_SIZE));
+            json_output->push_back(json);
         } else {
             Timings timings(json);
             if (verbose) {
@@ -316,6 +316,38 @@ static void request_stat_timings(MemcachedConnection& connection,
     } catch (const std::exception& e) {
         fmt::print(stderr, "Fatal error: {}\n", e.what());
         exit(EXIT_FAILURE);
+    }
+}
+
+void dumpHistogramFromFile(const std::string& file) {
+    auto fileAsString = cb::io::loadFile(file);
+    try {
+        auto jsonData = nlohmann::json::parse(fileAsString);
+        auto runDumpHisto = [](const nlohmann::json& obj) {
+            try {
+                Timings(obj).dumpHistogram(obj["command"]);
+            } catch (std::exception& e) {
+                fmt::print(stderr,
+                           "Could not visualise object:{}, exception:{}\n",
+                           obj.dump(),
+                           e.what());
+            }
+        };
+
+        if (jsonData.is_array()) {
+            for (auto obj : jsonData) {
+                runDumpHisto(obj);
+            }
+        } else if (jsonData.is_object()) {
+            runDumpHisto(jsonData);
+        } else {
+            throw std::runtime_error("Json is not valid!");
+        }
+    } catch (std::exception& e) {
+        throw std::runtime_error(
+                fmt::format("Could not parse json in file:{} exception:{}",
+                            file,
+                            e.what()));
     }
 }
 
@@ -336,6 +368,8 @@ void usage() {
   -v or --verbose                Use verbose output
   -S                             Read password from standard input
   -j or --json[=pretty]          Print JSON instead of histograms
+  -f or --file path.json         Dump Histogram data from a json file produced
+                                 from mctimings using the --json arg
   --help                         This help text
 
 )");
@@ -354,6 +388,7 @@ int main(int argc, char** argv) {
     std::string user{};
     std::string password{};
     std::string bucket{"/all/"};
+    std::string file;
     sa_family_t family = AF_UNSPEC;
     bool verbose = false;
     bool secure = false;
@@ -373,6 +408,7 @@ int main(int argc, char** argv) {
             {"ssl", no_argument, nullptr, 's'},
             {"verbose", no_argument, nullptr, 'v'},
             {"json", optional_argument, nullptr, 'j'},
+            {"file", required_argument, nullptr, 'f'},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
@@ -416,10 +452,23 @@ int main(int argc, char** argv) {
                 verbose = true;
             }
             break;
+        case 'f':
+            file.assign(optarg);
+            break;
         default:
             usage();
             return cmd == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
         }
+    }
+
+    if (!file.empty()) {
+        try {
+            dumpHistogramFromFile(file);
+        } catch (const std::exception& ex) {
+            fmt::print(stderr, "{}\n", ex.what());
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
     }
 
     if (password == "-") {
@@ -456,6 +505,11 @@ int main(int argc, char** argv) {
             connection.selectBucket(bucket);
         }
 
+        std::optional<nlohmann::json> jsonOutput;
+        if (json) {
+            jsonOutput = nlohmann::json::array();
+        }
+
         if (optind == argc) {
             for (int ii = 0; ii < 256; ++ii) {
                 request_cmd_timings(connection,
@@ -463,20 +517,27 @@ int main(int argc, char** argv) {
                                     cb::mcbp::ClientOpcode(ii),
                                     verbose,
                                     true,
-                                    json);
+                                    jsonOutput);
             }
         } else {
             for (; optind < argc; ++optind) {
                 try {
                     const auto opcode = to_opcode(argv[optind]);
-                    request_cmd_timings(
-                            connection, bucket, opcode, verbose, false, json);
+                    request_cmd_timings(connection,
+                                        bucket,
+                                        opcode,
+                                        verbose,
+                                        false,
+                                        jsonOutput);
                 } catch (const std::invalid_argument&) {
                     // Not a command timing, try as statistic timing.
                     request_stat_timings(
-                            connection, argv[optind], verbose, json);
+                            connection, argv[optind], verbose, jsonOutput);
                 }
             }
+        }
+        if (jsonOutput.has_value()) {
+            fmt::print(stdout, "{}\n", jsonOutput->dump(JSON_DUMP_INDENT_SIZE));
         }
     } catch (const ConnectionError& ex) {
         fmt::print(stderr, "{}\n", ex.what());
