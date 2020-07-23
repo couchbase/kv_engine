@@ -14,25 +14,26 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "programs/hostname_utils.h"
 #include "programs/getpass.h"
+#include "programs/hostname_utils.h"
 
-#include <getopt.h>
+#include <boost/algorithm/string/predicate.hpp>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <spdlog/fmt/fmt.h>
 #include <utilities/json_utilities.h>
 #include <utilities/terminate_handler.h>
 
-#include <inttypes.h>
-#include <strings.h>
+#include <getopt.h>
 #include <array>
+#include <cinttypes>
 #include <cstdlib>
-#include <gsl/gsl>
-#include <iostream>
 #include <stdexcept>
+#include <streambuf>
+#include <string>
 
 #define JSON_DUMP_INDENT_SIZE 4
 
@@ -50,8 +51,9 @@ public:
         if (data.is_null()) {
             return;
         }
-        std::cout << "The following data is collected for \"" << opcode << "\""
-                  << std::endl;
+
+        fmt::print(
+                stdout, "The following data is collected for \"{}\"\n", opcode);
 
         auto dataArray = data.get<std::vector<std::vector<nlohmann::json>>>();
         for (auto item : dataArray) {
@@ -111,7 +113,7 @@ public:
             lastBuckLow = buckHigh;
         }
 
-        std::cout << "Total: " << total << " operations" << std::endl;
+        fmt::print(stdout, "Total: {} operations\n", total);
     }
 
 private:
@@ -132,24 +134,22 @@ private:
               int64_t high,
               int64_t count,
               double percentile) {
-        char buffer[1024];
-        int offset = sprintf(
-                buffer, "[%5" PRId64 " - %5" PRId64 "]%s", low, high, timeunit);
-        offset += sprintf(buffer + offset, " (%6.4lf%%)\t", percentile);
-
-        // Determine how wide the max value would be, and pad all counts
-        // to that width.
-        int max_width = snprintf(buffer, 0, "%" PRIu64, maxCount);
-        offset += sprintf(buffer + offset, " %*" PRId64, max_width, count);
-
+        // Calculations for histogram size rendering
         double factionOfHashes = (count / static_cast<double>(maxCount));
         int num = static_cast<int>(44.0 * factionOfHashes);
-        offset += sprintf(buffer + offset, " | ");
-        for (int ii = 0; ii < 44 && ii < num; ++ii) {
-            offset += sprintf(buffer + offset, "#");
-        }
 
-        std::cout << buffer << std::endl;
+        // Calculations for padding around the count in each histogram bucket
+        auto numberOfSpaces = fmt::formatted_size("{}", maxCount);
+
+        fmt::print(stdout,
+                   "[{:5} - {:5}]{} ({:6.4f}%) \t{}| {}\n",
+                   low,
+                   high,
+                   timeunit,
+                   percentile,
+                   fmt::format("{:>" + std::to_string(numberOfSpaces) + "}",
+                               count),
+                   std::string(num, '#'));
     }
 
     /**
@@ -200,23 +200,22 @@ static void request_cmd_timings(MemcachedConnection& connection,
     if (!resp.isSuccess()) {
         switch (resp.getStatus()) {
         case cb::mcbp::Status::KeyEnoent:
-            std::cerr << "Cannot find bucket: " << bucket << std::endl;
+            fmt::print(stderr, "Cannot find bucket: {}\n", bucket);
             break;
         case cb::mcbp::Status::Eaccess:
             if (bucket == "/all/") {
-                std::cerr << "Not authorized to access aggregated timings data."
-                          << std::endl
-                          << "Try specifying a bucket by using -b bucketname"
-                          << std::endl;
+                fmt::print(stderr,
+                           "Not authorized to access aggregated timings data.\n"
+                           "Try specifying a bucket by using -b bucketname\n");
 
             } else {
-                std::cerr << "Not authorized to access timings data"
-                          << std::endl;
+                fmt::print(stderr, "Not authorized to access timings data\n");
             }
             break;
         default:
-            std::cerr << "Command failed: " << to_string(resp.getStatus())
-                      << std::endl;
+            fmt::print(stderr,
+                       "Command failed: {}\n",
+                       to_string(resp.getStatus()));
         }
         exit(EXIT_FAILURE);
     }
@@ -227,32 +226,38 @@ static void request_cmd_timings(MemcachedConnection& connection,
             auto timings = resp.getTimings();
             if (timings == nullptr) {
                 if (!skip) {
-                    std::cerr << "The server doesn't have information about \""
-                              << command << "\"" << std::endl;
+                    fmt::print(stderr,
+                               "The server doesn't have information about "
+                               "\"{}\"\n",
+                               command);
                 }
             } else {
                 timings["command"] = command;
-                std::cout << timings.dump(JSON_DUMP_INDENT_SIZE) << std::endl;
+                fmt::print(stdout, "{}\n", timings.dump(JSON_DUMP_INDENT_SIZE));
             }
         } else {
             Timings timings(resp.getTimings());
 
             if (timings.getTotal() == 0) {
                 if (skip == 0) {
-                    std::cout << "The server doesn't have information about \""
-                              << command << "\"" << std::endl;
+                    fmt::print(stdout,
+                               "The server doesn't have information about "
+                               "\"{}\"\n",
+                               command);
                 }
             } else {
                 if (verbose) {
                     timings.dumpHistogram(command);
                 } else {
-                    std::cout << command << " " << timings.getTotal()
-                              << " operations" << std::endl;
+                    fmt::print(stdout,
+                               "{} {} operations\n",
+                               command,
+                               timings.getTotal());
                 }
             }
         }
     } catch (const std::exception& e) {
-        std::cerr << "Fatal error: " << e.what() << std::endl;
+        fmt::print(stderr, "Fatal error: {}\n", e.what());
         exit(EXIT_FAILURE);
     }
 }
@@ -266,11 +271,11 @@ static void request_stat_timings(MemcachedConnection& connection,
         map = connection.statsMap(key);
     } catch (const ConnectionError& ex) {
         if (ex.isNotFound()) {
-            std::cerr << "Cannot find statistic: " << key << std::endl;
+            fmt::print(stderr, "Cannot find statistic: {}\n", key);
         } else if (ex.isAccessDenied()) {
-            std::cerr << "Not authorized to access timings data" << std::endl;
+            fmt::print(stderr, "Not authorized to access timings data\n");
         } else {
-            std::cerr << "Fatal error: " << ex.what() << std::endl;
+            fmt::print(stderr, "Fatal error: {}\n", ex.what());
         }
 
         exit(EXIT_FAILURE);
@@ -283,40 +288,41 @@ static void request_stat_timings(MemcachedConnection& connection,
     // would be named "0"
     auto iter = map.find("0");
     if (iter == map.end()) {
-        std::cerr << "Failed to fetch statistics for \"" << key << "\""
-                  << std::endl;
+        fmt::print(stderr, "Failed to fetch statistics for \"{}\"\n", key);
         exit(EXIT_FAILURE);
     }
 
     // And the value for the item should be valid JSON
     nlohmann::json json = nlohmann::json::parse(iter->second);
     if (json.is_null()) {
-        std::cerr << "Failed to fetch statistics for \"" << key
-                  << "\". Not json" << std::endl;
+        fmt::print(stderr,
+                   "Failed to fetch statistics for \"{}\". Not json\n",
+                   key);
         exit(EXIT_FAILURE);
     }
     try {
         if (json_output) {
             json["command"] = key;
-            std::cout << json.dump(JSON_DUMP_INDENT_SIZE) << std::endl;
+            fmt::print(stdout, "{}\n", json.dump(JSON_DUMP_INDENT_SIZE));
         } else {
             Timings timings(json);
             if (verbose) {
                 timings.dumpHistogram(key);
             } else {
-                std::cout << key << " " << timings.getTotal() << " operations"
-                          << std::endl;
+                fmt::print(
+                        stdout, " {} {} operations\n", key, timings.getTotal());
             }
         }
     } catch (const std::exception& e) {
-        std::cerr << "Fatal error: " << e.what() << std::endl;
+        fmt::print(stderr, "Fatal error: {}\n", e.what());
         exit(EXIT_FAILURE);
     }
 }
 
 void usage() {
-    std::cerr << "Usage mctimings [options] [opcode / statname]\n"
-              << R"(Options:
+    fmt::print(stderr,
+               "Usage mctimings [options] [opcode / statname]\n{}\n",
+               R"(Options:
 
   -h or --host hostname[:port]   The host (with an optional port) to connect to
   -p or --port port              The port number to connect to
@@ -332,13 +338,10 @@ void usage() {
   -j or --json[=pretty]          Print JSON instead of histograms
   --help                         This help text
 
-)" << std::endl
-
-              << std::endl
-              << "Example:" << std::endl
-              << "    mctimings --user operator --bucket /all/ --password - "
-                 "--verbose GET SET"
-              << std::endl;
+)");
+    fmt::print(stderr,
+               "Example:\n     mctimings --user operator --bucket /all/ "
+               "--password - --verbose GET SET\n");
 }
 
 int main(int argc, char** argv) {
@@ -409,7 +412,7 @@ int main(int argc, char** argv) {
             break;
         case 'j':
             json = true;
-            if (optarg && strcasecmp(optarg, "pretty") == 0) {
+            if (optarg && boost::iequals(optarg, "pretty")) {
                 verbose = true;
             }
             break;
@@ -476,10 +479,10 @@ int main(int argc, char** argv) {
             }
         }
     } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
+        fmt::print(stderr, "{}\n", ex.what());
         return EXIT_FAILURE;
     } catch (const std::runtime_error& ex) {
-        std::cerr << ex.what() << std::endl;
+        fmt::print(stderr, "{}\n", ex.what());
         return EXIT_FAILURE;
     }
 
