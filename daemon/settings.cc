@@ -580,7 +580,7 @@ static void handle_num_reader_threads(Settings& s,  const nlohmann::json& obj) {
         s.setNumReaderThreads(obj.get<size_t>());
     } else {
         const auto val = obj.get<std::string>();
-        s.setNumReaderThreads(parseThreadConfigSpec("num_reader_thread", val));
+        s.setNumReaderThreads(parseThreadConfigSpec("num_reader_threads", val));
     }
 }
 
@@ -589,7 +589,7 @@ static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
         s.setNumWriterThreads(obj.get<size_t>());
     } else {
         const auto val = obj.get<std::string>();
-        s.setNumWriterThreads(parseThreadConfigSpec("num_writer_thread", val));
+        s.setNumWriterThreads(parseThreadConfigSpec("num_writer_threads", val));
     }
 }
 
