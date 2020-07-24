@@ -490,6 +490,14 @@ bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
     return v.eligibleForEviction(eviction);
 }
 
+size_t EPVBucket::getPageableMemUsage() {
+    if (eviction == EvictionPolicy::Full) {
+        return ht.getItemMemory();
+    } else {
+        return ht.getItemMemory() - ht.getMetadataMemory();
+    }
+}
+
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,
                                    std::unique_ptr<VBucketBGFetchItem> fetch,
                                    BgFetcher* bgFetcher) {

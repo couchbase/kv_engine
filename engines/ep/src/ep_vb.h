@@ -108,6 +108,8 @@ public:
     bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
                            const StoredValue& v) const override;
 
+    size_t getPageableMemUsage() override;
+
     bool areDeletedItemsAlwaysResident() const override;
 
     void addStats(VBucketStatsDetailLevel detail,
