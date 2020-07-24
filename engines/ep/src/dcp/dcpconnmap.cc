@@ -38,6 +38,7 @@ public:
     virtual ~DcpConfigChangeListener() {
     }
     virtual void sizeValueChanged(const std::string& key, size_t value);
+    virtual void booleanValueChanged(const std::string& key, bool value);
 
 private:
     DcpConnMap& myConnMap;
@@ -52,6 +53,9 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
                     engine.getConfiguration().getDcpMinCompressionRatio());
 
     // Note: these allocations are deleted by ~Configuration
+    engine.getConfiguration().addValueChangedListener(
+            "dcp_blacklist_fts_connection_logs",
+            std::make_unique<DcpConfigChangeListener>(*this));
     engine.getConfiguration().addValueChangedListener(
             "dcp_consumer_process_buffered_messages_yield_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
@@ -575,6 +579,13 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
     }
 }
 
+void DcpConnMap::DcpConfigChangeListener::booleanValueChanged(const std::string& key,
+                                                           bool value) {
+    if (key == "dcp_blacklist_fts_connection_logs") {
+        myConnMap.blacklistFtsConnectionLogsConfigChanged(value);
+    }
+}
+
 /*
  * Find all DcpConsumers and set the yield threshold
  */
@@ -608,6 +619,20 @@ void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
     for (const auto& cookieToConn : map_) {
         cookieToConn.second.get()->setIdleTimeout(
                 std::chrono::seconds(newValue));
+    }
+}
+
+/**
+ * Find all DcpProducers and set the blacklistFtsConnectionsLogs setting
+ */
+void DcpConnMap::blacklistFtsConnectionLogsConfigChanged(bool newValue) {
+    LockHolder lh(connsLock);
+    for (const auto& cookieToConn : map_) {
+        auto* dcpProducer =
+            dynamic_cast<DcpProducer*>(cookieToConn.second.get());
+        if (dcpProducer) {
+            dcpProducer->setBlacklistFtsConnectionLogs(newValue);
+        }
     }
 }
 

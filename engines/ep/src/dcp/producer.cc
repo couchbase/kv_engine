@@ -40,6 +40,7 @@
 #include <memcached/server_cookie_iface.h>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
+const std::string DcpProducer::ftsConnectionName = "eq_dcpq:fts";
 
 DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
     if (isEnabled_UNLOCKED()) {
@@ -211,7 +212,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     // very noisy due to creating streams for non-existing vBuckets. Future
     // development of FTS should remedy this, however for now, we need to
     // reduce their verbosity as they cause the memcached log to rotate early.
-    if (name.find("eq_dcpq:fts") != std::string::npos) {
+    if (name.find(ftsConnectionName) != std::string::npos &&
+        e.getConfiguration().isDcpBlacklistFtsConnectionLogs()) {
         logger->set_level(spdlog::level::level_enum::critical);
         // Unregister this logger so that any changes in verbosity will not
         // be reflected in this logger. This prevents us from getting in a
@@ -1995,4 +1997,24 @@ end_stream_status_t DcpProducer::mapEndStreamStatus(
 
 std::string DcpProducer::getConsumerName() const {
     return consumerName;
+}
+
+void DcpProducer::setBlacklistFtsConnectionLogs(bool newValue) {
+    if (getName().find(ftsConnectionName) != std::string::npos) {
+        if (newValue) {
+            // Enabling blacklist
+            logger->set_level(spdlog::level::level_enum::critical);
+            // Unregister this logger so that any changes in verbosity will not
+            // be reflected in this logger. This prevents us from getting in a
+            // state where we change the verbosity to a more verbose value, then
+            // cannot return to the original state where this logger only prints
+            // critical level messages and others print info level.
+            logger->unregister();
+        } else {
+            // Disabling blacklist
+            logger->set_level(globalBucketLogger->level());
+            // Register to subscribe to verbosity changes via memcached
+            engine_.getServerApi()->log->register_spdlogger(logger);
+        }
+    }
 }

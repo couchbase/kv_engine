@@ -782,7 +782,9 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
                                                          std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
     try {
-        if (key == "dcp_conn_buffer_size") {
+        if (key == "dcp_blacklist_fts_connection_logs") {
+            getConfiguration().setDcpBlacklistFtsConnectionLogs(cb_stob(val));
+        } else if (key == "dcp_conn_buffer_size") {
             getConfiguration().setDcpConnBufferSize(std::stoull(val));
         } else if (key == "dcp_conn_buffer_size_max") {
             getConfiguration().setDcpConnBufferSizeMax(std::stoull(val));

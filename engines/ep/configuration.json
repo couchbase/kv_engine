@@ -822,6 +822,12 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_blacklist_fts_connection_logs": {
+            "default": "true",
+            "descr": "MB-28468: FTS creates streams for non-existing vBuckets which spams memcached logs. Blacklist FTS connections by setting level to critical until fixed.",
+            "dynamic": true,
+            "type": "bool"
+        },
         "dcp_flow_control_policy": {
             "default": "aggressive",
             "descr": "Flow control policy used on consumer side buffer",
