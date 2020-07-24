@@ -136,6 +136,10 @@ public:
      */
     static void reconfigureForEphemeral(Configuration& config);
 
+    bool canEvictFromReplicas() override {
+        return false;
+    }
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;

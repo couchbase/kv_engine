@@ -51,25 +51,26 @@ public:
      *
      * @param s the store that will handle the bulk removal
      * @param st the stats where we'll track what we've done
-     * @param pcnt percentage of objects to attempt to evict (0-1)
+     * @param evictionRatio fractions (0-1) of objects to attempt to evict
+     *                      from replica vbs, and from active/pending vbs
      * @param sfin pointer to a bool to be set to true after run completes
      * @param pause flag indicating if PagingVisitor can pause between vbucket
      *              visits
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param vbFilter the filter used to select which vbuckets to visit
-     * @param isEphemeral  boolean indicating if operating on ephemeral bucket
-     * @param phase pointer to an item_pager_phase to be set
+     * @param _agePercentage age percentile used to find age threshold items
+     *        must exceed to be considered for eviction if their MFU value is
+     *        above _freqCounterAgeThreshold
+     * @param _freqCounterAgeThreshold MFU frequency threshold beyond which the
+     *        item age is considered
      */
     PagingVisitor(KVBucket& s,
                   EPStats& st,
-                  double pcnt,
+                  EvictionRatios evictionRatios,
                   std::shared_ptr<std::atomic<bool>>& sfin,
                   pager_type_t caller,
                   bool pause,
-                  double bias,
                   const VBucketFilter& vbFilter,
-                  std::atomic<item_pager_phase>* phase,
-                  bool _isEphemeral,
                   size_t _agePercentage,
                   size_t _freqCounterAgeThreshold);
 
@@ -130,16 +131,13 @@ private:
     // @param vb  The vbucket whose eligible checkpoints are removed from.
     void removeClosedUnrefCheckpoints(VBucket& vb);
 
-    void adjustPercent(double prob, vbucket_state_t state);
-
     bool doEviction(const HashTable::HashBucketLock& lh, StoredValue* v);
 
     std::list<Item> expired;
 
     KVBucket& store;
     EPStats& stats;
-    double percent;
-    double activeBias;
+    EvictionRatios evictionRatios;
     time_t startTime;
     std::shared_ptr<std::atomic<bool>> stateFinalizer;
     pager_type_t owner;
@@ -148,11 +146,6 @@ private:
     bool isBelowLowWaterMark;
     bool wasHighMemoryUsage;
     std::chrono::steady_clock::time_point taskStart;
-    std::atomic<item_pager_phase>* pager_phase;
-
-    // Indicates whether the vbucket we are visiting is from an ephemeral
-    // bucket.
-    bool isEphemeral;
 
     // The age percent used to select the age threshold.  The value is
     // read by the ItemPager from a configuration parameter.

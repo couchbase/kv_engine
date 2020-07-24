@@ -2742,14 +2742,12 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            -1,
+            EvictionRatios{0.0 /* active&pending */,
+                           0.0 /* replica */}, // evict nothing
             available,
             EXPIRY_PAGER,
             false,
-            1,
             VBucketFilter(),
-            nullptr,
-            true,
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold());
 
