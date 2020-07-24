@@ -230,6 +230,10 @@ public:
     // implemented by querying StorageProperties for the buckets KVStore
     bool isByIdScanSupported() const override;
 
+    bool canEvictFromReplicas() override {
+        return true;
+    }
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

@@ -43,14 +43,11 @@ static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
 PagingVisitor::PagingVisitor(KVBucket& s,
                              EPStats& st,
-                             double pcnt,
+                             EvictionRatios evictionRatios,
                              std::shared_ptr<std::atomic<bool>>& sfin,
                              pager_type_t caller,
                              bool pause,
-                             double bias,
                              const VBucketFilter& vbFilter,
-                             std::atomic<item_pager_phase>* phase,
-                             bool _isEphemeral,
                              size_t agePercentage,
                              size_t freqCounterAgeThreshold)
     : ejected(0),
@@ -58,8 +55,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       ageThreshold(0),
       store(s),
       stats(st),
-      percent(pcnt),
-      activeBias(bias),
+      evictionRatios(evictionRatios),
       startTime(ep_real_time()),
       stateFinalizer(sfin),
       owner(caller),
@@ -67,8 +63,6 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       isBelowLowWaterMark(false),
       wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
       taskStart(std::chrono::steady_clock::now()),
-      pager_phase(phase),
-      isEphemeral(_isEphemeral),
       agePercentage(agePercentage),
       freqCounterAgeThreshold(freqCounterAgeThreshold),
       maxCas(0) {
@@ -98,9 +92,11 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // reason. Should a BG fetch complete after eviction of a temp initial item
     // it will return SUCCESS and notify the client to run the op again which
     // will rerun the BG fetch.
+    const double evictionRatio =
+            evictionRatios.getForState(currentBucket->getState());
 
-    // return if not ItemPager, which uses valid eviction percentage
-    if (percent <= 0 || !pager_phase) {
+    // return if not ItemPager which uses valid eviction percentage
+    if (evictionRatio <= 0.0) {
         return true;
     }
 
@@ -205,7 +201,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // intervals.
     if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
         auto thresholds =
-                itemEviction.getThresholds(percent * 100.0, agePercentage);
+                itemEviction.getThresholds(evictionRatio * 100.0, agePercentage);
         freqCounterThreshold = thresholds.first;
         ageThreshold = thresholds.second;
     }
@@ -218,7 +214,7 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     removeClosedUnrefCheckpoints(*vb);
 
     // fast path for expiry item pager
-    if (percent <= 0 || !pager_phase) {
+    if (owner == EXPIRY_PAGER) {
         if (vBucketFilter(vb->getId())) {
             currentBucket = vb;
             // EvictionPolicy is not required when running expiry item
@@ -238,8 +234,6 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     }
 
     if (current > lower) {
-        double p = (current - static_cast<double>(lower)) / current;
-        adjustPercent(p, vb->getState());
         if (vBucketFilter(vb->getId())) {
             currentBucket = vb;
             maxCas = currentBucket->getMaxCas();
@@ -328,14 +322,6 @@ void PagingVisitor::complete() {
     bool inverse = false;
     (*stateFinalizer).compare_exchange_strong(inverse, true);
 
-    if (pager_phase && !isBelowLowWaterMark) {
-        if (*pager_phase == REPLICA_ONLY) {
-            *pager_phase = ACTIVE_AND_PENDING_ONLY;
-        } else if (*pager_phase == ACTIVE_AND_PENDING_ONLY && !isEphemeral) {
-            *pager_phase = REPLICA_ONLY;
-        }
-    }
-
     // Wake up any sleeping backfill tasks if the memory usage is lowered
     // below the high watermark as a result of checkpoint removal.
     if (wasHighMemoryUsage && !store.isMemoryUsageTooHigh()) {
@@ -367,17 +353,6 @@ void PagingVisitor::removeClosedUnrefCheckpoints(VBucket& vb) {
                 vb.getId(),
                 vb.checkpointManager->getHighSeqno(),
                 SyncWriteOperation::No);
-    }
-}
-
-void PagingVisitor::adjustPercent(double prob, vbucket_state_t state) {
-    if (state == vbucket_state_replica || state == vbucket_state_dead) {
-        // replica items should have higher eviction probability
-        double p = prob * (2 - activeBias);
-        percent = p < 0.9 ? p : 0.9;
-    } else {
-        // active items have lower eviction probability
-        percent = prob * activeBias;
     }
 }
 

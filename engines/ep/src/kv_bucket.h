@@ -549,6 +549,11 @@ public:
         return eviction_policy;
     }
 
+    /**
+     * Check if this bucket supports eviction from replica vbuckets.
+     */
+    virtual bool canEvictFromReplicas() = 0;
+
     TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno) override;
 
     void attemptToFreeMemory() override;

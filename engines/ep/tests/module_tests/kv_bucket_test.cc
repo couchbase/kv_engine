@@ -245,6 +245,17 @@ void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
     EXPECT_EQ(numItems, itemsRemoved);
 }
 
+void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& ckpt_mgr = *vb.checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+
+    bool new_ckpt_created = false;
+    ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+}
+
 void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;

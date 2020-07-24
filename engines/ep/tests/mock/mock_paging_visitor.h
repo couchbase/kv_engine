@@ -28,26 +28,20 @@ class MockPagingVisitor : public PagingVisitor {
 public:
     MockPagingVisitor(KVBucket& s,
                       EPStats& st,
-                      double pcnt,
+                      EvictionRatios evictionRatios,
                       std::shared_ptr<std::atomic<bool>>& sfin,
                       pager_type_t caller,
                       bool pause,
-                      double bias,
                       const VBucketFilter& vbFilter,
-                      std::atomic<item_pager_phase>* phase,
-                      bool _isEphemeral,
                       size_t agePercentage,
                       size_t freqCounterAgeThreshold)
         : PagingVisitor(s,
                         st,
-                        pcnt,
+                        evictionRatios,
                         sfin,
                         caller,
                         pause,
-                        bias,
                         vbFilter,
-                        phase,
-                        _isEphemeral,
                         agePercentage,
                         freqCounterAgeThreshold) {
     }

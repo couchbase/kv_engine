@@ -154,6 +154,17 @@ bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
     return true;
 }
 
+size_t EphemeralVBucket::getPageableMemUsage() {
+    if (getState() == vbucket_state_replica) {
+        // Ephemeral buckets are not backed by disk - nothing can be evicted
+        // from a replica as deleting from replicas would cause inconsistency
+        // with the active. When the active vb evicts items deletions will be
+        // streamed to the replica.
+        return 0;
+    }
+    return ht.getItemMemory();
+}
+
 bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
     // Ephemeral buckets do keep all deleted items resident in memory.
     // (We have nowhere else to store them, given there is no disk).
