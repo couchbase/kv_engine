@@ -199,6 +199,13 @@ public:
     void dump() const;
 
     /**
+     * Added for testing, get a reference to the 'locked' manifest
+     */
+    folly::Synchronized<Manifest>& getCurrentManifest() {
+        return currentManifest;
+    }
+
+    /**
      * Perform the gathering of collection stats for the bucket.
      */
     static cb::EngineErrorGetCollectionIDResult doCollectionStats(

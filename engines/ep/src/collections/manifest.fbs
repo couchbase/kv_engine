@@ -37,6 +37,7 @@ table Scope {
 
 table Manifest {
    uid:ulong;
+   force:bool;
    scopes:[Scope];
 }
 

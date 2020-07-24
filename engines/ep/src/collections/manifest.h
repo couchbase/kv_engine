@@ -123,6 +123,14 @@ public:
     cb::engine_error isSuccessor(const Manifest& successor) const;
 
     /**
+     * Is this manifest a 'force:true' update where we must accept it no
+     * questions asked?
+     */
+    bool isForcedUpdate() const {
+        return force;
+    }
+
+    /**
      * Is this the epoch state of collections?
      * uid 0, default collection and default scope only
      */
@@ -303,6 +311,7 @@ private:
     collectionContainer collections = {
             {CollectionID::Default, {ScopeID::Default, DefaultCollectionName}}};
     ManifestUid uid{0};
+    bool force{false};
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);

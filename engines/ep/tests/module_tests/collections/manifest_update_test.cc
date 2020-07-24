@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 
+#include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "collections_test.h"
@@ -53,6 +54,14 @@ TEST_P(CollectionsManifestUpdate, update_add1) {
     setCollections(cookie,
                    std::string{cm1},
                    cb::engine_errc::cannot_apply_collections_manifest);
+
+    // But now force it
+    cm1.setForce(true);
+    setCollections(cookie, std::string{cm1});
+
+    // @todo: MB-39292 The force update has changed fruit to woodwind - but the
+    // vbucket's only know about collection:22 and have done nothing about it -
+    // we now have fruit mixed in with the woodwind.
 }
 
 TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
@@ -60,10 +69,22 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
     cm.add(CollectionEntry::Entry{"fruit", 22});
     EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
     setCollections(cookie, std::string{cm});
+    // Check the current manifest is not a forced update
+    EXPECT_FALSE(store->getCollectionsManager()
+                         .getCurrentManifest()
+                         .rlock()
+                         ->isForcedUpdate());
+
     if (isPersistent()) {
         resetEngineAndWarmup();
         EXPECT_EQ(ENGINE_SUCCESS,
                   store->setVBucketState(vbid, vbucket_state_active));
+
+        // Check the current manifest is still not a forced update
+        EXPECT_FALSE(store->getCollectionsManager()
+                             .getCurrentManifest()
+                             .rlock()
+                             ->isForcedUpdate());
     }
     // cm1 is default state - uid of 0, cannot go back
     setCollections(cookie,
@@ -80,6 +101,61 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
     setCollections(cookie,
                    std::string{cm1},
                    cb::engine_errc::cannot_apply_collections_manifest);
+
+    // But now force it
+    cm1.setForce(true);
+    setCollections(cookie, std::string{cm1});
+
+    if (isPersistent()) {
+        resetEngineAndWarmup();
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->setVBucketState(vbid, vbucket_state_active));
+    }
+
+    // Check the current manifest is still a forced update
+    EXPECT_TRUE(store->getCollectionsManager()
+                        .getCurrentManifest()
+                        .rlock()
+                        ->isForcedUpdate());
+}
+
+TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::Entry{"fruit", 22});
+    cm.add(ScopeEntry::shop1);
+    EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
+    setCollections(cookie, std::string{cm});
+    // Check the current manifest is not a forced update
+    EXPECT_FALSE(store->getCollectionsManager()
+                         .getCurrentManifest()
+                         .rlock()
+                         ->isForcedUpdate());
+
+    if (isPersistent()) {
+        resetEngineAndWarmup();
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->setVBucketState(vbid, vbucket_state_active));
+
+        // Check the current manifest is still not a forced update
+        EXPECT_FALSE(store->getCollectionsManager()
+                             .getCurrentManifest()
+                             .rlock()
+                             ->isForcedUpdate());
+    }
+
+    // Move the collection to a different scope - this is not allowed, scope is
+    // immutable
+    cm.remove(CollectionEntry::Entry{"fruit", 22})
+            .add(CollectionEntry::Entry{"fruit", 22}, ScopeEntry::shop1);
+    setCollections(cookie,
+                   std::string{cm},
+                   cb::engine_errc::cannot_apply_collections_manifest);
+
+    // But now force it
+    cm.setForce(true);
+    setCollections(cookie, std::string{cm});
+
+    // KV doesn't yet respond to this yet
 }
 
 class CollectionsManifestUpdatePersistent

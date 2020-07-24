@@ -793,6 +793,8 @@ TEST(ManifestTest, getCollectionID) {
     EXPECT_EQ(9, cm.getCollectionID(ScopeID(8), "brewerA.beer").value());
     EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "brewerA.meat").value());
 
+    EXPECT_FALSE(cm.isForcedUpdate());
+
     // getCollectionID doesn't care about the scope part, correct usage
     // is always to call getScopeID(path) first which is where scope name errors
     // are caught
@@ -904,4 +906,19 @@ TEST(ManifestTest, isNotSuccesor) {
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
     Collections::Manifest incoming3{std::string{cm}};
     EXPECT_NE(cb::engine_errc::success, current.isSuccessor(incoming3).code());
+}
+
+TEST(ManifestTest, forcedUpdate) {
+    std::string manifest = R"({"uid" : "1",
+                "force" : true,
+                "scopes":[{"name":"_default", "uid":"0",
+                                "collections":[
+                                    {"name":"_default", "uid":"0"},
+                                    {"name":"meat", "uid":"8"}]},
+                          {"name":"brewerA", "uid":"8",
+                                "collections":[
+                                    {"name":"beer", "uid":"9"},
+                                    {"name":"meat", "uid":"a"}]}]})";
+    Collections::Manifest cm(manifest);
+    EXPECT_TRUE(cm.isForcedUpdate());
 }
