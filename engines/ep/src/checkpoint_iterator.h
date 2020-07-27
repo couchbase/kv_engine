@@ -144,7 +144,7 @@ public:
 
     /// The following is required to allow erase to be invoked on
     /// CheckpointQueue as the erase method takes a const_iter.
-    operator const_underlying_iterator() const {
+    explicit operator const_underlying_iterator() const {
         return iter;
     }
 
