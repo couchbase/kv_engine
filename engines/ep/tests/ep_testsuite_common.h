@@ -125,7 +125,7 @@ public:
     }
 
 protected:
-    engine_test_t test;
+    engine_test_t test = {};
 
 private:
     const char *name;

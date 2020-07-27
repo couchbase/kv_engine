@@ -49,7 +49,6 @@ TestCase::TestCase(const char* _name,
                                     enum test_result result),
                    bool _skip)
     : BaseTestCase(_name, _cfg, _skip) {
-    memset(&test, 0, sizeof(test));
     test.tfun = _tfun;
     test.test_setup = _test_setup;
     test.test_teardown = _test_teardown;
@@ -66,8 +65,6 @@ TestCaseV2::TestCaseV2(const char *_name,
                        void (*_cleanup)(engine_test_t *test, enum test_result result),
                        bool _skip)
   : BaseTestCase(_name, _cfg, _skip) {
-
-    memset(&test, 0, sizeof(test));
     test.api_v2.tfun = _tfun;
     test.api_v2.test_setup = _test_setup;
     test.api_v2.test_teardown = _test_teardown;
