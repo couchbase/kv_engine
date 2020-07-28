@@ -363,6 +363,8 @@ STAT(cmd_mutation_10s_count, count, , )
 // us suffix would be confusing in Prometheus as the stat is scaled to seconds
 STAT(cmd_mutation_10s_duration_us, microseconds, cmd_mutation_10s_duration, )
 STAT(total_resp_errors, count, , )
+STAT(enabled, none, , )
+STAT(dropped_events, count, , )
 
 // Vbucket aggreagated stats
 #define VB_AGG_STAT(name, unit, familyName, ...) \

@@ -25,6 +25,8 @@
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <statistics/collector.h>
+#include <statistics/definitions.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
@@ -395,11 +397,11 @@ void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
     cookie_api->notify_io_complete(cookie, status);
 }
 
-void AuditImpl::stats(const AddStatFn& add_stats,
-                      gsl::not_null<const void*> cookie) {
-    const auto* enabled = config.is_auditd_enabled() ? "true" : "false";
-    add_stats("enabled"sv, enabled, cookie.get());
-    add_stats("dropped_events"sv, std::to_string(dropped_events), cookie.get());
+void AuditImpl::stats(StatCollector& collector) {
+    bool enabled = config.is_auditd_enabled();
+    using namespace cb::stats;
+    collector.addStat(Key::enabled, enabled);
+    collector.addStat(Key::dropped_events, dropped_events);
 }
 
 void AuditImpl::consume_events() {

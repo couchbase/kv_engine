@@ -19,6 +19,7 @@
 
 #include "buckets.h"
 #include "mc_time.h"
+#include "mcaudit.h"
 #include "memcached.h"
 #include "server_socket.h"
 #include "settings.h"
@@ -172,6 +173,7 @@ ENGINE_ERROR_CODE server_prometheus_stats(
                     if (cardinality == cb::prometheus::Cardinality::Low) {
                         // do memcached per-bucket stats
                         server_bucket_stats(labelledCollector, bucket);
+                        stats_audit(labelledCollector);
                     }
 
                     // continue checking buckets

@@ -24,6 +24,7 @@
 
 class Cookie;
 class Connection;
+class StatCollector;
 
 /**
  * Send an audit event for an authentication failure
@@ -124,6 +125,6 @@ void add(const Cookie& c, Operation operation);
 void initialize_audit();
 void shutdown_audit();
 ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie);
-void stats_audit(const AddStatFn& add_stats, Cookie& cookie);
+void stats_audit(StatCollector& collector);
 
 bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload);

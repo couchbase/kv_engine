@@ -39,8 +39,7 @@ public:
     void add_event_state_listener(
             cb::audit::EventStateListener listener) override;
     void notify_all_event_states() override;
-    void stats(const AddStatFn& add_stats,
-               gsl::not_null<const void*> cookie) override;
+    void stats(StatCollector& collector) override;
     bool configure_auditdaemon(const std::string& config,
                                gsl::not_null<const void*> cookie) override;
     // End public API

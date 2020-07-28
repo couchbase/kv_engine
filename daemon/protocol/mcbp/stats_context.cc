@@ -215,7 +215,8 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        stats_audit(appendStatsFn, cookie);
+        CBStatCollector collector(appendStatsFn, &cookie);
+        stats_audit(collector);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;

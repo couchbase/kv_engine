@@ -392,10 +392,10 @@ ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
     });
 }
 
-void stats_audit(const AddStatFn& add_stats, Cookie& cookie) {
-    auditHandle.withRLock([&add_stats, &cookie](auto& handle) {
+void stats_audit(StatCollector& collector) {
+    auditHandle.withRLock([&collector](auto& handle) {
         if (handle) {
-            handle->stats(add_stats, &cookie);
+            handle->stats(collector);
         }
     });
 }
