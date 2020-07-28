@@ -569,6 +569,10 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
         success = false;
     }
 
+    if (postFlushHook) {
+        postFlushHook();
+    }
+
     commitCallback(errCode, kvctx);
 
     // This behaviour is to replicate the one in Couchstore.

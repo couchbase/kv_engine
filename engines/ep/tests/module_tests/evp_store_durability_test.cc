@@ -30,6 +30,7 @@
 #include "src/internal.h" // this is couchstore/src/internal.h
 #include "test_helpers.h"
 #include "tests/test_fileops.h"
+#include "thread_gate.h"
 #include "vbucket_state.h"
 #include "vbucket_utils.h"
 
@@ -3864,6 +3865,64 @@ TEST_P(DurabilityCouchstoreBucketTest,
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+}
+
+TEST_P(DurabilityEPBucketTest, MB_40480) {
+    using namespace cb::durability;
+
+    // 1) Persist a prepare but don't complete it yet
+    auto key = makeStoredDocKey("key");
+    auto prepare = makePendingItem(
+        key, "original", {Level::PersistToMajority, Timeout(10000)});
+
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Now abort our prepare but don't persist it yet
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+    std::chrono::milliseconds(10001));
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(1, vb->getSyncWriteAbortedCount());
+
+    // 3) Grab the abort for persistence (in EPBucket::flushVBucket) but don't
+    // actually complete the flush yet (i.e. call the commitCallback(s)).
+    // state.
+    ThreadGate tg1(2);
+    ThreadGate tg2(2);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    kvstore->setPostFlushHook([&tg1, &tg2]() {
+        tg1.threadUp();
+        tg2.threadUp();
+    });
+
+    std::thread flusher {[this](){
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    }};
+
+    tg1.threadUp();
+
+    // 4) Do another prepare now on the same key so that the HashTable item is
+    // updated
+    prepare = makePendingItem(
+            key, "can't delete", {Level::PersistToMajority, Timeout(30)});
+    prepare->setDeleted();
+    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+
+    // 5) Release the flusher thread stuck waiting to flush the abort.
+    tg2.threadUp();
+    flusher.join();
+
+    // We should now have called the PersistenceCallback for the abort. Before
+    // this bug was fixed we would delete the latest prepare from the HashTable
+    // here causing "prepare not found" errors when we attempt to complete
+    // this prepare.
+    const auto res = vb->ht.findForUpdate(key);
+    EXPECT_TRUE(res.pending);
+    EXPECT_FALSE(res.committed);
 }
 
 TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
