@@ -466,6 +466,7 @@ int main(int argc, char** argv) {
     }
 
     cb::libevent::unique_event_base_ptr base(event_base_new());
+    std::vector<cb::libevent::unique_bufferevent_ptr> events;
     try {
         in_port_t in_port;
         sa_family_t fam;
@@ -556,6 +557,7 @@ int main(int argc, char** argv) {
                     socket,
                     BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS);
 
+            events.emplace_back(bev);
             bufferevent_setcb(bev, read_callback, {}, event_callback, nullptr);
             bufferevent_enable(bev, EV_READ);
 
