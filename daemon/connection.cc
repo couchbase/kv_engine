@@ -590,6 +590,8 @@ void Connection::executeCommandPipeline() {
                         "Connection::executeCommandsCallback(): Failed to "
                         "drain buffer");
             }
+
+            totalRecv += drainSize;
         }
     }
 

@@ -439,12 +439,17 @@ TEST_P(StatsTest, TestUnprivilegedConnections) {
     EXPECT_EQ(me, stats.front()["socket"].get<size_t>());
     EXPECT_EQ("TestUnprivilegedConnections 1.0",
               stats.front()["agent_name"].get<std::string>());
+    EXPECT_NE(0, stats.front()["total_recv"].get<uint64_t>());
+    const auto total_recv = stats.front()["total_recv"].get<uint64_t>();
     stats = conn.stats("connections self");
     ASSERT_EQ(1, stats.size());
     EXPECT_EQ(me, stats.front()["socket"].get<size_t>());
     EXPECT_EQ("TestUnprivilegedConnections 1.0",
               stats.front()["agent_name"].get<std::string>());
     EXPECT_EQ(me, conn.getServerConnectionId());
+
+    // Verify that total_recv is updated
+    EXPECT_LT(total_recv, stats.front()["total_recv"].get<uint64_t>());
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
