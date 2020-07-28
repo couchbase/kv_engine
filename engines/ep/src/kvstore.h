@@ -1059,6 +1059,13 @@ public:
      */
     virtual const KVStoreConfig& getConfig() const = 0;
 
+    /**
+     * Test-only. See definition of postFlushHook for details.
+     */
+    void setPostFlushHook(std::function<void()> hook) {
+        postFlushHook = hook;
+    }
+
 protected:
     /// Get a string to use as the prefix for the stats. This is typically
     /// "ro_<shard id>" for the read only store, and "rw_<shard id>" for the
@@ -1127,6 +1134,10 @@ protected:
     bool inTransaction{false};
 
     std::unique_ptr<TransactionContext> transactionCtx;
+
+    // Test-only. If set, this is executed after the a flush-batch is committed
+    // to disk but before we call back into the PersistenceCallback.
+    std::function<void()> postFlushHook;
 };
 
 std::string to_string(KVStore::FlushStateDeletion status);
