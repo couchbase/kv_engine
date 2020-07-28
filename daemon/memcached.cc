@@ -350,8 +350,9 @@ static void recalculate_max_connections() {
     }
 
     LOG_INFO(
-            "recalculate_max_connections: max_fds:{}, max_connections:{}, "
-            "system_connections:{}, engine_fds:{}",
+            "recalculate_max_connections: "
+            "{{\"max_fds\":{},\"max_connections\":{},\"system_connections\":{},"
+            "\"engine_fds\":{}}}",
             environment.max_file_descriptors,
             Settings::instance().getMaxConnections(),
             Settings::instance().getSystemConnections(),
@@ -435,10 +436,6 @@ static void settings_init() {
     auto& settings = Settings::instance();
 
     // Set up the listener functions
-    settings.addChangeListener(
-            "max_connections", [](const std::string&, Settings& s) -> void {
-                recalculate_max_connections();
-            });
     settings.addChangeListener("interfaces",
                                            interfaces_changed_listener);
     settings.addChangeListener(
@@ -1806,6 +1803,15 @@ int memcached_main(int argc, char** argv) {
 #ifdef THREAD_SANITIZER
     LOG_INFO("Thread sanitizer enabled");
 #endif
+
+    // Call recalculate_max_connections to make sure we put log the number
+    // of file descriptors in the logfile
+    recalculate_max_connections();
+    // set up a callback to update it as part of parsing the configuration
+    Settings::instance().addChangeListener(
+            "max_connections", [](const std::string&, Settings& s) -> void {
+                recalculate_max_connections();
+            });
 
     /// Initialize breakpad crash catcher with our just-parsed settings
     Settings::instance().addChangeListener("breakpad",
