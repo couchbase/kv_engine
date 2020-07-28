@@ -289,21 +289,35 @@ ExTask ExecutorPool::_cancel(size_t taskId, bool remove) {
 
 bool ExecutorPool::cancel(size_t taskId, bool remove) {
     ExTask task;
+
+    // Memory allocation guards.
+    // cancel is called from a number of places and the caller may or may not
+    // have memory allocation tracking associated to a bucket. For example
+    // ExecutorThread::run will not be associated with a bucket when it calls
+    // cancel, yet KVBucket::setExpiryPagerSleeptime will be associated with a
+    // bucket.
+    // The call to _cancel *must* not be associated with a bucket, any memory
+    // alloc/dealloc (dealloc can occur as we call erase on a container) is not
+    // accounted to a bucket.
+    // If a task is being removed, its deallocation must be associated to the
+    // bucket, so an explicit BucketAllocationGuard encloses the forced reset
+    // of 'task'
     {
         NonBucketAllocationGuard guard;
         task = _cancel(taskId, remove);
     }
 
-    // Critical to the structure of this function is that task (a shared_ptr)
-    // is destructed 1) after ExecutorPool::tMutex is released (which happens
-    // when _cancel returns) and 2) with the memory tracking associated back to
-    // the callers engine, which happens when the above _cancel scope ends.
-    //
-    // 1) The mutex must not be held because if the task object referenced from
-    // the shared_ptr does destruct, it is allowed to call other ExecutorPool
-    // methods, e.g. call schedule(my_cleanup_task); and we must not hold the
-    // lock for that path.
-    return task != nullptr;
+    // It is critical that the task is 'reset' without holding
+    // ExecutorPool::tMutex. _cancel is the part of 'cancel' which obtains the
+    // mutex. The mutex must not be held because if the task referenced
+    // from the shared_ptr does destruct, the destructor is allowed to call
+    // other ExecutorPool methods, e.g. pool->schedule(my_cleanup_task);
+    bool taskFound = task != nullptr;
+    if (task && remove) {
+        BucketAllocationGuard bucketGuard(task->getEngine());
+        task.reset();
+    }
+    return taskFound;
 }
 
 bool ExecutorPool::_wake(size_t taskId) {

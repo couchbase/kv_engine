@@ -21,6 +21,7 @@
 
 #include "executorpool_test.h"
 #include "lambda_task.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 
 ExTask makeTask(Taskable& taskable, ThreadGate& tg, TaskId taskId) {
     return std::make_shared<LambdaTask>(
@@ -362,28 +363,27 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
 class ScheduleOnDestruct {
 public:
     ScheduleOnDestruct(ExecutorPool& pool,
-                       Taskable& taskable,
+                       EventuallyPersistentEngine& e,
                        ExecutorThread& thread)
-        : pool(pool), taskable(taskable), thread(thread) {
+        : pool(pool), engine(e), thread(thread) {
     }
     ~ScheduleOnDestruct();
 
     ExecutorPool& pool;
-    Taskable& taskable;
+    EventuallyPersistentEngine& engine;
     ExecutorThread& thread;
 };
 
 class ScheduleOnDestructTask : public GlobalTask {
 public:
-    ScheduleOnDestructTask(Taskable& t,
+    ScheduleOnDestructTask(EventuallyPersistentEngine& e,
                            TaskId taskId,
                            double sleeptime,
                            bool completeBeforeShutdown,
                            ExecutorPool& pool,
-                           Taskable& taskable,
                            ExecutorThread& thread)
-        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown),
-          scheduleOnDestruct(pool, taskable, thread) {
+        : GlobalTask(&e, taskId, sleeptime, completeBeforeShutdown),
+          scheduleOnDestruct(pool, e, thread) {
     }
 
     bool run() override {
@@ -403,12 +403,12 @@ public:
 
 class StopTask : public GlobalTask {
 public:
-    StopTask(Taskable& t,
+    StopTask(EventuallyPersistentEngine& e,
              TaskId taskId,
              double sleeptime,
              bool completeBeforeShutdown,
              ExecutorThread& thread)
-        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown),
+        : GlobalTask(&e, taskId, sleeptime, completeBeforeShutdown),
           thread(thread) {
     }
 
@@ -432,7 +432,7 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
     // Schedule StopTask from the destructor. This task will ensure that
     // ::run terminates its inner run-loop.
     ExTask task = std::make_shared<StopTask>(
-            taskable, TaskId::ItemPager, 10, true, thread);
+            engine, TaskId::ItemPager, 10, true, thread);
     // MB-40517: This deadlocked
     pool.schedule(task);
     pool.wake(task->getId());
@@ -459,8 +459,10 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  */
 TEST_F(SingleThreadedExecutorPoolTest, cancel_can_schedule) {
     ExecutorThread thr(pool, NONIO_TASK_IDX, "cancel_can_schedule");
+    auto engine = SynchronousEPEngine::build("");
+    auto memUsedA = engine->getEpStats().getPreciseTotalMemoryUsed();
     ExTask task = std::make_shared<ScheduleOnDestructTask>(
-            taskable, TaskId::ItemPager, 10, true, *pool, taskable, thr);
+            *engine.get(), TaskId::ItemPager, 10, true, *pool, thr);
 
     auto id = task->getId();
     ASSERT_EQ(id, pool->schedule(task));
@@ -470,4 +472,6 @@ TEST_F(SingleThreadedExecutorPoolTest, cancel_can_schedule) {
     // then be cancelled, which as part of cancel calls schedule
     pool->wake(id);
     thr.run();
+
+    EXPECT_EQ(memUsedA, engine->getEpStats().getPreciseTotalMemoryUsed());
 }
