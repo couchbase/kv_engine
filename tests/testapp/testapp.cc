@@ -382,7 +382,9 @@ nlohmann::json TestappTest::generate_config() {
                "SHA256"}}},
             {"ssl_minimum_protocol", "tlsv1"},
             {"opcode_attributes_override",
-             {{"version", 1}, {"EWB_CTL", {{"slow", 50}}}}},
+             {{"version", 1},
+              {"EWB_CTL", {{"slow", 50}}},
+              {"default", {{"slow", 500}}}}},
             {"logger", {{"unit_test", true}}},
             {"portnumber_file", portnumber_file},
     };

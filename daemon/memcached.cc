@@ -590,7 +590,14 @@ static void update_settings_from_config()
     }
 
     try {
-        cb::mcbp::sla::reconfigure(root);
+        if (settings.has.opcode_attributes_override) {
+            cb::mcbp::sla::reconfigure(
+                    Settings::instance().getRoot(),
+                    nlohmann::json::parse(
+                            settings.getOpcodeAttributesOverride()));
+        } else {
+            cb::mcbp::sla::reconfigure(root);
+        }
     } catch (const std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE, e.what());
     }

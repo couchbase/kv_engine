@@ -81,7 +81,7 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
               {"ssl_cipher_list", "HIGH"},
               {"ssl_minimum_protocol", "tlsv1"},
               {"opcode_attributes_override",
-               {{"version", 1}, {"EWB_CTL", {{"slow", 50}}}}},
+               {{"version", 1}, {"default", {{"slow", 500}}}}},
               {"logger",
                {{"unit_test", true},
                 {"console", false},
