@@ -504,6 +504,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             "magma_" + std::to_string(configuration.getShardId());
     logger = BucketLogger::createBucketLogger(loggerName, loggerName);
     configuration.magmaCfg.LogContext = logger;
+    configuration.magmaCfg.UID = loggerName;
 
     // Open the magma instance for this shard and populate the vbstate.
     magma = std::make_unique<Magma>(configuration.magmaCfg);
