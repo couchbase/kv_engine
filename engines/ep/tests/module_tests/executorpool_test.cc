@@ -400,27 +400,31 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
 class ScheduleOnDestruct {
 public:
     ScheduleOnDestruct(ExecutorPool& pool,
-                       EventuallyPersistentEngine& e,
-                       CB3ExecutorThread& thread)
-        : pool(pool), engine(e), thread(thread) {
+                       Taskable& taskable,
+                       SyncObject& cv,
+                       bool& stopTaskHasRun)
+        : pool(pool),
+          taskable(taskable),
+          cv(cv),
+          stopTaskHasRun(stopTaskHasRun) {
     }
     ~ScheduleOnDestruct();
 
     ExecutorPool& pool;
-    EventuallyPersistentEngine& engine;
-    CB3ExecutorThread& thread;
+    Taskable& taskable;
+    SyncObject& cv;
+    bool& stopTaskHasRun;
 };
 
 class ScheduleOnDestructTask : public GlobalTask {
 public:
-    ScheduleOnDestructTask(EventuallyPersistentEngine& e,
-                           TaskId taskId,
-                           double sleeptime,
-                           bool completeBeforeShutdown,
+    ScheduleOnDestructTask(EventuallyPersistentEngine& bucket,
+                           Taskable& taskable,
                            ExecutorPool& pool,
-                           CB3ExecutorThread& thread)
-        : GlobalTask(&e, taskId, sleeptime, completeBeforeShutdown),
-          scheduleOnDestruct(pool, e, thread) {
+                           SyncObject& cv,
+                           bool& stopTaskHasRun)
+        : GlobalTask(&bucket, TaskId::ItemPager, 10, true),
+          scheduleOnDestruct(pool, taskable, cv, stopTaskHasRun) {
     }
 
     bool run() override {
@@ -440,17 +444,16 @@ public:
 
 class StopTask : public GlobalTask {
 public:
-    StopTask(EventuallyPersistentEngine& e,
-             TaskId taskId,
-             double sleeptime,
-             bool completeBeforeShutdown,
-             CB3ExecutorThread& thread)
-        : GlobalTask(&e, taskId, sleeptime, completeBeforeShutdown),
-          thread(thread) {
+    StopTask(Taskable& taskable, SyncObject& cv, bool& taskHasRun)
+        : GlobalTask(taskable, TaskId::ItemPager, 10, false),
+          taskHasRun(taskHasRun),
+          cv(cv) {
     }
 
     bool run() override {
-        thread.stop(false);
+        std::lock_guard<std::mutex> guard(cv);
+        taskHasRun = true;
+        cv.notify_one();
         return false;
     }
 
@@ -462,17 +465,30 @@ public:
         return std::chrono::seconds(60);
     }
 
-    CB3ExecutorThread& thread;
+    // Flag and CV to notify main thread that this task has run.
+    bool& taskHasRun;
+    SyncObject& cv;
 };
 
 ScheduleOnDestruct::~ScheduleOnDestruct() {
-    // Schedule StopTask from the destructor. This task will ensure that
-    // ::run terminates its inner run-loop.
-    ExTask task = std::make_shared<StopTask>(
-            engine, TaskId::ItemPager, 10, true, thread);
+    // We don't want to have the StopTask's heap allocation accounted to
+    // the bucket we are testing with. This is because we cannot easily
+    // determine when StopTask itself is cleaned up by the underlying executor
+    // thread, and if it isn't destroyed by the time we check memory at the
+    // end of the test then the memory comparison will fail.
+    // We don't otherwise care when this Task actually is cleaned up, so
+    // simply ignore it's memory usage when allocating, and associate it
+    // with mockTaskable so when it's later freed the deallocation is
+    // also ignored.
+    BucketAllocationGuard guard(nullptr);
+
+    ExTask task = std::make_shared<StopTask>(taskable, cv, stopTaskHasRun);
+    // Schedule a Task from the destructor. This is done to validate we
+    // do not deadlock when scheduling when called via cancel().
+
     // MB-40517: This deadlocked
     pool.schedule(task);
-    pool.wake(task->getId());
+    EXPECT_TRUE(pool.wake(task->getId()));
 }
 
 /*
@@ -486,32 +502,60 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  * This test simulates the requirements with the following:
  * 1) schedule the "ScheduleOnDestructTask", a task which will schedule another
  *    task when it destructs.
- * 2) Use the real CB3ExecutorThread and run the task
- * 3) ~ScheduleOnDestructTask is called from CB3ExecutorThread::run
+ * 2) Use the real ExecutorPool and run the task
+ * 3) ~ScheduleOnDestructTask is called from ExecutorThread::run
  * 4) From the destructor, schedule a new task, StopTask. When this task runs it
  *    calls into ExeuctorThread::stop so the run-loop terminates and the test
  *    can finish.
  * Without the MB-40517 fix, step 4 would deadlock because the ExecutorPool
  * lock is already held by the calling thread.
  */
-TEST_F(SingleThreadedExecutorPoolTest, cancel_can_schedule) {
-    // TODO: Refactor this to support FollyExecutorPool when introduced.
-    CB3ExecutorThread thr(&dynamic_cast<CB3ExecutorPool&>(*pool),
-                          NONIO_TASK_IDX,
-                          "cancel_can_schedule");
-    auto engine = SynchronousEPEngine::build("");
+TYPED_TEST(ExecutorPoolTest, cancel_can_schedule) {
+    // Note: Need to use global ExecutorPool (and not this->pool as typical for
+    // ExecutorPoolTest) as we need an EPEngine object for testing memory
+    // tracking, and EpEngine will create theglobal ExecutorPool if it doesn't
+    // already exist. We don't want two different pools in action...
+
+    // Config: Require only 1 NonIO thread as we want ScheduleOnDestructTask and
+    // StopTask to be serialised with respect to each other.
+    std::string config = "num_nonio_threads=1";
+
+    auto engine = SynchronousEPEngine::build(config);
+    auto* pool = ExecutorPool::get();
+
+    // Create and register a MockTaskable to use for the StopTask, as we don't
+    // want to account it's memory to the bucket under test. See further
+    // comments in ~ScheduleOnDestruct().
+    MockTaskable mockTaskable;
+    pool->registerTaskable(mockTaskable);
+
+    // Condition variable and flag to allow this main thread to wait on the
+    // final StopTask to be run.
+    SyncObject cv;
+    bool stopTaskHasRun = false;
     auto memUsedA = engine->getEpStats().getPreciseTotalMemoryUsed();
     ExTask task = std::make_shared<ScheduleOnDestructTask>(
-            *engine.get(), TaskId::ItemPager, 10, true, *pool, thr);
+            *engine.get(), mockTaskable, *pool, cv, stopTaskHasRun);
 
     auto id = task->getId();
     ASSERT_EQ(id, pool->schedule(task));
     task.reset(); // only the pool has a reference
 
     // Wake our task and call run. The task is a 'one-shot' task which will
-    // then be cancelled, which as part of cancel calls schedule
+    // then be cancelled, which as part of cancel calls schedule (for StopTask).
     pool->wake(id);
-    thr.run();
+
+    // Wait on StopTask to run.
+    {
+        std::unique_lock<std::mutex> guard(cv);
+        cv.wait(guard, [&stopTaskHasRun] { return stopTaskHasRun; });
+    }
 
     EXPECT_EQ(memUsedA, engine->getEpStats().getPreciseTotalMemoryUsed());
+
+    // Cleanup - want to ensure global ExecutorPool is destroyed at the end of
+    // this test, which requires engine is destructed first.
+    engine.reset();
+    pool->unregisterTaskable(mockTaskable, true);
+    pool->shutdown();
 }
