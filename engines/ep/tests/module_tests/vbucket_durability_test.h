@@ -32,8 +32,8 @@ public:
 protected:
     /// Specification of a SyncWrite to store, as used by storeSyncWrites.
     struct SyncWriteSpec {
-        explicit SyncWriteSpec(int64_t seqno) : seqno(seqno) {
-        }
+        // Allow the implicit construction of SyncWriteSpec from an int64_t
+        // NOLINTNEXTLINE(google-explicit-constructor)
         SyncWriteSpec(int64_t seqno, bool deletion = false)
             : seqno(seqno), deletion(deletion) {
         }
