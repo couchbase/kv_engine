@@ -57,6 +57,13 @@ public:
     void writeUpgradeComplete(const InputCouchFile& input) const;
 
     /**
+     * Write to the output file that an upgrade has complete
+     * adds "namespaces_supported:true" to the _local vbstate and collection
+     * stats that mad-hatter writes
+     */
+    void writeUpgradeCompleteMadHatter(const InputCouchFile& input) const;
+
+    /**
      * write all documents that are in the BufferedOutputDocuments
      */
     void writeDocuments();
@@ -73,10 +80,17 @@ protected:
     void writeSupportsNamespaces(const std::string& vbs, bool value) const;
 
     /**
-     * Update item of the new file, this creates the _local counter doc
+     * Update item of the new file, this creates the _local stats doc
      */
     void setCollectionStats(CollectionID cid,
                             Collections::VB::PersistedStats stats) const;
+
+    /**
+     * Update item of the new file, this creates the _local stats doc with the
+     * data mad-hatter would of written (item count and high-seqno)
+     */
+    void setCollectionStatsMadHatter(
+            CollectionID cid, Collections::VB::PersistedStats stats) const;
 
     /// The destination collection to use in the upgrade
     CollectionID collection;

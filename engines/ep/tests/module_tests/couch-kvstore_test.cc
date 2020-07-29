@@ -43,6 +43,8 @@ class CouchKVStoreTest : public KVStoreTest {
 public:
     CouchKVStoreTest() : KVStoreTest() {
     }
+
+    void collectionsOfflineUpgrade(bool writeAsMadHatter);
 };
 
 // Verify the stats returned from operations are accurate.
@@ -213,7 +215,7 @@ private:
 // Test the InputCouchFile/OutputCouchFile objects (in a simple test) to
 // check they do what we expect, that is create a new couchfile with all keys
 // moved into a specified collection.
-TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
+void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     CouchKVStoreConfig config1(1024, 4, data_dir, "couchdb", 0);
 
     CouchKVStoreConfig config2(1024, 4, data_dir, "couchdb", 0);
@@ -289,7 +291,11 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
                                         cid /*collection-id*/,
                                         1024 * 1024 /*buffersize*/);
     input.upgrade(output);
-    output.writeUpgradeComplete(input);
+    if (writeAsMadHatter) {
+        output.writeUpgradeCompleteMadHatter(input);
+    } else {
+        output.writeUpgradeComplete(input);
+    }
     output.commit();
 
     auto kvstore2 = KVStoreFactory::create(config2);
@@ -316,6 +322,14 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
     ASSERT_TRUE(stats);
     EXPECT_EQ(keys - deletedKeys, stats->itemCount);
     EXPECT_EQ(keys + deletedKeys, stats->highSeqno);
+}
+
+TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
+    collectionsOfflineUpgrade(false);
+}
+
+TEST_F(CouchKVStoreTest, CollectionsOfflineUpgradeMadHatter) {
+    collectionsOfflineUpgrade(true);
 }
 
 /**

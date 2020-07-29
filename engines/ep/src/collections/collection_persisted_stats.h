@@ -42,6 +42,12 @@ struct PersistedStats {
      */
     std::string getLebEncodedStats() const;
 
+    /**
+     * For unit testing, expose only itemCount and highSeqno
+     * @return a LEB128 encoded 'array' of the stats mad-hatter stored
+     */
+    std::string getLebEncodedStatsMadHatter() const;
+
     uint64_t itemCount;
     uint64_t highSeqno;
     uint64_t diskSize;

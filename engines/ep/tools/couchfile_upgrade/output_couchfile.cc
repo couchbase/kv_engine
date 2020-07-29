@@ -102,6 +102,12 @@ void OutputCouchFile::setCollectionStats(
     writeLocalDocument(docName, stats.getLebEncodedStats());
 }
 
+void OutputCouchFile::setCollectionStatsMadHatter(
+        CollectionID cid, Collections::VB::PersistedStats stats) const {
+    std::string docName = "|" + cid.to_string() + "|";
+    writeLocalDocument(docName, stats.getLebEncodedStatsMadHatter());
+}
+
 void OutputCouchFile::writeLocalDocument(const std::string& documentName,
                                          const std::string& value) const {
     LocalDoc localDoc;
@@ -138,6 +144,23 @@ void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
     }
     setCollectionStats(collection,
                        {info.doc_count, info.last_sequence, info.space_used});
+
+    writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), true);
+}
+
+void OutputCouchFile::writeUpgradeCompleteMadHatter(
+        const InputCouchFile& input) const {
+    // Update the item count of the collection
+    DbInfo info;
+    auto errcode = couchstore_db_info(db, &info);
+    if (errcode) {
+        throw std::runtime_error(
+                "OutputCouchFile::writeUpgradeCompleteMadHatter failed "
+                "couchstore_db_info errcode:" +
+                std::to_string(errcode));
+    }
+    setCollectionStatsMadHatter(
+            collection, {info.doc_count, info.last_sequence, info.space_used});
 
     writeSupportsNamespaces(input.getLocalDocument("_local/vbstate"), true);
 }
