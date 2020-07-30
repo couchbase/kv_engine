@@ -1031,11 +1031,9 @@ prefixed with the vbucket and the id of the Checkpoint, e.g. "vb_0:id_52:state"
 
 ** Memory Stats
 
-This provides various memory-related stats including the stats from tcmalloc.
-Note that tcmalloc stats are not available on some operating systems
-(e.g., Windows) that do not support tcmalloc.
+This provides various memory-related stats including some stats from jemalloc.
 
-| mem_used (deprecated)               | Engine's total memory usage          |
+| mem_used                            | Engine's total memory usage          |
 | mem_used_estimate                   | Engine's total estimated memory usage|
 |                                     | This is a faster stat to read, but   |
 |                                     | lags mem_used as it's only updated   |
@@ -1076,30 +1074,31 @@ Note that tcmalloc stats are not available on some operating systems
 | ep_storedval_num                    | The number of storedval objects      |
 |                                     | allocated                            |
 | ep_item_num                         | The number of item objects allocated |
-| ep_mem_tracker_enabled              | If smart memory tracking is enabled  |
-| total_allocated_bytes               | Engine's total memory usage reported |
-|                                     | from the underlying memory allocator |
-| total_heap_size                     | Bytes of system memory reserved by   |
-|                                     | the underlying memory allocator      |
-| total_fragmentation_bytes           | Bytes of the fragmented memory in    |
-|                                     | the underlying allocator. Note that  |
-|                                     | the free and mapped pages inside the |
-|                                     | allocator are not considered as the  |
-|                                     | fragmentation as they can be used    |
-|                                     | for incoming memory allocations.     |
-| total_metadata_bytes                | Number of bytes used by the allocator|
-|                                     | for its own metadata                 |
-| total_resident_bytes                | Max no. of Resident bytes that are   |
-|                                     | currently allocated by the process   |
-| total_retained_bytes                | Bytes that is held by the process    |
-|                                     | which could be released to the OS    |
-| tcmalloc_max_thread_cache_bytes     | A limit to how much memory the       |
-|                                     | underlying memory allocator TCMalloc |
-|                                     | dedicates for small objects          |
-| tcmalloc_current_thread_cache_bytes | A measure of some of the memory that |
-|                                     | the underlying allocator TCMalloc is |
-|                                     | using for small objects              |
 
+The following stats are found by querying jemalloc, definitions of the jemalloc
+stats can be found at:
+  - http://jemalloc.net/jemalloc.3.html
+
+| ep_arena:allocated:                 | ep_arena:small.allocated + ep_arena:large.allocated                                      |
+| ep_arena:arena:                     | The id of the arena registered to the bucket                                             |
+| ep_arena:base:                      | This is "stats.arenas.<i>.base" from jemalloc where <i> is the bucket's arena            |
+| ep_arena:fragmentation_size:        | ep_arena:resident - ep_arena:allocated                                                   |
+| ep_arena:internal:                  | This is "stats.arenas.<i>.internal" from jemalloc where <i> is the bucket's arena        |
+| ep_arena:large.allocated:           | This is "stats.arenas.<i>.large.allocate" from jemalloc where <i> is the bucket's arena  |
+| ep_arena:mapped:                    | This is "stats.arenas.<i>.mapped" from jemalloc where <i> is the bucket's arena          |
+| ep_arena:resident:                  | This is "stats.arenas.<i>.resident" from jemalloc where <i> is the bucket's arena        |
+| ep_arena:retained:                  | This is "stats.arenas.<i>.retained" from jemalloc where <i> is the bucket's arena        |
+| ep_arena:small.allocated:           | This is "stats.arenas.<i>.small.allocated" from jemalloc where <i> is the bucket's arena |
+| ep_arena_global:allocated:          | ep_arena_global:small.allocated + ep_arena_global:large.allocated                        |
+| ep_arena_global:arena:              | The id of the arena used for global (non bucket) allocations.                            |
+| ep_arena_global:base:               | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
+| ep_arena_global:fragmentation_size: | ep_arena_global:resident - ep_arena_global:allocated                                     |
+| ep_arena_global:internal:           | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
+| ep_arena_global:large.allocated:    | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
+| ep_arena_global:mapped:             | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
+| ep_arena_global:resident:           | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
+| ep_arena_global:retained:           | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
+| ep_arena_global:small.allocated:    | See "ep_arena:" entry, this is the stat query but for the 'global' arena.                |
 
 ** Stats Key and Vkey
 | key_cas                       | The keys current cas value             |KV|
