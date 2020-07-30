@@ -34,11 +34,6 @@ Collections::Manager::Manager() {
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                               std::string_view manifest) {
-    // Get upgrade access to the manifest for the initial part of the update
-    // This gives shared access (other readers allowed) but would block other
-    // attempts to get upgrade access.
-    auto current = currentManifest.ulock();
-
     std::unique_ptr<Manifest> newManifest;
     // Construct a newManifest (will throw if JSON was illegal)
     try {
@@ -53,6 +48,11 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                 "Collections::Manager::update manifest json invalid:" +
                         std::string(manifest));
     }
+
+    // Get upgrade access to the manifest for the initial part of the update
+    // This gives shared access (other readers allowed) but would block other
+    // attempts to get upgrade access.
+    auto current = currentManifest.ulock();
 
     // If the new manifest has a non zero uid, try to apply it
     if (newManifest->getUid() != 0) {
