@@ -25,8 +25,7 @@
 
 class MemcachedConnection;
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 class Node;
 class Bucket;
@@ -111,5 +110,4 @@ public:
     static std::unique_ptr<Cluster> create(size_t nodes);
 };
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

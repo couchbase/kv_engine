@@ -14,12 +14,12 @@
  *   limitations under the License.
  */
 
-#include "bucket.h"
-#include "cluster.h"
 #include "clustertest.h"
-#include "dcp_replicator.h"
-#include "node.h"
 
+#include <cluster_framework/bucket.h>
+#include <cluster_framework/cluster.h>
+#include <cluster_framework/dcp_replicator.h>
+#include <cluster_framework/node.h>
 #include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>

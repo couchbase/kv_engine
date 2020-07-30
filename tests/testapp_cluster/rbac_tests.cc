@@ -16,10 +16,9 @@
 
 #include "clustertest.h"
 
-#include "auth_provider_service.h"
-#include "bucket.h"
-#include "cluster.h"
-
+#include <cluster_framework/auth_provider_service.h>
+#include <cluster_framework/bucket.h>
+#include <cluster_framework/cluster.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <string>

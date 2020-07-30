@@ -24,8 +24,7 @@
 
 class MemcachedConnection;
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 /**
  * The node class represents a single node in the system. It is responsible
@@ -61,5 +60,4 @@ protected:
 #endif
 };
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

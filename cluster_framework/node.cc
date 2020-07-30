@@ -21,8 +21,8 @@
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection_map.h>
 #ifndef WIN32
-#include <signal.h>
 #include <sys/wait.h>
+#include <csignal>
 #endif
 #include <chrono>
 #include <fstream>
@@ -138,15 +138,12 @@ void NodeImpl::startMemcachedServer() {
         std::string binary(OBJECT_ROOT);
         binary.append("/memcached");
 
-        const char* argv[20];
-        int arg = 0;
-
-        argv[arg++] = binary.c_str();
-        argv[arg++] = "-C";
-        argv[arg++] = configfile.c_str();
-
-        argv[arg++] = nullptr;
-        execvp(argv[0], const_cast<char**>(argv));
+        std::vector<const char*> argv;
+        argv.emplace_back(binary.c_str());
+        argv.emplace_back("-C");
+        argv.emplace_back(configfile.c_str());
+        argv.emplace_back(nullptr);
+        execvp(argv[0], const_cast<char**>(argv.data()));
         throw std::system_error(
                 errno, std::system_category(), "Failed to execute memcached");
     }

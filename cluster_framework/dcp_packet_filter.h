@@ -21,8 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 /// The DCP packet filter is called with the packet read from the source
 /// node _before_ the DCP pipe does anything with the packet. The callback
@@ -51,5 +50,4 @@ using DcpPacketFilter = std::function<void(const std::string& source,
                                            const std::string& destination,
                                            std::vector<uint8_t>& packet)>;
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

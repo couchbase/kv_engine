@@ -21,8 +21,7 @@
 #include <memory>
 #include <vector>
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 class Cluster;
 class Bucket;
@@ -87,5 +86,4 @@ public:
             const std::vector<ReplicationConfig>& configs = {});
 };
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

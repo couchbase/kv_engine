@@ -16,14 +16,12 @@
 
 #include "clustertest.h"
 
-#include "bucket.h"
-#include "cluster.h"
-
+#include <cluster_framework/bucket.h>
+#include <cluster_framework/cluster.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
 #include <condition_variable>
-#include <cstdlib>
 #include <string>
 
 /**

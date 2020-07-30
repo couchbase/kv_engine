@@ -26,8 +26,7 @@
 
 class MemcachedConnection;
 
-namespace cb {
-namespace test {
+namespace cb::test {
 
 class Cluster;
 class DcpReplicator;
@@ -147,5 +146,4 @@ protected:
     nlohmann::json manifest;
 };
 
-} // namespace test
-} // namespace cb
+} // namespace cb::test

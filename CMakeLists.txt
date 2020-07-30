@@ -171,6 +171,7 @@ ADD_SUBDIRECTORY(logger)
 ADD_SUBDIRECTORY(daemon)
 ADD_SUBDIRECTORY(tracing)
 ADD_SUBDIRECTORY(statistics)
+add_subdirectory(cluster_framework)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
