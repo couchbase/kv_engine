@@ -22,7 +22,6 @@
 #include <platform/platform_thread.h>
 #include <atomic>
 #include <chrono>
-#include <map>
 #include <mutex>
 #include <utility>
 
