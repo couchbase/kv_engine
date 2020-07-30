@@ -322,6 +322,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     ASSERT_TRUE(stats);
     EXPECT_EQ(keys - deletedKeys, stats->itemCount);
     EXPECT_EQ(keys + deletedKeys, stats->highSeqno);
+    EXPECT_NE(0, stats->diskSize);
 }
 
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {

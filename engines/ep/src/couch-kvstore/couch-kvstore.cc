@@ -2591,8 +2591,19 @@ std::optional<Collections::VB::PersistedStats> CouchKVStore::getCollectionStats(
         return {};
     }
 
+    DbInfo info;
+    errCode = couchstore_db_info(db.getDb(), &info);
+    if (errCode) {
+        logger.warn(
+                "CouchKVStore::getCollectionStats cid:{}"
+                "couchstore_db_info error:{}",
+                collection.to_string(),
+                couchstore_strerror(errCode));
+    }
+
     return Collections::VB::PersistedStats(lDoc.getLocalDoc()->json.buf,
-                                           lDoc.getLocalDoc()->json.size);
+                                           lDoc.getLocalDoc()->json.size,
+                                           info.space_used);
 }
 
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {

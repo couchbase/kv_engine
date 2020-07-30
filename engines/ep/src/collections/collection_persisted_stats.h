@@ -33,8 +33,21 @@ struct PersistedStats {
         : itemCount(itemCount), highSeqno(highSeqno), diskSize(diskSize) {
     }
 
-    /// Build from a buffer containing a LEB 128 encoded string
+    /**
+     * Build from a buffer containing a LEB 128 encoded data
+     * @param buf pointer to start of data
+     * @param size data size in bytes
+     */
     PersistedStats(const char* buf, size_t size);
+
+    /**
+     * Build from a buffer containing a LEB 128 encoded data and supply a value
+     * to use for the disk-size if it disk-size isn't found in the LEB128 data.
+     * @param buf pointer to start of data
+     * @param size data size in bytes
+     * @param diskSize a value to use if diskSize isn't found in the data
+     */
+    PersistedStats(const char* buf, size_t size, size_t diskSize);
 
     /**
      * @return a LEB 128 encoded version of these stats ready for

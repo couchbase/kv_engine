@@ -20,7 +20,28 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 
 namespace Collections::VB {
+
 PersistedStats::PersistedStats(const char* buf, size_t size) {
+    std::pair<uint64_t, cb::const_byte_buffer> decoded = {
+            0, {reinterpret_cast<uint8_t*>(const_cast<char*>(buf)), size}};
+
+    decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
+    itemCount = decoded.first;
+    decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
+    highSeqno = decoded.first;
+    decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
+    diskSize = decoded.first;
+
+    if (!decoded.second.empty()) {
+        throw std::runtime_error(
+                "PersistedStats::ctor2 decoded buffer not empty after "
+                "processing");
+    }
+}
+
+PersistedStats::PersistedStats(const char* buf,
+                               size_t size,
+                               size_t dbSpaceUsed) {
     std::pair<uint64_t, cb::const_byte_buffer> decoded = {
             0, {reinterpret_cast<uint8_t*>(const_cast<char*>(buf)), size}};
 
@@ -32,12 +53,14 @@ PersistedStats::PersistedStats(const char* buf, size_t size) {
     if (decoded.second.size()) {
         decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
         diskSize = decoded.first;
+    } else {
+        diskSize = dbSpaceUsed;
     }
 
     if (!decoded.second.empty()) {
         throw std::runtime_error(
-                "PersistedStats:: cid:{} "
-                "decoded stats not empty after processing");
+                "PersistedStats::ctor1 decoded buffer not empty after "
+                "processing");
     }
 }
 
