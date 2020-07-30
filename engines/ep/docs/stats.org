@@ -1304,6 +1304,7 @@ collection-id.
 
 | sid:cid:disk_size   | Approximate disk-usage of the collection.  Note the sum of all collection disk-sizes does not equal the bucket disk usage         |
 | sid:cid:items       | Number of items stored in the collection.                                                                                         |
+| sid:cid:maxTTL      | The Time-To-Live value for the collection, omitted if none defined.                                                               |
 | sid:cid:mem_used    | Approximate memory-usage of the collection. Note the sum of all collection mem_used does not equal the bucket mem_used.           |
 | sid:cid:name        | The collection's name.                                                                                                            |
 | sid:cid:ops_delete  | The number of delete operations performed against the collection.                                                                 |
@@ -1321,14 +1322,14 @@ disk-size is initialised to the total disk used by the bucket.
 prefixed with the vbucket ID as "vb_x", where x is a decimal value and may also
 include the collection-id encoded as a 0x hexadecimal value (cid used in table).
 
-| vb_x:collection:cid:entry:high_seqno           | The high-seqno of the collection.                                  |
-| vb_x:collection:cid:entry:items                | The number of items the collection stores in this vbucket.         |
-| vb_x:collection:cid:entry:persisted_high_seqno | The highest persisted seqno.                                       |
-| vb_x:collection:cid:entry:scope                | The collections scope (as an 0x id).                               |
-| vb_x:collection:cid:entry:start_seqno          | The start seqno of the collection, the seqno when it was created.  |
-| vb_x:collection:cid:entry:maxTTL               | The Time-To-Live value for the collection, omitted if none defined.|
-| vb_x:manifest:entries                          | The number of collections the vbucket knows about.                 |
-| vb_x:manifest:uid                              | The manifest last used to update the vbucket.                      |
+| vb_x:cid:high_seqno           | The high-seqno of the collection.                                  |
+| vb_x:cid:items                | The number of items the collection stores in this vbucket.         |
+| vb_x:cid:persisted_high_seqno | The highest persisted seqno.                                       |
+| vb_x:cid:scope                | The collection's scope (as an 0x id).                              |
+| vb_x:cid:maxTTL               | The Time-To-Live value for the collection, omitted if none defined.|
+| vb_x:cid:start_seqno          | The start seqno of the collection, the seqno when it was created.  |
+| vb_x:collections              | The number of collections the vbucket knows about.                 |
+| vb_x:manifest_uid             | The id of the manifest last used to update the vbucket.            |
 
 *** Scopes
 
@@ -1337,6 +1338,12 @@ to the scope only, they are prefixed with the scope-id as a 0x prefixed
 hexadecimal value, for collections within a scope they are prefixed with
 scope-id and collection-id as a 0x prefixed hexadecimal value. For brevity,
 'sid' and 'cid' are used for scope-id and collection-id.
+
+When a specific scope is selected, each collection within the scope is returned.
+When the scope (no argument) key is used only the names of the collections in
+each scope are returned. The sid:cid stats returned within the scopes view are
+the same values (and definitions) as the keys/value returned from "collections"
+and "collections-byid".
 
 | sid:cid:name    | The name of a collection in the scope, multiple names maybe returned.                                                        |
 | sid:collections | The count of collections in the scope.                                                                                       |
@@ -1354,12 +1361,10 @@ allows a single vbucket to be inspected. Keys returned are prefixed with the
 vbucket ID as "vb_x", where x is a decimal value and may also include the
 scope/collection-id encoded as a 0x hexadecimal value (sid/cid used in table).
 
-Some stat keys also include the iteration index from the internal data structure, shown as n.
-
-| vb_x:manifest:scope:sid:collection:n  | The id of a collection in scope sid.          |
-| vb_x:manifest:scopes                  | The number of scopes.                         |
-| vb_x:manifest:scopes:n                | The id of the scope.                          |
-| vb_x:manifest:uid                     | The manifest last used to update the vbucket. |
+| vb_x:scopes                  | The number of scopes.                                                                            |
+| vb_x:sid                     | All of the known scope-ids returned, the value is the index position from the internal container |
+| vb_x:sid:cid:items           | The item count of a collection, repeated for all collections.                                    |
+| vb_x:manifest_uid            | The id of the manifest last used to update the vbucket.                                          |
 
 ** Stats Reset
 

@@ -67,43 +67,28 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
     try {
         const int bsize = 512;
         char buffer[bsize];
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:collection:%s:entry:scope",
-                         vbid.get(),
-                         cid.c_str());
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:scope", vbid.get(), cid.c_str());
         add_casted_stat(buffer, getScopeID().to_string(), add_stat, cookie);
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:collection:%s:entry:start_seqno",
-                         vbid.get(),
-                         cid.c_str());
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:start_seqno", vbid.get(), cid.c_str());
         add_casted_stat(buffer, getStartSeqno(), add_stat, cookie);
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:collection:%s:entry:high_seqno",
-                         vbid.get(),
-                         cid.c_str());
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:high_seqno", vbid.get(), cid.c_str());
         add_casted_stat(buffer, getHighSeqno(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
-                         "vb_%d:collection:%s:entry:persisted_high_seqno",
+                         "vb_%d:%s:persisted_high_seqno",
                          vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getPersistedHighSeqno(), add_stat, cookie);
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:collection:%s:entry:items",
-                         vbid.get(),
-                         cid.c_str());
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:items", vbid.get(), cid.c_str());
         add_casted_stat(buffer, getDiskCount(), add_stat, cookie);
 
         if (getMaxTtl()) {
-            checked_snprintf(buffer,
-                             bsize,
-                             "vb_%d:collection:%s:entry:maxTTL",
-                             vbid.get(),
-                             cid.c_str());
+            checked_snprintf(
+                    buffer, bsize, "vb_%d:%s:maxTTL", vbid.get(), cid.c_str());
             add_casted_stat(buffer, getMaxTtl().value().count(), add_stat, cookie);
         }
         return true;

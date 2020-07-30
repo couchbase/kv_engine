@@ -828,8 +828,7 @@ void verify_all_vb_seqnos(EngineIface* h,
         if (cid) {
             // Get high seqno for the collection in the vBucket
             std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
-                                      ":collection:" + cid->to_string() +
-                                      ":entry:high_seqno");
+                                      ":" + cid->to_string() + ":high_seqno");
             high_seqno_vb = get_ull_stat(
                     h, vb_stat_seqno.c_str(), "collections-details");
         } else {

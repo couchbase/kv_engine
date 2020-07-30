@@ -812,7 +812,7 @@ bool Manifest::addCollectionStats(Vbid vbid,
     try {
         const int bsize = 512;
         char buffer[bsize];
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:entries", vbid.get());
+        checked_snprintf(buffer, bsize, "vb_%d:collections", vbid.get());
         add_casted_stat(buffer, map.size(), add_stat, cookie);
         checked_snprintf(buffer, bsize, "vb_%d:manifest:uid", vbid.get());
         add_casted_stat(buffer, manifestUid, add_stat, cookie);
@@ -839,9 +839,9 @@ bool Manifest::addScopeStats(Vbid vbid,
     const int bsize = 512;
     char buffer[bsize];
     try {
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:scopes", vbid.get());
+        checked_snprintf(buffer, bsize, "vb_%d:scopes", vbid.get());
         add_casted_stat(buffer, scopes.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:uid", vbid.get());
+        checked_snprintf(buffer, bsize, "vb_%d:manifest_uid", vbid.get());
         add_casted_stat(buffer, manifestUid, add_stat, cookie);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
@@ -852,24 +852,26 @@ bool Manifest::addScopeStats(Vbid vbid,
         return false;
     }
 
-    // We'll also print the iteration index of each scope and collection.
+    // Dump the scopes container, which only stores scope-identifiers, so that
+    // we have a key and value we include the iteration index as the value.
     int i = 0;
-    for (auto it = scopes.begin(); it != scopes.end(); it++, i++) {
+    for (auto sid : scopes) {
         checked_snprintf(
-                buffer, bsize, "vb_%d:manifest:scopes:%d", vbid.get(), i);
-        add_casted_stat(buffer, it->to_string().c_str(), add_stat, cookie);
+                buffer, bsize, "vb_%d:%s", vbid.get(), sid.to_string().c_str());
+        add_casted_stat(buffer, i++, add_stat, cookie);
     }
 
-    i = 0;
-    for (auto it = map.begin(); it != map.end(); it++, i++) {
+    // Dump all collections and how they map to a scope. Stats requires unique
+    // keys, so cannot use the cid as the value (as key won't be unique), so
+    // return anything from the entry for the value, we choose item count.
+    for (const auto& [cid, entry] : map) {
         checked_snprintf(buffer,
                          bsize,
-                         "vb_%d:manifest:scope:%s:collection:%d",
+                         "vb_%d:%s:%s:items",
                          vbid.get(),
-                         it->second.getScopeID().to_string().c_str(),
-                         i);
-        add_casted_stat(
-                buffer, it->first.to_string().c_str(), add_stat, cookie);
+                         entry.getScopeID().to_string().c_str(),
+                         cid.to_string().c_str());
+        add_casted_stat(buffer, entry.getDiskCount(), add_stat, cookie);
     }
 
     return true;

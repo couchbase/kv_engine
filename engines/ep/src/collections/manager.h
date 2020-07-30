@@ -54,8 +54,8 @@ public:
      * @param add_stat memcached callback which will be called with each stat
      * @param cookie
      */
-    void addStatsForCollection(const std::optional<Scope>& scope,
-                               const CollectionID& cid,
+    void addStatsForCollection(const Scope& scope,
+                               CollectionID cid,
                                const Manifest::Collection& collection,
                                const AddStatFn& add_stat,
                                const void* cookie);
@@ -68,7 +68,7 @@ public:
      * @param add_stat memcached callback which will be called with each stat
      * @param cookie
      */
-    void addStatsForScope(const ScopeID& sid,
+    void addStatsForScope(ScopeID sid,
                           const Scope& scope,
                           const AddStatFn& add_stat,
                           const void* cookie);

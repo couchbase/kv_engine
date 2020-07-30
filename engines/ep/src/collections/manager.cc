@@ -670,7 +670,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         Expects(itr != current->end());
         const auto& [cid, collection] = *itr;
         cachedStats.addStatsForCollection(
-                {}, cid, collection, add_stat, cookie);
+                scope, cid, collection, add_stat, cookie);
     }
     return res;
 }
@@ -704,8 +704,8 @@ Collections::CachedStats::CachedStats(
       accumulatedStats(std::move(accumulatedStats)) {
 }
 void Collections::CachedStats::addStatsForCollection(
-        const std::optional<Scope>& scope,
-        const CollectionID& cid,
+        const Scope& scope,
+        CollectionID cid,
         const Manifest::Collection& collection,
         const AddStatFn& add_stat,
         const void* cookie) {
@@ -721,16 +721,31 @@ void Collections::CachedStats::addStatsForCollection(
     format_to(buf, "{}:{}:name", scopeID.to_string(), cid.to_string());
     add_stat({buf.data(), buf.size()}, collection.name, cookie);
 
-    // add scope name stat?
-    if (scope) {
-        buf.resize(0);
-        format_to(
-                buf, "{}:{}:scope_name", scopeID.to_string(), cid.to_string());
-        add_stat({buf.data(), buf.size()}, scope.value().name, cookie);
+    // add scope name stat
+    buf.resize(0);
+    format_to(buf, "{}:{}:scope_name", scopeID.to_string(), cid.to_string());
+    add_stat({buf.data(), buf.size()}, scope.name, cookie);
+    // ttl (requires a search in the Scope vector)
+    for (const auto& collection : scope.collections) {
+        if (collection.id == cid) {
+            if (collection.maxTtl) {
+                buf.resize(0);
+                format_to(buf,
+                          "{}:{}:maxTTL",
+                          scopeID.to_string(),
+                          cid.to_string());
+                fmt::memory_buffer value;
+                format_to(value, "{}", collection.maxTtl.value().count());
+                add_stat({buf.data(), buf.size()},
+                         {value.data(), value.size()},
+                         cookie);
+            }
+            break;
+        }
     }
 }
 
-void Collections::CachedStats::addStatsForScope(const ScopeID& sid,
+void Collections::CachedStats::addStatsForScope(ScopeID sid,
                                                 const Scope& scope,
                                                 const AddStatFn& add_stat,
                                                 const void* cookie) {
@@ -748,6 +763,12 @@ void Collections::CachedStats::addStatsForScope(const ScopeID& sid,
     fmt::memory_buffer buf;
     format_to(buf, "{}:name", sid.to_string());
     add_stat({buf.data(), buf.size()}, scope.name, cookie);
+    // add scope collection count
+    buf.resize(0);
+    format_to(buf, "{}:collections", sid.to_string());
+    fmt::memory_buffer value;
+    format_to(value, "{}", scope.collections.size());
+    add_stat({buf.data(), buf.size()}, {value.data(), value.size()}, cookie);
 }
 
 void Collections::CachedStats::addAggregatedCollectionStats(
