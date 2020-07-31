@@ -148,7 +148,7 @@ ManifestUpdateStatus Manifest::update(::VBucket& vb,
         } else {
             // Log verbosely for this case
             EP_LOG_WARN(
-                    "Manifest::update with equal uid:{} but differences "
+                    "Manifest::update with equal uid:{:#x} but differences "
                     "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}",
                     manifestUid,
                     changes.scopesToAdd.size(),

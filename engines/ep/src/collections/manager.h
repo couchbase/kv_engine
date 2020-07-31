@@ -93,14 +93,20 @@ public:
     /**
      * Update the bucket with the latest JSON collections manifest.
      *
-     * Locks the Manager and prevents concurrent updates, concurrent updates
-     * are failed with TMPFAIL as in reality there should be 1 admin connection.
+     * For persistent buckets, this will store the manifest first and then use
+     * IO complete success to perform the apply the new manifest. Ephemeral
+     * buckets the update is 'immediate'.
+     *
+     * Note that a mutex ensures that this update method works serially, no
+     * concurrent admin updates allowed.
      *
      * @param bucket the bucket receiving a set-collections command.
      * @param manifest the json manifest form a set-collections command.
      * @returns engine_error indicating why the update failed.
      */
-    cb::engine_error update(KVBucket& bucket, std::string_view manifest);
+    cb::engine_error update(KVBucket& bucket,
+                            std::string_view manifest,
+                            const void* cookie);
 
     /**
      * Retrieve the current manifest
@@ -169,6 +175,11 @@ public:
                        const AddStatFn& add_stat) const;
 
     /**
+     * Called from bucket warmup - see if we have a manifest to resume from
+     */
+    void warmupLoadManifest(const std::string& dbpath);
+
+    /**
      * Perform actions for a completed warmup - currently check if any
      * collections are 'deleting' and require erasing retriggering.
      */
@@ -214,6 +225,27 @@ private:
      */
     std::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
                                           const Manifest& newManifest);
+
+    /**
+     * This method handles the IO complete path and allows ::update to
+     * correctly call applyNewManifest
+     */
+    cb::engine_error updateFromIOComplete(KVBucket& bucket,
+                                          std::unique_ptr<Manifest> newManifest,
+                                          const void* cookie);
+
+    /**
+     * Final stage of the manifest update is to roll the new manifest out to
+     * the active vbuckets.
+     *
+     * @param bucket The bucket to work on
+     * @param current The locked, current manifest (which will be replaced)
+     * @param newManifest The new manifest to apply
+     */
+    cb::engine_error applyNewManifest(
+            KVBucket& bucket,
+            folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
+            std::unique_ptr<Manifest> newManifest);
 
     /**
      * Get a copy of stats which are relevant at a per-collection level.
@@ -294,6 +326,9 @@ private:
 
     /// Store the most recent (current) manifest received
     folly::Synchronized<Manifest> currentManifest;
+
+    /// Serialise updates to the manifest (set_collections core)
+    folly::Synchronized<const void*> updateInProgress{nullptr};
 };
 
 std::ostream& operator<<(std::ostream& os, const Manager& manager);

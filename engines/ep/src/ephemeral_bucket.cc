@@ -408,3 +408,9 @@ void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
     /* wake up the task */
     ExecutorPool::get()->wake(getId());
 }
+
+bool EphemeralBucket::maybeScheduleManifestPersistence(
+        const void* cookie,
+        std::unique_ptr<Collections::Manifest>& newManifest) {
+    return false; // newManifest not taken
+}

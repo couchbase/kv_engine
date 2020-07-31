@@ -3763,10 +3763,9 @@ TEST_P(NoTopologyActiveDurabilityMonitorTest, SeqnoAckReceivedBeforeTopology) {
 TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
     PassiveDurabilityMonitor pdm(*engine->getVBucket(vbid));
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->set_collection_manifest(cookie, std::string{cm}));
+    setCollections(cookie, std::string{cm});
 
-    queued_item item1{new Item(makeStoredDocKey("key1", CollectionID(8)),
+    queued_item item1{new Item(makeStoredDocKey("key1", CollectionEntry::meat),
                                0 /*flags*/,
                                0 /*exp*/,
                                "value",
@@ -3780,8 +3779,7 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
     pdm.addSyncWrite(item1, {});
 
     cm.remove(CollectionEntry::meat);
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->set_collection_manifest(cookie, std::string{cm}));
+    setCollections(cookie, std::string{cm});
 
     EPStats ep{};
     ActiveDurabilityMonitor adm(ep, std::move(pdm));

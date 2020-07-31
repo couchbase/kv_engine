@@ -377,8 +377,22 @@ void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
 }
 
 cb::engine_errc SingleThreadedKVBucketTest::setCollections(
-        const void* c, std::string_view json) {
-    return engine->set_collection_manifest(c, json);
+        const void* c, std::string_view json, cb::engine_errc status1) {
+    auto status = engine->set_collection_manifest(c, json);
+    if (!isPersistent()) {
+        return status;
+    }
+    EXPECT_EQ(status1, status);
+
+    if (status != cb::engine_errc::would_block) {
+        return status;
+    }
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(lpAuxioQ);
+    status = engine->set_collection_manifest(c, json);
+    EXPECT_EQ(cb::engine_errc::success, status);
+    return status;
 }
 
 void STParameterizedBucketTest::SetUp() {

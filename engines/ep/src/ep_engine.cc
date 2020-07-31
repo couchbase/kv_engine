@@ -1843,13 +1843,15 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
 cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
         gsl::not_null<const void*> cookie, std::string_view json) {
     auto engine = acquireEngine(this);
-    auto rv = engine->getKVBucket()->setCollections(json);
+    auto rv = engine->getKVBucket()->setCollections(json, cookie);
 
-    if (cb::engine_errc::success != cb::engine_errc(rv.code().value())) {
+    auto status = cb::engine_errc(rv.code().value());
+    if (cb::engine_errc::success != status &&
+        status != cb::engine_errc::would_block) {
         engine->setErrorContext(cookie, rv.what());
     }
 
-    return cb::engine_errc(rv.code().value());
+    return status;
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(

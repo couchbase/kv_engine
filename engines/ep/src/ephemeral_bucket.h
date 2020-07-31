@@ -130,6 +130,10 @@ public:
         return false;
     }
 
+    bool maybeScheduleManifestPersistence(
+            const void* cookie,
+            std::unique_ptr<Collections::Manifest>& newManifest) override;
+
     // Static methods /////////////////////////////////////////////////////////
 
     /** Apply necessary modifications to the Configuration for an Ephemeral

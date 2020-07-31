@@ -628,8 +628,9 @@ public:
     /**
      * Method to handle set_collections commands
      * @param json a buffer containing a JSON manifest to apply to the bucket
+     * @param cookie for the caller (i/o complete requirement)
      */
-    cb::engine_error setCollections(std::string_view json);
+    cb::engine_error setCollections(std::string_view json, const void* cookie);
 
     /**
      * Method to handle get_collections commands
@@ -665,6 +666,8 @@ public:
             CollectionID cid) const;
 
     const Collections::Manager& getCollectionsManager() const;
+
+    Collections::Manager& getCollectionsManager();
 
     bool isXattrEnabled() const;
 

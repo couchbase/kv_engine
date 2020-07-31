@@ -44,6 +44,10 @@ const char* const ScopeEventDebugTag = "_scope";
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";
 
+// Name of file where the manifest will be kept on persistent buckets
+const char* const ManifestFile = "collections.manifest";
+static std::string_view ManifestFileName(ManifestFile);
+
 // Length of the string excluding the zero terminator (i.e. strlen)
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 

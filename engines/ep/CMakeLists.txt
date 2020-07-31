@@ -229,9 +229,10 @@ SET(CONFIG_SOURCE src/configuration.cc
 SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
                        src/collections/eraser_context.cc
                        src/collections/flush.cc
+                       src/collections/kvstore.cc
                        src/collections/manager.cc
                        src/collections/manifest.cc
-                       src/collections/kvstore.cc
+                       src/collections/persist_manifest_task.cc
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
                        src/collections/scan_context.cc

@@ -1,0 +1,80 @@
+Aim: Better manifest comparison - full path checks on update
+
+E.g. If I currently have /scope1/c1 and those have ids sid:8 and cid:8 I want to detect:
+
+/scope2/c1 (sid:9 and sid:8) // collection moved to a new scope
+/scope2/c1 (sid:8 and sid:8) // scope changed name
+/scope1/c2 (8 and 8) // collection name changed
+
+
+Problem(s)
+
+1) vbucket_manifest only has IDs
+So if we try and do these detections during the vb.update code we have no name
+for comparison and cannot detect any of the above cases
+
+2) Collections::Manifest stores the last recevied manifest from ns_Server, we
+can apply detections there as it has scope and collection names - but if we
+warmup this object is 'empty'.
+
+3) Leading into how to solve warmup issue, we don't persist scope name, only id
+in _local
+
+
+Per vbucket does store collection names 1) in _local and 2) in system events
+Per vbucket stores scope names in 1) system event only (nothing in _local)
+
+
+Ideas:
+
+I think Collections::Manifest A compare Collections::Manifest B is something to consider and means we need a way to warm-up something comparable. Could also mean some weird stuff from replica?
+
+
+Weird stuff:
+
+Node {
+  Active VB1: Thinks /scope1/c1
+  Replica VB2: Thinks /scope2/c1 (as it got that over replication)  - is this possible in the quorum case?
+}
+or
+
+Node: {
+  Active VB1: Thinks /scope1/c1  (sid:8, cid:8)
+  Replica VB2: Thinks /scope2/c2  (sid:8, cid:8) (as it got that over replication)  - is this possible in the quorum case?
+}
+
+promote VB2 to active
+
+new data structure that can be populated from warmup (_local) and allows storage of {id} ?? this is the manifest right?
+
+hashes?
+
+
+Options:
+
+A) Be defensive for *every* manifest update - this means KV
+
+a) checks manifest.uid is incrementing
+b) checks any scope/collections it knows, the immutable properties are equal (i.e. id == id && name == name)
+
+Reject if the incoming manifest fails checks
+Apply manifest otherwise
+
+This has challenges in terms of comparison (b) - only the 'bucket' Manifest stores names in-memory and that data is populated from ns_server. Following warmup we cannot validate the input.
+
+Solutions?
+
+Store manifest:
+Persist each manifest (we always trust the first Manifest when KV goes from uid 0 to uid 0+). Means storing a new file and possibly changing the collection update logic - i.e. steps become newfile.onperist(update vbuckets to new manifest).
+A new file hmm, flatbuffers + crc32c , not a couchstore file, i guess we already have extra files such as access log - however if this file gets damaged, warmup fails.
+
+Use vbuckets persisted data:
+Re-assemble a manifest from the active vbuckets at warmup. We could warmup with vb 0 being ahead of vb 1 (if we crashed before vb1 persisted a collection change), not necessarily a problem - given though that an update only ever begins if the manifest is progressing, we use the greatest manifest found? However we support a push that can create/drop many collections and these get split over many flush batches, only the final flush updates the manifest id, we could get vbuckets reporting equal manifest uid but being different to each other.
+This is getting messy and the partial persistence issue a problem.
+
+Overall though do we need option A) trust that ns_server updates (non forced) are compliant.
+
+B) Only care for 'force' update (quorum was forcefully removed and we may be given a manifest which changes collection state in some of the unusual ways identified earlier)
+
+In force update case, we can 'afford' to take our time? I.e. read system events or _local data to get names - epehemeral will read system events, persistent can just do one read if it wants - scope names are not on disk.
+

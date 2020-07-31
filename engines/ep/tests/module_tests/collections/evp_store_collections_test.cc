@@ -64,8 +64,9 @@ TEST_P(CollectionsParameterizedTest, uid_decrement) {
     EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
     CollectionsManifest newCm{};
-    EXPECT_EQ(setCollections(cookie, std::string{newCm}),
-              cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(cookie,
+                   std::string{newCm},
+                   cb::engine_errc::cannot_apply_collections_manifest);
 }
 
 TEST_P(CollectionsParameterizedTest, uid_equal) {
@@ -88,8 +89,9 @@ TEST_P(CollectionsParameterizedTest, manifest_uid_equal_with_differences) {
     // force the uid back
     cm.updateUid(uid);
     // manifest is equal, but contains an extra collection, unexpected diversion
-    EXPECT_EQ(setCollections(cookie, std::string{cm}),
-              cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(cookie,
+                   std::string{cm},
+                   cb::engine_errc::cannot_apply_collections_manifest);
 }
 
 // This test stores a key which matches what collections internally uses, but

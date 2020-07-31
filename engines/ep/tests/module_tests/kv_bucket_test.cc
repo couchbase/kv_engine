@@ -73,7 +73,7 @@ void KVBucketTest::SetUp() {
     // from a previous run.
     try {
         cb::io::rmrf(test_dbname);
-    } catch (std::system_error& e) {
+    } catch (const std::system_error& e) {
         if (e.code() != std::error_code(ENOENT, std::system_category())) {
             throw e;
         }
@@ -120,7 +120,11 @@ void KVBucketTest::TearDown() {
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
     // Cleanup any files we created.
-    cb::io::rmrf(test_dbname);
+    try {
+        cb::io::rmrf(test_dbname);
+    } catch (const std::system_error& e) {
+        // ignore - test cases may destroy data dir to force a test condition
+    }
 }
 
 void KVBucketTest::destroy() {

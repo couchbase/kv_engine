@@ -101,6 +101,35 @@ static cb::EngineErrorCasPair call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
+/*
+ * @todo: re-factoring of these handlers - can likely reduce the duplication
+ * with some work around more functions to abstract how the return type is
+ * composed and inspected (is it a pair, a bird a plane?)
+ */
+static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
+        MockCookie* c,
+        const std::function<cb::engine_errc()>& engine_function) {
+    c->nblocks = 0;
+    std::unique_lock<std::mutex> lock(c->mutex);
+
+    auto ret = engine_function();
+    while (ret == cb::engine_errc::would_block && c->handle_ewouldblock) {
+        ++c->nblocks;
+        c->cond.wait(lock, [&c] {
+            return c->num_processed_notifications != c->num_io_notifications;
+        });
+        c->num_processed_notifications = c->num_io_notifications;
+
+        if (c->status == ENGINE_SUCCESS) {
+            ret = engine_function();
+        } else {
+            return cb::engine_errc(c->status);
+        }
+    }
+
+    return ret;
+}
+
 /**
  * Helper function to return a mock_connstruct, either a new one or
  * an existng one.
@@ -409,7 +438,15 @@ bool MockEngine::get_item_info(gsl::not_null<const item*> item,
 
 cb::engine_errc MockEngine::set_collection_manifest(
         gsl::not_null<const void*> cookie, std::string_view json) {
-    return the_engine->set_collection_manifest(cookie, json);
+    auto* c = get_or_create_mock_connstruct(cookie, this);
+
+    auto engine_fn = std::bind(&EngineIface::set_collection_manifest,
+                               the_engine.get(),
+                               static_cast<const void*>(c),
+                               json);
+    auto status = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
+    check_and_destroy_mock_connstruct(c, cookie);
+    return status;
 }
 cb::engine_errc MockEngine::get_collection_manifest(
         gsl::not_null<const void*> cookie, const AddResponseFn& response) {

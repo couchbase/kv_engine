@@ -5975,8 +5975,8 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
    "uid":"1"
 })");
 
-    checkeq(h->set_collection_manifest(cookie, manifest),
-            cb::engine_errc::success,
+    checkeq(cb::engine_errc::success,
+            h->set_collection_manifest(cookie, manifest),
             "Failed to set collection manifest");
 
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
@@ -7803,12 +7803,36 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
               "Failed to set vbucket state.");
     }
 
-    // Set the manifest now that we have created vBuckets
-    h->set_collection_manifest(cookie, R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"_default","uid":"0"},
-                               {"name":"beer", "uid":"8"},
-                               {"name":"brewery","uid":"9"}]}]})");
+    // Set the manifest now that we have created vBuckets - do this on a new
+    // cookie as DCP is on the other one.
+    const void* admCookie = testHarness->create_cookie(h);
+    checkeq(cb::engine_errc::success,
+            h->set_collection_manifest(admCookie, R"({
+  "uid": "1",
+  "scopes": [
+    {
+      "name": "_default",
+      "uid": "0",
+      "collections": [
+        {
+          "name": "_default",
+          "uid": "0"
+        },
+        {
+          "name": "beer",
+          "uid": "8"
+        },
+        {
+          "name": "brewery",
+          "uid": "9"
+        }
+      ]
+    }
+  ]
+})"),
+            "Failed set_collections");
+    testHarness->destroy_cookie(admCookie);
+
     wait_for_flusher_to_settle(h);
 
     // Now insert items

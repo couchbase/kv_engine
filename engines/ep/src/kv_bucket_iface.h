@@ -54,6 +54,7 @@ class StorageProperties;
 class Warmup;
 namespace Collections {
 class Manager;
+class Manifest;
 }
 namespace Collections::VB {
 class Manifest;
@@ -814,6 +815,18 @@ public:
      * @return true if the bucket supports by-id scans
      */
     virtual bool isByIdScanSupported() const = 0;
+
+    /**
+     * Dependent on bucket type schedule a task for collection manifest
+     * persistence.
+     * @param cookie connection cookie
+     * @param unique_ptr to the new manifest - the task will take ownership of
+     * this.
+     * @return true if a task was scheduled
+     */
+    virtual bool maybeScheduleManifestPersistence(
+            const void* cookie,
+            std::unique_ptr<Collections::Manifest>& newManifest) = 0;
 
     /**
      * Result of the loadPreparedSyncWrites function

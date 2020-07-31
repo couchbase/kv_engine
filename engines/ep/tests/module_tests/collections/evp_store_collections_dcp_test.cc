@@ -1255,10 +1255,8 @@ void CollectionsDcpParameterizedTest::testVBPromotionUpdateManifest() {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
 
-    // Get the manager through KVBucketTest so we can get a non-const
-    // version and update it to include fruit. This should update the active
-    // but NOT the replica.
-    KVBucketTest::getCollectionsManager().update(*store, std::string{cm});
+    // This will update the active but NOT the replica.
+    setCollections(cookie, std::string{cm});
     auto active = store->getVBucket(vbid);
     ASSERT_TRUE(active->lockCollections().exists(CollectionEntry::fruit));
     auto replica = store->getVBucket(replicaVB);

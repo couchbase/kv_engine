@@ -21,6 +21,7 @@
 #include "callbacks.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "common.h"
 #include "connmap.h"
@@ -988,6 +989,9 @@ void Warmup::initialize()
     if (it == session_stats.end() || it->second.compare("false") != 0) {
         cleanShutdown = false;
     }
+
+    store.getCollectionsManager().warmupLoadManifest(
+            store.getEPEngine().getConfiguration().getDbname());
 
     populateShardVbStates();
     transition(WarmupState::State::CreateVBuckets);

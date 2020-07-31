@@ -2625,12 +2625,14 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
-cb::engine_error KVBucket::setCollections(std::string_view manifest) {
+cb::engine_error KVBucket::setCollections(std::string_view manifest,
+                                          const void* cookie) {
     // Inhibit VB state changes whilst updating the vbuckets
     LockHolder lh(vbsetMutex);
 
-    auto status = collectionsManager->update(*this, manifest);
-    if (status.code() != cb::engine_errc::success) {
+    auto status = collectionsManager->update(*this, manifest, cookie);
+    if (status.code() != cb::engine_errc::success &&
+        status.code() != cb::engine_errc::would_block) {
         EP_LOG_WARN("KVBucket::setCollections error:{} {}",
                     status.code(),
                     status.what());
@@ -2669,6 +2671,10 @@ std::pair<uint64_t, std::optional<ScopeID>> KVBucket::getScopeID(
 }
 
 const Collections::Manager& KVBucket::getCollectionsManager() const {
+    return *collectionsManager.get();
+}
+
+Collections::Manager& KVBucket::getCollectionsManager() {
     return *collectionsManager.get();
 }
 

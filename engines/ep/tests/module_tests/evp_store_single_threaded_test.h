@@ -156,8 +156,15 @@ public:
 
     /**
      * Set the collections manifest using the engine API (and drive any tasks)
+     * @param cookie a cookie is needed for i/o callback
+     * @param json the manifest JSON to set
+     * @param status1 the first call to set_collection_manifest expected result
+     *        usually would_block
      */
-    cb::engine_errc setCollections(const void* cookie, std::string_view json);
+    cb::engine_errc setCollections(
+            const void* cookie,
+            std::string_view json,
+            cb::engine_errc status1 = cb::engine_errc::would_block);
 
 protected:
     void SetUp() override;

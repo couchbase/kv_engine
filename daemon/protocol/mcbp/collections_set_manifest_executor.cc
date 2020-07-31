@@ -29,6 +29,6 @@ void collections_set_manifest_executor(Cookie& cookie) {
                                 val.size()};
     const auto ret = connection.getBucketEngine().set_collection_manifest(
             &cookie, jsonBuffer);
-    Expects(ret != cb::engine_errc::would_block);
+
     handle_executor_status(cookie, ret);
 }
