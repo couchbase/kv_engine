@@ -112,13 +112,18 @@ Manifest::Manifest(std::string_view json)
         // Construction of ScopeID checks for invalid values
         ScopeID uidValue = makeScopeID(uid.get<std::string>());
 
-        // Scope uids must be unique
-        if (this->scopes.count(uidValue) > 0) {
+        // 1) Default scope has an expected name.
+        // 2) Scope identifiers must be unique.
+        // 3) Scope names must be unique.
+        if (uidValue.isDefaultScope() && nameValue != DefaultScopeIdentifier) {
+            throwInvalid("default scope with wrong name:" + nameValue);
+        } else if (this->scopes.count(uidValue) > 0) {
+            // Scope uids must be unique
             throwInvalid("duplicate scope uid:" + uidValue.to_string() +
                          ", name:" + nameValue);
         }
 
-        // Scope names must be unique
+        // iterate scopes and compare names, fail for a match.
         for (const auto& itr : this->scopes) {
             if (itr.second.name == nameValue) {
                 throwInvalid("duplicate scope name:" + uidValue.to_string() +
@@ -147,17 +152,29 @@ Manifest::Manifest(std::string_view json)
                 throwInvalid("collection name:" + cnameValue + " is not valid");
             }
 
-            // The constructor of CollectionID checks for invalid values, but
-            // we need to check to ensure System (1) wasn't present in the
-            // Manifest
             CollectionID cuidValue = makeCollectionID(cuid.get<std::string>());
-            if (invalidCollectionID(cuidValue)) {
-                throwInvalid("collection uid:" + cuidValue.to_string() +
-                             " is not valid.");
-            }
 
-            // Collection uids must be unique
-            if (this->collections.count(cuidValue) > 0) {
+            // 1) The default collection must be within the default scope and
+            // have the expected name.
+            // 2) The constructor of CollectionID checked for invalid values,
+            // but we need to check to ensure System (1) wasn't present in the
+            // Manifest.
+            // 3) Collection identifiers must be unique.
+            // 4) Collection names must be unique within the scope.
+            if (cuidValue.isDefaultCollection()) {
+                if (cnameValue != DefaultCollectionIdentifier) {
+                    throwInvalid(
+                            "the default collection name is unexpected name:" +
+                            cnameValue);
+                } else if (!uidValue.isDefaultScope()) {
+                    throwInvalid(
+                            "the default collection is not in the default "
+                            "scope");
+                }
+            } else if (invalidCollectionID(cuidValue)) {
+                throwInvalid("collection uid: " + cuidValue.to_string() +
+                             " is not valid.");
+            } else if (this->collections.count(cuidValue) > 0) {
                 throwInvalid("duplicate collection uid:" +
                              cuidValue.to_string() + ", name: " + cnameValue);
             }
@@ -174,19 +191,12 @@ Manifest::Manifest(std::string_view json)
                 }
             }
 
-            // The default collection must be within the default scope
-            if (cuidValue.isDefaultCollection() && !uidValue.isDefaultScope()) {
-                throwInvalid(
-                        "the default collection is not in the default scope");
-            }
-
             cb::ExpiryLimit maxTtl;
             if (cmaxttl) {
                 // Don't exceed 32-bit max
                 auto value = cmaxttl.value().get<uint64_t>();
                 if (value > std::numeric_limits<uint32_t>::max()) {
-                    throw std::out_of_range("Manifest::Manifest maxTTL:" +
-                                            std::to_string(value));
+                    throwInvalid("maxTTL:" + std::to_string(value));
                 }
                 maxTtl = std::chrono::seconds(value);
             }
@@ -201,9 +211,14 @@ Manifest::Manifest(std::string_view json)
                              Scope{nameValue, std::move(scopeCollections)});
     }
 
-    if (this->scopes.empty()) {
+    // Final checks...
+    // uid of 0 -> this must be the 'epoch' state
+    // else no scopes is invalid and we must always have default scope
+    if (uid == 0 && !isEpoch()) {
+        throwInvalid("uid of 0 but not the expected 'epoch' manifest");
+    } else if (this->scopes.empty()) {
         throwInvalid("no scopes were defined in the manifest");
-    } else if (this->scopes.count(ScopeID::Default) == 0) {
+    } else if (findScope(ScopeID::Default) == this->scopes.end()) {
         throwInvalid("the default scope was not defined");
     }
 }
@@ -502,6 +517,70 @@ bool Manifest::operator==(const Manifest& other) const {
     equal &= uid == other.uid;
     equal &= scopes == other.scopes && collections == other.collections;
     return equal;
+}
+
+cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
+    // if forced return true - anything can happen
+    // else must be a > uid with sane changes or equal uid and no changes
+    if (successor.getUid() > uid) {
+        // For each scope-id in this is it in successor?
+        for (const auto& [sid, scope] : scopes) {
+            auto itr = successor.findScope(sid);
+            // If the sid still exists it must have the same name
+            if (itr != successor.endScopes()) {
+                if (scope.name != itr->second.name) {
+                    return cb::engine_error(
+                            cb::engine_errc::cannot_apply_collections_manifest,
+                            "invalid name change detected on scope "
+                            "sid:" + sid.to_string() +
+                                    ", name:" + scope.name +
+                                    ", new-name:" + itr->second.name);
+                }
+            } // else this sid has been removed and that's fine
+        }
+
+        // For each collection in this is it in successor?
+        for (const auto& [cid, collection] : collections) {
+            auto itr = successor.findCollection(cid);
+            if (itr != successor.end()) {
+                // Name and scope-id must be equal
+                if (collection != itr->second) {
+                    return cb::engine_error(
+                            cb::engine_errc::cannot_apply_collections_manifest,
+                            "invalid collection change detected "
+                            "cid:" + cid.to_string() +
+                                    ", name:" + collection.name +
+                                    ", sid:" + collection.sid.to_string() +
+                                    ", new-name:" + itr->second.name +
+                                    ", new-sid: " +
+                                    itr->second.sid.to_string());
+                }
+            } // else this cid has been removed and that's fine
+        }
+    } else if (uid == successor.getUid()) {
+        if (*this != successor) {
+            return cb::engine_error(
+                    cb::engine_errc::cannot_apply_collections_manifest,
+                    "equal uid but not an equal manifest");
+        }
+    } else {
+        return cb::engine_error(
+                cb::engine_errc::cannot_apply_collections_manifest,
+                "uid must be >= current-uid:" + std::to_string(uid) +
+                        ", new-uid:" + std::to_string(successor.getUid()));
+    }
+
+    return cb::engine_error(cb::engine_errc::success, "");
+}
+
+bool Manifest::isEpoch() const {
+    // uid of 0, 1 scope and 1 collection
+    if (uid == 0 && scopes.size() == 1 && collections.size() == 1) {
+        const auto scope = findScope(ScopeID::Default);
+        return defaultCollectionExists && scope != scopes.end() &&
+               scope->second.name == DefaultScopeIdentifier;
+    }
+    return false;
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

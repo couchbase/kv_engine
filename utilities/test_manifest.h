@@ -175,6 +175,15 @@ public:
             const CollectionEntry::Entry& collectionEntry,
             const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
+    /// Rename the scope
+    CollectionsManifest& rename(const ScopeEntry::Entry& scopeEntry,
+                                const std::string& newName);
+
+    /// Rename the collection in the given scope
+    CollectionsManifest& rename(const CollectionEntry::Entry& collectionEntry,
+                                const ScopeEntry::Entry& scopeEntry,
+                                const std::string& newName);
+
     /// Return the manifest UID
     uint64_t getUid() const {
         return uid;
@@ -193,6 +202,8 @@ public:
     void updateUid(uint64_t uid);
 
     void setUid(const std::string& uid);
+
+    void setForce(bool force);
 
     /// Most interfaces require std::string manifest
     operator std::string() const {

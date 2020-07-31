@@ -105,8 +105,7 @@ enum class engine_errc {
     no_collections_manifest = 0x18,
 
     /**
-     * The collections manifest passed validation but could not be applied to a
-     * vbucket
+     * The collections manifest passed validation but could not be applied
      */
     cannot_apply_collections_manifest = 0x19,
 

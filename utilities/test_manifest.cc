@@ -131,6 +131,45 @@ CollectionsManifest& CollectionsManifest::remove(
     return *this;
 }
 
+CollectionsManifest& CollectionsManifest::rename(
+        const ScopeEntry::Entry& scopeEntry, const std::string& newName) {
+    updateUid();
+    std::stringstream sidString;
+    sidString << std::hex << scopeEntry.uid;
+    for (auto& scope : json["scopes"]) {
+        if (scope["name"] == scopeEntry.name &&
+            scope["uid"] == sidString.str()) {
+            scope["name"] = newName;
+            break;
+        }
+    }
+    return *this;
+}
+
+CollectionsManifest& CollectionsManifest::rename(
+        const CollectionEntry::Entry& collectionEntry,
+        const ScopeEntry::Entry& scopeEntry,
+        const std::string& newName) {
+    updateUid();
+    std::stringstream sidString, cidString;
+    sidString << std::hex << scopeEntry.uid;
+    cidString << std::hex << collectionEntry.uid;
+
+    for (auto& scope : json["scopes"]) {
+        if (scope["name"] == scopeEntry.name &&
+            scope["uid"] == sidString.str()) {
+            for (auto& collection : scope["collections"]) {
+                if (collection["name"] == collectionEntry.name &&
+                    collection["uid"] == cidString.str()) {
+                    collection["name"] = newName;
+                    return *this;
+                }
+            }
+        }
+    }
+    return *this;
+}
+
 void CollectionsManifest::updateUid() {
     uid++;
 
@@ -145,6 +184,10 @@ void CollectionsManifest::updateUid(uint64_t uid) {
     std::stringstream ss;
     ss << std::hex << uid;
     json["uid"] = ss.str();
+}
+
+void CollectionsManifest::setForce(bool force) {
+    json["force"] = force;
 }
 
 std::string CollectionsManifest::toJson() const {

@@ -56,54 +56,35 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     // attempts to get upgrade access.
     auto current = currentManifest.ulock();
 
-    // If the new manifest has a non zero uid, try to apply it
-    if (newManifest->getUid() != 0) {
-        // However expect it to be increasing
-        if (newManifest->getUid() < current->getUid()) {
-            // Bad - newManifest has a lower UID
-            EP_LOG_WARN(
-                    "Collections::Manager::update the new manifest has "
-                    "UID < current manifest UID. Current UID:{:#x}, New "
-                    "Manifest:{}",
-                    current->getUid(),
-                    std::string(manifest));
-            return cb::engine_error(
-                    cb::engine_errc::out_of_range,
-                    "Collections::Manager::update new UID cannot "
-                    "be lower than existing UID");
-        }
+    // ignore being told the same manifest
+    if (current->getUid() == newManifest->getUid() &&
+        *newManifest == *current) {
+        return cb::engine_error(
+                cb::engine_errc::success,
+                "Collections::Manager::update ignored matching manifest");
+    }
 
-        auto updated = updateAllVBuckets(bucket, *newManifest);
-        if (updated.has_value()) {
-            return cb::engine_error(
-                    cb::engine_errc::cannot_apply_collections_manifest,
-                    "Collections::Manager::update aborted on " +
-                            updated->to_string() +
-                            ", cannot apply:" + std::string(manifest));
-        }
+    // any other uid, and the incoming manifest must be a valid succession
+    auto isSuccessorResult = current->isSuccessor(*newManifest);
+    if (isSuccessorResult.code() != cb::engine_errc::success) {
+        return isSuccessorResult;
+    }
 
-        // Now switch to write locking and change the manifest. The lock is
-        // released after this statement.
-        *current.moveFromUpgradeToWrite() = std::move(*newManifest);
-    } else if (*newManifest != *current) {
-        // The new manifest has a uid:0, we tolerate an update where current and
-        // new have a uid:0, but expect that the manifests are equal.
-        // So this else case catches when the manifests aren't equal
-        Collections::IsVisibleFunction isVisible =
-                [](ScopeID, std::optional<CollectionID>) -> bool {
-            return true;
-        };
-        EP_LOG_WARN(
-                "Collections::Manager::update error. The new manifest does not "
-                "match and we think it should. current:{}, new:{}",
-                current->toJson(isVisible),
-                std::string(manifest));
+    auto updated = updateAllVBuckets(bucket, *newManifest);
+    if (updated.has_value()) {
         return cb::engine_error(
                 cb::engine_errc::cannot_apply_collections_manifest,
-                "Collections::Manager::update failed. Manifest mismatch");
+                "Collections::Manager::update aborted on " +
+                        updated->to_string() +
+                        ", cannot apply:" + std::string(manifest));
     }
-    return cb::engine_error(cb::engine_errc::success,
-                            "Collections::Manager::update");
+
+    // Now switch to write locking and change the manifest. The lock is
+    // released after this statement.
+    *current.moveFromUpgradeToWrite() = std::move(*newManifest);
+    return cb::engine_error(
+            cb::engine_errc::success,
+            "Collections::Manager::update applied new manifest");
 }
 
 std::optional<Vbid> Collections::Manager::updateAllVBuckets(

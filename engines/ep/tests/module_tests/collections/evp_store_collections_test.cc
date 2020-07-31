@@ -65,7 +65,7 @@ TEST_P(CollectionsParameterizedTest, uid_decrement) {
               cb::engine_errc::success);
     CollectionsManifest newCm{};
     EXPECT_EQ(store->setCollections(std::string{newCm}).code(),
-              cb::engine_errc::out_of_range);
+              cb::engine_errc::cannot_apply_collections_manifest);
 }
 
 TEST_P(CollectionsParameterizedTest, uid_equal) {

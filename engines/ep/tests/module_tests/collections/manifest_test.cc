@@ -60,23 +60,23 @@ TEST(ManifestTest, validation) {
             R"({"uid"})", // illegal json
 
             // valid uid, no scopes object
-            R"({"uid" : "0"})",
+            R"({"uid" : "1"})",
 
             // valid uid, invalid scopes type
-            R"({"uid":"0"
+            R"({"uid":"1"
                 "scopes" : 0})",
 
             // valid uid, no scopes
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes" : []})",
 
             // valid uid, no default scope
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"not_the_default", "uid":"8",
                 "collections":[]}]})",
 
             // default collection not in default scope
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[]},
                           {"name":"brewerA", "uid":"8",
@@ -84,41 +84,41 @@ TEST(ManifestTest, validation) {
                                     {"name":"_default","uid":"0"}]}]})",
 
             // valid uid, invalid collections type
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes" : [{"name":"_default", "uid":"0","
                 "collections":[0]}]})",
 
             // valid uid, valid name, no collection uid
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes" : [{"name":"_default", "uid":"0","
                 "collections":[{"name":"beer"}]}]})",
 
             // valid uid, valid name, no scope uid
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[]},
                           {"name":"scope1",
                                 "collections":[]}]})",
 
             // valid uid, valid collection uid, no collection name
-            R"({"uid":"0",
+            R"({"uid": "1",
                 "scopes" : [{"name":"_default", "uid":"0","
                 "collections":[{"uid":"8"}]}]})",
 
             // valid uid, valid scope uid, no scope name
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[]},
                           {"uid":"8",
                                 "collections":[]}]})",
 
             // valid name, invalid collection uid (wrong type)
-            R"({"uid":"0",
+            R"({"uid": "1",
                 "scopes" : [{"name":"_default", "uid":"0","
                 "collections":[{"name":"beer", "uid":8}]}]})",
 
             // valid name, invalid scope uid (wrong type)
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[]},
                           {"name":"1", "uid":8,
@@ -130,39 +130,39 @@ TEST(ManifestTest, validation) {
                 "collections":[{"name":"beer", "uid":"turkey"}]}]})",
 
             // valid name, invalid scope uid (not hex)
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[]},
                           {"name":"1", "uid":"turkey",
                                 "collections":[]}]})",
 
             // invalid collection name (wrong type), valid uid
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes" : [{"name":"_default", "uid":"0","
                 "collections":[{"name":1, "uid":"8"}]}]})",
 
             // invalid scope name (wrong type), valid uid
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[]},
                           {"name":1, "uid":"8",
                                 "collections":[]}]})",
 
             // duplicate CID
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes" : [{"name":"_default", "uid":"0","
                 "collections":[{"name":"beer", "uid":"8"},
                                {"name":"lager", "uid":"8"}]}]})",
 
             // duplicate scope id
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"brewerA", "uid":"8","collections":[]},
                     {"name":"brewerB", "uid":"8","collections":[]}]})",
 
             // duplicate cid across scopes
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"brewery", "uid":"8"},
@@ -175,7 +175,7 @@ TEST(ManifestTest, validation) {
             R"({"scopes":[{"name":"_default", "uid":"0"}]})",
 
             // UID wrong type
-            R"({"uid" : 0,
+            R"({"uid" : 1,
                 "scopes":[{"name":"_default", "uid":"0"}]})",
 
             // UID cannot be converted to a value
@@ -201,19 +201,19 @@ TEST(ManifestTest, validation) {
                 "collections":[{"name":"beer", "uid":"7"}]}]})",
 
             // scope uid cannot be 1
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"brewerA", "uid":"1","collections":[]}]})",
 
             // scope uid cannot be 7 (1-7 reserved)
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"brewerA", "uid":"7","collections":[]}]})",
 
             // scope uid too long
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"brewerA", "uid":"1234567890","collections":[]}]})",
@@ -224,64 +224,64 @@ TEST(ManifestTest, validation) {
                 "collections":[{"name":"beer", "uid":"1234567890"}]}]})",
 
             // scope uid too long
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"brewerA", "uid":"1234567890","collections":[]}]})",
 
             // Invalid collection names, no $ prefix allowed yet and empty
             // also denied
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"$beer", "uid":"8"}]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"", "uid":"8"}]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"name_is_far_too_long_for_collections",
                 "uid":"8"}]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"collection.name",
                 "uid":"8"}]}]})",
 
             // Invalid scope names, no $ prefix allowed yet and empty denies
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"$beer", "uid":"8", "collections":[]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"", "uid":"8", "collections":[]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"name_is_far_too_long_for_collections", "uid":"8",
                         "collections":[]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"scope.name", "uid":"8", "collections":[]}]})",
 
             // maxTTL invalid cases
             // wrong type
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":"string"}]}]})",
             // negative (doesn't make sense)
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":-700}]}]})",
             // too big for 32-bit
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":4294967296}]}]})",
             // Test duplicate scope names
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"_default","uid":"0"},
@@ -296,7 +296,7 @@ TEST(ManifestTest, validation) {
                                     {"name":"beer", "uid":"c"},
                                     {"name":"brewery", "uid":"d"}]}]})",
             // Test duplicate collection names within the same scope
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"_default","uid":"0"},
@@ -306,29 +306,42 @@ TEST(ManifestTest, validation) {
                                 "collections":[
                                     {"name":"beer", "uid":"a"},
                                     {"name":"beer", "uid":"b"}]}]})",
+            // Illegal name for default collection
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"Default","uid":"0"}]}]})",
+            // Illegal name for default scope
+            R"({"uid" : "1",
+                "scopes":[{"name":"Default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"}]}]})",
+            // Illegal name for default collection
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"Default","uid":"0"}]}]})",
     };
 
     std::vector<std::string> validManifests = {
+            // this is the 'epoch' state of collections
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"}]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"brewerA", "uid":"8", "collections":[]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"beer", "uid":"8"},
                                {"name":"brewery","uid":"9"}]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"_default","uid":"0"},
@@ -339,18 +352,18 @@ TEST(ManifestTest, validation) {
                                     {"name":"beer", "uid":"a"},
                                     {"name":"brewery", "uid":"b"}]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"beer", "uid":"8"},
                                {"name":"brewery","uid":"9"}]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"8"},
                                {"name":"brewery","uid":"9"}]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"beer", "uid":"8"},
@@ -362,7 +375,7 @@ TEST(ManifestTest, validation) {
 
             // Extra keys ignored at the moment
             R"({"extra":"key",
-                "uid" : "0",
+                "uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"af"},
                                {"name":"brewery","uid":"8"}]}]})",
@@ -381,21 +394,21 @@ TEST(ManifestTest, validation) {
                 "collections":[]}]})",
 
             // maxTTL valid cases
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":0}]}]})",
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":1}]}]})",
             // max u32int
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":4294967295}]}]})",
 
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8"}]}]})",
     };
@@ -406,7 +419,7 @@ TEST(ManifestTest, validation) {
             EXPECT_TRUE(false)
                     << "No exception thrown for invalid manifest:" << manifest
                     << std::endl;
-        } catch (std::exception&) {
+        } catch (std::invalid_argument&) {
         }
     }
 
@@ -446,8 +459,8 @@ TEST(ManifestTest, validation) {
 
 TEST(ManifestTest, getUid) {
     std::vector<std::pair<Collections::ManifestUid, std::string>>
-            validManifests = {{Collections::ManifestUid(0),
-                               R"({"uid" : "0",
+            validManifests = {{Collections::ManifestUid(1),
+                               R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"8"},
                                {"name":"brewery","uid":"9"}]}]})"},
@@ -475,7 +488,7 @@ TEST(ManifestTest, getUid) {
 
 TEST(ManifestTest, findCollection) {
     std::string manifest =
-            R"({"uid" : "0",
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"8"},
                                {"name":"brewery","uid":"9"},
@@ -641,7 +654,7 @@ TEST(ManifestTest, badNames) {
 }
 
 TEST(ManifestTest, findCollectionByName) {
-    std::string manifest = R"({"uid" : "0",
+    std::string manifest = R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"_default", "uid":"0"},
@@ -689,7 +702,7 @@ TEST(ManifestTest, findCollectionByName) {
 }
 
 TEST(ManifestTest, getScopeID) {
-    std::string manifest = R"({"uid" : "0",
+    std::string manifest = R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"_default", "uid":"0"},
@@ -747,7 +760,7 @@ TEST(ManifestTest, getScopeID) {
 }
 
 TEST(ManifestTest, getCollectionID) {
-    std::string manifest = R"({"uid" : "0",
+    std::string manifest = R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
                                     {"name":"_default", "uid":"0"},
@@ -808,4 +821,76 @@ TEST(ManifestTest, getCollectionID) {
 
     // Unknown collection
     EXPECT_FALSE(cm.getCollectionID(ScopeID::Default, "brewerA.ale"));
+}
+
+TEST(ManifestTest, isSuccesor) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+
+    Collections::Manifest a;
+    Collections::Manifest b1;
+    Collections::Manifest b2{std::string{cm}};
+    Collections::Manifest c{std::string{cm}};
+
+    // a and b1 are the same and isSuccessor allows
+    EXPECT_EQ(cb::engine_errc::success, a.isSuccessor(b1).code());
+
+    // b2 is a successor in valid ways
+    EXPECT_EQ(cb::engine_errc::success, a.isSuccessor(b2).code());
+
+    // b2 and c are the same (but not default constructed)
+    EXPECT_EQ(cb::engine_errc::success, b2.isSuccessor(c).code());
+}
+
+TEST(ManifestTest, isNotSuccesor) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+    Collections::Manifest current{std::string{cm}};
+
+    {
+        // switch the name of the scope and test
+        CollectionsManifest cm2 = cm;
+        cm2.rename(ScopeEntry::shop1, "some_shop");
+        Collections::Manifest incoming{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success,
+                  current.isSuccessor(incoming).code());
+    }
+    {
+        // switch the name of a collection in _default scope and test
+        CollectionsManifest cm2 = cm;
+        cm2.rename(CollectionEntry::meat, ScopeEntry::defaultS, "MEAT");
+        Collections::Manifest incoming{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success,
+                  current.isSuccessor(incoming).code());
+    }
+    {
+        // switch the name of a collection in a custom scope and test
+        CollectionsManifest cm2 = cm;
+        cm2.rename(CollectionEntry::dairy, ScopeEntry::shop1, "DAIRY");
+        Collections::Manifest incoming{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success,
+                  current.isSuccessor(incoming).code());
+    }
+    {
+        // lower the uid
+        CollectionsManifest cm2 = cm;
+        Collections::Manifest incoming1{std::string{cm2}};
+        // prove that the uid shift results in error
+        EXPECT_EQ(cb::engine_errc::success,
+                  current.isSuccessor(incoming1).code());
+        cm2.updateUid(cm2.getUid() - 1);
+        Collections::Manifest incoming2{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success,
+                  current.isSuccessor(incoming2).code());
+    }
+
+    // Move a collection to a different scope
+    cm.remove(CollectionEntry::meat);
+    cm.add(CollectionEntry::meat, ScopeEntry::shop1);
+    Collections::Manifest incoming3{std::string{cm}};
+    EXPECT_NE(cb::engine_errc::success, current.isSuccessor(incoming3).code());
 }

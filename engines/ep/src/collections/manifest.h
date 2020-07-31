@@ -25,6 +25,7 @@
 
 #include "collections/collections_types.h"
 #include "memcached/engine_common.h"
+#include "memcached/engine_error.h"
 
 class KVBucket;
 
@@ -105,6 +106,20 @@ public:
     size_t size() const {
         return collections.size();
     }
+
+    /**
+     * Is the Manifest 'successor' a valid succesor of this Manifest?
+     * If the succesor is not a forced update, it must be 'sane' progression
+     * of the Manifest, for example the manifest uid must be incrementing and
+     * immutable properties of scopes/collections must remain that way
+     */
+    cb::engine_error isSuccessor(const Manifest& successor) const;
+
+    /**
+     * Is this the epoch state of collections?
+     * uid 0, default collection and default scope only
+     */
+    bool isEpoch() const;
 
     /**
      * @return the unique ID of the Manifest which constructed this
