@@ -253,10 +253,10 @@ void Manifest::addCollection(const WriteHandle& wHandle,
                                             optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} adding collection:[name:{},id:{:x}] to "
-            "scope:{:x}, "
+            "collections: {} adding collection:[name:{},id:{:#x}] to "
+            "scope:{:#x}, "
             "maxTTL:{} {}, "
-            "replica:{}, seqno:{}, manifest:{:x}",
+            "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
             collectionName,
             identifiers.second,
@@ -334,8 +334,8 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
                                             optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} drop of collection:{:x} from scope:{:x}"
-            ", replica:{}, seqno:{}, manifest:{:x} tombstone:{}",
+            "collections: {} drop of collection:{:#x} from scope:{:#x}"
+            ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
@@ -391,8 +391,8 @@ void Manifest::addScope(const WriteHandle& wHandle,
             vb.addSystemEventItem(item.release(), optionalSeqno, {}, wHandle);
 
     EP_LOG_INFO(
-            "collections: {} added scope:name:{},id:{:x} "
-            "replica:{}, seqno:{}, manifest:{:x}",
+            "collections: {} added scope:name:{},id:{:#x} "
+            "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
             scopeName,
             sid,
@@ -445,8 +445,8 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     }
 
     EP_LOG_INFO(
-            "collections: {} dropped scope:id:{:x} "
-            "replica:{}, seqno:{}, manifest:{:x}",
+            "collections: {} dropped scope:id:{:#x} "
+            "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
             sid,
             optionalSeqno.has_value(),

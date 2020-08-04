@@ -61,7 +61,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
             // Bad - newManifest has a lower UID
             EP_LOG_WARN(
                     "Collections::Manager::update the new manifest has "
-                    "UID < current manifest UID. Current UID:{}, New "
+                    "UID < current manifest UID. Current UID:{:#x}, New "
                     "Manifest:{}",
                     current->getUid(),
                     std::string(manifest));
