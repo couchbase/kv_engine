@@ -627,7 +627,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 }
 
 // Test that a create/delete don't dedup
-TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
+TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
     const int items = 3;
     {
         VBucketPtr vb = store->getVBucket(vbid);
@@ -656,21 +656,21 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
 
         // Persist everything ready for warmup and check.
         // Flusher will merge create/delete and we only flush the delete
-        flush_vbucket_to_disk(vbid, (2 * items) + 2);
+        flushVBucketToDiskIfPersistent(vbid, (2 * items) + 2);
 
         // We will see create fruit/dairy and delete dairy (from another CP)
         // In-memory stream will also see all 2*items mutations (ordered with
         // create
         // and delete)
         {
-            SCOPED_TRACE("");
+            SCOPED_TRACE("DCP 1");
             testDcpCreateDelete(
                     {CollectionEntry::fruit, CollectionEntry::dairy},
                     {CollectionEntry::dairy},
                     (2 * items));
         }
     }
-    resetEngineAndWarmup();
+    ensureDcpWillBackfill();
 
     // Test against a different VB as our old replica will have data
     replicaVB++;
@@ -679,7 +679,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
     // Streamed from disk, one create (create of fruit) and items of fruit
     // And the tombstone of dairy
     {
-        SCOPED_TRACE("");
+        SCOPED_TRACE("DCP 2");
         testDcpCreateDelete({CollectionEntry::fruit},
                             {CollectionEntry::dairy},
                             items,

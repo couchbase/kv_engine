@@ -238,39 +238,42 @@ void CollectionsDcpTest::testDcpCreateDelete(
     EXPECT_EQ(deleteItr, expectedDeletes.end());
     EXPECT_EQ(expectedMutations, mutations);
 
-    // Flush everything. If we don't then we can't compare persisted manifests.
-    // Don't know how much we will have to flush as the flusher will de-dupe
-    // creates and deletes of collections in the same batch
-    const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(replicaVB);
-    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    if (isPersistent()) {
+        // Flush everything. If we don't then we can't compare persisted
+        // manifests. Don't know how much we will have to flush as the flusher
+        // will de-dupe creates and deletes of collections in the same batch
+        const auto res =
+                dynamic_cast<EPBucket&>(*store).flushVBucket(replicaVB);
+        EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
 
-    // Finally check that the active and replica have the same manifest, our
-    // BeginDeleteCollection should of contained enough information to form
-    // an equivalent manifest
-    auto m1 = getPersistedManifest(vbid);
-    auto m2 = getPersistedManifest(replicaVB);
+        // Finally check that the active and replica have the same manifest, our
+        // BeginDeleteCollection should of contained enough information to form
+        // an equivalent manifest
+        auto m1 = getPersistedManifest(vbid);
+        auto m2 = getPersistedManifest(replicaVB);
 
-    // Manifest uid should always be less than or equal to the correct active
-    // manifest uid. We may have filtered a system event with a manifest uid
-    // update.
-    EXPECT_GE(m1.manifestUid, m2.manifestUid);
+        // Manifest uid should always be less than or equal to the correct
+        // active manifest uid. We may have filtered a system event with a
+        // manifest uid update.
+        EXPECT_GE(m1.manifestUid, m2.manifestUid);
 
-    // We may not want to compare the actual manifests if we are testing
-    // filtered DCP
-    if (compareManifests) {
-        // For the tests that compare manifests entirely, we should also always
-        // have the correct uid.
-        EXPECT_EQ(m1.manifestUid, m2.manifestUid);
+        // We may not want to compare the actual manifests if we are testing
+        // filtered DCP
+        if (compareManifests) {
+            // For the tests that compare manifests entirely, we should also
+            // always have the correct uid.
+            EXPECT_EQ(m1.manifestUid, m2.manifestUid);
 
-        auto compare = [](const Collections::KVStore::OpenCollection& a,
-                          const Collections::KVStore::OpenCollection& b) {
-            return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
-        };
-        EXPECT_TRUE(std::equal(m1.collections.begin(),
-                               m1.collections.end(),
-                               m2.collections.begin(),
-                               compare));
-        EXPECT_EQ(m1.scopes, m2.scopes);
+            auto compare = [](const Collections::KVStore::OpenCollection& a,
+                              const Collections::KVStore::OpenCollection& b) {
+                return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
+            };
+            EXPECT_TRUE(std::equal(m1.collections.begin(),
+                                   m1.collections.end(),
+                                   m2.collections.begin(),
+                                   compare));
+            EXPECT_EQ(m1.scopes, m2.scopes);
+        }
     }
 }
 

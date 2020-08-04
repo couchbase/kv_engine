@@ -231,11 +231,20 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     /* Read items */
     UniqueItemPtr item;
     while (static_cast<uint64_t>(rangeItr.curr()) <= endSeqno) {
+        const auto& osv = *rangeItr;
         try {
+            if (!osv.getKey().isInSystemCollection()) {
+                if (evb->getManifest()
+                            .lock(osv.getKey())
+                            .isLogicallyDeleted(osv.getBySeqno())) {
+                    ++rangeItr;
+                    continue;
+                }
+            }
             // MB-27199: toItem will read the StoredValue members, which are
             // mutated with the HashBucketLock, so get the correct bucket lock
             // before calling StoredValue::toItem
-            auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
+            auto hbl = evb->ht.getLockedBucket(osv.getKey());
             // Ephemeral only supports a durable write level of Majority so
             // instead of storing a durability level in our OrderedStoredValues
             // we can just assume that all durable writes have the Majority
@@ -244,23 +253,23 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // we do not lose any durable writes. We can supply these items
             // for all stored values as they are only set if the underlying
             // StoredValue has the CommittedState of Pending.
-            item = (*rangeItr).toItem(getVBucketId(),
-                                      StoredValue::HideLockedCas::No,
-                                      StoredValue::IncludeValue::Yes,
-                                      {{cb::durability::Level::Majority,
-                                        cb::durability::Timeout::Infinity()}});
+            item = osv.toItem(getVBucketId(),
+                              StoredValue::HideLockedCas::No,
+                              StoredValue::IncludeValue::Yes,
+                              {{cb::durability::Level::Majority,
+                                cb::durability::Timeout::Infinity()}});
             // A deleted ephemeral item stores the delete time under a delete
             // time field, this must be copied to the expiry time so that DCP
             // can transmit the original time of deletion
             if (item->isDeleted()) {
-                item->setExpTime((*rangeItr).getCompletedOrDeletedTime());
+                item->setExpTime(osv.getCompletedOrDeletedTime());
             }
         } catch (const std::bad_alloc&) {
             stream->log(spdlog::level::level_enum::warn,
                         "Alloc error when trying to create an "
                         "item copy from hash table. Item seqno:{}"
                         ", {}",
-                        (*rangeItr).getBySeqno(),
+                        osv.getBySeqno(),
                         getVBucketId());
             /* Try backfilling again later; here we snooze because system has
                hit ENOMEM */
