@@ -796,6 +796,17 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ(2, manifest.getActiveManifest().size());
 }
 
+TEST_F(VBucketManifestTest, isLogicallyDeleted) {
+    // This test creates the vegetable collection at seqno 1, it is not
+    // logically deleted
+    EXPECT_TRUE(manifest.update(cm));
+    auto item = SystemEventFactory::makeCollectionEvent(
+            CollectionEntry::vegetable, {}, {});
+    auto sno = manifest.getActiveVB().getHighSeqno();
+    EXPECT_FALSE(
+            manifest.active.lock().isLogicallyDeleted(item->getKey(), sno));
+}
+
 class VBucketManifestCachingReadHandle : public VBucketManifestTest {};
 
 TEST_F(VBucketManifestCachingReadHandle, basic) {
@@ -843,5 +854,6 @@ TEST_F(VBucketManifestCachingReadHandle, deleted_default) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     StoredDocKey key{"fruit:v1", CollectionEntry::defaultC};
     auto rh = manifest.active.lock(key);
-    EXPECT_TRUE(rh.isLogicallyDeleted(0));
+    // Real items begin at seqno 1
+    EXPECT_TRUE(rh.isLogicallyDeleted(1 /*seqno*/));
 }
