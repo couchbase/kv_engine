@@ -44,8 +44,8 @@ TEST_P(DiskDocKeyTest, constructors) {
 
     // Test construction from a raw char* which is a view onto unsigned_leb128
     // prefixed key - i.e. a collection-aware key from disk.
-    char keyRaw[4] = {char(GetParam()), 'k', 'e', 'y'};
-    DiskDocKey key3{keyRaw, 4};
+    std::array<char, 4> keyRaw{{char(uint32_t{GetParam()}), 'k', 'e', 'y'}};
+    DiskDocKey key3{keyRaw.data(), keyRaw.size()};
 
     // Very important that the both objects return the same hash and ==
     EXPECT_EQ(key3.hash(), key1.hash());

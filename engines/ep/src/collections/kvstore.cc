@@ -280,7 +280,7 @@ flatbuffers::DetachedBuffer CommitMetaData::encodeOpenCollections(
                 builder,
                 span.high.startSeqno,
                 meta.sid,
-                meta.cid,
+                uint32_t(meta.cid),
                 meta.maxTtl.has_value(),
                 meta.maxTtl.value_or(std::chrono::seconds::zero()).count(),
                 builder.CreateString(meta.name.data(), meta.name.size()));
@@ -360,18 +360,21 @@ flatbuffers::DetachedBuffer CommitMetaData::encodeDroppedCollections(
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : droppedCollections) {
         (void)cid;
-        auto newEntry =
-                Collections::KVStore::CreateDropped(builder,
-                                                    dropped.startSeqno,
-                                                    dropped.endSeqno,
-                                                    dropped.collectionId);
+        auto newEntry = Collections::KVStore::CreateDropped(
+                builder,
+                dropped.startSeqno,
+                dropped.endSeqno,
+                uint32_t(dropped.collectionId));
         output.push_back(newEntry);
     }
 
     // and now copy across the existing dropped collections
     for (const auto& entry : existingDropped) {
         auto newEntry = Collections::KVStore::CreateDropped(
-                builder, entry.startSeqno, entry.endSeqno, entry.collectionId);
+                builder,
+                entry.startSeqno,
+                entry.endSeqno,
+                uint32_t(entry.collectionId));
         output.push_back(newEntry);
     }
 

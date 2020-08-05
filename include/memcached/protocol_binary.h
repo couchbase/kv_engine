@@ -2164,7 +2164,8 @@ class GetCollectionIDPayload {
 public:
     GetCollectionIDPayload() = default;
     GetCollectionIDPayload(uint64_t manifestId, CollectionID collectionId)
-        : manifestId(htonll(manifestId)), collectionId(htonl(collectionId)) {
+        : manifestId(htonll(manifestId)),
+          collectionId(htonl(uint32_t(collectionId))) {
     }
 
     CollectionID getCollectionId() const {

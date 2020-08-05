@@ -47,8 +47,9 @@ TEST_P(StoredDocKeyTest, constructors) {
 
     // Test construction from a DocKey which is a view onto unsigned_leb128
     // prefixed key - i.e. a collection-aware key
-    uint8_t keyRaw[5] = {uint8_t(GetParam()), 'k', 'e', 'y', '!'};
-    DocKey docKey(keyRaw, 5, DocKeyEncodesCollectionId::Yes);
+    std::array<uint8_t, 5> keyRaw{
+            {uint8_t(uint32_t{GetParam()}), 'k', 'e', 'y', '!'}};
+    DocKey docKey(keyRaw.data(), keyRaw.size(), DocKeyEncodesCollectionId::Yes);
     StoredDocKey key3(docKey);
 
     // Very important that the both objects return the same hash and ==
@@ -305,7 +306,7 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
 
 TEST_P(StoredDocKeyTest, getObjectSize) {
     auto key1 = SerialisedDocKey::make({"key_of_15_chars", GetParam()});
-    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(GetParam());
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{GetParam()});
 
     // Should be 15 bytes plus 4 byte CID and 1 byte for length.
     EXPECT_EQ(15 + leb128.size() + 1, key1->getObjectSize());

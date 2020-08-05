@@ -857,7 +857,7 @@ Collections::KVStore::Manifest CollectionsFlushTest::dropCollectionAndFlush(
 
 bool CollectionsFlushTest::canWrite(const Collections::VB::Manifest& manifest,
                                     CollectionID collection) {
-    std::string key = std::to_string(collection);
+    std::string key = std::to_string(uint32_t{collection});
     return manifest.lock().doesKeyContainValidCollection(
             StoredDocKey{key, collection});
 }

@@ -57,11 +57,11 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
     // The system event start/end we can make from SystemEventFactory
     auto sysStart = SystemEventFactory::makeCollectionEventKey(cid);
-    auto sysEnd = SystemEventFactory::makeCollectionEventKey(cid + 1);
+    auto sysEnd = SystemEventFactory::makeCollectionEventKey(uint32_t{cid} + 1);
 
     // Create the start and end keys for the collection itself
-    cb::mcbp::unsigned_leb128<CollectionIDType> start(cid);
-    cb::mcbp::unsigned_leb128<CollectionIDType> end(cid + 1);
+    cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});
+    cb::mcbp::unsigned_leb128<CollectionIDType> end(uint32_t{cid} + 1);
 
     std::vector<ByIdRange> ranges;
     ranges.emplace_back(ByIdRange{DiskDocKey{sysStart}, DiskDocKey{sysEnd}});

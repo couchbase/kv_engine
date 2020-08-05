@@ -62,7 +62,7 @@ CollectionsManifest& CollectionsManifest::add(
 
     nlohmann::json jsonEntry;
     std::stringstream ss;
-    ss << std::hex << collectionEntry.uid;
+    ss << std::hex << uint32_t(collectionEntry.uid);
 
     jsonEntry["name"] = collectionEntry.name;
     jsonEntry["uid"] = ss.str();
@@ -119,7 +119,7 @@ CollectionsManifest& CollectionsManifest::remove(
     updateUid();
 
     std::stringstream cid;
-    cid << std::hex << collectionEntry.uid;
+    cid << std::hex << uint32_t(collectionEntry.uid);
 
     bool removed = false;
     // Iterate on all scopes, find the one matching the passed scopeEntry
@@ -173,7 +173,7 @@ CollectionsManifest& CollectionsManifest::rename(
     updateUid();
     std::stringstream sidString, cidString;
     sidString << std::hex << scopeEntry.uid;
-    cidString << std::hex << collectionEntry.uid;
+    cidString << std::hex << uint32_t(collectionEntry.uid);
 
     for (auto& scope : json["scopes"]) {
         if (scope["name"] == scopeEntry.name &&
@@ -193,7 +193,7 @@ CollectionsManifest& CollectionsManifest::rename(
 bool CollectionsManifest::exists(const CollectionEntry::Entry& collectionEntry,
                                  const ScopeEntry::Entry& scopeEntry) const {
     std::stringstream cid;
-    cid << std::hex << collectionEntry.uid;
+    cid << std::hex << uint32_t(collectionEntry.uid);
     std::stringstream sid;
     sid << std::hex << scopeEntry.uid;
 

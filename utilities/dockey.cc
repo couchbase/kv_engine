@@ -31,6 +31,14 @@ bool CollectionID::isReserved(CollectionIDType value) {
     return value >= System && value <= Reserved7;
 }
 
+bool operator==(CollectionIDType lhs, const CollectionID& rhs) {
+    return lhs == uint32_t(rhs);
+}
+
+std::ostream& operator<<(std::ostream& os, const CollectionID& cid) {
+    return os << std::hex << uint32_t(cid);
+}
+
 std::string ScopeID::to_string() const {
     std::stringstream sstream;
     sstream << "0x" << std::hex << value;

@@ -587,7 +587,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 builder,
                 uid,
                 entry.getScopeID(),
-                cid,
+                uint32_t(cid),
                 entry.getMaxTtl().has_value(),
                 entry.getMaxTtl().has_value() ? (*entry.getMaxTtl()).count()
                                               : 0,
@@ -595,8 +595,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                                      collectionName.size()));
         builder.Finish(collection);
     } else {
-        auto collection =
-                CreateDroppedCollection(builder, uid, entry.getScopeID(), cid);
+        auto collection = CreateDroppedCollection(
+                builder, uid, entry.getScopeID(), uint32_t(cid));
         builder.Finish(collection);
     }
 

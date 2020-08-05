@@ -42,7 +42,7 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(
 template <template <class> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(const std::string& key,
                                         CollectionID cid) {
-    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
     keydata.resize(key.size() + leb128.size());
     std::copy(key.begin(),
               key.end(),
@@ -51,7 +51,7 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(const std::string& key,
 
 template <template <class> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(const DocKey& key, CollectionID cid) {
-    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
     keydata.resize(key.size() + leb128.size());
     std::copy(key.begin(),
               key.end(),
@@ -134,7 +134,7 @@ bool SerialisedDocKey::operator==(const DocKey& rhs) const {
 
 SerialisedDocKey::SerialisedDocKey(cb::const_byte_buffer key,
                                    CollectionID cid) {
-    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
+    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
     length = gsl::narrow_cast<uint8_t>(key.size() + leb128.size());
     std::copy(key.begin(),
               key.end(),

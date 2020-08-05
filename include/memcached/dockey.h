@@ -74,6 +74,9 @@ public:
     CollectionID() : value(Default) {
     }
 
+    // Add no lint for explict constructor so that we may use implicit
+    // construction as this is used through out our code base.
+    // NOLINTNEXTLINE(google-explicit-constructor)
     CollectionID(CollectionIDType value) : value(value) {
         if (value >= DurabilityPrepare && value <= Reserved7) {
             throw std::invalid_argument("CollectionID: invalid value:" +
@@ -90,8 +93,20 @@ public:
         : value(value) {
     }
 
-    operator uint32_t() const {
+    explicit operator uint32_t() const {
         return value;
+    }
+
+    bool operator==(const CollectionID& other) const {
+        return value == other.value;
+    }
+
+    bool operator!=(const CollectionID& other) const {
+        return value != other.value;
+    }
+
+    bool operator<(const CollectionID& other) const {
+        return value < other.value;
     }
 
     bool isDefaultCollection() const {
@@ -119,6 +134,9 @@ public:
 private:
     CollectionIDType value;
 };
+
+bool operator==(CollectionIDType lhs, const CollectionID& rhs);
+std::ostream& operator<<(std::ostream& os, const CollectionID& cid);
 
 using ScopeIDType = uint32_t;
 class ScopeID {
@@ -212,7 +230,7 @@ namespace std {
 template <>
 struct hash<CollectionID> {
     std::size_t operator()(const CollectionID& k) const {
-        return std::hash<uint32_t>()(k);
+        return std::hash<uint32_t>()(uint32_t(k));
     }
 };
 

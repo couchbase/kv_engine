@@ -218,7 +218,8 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     auto fruit = conn->getCollectionId("_default.fruit");
     EXPECT_EQ(CollectionEntry::fruit.getId(), fruit.getCollectionId());
     auto defaultScope = conn->getScopeId("_default");
-    EXPECT_EQ(CollectionEntry::defaultC.getId(), defaultScope.getScopeId());
+    EXPECT_EQ(CollectionEntry::defaultC.getId(),
+              uint32_t{defaultScope.getScopeId()});
     // Now failure, we have no privs in customer_scope
     try {
         conn->getCollectionId("customer_scope.customer_collection1");

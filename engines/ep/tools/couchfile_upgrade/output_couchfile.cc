@@ -57,7 +57,8 @@ void OutputCouchFile::commit() {
 // prefix the key with a unsigned_leb128 collection-id (cid)
 std::string OutputCouchFile::moveDocToCollection(const sized_buf in,
                                                  CollectionID cid) const {
-    cb::mcbp::unsigned_leb128<CollectionIDType> encodedCollection(cid);
+    cb::mcbp::unsigned_leb128<CollectionIDType> encodedCollection(
+            uint32_t{cid});
     std::string rv(in.size + encodedCollection.size(), ' ');
     auto next =
             std::copy_n(reinterpret_cast<const char*>(encodedCollection.data()),

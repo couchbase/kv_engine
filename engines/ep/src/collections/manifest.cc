@@ -284,7 +284,7 @@ nlohmann::json Manifest::toJson(
             if (isVisible(s.first, c.id)) {
                 nlohmann::json collection;
                 collection["name"] = collections.at(c.id).name;
-                collection["uid"] = fmt::format("{0:x}", c.id);
+                collection["uid"] = fmt::format("{0:x}", uint32_t{c.id});
                 if (c.maxTtl) {
                     collection["maxTTL"] = c.maxTtl.value().count();
                 }
