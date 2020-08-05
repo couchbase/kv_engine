@@ -52,7 +52,8 @@ std::unique_ptr<Item> SystemEventFactory::makeScopeEvent(
         ScopeID sid, cb::const_byte_buffer data, OptionalSeqno seqno) {
     // Make a key which is:
     // [0x01] [0x01] [0xsid] _scope
-    StoredDocKey key1{Collections::ScopeEventDebugTag, (CollectionID)sid};
+    StoredDocKey key1{Collections::ScopeEventDebugTag,
+                      CollectionID(ScopeIDType(sid))};
     StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Scope)}};
     return make(StoredDocKey(key2, CollectionID::System),
                 SystemEvent::Scope,

@@ -336,7 +336,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
 
         auto newEntry = Collections::Persist::CreateScope(
                 builder,
-                scope.first,
+                uint32_t(scope.first),
                 builder.CreateString(scope.second.name.data(),
                                      scope.second.name.size()),
                 collectionVector);

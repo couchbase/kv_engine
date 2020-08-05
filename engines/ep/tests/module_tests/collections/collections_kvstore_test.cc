@@ -291,14 +291,12 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
     EXPECT_EQ(0, md.collections[0].startSeqno);
     EXPECT_EQ("_default", md.collections[0].metaData.name);
     EXPECT_EQ(CollectionID::Default, md.collections[0].metaData.cid);
-    EXPECT_EQ(ScopeID::Default, md.collections[0].metaData.sid);
+    EXPECT_EQ(ScopeID(ScopeID::Default), md.collections[0].metaData.sid);
     EXPECT_FALSE(md.collections[0].metaData.maxTtl.has_value());
 
     EXPECT_EQ(0, md.scopes[0].startSeqno);
-    EXPECT_EQ(ScopeID::Default, md.scopes[0].metaData.sid);
+    EXPECT_EQ(ScopeID(ScopeID::Default), md.scopes[0].metaData.sid);
     EXPECT_EQ("_default", md.scopes[0].metaData.name);
-
-    EXPECT_EQ(0, md.manifestUid);
 }
 
 TEST_P(CollectionsKVStoreTest, one_update) {

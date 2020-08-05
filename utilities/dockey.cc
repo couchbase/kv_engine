@@ -18,6 +18,7 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dockey.h>
 #include <spdlog/fmt/fmt.h>
+#include <ostream>
 #include <sstream>
 #include <string_view>
 

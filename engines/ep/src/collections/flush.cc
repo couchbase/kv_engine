@@ -423,7 +423,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         auto newEntry = Collections::KVStore::CreateCollection(
                 builder,
                 span.high.startSeqno,
-                meta.sid,
+                uint32_t{meta.sid},
                 uint32_t(meta.cid),
                 meta.maxTtl.has_value(),
                 meta.maxTtl.value_or(std::chrono::seconds::zero()).count(),
@@ -555,7 +555,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
         auto newEntry = Collections::KVStore::CreateScope(
                 builder,
                 event.startSeqno,
-                meta.sid,
+                uint32_t{meta.sid},
                 builder.CreateString(meta.name.data(), meta.name.size()));
         openScopes.push_back(newEntry);
     }

@@ -156,6 +156,9 @@ public:
     ScopeID() : value(Default) {
     }
 
+    // Add no lint for explict constructor so that we may use implicit
+    // construction as this is used through out our code base.
+    // NOLINTNEXTLINE(google-explicit-constructor)
     ScopeID(ScopeIDType value) : value(value) {
         if (value > Default && value <= Reserved7) {
             throw std::invalid_argument("ScopeID: invalid value:" +
@@ -163,8 +166,12 @@ public:
         }
     }
 
-    operator uint32_t() const {
+    explicit operator uint32_t() const {
         return value;
+    }
+
+    bool operator==(const ScopeID& other) const {
+        return value == other.value;
     }
 
     bool isDefaultScope() const {
@@ -239,7 +246,7 @@ struct hash<CollectionID> {
 template <>
 struct hash<ScopeID> {
     std::size_t operator()(const ScopeID& k) const {
-        return std::hash<uint32_t>()(k);
+        return std::hash<uint32_t>()(static_cast<uint32_t>(k));
     }
 };
 

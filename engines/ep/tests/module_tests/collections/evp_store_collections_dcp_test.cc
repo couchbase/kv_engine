@@ -2785,12 +2785,12 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
         for (const auto& entry : m.collections) {
             if (entry.metaData.cid == CollectionID::Default) {
                 EXPECT_EQ(0, entry.startSeqno);
-                EXPECT_EQ(ScopeID::Default, entry.metaData.sid);
+                EXPECT_EQ(ScopeID::Default, uint32_t(entry.metaData.sid));
                 EXPECT_EQ("_default", entry.metaData.name);
             } else {
                 EXPECT_EQ(2, openSize);
                 EXPECT_EQ(target.getId(), entry.metaData.cid);
-                EXPECT_EQ(ScopeID::Default, entry.metaData.sid);
+                EXPECT_EQ(ScopeID::Default, uint32_t(entry.metaData.sid));
                 EXPECT_EQ(target.name, entry.metaData.name);
                 EXPECT_EQ(vb->getHighSeqno(), entry.startSeqno);
             }

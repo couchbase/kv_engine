@@ -804,17 +804,17 @@ TEST_F(CollectionsTest, ScopeIDLookup) {
     auto rv = engine->get_scope_id(cookie.get(), "");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
-    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+    EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), ".");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
-    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+    EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), "_default");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
-    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+    EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), "blah");
     EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
@@ -836,12 +836,12 @@ TEST_F(CollectionsTest, ScopeIDLookup2) {
     auto rv = engine->get_scope_id(cookie.get(), key1);
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
-    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+    EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), key2);
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
-    EXPECT_EQ(ScopeID::Default, rv.getScopeId());
+    EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
     rv = engine->get_scope_id(cookie.get(), key3);
     EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);

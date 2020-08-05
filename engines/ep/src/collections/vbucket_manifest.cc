@@ -388,7 +388,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
     auto scope = CreateScope(
             builder,
             getManifestUid(),
-            sid,
+            uint32_t(sid),
             builder.CreateString(scopeName.data(), scopeName.size()));
     builder.Finish(scope);
 
@@ -435,7 +435,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     this->manifestUid = manifestUid;
 
     flatbuffers::FlatBufferBuilder builder;
-    auto scope = CreateDroppedScope(builder, getManifestUid(), sid);
+    auto scope = CreateDroppedScope(builder, getManifestUid(), uint32_t(sid));
     builder.Finish(scope);
 
     auto item = SystemEventFactory::makeScopeEvent(
@@ -594,7 +594,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         auto collection = CreateCollection(
                 builder,
                 uid,
-                entry.getScopeID(),
+                uint32_t(entry.getScopeID()),
                 uint32_t(cid),
                 entry.getMaxTtl().has_value(),
                 entry.getMaxTtl().has_value() ? (*entry.getMaxTtl()).count()
@@ -604,7 +604,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         builder.Finish(collection);
     } else {
         auto collection = CreateDroppedCollection(
-                builder, uid, entry.getScopeID(), uint32_t(cid));
+                builder, uid, uint32_t(entry.getScopeID()), uint32_t(cid));
         builder.Finish(collection);
     }
 

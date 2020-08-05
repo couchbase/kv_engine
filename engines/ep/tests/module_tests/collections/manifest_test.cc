@@ -34,12 +34,12 @@ TEST(ManifestTest, defaultState) {
     EXPECT_EQ(0, m.getUid());
     auto collection = m.findCollection(CollectionID::Default);
     EXPECT_NE(collection, m.end());
-    EXPECT_EQ(ScopeID::Default, collection->second.sid);
+    EXPECT_EQ(ScopeID(ScopeID::Default), collection->second.sid);
     EXPECT_EQ("_default", collection->second.name);
 
     collection = m.findCollection("_default", "_default");
     EXPECT_NE(collection, m.end());
-    EXPECT_EQ(ScopeID::Default, collection->second.sid);
+    EXPECT_EQ(ScopeID(ScopeID::Default), collection->second.sid);
     EXPECT_EQ("_default", collection->second.name);
 
     auto scope = m.findScope(ScopeID::Default);
@@ -49,7 +49,7 @@ TEST(ManifestTest, defaultState) {
     EXPECT_EQ(CollectionID::Default, scope->second.collections[0].id);
 
     auto oScope = m.getScopeID("_default._default");
-    EXPECT_EQ(ScopeID::Default, oScope.value_or(~0));
+    EXPECT_EQ(ScopeID(ScopeID::Default), oScope.value_or(~0));
     auto oCollection = m.getCollectionID(oScope.value(), "_default._default");
     EXPECT_EQ(CollectionID::Default, oCollection.value_or(~0));
 }
@@ -730,13 +730,14 @@ TEST(ManifestTest, getScopeID) {
     //    * "scope"
     // the function ignores anything after a .
     // The Manifest::getScopeID expects a valid path, it peforms no validation
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID("").value());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".").value());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default").value());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID(".ignorethis").value());
-    EXPECT_EQ(ScopeID::Default, cm.getScopeID("_default.ignorethis").value());
-    EXPECT_EQ(8, cm.getScopeID("brewerA").value());
-    EXPECT_EQ(8, cm.getScopeID("brewerA.ignorethis").value());
+    EXPECT_EQ(ScopeID(ScopeID::Default), cm.getScopeID("").value());
+    EXPECT_EQ(ScopeID(ScopeID::Default), cm.getScopeID(".").value());
+    EXPECT_EQ(ScopeID(ScopeID::Default), cm.getScopeID("_default").value());
+    EXPECT_EQ(ScopeID(ScopeID::Default), cm.getScopeID(".ignorethis").value());
+    EXPECT_EQ(ScopeID(ScopeID::Default),
+              cm.getScopeID("_default.ignorethis").value());
+    EXPECT_EQ(ScopeID(8), cm.getScopeID("brewerA").value());
+    EXPECT_EQ(ScopeID(8), cm.getScopeID("brewerA.ignorethis").value());
 
     // valid input to unknown scopes
     EXPECT_FALSE(cm.getScopeID("unknown.ignored"));

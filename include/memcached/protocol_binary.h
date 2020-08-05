@@ -2195,7 +2195,7 @@ class GetScopeIDPayload {
 public:
     GetScopeIDPayload() = default;
     GetScopeIDPayload(uint64_t manifestId, ScopeID scopeId)
-        : manifestId(htonll(manifestId)), scopeId(htonl(scopeId)) {
+        : manifestId(htonll(manifestId)), scopeId(htonl(uint32_t(scopeId))) {
     }
     ScopeID getScopeId() const {
         return ntohl(scopeId);

@@ -136,8 +136,8 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
             flatbuffers::GetRoot<Collections::KVStore::DroppedCollections>(
                     dc.data());
     for (const auto* entry : *fbData->entries()) {
-        rv.push_back({entry->startSeqno(),
-                      entry->endSeqno(),
+        rv.push_back({static_cast<uint64_t>(entry->startSeqno()),
+                      static_cast<uint64_t>(entry->endSeqno()),
                       entry->collectionId()});
     }
     return rv;

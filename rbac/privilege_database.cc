@@ -466,7 +466,7 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
     if (bucket && is_bucket_privilege(privilege)) {
         return bucket->check(
                 privilege,
-                sid,
+                sid ? std::optional<uint32_t>(*sid) : std::nullopt,
                 cid ? std::optional<uint32_t>(*cid) : std::nullopt);
     }
 

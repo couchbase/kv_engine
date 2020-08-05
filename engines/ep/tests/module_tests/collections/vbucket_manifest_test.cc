@@ -940,7 +940,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(0, value.value().identifiers.first);
+    EXPECT_EQ(ScopeID(0), value.value().identifiers.first);
     EXPECT_EQ(8, value.value().identifiers.second);
     EXPECT_EQ("name1", value.value().name);
     EXPECT_TRUE(changes.empty());
@@ -951,7 +951,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
-    EXPECT_EQ(0, value.value().identifiers.first);
+    EXPECT_EQ(ScopeID(0), value.value().identifiers.first);
     EXPECT_EQ(9, value.value().identifiers.second);
     EXPECT_EQ("name3", value.value().name);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
