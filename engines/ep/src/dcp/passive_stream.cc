@@ -874,8 +874,10 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
                                 event.getMaxTtl(),
                                 event.getBySeqno());
     } catch (std::exception& e) {
-        EP_LOG_WARN("PassiveStream::processCreateCollection exception {}",
-                    e.what());
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processCreateCollection {} exception {}",
+            vb.getId(),
+            e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
@@ -888,8 +890,10 @@ ENGINE_ERROR_CODE PassiveStream::processDropCollection(
                                  event.getCollectionID(),
                                  event.getBySeqno());
     } catch (std::exception& e) {
-        EP_LOG_WARN("PassiveStream::processDropCollection exception {}",
-                    e.what());
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processDropCollection {} exception {}",
+            vb.getId(),
+            e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
@@ -903,7 +907,10 @@ ENGINE_ERROR_CODE PassiveStream::processCreateScope(
                            event.getKey(),
                            event.getBySeqno());
     } catch (std::exception& e) {
-        EP_LOG_WARN("PassiveStream::processCreateScope exception {}", e.what());
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processCreateScope {} exception {}",
+            vb.getId(),
+            e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
@@ -915,7 +922,10 @@ ENGINE_ERROR_CODE PassiveStream::processDropScope(VBucket& vb,
         vb.replicaDropScope(
                 event.getManifestUid(), event.getScopeID(), event.getBySeqno());
     } catch (std::exception& e) {
-        EP_LOG_WARN("PassiveStream::processDropScope exception {}", e.what());
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processDropScope {} exception {}",
+            vb.getId(),
+            e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
