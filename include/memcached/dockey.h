@@ -171,7 +171,8 @@ using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;
  */
 class CollectionIDNetworkOrder {
 public:
-    CollectionIDNetworkOrder(CollectionID v) : value(htonl(uint32_t(v))) {
+    explicit CollectionIDNetworkOrder(CollectionID v)
+        : value(htonl(uint32_t(v))) {
     }
 
     CollectionID to_host() const {
@@ -184,7 +185,7 @@ private:
 
 class ScopeIDNetworkOrder {
 public:
-    ScopeIDNetworkOrder(ScopeID v) : value(htonl(uint32_t(v))) {
+    explicit ScopeIDNetworkOrder(ScopeID v) : value(htonl(uint32_t(v))) {
     }
 
     ScopeID to_host() const {
@@ -201,11 +202,11 @@ static_assert(sizeof(CollectionIDType) == 4,
 static_assert(sizeof(ScopeIDType) == 4, "ScopeIDType assumes 4-byte id");
 
 inline CollectionIDNetworkOrder CollectionID::to_network() const {
-    return {*this};
+    return CollectionIDNetworkOrder{*this};
 }
 
 inline ScopeIDNetworkOrder ScopeID::to_network() const {
-    return {*this};
+    return ScopeIDNetworkOrder{*this};
 }
 
 namespace std {
