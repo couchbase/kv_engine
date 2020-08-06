@@ -437,23 +437,14 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
-void CB3ExecutorPoolTest::makePool(int maxThreads,
-                                   int numReaders,
-                                   int numWriters,
-                                   int numAuxIO,
-                                   int numNonIO) {
-    pool = std::make_unique<TestExecutorPool>(
-            maxThreads,
-            ThreadPoolConfig::ThreadCount(numReaders),
-            ThreadPoolConfig::ThreadCount(numWriters),
-            numAuxIO,
-            numNonIO);
-}
-
 // Verifies the priority of the different thread types. On Windows and Linux
 // the Writer threads should be low priority.
-// TODO: Convert to templated 'ExecutorPooLTest' and add Folly support.
-TEST_F(CB3ExecutorPoolTest, ThreadPriorities) {
+TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
+    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        // Not yet implemented for FollyExecutorPool.
+        GTEST_SKIP();
+    }
+
     // Create test pool and register a (mock) taskable to start all threads.
     this->makePool(10);
 
@@ -465,23 +456,56 @@ TEST_F(CB3ExecutorPoolTest, ThreadPriorities) {
     // have started before checking priorities.
     MockTaskable taskable;
     this->pool->registerTaskable(taskable);
-    std::vector<ExTask> tasks;
     ThreadGate tg{totalNumThreads};
+
+    // Task which when run records the priority of the thread it is executing
+    // on, then increments threadGate.
+    struct CheckPriorityTask : public GlobalTask {
+        CheckPriorityTask(Taskable& taskable,
+                          TaskId taskId,
+                          ThreadGate& threadGate)
+            : GlobalTask(taskable, taskId), threadGate(threadGate) {
+        }
+
+        std::string getDescription() override {
+            return "CheckPriorityTask - "s + GlobalTask::getTaskName(taskId);
+        }
+
+        std::chrono::microseconds maxExpectedDuration() override {
+            return {};
+        }
+
+    protected:
+        bool run() override {
+            threadPriority = getpriority(PRIO_PROCESS, 0);
+            threadGate.threadUp();
+            return false;
+        }
+
+    public:
+        ThreadGate& threadGate;
+        /// Observed priority of the thread this task was run on.
+        int threadPriority{-1};
+    };
 
     // Need 2 tasks of each type, so both threads of each type are
     // started.
+    auto makePriorityTask = [&taskable, &tg](TaskId taskId) {
+        return std::make_shared<CheckPriorityTask>(taskable, taskId, tg);
+    };
+    std::vector<std::shared_ptr<CheckPriorityTask>> tasks;
     // Reader
-    tasks.push_back(makeTask(taskable, tg, TaskId::MultiBGFetcherTask));
-    tasks.push_back(makeTask(taskable, tg, TaskId::MultiBGFetcherTask));
+    tasks.push_back(makePriorityTask(TaskId::MultiBGFetcherTask));
+    tasks.push_back(makePriorityTask(TaskId::MultiBGFetcherTask));
     // Writer
-    tasks.push_back(makeTask(taskable, tg, TaskId::FlusherTask));
-    tasks.push_back(makeTask(taskable, tg, TaskId::FlusherTask));
+    tasks.push_back(makePriorityTask(TaskId::FlusherTask));
+    tasks.push_back(makePriorityTask(TaskId::FlusherTask));
     // AuxIO
-    tasks.push_back(makeTask(taskable, tg, TaskId::AccessScanner));
-    tasks.push_back(makeTask(taskable, tg, TaskId::AccessScanner));
+    tasks.push_back(makePriorityTask(TaskId::AccessScanner));
+    tasks.push_back(makePriorityTask(TaskId::AccessScanner));
     // NonIO
-    tasks.push_back(makeTask(taskable, tg, TaskId::ItemPager));
-    tasks.push_back(makeTask(taskable, tg, TaskId::ItemPager));
+    tasks.push_back(makePriorityTask(TaskId::ItemPager));
+    tasks.push_back(makePriorityTask(TaskId::ItemPager));
 
     for (auto& task : tasks) {
         this->pool->schedule(task);
@@ -495,22 +519,21 @@ TEST_F(CB3ExecutorPoolTest, ThreadPriorities) {
     // We only set Writer threads to a non-default level on Linux.
     const int expectedWriterPriority = folly::kIsLinux ? 19 : defaultPriority;
 
-    auto threads = this->pool->getThreads();
-    ASSERT_EQ(totalNumThreads, threads.size());
-    for (const auto* thread : threads) {
-        switch (thread->getTaskType()) {
+    for (const auto& task : tasks) {
+        const auto type = GlobalTask::getTaskType(task->getTaskId());
+        switch (type) {
         case WRITER_TASK_IDX:
-            EXPECT_EQ(expectedWriterPriority, thread->getPriority())
-                    << "for thread: " << thread->getName();
+            EXPECT_EQ(expectedWriterPriority, task->threadPriority)
+                    << "for task: " << task->getDescription();
             break;
         case READER_TASK_IDX:
         case AUXIO_TASK_IDX:
         case NONIO_TASK_IDX:
-            EXPECT_EQ(defaultPriority, thread->getPriority())
-                    << "for thread: " << thread->getName();
+            EXPECT_EQ(defaultPriority, task->threadPriority)
+                    << "for task: " << task->getDescription();
             break;
         default:
-            FAIL() << "Unexpected task type: " << thread->getTaskType();
+            FAIL() << "Unexpected task type: " << type;
         }
     }
 

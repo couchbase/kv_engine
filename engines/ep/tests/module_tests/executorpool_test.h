@@ -22,10 +22,8 @@
 #pragma once
 
 #include "../mock/mock_taskable.h"
-#include "cb3_executorthread.h"
 #include "executorpool.h"
 #include "fakes/fake_executorpool.h"
-#include "taskable.h"
 #include "thread_gate.h"
 #include <folly/portability/GTest.h>
 #include <thread>
@@ -63,20 +61,6 @@ protected:
                   int numNonIO = 2);
 
     std::unique_ptr<T> pool;
-};
-
-/**
- * Test fixture for tests which are only applicable to CB3ExecutorPool.
- */
-class CB3ExecutorPoolTest : public ::testing::Test {
-protected:
-    void makePool(int maxThreads,
-                  int numReaders = 2,
-                  int numWriters = 2,
-                  int numAuxIO = 2,
-                  int numNonIO = 2);
-
-    std::unique_ptr<TestExecutorPool> pool;
 };
 
 class SingleThreadedExecutorPoolTest : public ::testing::Test {
