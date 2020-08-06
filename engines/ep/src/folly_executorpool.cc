@@ -28,6 +28,27 @@
 
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
+#include <folly/executors/thread_factory/PriorityThreadFactory.h>
+
+/**
+ * Thread factory for CPU pool threads.
+ *  - Gives each thread name based on the given prefix.
+ *  - Sets each thread to the given priority.
+ */
+class CBPriorityThreadFactory : public folly::ThreadFactory {
+public:
+    CBPriorityThreadFactory(std::string prefix, int priority)
+        : priorityThreadFactory(
+                  std::make_shared<folly::NamedThreadFactory>(prefix),
+                  priority) {
+    }
+
+    std::thread newThread(folly::Func&& func) override {
+        return priorityThreadFactory.newThread(std::move(func));
+    }
+
+    folly::PriorityThreadFactory priorityThreadFactory;
+};
 
 /**
  * Proxy object recorded for each registered (scheduled) Task. Inherits from
@@ -433,19 +454,37 @@ FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
       maxWriters(calcNumWriters(maxWriters_)),
       maxAuxIO(calcNumAuxIO(maxAuxIO_)),
       maxNonIO(calcNumNonIO(maxNonIO_)) {
+    /*
+     * Define a function to create thread factory with a given prefix,
+     * and priority where supported.
+     *
+     * Only setting priority for Linux at present:
+     *  - On Windows folly's getpriority() compatibility function changes the
+     *    priority of the entire process.
+     *  - On macOS setpriority(PRIO_PROCESS) affects the entire process (unlike
+     *    Linux where it's only the current thread), hence calling
+     *    setpriority() would be pointless.
+     */
+    auto makeThreadFactory = [](std::string prefix, task_type_t taskType) {
+#if defined(__linux__)
+        return std::make_shared<CBPriorityThreadFactory>(
+                prefix, ExecutorPool::getThreadPriority(taskType));
+#else
+        return std::make_shared<folly::NamedThreadFactory>(prefix);
+#endif
+    };
+
     futurePool = std::make_unique<folly::IOThreadPoolExecutor>(
             1, std::make_shared<folly::NamedThreadFactory>("SchedulerPool"));
 
     readerPool = std::make_unique<folly::CPUThreadPoolExecutor>(
-            maxReaders,
-            std::make_shared<folly::NamedThreadFactory>("ReaderPool")),
+            maxReaders, makeThreadFactory("ReaderPool", READER_TASK_IDX));
     writerPool = std::make_unique<folly::CPUThreadPoolExecutor>(
-            maxWriters,
-            std::make_shared<folly::NamedThreadFactory>("WriterPool"));
+            maxWriters, makeThreadFactory("WriterPool", WRITER_TASK_IDX));
     auxPool = std::make_unique<folly::CPUThreadPoolExecutor>(
-            maxAuxIO, std::make_shared<folly::NamedThreadFactory>("AuxIoPool"));
+            maxAuxIO, makeThreadFactory("AuxIoPool", AUXIO_TASK_IDX));
     nonIoPool = std::make_unique<folly::CPUThreadPoolExecutor>(
-            maxNonIO, std::make_shared<folly::NamedThreadFactory>("NonIoPool"));
+            maxNonIO, makeThreadFactory("NonIoPool", NONIO_TASK_IDX));
 }
 
 FollyExecutorPool::~FollyExecutorPool() {

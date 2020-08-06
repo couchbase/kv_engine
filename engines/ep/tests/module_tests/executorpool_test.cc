@@ -440,11 +440,6 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
 // Verifies the priority of the different thread types. On Windows and Linux
 // the Writer threads should be low priority.
 TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
-    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
-        // Not yet implemented for FollyExecutorPool.
-        GTEST_SKIP();
-    }
-
     // Create test pool and register a (mock) taskable to start all threads.
     this->makePool(10);
 

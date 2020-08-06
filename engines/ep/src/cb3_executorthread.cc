@@ -85,17 +85,7 @@ void CB3ExecutorThread::run() {
     // BucketAllocationGuard to account task deletion to the bucket.
     NonBucketAllocationGuard guard;
 
-    // Decrease the priority of Writer threads to lessen their impact on
-    // other threads (esp front-end workers which should be prioritized ahead
-    // of non-critical path Writer tasks (both Flusher and Compaction).
-    // TODO: Investigate if it is worth increasing the priority of Flusher tasks
-    // which _are_ on the critical path for front-end operations - i.e.
-    // SyncWrites at level=persistMajority / persistActive.
-    // This could be done by having two different priority thread pools (say
-    // Low and High IO threads and putting critical path Reader (BGFetch) and
-    // Writer (SyncWrite flushes) on the High IO thread pool; keeping
-    // non-persist SyncWrites / normal mutations & compaction on the Low IO
-    // pool.
+    // Set priority based on this thread's task type.
 #if defined(__linux__)
     // Only doing this for Linux at present:
     // - On Windows folly's getpriority() compatability function changes the
@@ -103,18 +93,14 @@ void CB3ExecutorThread::run() {
     // - On macOS setpriority(PRIO_PROCESS) affects the entire process (unlike
     //   Linux where it's only the current thread), hence calling setpriority()
     //   would be pointless.
-    if (taskType == WRITER_TASK_IDX) {
-        // Note Linux uses the range -20..19 (highest..lowest).
-        const int lowestPriority = 19;
-        if (setpriority(PRIO_PROCESS,
-                        /*Current thread*/ 0,
-                        lowestPriority)) {
-            EP_LOG_WARN("Failed to set thread {} to background priority - {}",
-                        getName(),
-                        strerror(errno));
-        } else {
-            EP_LOG_INFO("Set thread {} to background priority", getName());
-        }
+    if (setpriority(PRIO_PROCESS,
+                    /*Current thread*/ 0,
+                    ExecutorPool::getThreadPriority(taskType))) {
+        EP_LOG_WARN("Failed to set thread {} to background priority - {}",
+                    getName(),
+                    strerror(errno));
+    } else {
+        EP_LOG_INFO("Set thread {} to background priority", getName());
     }
 #endif
 

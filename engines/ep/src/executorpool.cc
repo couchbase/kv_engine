@@ -183,3 +183,39 @@ size_t ExecutorPool::calcNumNonIO(size_t threadCount) const {
     }
     return count;
 }
+
+int ExecutorPool::getThreadPriority(task_type_t taskType) {
+    // Decrease the priority of Writer threads to lessen their impact on
+    // other threads (esp front-end workers which should be prioritized ahead
+    // of non-critical path Writer tasks (both Flusher and Compaction).
+    // TODO: Investigate if it is worth increasing the priority of Flusher tasks
+    // which _are_ on the critical path for front-end operations - i.e.
+    // SyncWrites at level=persistMajority / persistActive.
+    // This could be done by having two different priority thread pools (say
+    // Low and High IO threads and putting critical path Reader (BGFetch) and
+    // Writer (SyncWrite flushes) on the High IO thread pool; keeping
+    // non-persist SyncWrites / normal mutations & compaction on the Low IO
+    // pool.
+#if defined(__linux__)
+    // Only doing this for Linux at present:
+    // - On Windows folly's getpriority() compatability function changes the
+    //   priority of the entire process.
+    // - On macOS setpriority(PRIO_PROCESS) affects the entire process (unlike
+    //   Linux where it's only the current thread), hence calling setpriority()
+    //   would be pointless.
+    switch (taskType) {
+    case WRITER_TASK_IDX:
+        // Linux uses the range -20..19 (highest..lowest).
+        return 19;
+    case READER_TASK_IDX:
+    case AUXIO_TASK_IDX:
+    case NONIO_TASK_IDX:
+        return 0;
+    case NO_TASK_TYPE:
+    case NUM_TASK_GROUPS:
+        // These are both invalid taskTypes.
+        folly::assume_unreachable();
+    }
+#endif
+    return 0;
+}

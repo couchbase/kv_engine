@@ -18,6 +18,7 @@
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
 
+#include "task_type.h"
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -164,6 +165,13 @@ public:
                              const AddStatFn& add_stat) = 0;
 
     virtual ~ExecutorPool() = default;
+
+    /**
+     * Return the thread priority to use for threads of the given task type.
+     * @param taskType
+     * @return priority to use, as passed to setpriority().
+     */
+    static int getThreadPriority(task_type_t taskType);
 
 protected:
     ExecutorPool(size_t maxThreads);
