@@ -300,10 +300,10 @@ protected:
 
     // Global cross bucket priority queues where tasks get scheduled into ...
     TaskQ hpTaskQ; // a vector array of numTaskSets elements for high priority
-    bool isHiPrioQset;
+    std::atomic_bool isHiPrioQset;
 
     TaskQ lpTaskQ; // a vector array of numTaskSets elements for low priority
-    bool isLowPrioQset;
+    std::atomic_bool isLowPrioQset;
 
     // Numbers of registered taskables.
     size_t numTaskables;

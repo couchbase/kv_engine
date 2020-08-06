@@ -409,7 +409,7 @@ size_t CB3ExecutorPool::schedule(ExTask task) {
 
 void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
     TaskQ* taskQ;
-    bool* whichQset;
+    std::atomic_bool* whichQset;
     const char* queueName;
     WorkLoadPolicy& workload = taskable.getWorkLoadPolicy();
     bucket_priority_t priority = workload.getBucketPriority();
