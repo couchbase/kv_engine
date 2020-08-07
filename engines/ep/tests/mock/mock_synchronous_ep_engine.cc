@@ -56,7 +56,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
         }
     }
 
-    name = "SynchronousEPEngine";
+    name = "SynchronousEPEngine:" + configuration.getCouchBucket();
 
     // workload is needed by EPStore's constructor (to construct the
     // VBucketMap).

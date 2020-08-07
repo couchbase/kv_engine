@@ -980,6 +980,30 @@ TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
     this->pool->cancel(taskId, true);
 }
 
+template <>
+ExecutorPoolEpEngineTest<TestExecutorPool>::ExecutorPoolEpEngineTest() {
+    config = "executor_pool_backend=cb3";
+}
+
+template <>
+ExecutorPoolEpEngineTest<FollyExecutorPool>::ExecutorPoolEpEngineTest() {
+    config = "executor_pool_backend=folly";
+}
+
+template <typename T>
+void ExecutorPoolEpEngineTest<T>::SetUp() {
+    engine = SynchronousEPEngine::build(config);
+    ExecutorPoolTest<T>::SetUp();
+}
+
+template <typename T>
+void ExecutorPoolEpEngineTest<T>::TearDown() {
+    engine.reset();
+    ExecutorPool::shutdown();
+}
+
+TYPED_TEST_SUITE(ExecutorPoolEpEngineTest, ExecutorPoolTypes);
+
 class ScheduleOnDestruct {
 public:
     ScheduleOnDestruct(ExecutorPool& pool,
@@ -1093,30 +1117,20 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  * Without the MB-40517 fix, step 4 would deadlock because the ExecutorPool
  * lock is already held by the calling thread.
  */
-TYPED_TEST(ExecutorPoolTest, cancel_can_schedule) {
+TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
         // Not yet implemented for FollyExecutorPool.
         GTEST_SKIP();
     }
-
     // Note: Need to use global ExecutorPool (and not this->pool as typical for
     // ExecutorPoolTest) as we need an EPEngine object for testing memory
     // tracking, and EpEngine will create theglobal ExecutorPool if it doesn't
     // already exist. We don't want two different pools in action...
 
+    auto* pool = ExecutorPool::get();
     // Config: Require only 1 NonIO thread as we want ScheduleOnDestructTask and
     // StopTask to be serialised with respect to each other.
-    std::string config = "num_nonio_threads=1;executor_pool_backend=";
-    if (typeid(TypeParam) == typeid(TestExecutorPool)) {
-        config += "cb3";
-    } else if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
-        config += "folly";
-    } else {
-        FAIL() << "Unsupported ExecutorPool type " << typeid(TypeParam).name();
-    }
-
-    auto engine = SynchronousEPEngine::build(config);
-    auto* pool = ExecutorPool::get();
+    pool->setNumNonIO(1);
 
     // Create and register a MockTaskable to use for the StopTask, as we don't
     // want to account it's memory to the bucket under test. See further
@@ -1128,9 +1142,9 @@ TYPED_TEST(ExecutorPoolTest, cancel_can_schedule) {
     // final StopTask to be run.
     SyncObject cv;
     bool stopTaskHasRun = false;
-    auto memUsedA = engine->getEpStats().getPreciseTotalMemoryUsed();
+    auto memUsedA = this->engine->getEpStats().getPreciseTotalMemoryUsed();
     ExTask task = std::make_shared<ScheduleOnDestructTask>(
-            *engine.get(), mockTaskable, *pool, cv, stopTaskHasRun);
+            *this->engine, mockTaskable, *pool, cv, stopTaskHasRun);
 
     auto id = task->getId();
     ASSERT_EQ(id, pool->schedule(task));
@@ -1146,11 +1160,186 @@ TYPED_TEST(ExecutorPoolTest, cancel_can_schedule) {
         cv.wait(guard, [&stopTaskHasRun] { return stopTaskHasRun; });
     }
 
-    EXPECT_EQ(memUsedA, engine->getEpStats().getPreciseTotalMemoryUsed());
+    EXPECT_EQ(memUsedA, this->engine->getEpStats().getPreciseTotalMemoryUsed());
 
     // Cleanup - want to ensure global ExecutorPool is destroyed at the end of
     // this test, which requires engine is destructed first.
-    engine.reset();
+    this->engine.reset();
     pool->unregisterTaskable(mockTaskable, true);
     pool->shutdown();
+}
+
+// Test that per-bucket memory tracking is handled correctly when
+// tasks are running on background threads.
+TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
+    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
+        // Not yet implemented for FollyExecutorPool.
+        GTEST_SKIP();
+    }
+    if (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
+        // ASan/TSan perform their own interposing of global new / delete, which
+        // means KV-Engine's memory tracking (which this test relies on)
+        // doesn't work.
+        GTEST_SKIP();
+    }
+    // Setup - create a second engine, so there are two buckets which
+    // memory should be accounted to.
+    auto secondEngine = SynchronousEPEngine::build(this->config +
+                                                   ";couch_bucket=\"engine2\"");
+    EventuallyPersistentEngine* engine1 = this->engine.get();
+    EventuallyPersistentEngine* engine2 = secondEngine.get();
+
+    // Task which:
+    // - does nothing on first execution
+    // - allocates memory on second execution
+    // - deallocates memory on third execution.
+    // Note it initially sleeps forever, must be explicitly woken to run.
+    struct MemoryAllocTask : public GlobalTask {
+        MemoryAllocTask(EventuallyPersistentEngine* engine)
+            : GlobalTask(engine, TaskId::ItemPager, INT_MAX, false) {
+        }
+
+        std::string getDescription() override {
+            return "MemoryAllocTask";
+        }
+        std::chrono::microseconds maxExpectedDuration() override {
+            return std::chrono::microseconds(1);
+        }
+
+    protected:
+        bool run() override {
+            // Sleep until we are explicitly told to wake.
+            this->snooze(INT_MAX);
+
+            std::lock_guard<std::mutex> guard(cv);
+            runCount++;
+            if (runCount == 1) {
+                // do nothing.
+            } else if (runCount == 2) {
+                payload.resize(4096);
+            } else if (runCount == 3) {
+                payload.resize(0);
+                payload.shrink_to_fit();
+            }
+            cv.notify_one();
+            return true;
+        }
+
+    public:
+        // Used to guard updates to runCount / notfiy waiting test program.
+        SyncObject cv;
+        int runCount{0};
+        // Some test data which is later expanded / shrunk when task runs.
+        std::vector<char> payload;
+    };
+
+    // Establish initial memory accounting of the bucket, including the
+    // initial payload vector memory.
+    auto getMemUsed = [](EventuallyPersistentEngine* engine) {
+        return engine->getEpStats().getPreciseTotalMemoryUsed();
+    };
+    const auto memoryInitial1 = getMemUsed(engine1);
+    const auto memoryInitial2 = getMemUsed(engine2);
+
+    // Setup - create an instance of MemoryAllocTask for each bucket.
+    auto task1 = [&] {
+        BucketAllocationGuard guard(engine1);
+        return std::make_shared<MemoryAllocTask>(engine1);
+    }();
+
+    auto task2 = [&] {
+        BucketAllocationGuard guard(engine2);
+        return std::make_shared<MemoryAllocTask>(engine2);
+    }();
+
+    // Sanity check - memory should have increased by at least
+    // sizeof(MemoryAllocTask) for each engine.
+    const auto memoryPostTaskCreate1 = getMemUsed(engine1);
+    ASSERT_GE(memoryPostTaskCreate1 - memoryInitial1, sizeof(MemoryAllocTask))
+            << "engine1 mem_used has not grown by at least sizeof(task) after "
+               "creating it.";
+
+    const auto memoryPostTaskCreate2 = getMemUsed(engine2);
+    ASSERT_GE(memoryPostTaskCreate2 - memoryInitial2, sizeof(MemoryAllocTask))
+            << "engine2 mem_used has not grown by at least sizeof(task) after "
+               "creating it.";
+
+    // Test 1: Schedule both tasks - memory usage shouldn't have changed - any
+    // internal memory used by ExecutorPool to track task shouldn't be accounted
+    // to bucket.
+    ExecutorPool::get()->schedule(task1);
+    ExecutorPool::get()->schedule(task2);
+    const auto memoryPostTaskSchedule1 = getMemUsed(engine1);
+    ASSERT_EQ(memoryPostTaskCreate1, memoryPostTaskSchedule1)
+            << "engine1 mem_used has unexpectedly changed after calling "
+               "ExecutorPool::schedule()";
+    const auto memoryPostTaskSchedule2 = getMemUsed(engine2);
+    ASSERT_EQ(memoryPostTaskCreate2, memoryPostTaskSchedule2)
+            << "engine2 mem_used has unexpectedly changed after calling "
+               "ExecutorPool::schedule()";
+
+    // Test 2 - wake each buckets' MemoryAllocTask, then check mem_used has
+    // not changed on first execution.
+    ExecutorPool::get()->wake(task1->getId());
+    {
+        std::unique_lock<std::mutex> guard(task1->cv);
+        task1->cv.wait(guard, [&task1] { return task1->runCount == 1; });
+    }
+    ExecutorPool::get()->wake(task2->getId());
+    {
+        std::unique_lock<std::mutex> guard(task2->cv);
+        task2->cv.wait(guard, [&task2] { return task2->runCount == 1; });
+    }
+    const auto memoryPostTaskFirstRun1 = getMemUsed(engine1);
+    EXPECT_EQ(memoryPostTaskFirstRun1, memoryPostTaskCreate1)
+            << "engine1 mem_used has unexpectedly changed after running task "
+               "once";
+    const auto memoryPostTaskFirstRun2 = getMemUsed(engine2);
+    EXPECT_GE(memoryPostTaskFirstRun2, memoryPostTaskCreate2)
+            << "engine2 mem_used has unexpectedly changed after running task "
+               "once";
+
+    // Test 3 - wake each buckets' MemoryAllocTask, then check mem_used has
+    // changed after second execution.
+    ExecutorPool::get()->wake(task1->getId());
+    {
+        std::unique_lock<std::mutex> guard(task1->cv);
+        task1->cv.wait(guard, [&task1] { return task1->runCount == 2; });
+    }
+    ExecutorPool::get()->wake(task2->getId());
+    {
+        std::unique_lock<std::mutex> guard(task2->cv);
+        task2->cv.wait(guard, [&task2] { return task2->runCount == 2; });
+    }
+    const auto memoryPostTaskSecondRun1 = getMemUsed(engine1);
+    EXPECT_GE(memoryPostTaskSecondRun1,
+              memoryPostTaskCreate1 + task1->payload.size())
+            << "engine1 mem_used has not grown by payload.size() after "
+               "running task twice.";
+    const auto memoryPostTaskSecondRun2 = getMemUsed(engine2);
+    EXPECT_GE(memoryPostTaskSecondRun2,
+              memoryPostTaskCreate2 + task2->payload.size())
+            << "engine2 mem_used has not grown by payload.size() after "
+               "running task twice.";
+
+    // Test 4 - wake each task again, this time the memory usage should drop
+    // back down.
+    ExecutorPool::get()->wake(task1->getId());
+    {
+        std::unique_lock<std::mutex> guard(task1->cv);
+        task1->cv.wait(guard, [&task1] { return task1->runCount == 3; });
+    }
+    ExecutorPool::get()->wake(task2->getId());
+    {
+        std::unique_lock<std::mutex> guard(task2->cv);
+        task2->cv.wait(guard, [&task2] { return task2->runCount == 3; });
+    }
+    const auto memoryPostTaskThirdRun1 = getMemUsed(engine1);
+    EXPECT_EQ(memoryPostTaskThirdRun1, memoryPostTaskCreate1)
+            << "engine1 mem_used has not returned back to previous value after "
+               "running task a third time.";
+    const auto memoryPostTaskThirdRun2 = getMemUsed(engine2);
+    EXPECT_EQ(memoryPostTaskThirdRun2, memoryPostTaskCreate2)
+            << "engine2 mem_used has not returned back to previous value after "
+               "running task a third time.";
 }

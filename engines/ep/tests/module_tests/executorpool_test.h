@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "../mock/mock_taskable.h"
 #include "executorpool.h"
 #include "fakes/fake_executorpool.h"
@@ -61,6 +62,23 @@ protected:
                   int numNonIO = 2);
 
     std::unique_ptr<T> pool;
+};
+
+/**
+ * Test fixture for ExecutorPool tests which require a full EPEngine instance.
+ * @tparam T
+ */
+template <typename T>
+class ExecutorPoolEpEngineTest : public ExecutorPoolTest<T> {
+protected:
+    ExecutorPoolEpEngineTest();
+
+    void SetUp() override;
+    void TearDown() override;
+
+    // Config string to use when creating EpEngine
+    std::string config;
+    SynchronousEPEngineUniquePtr engine;
 };
 
 class SingleThreadedExecutorPoolTest : public ::testing::Test {
