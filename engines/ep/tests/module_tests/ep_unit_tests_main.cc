@@ -88,7 +88,8 @@ public:
 int main(int argc, char **argv) {
     setupWindowsDebugCRTAssertHandling();
 
-    bool verbose_logging = false;
+    spdlog::level::level_enum spd_log_level =
+            spdlog::level::level_enum::critical;
 
     // Initialise GoogleMock (and GoogleTest), consuming any cmd-line arguments
     // it owns before we check our own.
@@ -104,7 +105,22 @@ int main(int argc, char **argv) {
     while (!invalid_argument && (cmd = getopt(argc, argv, "vt")) != EOF) {
         switch (cmd) {
         case 'v':
-            verbose_logging = true;
+            // Maximum of 3 levels of verbose logging (info, debug, trace),
+            // initially only show critical messages.
+            switch (spd_log_level) {
+            case spdlog::level::level_enum::critical:
+                spd_log_level = spdlog::level::level_enum::info;
+                break;
+            case spdlog::level::level_enum::info:
+                spd_log_level = spdlog::level::level_enum::debug;
+                break;
+            case spdlog::level::level_enum::debug:
+                spd_log_level = spdlog::level::level_enum::trace;
+                break;
+            default:
+                // Cannot increase further.
+                break;
+            }
             break;
         case 't':
             threadCacheEnabled = true;
@@ -113,7 +129,8 @@ int main(int argc, char **argv) {
             std::cerr << "Usage: " << argv[0] << " [-v] [gtest_options...]"
                       << std::endl
                       << std::endl
-                      << "  -v Verbose - Print verbose output to stderr.\n"
+                      << "  -v Verbose - Print verbose output to stderr. Use "
+                         "multiple times to increase verbosity\n"
                       << "  -t Alloc Thread Cache On - Use thread-caching "
                       << "in malloc/calloc etc...\n"
                       << std::endl;
@@ -134,10 +151,6 @@ int main(int argc, char **argv) {
 
     // Create the console logger for test case output
     cb::logger::createConsoleLogger();
-    const auto spd_log_level = verbose_logging
-                                       ? spdlog::level::level_enum::debug
-                                       : spdlog::level::level_enum::critical;
-
     // Set the logging level in the api then setup the BucketLogger
     get_mock_server_api()->log->get_spdlogger()->set_level(spd_log_level);
     BucketLogger::setLoggerAPI(get_mock_server_api()->log);
