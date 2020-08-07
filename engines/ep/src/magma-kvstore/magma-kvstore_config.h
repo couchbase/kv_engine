@@ -64,11 +64,8 @@ public:
     bool getMagmaEnableDirectIo() const {
         return magmaEnableDirectIo;
     }
-    size_t getMagmaWalBufferSize() const {
-        return magmaWalBufferSize;
-    }
-    size_t getMagmaWalNumBuffers() const {
-        return magmaWalNumBuffers;
+    size_t getMagmaInitialWalBufferSize() const {
+        return magmaInitialWalBufferSize;
     }
     size_t getMagmaNumFlushers() const {
         return magmaNumFlushers;
@@ -154,11 +151,7 @@ private:
     // flushing. This buffer contains the items along with control records
     // like begin/end transaction. It can be flushed many times for a batch
     // of items.
-    size_t magmaWalBufferSize;
-
-    // When batches of items are large, magma WAL can take advantage of double
-    // buffering to speed up persistence.
-    size_t magmaWalNumBuffers;
+    size_t magmaInitialWalBufferSize;
 
     // Number of background threads to flush filled memtables to disk
     size_t magmaNumFlushers;

@@ -439,9 +439,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.MaxWriteCacheSize =
             configuration.getMagmaMaxWriteCache();
     configuration.magmaCfg.WALBufferSize =
-            configuration.getMagmaWalBufferSize();
-    configuration.magmaCfg.NumWALBuffers =
-            configuration.getMagmaWalNumBuffers();
+            configuration.getMagmaInitialWalBufferSize();
     configuration.magmaCfg.NumFlushers = configuration.getMagmaNumFlushers();
     configuration.magmaCfg.NumCompactors =
             configuration.getMagmaNumCompactors();

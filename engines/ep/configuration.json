@@ -1083,16 +1083,10 @@
             "descr": "Using direct IO tells magma to bypass the file system cache when writing or reading sstables.",
             "type": "bool"
         },
-        "magma_wal_buffer_size": {
-            "default": "2097152",
+        "magma_initial_wal_buffer_size": {
+            "default": "65536",
             "dynamic": false,
-            "descr": "The WAL buffer is used to stage items to the write ahead log along with control information like begin & end transaction. The WAL can support multiple buffers allowing for improved write performance when transaction batches are > magma_wal_buffer_size. This value should be increased if the size of item batches are > 2MB, whether its because the item sizes are > 2MB or the number of items in a batch > 2MB.",
-            "type": "size_t"
-        },
-        "magma_wal_num_buffers": {
-            "default": "1",
-            "dynamic": false,
-            "descr": "When batches of items are large in size, magma WAL can take advantage of double buffering to speed up persistence by flushing intermediate batches to disk. Atomicity is maintained through the use of begin/end transaction control records.",
+            "descr": "The WAL buffer is used to stage items to the write ahead log along with control information like begin and end transaction. This parameter refers to the initial WAL buffer size. The WAL buffer will adjust its size up to a maximum of 4MB or down to a minimum of 64KB depending on the transaction batch size with consideration for other magma components which consume memory such as the block cache, bloom filters, write cache and meta data overhead.",
             "type": "size_t"
         },
         "magma_num_flushers": {
