@@ -1118,10 +1118,6 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
  * lock is already held by the calling thread.
  */
 TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
-    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
-        // Not yet implemented for FollyExecutorPool.
-        GTEST_SKIP();
-    }
     // Note: Need to use global ExecutorPool (and not this->pool as typical for
     // ExecutorPoolTest) as we need an EPEngine object for testing memory
     // tracking, and EpEngine will create theglobal ExecutorPool if it doesn't
@@ -1172,10 +1168,6 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
 // Test that per-bucket memory tracking is handled correctly when
 // tasks are running on background threads.
 TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
-    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
-        // Not yet implemented for FollyExecutorPool.
-        GTEST_SKIP();
-    }
     if (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
         // ASan/TSan perform their own interposing of global new / delete, which
         // means KV-Engine's memory tracking (which this test relies on)

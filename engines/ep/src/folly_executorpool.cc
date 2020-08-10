@@ -70,6 +70,9 @@ struct FollyExecutorPool::TaskProxy
         ExTask taskToDelete;
         task.swap(taskToDelete);
         cpuPool.add([taskToDelete = std::move(taskToDelete)]() mutable {
+            // We must account the destruction of the GlobalTask to the bucket
+            // which owns it.
+            BucketAllocationGuard guard(taskToDelete->getEngine());
             taskToDelete.reset();
         });
     }
@@ -551,6 +554,8 @@ size_t FollyExecutorPool::getNumReadyTasks() {
 }
 
 void FollyExecutorPool::registerTaskable(Taskable& taskable) {
+    NonBucketAllocationGuard guard;
+
     futurePool->getEventBase()->runInEventBaseThreadAndWait(
             [state = this->state.get(), &taskable]() {
                 state->addTaskable(taskable);
@@ -559,6 +564,8 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
 
 std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
                                                           bool force) {
+    NonBucketAllocationGuard guard;
+
     EP_LOG_TRACE(
             "FollyExecutorPool::unregisterTaskable() taskable:'{}' force:{}",
             taskable.getName(),
@@ -630,6 +637,8 @@ size_t FollyExecutorPool::getNumTaskables() const {
 }
 
 size_t FollyExecutorPool::schedule(ExTask task) {
+    NonBucketAllocationGuard guard;
+
     using namespace std::chrono;
     EP_LOG_TRACE(
             "FollyExecutorPool::schedule() id:{} name:{} type:{} wakeTime:{}",
@@ -649,6 +658,8 @@ size_t FollyExecutorPool::schedule(ExTask task) {
 }
 
 bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
+    NonBucketAllocationGuard guard;
+
     EP_LOG_TRACE("FollyExecutorPool::cancel() id:{} eraseTask:{}",
                  taskId,
                  eraseTask);
@@ -663,6 +674,8 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
 }
 
 bool FollyExecutorPool::wake(size_t taskId) {
+    NonBucketAllocationGuard guard;
+
     EP_LOG_TRACE("FollyExecutorPool::wake() id:{}", taskId);
 
     auto* eventBase = futurePool->getEventBase();
@@ -675,6 +688,7 @@ bool FollyExecutorPool::wake(size_t taskId) {
 }
 
 bool FollyExecutorPool::snooze(size_t taskId, double toSleep) {
+    NonBucketAllocationGuard guard;
     using namespace std::chrono;
     EP_LOG_TRACE(
             "FollyExecutorPool::snooze() id:{} toSleep:{}", taskId, toSleep);
