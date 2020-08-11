@@ -780,6 +780,9 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
         size_t tid = pair.first;
         ExTask& task = pair.second.first;
 
+        if (task->getTaskable().getGID() != taskable.getGID()) {
+            continue;
+        }
         nlohmann::json obj;
 
         obj["tid"] = tid;
