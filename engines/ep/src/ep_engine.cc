@@ -5740,7 +5740,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     ENGINE_ERROR_CODE ret;
     try {
         // MB-37374: Accept user-xattrs, body is still invalid
-        const auto datatype = uint8_t(request.getDatatype());
+        auto datatype = uint8_t(request.getDatatype());
         cb::compression::Buffer uncompressedValue;
         if (mcbp::datatype::is_snappy(datatype)) {
             if (!cb::compression::inflate(
@@ -5752,6 +5752,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                 return ENGINE_EINVAL;
             }
             value = uncompressedValue;
+            datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
         }
 
         if (allowDelWithMetaPruneUserData) {

@@ -77,9 +77,10 @@ protected:
      *
      * @param allowValuePruning Whether the engine sanitizes bad user payloads
      *  or fails the request
-     * @param withBody Whether the payload contains a body
+     * @param compressed Whether the payload is compressed
      */
-    void testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning);
+    void testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
+                                             bool compressed = false);
 
     /**
      * Test that DelWithMeta rejects body in the payload.
@@ -260,7 +261,8 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
     EXPECT_TRUE(sresp.isSuccess()) << sresp.getStatus();
 }
 
-void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning) {
+void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
+                                                       bool compressed) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
     if (::testing::get<1>(GetParam()) == XattrSupport::No ||
         ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
@@ -285,13 +287,30 @@ void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning) {
     const auto xattrs = blob.finalize();
     document.value.clear();
     std::copy(xattrs.begin(), xattrs.end(), std::back_inserter(document.value));
-    document.info.datatype = cb::mcbp::Datatype::Xattr;
+    using Datatype = cb::mcbp::Datatype;
+    document.info.datatype = Datatype::Xattr;
+
+    if (compressed) {
+        cb::compression::Buffer deflated;
+        ASSERT_TRUE(cb::compression::deflate(
+                cb::compression::Algorithm::Snappy,
+                {document.value.c_str(), document.value.size()},
+                deflated));
+        document.value = {deflated.data(), deflated.size()};
+        document.info.datatype =
+                Datatype(static_cast<uint8_t>(cb::mcbp::Datatype::Xattr) |
+                         static_cast<uint8_t>(cb::mcbp::Datatype::Snappy));
+    }
 
     BinprotDelWithMetaCommand delWithMeta(
             document, Vbid(0), 0, 0 /*delTime*/, 1 /*seqno*/, 0 /*opCas*/);
     auto& conn = getConnection();
     const auto resp = BinprotMutationResponse(conn.execute(delWithMeta));
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    const auto expectedStatus = compressed && ::testing::get<3>(GetParam()) ==
+                                                        ClientSnappySupport::No
+                                        ? cb::mcbp::Status::Einval
+                                        : cb::mcbp::Status::Success;
+    EXPECT_EQ(expectedStatus, resp.getStatus());
 }
 
 TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs) {
@@ -300,6 +319,10 @@ TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs) {
 
 TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs_AllowValuePruning) {
     testDeleteWithMetaAcceptsUserXattrs(true);
+}
+
+TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs_Compressed) {
+    testDeleteWithMetaAcceptsUserXattrs(false, true);
 }
 
 void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
