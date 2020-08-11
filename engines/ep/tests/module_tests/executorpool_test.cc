@@ -652,40 +652,38 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 
     using namespace testing;
     const void* cookie = this;
-    EXPECT_CALL(mockAddStat, callback("reader_worker_0:state", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("reader_worker_0:task", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("reader_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:state", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:task", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:cur_time", _, cookie));
 
-    EXPECT_CALL(mockAddStat, callback("writer_worker_0:state", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("writer_worker_0:task", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("writer_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:state", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:task", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:cur_time", _, cookie));
 
-    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:state", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:task", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:state", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:task", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:cur_time", _, cookie));
 
     // NonIO pool has the above ItemPager task running on it.
+    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:bucket", "bucket0", cookie));
+    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:state", "running", cookie));
     EXPECT_CALL(mockAddStat,
-                callback("nonIO_worker_0:bucket", "bucket0", cookie));
-    EXPECT_CALL(mockAddStat,
-                callback("nonIO_worker_0:state", "running", cookie));
-    EXPECT_CALL(mockAddStat,
-                callback("nonIO_worker_0:task", "Lambda Task", cookie));
+                callback("NonIO_worker_0:task", "Lambda Task", cookie));
     // The 'runtime' stat is only reported if the thread is in state
     // EXECUTOR_RUNNING. Nominally it will only be in that state when actually
     // running a task, however it also briefly exists in that state when
     // first started, before it determines if there is a Task to run.
     // As such, allow 'runtime' to be reported, but it is optional for all but
     // the NonIO pool, where we *know* we have the above test task running.
-    EXPECT_CALL(mockAddStat, callback("reader_worker_0:runtime", _, cookie))
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:runtime", _, cookie))
             .Times(AtMost(1));
-    EXPECT_CALL(mockAddStat, callback("writer_worker_0:runtime", _, cookie))
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:runtime", _, cookie))
             .Times(AtMost(1));
-    EXPECT_CALL(mockAddStat, callback("auxIO_worker_0:runtime", _, cookie))
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:runtime", _, cookie))
             .Times(AtMost(1));
 
-    EXPECT_CALL(mockAddStat, callback("nonIO_worker_0:runtime", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("nonIO_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:runtime", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:cur_time", _, cookie));
 
     this->pool->doWorkerStat(bucket0, this, mockAddStat.asStdFunction());
 

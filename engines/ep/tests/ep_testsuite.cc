@@ -3854,18 +3854,18 @@ static enum test_result test_worker_stats(EngineIface* h) {
     statelist.insert("shutdown");
     statelist.insert("dead");
 
-    std::string worker_0_task = vals["reader_worker_0:task"];
+    std::string worker_0_task = vals["Reader_worker_0:task"];
     unsigned pos = worker_0_task.find(":");
     worker_0_task = worker_0_task.substr(0, pos ? pos : worker_0_task.size());
-    std::string worker_0_state = vals["reader_worker_0:state"];
+    std::string worker_0_state = vals["Reader_worker_0:state"];
     check(tasklist.find(worker_0_task)!=tasklist.end(),
           "worker_0's Current task incorrect");
     check(statelist.find(worker_0_state)!=statelist.end(),
           "worker_0's state incorrect");
-    std::string worker_1_task = vals["reader_worker_1:task"];
+    std::string worker_1_task = vals["Reader_worker_1:task"];
     pos = worker_1_task.find(":");
     worker_1_task = worker_1_task.substr(0, pos ? pos : worker_1_task.size());
-    std::string worker_1_state = vals["reader_worker_1:state"];
+    std::string worker_1_state = vals["Reader_worker_1:state"];
     check(tasklist.find(worker_1_task)!=tasklist.end(),
           "worker_1's Current task incorrect");
     check(statelist.find(worker_1_state)!=statelist.end(),

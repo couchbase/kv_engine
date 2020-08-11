@@ -31,7 +31,7 @@ TaskQueue::~TaskQueue() {
 }
 
 const std::string TaskQueue::getName() const {
-    return (name+taskType2Str(queueType));
+    return name + to_string(queueType);
 }
 
 size_t TaskQueue::getReadyQueueSize() {
@@ -252,19 +252,4 @@ void TaskQueue::_wake(ExTask &task) {
 void TaskQueue::wake(ExTask &task) {
     NonBucketAllocationGuard guard;
     _wake(task);
-}
-
-const std::string TaskQueue::taskType2Str(task_type_t type) {
-    switch (type) {
-    case WRITER_TASK_IDX:
-        return std::string("Writer");
-    case READER_TASK_IDX:
-        return std::string("Reader");
-    case AUXIO_TASK_IDX:
-        return std::string("AuxIO");
-    case NONIO_TASK_IDX:
-        return std::string("NonIO");
-    default:
-        return std::string("None");
-    }
 }

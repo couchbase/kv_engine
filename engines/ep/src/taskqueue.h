@@ -63,8 +63,6 @@ public:
 
     void wake(ExTask &task);
 
-    static const std::string taskType2Str(task_type_t type);
-
     const std::string getName() const;
 
     task_type_t getQueueType() const {
