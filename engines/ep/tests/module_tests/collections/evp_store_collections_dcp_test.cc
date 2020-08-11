@@ -1197,7 +1197,7 @@ TEST_P(CollectionsDcpParameterizedTest, tombstone_snapshots_disconnect_memory) {
 // Test that we apply the latest manifest when we promote a vBucket from
 // replica to active. We don't expect ns_server to send the manifest again so
 // we need apply it on promotion
-TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest) {
+void CollectionsDcpParameterizedTest::testVBPromotionUpdateManifest() {
     // Add fruit to the manifest
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
@@ -1216,6 +1216,20 @@ TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest) {
     // the replica manifest.
     store->setVBucketState(replicaVB, vbucket_state_active);
     EXPECT_TRUE(replica->lockCollections().exists(CollectionEntry::fruit));
+}
+
+TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest_replica) {
+    testVBPromotionUpdateManifest();
+}
+
+TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest_pending) {
+    store->setVBucketState(replicaVB, vbucket_state_pending);
+    testVBPromotionUpdateManifest();
+}
+
+TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest_dead) {
+    store->setVBucketState(replicaVB, vbucket_state_dead);
+    testVBPromotionUpdateManifest();
 }
 
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {

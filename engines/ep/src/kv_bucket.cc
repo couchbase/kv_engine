@@ -927,10 +927,8 @@ void KVBucket::setVBucketState_UNLOCKED(
 
     /**
      * Expect this to happen for failover
-     * @TODO Pending->Active probably needs to update the VB::Manifest too, it's
-     *       currently creating a new checkpoint further down this function.
      */
-    if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
+    if (to == vbucket_state_active && oldstate != vbucket_state_active) {
         /**
          * Create a new checkpoint to ensure that we do not now write to a
          * Disk checkpoint. This updates the snapshot range to maintain the
@@ -944,6 +942,11 @@ void KVBucket::setVBucketState_UNLOCKED(
          * that was not replicated via DCP.
          */
         collectionsManager->update(*vb);
+
+        // MB-37917: The vBucket is becoming an active and can no longer be
+        // receiving an initial disk snapshot. It is now the source of truth so
+        // we should not prevent any Consumer from streaming from it.
+        vb->setReceivingInitialDiskSnapshot(false);
     }
 
     if (to == vbucket_state_active && oldstate != vbucket_state_active &&
@@ -967,22 +970,9 @@ void KVBucket::setVBucketState_UNLOCKED(
     }
 
     if (oldstate == vbucket_state_pending && to == vbucket_state_active) {
-        /**
-         * Create a new checkpoint to ensure that we do not now write to a
-         * Disk checkpoint.
-         */
-        vb->checkpointManager->createNewCheckpoint();
-
         ExTask notifyTask =
                 std::make_shared<PendingOpsNotification>(engine, vb);
         ExecutorPool::get()->schedule(notifyTask);
-    }
-
-    if (oldstate != vbucket_state_active && to == vbucket_state_active) {
-        // MB-37917: The vBucket is becoming an active and can no longer be
-        // receiving an initial disk snapshot. It is now the source of truth so
-        // we should not prevent any Consumer from streaming from it.
-        vb->setReceivingInitialDiskSnapshot(false);
     }
 
     scheduleVBStatePersist(vb->getId());

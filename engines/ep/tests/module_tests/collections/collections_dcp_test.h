@@ -122,4 +122,10 @@ public:
     void TearDown() override {
         CollectionsDcpTest::TearDown();
     }
+
+protected:
+    /**
+     * Test what happens to the manifest when we promote a vBucket
+     */
+    void testVBPromotionUpdateManifest();
 };
