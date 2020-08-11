@@ -16,6 +16,8 @@
  */
 
 #include "mock_ep_bucket.h"
+
+#include "collections/manager.h"
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "failover-table.h"
@@ -105,4 +107,10 @@ void MockEPBucket::setDurabilityCompletionTask(
 
 Flusher* MockEPBucket::getFlusherNonConst(Vbid vbid) {
     return vbMap.getShardByVbId(vbid)->getFlusher();
+}
+
+void MockEPBucket::setCollectionsManagerPreSetStateAtWarmupHook(
+        std::function<void()> hook) {
+    Expects(collectionsManager.get());
+    collectionsManager->preSetStateAtWarmupHook = hook;
 }

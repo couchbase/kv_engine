@@ -32,10 +32,13 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/ep_request_utils.h"
 #include "tests/mock/mock_couch_kvstore.h"
+#include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
+#include "warmup.h"
+
 #include <utilities/test_manifest.h>
 
 #include <folly/portability/GMock.h>
@@ -1267,6 +1270,30 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     // Fruit is enabled
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"grape", CollectionEntry::fruit}));
+}
+
+TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
+    // Reset but don't actually run the warmup yet
+    resetEngineAndEnableWarmup();
+
+    // Set the manifest before we run the "CreateVBuckets" phase of warmup. This
+    // ensures that we have a new manifest that requires setting when we
+    // complete warmup
+    CollectionsManifest cm;
+    cm.remove(CollectionEntry::defaultC);
+    store->setCollections(std::string{cm});
+
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    mockEPBucket->setCollectionsManagerPreSetStateAtWarmupHook([this]() {
+        // We should not be able to lock exclusively here as we should already
+        // have a read handle on the VBucket state lock
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+        EXPECT_FALSE(vb->getStateLock().try_lock());
+        EXPECT_TRUE(vb->getStateLock().try_lock_shared());
+    });
+
+    runReadersUntilWarmedUp();
 }
 
 /**

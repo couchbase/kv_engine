@@ -1979,6 +1979,11 @@ void EPBucket::warmupCompleted() {
     ExTask task = std::make_shared<StatSnap>(&engine, 0, false);
     statsSnapshotTaskId = iom->schedule(task);
 
+    // Whilst we do schedule a compaction here and it can run before we call
+    // initializeShards below (which sets makeCompactionContext), this scheduled
+    // compaction will execute correctly as it takes the compactDB path which
+    // will generate a compaction context in EPBucket instead of by calling
+    // makeCompactionContext.
     collectionsManager->warmupCompleted(*this);
 
     // Now warmup is completed, reconfigure each KVStore to use the "proper"

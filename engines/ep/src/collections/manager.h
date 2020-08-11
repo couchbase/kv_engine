@@ -192,6 +192,11 @@ public:
             const AddStatFn& add_stat,
             const std::string& statKey);
 
+    /**
+     * Test only hook
+     */
+    std::function<void()> preSetStateAtWarmupHook;
+
 private:
     /**
      * Apply newManifest to all active vbuckets

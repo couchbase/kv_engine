@@ -109,6 +109,8 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
     for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(Vbid(i));
 
+        // We took a lock on the vbsetMutex (all vBucket states) to guard state
+        // changes here) in KVBucket::setCollections.
         if (vb && vb->getState() == vbucket_state_active) {
             bool abort = false;
             auto status = vb->updateFromManifest(newManifest);
@@ -273,6 +275,21 @@ void Collections::Manager::warmupCompleted(KVBucket& bucket) const {
             if (vb->lockCollections().isDropInProgress()) {
                 Collections::VB::Flush::triggerPurge(vbid, bucket);
             }
+
+            // RLH for the state as we need to ensure that the state of the
+            // vBucket doesn't change underneath us. Why?
+            //
+            // 1) It's not valid for a replica to set the vBucket manifest in
+            // this way, it must do it via DCP
+            //
+            // 2) We could end up trying to access a PDM that does not exist
+            // when dropping a collection if we change from active to non-active
+            // to active again.
+            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            if (preSetStateAtWarmupHook) {
+                preSetStateAtWarmupHook();
+            }
+
             if (vb->getState() == vbucket_state_active) {
                 update(*vb);
             }

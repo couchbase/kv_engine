@@ -925,6 +925,8 @@ void KVBucket::setVBucketState_UNLOCKED(
 
     /**
      * Expect this to happen for failover
+     * @TODO Pending->Active probably needs to update the VB::Manifest too, it's
+     *       currently creating a new checkpoint further down this function.
      */
     if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
         /**
