@@ -797,7 +797,7 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
         obj["last_starttime_ns"] =
                 to_ns_since_epoch(task->getLastStartTime()).count();
         obj["previous_runtime_ns"] = task->getPrevRuntime().count();
-        obj["num_runs"] = taskable.getRunCount(task->getTaskId());
+        obj["num_runs"] = task->getRunCount();
         obj["type"] = to_string(GlobalTask::getTaskType(task->getTaskId()));
 
         list.push_back(obj);

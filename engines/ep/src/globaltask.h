@@ -192,12 +192,17 @@ public:
         return std::chrono::nanoseconds(previousRuntime);
     }
 
+    uint64_t getRunCount() const {
+        return runCount;
+    }
+
     void updateRuntime(std::chrono::steady_clock::duration tp) {
         int64_t nanoseconds =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
                         .count();
         totalRuntime += nanoseconds;
         previousRuntime = nanoseconds;
+        runCount++;
     }
 
     queue_priority_t getQueuePriority() const {
@@ -282,6 +287,8 @@ protected:
     atomic_duration totalRuntime;
     atomic_duration previousRuntime;
     atomic_time_point lastStartTime;
+    /// How many times this task has been run.
+    std::atomic<uint64_t> runCount{0};
 
 private:
     atomic_time_point waketime; // used for priority_queue

@@ -75,12 +75,6 @@ public:
     virtual void logRunTime(
             TaskId id, const std::chrono::steady_clock::duration runTime) = 0;
 
-    /**
-     * @returns the number of times the given task has run (as determined by
-     * the number of times logRuntime() has been called).
-     */
-    virtual uint64_t getRunCount(TaskId) = 0;
-
     /// @returns True if the Taskable is (in the process of) shutting down.
     virtual bool isShutdown() = 0;
 

@@ -42,8 +42,6 @@ public:
     void logRunTime(TaskId id,
                     const std::chrono::steady_clock::duration runTime) override;
 
-    uint64_t getRunCount(TaskId id) override;
-
     bool isShutdown() override;
 
     void setName(std::string name);

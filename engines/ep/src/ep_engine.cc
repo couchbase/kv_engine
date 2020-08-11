@@ -6640,12 +6640,6 @@ bool EpEngineTaskable::isShutdown() {
     return myEngine->getEpStats().isShutdown;
 }
 
-uint64_t EpEngineTaskable::getRunCount(TaskId id) {
-    return myEngine->getEpStats()
-            .taskRuntimeHisto[static_cast<int>(id)]
-            .getValueCount();
-}
-
 item_info EventuallyPersistentEngine::getItemInfo(const Item& item) {
     VBucketPtr vb = getKVBucket()->getVBucket(item.getVBucketId());
     uint64_t uuid = 0;

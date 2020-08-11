@@ -51,10 +51,6 @@ bool MockTaskable::isShutdown() {
     return false;
 }
 
-uint64_t MockTaskable::getRunCount(TaskId id) {
-    return 0;
-}
-
 void MockTaskable::setName(std::string name_) {
     name = name_;
 }
