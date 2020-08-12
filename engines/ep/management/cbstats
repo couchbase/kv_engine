@@ -177,8 +177,8 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
                 task["total_runtime_ns"] = ps_time_stat(
                                                    task["total_runtime_ns"])
 
-                if task["state"] == "RUNNING":
-                    # task is running
+                if task["last_starttime_ns"] != 0:
+                    # task is running (currently executing).
                     runtime = ps_time_stat(cur_time - task["last_starttime_ns"])
 
                     #  Mark runtime of running tasks with asterisk

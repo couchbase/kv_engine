@@ -24,8 +24,13 @@
 #include <array>
 
 enum task_state_t {
+    /// Runnable/Running: Task is ready to run (but awaiting a thread to run
+    /// on), or is currently executing on a worker thread.
     TASK_RUNNING,
+    /// Task is active, but waiting to run (either at a specific future time,
+    /// or waiting for some event to wake it up.
     TASK_SNOOZED,
+    /// Task is dead, will not run again.
     TASK_DEAD
 };
 
@@ -200,6 +205,7 @@ public:
         int64_t nanoseconds =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
                         .count();
+        lastStartTime = 0;
         totalRuntime += nanoseconds;
         previousRuntime = nanoseconds;
         runCount++;
@@ -286,6 +292,11 @@ protected:
 
     atomic_duration totalRuntime;
     atomic_duration previousRuntime;
+    /**
+     * If the task is currently executing, the time it started. If the task
+     * is not currently executing then zero.
+     * Can be used to measure task runtime so far before task finishes.
+     */
     atomic_time_point lastStartTime;
     /// How many times this task has been run.
     std::atomic<uint64_t> runCount{0};
