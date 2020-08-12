@@ -576,17 +576,31 @@ void FollyExecutorPool::setNumNonIO(uint16_t v) {
 }
 
 size_t FollyExecutorPool::getNumSleepers() {
-    std::abort();
-    return 0;
+    return readerPool->getPoolStats().idleThreadCount +
+           writerPool->getPoolStats().idleThreadCount +
+           auxPool->getPoolStats().idleThreadCount +
+           nonIoPool->getPoolStats().idleThreadCount;
 }
 
 size_t FollyExecutorPool::getNumReadyTasks() {
-    std::abort();
-    return 0;
+    return readerPool->getPendingTaskCount() +
+           writerPool->getPendingTaskCount() + auxPool->getPendingTaskCount() +
+           nonIoPool->getPendingTaskCount();
 }
 
 void FollyExecutorPool::registerTaskable(Taskable& taskable) {
     NonBucketAllocationGuard guard;
+
+    if (taskable.getWorkLoadPolicy().getBucketPriority() <
+        HIGH_BUCKET_PRIORITY) {
+        taskable.setWorkloadPriority(LOW_BUCKET_PRIORITY);
+        EP_LOG_INFO("Taskable {} registered with low priority",
+                    taskable.getName());
+    } else {
+        taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
+        EP_LOG_INFO("Taskable {} registered with high priority",
+                    taskable.getName());
+    }
 
     futurePool->getEventBase()->runInEventBaseThreadAndWait(
             [state = this->state.get(), &taskable]() {
@@ -797,7 +811,69 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
 void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                                     const void* cookie,
                                     const AddStatFn& add_stat) {
-    std::abort();
+    NonBucketAllocationGuard guard;
+
+    // Take a copy of the taskOwners map (so we don't have to acquire any
+    // locks etc to calculate stats).
+    auto* eventBase = futurePool->getEventBase();
+    TaskOwnerMap taskOwnersCopy;
+    eventBase->runInEventBaseThreadAndWait(
+            [state = this->state.get(), &taskOwnersCopy] {
+                taskOwnersCopy = state->copyTaskOwners();
+            });
+
+    // Count how many tasks of each type are waiting to run - defined by
+    // having an outstanding timeout.
+    // Note: This mimics the behaviour of CB3ExecutorPool, which counts _all_
+    // tasks across all taskables. This may or may not be the correct
+    // behaviour...
+    std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
+    for (const auto& owner : taskOwnersCopy) {
+        for (const auto& task : owner.second) {
+            if (task.second->isScheduled()) {
+                const auto type =
+                        GlobalTask::getTaskType(task.second->task->getTaskId());
+                waitingTasksPerGroup[type]++;
+            }
+        }
+    }
+
+    // Currently FollyExecutorPool implements a single task queue (per task
+    // type) - report that as low priority.
+    fmt::memory_buffer buf;
+    add_casted_stat("ep_workload:LowPrioQ_Writer:InQsize",
+                    waitingTasksPerGroup[WRITER_TASK_IDX],
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_Reader:InQsize",
+                    waitingTasksPerGroup[READER_TASK_IDX],
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_AuxIO:InQsize",
+                    waitingTasksPerGroup[AUXIO_TASK_IDX],
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_NonIO:InQsize",
+                    waitingTasksPerGroup[NONIO_TASK_IDX],
+                    add_stat,
+                    cookie);
+
+    add_casted_stat("ep_workload:LowPrioQ_Writer:OutQsize",
+                    writerPool->getTaskQueueSize(),
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_Reader:OutQsize",
+                    readerPool->getTaskQueueSize(),
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_AuxIO:OutQsize",
+                    auxPool->getTaskQueueSize(),
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_NonIO:OutQsize",
+                    nonIoPool->getTaskQueueSize(),
+                    add_stat,
+                    cookie);
 }
 
 folly::CPUThreadPoolExecutor* FollyExecutorPool::getPoolForTaskType(
