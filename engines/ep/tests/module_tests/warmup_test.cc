@@ -24,9 +24,10 @@
 
 #include "ep_engine.h"
 
-#include "trace_helpers.h"
-#include <folly/portability/GMock.h>
+#include "../mock/mock_add_stat_fn.h"
 #include <folly/portability/GTest.h>
+#include <memcached/tracer.h>
+
 class WarmupDisabledTest : public EventuallyPersistentEngineTest {
 
     void SetUp() override {
@@ -35,26 +36,13 @@ class WarmupDisabledTest : public EventuallyPersistentEngineTest {
     }
 };
 
-// Mock implementation of an AddStatFn callback.
-class MockAddStat : public cb::tracing::Traceable {
-public:
-    MOCK_CONST_METHOD2(Callback, void(std::string key, std::string value));
-
-    // Static method to act as trampoline to the GoogleMock object method.
-    static void trampoline(std::string_view key,
-                           std::string_view value,
-                           gsl::not_null<const void*> cookie) {
-        auto* object = reinterpret_cast<const MockAddStat*>(cookie.get());
-        object->Callback({key.data(), key.size()},
-                         {value.data(), value.size()});
-    }
-};
-
 // Check we get the expected stats (i.e. none) when Warmup is disabled.
 TEST_F(WarmupDisabledTest, Stats) {
     MockAddStat add_stat;
-    EXPECT_CALL(add_stat, Callback("ep_warmup", ::testing::_)).Times(0);
+    cb::tracing::Traceable cookie;
+    using ::testing::_;
+    EXPECT_CALL(add_stat, callback("ep_warmup", _, _)).Times(0);
     EXPECT_EQ(
             ENGINE_KEY_ENOENT,
-            engine->getStats(&add_stat, "warmup", {}, MockAddStat::trampoline));
+            engine->getStats(&cookie, "warmup", {}, add_stat.asStdFunction()));
 }
