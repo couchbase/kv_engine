@@ -336,11 +336,7 @@ public:
         return 0;
     }
 
-    DBFileInfo getDbFileInfo(Vbid vbid) override {
-        // Magma does not support DBFileInfo
-        DBFileInfo vbinfo;
-        return vbinfo;
-    }
+    DBFileInfo getDbFileInfo(Vbid vbid) override;
 
     DBFileInfo getAggrDbFileInfo() override;
 

@@ -2273,7 +2273,15 @@ static enum test_result test_io_stats(EngineIface* h) {
 
 static enum test_result test_vb_file_stats(EngineIface* h) {
     wait_for_flusher_to_settle(h);
-    wait_for_stat_change(h, "ep_db_data_size", 0);
+    std::string backend = get_str_stat(h, "ep_backend");
+    // Some tests just insert vbstate into local db and magma doesn't track
+    // the data size until items are put into the key and seq indexes so
+    // use the file size to determine when data has been put into the db store.
+    if (backend == "magma") {
+        wait_for_stat_change(h, "ep_db_file_size", 0);
+    } else {
+        wait_for_stat_change(h, "ep_db_data_size", 0);
+    }
 
     int old_data_size = get_int_stat(h, "ep_db_data_size");
     int old_file_size = get_int_stat(h, "ep_db_file_size");
@@ -8523,18 +8531,18 @@ BaseTestCase testsuite_testcases[] = {
                  test_vb_file_stats,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "magma_commit_point_interval=0;"
+                 "magma_commit_point_every_batch=true",
                  /* TODO RDB: Needs stat:ep_db_data_size */
-                 // magma does not support ep_db_data_size
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("file stats post warmup",
                  test_vb_file_stats_after_warmup,
-                 // magma does not support getFileStats
                  test_setup,
                  teardown,
-                 nullptr,
-                 prepare_skip_broken_under_magma,
+                 "magma_commit_point_interval=0;"
+                 "magma_commit_point_every_batch=true",
+                 prepare,
                  cleanup),
         TestCase("bg stats",
                  test_bg_stats,
@@ -8612,10 +8620,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_stats_diskinfo,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "magma_commit_point_interval=0;"
+                 "magma_commit_point_every_batch=true",
                  /* TODO RDB: DB file size is not reported correctly */
-                 // magma does not support data or file size
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
         TestCase("stats curr_items ADD SET",
                  test_curr_items_add_set,

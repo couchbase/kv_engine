@@ -2283,6 +2283,22 @@ const KVStoreConfig& MagmaKVStore::getConfig() const {
     return configuration;
 }
 
+DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
+    DBFileInfo vbinfo;
+    auto [status, kvstats] = magma->GetKVStoreStats(vbid.get());
+    if (status) {
+        vbinfo.spaceUsed = kvstats.ActiveDiskUsage;
+        vbinfo.fileSize = kvstats.TotalDiskUsage;
+    }
+    logger->debug(
+            "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} status:{}",
+            vbid,
+            vbinfo.spaceUsed,
+            vbinfo.fileSize,
+            status.String());
+    return vbinfo;
+}
+
 DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     Magma::MagmaStats stats;
     magma->GetStats(stats);
