@@ -694,11 +694,6 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 
 // Test that task stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, TaskStats) {
-    if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
-        // Not yet implemented for FollyExecutorPool.
-        GTEST_SKIP();
-    }
-
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
     MockTaskable bucket0;

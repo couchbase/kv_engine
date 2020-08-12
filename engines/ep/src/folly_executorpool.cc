@@ -18,12 +18,16 @@
 #include "folly_executorpool.h"
 
 #include "bucket_logger.h"
+#include "ep_time.h"
 #include "globaltask.h"
 #include "taskable.h"
 
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
+#include <nlohmann/json.hpp>
+#include <platform/string_hex.h>
+#include <statistics/collector.h>
 
 /**
  * Thread factory for CPU pool threads.
@@ -150,7 +154,18 @@ struct FollyExecutorPool::TaskProxy
                 // directly on the CPUThreadPool. If some time in the future,
                 // then schedule on the IOThreadPool for the given time.
                 // If false: Cancel task, will not run again.
+
+                const auto start = std::chrono::steady_clock::now();
+                proxy->task->updateLastStartTime(start);
+
+                proxy->task->setState(TASK_RUNNING, TASK_SNOOZED);
                 runAgain = proxy->task->execute();
+
+                const auto end = std::chrono::steady_clock::now();
+                auto runtime = end - start;
+                proxy->task->getTaskable().logRunTime(proxy->task->getTaskId(),
+                                                      runtime);
+                proxy->task->updateRuntime(runtime);
             }
 
             // If runAgain is false, then task should be cancelled. This is
@@ -220,6 +235,7 @@ struct FollyExecutorPool::TaskProxy
             // execution finishes the task will be re-scheduled
             // immediately.
             task->updateWaketime(std::chrono::steady_clock::now());
+            task->setState(TASK_RUNNING, TASK_SNOOZED);
         }
     }
 
@@ -435,6 +451,10 @@ struct FollyExecutorPool::State {
     int numTasksForOwner(Taskable& taskable) {
         return taskOwners.at(&taskable).size();
     };
+
+    TaskOwnerMap copyTaskOwners() const {
+        return taskOwners;
+    }
 
 private:
     /// Map of registered task owners (Taskables) to the Tasks they own.
@@ -711,7 +731,55 @@ void FollyExecutorPool::doWorkerStat(Taskable& taskable,
 void FollyExecutorPool::doTasksStat(Taskable& taskable,
                                     const void* cookie,
                                     const AddStatFn& add_stat) {
-    std::abort();
+    NonBucketAllocationGuard guard;
+
+    // Take a copy of the taskOwners map.
+    auto* eventBase = futurePool->getEventBase();
+    TaskOwnerMap taskOwnersCopy;
+    eventBase->runInEventBaseThreadAndWait(
+            [state = this->state.get(), &taskOwnersCopy] {
+                taskOwnersCopy = state->copyTaskOwners();
+            });
+
+    auto it = taskOwnersCopy.find(&taskable);
+    if (it == taskOwnersCopy.end()) {
+        return;
+    }
+
+    // Convert to JSON for output.
+    nlohmann::json list = nlohmann::json::array();
+
+    auto& tasks = it->second;
+    for (const auto& pair : tasks) {
+        size_t tid = pair.first;
+        ExTask& task = pair.second->task;
+
+        nlohmann::json obj;
+
+        obj["tid"] = tid;
+        obj["state"] = to_string(task->getState());
+        obj["name"] = GlobalTask::getTaskName(task->getTaskId());
+        obj["this"] = cb::to_hex(reinterpret_cast<uint64_t>(task.get()));
+        obj["bucket"] = task->getTaskable().getName();
+        obj["description"] = task->getDescription();
+        obj["priority"] = task->getQueuePriority();
+        obj["waketime_ns"] = task->getWaketime().time_since_epoch().count();
+        obj["total_runtime_ns"] = task->getTotalRuntime().count();
+        obj["last_starttime_ns"] =
+                to_ns_since_epoch(task->getLastStartTime()).count();
+        obj["previous_runtime_ns"] = task->getPrevRuntime().count();
+        obj["num_runs"] = task->getRunCount();
+        obj["type"] = to_string(GlobalTask::getTaskType(task->getTaskId()));
+
+        list.push_back(obj);
+    }
+
+    add_casted_stat("ep_tasks:tasks", list.dump(), add_stat, cookie);
+    add_casted_stat("ep_tasks:cur_time",
+                    to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_tasks:uptime_s", ep_current_time(), add_stat, cookie);
 }
 
 void FollyExecutorPool::doTaskQStat(Taskable& taskable,
