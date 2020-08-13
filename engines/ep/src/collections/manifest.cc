@@ -17,6 +17,7 @@
 
 #include "collections/manifest.h"
 #include "bucket_logger.h"
+#include "collections/collections_constants.h"
 #include "collections/collections_types.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"

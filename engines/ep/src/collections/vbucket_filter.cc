@@ -18,6 +18,7 @@
 #include "collections/vbucket_filter.h"
 
 #include "bucket_logger.h"
+#include "collections/collections_constants.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
