@@ -18,6 +18,7 @@
 #include "dcp_stream_test.h"
 
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill_disk.h"

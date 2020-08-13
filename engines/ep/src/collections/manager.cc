@@ -18,6 +18,7 @@
 #include "collections/manager.h"
 #include "bucket_logger.h"
 #include "collections/manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "statistics/collector.h"
@@ -116,12 +117,12 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
             auto status = vb->updateFromManifest(newManifest);
             using namespace Collections;
             switch (status) {
-            case VB::Manifest::UpdateStatus::EqualUidWithDifferences:
+            case VB::ManifestUpdateStatus::EqualUidWithDifferences:
                 // This error is unexpected and the best action is not to
                 // continue applying it
                 abort = true;
                 [[fallthrough]];
-            case VB::Manifest::UpdateStatus::Behind:
+            case VB::ManifestUpdateStatus::Behind:
                 // Applying a manifest which is 'behind' the vbucket is
                 // expected (certainly for newly promoted replica), however
                 // still log it for now.
@@ -129,7 +130,7 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
                         "Collections::Manager::updateAllVBuckets: error:{} {}",
                         to_string(status),
                         vb->getId());
-            case VB::Manifest::UpdateStatus::Success:
+            case VB::ManifestUpdateStatus::Success:
                 break;
             }
             if (abort) {
@@ -208,17 +209,17 @@ std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
 
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
-    Collections::VB::Manifest::UpdateStatus status;
+    Collections::VB::ManifestUpdateStatus status;
     uint64_t uid = 0;
     currentManifest.withRLock([&vb, &status, &uid](const auto& manifest) {
         status = vb.updateFromManifest(manifest);
         uid = manifest.getUid();
     });
     switch (status) {
-    case Collections::VB::Manifest::UpdateStatus::EqualUidWithDifferences:
+    case Collections::VB::ManifestUpdateStatus::EqualUidWithDifferences:
         [[fallthrough]];
-    case Collections::VB::Manifest::UpdateStatus::Behind:
-        if (status == Collections::VB::Manifest::UpdateStatus::Behind &&
+    case Collections::VB::ManifestUpdateStatus::Behind:
+        if (status == Collections::VB::ManifestUpdateStatus::Behind &&
             uid == 0) {
             // We don't log for uid of 0, because that happens on all warmups
             // when the warmup completes before we receive any state from
@@ -230,7 +231,7 @@ void Collections::Manager::update(VBucket& vb) const {
                     to_string(status),
                     vb.getId());
 
-    case Collections::VB::Manifest::UpdateStatus::Success:
+    case Collections::VB::ManifestUpdateStatus::Success:
         break;
     }
 }

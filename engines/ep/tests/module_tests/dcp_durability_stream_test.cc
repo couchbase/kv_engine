@@ -21,6 +21,7 @@
 #include "../../src/dcp/backfill-manager.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
 #include "durability/active_durability_monitor.h"

@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
@@ -96,7 +97,7 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
 
         VBucket& vb;
         StoredDocKey key;
-        Collections::VB::Manifest::ReadHandle readHandle;
+        Collections::VB::ReadHandle readHandle;
     };
 
     // Invoke the visitor so the item gets paged out.

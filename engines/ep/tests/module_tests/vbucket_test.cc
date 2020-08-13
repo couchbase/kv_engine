@@ -19,6 +19,7 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "ep_time.h"
 #include "ep_vb.h"
 #include "ephemeral_vb.h"

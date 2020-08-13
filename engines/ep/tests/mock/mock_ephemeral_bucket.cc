@@ -16,6 +16,7 @@
  */
 
 #include "mock_ephemeral_bucket.h"
+#include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "failover-table.h"

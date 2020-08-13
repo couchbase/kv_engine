@@ -31,6 +31,7 @@
 #include <utility>
 
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
 #include "evp_store_single_threaded_test.h"

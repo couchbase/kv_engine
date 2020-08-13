@@ -117,4 +117,18 @@ std::string to_string(const DropScopeEventData& event) {
                        event.sid.to_string());
 }
 
+namespace VB {
+std::string to_string(ManifestUpdateStatus status) {
+    switch (status) {
+    case ManifestUpdateStatus::Success:
+        return "Success";
+    case ManifestUpdateStatus::Behind:
+        return "Behind";
+    case ManifestUpdateStatus::EqualUidWithDifferences:
+        return "EqualUidWithDifferences";
+    }
+    return "Unknown " + std::to_string(int(status));
+}
+} // namespace VB
+
 } // end namespace Collections

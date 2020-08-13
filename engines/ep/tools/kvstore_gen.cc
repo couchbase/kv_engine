@@ -22,6 +22,7 @@
 
 #include "atomic.h"
 #include "bucket_logger.h"
+#include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "item.h"

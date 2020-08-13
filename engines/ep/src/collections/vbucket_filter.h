@@ -18,7 +18,6 @@
 #pragma once
 
 #include "collections/collections_types.h"
-#include "collections/vbucket_manifest.h"
 #include "item.h"
 
 #include <memcached/dcp_stream_id.h>
@@ -35,6 +34,9 @@ class SystemEventMessage;
 
 namespace Collections {
 namespace VB {
+
+class Manifest;
+class ReadHandle;
 
 /**
  * The VB filter object constructs from data that is yielded from DCP stream
@@ -225,18 +227,16 @@ protected:
      * manifest and add to internal container or throw an exception
      * @return true if collection is known and added
      */
-    [[nodiscard]] bool addCollection(
-            const nlohmann::json& object,
-            const ::Collections::VB::Manifest::ReadHandle& rh);
+    [[nodiscard]] bool addCollection(const nlohmann::json& object,
+                                     const ::Collections::VB::ReadHandle& rh);
 
     /**
      * Private helper to examine the given scope object against the manifest and
      * add the associated collections to the internal container
      * @return true if scope is known and added
      */
-    [[nodiscard]] bool addScope(
-            const nlohmann::json& object,
-            const ::Collections::VB::Manifest::ReadHandle& rh);
+    [[nodiscard]] bool addScope(const nlohmann::json& object,
+                                const ::Collections::VB::ReadHandle& rh);
 
     /**
      * Does the filter allow the system event? I.e. a "meat,dairy" filter

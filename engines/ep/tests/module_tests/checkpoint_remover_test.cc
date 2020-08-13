@@ -25,6 +25,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "checkpoint_utils.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "test_helpers.h"
 

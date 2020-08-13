@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "collections/vbucket_manifest_handles.h"
 #include "durability/active_durability_monitor.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"

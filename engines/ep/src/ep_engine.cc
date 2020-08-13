@@ -23,6 +23,7 @@
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "common.h"
 #include "connmap.h"
 #include "dcp/consumer.h"

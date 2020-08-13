@@ -17,6 +17,7 @@
 
 #include "active_durability_monitor.h"
 #include "bucket_logger.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "durability_monitor_impl.h"
 #include "item.h"
 #include "passive_durability_monitor.h"

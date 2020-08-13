@@ -21,6 +21,7 @@
 
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"

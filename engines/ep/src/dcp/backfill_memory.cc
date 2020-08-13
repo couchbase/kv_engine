@@ -16,6 +16,7 @@
  */
 
 #include "dcp/backfill_memory.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_impl.h"
 #include "ep_engine.h"
 #include "ep_time.h"

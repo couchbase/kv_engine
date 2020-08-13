@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "collections/vbucket_manifest.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "item.h"

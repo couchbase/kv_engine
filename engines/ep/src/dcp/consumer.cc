@@ -19,6 +19,7 @@
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "connhandler_impl.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/passive_stream.h"

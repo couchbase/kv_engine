@@ -18,6 +18,7 @@
 #include "test_helpers.h"
 
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "item.h"
 #include "vbucket.h"
 

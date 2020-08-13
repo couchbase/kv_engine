@@ -20,6 +20,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 #include "persistence_callback.h"

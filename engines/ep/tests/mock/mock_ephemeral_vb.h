@@ -84,7 +84,7 @@ public:
     size_t markOldTombstonesStale(rel_time_t purgeAge);
 
     void public_doCollectionsStats(
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const Collections::VB::CachingReadHandle& cHandle,
             const VBNotifyCtx& notifyCtx);
 
 private:

@@ -17,6 +17,7 @@
 
 #include "dcp/backfill_disk.h"
 #include "active_stream.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "kvstore.h"

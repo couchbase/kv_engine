@@ -18,6 +18,7 @@
 #include "ephemeral_vb.h"
 
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "dcp/backfill_memory.h"
 #include "durability/passive_durability_monitor.h"
@@ -101,10 +102,9 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-bool EphemeralVBucket::pageOut(
-        const Collections::VB::Manifest::ReadHandle& readHandle,
-        const HashTable::HashBucketLock& lh,
-        StoredValue*& v) {
+bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
+                               const HashTable::HashBucketLock& lh,
+                               StoredValue*& v) {
     if (!eligibleToPageOut(lh, *v)) {
         return false;
     }
@@ -912,9 +912,8 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
     return getNumInMemoryDeletes();
 }
 
-void EphemeralVBucket::dropKey(
-        int64_t bySeqno,
-        Collections::VB::Manifest::CachingReadHandle& cHandle) {
+void EphemeralVBucket::dropKey(int64_t bySeqno,
+                               Collections::VB::CachingReadHandle& cHandle) {
     const auto& key = cHandle.getKey();
 
     // The system event doesn't get dropped here (tombstone purger will deal)
@@ -953,7 +952,7 @@ int64_t EphemeralVBucket::addSystemEventItem(
         Item* i,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
-        const Collections::VB::Manifest::WriteHandle& wHandle) {
+        const Collections::VB::WriteHandle& wHandle) {
     // Must be freed once passed through addNew/update StoredValue
     std::unique_ptr<Item> item(i);
     item->setVBucketId(getId());

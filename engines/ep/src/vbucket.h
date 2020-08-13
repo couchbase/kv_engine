@@ -19,7 +19,7 @@
 
 #include "bloomfilter.h"
 #include "checkpoint_types.h"
-#include "collections/vbucket_manifest.h"
+#include "collections/collections_types.h"
 #include "dcp/dcp-types.h"
 #include "hash_table.h"
 #include "hlc.h"
@@ -50,6 +50,7 @@ class EPStats;
 class EventuallyPersistentEngine;
 class GetValue;
 class ItemMetaData;
+class KVStore;
 class PassiveDurabilityMonitor;
 class PreLinkDocumentContext;
 class RollbackResult;
@@ -62,6 +63,17 @@ using vb_bgfetch_queue_t =
 
 template <typename... RV>
 class Callback;
+
+namespace Collections {
+class Manifest;
+};
+
+namespace Collections::VB {
+class CachingReadHandle;
+class Manifest;
+class ReadHandle;
+class WriteHandle;
+} // namespace Collections::VB
 
 /**
  * The following will be used to identify
@@ -770,9 +782,7 @@ public:
      * The caller will have read-only access to manifest using the methods
      * exposed by the ReadHandle
      */
-    Collections::VB::Manifest::ReadHandle lockCollections() const {
-        return manifest->lock();
-    }
+    Collections::VB::ReadHandle lockCollections() const;
 
     /**
      * Obtain a caching read handle for the collections manifest.
@@ -785,10 +795,7 @@ public:
      * @return a CachingReadHandle which the caller should test is valid with
      *         CachingReadHandle::valid
      */
-    Collections::VB::Manifest::CachingReadHandle lockCollections(
-            const DocKey& key) const {
-        return manifest->lock(key);
-    }
+    Collections::VB::CachingReadHandle lockCollections(const DocKey& key) const;
 
     /**
      * Update the Collections::VB::Manifest and the VBucket.
@@ -798,10 +805,8 @@ public:
      * @param m A Collections::Manifest to apply to the VB::Manifest
      * @param true if the update was successful
      */
-    Collections::VB::Manifest::UpdateStatus updateFromManifest(
-            const Collections::Manifest& m) {
-        return manifest->update(*this, m);
-    }
+    Collections::VB::ManifestUpdateStatus updateFromManifest(
+            const Collections::Manifest& m);
 
     /**
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.
@@ -817,10 +822,7 @@ public:
                               ScopeCollectionPair identifiers,
                               std::string_view collectionName,
                               cb::ExpiryLimit maxTtl,
-                              int64_t bySeqno) {
-        manifest->wlock().replicaAdd(
-                *this, uid, identifiers, collectionName, maxTtl, bySeqno);
-    }
+                              int64_t bySeqno);
 
     /**
      * Drop a collection from this vbucket with a pre-assigned seqno. I.e.
@@ -832,9 +834,7 @@ public:
      */
     void replicaDropCollection(Collections::ManifestUid uid,
                                CollectionID cid,
-                               int64_t bySeqno) {
-        manifest->wlock().replicaDrop(*this, uid, cid, bySeqno);
-    }
+                               int64_t bySeqno);
 
     /**
      * Add a scope to this vbucket with a pre-assigned seqno. I.e. this VB is a
@@ -848,9 +848,7 @@ public:
     void replicaAddScope(Collections::ManifestUid uid,
                          ScopeID sid,
                          std::string_view scopeName,
-                         int64_t bySeqno) {
-        manifest->wlock().replicaAddScope(*this, uid, sid, scopeName, bySeqno);
-    }
+                         int64_t bySeqno);
 
     /**
      * Drop a scope from this vbucket with a pre-assigned seqno. I.e. this VB
@@ -862,9 +860,7 @@ public:
      */
     void replicaDropScope(Collections::ManifestUid uid,
                           ScopeID sid,
-                          int64_t bySeqno) {
-        manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
-    }
+                          int64_t bySeqno);
 
     /**
      * Get the collection manifest
@@ -919,7 +915,7 @@ public:
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
             QueueExpired queueExpired,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const Collections::VB::CachingReadHandle& cHandle,
             ForGetReplicaOp fetchRequestedForReplicaItem = ForGetReplicaOp::No);
 
     /**
@@ -976,7 +972,7 @@ public:
      * found) and the associated HashBucketLock which guards it.
      */
     FetchForWriteResult fetchValueForWrite(
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const Collections::VB::CachingReadHandle& cHandle,
             QueueExpired queueExpired);
 
     /**
@@ -990,7 +986,7 @@ public:
      * found) and the associated HashBucketLock which guards it.
      */
     HashTable::FindResult fetchPreparedValue(
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Complete the background fetch for the specified item. Depending on the
@@ -1058,12 +1054,11 @@ public:
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE set(
-            Item& itm,
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            cb::StoreIfPredicate predicate,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+    ENGINE_ERROR_CODE set(Item& itm,
+                          const void* cookie,
+                          EventuallyPersistentEngine& engine,
+                          cb::StoreIfPredicate predicate,
+                          const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Replace (overwrite existing) an item in the vbucket.
@@ -1083,7 +1078,7 @@ public:
             const void* cookie,
             EventuallyPersistentEngine& engine,
             cb::StoreIfPredicate predicate,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
@@ -1112,7 +1107,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     ENGINE_ERROR_CODE prepare(
             Item& itm,
@@ -1124,7 +1119,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Delete an item in the vbucket
@@ -1150,7 +1145,7 @@ public:
             std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)
@@ -1181,7 +1176,7 @@ public:
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const Collections::VB::CachingReadHandle& cHandle,
             DeleteSource deleteSource);
 
     /**
@@ -1208,7 +1203,7 @@ public:
      */
     virtual cb::mcbp::Status evictKey(
             const char** msg,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
+            const Collections::VB::CachingReadHandle& cHandle) = 0;
 
     /**
      * Page out a StoredValue from memory.
@@ -1228,10 +1223,9 @@ public:
      *
      * @return true if an item is ejected.
      */
-    virtual bool pageOut(
-            const Collections::VB::Manifest::ReadHandle& readHandle,
-            const HashTable::HashBucketLock& lh,
-            StoredValue*& v) = 0;
+    virtual bool pageOut(const Collections::VB::ReadHandle& readHandle,
+                         const HashTable::HashBucketLock& lh,
+                         StoredValue*& v) = 0;
 
     /*
      * Check to see if a StoredValue is eligible to be paged out of memory.
@@ -1256,11 +1250,10 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE add(
-            Item& itm,
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+    ENGINE_ERROR_CODE add(Item& itm,
+                          const void* cookie,
+                          EventuallyPersistentEngine& engine,
+                          const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -1272,11 +1265,10 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getAndUpdateTtl(
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            time_t exptime,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+    GetValue getAndUpdateTtl(const void* cookie,
+                             EventuallyPersistentEngine& engine,
+                             time_t exptime,
+                             const Collections::VB::CachingReadHandle& cHandle);
     /**
      * Add a system event Item to the vbucket and return its seqno. Does
      * not set the collection high seqno of the item as that requires a read
@@ -1301,7 +1293,7 @@ public:
             Item* item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
-            const Collections::VB::Manifest::WriteHandle& wHandle) = 0;
+            const Collections::VB::WriteHandle& wHandle) = 0;
 
     /**
      * Get metadata and value for a given key
@@ -1316,13 +1308,12 @@ public:
      *
      * @return the result of the operation
      */
-    GetValue getInternal(
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            get_options_t options,
-            GetKeyOnly getKeyOnly,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
-            ForGetReplicaOp getReplicaItem = ForGetReplicaOp::No);
+    GetValue getInternal(const void* cookie,
+                         EventuallyPersistentEngine& engine,
+                         get_options_t options,
+                         GetKeyOnly getKeyOnly,
+                         const Collections::VB::CachingReadHandle& cHandle,
+                         ForGetReplicaOp getReplicaItem = ForGetReplicaOp::No);
 
     /**
      * Retrieve the meta data for given key
@@ -1340,7 +1331,7 @@ public:
     ENGINE_ERROR_CODE getMetaData(
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
+            const Collections::VB::CachingReadHandle& cHandle,
             ItemMetaData& metadata,
             uint32_t& deleted,
             uint8_t& datatype);
@@ -1363,7 +1354,7 @@ public:
             EventuallyPersistentEngine& engine,
             struct key_stats& kstats,
             WantsDeleted wantsDeleted,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Gets a locked item for a given key.
@@ -1377,12 +1368,11 @@ public:
      *
      * @return the result of the operation (contains locked item on success)
      */
-    GetValue getLocked(
-            rel_time_t currentTime,
-            uint32_t lockTimeout,
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+    GetValue getLocked(rel_time_t currentTime,
+                       uint32_t lockTimeout,
+                       const void* cookie,
+                       EventuallyPersistentEngine& engine,
+                       const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Perform a commit against the given pending Sync Write.
@@ -1396,12 +1386,11 @@ public:
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
-    ENGINE_ERROR_CODE commit(
-            const DocKey& key,
-            uint64_t prepareSeqno,
-            std::optional<int64_t> commitSeqno,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
-            const void* cookie = nullptr);
+    ENGINE_ERROR_CODE commit(const DocKey& key,
+                             uint64_t prepareSeqno,
+                             std::optional<int64_t> commitSeqno,
+                             const Collections::VB::CachingReadHandle& cHandle,
+                             const void* cookie = nullptr);
 
     /**
      * Perform an abort against the given pending Sync Write.
@@ -1416,12 +1405,11 @@ public:
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
-    ENGINE_ERROR_CODE abort(
-            const DocKey& key,
-            uint64_t prepareSeqno,
-            std::optional<int64_t> abortSeqno,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
-            const void* cookie = nullptr);
+    ENGINE_ERROR_CODE abort(const DocKey& key,
+                            uint64_t prepareSeqno,
+                            std::optional<int64_t> abortSeqno,
+                            const Collections::VB::CachingReadHandle& cHandle,
+                            const void* cookie = nullptr);
 
     /**
      * Notify the ActiveDurabilityMonitor that a SyncWrite has been locally
@@ -1597,9 +1585,8 @@ public:
      * @param bySeqno The seqno of the key to drop
      * @param cHandle Collections readhandle (caching mode) for this key
      */
-    virtual void dropKey(
-            int64_t bySeqno,
-            Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
+    virtual void dropKey(int64_t bySeqno,
+                         Collections::VB::CachingReadHandle& cHandle) = 0;
 
     /**
      * Drops the key from the DM so we can purge a collection
@@ -1643,7 +1630,7 @@ public:
      */
     static bool isLogicallyNonExistent(
             const StoredValue& v,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Helper function to validate the specified setVbucketState meta
@@ -1783,7 +1770,7 @@ protected:
             HashTable::HashBucketLock& hbl,
             StoredValue* v,
             time_t exptime,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
     /**
      * This function checks cas, expiry and other partition (vbucket) related
      * rules before setting an item into other in-memory structure like HT,
@@ -1854,7 +1841,7 @@ protected:
             Item& itm,
             bool maybeKeyExists,
             const VBQueueItemCtx& queueItmCtx,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * This function checks cas, eviction policy and other partition
@@ -2017,9 +2004,8 @@ protected:
      *        the generation of a newSeqno belongs to
      * @param notifyCtx holds info needed for stat counting
      */
-    void doCollectionsStats(
-            const Collections::VB::Manifest::CachingReadHandle& cHandle,
-            const VBNotifyCtx& notifyCtx);
+    void doCollectionsStats(const Collections::VB::CachingReadHandle& cHandle,
+                            const VBNotifyCtx& notifyCtx);
 
     /**
      * Perform the post-queue collections stat counting using a read handle and
@@ -2030,10 +2016,9 @@ protected:
      * @param collection the collection we need to update
      * @param notifyCtx holds info needed for stat counting
      */
-    void doCollectionsStats(
-            const Collections::VB::Manifest::ReadHandle& readHandle,
-            CollectionID collection,
-            const VBNotifyCtx& notifyCtx);
+    void doCollectionsStats(const Collections::VB::ReadHandle& readHandle,
+                            CollectionID collection,
+                            const VBNotifyCtx& notifyCtx);
 
     /**
      * Perform the post-queue collections stat counting using a write handle and
@@ -2044,10 +2029,9 @@ protected:
      * @param collection the collection we need to update
      * @param notifyCtx holds info needed for stat counting
      */
-    void doCollectionsStats(
-            const Collections::VB::Manifest::WriteHandle& writeHandle,
-            CollectionID collection,
-            const VBNotifyCtx& notifyCtx);
+    void doCollectionsStats(const Collections::VB::WriteHandle& writeHandle,
+                            CollectionID collection,
+                            const VBNotifyCtx& notifyCtx);
 
     /**
      * VBucket internal function to store high priority requests on the vbucket.
@@ -2184,7 +2168,7 @@ protected:
     std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle);
 
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);

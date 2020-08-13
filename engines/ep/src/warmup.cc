@@ -21,6 +21,7 @@
 #include "callbacks.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "common.h"
 #include "connmap.h"
 #include "ep_bucket.h"

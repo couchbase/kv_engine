@@ -18,7 +18,6 @@
 #pragma once
 
 #include "collections/collections_types.h"
-#include "collections/vbucket_manifest.h"
 
 #include <unordered_set>
 

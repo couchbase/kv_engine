@@ -19,6 +19,7 @@
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
 #include "ep_engine.h"

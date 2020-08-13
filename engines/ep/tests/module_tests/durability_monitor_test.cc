@@ -18,6 +18,7 @@
 #include "durability_monitor_test.h"
 
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "item.h"
 #include "test_helpers.h"
 #include "vbucket_queue_item_ctx.h"

@@ -21,6 +21,7 @@
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "durability/active_durability_monitor.h"

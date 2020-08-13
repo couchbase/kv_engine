@@ -1,4 +1,5 @@
 #include "mock_ephemeral_vb.h"
+#include "collections/vbucket_manifest.h"
 #include "ephemeral_tombstone_purger.h"
 #include "failover-table.h"
 #include "kvstore.h"
@@ -54,7 +55,7 @@ size_t MockEphemeralVBucket::markOldTombstonesStale(rel_time_t purgeAge) {
 }
 
 void MockEphemeralVBucket::public_doCollectionsStats(
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         const VBNotifyCtx& notifyCtx) {
     VBucket::doCollectionsStats(cHandle, notifyCtx);
 }

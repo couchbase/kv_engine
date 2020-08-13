@@ -19,6 +19,7 @@
 #include "../kvstore.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
 #include "item.h"
 

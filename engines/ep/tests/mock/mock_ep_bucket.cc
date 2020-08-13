@@ -18,6 +18,7 @@
 #include "mock_ep_bucket.h"
 
 #include "collections/manager.h"
+#include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "failover-table.h"

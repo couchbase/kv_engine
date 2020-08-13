@@ -16,7 +16,7 @@
  */
 
 #include "collections/scan_context.h"
-#include "collections/vbucket_manifest.h"
+#include "systemevent.h"
 
 #pragma once
 

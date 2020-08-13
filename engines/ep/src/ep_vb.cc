@@ -20,6 +20,7 @@
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/backfill_by_id_disk.h"
 #include "dcp/backfill_by_seqno_disk.h"
 #include "durability/active_durability_monitor.h"
@@ -543,8 +544,7 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
 }
 
 cb::mcbp::Status EPVBucket::evictKey(
-        const char** msg,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const char** msg, const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValidValue(
             WantsDeleted::No, TrackReference::No, QueueExpired::Yes, cHandle);
     auto* v = res.storedValue;
@@ -575,7 +575,7 @@ cb::mcbp::Status EPVBucket::evictKey(
     return cb::mcbp::Status::Success;
 }
 
-bool EPVBucket::pageOut(const Collections::VB::Manifest::ReadHandle& readHandle,
+bool EPVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
                         const HashTable::HashBucketLock& lh,
                         StoredValue*& v) {
     return ht.unlocked_ejectItem(lh, v, eviction);
@@ -924,7 +924,7 @@ size_t EPVBucket::getNumPersistedDeletes() const {
 }
 
 void EPVBucket::dropKey(int64_t bySeqno,
-                        Collections::VB::Manifest::CachingReadHandle& cHandle) {
+                        Collections::VB::CachingReadHandle& cHandle) {
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
     const auto& key = cHandle.getKey();
@@ -946,7 +946,7 @@ int64_t EPVBucket::addSystemEventItem(
         Item* item,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
-        const Collections::VB::Manifest::WriteHandle& wHandle) {
+        const Collections::VB::WriteHandle& wHandle) {
     item->setVBucketId(getId());
     queued_item qi(item);
 

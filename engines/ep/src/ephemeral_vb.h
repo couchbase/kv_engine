@@ -96,14 +96,13 @@ public:
 
     cb::mcbp::Status evictKey(
             const char** msg,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle)
-            override {
+            const Collections::VB::CachingReadHandle& readHandle) override {
         /* There is nothing (no disk) to evictKey to. Later on if we decide to
            use this as a deletion, then we can handle it differently */
         return cb::mcbp::Status::NotSupported;
     }
 
-    bool pageOut(const Collections::VB::Manifest::ReadHandle& readHandle,
+    bool pageOut(const Collections::VB::ReadHandle& readHandle,
                  const HashTable::HashBucketLock& lh,
                  StoredValue*& v) override;
 
@@ -228,9 +227,8 @@ public:
      */
     size_t getNumPersistedDeletes() const override;
 
-    void dropKey(
-            int64_t bySeqno,
-            Collections::VB::Manifest::CachingReadHandle& cHandle) override;
+    void dropKey(int64_t bySeqno,
+                 Collections::VB::CachingReadHandle& cHandle) override;
 
     /**
      * Add a system event Item to the vbucket and return its seqno.
@@ -251,7 +249,7 @@ public:
             Item* item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
-            const Collections::VB::Manifest::WriteHandle& wHandle) override;
+            const Collections::VB::WriteHandle& wHandle) override;
 
     /**
      * Check with the collections manifest if this key belongs to a dropped

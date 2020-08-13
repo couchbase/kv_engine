@@ -19,6 +19,7 @@
 #include "kvstore.h"
 
 class EPStats;
+class VBucket;
 
 /**
  * Callback invoked after persisting an item from memory to disk.

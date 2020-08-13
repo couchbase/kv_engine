@@ -21,6 +21,7 @@
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "durability/durability_monitor.h"
 #include "durability/passive_durability_monitor.h"

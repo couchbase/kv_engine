@@ -19,6 +19,9 @@
 
 #include "kv_bucket.h"
 
+namespace Collections::VB {
+class Flush;
+}
 namespace VB {
 class Commit;
 }

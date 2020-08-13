@@ -20,6 +20,7 @@
 #include "bucket_logger.h"
 #include "collections/collections_constants.h"
 #include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
 #include "statistics/collector.h"
@@ -192,7 +193,7 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
 }
 
 bool Filter::addCollection(const nlohmann::json& object,
-                           const Collections::VB::Manifest::ReadHandle& rh) {
+                           const Collections::VB::ReadHandle& rh) {
     // Require that the requested collection exists in the manifest.
     // DCP cannot filter an unknown collection.
     auto cid = makeCollectionID(object.get<std::string>());
@@ -209,7 +210,7 @@ bool Filter::addCollection(const nlohmann::json& object,
 }
 
 bool Filter::addScope(const nlohmann::json& object,
-                      const Collections::VB::Manifest::ReadHandle& rh) {
+                      const Collections::VB::ReadHandle& rh) {
     // Require that the requested scope exists in the manifest.
     // DCP cannot filter an unknown scope.
     auto sid = makeScopeID(object.get<std::string>());

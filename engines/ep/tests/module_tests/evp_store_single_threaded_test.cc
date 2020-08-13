@@ -31,6 +31,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"

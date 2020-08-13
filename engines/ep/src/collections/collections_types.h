@@ -333,4 +333,9 @@ using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t, bool)>;
 using IsVisibleFunction =
         std::function<bool(ScopeID, std::optional<CollectionID>)>;
 
+namespace VB {
+enum class ManifestUpdateStatus { Success, Behind, EqualUidWithDifferences };
+std::string to_string(ManifestUpdateStatus);
+} // namespace VB
+
 } // end namespace Collections

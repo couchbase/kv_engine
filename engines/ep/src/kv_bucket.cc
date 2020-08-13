@@ -35,6 +35,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "collections/manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "conflict_resolution.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"

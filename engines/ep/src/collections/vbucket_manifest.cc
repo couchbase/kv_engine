@@ -16,6 +16,7 @@
  */
 
 #include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
@@ -129,11 +130,11 @@ std::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
 // 2) Applying the change(s) (need write lock)
 // We utilise the upgrade feature of our mutex so that we can switch from
 // read (using UpgradeHolder) to write
-Manifest::UpdateStatus Manifest::update(::VBucket& vb,
-                                        const Collections::Manifest& manifest) {
+ManifestUpdateStatus Manifest::update(::VBucket& vb,
+                                      const Collections::Manifest& manifest) {
     mutex_type::UpgradeHolder upgradeLock(rwlock);
     auto status = canUpdate(manifest);
-    if (status != UpdateStatus::Success) {
+    if (status != ManifestUpdateStatus::Success) {
         return status;
     }
 
@@ -142,7 +143,7 @@ Manifest::UpdateStatus Manifest::update(::VBucket& vb,
     // If manifest was equal. expect no changes
     if (manifest.getUid() == manifestUid) {
         if (changes.empty()) {
-            return UpdateStatus::Success;
+            return ManifestUpdateStatus::Success;
         } else {
             // Log verbosely for this case
             EP_LOG_WARN(
@@ -153,19 +154,19 @@ Manifest::UpdateStatus Manifest::update(::VBucket& vb,
                     changes.collectionsToAdd.size(),
                     changes.scopesToRemove.size(),
                     changes.collectionsToRemove.size());
-            return UpdateStatus::EqualUidWithDifferences;
+            return ManifestUpdateStatus::EqualUidWithDifferences;
         }
     }
 
     completeUpdate(std::move(upgradeLock), vb, changes);
-    return UpdateStatus::Success;
+    return ManifestUpdateStatus::Success;
 }
 
 void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                               ::VBucket& vb,
                               Manifest::ManifestChanges& changes) {
     // Write Handle now needed
-    Manifest::WriteHandle wHandle(*this, std::move(upgradeLock));
+    WriteHandle wHandle(*this, std::move(upgradeLock));
 
     auto finalScopeCreate = applyScopeCreates(wHandle, vb, changes.scopesToAdd);
     if (finalScopeCreate) {
@@ -219,13 +220,13 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
     }
 }
 
-Manifest::UpdateStatus Manifest::canUpdate(
+ManifestUpdateStatus Manifest::canUpdate(
         const Collections::Manifest& manifest) const {
     // Cannot go backwards
     if (manifest.getUid() < manifestUid) {
-        return UpdateStatus::Behind;
+        return ManifestUpdateStatus::Behind;
     }
-    return UpdateStatus::Success;
+    return ManifestUpdateStatus::Success;
 }
 
 void Manifest::addCollection(const WriteHandle& wHandle,
@@ -958,14 +959,34 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const Manifest::ReadHandle& readHandle) {
+ReadHandle Manifest::lock() const {
+    return {this, rwlock};
+}
+
+CachingReadHandle Manifest::lock(DocKey key) const {
+    return {this, rwlock, key};
+}
+
+CachingReadHandle Manifest::lock(DocKey key,
+                                 Manifest::AllowSystemKeys tag) const {
+    return {this, rwlock, key, tag};
+}
+
+StatsReadHandle Manifest::lock(CollectionID cid) const {
+    return {this, rwlock, cid};
+}
+
+WriteHandle Manifest::wlock() {
+    return {*this, rwlock};
+}
+
+std::ostream& operator<<(std::ostream& os, const ReadHandle& readHandle) {
     os << "VB::Manifest::ReadHandle: manifest:" << *readHandle.manifest;
     return os;
 }
 
 std::ostream& operator<<(std::ostream& os,
-                         const Manifest::CachingReadHandle& readHandle) {
+                         const CachingReadHandle& readHandle) {
     os << "VB::Manifest::CachingReadHandle: itr:";
     if (readHandle.valid()) {
         os << (*readHandle.itr).second;
@@ -975,18 +996,6 @@ std::ostream& operator<<(std::ostream& os,
     os << ", cid:" << readHandle.key.getCollectionID().to_string();
     os << ", manifest:" << *readHandle.manifest;
     return os;
-}
-
-std::string to_string(Manifest::UpdateStatus status) {
-    switch (status) {
-    case Manifest::UpdateStatus::Success:
-        return "Success";
-    case Manifest::UpdateStatus::Behind:
-        return "Behind";
-    case Manifest::UpdateStatus::EqualUidWithDifferences:
-        return "EqualUidWithDifferences";
-    }
-    return "Unknown " + std::to_string(int(status));
 }
 
 } // namespace Collections::VB

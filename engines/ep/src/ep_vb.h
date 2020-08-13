@@ -107,10 +107,9 @@ public:
 
     cb::mcbp::Status evictKey(
             const char** msg,
-            const Collections::VB::Manifest::CachingReadHandle& cHandle)
-            override;
+            const Collections::VB::CachingReadHandle& cHandle) override;
 
-    bool pageOut(const Collections::VB::Manifest::ReadHandle& readHandle,
+    bool pageOut(const Collections::VB::ReadHandle& readHandle,
                  const HashTable::HashBucketLock& lh,
                  StoredValue*& v) override;
 
@@ -210,9 +209,8 @@ public:
      * @param bySeqno The seqno of the key to remove
      * @param cHandle Collections readhandle (caching mode) for this key
      */
-    void dropKey(
-            int64_t bySeqno,
-            Collections::VB::Manifest::CachingReadHandle& cHandle) override;
+    void dropKey(int64_t bySeqno,
+                 Collections::VB::CachingReadHandle& cHandle) override;
 
     /**
      * Add a system event Item to the vbucket and return its seqno.
@@ -233,7 +231,7 @@ public:
             Item* item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
-            const Collections::VB::Manifest::WriteHandle& wHandle) override;
+            const Collections::VB::WriteHandle& wHandle) override;
 
 protected:
     /**

@@ -17,6 +17,7 @@
 
 #include "../mock/gmock_dcp_msg_producers.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/response.h"
 #include "dcp_stream_test.h"

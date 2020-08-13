@@ -22,6 +22,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
 #include "durability/active_durability_monitor.h"
@@ -827,7 +828,7 @@ ENGINE_ERROR_CODE VBucket::commit(
         const DocKey& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> commitSeqno,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         const void* cookie) {
     Expects(cHandle.valid());
     auto res = ht.findForUpdate(key);
@@ -885,7 +886,7 @@ ENGINE_ERROR_CODE VBucket::abort(
         const DocKey& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> abortSeqno,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         const void* cookie) {
     Expects(cHandle.valid());
     auto htRes = ht.findForUpdate(key);
@@ -1371,7 +1372,7 @@ HashTable::FindResult VBucket::fetchValidValue(
         WantsDeleted wantsDeleted,
         TrackReference trackReference,
         QueueExpired queueExpired,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         const ForGetReplicaOp fetchRequestedForReplicaItem) {
     if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
         throw std::invalid_argument(
@@ -1418,7 +1419,7 @@ HashTable::FindResult VBucket::fetchValidValue(
 }
 
 VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         QueueExpired queueExpired) {
     if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
         throw std::invalid_argument(
@@ -1474,7 +1475,7 @@ VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
 }
 
 HashTable::FindResult VBucket::fetchPreparedValue(
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto res = ht.findForWrite(cHandle.getKey(), WantsDeleted::Yes);
     if (res.storedValue && res.storedValue->isPending()) {
         return res;
@@ -1535,7 +1536,7 @@ ENGINE_ERROR_CODE VBucket::set(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
     if (ret != ENGINE_SUCCESS) {
         return ret;
@@ -1653,7 +1654,7 @@ ENGINE_ERROR_CODE VBucket::replace(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
     if (ret != ENGINE_SUCCESS) {
         return ret;
@@ -1781,6 +1782,48 @@ void VBucket::dumpDurabilityMonitor(std::ostream& os) const {
     os << *durabilityMonitor;
 }
 
+Collections::VB::ReadHandle VBucket::lockCollections() const {
+    return manifest->lock();
+}
+
+Collections::VB::CachingReadHandle VBucket::lockCollections(
+        const DocKey& key) const {
+    return manifest->lock(key);
+}
+
+Collections::VB::ManifestUpdateStatus VBucket::updateFromManifest(
+        const Collections::Manifest& m) {
+    return manifest->update(*this, m);
+}
+
+void VBucket::replicaAddCollection(Collections::ManifestUid uid,
+                                   ScopeCollectionPair identifiers,
+                                   std::string_view collectionName,
+                                   cb::ExpiryLimit maxTtl,
+                                   int64_t bySeqno) {
+    manifest->wlock().replicaAdd(
+            *this, uid, identifiers, collectionName, maxTtl, bySeqno);
+}
+
+void VBucket::replicaDropCollection(Collections::ManifestUid uid,
+                                    CollectionID cid,
+                                    int64_t bySeqno) {
+    manifest->wlock().replicaDrop(*this, uid, cid, bySeqno);
+}
+
+void VBucket::replicaAddScope(Collections::ManifestUid uid,
+                              ScopeID sid,
+                              std::string_view scopeName,
+                              int64_t bySeqno) {
+    manifest->wlock().replicaAddScope(*this, uid, sid, scopeName, bySeqno);
+}
+
+void VBucket::replicaDropScope(Collections::ManifestUid uid,
+                               ScopeID sid,
+                               int64_t bySeqno) {
+    manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
+}
+
 ENGINE_ERROR_CODE VBucket::prepare(
         Item& itm,
         uint64_t cas,
@@ -1791,7 +1834,7 @@ ENGINE_ERROR_CODE VBucket::prepare(
         bool allowExisting,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto htRes = ht.findForUpdate(itm.getKey());
     auto* v = htRes.pending.getSV();
     auto& hbl = htRes.getHBL();
@@ -1893,7 +1936,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         bool allowExisting,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto htRes = ht.findForUpdate(itm.getKey());
     auto* v = htRes.selectSVToModify(itm);
     auto& hbl = htRes.getHBL();
@@ -2029,7 +2072,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         std::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     if (durability && durability->isValid()) {
         auto ret = checkDurabilityRequirements(*durability);
         if (ret != ENGINE_SUCCESS) {
@@ -2192,7 +2235,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas generateCas,
         uint64_t bySeqno,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         DeleteSource deleteSource) {
     const auto& key = cHandle.getKey();
     auto htRes = ht.findForUpdate(key);
@@ -2456,7 +2499,7 @@ ENGINE_ERROR_CODE VBucket::add(
         Item& itm,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
     if (ret != ENGINE_SUCCESS) {
         return ret;
@@ -2531,7 +2574,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         HashTable::HashBucketLock& hbl,
         StoredValue* v,
         time_t exptime,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     if (v) {
         if (isLogicallyNonExistent(*v, cHandle)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
@@ -2609,7 +2652,7 @@ GetValue VBucket::getAndUpdateTtl(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         time_t exptime,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
     switch (res.status) {
     case FetchForWriteResult::Status::OkFound:
@@ -2641,13 +2684,12 @@ GetValue VBucket::getAndUpdateTtl(
     folly::assume_unreachable();
 }
 
-GetValue VBucket::getInternal(
-        const void* cookie,
-        EventuallyPersistentEngine& engine,
-        get_options_t options,
-        GetKeyOnly getKeyOnly,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
-        const ForGetReplicaOp getReplicaItem) {
+GetValue VBucket::getInternal(const void* cookie,
+                              EventuallyPersistentEngine& engine,
+                              get_options_t options,
+                              GetKeyOnly getKeyOnly,
+                              const Collections::VB::CachingReadHandle& cHandle,
+                              const ForGetReplicaOp getReplicaItem) {
     const TrackReference trackReference = (options & TRACK_REFERENCE)
                                                   ? TrackReference::Yes
                                                   : TrackReference::No;
@@ -2758,7 +2800,7 @@ GetValue VBucket::getInternal(
 ENGINE_ERROR_CODE VBucket::getMetaData(
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         ItemMetaData& metadata,
         uint32_t& deleted,
         uint8_t& datatype) {
@@ -2825,7 +2867,7 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         EventuallyPersistentEngine& engine,
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValidValue(
             WantsDeleted::Yes, TrackReference::Yes, QueueExpired::Yes, cHandle);
     auto* v = res.storedValue;
@@ -2875,12 +2917,11 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
     }
 }
 
-GetValue VBucket::getLocked(
-        rel_time_t currentTime,
-        uint32_t lockTimeout,
-        const void* cookie,
-        EventuallyPersistentEngine& engine,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+GetValue VBucket::getLocked(rel_time_t currentTime,
+                            uint32_t lockTimeout,
+                            const void* cookie,
+                            EventuallyPersistentEngine& engine,
+                            const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
     switch (res.status) {
     case FetchForWriteResult::Status::OkFound: {
@@ -3382,7 +3423,7 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         Item& itm,
         bool maybeKeyExists,
         const VBQueueItemCtx& queueItmCtx,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     if (!htRes.getHBL().getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processAdd: htLock not held for " +
@@ -3605,10 +3646,9 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
 }
 
 std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
-VBucket::processExpiredItem(
-        const HashTable::HashBucketLock& hbl,
-        StoredValue& v,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
+                            StoredValue& v,
+                            const Collections::VB::CachingReadHandle& cHandle) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processExpiredItem: htLock not held for " +
@@ -3706,7 +3746,7 @@ void VBucket::notifyNewSeqno(
 }
 
 void VBucket::doCollectionsStats(
-        const Collections::VB::Manifest::CachingReadHandle& cHandle,
+        const Collections::VB::CachingReadHandle& cHandle,
         const VBNotifyCtx& notifyCtx) {
     cHandle.setHighSeqno(notifyCtx.bySeqno);
 
@@ -3717,10 +3757,9 @@ void VBucket::doCollectionsStats(
     }
 }
 
-void VBucket::doCollectionsStats(
-        const Collections::VB::Manifest::ReadHandle& readHandle,
-        CollectionID collection,
-        const VBNotifyCtx& notifyCtx) {
+void VBucket::doCollectionsStats(const Collections::VB::ReadHandle& readHandle,
+                                 CollectionID collection,
+                                 const VBNotifyCtx& notifyCtx) {
     readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
 
     if (notifyCtx.itemCountDifference == 1) {
@@ -3731,7 +3770,7 @@ void VBucket::doCollectionsStats(
 }
 
 void VBucket::doCollectionsStats(
-        const Collections::VB::Manifest::WriteHandle& writeHandle,
+        const Collections::VB::WriteHandle& writeHandle,
         CollectionID collection,
         const VBNotifyCtx& notifyCtx) {
     writeHandle.setHighSeqno(collection, notifyCtx.bySeqno);
@@ -3891,7 +3930,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
 
 bool VBucket::isLogicallyNonExistent(
         const StoredValue& v,
-        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle) {
     Expects(v.isCommitted());
     return v.isDeleted() || v.isTempDeletedItem() ||
            v.isTempNonExistentItem() ||

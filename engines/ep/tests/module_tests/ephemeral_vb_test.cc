@@ -19,6 +19,7 @@
  * Tests specific to Ephemeral VBuckets.
  */
 #include "../mock/mock_ephemeral_vb.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "ep_time.h"
 #include "failover-table.h"
 #include "item.h"

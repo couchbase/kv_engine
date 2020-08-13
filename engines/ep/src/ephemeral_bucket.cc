@@ -18,6 +18,7 @@
 #include "ephemeral_bucket.h"
 
 #include "bucket_logger.h"
+#include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
 #include "ep_types.h"
 #include "ephemeral_tombstone_purger.h"

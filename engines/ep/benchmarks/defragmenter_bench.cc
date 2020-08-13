@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "collections/vbucket_manifest.h"
 #include "defragmenter_visitor.h"
 #include "ep_vb.h"
 #include "failover-table.h"
