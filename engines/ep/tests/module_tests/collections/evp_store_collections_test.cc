@@ -34,6 +34,7 @@
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
@@ -104,7 +105,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flush_vbucket_to_disk(vbid, 2);
 
@@ -138,7 +139,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -175,8 +176,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, checkKeyExists(key1, vbid, options));
 
     // Begin the deletion
-    vb->updateFromManifest(
-            Collections::Manifest{cm.remove(CollectionEntry::meat)});
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
 
     // We should have deleted the create marker
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -196,7 +196,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -217,12 +217,10 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest(
-            Collections::Manifest{cm.remove(CollectionEntry::dairy)});
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
 
     // Re-add the dairy collection
-    vb->updateFromManifest(
-            Collections::Manifest{cm.add(CollectionEntry::dairy2)});
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::dairy2)));
 
     // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete.
     flush_vbucket_to_disk(vbid, 2);
@@ -323,7 +321,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -336,12 +334,10 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest(
-            Collections::Manifest{cm.remove(CollectionEntry::dairy)});
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
 
     // Re-add the dairy collection
-    vb->updateFromManifest(
-            Collections::Manifest{cm.add(CollectionEntry::dairy2)});
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::dairy2)));
 
     // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -521,7 +517,7 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -577,7 +573,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -598,7 +594,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
 
     // Add the meat collection
     cm.add(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
@@ -649,7 +645,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     // Flushing the manifest to disk guarantees that the database file
     // is written and exists, any subsequent bgfetches (e.g. during
@@ -700,7 +696,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     // Flushing the manifest to disk guarantees that the database file
     // is written and exists, any subsequent bgfetches (e.g. during
@@ -723,7 +719,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
 
     // Add the meat collection
     cm.add(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     EXPECT_EQ(3,
               vb->getManifest().lock().getHighSeqno(
@@ -769,7 +765,7 @@ TEST_P(CollectionsParameterizedTest, GetRandomKey) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
     StoredDocKey key{"milk", CollectionEntry::dairy};
     auto item = store_item(vbid, key, "1", 0);
@@ -975,8 +971,7 @@ TEST_P(CollectionsParameterizedTest, MB_31212) {
     CollectionsManifest cm;
     auto vb = store->getVBucket(vbid);
 
-    vb->updateFromManifest(
-            Collections::Manifest{cm.add(CollectionEntry::meat)});
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
     auto key = StoredDocKey{"beef", CollectionEntry::meat};
     // Now we can write to meat
     store_item(vbid, key, "value");
@@ -1007,8 +1002,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         auto vb = store->getVBucket(vbid);
 
         // add performs a +1 on the manifest uid
-        vb->updateFromManifest(
-                Collections::Manifest{cm.add(CollectionEntry::meat)});
+        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
 
         // Trigger a flush to disk. Flushes the meat create event
         flush_vbucket_to_disk(vbid, 1);
@@ -1036,8 +1030,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                           CollectionEntry::meat));
 
         // create an extra collection which we do not write to (note uid++)
-        vb->updateFromManifest(
-                Collections::Manifest{cm.add(CollectionEntry::fruit)});
+        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
         flush_vbucket_to_disk(vbid, 1);
 
         // The high-seqno of the collection is the start, the seqno of the
@@ -1124,7 +1117,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
 
         // Add the meat collection
         CollectionsManifest cm(CollectionEntry::meat);
-        vb->updateFromManifest(Collections::Manifest{cm});
+        vb->updateFromManifest(makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
         flush_vbucket_to_disk(vbid, 1);
@@ -1138,8 +1131,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         flush_vbucket_to_disk(vbid, nitems);
 
         // Remove the meat collection
-        vb->updateFromManifest(
-                Collections::Manifest{cm.remove(CollectionEntry::meat)});
+        vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
 
         flush_vbucket_to_disk(vbid, 1);
 
@@ -1170,7 +1162,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
         // Add the meat collection
         CollectionsManifest cm(CollectionEntry::meat);
-        vb->updateFromManifest(Collections::Manifest{cm});
+        vb->updateFromManifest(makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
         flush_vbucket_to_disk(vbid, 1);
@@ -1186,7 +1178,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
         // Remove the default collection
         vb->updateFromManifest(
-                Collections::Manifest{cm.remove(CollectionEntry::defaultC)});
+                makeManifest(cm.remove(CollectionEntry::defaultC)));
 
         flush_vbucket_to_disk(vbid, 1);
 
@@ -1219,8 +1211,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
         // Add the meat collection
         CollectionsManifest cm;
         cm.setUid(0xface2); // cm.add will +1 this uid
-        vb->updateFromManifest(
-                Collections::Manifest{cm.add(CollectionEntry::meat)});
+        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
 
         flush_vbucket_to_disk(vbid, 1);
     } // VBucketPtr scope ends
@@ -1242,7 +1233,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
         CollectionsManifest cm;
         cm.setUid(0xface2); // cm.remove will +1 this uid
         vb->updateFromManifest(
-                Collections::Manifest{cm.remove(CollectionEntry::defaultC)});
+                makeManifest(cm.remove(CollectionEntry::defaultC)));
 
         flush_vbucket_to_disk(vbid, 1);
     } // VBucketPtr scope ends
@@ -1363,13 +1354,12 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
 
     // Add the meat collection + 1 item with TTL (and flush it all out)
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     StoredDocKey key{"lamb", CollectionEntry::meat};
     store_item(vbid, key, "value", ep_real_time() + 100);
     flush_vbucket_to_disk(vbid, 2);
     // And now drop the meat collection
-    vb->updateFromManifest(
-            Collections::Manifest{cm.remove(CollectionEntry::meat)});
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
     flush_vbucket_to_disk(vbid, 1);
 
     // Time travel
@@ -1402,7 +1392,7 @@ TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
 
     // Add the dairy collection, but don't flush it just yet.
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     // set a hook to be called immediately before the flusher commits to disk.
     // This is after items have been read from the checkpoint manager, but
@@ -1414,7 +1404,7 @@ TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
         // now remove the collection. This will remove it from the vb manifest
         // _before_ the creation event tries to call setPersistedHighSeqno()
         cm.remove(CollectionEntry::dairy);
-        vb->updateFromManifest(Collections::Manifest{cm});
+        vb->updateFromManifest(makeManifest(cm));
     });
     // flushing the creation to disk should not throw, even though the
     // collection was not found in the manifest
@@ -1428,13 +1418,12 @@ TEST_P(CollectionsParameterizedTest,
 
     // Add the meat collection + 1 item with TTL (and flush it all out)
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
     StoredDocKey key{"lamb", CollectionEntry::meat};
     store_item(vbid, key, "value", ep_real_time() + 100);
     flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
-    vb->updateFromManifest(
-            Collections::Manifest{cm.remove(CollectionEntry::meat)});
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Time travel
@@ -1503,7 +1492,7 @@ void CollectionsExpiryLimitTest::operation_test(
 
     {
         VBucketPtr vb = store->getVBucket(vbid);
-        vb->updateFromManifest(Collections::Manifest{cm});
+        vb->updateFromManifest(makeManifest(cm));
     }
 
     flush_vbucket_to_disk(vbid, 4);
@@ -1621,7 +1610,7 @@ TEST_P(CollectionsParameterizedTest, item_counting) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     // Default collection is open for business
     store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
@@ -1826,7 +1815,7 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1894,7 +1883,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionDiskSize) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1962,7 +1951,7 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -2093,7 +2082,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     CollectionsManifest cmDairyVb;
     cmDairyVb.add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy, ScopeEntry::shop1);
-    vb->updateFromManifest(Collections::Manifest{cmDairyVb});
+    vb->updateFromManifest(makeManifest(cmDairyVb));
 
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 2);

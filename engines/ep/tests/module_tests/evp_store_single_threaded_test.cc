@@ -54,6 +54,7 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "taskqueue.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 #include "tests/module_tests/thread_gate.h"
@@ -5332,7 +5333,7 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
 
     CollectionsManifest cm(CollectionEntry::dairy);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{cm});
+    vb->updateFromManifest(makeManifest(cm));
 
     // Check nothing persisted to disk, only default collection exists
     auto* kvstore = store->getRWUnderlying(vbid);

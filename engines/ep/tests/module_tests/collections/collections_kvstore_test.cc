@@ -24,6 +24,7 @@
 #include "kvstore.h"
 #include "kvstore_config.h"
 #include "stats.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/kvstore_test.h"
 #include <utilities/test_manifest.h>
 
@@ -83,7 +84,7 @@ public:
     }
 
     void applyEvents(const CollectionsManifest& cm) {
-        manifest.update(vbucket, Collections::Manifest{cm});
+        manifest.update(vbucket, makeManifest(cm));
 
         std::vector<queued_item> events;
         getEventsFromCheckpoint(events);

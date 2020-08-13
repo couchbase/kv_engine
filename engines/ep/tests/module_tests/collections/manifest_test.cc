@@ -16,6 +16,7 @@
  */
 
 #include "collections/manifest.h"
+#include "collections_test_helpers.h"
 #include <utilities/test_manifest.h>
 
 #include <folly/portability/GTest.h>
@@ -551,7 +552,7 @@ TEST(ManifestTest, toJson) {
         }
         cm.setUid(manifest.first);
 
-        Collections::Manifest m(cm);
+        Collections::Manifest m = makeManifest(cm);
 
         nlohmann::json input;
         auto output = m.toJson(isVisible);
@@ -621,7 +622,7 @@ TEST(ManifestTest, badNames) {
         if (!(std::isdigit(c) || std::isalpha(c) || c == '_' || c == '-' ||
               c == '%')) {
             try {
-                Collections::Manifest m(cm);
+                auto m = makeManifest(cm);
                 EXPECT_TRUE(false)
                         << "No exception thrown for invalid manifest:" << m
                         << std::endl;
@@ -629,7 +630,7 @@ TEST(ManifestTest, badNames) {
             }
         } else {
             try {
-                Collections::Manifest m(cm);
+                auto m = makeManifest(cm);
             } catch (std::exception& e) {
                 EXPECT_TRUE(false) << "Exception thrown for valid manifest"
                                    << std::endl

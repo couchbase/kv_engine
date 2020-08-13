@@ -20,6 +20,7 @@
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 
 class CollectionsOSODcpTest : public CollectionsDcpTest {
@@ -44,8 +45,7 @@ std::pair<CollectionsManifest, uint64_t>
 CollectionsOSODcpTest::setupTwoCollections() {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::fruit);
-    vb->updateFromManifest(
-            Collections::Manifest{cm.add(CollectionEntry::vegetable)});
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::vegetable)));
 
     // Interleave the writes to two collections and then OSO backfill one
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::fruit), "q");
@@ -194,8 +194,8 @@ TEST_F(CollectionsOSODcpTest, dropped_collection) {
     // stream should only return a dropped vegetable event and no vegetable
     // items in the OSO snapshot
     VBucketPtr vb = store->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{
-            setup.first.remove(CollectionEntry::vegetable)});
+    vb->updateFromManifest(
+            makeManifest(setup.first.remove(CollectionEntry::vegetable)));
     flush_vbucket_to_disk(vbid, 1);
 
     // We have a single filter, expect the backfill to be OSO

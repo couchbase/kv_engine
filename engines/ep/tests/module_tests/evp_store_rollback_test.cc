@@ -41,6 +41,7 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include <utilities/test_manifest.h>
@@ -425,8 +426,8 @@ protected:
         CollectionsManifest cm;
         // the roll back function will rewind disk to this collection state.
         // note: we add 'meat' and keep it empty, this reproduces MB-37940
-        vb->updateFromManifest(Collections::Manifest{
-                cm.add(CollectionEntry::dairy).add(CollectionEntry::meat)});
+        vb->updateFromManifest(makeManifest(
+                cm.add(CollectionEntry::dairy).add(CollectionEntry::meat)));
 
         nlohmann::json htState;
         if (rollbackCollectionCreate && !flush_before_rollback) {
@@ -462,7 +463,7 @@ protected:
                   getEPBucket().flushVBucket(vbid));
 
         cm.remove(CollectionEntry::dairy);
-        vb->updateFromManifest(Collections::Manifest{cm});
+        vb->updateFromManifest(makeManifest(cm));
 
         // Expect failure to store
         store_item(vbid,

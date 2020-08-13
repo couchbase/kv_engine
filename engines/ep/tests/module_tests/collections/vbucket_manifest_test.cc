@@ -24,6 +24,7 @@
 #include "failover-table.h"
 #include "item.h"
 #include "stats.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include <utilities/test_manifest.h>
 
@@ -726,7 +727,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     // deleted. Apply direct to vbm, not via manifest.update as that would
     // complain about the lack of events
     manifest.getActiveManifest().update(manifest.getActiveVB(),
-                                        Collections::Manifest{cm});
+                                        makeManifest(cm));
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
     seqno = manifest.getActiveVB().getHighSeqno();
@@ -739,7 +740,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
 
     // same again, should have nothing created or deleted
     manifest.getActiveManifest().update(manifest.getActiveVB(),
-                                        Collections::Manifest{cm});
+                                        makeManifest(cm));
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
 }

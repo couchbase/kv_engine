@@ -18,7 +18,6 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
-#include <test_manifest.h>
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -68,11 +67,6 @@ public:
      * @param json a buffer containing the JSON manifest data
      */
     explicit Manifest(std::string_view json);
-
-    /// This constructor should be only used in testing with CollectionsManifest
-    /// class from test_manifest.h
-    explicit Manifest(const CollectionsManifest& cm)
-        : Manifest(std::string{cm}){};
 
     bool doesDefaultCollectionExist() const {
         return defaultCollectionExists;
