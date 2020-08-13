@@ -146,3 +146,36 @@ public:
     MOCK_METHOD2(deleteCallback,
                  void(const queued_item&, KVStore::FlushStateDeletion));
 };
+
+class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
+public:
+    KVStoreTestCacheCallback(int64_t s, int64_t e, Vbid vbid)
+        : start(s), end(e), vb(vbid) {
+    }
+
+    void callback(CacheLookup& lookup) override;
+
+private:
+    int64_t start;
+    int64_t end;
+    Vbid vb;
+};
+
+class GetCallback : public StatusCallback<GetValue> {
+public:
+    explicit GetCallback(ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS)
+        : expectCompressed(false), expectedErrorCode(_expectedErrorCode) {
+    }
+
+    explicit GetCallback(bool expect_compressed,
+                         ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS)
+        : expectCompressed(expect_compressed),
+          expectedErrorCode(_expectedErrorCode) {
+    }
+
+    void callback(GetValue& result) override;
+
+private:
+    bool expectCompressed;
+    ENGINE_ERROR_CODE expectedErrorCode;
+};

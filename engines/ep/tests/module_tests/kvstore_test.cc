@@ -52,52 +52,24 @@ using namespace testing;
 // Value to use when testing Snappy compression.
 static const std::string COMPRESSIBLE_VALUE = "xxyyzzxxyyzzxxyyzzxxyyzz";
 
-class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
-public:
-    KVStoreTestCacheCallback(int64_t s, int64_t e, Vbid vbid)
-        : start(s), end(e), vb(vbid) {
-    }
+void KVStoreTestCacheCallback::callback(CacheLookup& lookup) {
+    EXPECT_EQ(vb, lookup.getVBucketId());
+    EXPECT_LE(start, lookup.getBySeqno());
+    EXPECT_LE(lookup.getBySeqno(), end);
+}
 
-    void callback(CacheLookup& lookup) override {
-        EXPECT_EQ(vb, lookup.getVBucketId());
-        EXPECT_LE(start, lookup.getBySeqno());
-        EXPECT_LE(lookup.getBySeqno(), end);
-    }
-
-private:
-    int64_t start;
-    int64_t end;
-    Vbid vb;
-};
-
-class GetCallback : public StatusCallback<GetValue> {
-public:
-    explicit GetCallback(ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS) :
-        expectCompressed(false),
-        expectedErrorCode(_expectedErrorCode) { }
-
-    explicit GetCallback(bool expect_compressed,
-                ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS) :
-        expectCompressed(expect_compressed),
-        expectedErrorCode(_expectedErrorCode) { }
-
-    void callback(GetValue& result) override {
-        EXPECT_EQ(expectedErrorCode, result.getStatus());
-        if (result.getStatus() == ENGINE_SUCCESS) {
-            if (expectCompressed) {
-                EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
-                          result.item->getDataType());
-                result.item->decompressValue();
-            }
-
-            EXPECT_EQ(COMPRESSIBLE_VALUE, result.item->getValue()->to_s());
+void GetCallback::callback(GetValue& result) {
+    EXPECT_EQ(expectedErrorCode, result.getStatus());
+    if (result.getStatus() == ENGINE_SUCCESS) {
+        if (expectCompressed) {
+            EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
+                      result.item->getDataType());
+            result.item->decompressValue();
         }
-    }
 
-private:
-    bool expectCompressed;
-    ENGINE_ERROR_CODE expectedErrorCode;
-};
+        EXPECT_EQ(COMPRESSIBLE_VALUE, result.item->getValue()->to_s());
+    }
+}
 
 struct WriteCallback {
     void operator()(TransactionContext, KVStore::FlushStateMutation) {
