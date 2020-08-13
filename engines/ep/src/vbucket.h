@@ -884,16 +884,6 @@ public:
         return *manifest;
     }
 
-    void incrementCollectionDiskCount(const DocKey& key) {
-        // Obtain caching read handle
-        lockCollections(key).incrementDiskCount();
-    }
-
-    void decrementCollectionDiskCount(const DocKey& key) {
-        // Obtain caching read handle
-        lockCollections(key).decrementDiskCount();
-    }
-
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
