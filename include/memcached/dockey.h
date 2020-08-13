@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <iomanip>
 
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>

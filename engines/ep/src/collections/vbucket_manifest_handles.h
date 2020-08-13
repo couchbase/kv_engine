@@ -17,9 +17,11 @@
 
 #pragma once
 
-#include "vbucket_manifest.h"
+#include "collections/vbucket_manifest.h"
 
 namespace Collections::VB {
+
+struct PersistedStats;
 
 /**
  * RAII read locking for access to the Manifest.
@@ -186,9 +188,7 @@ public:
     /**
      * Dump this VB::Manifest to std::cerr
      */
-    void dump() const {
-        std::cerr << manifest << std::endl;
-    }
+    void dump() const;
 
     /**
      * We may wish to keep hold of a ReadHandle without actually keeping
@@ -450,9 +450,7 @@ public:
     /**
      * Dump this VB::Manifest to std::cerr
      */
-    void dump() {
-        std::cerr << *manifest << std::endl;
-    }
+    void dump();
 
 protected:
     friend std::ostream& operator<<(std::ostream& os,
@@ -481,19 +479,13 @@ public:
         : ReadHandle(m, lock), itr(m->getManifestIterator(cid)) {
     }
 
+    PersistedStats getPersistedStats() const;
+
     bool valid() const {
         return itr != manifest->end();
     }
 
-    PersistedStats getPersistedStats() const {
-        return {itr->second.getDiskCount(),
-                itr->second.getPersistedHighSeqno(),
-                itr->second.getDiskSize()};
-    }
-
-    void dump() {
-        std::cerr << *manifest << std::endl;
-    }
+    void dump();
 
 protected:
     friend std::ostream& operator<<(std::ostream& os,
@@ -635,9 +627,7 @@ public:
     /**
      * Dump this VB::Manifest to std::cerr
      */
-    void dump() {
-        std::cerr << manifest << std::endl;
-    }
+    void dump();
 
 private:
     Manifest::mutex_type::WriteHolder writeLock;

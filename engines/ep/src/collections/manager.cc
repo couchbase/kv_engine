@@ -17,6 +17,7 @@
 
 #include "collections/manager.h"
 #include "bucket_logger.h"
+#include "collections/flush.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"

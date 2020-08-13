@@ -20,6 +20,7 @@
 #include <folly/portability/GTest.h>
 
 #include "bucket_logger.h"
+#include "collections/collection_persisted_stats.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore_test.h"

@@ -227,7 +227,8 @@ SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
                        src/collections/scan_context.cc
                        src/collections/vbucket_filter.cc
                        src/collections/vbucket_manifest.cc
-                       src/collections/vbucket_manifest_entry.cc)
+                       src/collections/vbucket_manifest_entry.cc
+                       src/collections/vbucket_manifest_handles.cc)
 
 ADD_LIBRARY(ep_objs OBJECT
             src/access_scanner.cc

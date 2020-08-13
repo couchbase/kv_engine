@@ -19,8 +19,6 @@
 
 #include "collections/collections_types.h"
 #include "memcached/engine_common.h"
-#include "stored-value.h"
-#include "systemevent.h"
 
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>

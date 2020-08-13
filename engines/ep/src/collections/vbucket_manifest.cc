@@ -26,6 +26,7 @@
 #include "ep_time.h"
 #include "item.h"
 #include "statistics/collector.h"
+#include "systemevent.h"
 #include "vbucket.h"
 
 #include <memory>

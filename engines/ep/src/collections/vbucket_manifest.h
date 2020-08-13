@@ -17,21 +17,19 @@
 
 #pragma once
 
-#include "collections/collection_persisted_stats.h"
 #include "collections/collections_types.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest_entry.h"
-#include "systemevent.h"
+#include "ep_types.h"
+#include "storeddockey_fwd.h"
 
 #include <folly/SharedMutex.h>
 #include <folly/container/F14Map.h>
-#include <platform/non_negative_counter.h>
 
-#include <functional>
-#include <iostream>
-#include <mutex>
 #include <optional>
+#include <unordered_set>
 
+class Item;
 class VBucket;
 
 namespace flatbuffers {

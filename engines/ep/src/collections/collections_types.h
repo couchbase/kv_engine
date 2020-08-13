@@ -19,12 +19,13 @@
 
 #include "monotonic.h"
 
-#include <memcached/dockey.h>
 #include <memcached/types.h>
 #include <gsl/gsl>
 
 #include <functional>
 #include <unordered_map>
+
+struct DocKey;
 
 namespace Collections {
 
