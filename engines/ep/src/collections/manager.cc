@@ -189,6 +189,15 @@ std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
             current->getUid(), current->getScopeID(cid));
 }
 
+cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
+        ScopeID sid) const {
+    auto manifestLocked = currentManifest.rlock();
+    if (manifestLocked->findScope(sid) != manifestLocked->endScopes()) {
+        return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid(), sid};
+    }
+    return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid()};
+}
+
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
     Collections::VB::ManifestUpdateStatus status;
@@ -629,18 +638,14 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
             return cb::EngineErrorGetScopeIDResult{
                     cb::engine_errc::invalid_arguments};
         }
-        res = cb::EngineErrorGetScopeIDResult{scopeID};
+        res = bucket.getCollectionsManager().isScopeIDValid(scopeID);
     } else {
         // provided argument should be a scope name
         res = bucket.getCollectionsManager().getScopeID(arg);
-        if (res.result != cb::engine_errc::success) {
-            EP_LOG_WARN(
-                    "Collections::Manager::doOneScopeStats unknown "
-                    "scope arg:{} error:{}",
-                    arg,
-                    res.result);
-            return res;
-        }
+    }
+
+    if (res.result != cb::engine_errc::success) {
+        return res;
     }
 
     // Access check for SimpleStats

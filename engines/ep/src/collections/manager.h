@@ -137,6 +137,16 @@ public:
      * @return optional scope-ID initialised if the lookup was successful
      */
     std::pair<uint64_t, std::optional<ScopeID>> getScopeID(CollectionID) const;
+
+    /**
+     * Method to check if a ScopeID is valid
+     * @param sid scoped id to validate
+     * @return cb::EngineErrorGetScopeIDResult containing the status of success
+     * with the sid and manifest uid if the scope exists otherwise the status
+     * will be unknown_scope and the manifest uid will also be set.
+     */
+    cb::EngineErrorGetScopeIDResult isScopeIDValid(ScopeID sid) const;
+
     /**
      * Update the vbucket's manifest with the current Manifest
      * The Manager is locked to prevent current changing whilst this update

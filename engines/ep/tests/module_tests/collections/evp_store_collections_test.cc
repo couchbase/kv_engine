@@ -2804,6 +2804,58 @@ TEST_P(CollectionsPersistentParameterizedTest, SystemEventsDoNotCount) {
     { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
 }
 
+TEST_P(CollectionsParameterizedTest, ScopeIDIsValid) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    cm.add(ScopeEntry::shop1);
+    store->setCollections(std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto manager = getCollectionsManager();
+
+    auto result = manager.isScopeIDValid(ScopeEntry::defaultS.getId());
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+
+    result = manager.isScopeIDValid(ScopeEntry::shop1.getId());
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+
+    result = manager.isScopeIDValid(ScopeEntry::shop2.getId());
+    EXPECT_EQ(cb::engine_errc::unknown_scope, result.result);
+}
+
+static void append_stat(std::string_view key,
+                        std::string_view value,
+                        gsl::not_null<const void*> void_cookie) {
+}
+
+TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    cm.add(ScopeEntry::shop1);
+    store->setCollections(std::string{cm});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto manager = getCollectionsManager();
+    auto kv = engine->getKVBucket();
+    auto result =
+            manager.doScopeStats(*kv, cookie, append_stat, "scopes-byid 0x0");
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(ScopeEntry::defaultS.getId(), result.getScopeId());
+    EXPECT_EQ(cm.getUid(), result.getManifestId());
+
+    result = manager.doScopeStats(*kv, cookie, append_stat, "scopes-byid 0x8");
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(ScopeEntry::shop1.getId(), result.getScopeId());
+    EXPECT_EQ(cm.getUid(), result.getManifestId());
+
+    result = manager.doScopeStats(*kv, cookie, append_stat, "scopes-byid 0x1");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, result.result);
+
+    result = manager.doScopeStats(*kv, cookie, append_stat, "scopes-byid 0x9");
+    EXPECT_EQ(cb::engine_errc::unknown_scope, result.result);
+    EXPECT_EQ(cm.getUid(), result.getManifestId());
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
