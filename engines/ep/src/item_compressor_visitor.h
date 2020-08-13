@@ -20,7 +20,7 @@
 #include "hash_table.h"
 #include "progress_tracker.h"
 #include "vb_visitors.h"
-#include "vbucket.h"
+#include <memcached/engine.h>
 
 /**
  * Item Compressor visitor - visit all objects in a VBucket and compress

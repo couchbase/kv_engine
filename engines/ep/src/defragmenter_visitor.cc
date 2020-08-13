@@ -16,6 +16,7 @@
  */
 
 #include "defragmenter_visitor.h"
+#include "vbucket.h"
 
 // DegragmentVisitor implementation ///////////////////////////////////////////
 

@@ -23,7 +23,6 @@
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
-#include "vbucket.h"
 
 #include <phosphor/phosphor.h>
 #include <memory>

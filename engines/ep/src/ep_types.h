@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <memcached/vbucket.h>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -193,6 +194,12 @@ enum class EvictionPolicy {
 };
 
 std::string to_string(EvictionPolicy);
+
+/**
+ * The following will be used to identify
+ * the source of an item's expiration.
+ */
+enum class ExpireBy { Pager, Compactor, Access };
 
 std::ostream& operator<<(std::ostream&, const EvictionPolicy& policy);
 

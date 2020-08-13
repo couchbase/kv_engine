@@ -24,7 +24,6 @@
 #include "statistics/collector.h"
 #include "string_utils.h"
 #include "vb_visitors.h"
-#include "vbucket.h"
 
 #include <spdlog/fmt/ostr.h>
 #include <optional>

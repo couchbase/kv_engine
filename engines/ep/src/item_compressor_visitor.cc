@@ -16,6 +16,7 @@
  */
 
 #include "item_compressor_visitor.h"
+#include "vbucket.h"
 #include <platform/compress.h>
 
 // ItemCompressorVisitor implementation //////////////////////////////

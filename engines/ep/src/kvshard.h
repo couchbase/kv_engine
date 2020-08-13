@@ -19,9 +19,10 @@
 
 #include "kvstore_config.h"
 #include "utility.h"
-#include "vbucket.h"
-
+#include "vbucket_fwd.h"
+#include <memcached/vbucket.h>
 #include <atomic>
+#include <mutex>
 
 /**
  * Base class encapsulating individual couchstore(vbucket) into a
@@ -69,7 +70,9 @@
 class BgFetcher;
 class Configuration;
 class EPBucket;
+class EventuallyPersistentEngine;
 class Flusher;
+class KVStore;
 struct KVStoreRWRO;
 
 class KVShard {

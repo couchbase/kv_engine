@@ -20,7 +20,6 @@
 #include "ephemeral_vb.h"
 #include "seqlist.h"
 #include "vb_count_visitor.h"
-#include "vbucket.h"
 
 void EphemeralVBucket::CountVisitor::visitBucket(const VBucketPtr& vb) {
     // Handle base class counts

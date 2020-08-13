@@ -24,7 +24,6 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
-#include "vbucket.h"
 
 #include <engines/ep/tests/mock/mock_dcp.h>
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>

@@ -20,7 +20,6 @@
 #include "hash_table.h"
 #include "progress_tracker.h"
 #include "vb_visitors.h"
-#include "vbucket.h"
 
 /**
  * Defragmentation visitor - visit all objects in a VBucket, compress the

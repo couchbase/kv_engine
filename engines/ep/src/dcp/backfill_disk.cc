@@ -21,7 +21,6 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
-#include "vbucket.h"
 
 CacheCallback::CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s)
     : bucket(bucket), streamPtr(s) {

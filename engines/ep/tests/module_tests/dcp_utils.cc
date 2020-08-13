@@ -22,7 +22,6 @@
 #include "../mock/mock_stream.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
-#include "vbucket.h"
 
 #include <folly/portability/GTest.h>
 

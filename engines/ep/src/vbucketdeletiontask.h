@@ -18,9 +18,10 @@
 #pragma once
 
 #include "globaltask.h"
-#include "vbucket.h"
 
 class EPVBucket;
+class KVShard;
+class VBucket;
 
 /*
  * This is a NONIO task called as part of VB deletion.  The task is responsible

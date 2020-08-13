@@ -15,10 +15,11 @@
  *   limitations under the License.
  */
 
-#include "ep_engine.h"
 #include "htresizer.h"
+#include "ep_engine.h"
 #include "kv_bucket_iface.h"
 #include "vb_visitors.h"
+#include "vbucket.h"
 
 #include <phosphor/phosphor.h>
 

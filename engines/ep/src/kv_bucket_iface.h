@@ -17,9 +17,15 @@
 
 #pragma once
 
+#include "globaltask.h"
 #include "permitted_vb_states.h"
-#include "task_type.h"
-#include "vbucket.h"
+#include "rollback_result.h"
+#include "vbucket_fwd.h"
+#include "vbucket_notify_context.h"
+#include <folly/SharedMutex.h>
+#include <memcached/engine.h>
+#include <nlohmann/json.hpp>
+#include <list>
 
 /* Forward declarations */
 struct CompactionConfig;
@@ -28,10 +34,14 @@ struct CompactionConfig;
 class ConflictResolution;
 class DefragmenterTask;
 class DiskDocKey;
+class EventuallyPersistentEngine;
+class FailoverTable;
 class Flusher;
 class HashTable;
 class ItemMetaData;
 class KVBucket;
+class KVShard;
+class KVStore;
 struct KVStoreRWRO;
 class MutationLog;
 class PauseResumeVBVisitor;
@@ -44,9 +54,16 @@ class Warmup;
 namespace Collections {
 class Manager;
 }
+namespace Collections::VB {
+class Manifest;
+}
+struct key_stats;
 
 class BGFetchItem;
 using bgfetched_item_t = std::pair<DiskDocKey, const BGFetchItem*>;
+
+class GlobalTask;
+using ExTask = std::shared_ptr<GlobalTask>;
 
 /**
  * This is the abstract base class that manages the bucket behavior in

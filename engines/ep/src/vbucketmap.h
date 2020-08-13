@@ -20,8 +20,8 @@
 #include "kvshard.h"
 #include "utility.h"
 
+#include <folly/SharedMutex.h>
 #include <platform/non_negative_counter.h>
-
 #include <vector>
 
 class KVBucket;
