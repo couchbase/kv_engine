@@ -1396,8 +1396,12 @@ HashTable::FindResult VBucket::fetchValidValue(
     // allow some "physically" const methods (like ht.unlocked_restore) to be
     // called on it.
     auto* v = const_cast<StoredValue*>(res.storedValue);
-    if (v && !v->isDeleted() && !v->isTempItem()) {
-        // In the deleted case, we ignore expiration time.
+    // We ignore the expiration time if:
+    //  - the item is already deleted
+    //  - it is a temp item
+    //  - the item is a pending Prepare -> TTL will apply if/when the item is
+    //    committed
+    if (v && !v->isDeleted() && !v->isTempItem() && v->isCommitted()) {
         if (v->isExpired(ep_real_time())) {
             if (getState() != vbucket_state_active) {
                 return {(wantsDeleted == WantsDeleted::Yes) ? v : nullptr,
