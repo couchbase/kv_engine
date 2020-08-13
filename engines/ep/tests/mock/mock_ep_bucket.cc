@@ -70,7 +70,7 @@ VBucketPtr MockEPBucket::makeVBucket(
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
-        const nlohmann::json& replicationTopology,
+        const nlohmann::json* replicationTopology,
         uint64_t maxVisibleSeqno) {
     auto vptr = EPBucket::makeVBucket(id,
                                       state,

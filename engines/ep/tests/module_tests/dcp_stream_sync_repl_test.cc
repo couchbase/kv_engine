@@ -71,10 +71,10 @@ protected:
     void SetUp() override {
         StreamTest::SetUp();
         // Need a valid replication chain to be able to perform SyncWrites
+        auto meta = nlohmann::json{
+                {"topology", nlohmann::json::array({{"active", "replica"}})}};
         engine->getKVBucket()->setVBucketState(
-                vbid,
-                vbucket_state_active,
-                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+                vbid, vbucket_state_active, &meta);
     }
 
     /// Store a pending item of the given document state (alive / deleted).

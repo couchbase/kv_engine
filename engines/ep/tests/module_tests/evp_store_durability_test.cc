@@ -1951,11 +1951,10 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
 
     // Test: Set the topology (as ns_server does), by specifying just
     // a single node in topology should now be able to commit the prepare.
+    auto meta =
+            nlohmann::json{{"topology", nlohmann::json::array({{"active"}})}};
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{"active"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
     vb.processResolvedSyncWrites();
 
     // Given the prepare was already persisted to disk above when we first
@@ -2314,12 +2313,10 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         // the full core will delete the cookie before the engine is killed)
         destroy_mock_cookie(cookie);
         cookie = create_mock_cookie();
+        auto meta = nlohmann::json{
+                {"topology", nlohmann::json::array({{"active", "replica"}})}};
         EXPECT_EQ(ENGINE_SUCCESS,
-                  store->setVBucketState(
-                          vbid,
-                          vbucket_state_active,
-                          {{"topology",
-                            nlohmann::json::array({{"active", "replica"}})}}));
+                  store->setVBucketState(vbid, vbucket_state_active, &meta));
 
         auto key = makeStoredDocKey("key");
         using namespace cb::durability;

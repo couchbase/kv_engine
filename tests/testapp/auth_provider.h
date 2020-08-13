@@ -20,7 +20,7 @@
 #include <cbsasl/error.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac.h>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <utility>
 
 namespace cb {

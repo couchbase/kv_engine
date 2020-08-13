@@ -1041,6 +1041,10 @@ void Warmup::createVBuckets(uint16_t shardId) {
                 manifest = std::make_unique<Collections::VB::Manifest>();
             }
 
+            const auto* topology =
+                    vbs.transition.replicationTopology.empty()
+                            ? nullptr
+                            : &vbs.transition.replicationTopology;
             vb = store.makeVBucket(vbid,
                                    vbs.transition.state,
                                    shard,
@@ -1055,7 +1059,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.maxCas,
                                    vbs.hlcCasEpochSeqno,
                                    vbs.mightContainXattrs,
-                                   vbs.transition.replicationTopology,
+                                   topology,
                                    vbs.maxVisibleSeqno);
 
             if (vbs.transition.state == vbucket_state_active &&

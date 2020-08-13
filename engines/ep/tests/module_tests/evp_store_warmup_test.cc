@@ -368,7 +368,6 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
 TEST_F(WarmupTest, MB_32577) {
     std::string keyName("key");
     std::string value("value");
-    nlohmann::json metaStateChange{};
     uint32_t zeroFlags{0};
 
     // create an active vbucket
@@ -378,7 +377,7 @@ TEST_F(WarmupTest, MB_32577) {
     store_item(vbid, makeStoredDocKey(keyName), value);
     // Change the type of vbucket to a replica
     store->setVBucketState(
-            vbid, vbucket_state_replica, metaStateChange, TransferVB::Yes);
+            vbid, vbucket_state_replica, nullptr, TransferVB::Yes);
     // flush all document to disk
     flush_vbucket_to_disk(vbid);
 

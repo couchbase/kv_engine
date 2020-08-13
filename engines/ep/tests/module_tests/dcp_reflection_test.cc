@@ -73,12 +73,11 @@ protected:
             }
         }
 
+        auto meta = nlohmann::json{
+                {"topology", nlohmann::json::array({{"active", "replica"}})}};
         ASSERT_EQ(ENGINE_SUCCESS,
                   engine->getKVBucket()->setVBucketState(
-                          vbid,
-                          vbucket_state_active,
-                          {{"topology",
-                            nlohmann::json::array({{"active", "replica"}})}}));
+                          vbid, vbucket_state_active, &meta));
         // Always stash KVBucketTest::engine in engines as Node0
         engines[Node0] = engine.get();
 

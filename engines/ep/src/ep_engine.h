@@ -600,7 +600,7 @@ public:
                                       const AddResponseFn& response,
                                       Vbid vbid,
                                       vbucket_state_t to,
-                                      const nlohmann::json& meta,
+                                      const nlohmann::json* meta,
                                       TransferVB transfer,
                                       uint64_t cas);
 

@@ -56,7 +56,7 @@ EphemeralVBucket::EphemeralVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas,
         bool mightContainXattrs,
-        const nlohmann::json& replicationTopology)
+        const nlohmann::json* replicationTopology)
     : VBucket(i,
               newState,
               st,

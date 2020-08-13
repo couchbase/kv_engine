@@ -33,6 +33,7 @@
 
 #include "../mock/mock_ephemeral_vb.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 
 using namespace std::string_literals;
@@ -656,9 +657,9 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
 TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
     // Necessary for enqueueing into the DurabilityMonitor (VBucket::set fails
     // otherwise)
-    vbucket->setState(
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    auto meta = nlohmann::json{
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
+    vbucket->setState(vbucket_state_active, &meta);
 
     ASSERT_EQ(0, vbucket->getNumItems());
     ASSERT_EQ(0, vbucket->getNumNonResidentItems());

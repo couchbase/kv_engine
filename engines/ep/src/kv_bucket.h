@@ -295,7 +295,7 @@ public:
      */
     ENGINE_ERROR_CODE setVBucketState(Vbid vbid,
                                       vbucket_state_t state,
-                                      const nlohmann::json& meta = {},
+                                      const nlohmann::json* meta = {},
                                       TransferVB transfer = TransferVB::No,
                                       const void* cookie = nullptr);
 
@@ -316,7 +316,7 @@ public:
      */
     void setVBucketState_UNLOCKED(VBucketPtr& vb,
                                   vbucket_state_t to,
-                                  const nlohmann::json& meta,
+                                  const nlohmann::json* meta,
                                   TransferVB transfer,
                                   bool notify_dcp,
                                   std::unique_lock<std::mutex>& vbset,
@@ -336,7 +336,7 @@ public:
     ENGINE_ERROR_CODE createVBucket_UNLOCKED(
             Vbid vbid,
             vbucket_state_t state,
-            const nlohmann::json& meta,
+            const nlohmann::json* meta,
             std::unique_lock<std::mutex>& vbset);
     /**
      * Returns the 'vbsetMutex'
@@ -620,7 +620,7 @@ public:
                            uint64_t maxCas = 0,
                            int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
                            bool mightContainXattrs = false,
-                           const nlohmann::json& replicationTopology = {},
+                           const nlohmann::json* replicationTopology = {},
                            uint64_t maxVisibleSeqno = 0) override = 0;
 
     /**

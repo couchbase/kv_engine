@@ -1107,11 +1107,10 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
 TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
     // Setup - need a valid topology to accept SyncWrites - but don't want them
     // to auto-commit so create a topology with 2 nodes.
+    auto meta =
+            nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
     ASSERT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     // Store both a committed and prepared SV.
     auto key = makeStoredDocKey("key");
@@ -1130,11 +1129,10 @@ TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
 TEST_P(KVBucketParamTest, UnlockWithPreparedSyncWrite) {
     // Setup - need a valid topology to accept SyncWrites - but don't want them
     // to auto-commit so create a topology with 2 nodes.
+    auto meta =
+            nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
     ASSERT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     // Store both a committed and prepared SV.
     auto key = makeStoredDocKey("key");
@@ -1155,11 +1153,10 @@ TEST_P(KVBucketParamTest, UnlockWithPreparedSyncWrite) {
 TEST_P(KVBucketParamTest, GetAndUpdateTtlWithPreparedSyncWrite) {
     // Setup - need a valid topology to accept SyncWrites - but don't want them
     // to auto-commit so create a topology with 2 nodes.
+    auto meta =
+            nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
     ASSERT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     // Store both a committed and prepared SV.
     auto key = makeStoredDocKey("key");
@@ -1574,11 +1571,10 @@ TEST_P(KVBucketParamTest, FailoverEntryNotAddedActiveToActive) {
     ASSERT_EQ(1, vb->failovers->getNumEntries());
 
     // Test - with a topology specified, we shouldn't get a new failover entry.
+    auto meta =
+            nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology", nlohmann::json::array({{"a", "b"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
     EXPECT_EQ(1, vb->failovers->getNumEntries());
 }
 

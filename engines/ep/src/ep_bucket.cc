@@ -1328,7 +1328,7 @@ VBucketPtr EPBucket::makeVBucket(
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
-        const nlohmann::json& replicationTopology,
+        const nlohmann::json* replicationTopology,
         uint64_t maxVisibleSeqno) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
     // Not using make_shared or allocate_shared

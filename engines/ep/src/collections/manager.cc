@@ -25,6 +25,7 @@
 #include "string_utils.h"
 #include "vb_visitors.h"
 
+#include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
 #include <optional>
 #include <utility>

@@ -40,9 +40,9 @@ void VBucketDurabilityTest::SetUp() {
     ht = &vbucket->ht;
     ckptMgr = static_cast<MockCheckpointManager*>(
             vbucket->checkpointManager.get());
-    vbucket->setState(
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{active, replica1}})}});
+    auto meta = nlohmann::json{
+            {"topology", nlohmann::json::array({{active, replica1}})}};
+    vbucket->setState(vbucket_state_active, &meta);
     ASSERT_EQ(2, vbucket->getActiveDM().getFirstChainSize());
 }
 
@@ -103,7 +103,8 @@ void VBucketDurabilityTest::storeSyncWrites(
 
 void VBucketDurabilityTest::simulateSetVBState(vbucket_state_t to,
                                                const nlohmann::json& meta) {
-    vbucket->setState(to, meta);
+    auto* metaPtr = meta.empty() ? nullptr : &meta;
+    vbucket->setState(to, metaPtr);
     vbucket->processResolvedSyncWrites();
 }
 
@@ -505,10 +506,10 @@ TEST_P(VBucketDurabilityTest, ActiveActive_SetVBucketState_KeepsTrackedWrites) {
     simulateLocalAck(20);
     EXPECT_EQ(20, monitor.getHighPreparedSeqno());
 
-    vbucket->setState(
-            vbucket_state_active,
-            {{"topology",
-              nlohmann::json::array({{active, replica1, replica2}})}});
+    auto meta = nlohmann::json{
+            {"topology",
+             nlohmann::json::array({{active, replica1, replica2}})}};
+    vbucket->setState(vbucket_state_active, &meta);
 
     auto& monitor2 = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     EXPECT_EQ(2, monitor2.getNumTracked());
@@ -1593,9 +1594,9 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     pdm.notifySnapshotEndReceived(3);
 
     // VBState transitions from Replica to Active
-    const nlohmann::json topology(
+    const nlohmann::json meta(
             {{"topology", nlohmann::json::array({{active, replica1}})}});
-    vbucket->setState(vbucket_state_active, topology);
+    vbucket->setState(vbucket_state_active, &meta);
     // The old PDM is an instance of ADM now. All Prepares are retained.
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
     EXPECT_EQ(seqnos.size(), adm.getNumTracked());

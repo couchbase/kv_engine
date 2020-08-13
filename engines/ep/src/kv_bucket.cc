@@ -27,6 +27,7 @@
 #include <vector>
 
 #include <memcached/server_document_iface.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <utilities/logtags.h>
 
@@ -844,7 +845,7 @@ void KVBucket::releaseRegisteredSyncWrites() {
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
                                             vbucket_state_t to,
-                                            const nlohmann::json& meta,
+                                            const nlohmann::json* meta,
                                             TransferVB transfer,
                                             const void* cookie) {
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
@@ -878,14 +879,14 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
 void KVBucket::setVBucketState_UNLOCKED(
         VBucketPtr& vb,
         vbucket_state_t to,
-        const nlohmann::json& meta,
+        const nlohmann::json* meta,
         TransferVB transfer,
         bool notify_dcp,
         std::unique_lock<std::mutex>& vbset,
         folly::SharedMutex::WriteHolder& vbStateLock) {
     // Return success immediately if the new state is the same as the old,
     // and no extra metadata was included.
-    if (to == vb->getState() && meta.empty()) {
+    if (to == vb->getState() && !meta) {
         return;
     }
 
@@ -990,7 +991,7 @@ void KVBucket::setVBucketState_UNLOCKED(
 ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
         Vbid vbid,
         vbucket_state_t to,
-        const nlohmann::json& meta,
+        const nlohmann::json* meta,
         std::unique_lock<std::mutex>& vbset) {
     auto ft = std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
     KVShard* shard = vbMap.getShardByVbId(vbid);

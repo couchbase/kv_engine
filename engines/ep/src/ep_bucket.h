@@ -154,7 +154,7 @@ public:
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
-                           const nlohmann::json& replicationTopology,
+                           const nlohmann::json* replicationTopology,
                            uint64_t maxVisibleSeqno) override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,

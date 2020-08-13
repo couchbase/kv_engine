@@ -18,6 +18,7 @@
 #pragma once
 
 #include "vbucket_test.h"
+#include <nlohmann/json.hpp>
 
 class MockCheckpointManager;
 class ActiveDurabilityMonitor;

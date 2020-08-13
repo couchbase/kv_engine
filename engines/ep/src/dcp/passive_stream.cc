@@ -29,6 +29,7 @@
 #include "statistics/collector.h"
 
 #include <gsl.h>
+#include <nlohmann/json.hpp>
 
 #include <memory>
 

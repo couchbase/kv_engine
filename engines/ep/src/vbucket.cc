@@ -181,7 +181,7 @@ VBucket::VBucket(Vbid i,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
-                 const nlohmann::json& replTopology,
+                 const nlohmann::json* replTopology,
                  uint64_t maxVisibleSeqno)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
@@ -214,6 +214,7 @@ VBucket::VBucket(Vbid i,
       id(i),
       state(newState),
       initialState(initState),
+      replicationTopology(std::make_unique<nlohmann::json>()),
       purge_seqno(purgeSeqno),
       takeover_backed_up(false),
       persistedRange(lastSnapStart, lastSnapEnd),
@@ -447,7 +448,7 @@ vbucket_state_t VBucket::fromString(const char* state) {
     }
 }
 
-void VBucket::setState(vbucket_state_t to, const nlohmann::json& meta) {
+void VBucket::setState(vbucket_state_t to, const nlohmann::json* meta) {
     folly::SharedMutex::WriteHolder wlh(getStateLock());
     setState_UNLOCKED(to, meta, wlh);
 }
@@ -518,19 +519,19 @@ std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
 
 void VBucket::setState_UNLOCKED(
         vbucket_state_t to,
-        const nlohmann::json& meta,
+        const nlohmann::json* meta,
         const folly::SharedMutex::WriteHolder& vbStateLock) {
     vbucket_state_t oldstate = state;
 
     // Validate (optional) meta content.
-    if (!meta.is_null()) {
+    if (meta) {
         if (to != vbucket_state_active) {
             throw std::invalid_argument(
                     "VBucket::setState: meta only permitted for state:active, "
                     "found state:"s +
-                    VBucket::toString(to) + " meta:" + meta.dump());
+                    VBucket::toString(to) + " meta:" + meta->dump());
         }
-        auto error = validateSetStateMeta(meta);
+        auto error = validateSetStateMeta(*meta);
         if (!error.empty()) {
             throw std::invalid_argument("VBucket::setState: " + error);
         }
@@ -548,12 +549,11 @@ void VBucket::setState_UNLOCKED(
             getHighSeqno(),
             VBucket::toString(oldstate),
             VBucket::toString(to),
-            meta.is_null() ? ""s : (" meta:"s + meta.dump()));
+            meta ? (" meta:"s + meta->dump()) : ""s);
 
     state = to;
 
-    setupSyncReplication(meta.is_null() ? nlohmann::json{}
-                                        : meta.at("topology"));
+    setupSyncReplication(meta ? &meta->at("topology") : nullptr);
 }
 
 vbucket_transition_state VBucket::getTransitionState() const {
@@ -569,22 +569,22 @@ nlohmann::json VBucket::getReplicationTopology() const {
     return *replicationTopology.rlock();
 }
 
-void VBucket::setupSyncReplication(const nlohmann::json& topology) {
+void VBucket::setupSyncReplication(const nlohmann::json* topology) {
     // First, update the Replication Topology in VBucket
-    if (!topology.is_null()) {
+    if (topology) {
         if (state != vbucket_state_active) {
             throw std::invalid_argument(
                     "VBucket::setupSyncReplication: Topology only valid for "
                     "vbucket_state_active");
         }
-        auto error = validateReplicationTopology(topology);
+        auto error = validateReplicationTopology(*topology);
         if (!error.empty()) {
             throw std::invalid_argument(
                     "VBucket::setupSyncReplication: Invalid replication "
                     "topology: " +
                     error);
         }
-        replicationTopology = topology;
+        *replicationTopology.wlock() = *topology;
     } else {
         *replicationTopology.wlock() = {};
     }
@@ -637,7 +637,7 @@ void VBucket::setupSyncReplication(const nlohmann::json& topology) {
 
         // @todo: We want to support empty-topology in ActiveDM, that's for
         //     Warmup. Deferred to dedicated patch (tracked under MB-33186).
-        if (!topology.is_null()) {
+        if (topology) {
             getActiveDM().setReplicationTopology(*replicationTopology.rlock());
         }
         return;

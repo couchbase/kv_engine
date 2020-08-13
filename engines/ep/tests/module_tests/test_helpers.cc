@@ -24,6 +24,7 @@
 
 #include <folly/portability/GTest.h>
 #include <libcouchstore/couch_db.h>
+#include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>

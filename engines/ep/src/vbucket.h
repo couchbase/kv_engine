@@ -27,9 +27,9 @@
 #include "vbucket_fwd.h"
 #include "vbucket_notify_context.h"
 
-#include <folly/Synchronized.h>
+#include <folly/SynchronizedPtr.h>
 #include <memcached/engine.h>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/atomic_duration.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
@@ -169,7 +169,7 @@ public:
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
-            const nlohmann::json& replTopology = {},
+            const nlohmann::json* replTopology = {},
             uint64_t maxVisibleSeqno = 0);
 
     virtual ~VBucket();
@@ -401,7 +401,7 @@ public:
      * @param to desired vbucket state
      * @param meta optional meta information to apply alongside the state.
      */
-    void setState(vbucket_state_t to, const nlohmann::json& meta = {});
+    void setState(vbucket_state_t to, const nlohmann::json* meta = nullptr);
 
     /**
      * Sets the vbucket state to a desired state with the 'stateLock' already
@@ -412,7 +412,7 @@ public:
      * @param vbStateLock write lock holder on 'stateLock'
      */
     void setState_UNLOCKED(vbucket_state_t to,
-                           const nlohmann::json& meta,
+                           const nlohmann::json* meta,
                            const folly::SharedMutex::WriteHolder& vbStateLock);
 
     auto& getStateLock() {
@@ -2080,9 +2080,9 @@ protected:
      * depending on the current VBucket::state and any previous
      * durabilityMonitor.
      *
-     * @param topology The new topology
+     * @param topology The new topology, null if no toplogy was specified.
      */
-    void setupSyncReplication(const nlohmann::json& topology);
+    void setupSyncReplication(const nlohmann::json* topology);
 
     /**
      * @return a reference (if valid, i.e. vbstate=active) to the Active DM
@@ -2417,8 +2417,10 @@ private:
      * It is encoded as nlohmann::json array of (max 2) replication chains.
      * Each replication chain is itself a nlohmann::json array of nodes
      * representing the chain.
+     * Using unique_ptr for pimpl (to avoid requiring definition of
+     * nlohmann::json in this header).
      */
-    folly::Synchronized<nlohmann::json> replicationTopology;
+    folly::SynchronizedPtr<std::unique_ptr<nlohmann::json>> replicationTopology;
 
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;

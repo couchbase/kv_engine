@@ -191,7 +191,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
-        const nlohmann::json& replicationTopology,
+        const nlohmann::json* replicationTopology,
         uint64_t maxVisibleSeqno) {
     (void)hlcEpochSeqno; // Ephemeral overrides this to be 0
     (void)maxVisibleSeqno; // Ephemeral overrides this to be 0

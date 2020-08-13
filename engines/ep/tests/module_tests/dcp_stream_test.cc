@@ -229,9 +229,9 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
  */
 TEST_P(StreamTest, test_verifyProducerStats) {
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
-    vb->setState(
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    nlohmann::json meta = {
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
+    vb->setState(vbucket_state_active, &meta);
     setup_dcp_stream(0,
                      IncludeValue::No,
                      IncludeXattrs::No,

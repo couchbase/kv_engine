@@ -49,7 +49,7 @@ public:
                      uint64_t purgeSeqno = 0,
                      uint64_t maxCas = 0,
                      bool mightContainXattrs = false,
-                     const nlohmann::json& replicationTopology = {});
+                     const nlohmann::json* replicationTopology = {});
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DiskDocKey& key,

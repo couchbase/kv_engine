@@ -121,8 +121,9 @@ void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(
         TransferVB transfer) {
     // Change state - this should add 1 set_vbucket_state op to the
     //VBuckets' persistence queue.
+    const auto* metaPtr = meta.empty() ? nullptr : &meta;
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(vbid, newState, meta, transfer));
+              store->setVBucketState(vbid, newState, metaPtr, transfer));
 
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Trigger the flusher to flush state to disk.
@@ -5081,12 +5082,10 @@ TEST_P(STParamCouchstoreBucketTest,
 
     ASSERT_FALSE(engine->getKVBucket()->getVBucket(vbid));
 
+    auto meta = nlohmann::json{
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology",
-                        nlohmann::json::array({{"active", "replica"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     const auto vb = engine->getKVBucket()->getVBucket(vbid);
     ASSERT_TRUE(vb);
@@ -5125,12 +5124,10 @@ TEST_P(STParamCouchstoreBucketTest,
 
     ASSERT_FALSE(engine->getKVBucket()->getVBucket(vbid));
 
+    auto meta = nlohmann::json{
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(
-                      vbid,
-                      vbucket_state_active,
-                      {{"topology",
-                        nlohmann::json::array({{"active", "replica"}})}}));
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     const auto vb = engine->getKVBucket()->getVBucket(vbid);
     ASSERT_TRUE(vb);

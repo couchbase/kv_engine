@@ -147,7 +147,7 @@ public:
      */
     vbucket_state_t setState(VBucket& vb,
                              vbucket_state_t newState,
-                             const nlohmann::json& meta);
+                             const nlohmann::json* meta);
 
     /**
      * Set the state of the vBucket and set VBucketMap invariants
@@ -160,7 +160,7 @@ public:
     vbucket_state_t setState_UNLOCKED(
             VBucket& vb,
             vbucket_state_t newState,
-            const nlohmann::json& meta,
+            const nlohmann::json* meta,
             folly::SharedMutex::WriteHolder& vbStateLock);
 
     /**

@@ -1026,7 +1026,7 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                               response,
                               request.getVBucket(),
                               state,
-                              meta,
+                              meta.empty() ? nullptr : &meta,
                               TransferVB::No,
                               request.getCas());
 }
@@ -6685,7 +6685,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         const AddResponseFn& response,
         Vbid vbid,
         vbucket_state_t to,
-        const nlohmann::json& meta,
+        const nlohmann::json* meta,
         TransferVB transfer,
         uint64_t cas) {
     auto status = kvBucket->setVBucketState(vbid, to, meta, transfer, cookie);

@@ -24,7 +24,7 @@
 #include "vbucket_notify_context.h"
 #include <folly/SharedMutex.h>
 #include <memcached/engine.h>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <list>
 
 /* Forward declarations */
@@ -809,7 +809,7 @@ public:
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
-            const nlohmann::json& replicationTopology = {},
+            const nlohmann::json* replicationTopology = {},
             uint64_t maxVisibleSeqno = 0) = 0;
 
     /**

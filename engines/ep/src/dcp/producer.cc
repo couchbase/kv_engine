@@ -38,6 +38,7 @@
 #include "statistics/collector.h"
 
 #include <memcached/server_cookie_iface.h>
+#include <nlohmann/json.hpp>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
