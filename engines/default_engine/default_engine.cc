@@ -1,27 +1,26 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#include <ctype.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <string_view>
 
 #include "default_engine_internal.h"
 #include "default_engine_public.h"
 #include "engine_manager.h"
-#include "memcached/config_parser.h"
-#include "memcached/util.h"
-#include <platform/cb_malloc.h>
 
+#include <memcached/config_parser.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
-#include <nlohmann/json.hpp>
+#include <memcached/util.h>
+#include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
+
+#include <unistd.h>
+#include <cctype>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string_view>
 
 // The default engine don't really use vbucket uuids, but in order
 // to run the unit tests and verify that we correctly convert the

@@ -7,14 +7,13 @@
  */
 #pragma once
 
-#include <stdbool.h>
-#include <atomic>
-#include <mutex>
-
 #include <memcached/engine.h>
 #include <memcached/util.h>
 #include <memcached/visibility.h>
 #include <relaxed_atomic.h>
+
+#include <atomic>
+#include <mutex>
 
 /** How long an object can reasonably be assumed to be locked before
     harvesting it on a low memory condition. */
