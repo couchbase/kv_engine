@@ -19,6 +19,8 @@
 
 #include "taskable.h"
 
+#include <folly/portability/GMock.h>
+
 /**
  * Mock task owner for testing purposes.
  */
@@ -36,8 +38,10 @@ public:
 
     WorkLoadPolicy& getWorkLoadPolicy() override;
 
-    void logQTime(TaskId id,
-                  const std::chrono::steady_clock::duration enqTime) override;
+    MOCK_METHOD(void,
+                logQTime,
+                (TaskId id, const std::chrono::steady_clock::duration enqTime),
+                (override));
 
     void logRunTime(TaskId id,
                     const std::chrono::steady_clock::duration runTime) override;

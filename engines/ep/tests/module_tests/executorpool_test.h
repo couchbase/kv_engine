@@ -95,7 +95,7 @@ public:
     }
 
     ExecutorPool* pool;
-    MockTaskable taskable;
+    ::testing::NiceMock<MockTaskable> taskable;
 };
 
 template <typename T>
@@ -124,7 +124,7 @@ protected:
      * the test it would be deleted before the taskable is unregistered.
      */
     std::unique_ptr<ThreadGate> tg;
-    MockTaskable taskable;
+    ::testing::NiceMock<MockTaskable> taskable;
 };
 
 struct ThreadCountsParams {

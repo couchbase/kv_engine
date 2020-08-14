@@ -31,6 +31,7 @@
 using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
+using namespace testing;
 
 /**
  * Creates a LambdaTask which increments the given ThreadGate when run
@@ -173,7 +174,7 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesCancelsTasks) {
 /// Test that tasks are run immediately when they are woken.
 TYPED_TEST(ExecutorPoolTest, Wake) {
     this->makePool(1);
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     // Create a lambda task which when run increments ThreadGate, but whose
@@ -196,7 +197,7 @@ TYPED_TEST(ExecutorPoolTest, Wake) {
 // only wakes it once.
 TYPED_TEST(ExecutorPoolTest, WakeMultiple) {
     this->makePool(1);
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     // Create a task which increments runCount everytime it runs, then re-wakes
@@ -272,7 +273,7 @@ TYPED_TEST(ExecutorPoolTest, WakeMultiple) {
 // Wake negative test - attempt to wake a task which hasn't been scheduled.
 TYPED_TEST(ExecutorPoolTest, WakeWithoutSchedule) {
     this->makePool(1);
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     // Doesn't matter what the task is, we shouldn't run it.
@@ -289,7 +290,7 @@ TYPED_TEST(ExecutorPoolTest, WakeWithoutSchedule) {
 /// Test that snooze correctly updates the waketime of a task.
 TYPED_TEST(ExecutorPoolTest, Snooze) {
     this->makePool(1);
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     // Create a task which when run increments ThreadGate, but whose
@@ -317,7 +318,7 @@ TYPED_TEST(ExecutorPoolTest, SnoozeThenWake) {
     using namespace std::chrono;
 
     this->makePool(1);
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     // Create a task which increments runCount everytime it runs, initally
@@ -376,7 +377,7 @@ TYPED_TEST(ExecutorPoolTest, SnoozeThenWake) {
 // Snooze negative test - attempt to wake a task which hasn't been scheduled.
 TYPED_TEST(ExecutorPoolTest, SnoozeWithoutSchedule) {
     this->makePool(1);
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     // Doesn't matter what the task is, we shouldn't run it.
@@ -417,7 +418,7 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
 
     this->makePool(5, numReaders, numWriters, numAuxIO, numNonIO);
 
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
     std::vector<ExTask> tasks;
@@ -455,7 +456,7 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
     // ::run()) before their priority will be set, use a ThreadGate
     // with a simple Task which calls threadUp() to ensure all threads
     // have started before checking priorities.
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
     ThreadGate tg{totalNumThreads};
 
@@ -627,9 +628,9 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
-    MockTaskable bucket0;
+    NiceMock<MockTaskable> bucket0;
     bucket0.setName("bucket0");
-    MockTaskable bucket1;
+    NiceMock<MockTaskable> bucket1;
     bucket1.setName("bucket1");
     this->pool->registerTaskable(bucket0);
     this->pool->registerTaskable(bucket1);
@@ -696,9 +697,9 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 TYPED_TEST(ExecutorPoolTest, TaskStats) {
     this->makePool(1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
-    MockTaskable bucket0;
+    NiceMock<MockTaskable> bucket0;
     bucket0.setName("bucket0");
-    MockTaskable bucket1;
+    NiceMock<MockTaskable> bucket1;
     bucket1.setName("bucket1");
     this->pool->registerTaskable(bucket0);
     this->pool->registerTaskable(bucket1);
@@ -771,6 +772,28 @@ TYPED_TEST(ExecutorPoolTest, TaskStats) {
     this->pool->unregisterTaskable(bucket1, true);
 }
 
+// Test that scheduler stats (long long tasks have been waiting to run for)
+// are reported correctly.
+TYPED_TEST(ExecutorPoolTest, SchedulerStats) {
+    this->makePool(1);
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Set expectation on logQTime
+    using ::testing::_;
+    EXPECT_CALL(taskable, logQTime(TaskId::ItemPager, _));
+
+    // Create a task to run, which we can check scheduler times for.
+    ThreadGate tg{1};
+    this->pool->schedule(makeTask(taskable, tg, TaskId::ItemPager, 0));
+
+    // Wait for the task to run (and notify threadGate).
+    tg.waitFor(std::chrono::seconds(10));
+    EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for task to wake";
+
+    this->pool->unregisterTaskable(taskable, true);
+}
+
 TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);
 
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, decrease_workers) {
@@ -805,7 +828,7 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDiskIOOptimized) {
 TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
     ThreadCountsParams expected = GetParam();
 
-    MockTaskable taskable;
+    NiceMock<MockTaskable> taskable;
 
     TestExecutorPool pool(expected.maxThreads, // MaxThreads
                           expected.in_reader_writer,
@@ -1124,7 +1147,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     // Create and register a MockTaskable to use for the StopTask, as we don't
     // want to account it's memory to the bucket under test. See further
     // comments in ~ScheduleOnDestruct().
-    MockTaskable mockTaskable;
+    NiceMock<MockTaskable> mockTaskable;
     pool->registerTaskable(mockTaskable);
 
     // Condition variable and flag to allow this main thread to wait on the

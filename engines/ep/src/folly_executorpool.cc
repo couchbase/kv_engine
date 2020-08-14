@@ -155,13 +155,25 @@ struct FollyExecutorPool::TaskProxy
                 // then schedule on the IOThreadPool for the given time.
                 // If false: Cancel task, will not run again.
 
-                const auto start = std::chrono::steady_clock::now();
+                const auto start = steady_clock::now();
                 proxy->task->updateLastStartTime(start);
+
+                // Calculate and record scheduler overhead.
+                auto scheduleOverhead = start - proxy->task->getWaketime();
+                // scheduleOverhead can be a negative number if the task has
+                // been woken up before we expected it too be. In this case this
+                // means that we have no schedule overhead and thus need to set
+                // it too 0.
+                if (scheduleOverhead < steady_clock::duration::zero()) {
+                    scheduleOverhead = steady_clock::duration::zero();
+                }
+                proxy->task->getTaskable().logQTime(proxy->task->getTaskId(),
+                                                    scheduleOverhead);
 
                 proxy->task->setState(TASK_RUNNING, TASK_SNOOZED);
                 runAgain = proxy->task->execute();
 
-                const auto end = std::chrono::steady_clock::now();
+                const auto end = steady_clock::now();
                 auto runtime = end - start;
                 proxy->task->getTaskable().logRunTime(proxy->task->getTaskId(),
                                                       runtime);

@@ -39,10 +39,6 @@ WorkLoadPolicy& MockTaskable::getWorkLoadPolicy() {
     return policy;
 }
 
-void MockTaskable::logQTime(TaskId id,
-                            const std::chrono::steady_clock::duration enqTime) {
-}
-
 void MockTaskable::logRunTime(
         TaskId id, const std::chrono::steady_clock::duration runTime) {
 }
