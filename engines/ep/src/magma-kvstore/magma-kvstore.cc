@@ -2207,6 +2207,9 @@ bool MagmaKVStore::getStat(const char* name, size_t& value) {
         value = st.numGetFailure.load();
     } else if (strcmp("failure_compaction", name) == 0) {
         value = st.numCompactionFailure.load();
+    } else if (strcmp("storage_mem_used", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.TotalMemUsed);
     } else {
         return false;
     }

@@ -30,6 +30,7 @@
 #include "item.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
+#include "kvstore.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
@@ -54,15 +55,20 @@ using WakeCkptRemover = EPBucket::WakeCkptRemover;
 class STBucketQuotaTest : public STParameterizedBucketTest {
 protected:
     void SetUp() override {
-        config_string += "ht_size=47";
+        config_string +=
+                "ht_size=47;"
+                "magma_commit_point_interval=0;"
+                "magma_commit_point_every_batch=true";
+
         STParameterizedBucketTest::SetUp();
 
         ObjectRegistry::onSwitchThread(engine.get());
 
-        // Bump the quota above mem_used. Need a large amount of memory for
-        // magma
-        auto quota = isMagma() ? 5 * 1024 * 1024 : 700 * 1024;
-        increaseQuota(quota);
+        // By settig the magma config params above, it causes
+        // magma to flush with every batch. This will release memory
+        // being held by streaming sstables (~600KB). Otherwise, we would
+        // have to bump up the quota for magma.
+        increaseQuota(700 * 1024);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
@@ -272,11 +278,6 @@ protected:
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
-    if (isMagma()) {
-        // MB-39453: Skip for magma for now as we fail to drop below LWM
-        return;
-    }
-
     size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
 
@@ -292,7 +293,13 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
                    "TMPFAIL with fail_new_data bucket";
         EXPECT_EQ(count, vb->getNumItems());
     } else {
-        EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load())
+        size_t val{0};
+        if (isMagma()) {
+            auto kvstore = store->getROUnderlyingByShard(0);
+            kvstore->getStat("storage_mem_used", val);
+        }
+        EXPECT_LT(stats.getPreciseTotalMemoryUsed() - val,
+                  stats.mem_low_wat.load())
                 << "Expected to be below low watermark after running item "
                    "pager";
         const auto numResidentItems =
