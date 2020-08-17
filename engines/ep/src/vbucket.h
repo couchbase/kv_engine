@@ -66,7 +66,7 @@ class Callback;
 
 namespace Collections {
 class Manifest;
-};
+}
 
 namespace Collections::VB {
 class CachingReadHandle;
