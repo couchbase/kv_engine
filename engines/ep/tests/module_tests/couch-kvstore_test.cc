@@ -487,6 +487,51 @@ protected:
 };
 
 /**
+ * Injects error during CouchKVStore::writeVBucketState/couchstore_commit
+ */
+TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
+    vbid = Vbid(10);
+
+    // Make sure the vBucket does not exist before this test
+    ASSERT_FALSE(kvstore->getVBucketState(vbid));
+    ASSERT_THROW(kvstore->readVBState(vbid), std::logic_error);
+
+    {
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_WRITE)))
+                .Times(1)
+                .RetiresOnSaturation();
+
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
+                .RetiresOnSaturation();
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(2).RetiresOnSaturation();
+
+        // Set something in the vbucket_state to differentiate it from the
+        // default constructed one. It doesn't matter what we set.
+        vbucket_state state;
+        state.maxVisibleSeqno = 10;
+
+        kvstore->snapshotVBucket(vbid, state);
+    }
+
+    // vbucket_state is still default as readVBState returns a default value
+    // instead of a non-success status or exception...
+    vbucket_state defaultState;
+    ASSERT_EQ(defaultState, kvstore->readVBState(vbid));
+
+    // Recreate the kvstore and the state should equal the default constructed
+    // state (and not throw an exception)
+    kvstore = std::make_unique<CouchKVStore>(
+            dynamic_cast<CouchKVStoreConfig&>(config), ops);
+    EXPECT_EQ(defaultState, kvstore->readVBState(vbid));
+}
+
+/**
  * Injects error during CouchKVStore::openDB_retry/couchstore_open_db_ex
  */
 TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {

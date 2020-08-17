@@ -2435,7 +2435,6 @@ CouchKVStore::processVbstateSnapshot(Vbid vb,
 CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
     sized_buf id;
     LocalDoc *ldoc = nullptr;
-    ReadVBStateStatus status = ReadVBStateStatus::Success;
     // High sequence number and purge sequence number are stored automatically
     // by couchstore.
     int64_t highSeqno = 0;
@@ -2457,7 +2456,13 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
                 "CouchKVStore::readVBState: '_local/vbstate' not found "
                 "for {}",
                 vbId);
-    } else if (couchStoreStatus != COUCHSTORE_SUCCESS) {
+
+        // Read was successful, the state just didn't exist. Return success
+        // and a default constructed vbucket_state
+        return {ReadVBStateStatus::Success, {}};
+    }
+
+    if (couchStoreStatus != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::readVBState: couchstore_open_local_document"
                 " error:{}, {}",
@@ -2466,68 +2471,67 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
         return {ReadVBStateStatus::CouchstoreError, {}};
     }
 
-    // Proceed to read/parse the vbstate if success
-    if (couchStoreStatus == COUCHSTORE_SUCCESS) {
-        const std::string statjson(ldoc->json.buf, ldoc->json.size);
+    // Proceed to read/parse the vbstate
+    const std::string statjson(ldoc->json.buf, ldoc->json.size);
 
-        nlohmann::json json;
-        try {
-            json = nlohmann::json::parse(statjson);
-        } catch (const nlohmann::json::exception& e) {
-            couchstore_free_local_document(ldoc);
-            logger.warn(
-                    "CouchKVStore::readVBState: Failed to "
-                    "parse the vbstat json doc for {}, json:{}, with "
-                    "reason:{}",
-                    vbId,
-                    statjson,
-                    e.what());
-            return {ReadVBStateStatus::JsonInvalid, {}};
-        }
-
-        // Merge in the high_seqno & purge_seqno read previously from db info.
-        json["high_seqno"] = std::to_string(highSeqno);
-        json["purge_seqno"] = std::to_string(purgeSeqno);
-
-        try {
-            vbState = json;
-        } catch (const nlohmann::json::exception& e) {
-            couchstore_free_local_document(ldoc);
-            logger.warn(
-                    "CouchKVStore::readVBState: Failed to "
-                    "convert the vbstat json doc for {} to vbState, json:{}, "
-                    "with "
-                    "reason:{}",
-                    vbId,
-                    json.dump(),
-                    e.what());
-            return {ReadVBStateStatus::JsonInvalid, {}};
-        }
-
-        // MB-17517: If the maxCas on disk was invalid then don't use it -
-        // instead rebuild from the items we load from disk (i.e. as per
-        // an upgrade from an earlier version).
-        if (vbState.maxCas == static_cast<uint64_t>(-1)) {
-            logger.warn(
-                    "CouchKVStore::readVBState: Invalid max_cas "
-                    "({:#x}) read from '{}' for {}. Resetting "
-                    "max_cas to zero.",
-                    vbState.maxCas,
-                    id.buf,
-                    vbId);
-            vbState.maxCas = 0;
-        }
-
-        std::tie(status, vbState.lastSnapStart, vbState.lastSnapEnd) =
-                processVbstateSnapshot(vbId,
-                                       vbState.transition.state,
-                                       vbState.version,
-                                       vbState.lastSnapStart,
-                                       vbState.lastSnapEnd,
-                                       uint64_t(highSeqno));
-
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(statjson);
+    } catch (const nlohmann::json::exception& e) {
         couchstore_free_local_document(ldoc);
+        logger.warn(
+                "CouchKVStore::readVBState: Failed to "
+                "parse the vbstat json doc for {}, json:{}, with "
+                "reason:{}",
+                vbId,
+                statjson,
+                e.what());
+        return {ReadVBStateStatus::JsonInvalid, {}};
     }
+
+    // Merge in the high_seqno & purge_seqno read previously from db info.
+    json["high_seqno"] = std::to_string(highSeqno);
+    json["purge_seqno"] = std::to_string(purgeSeqno);
+
+    try {
+        vbState = json;
+    } catch (const nlohmann::json::exception& e) {
+        couchstore_free_local_document(ldoc);
+        logger.warn(
+                "CouchKVStore::readVBState: Failed to "
+                "convert the vbstat json doc for {} to vbState, json:{}, "
+                "with "
+                "reason:{}",
+                vbId,
+                json.dump(),
+                e.what());
+        return {ReadVBStateStatus::JsonInvalid, {}};
+    }
+
+    // MB-17517: If the maxCas on disk was invalid then don't use it -
+    // instead rebuild from the items we load from disk (i.e. as per
+    // an upgrade from an earlier version).
+    if (vbState.maxCas == static_cast<uint64_t>(-1)) {
+        logger.warn(
+                "CouchKVStore::readVBState: Invalid max_cas "
+                "({:#x}) read from '{}' for {}. Resetting "
+                "max_cas to zero.",
+                vbState.maxCas,
+                id.buf,
+                vbId);
+        vbState.maxCas = 0;
+    }
+
+    ReadVBStateStatus status = ReadVBStateStatus::Success;
+    std::tie(status, vbState.lastSnapStart, vbState.lastSnapEnd) =
+            processVbstateSnapshot(vbId,
+                                   vbState.transition.state,
+                                   vbState.version,
+                                   vbState.lastSnapStart,
+                                   vbState.lastSnapEnd,
+                                   uint64_t(highSeqno));
+
+    couchstore_free_local_document(ldoc);
 
     return {status, vbState};
 }
@@ -2536,6 +2540,12 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
         Db* db, Vbid vbid) {
     auto res = readVBState(db, vbid);
     if (res.status == ReadVBStateStatus::Success) {
+        // For the case where a local doc does not exist, readVBState actually
+        // returns Success as the read was successful. It also returns a default
+        // constructed vbucket_state. This vbucket_state will then be put in
+        // cachedVBStates here. As the default constructed vbucket_state
+        // defaults the vbucket_state_t to vbucket_state_dead this should behave
+        // in the same way as a lack of a vbucket/vbucket_state.
         cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(res.state);
     }
     return res;
