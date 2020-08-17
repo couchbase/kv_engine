@@ -32,9 +32,9 @@
 #include <random>
 
 /**
- * Benchmark fixture using ep-engine's ExecutorPool.
+ * Benchmark fixture using ep-engine's CB3ExecutorPool.
  */
-class ExecutorBench : public benchmark::Fixture {
+class CB3ExecutorPoolBench : public benchmark::Fixture {
 protected:
     void makePool(int nonIOCount) {
         // Note: Don't actually need any Reader/Writer/AuxIO threads here, but
@@ -77,7 +77,8 @@ protected:
  * By creating multiple background NonIO threads we can measure the performance
  * of the actual dispatch of Tasks on a ThreadPool.
  */
-BENCHMARK_DEFINE_F(ExecutorBench, OneShotScheduleRun)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(CB3ExecutorPoolBench, OneShotScheduleRun)
+(benchmark::State& state) {
     if (state.thread_index == 0) {
         // Create one "NonIO" thread per "benchmark" thread (such that there is
         // a pair of benchmark and NonIO threads to consume/produce).
@@ -125,7 +126,8 @@ BENCHMARK_DEFINE_F(ExecutorBench, OneShotScheduleRun)(benchmark::State& state) {
  * such we can measure how the same number of Tasks are handled when different
  * number of threads are trying to schedule them.
  */
-BENCHMARK_DEFINE_F(ExecutorBench, TimeoutAddCancel)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(CB3ExecutorPoolBench, TimeoutAddCancel)
+(benchmark::State& state) {
     if (state.thread_index == 0) {
         // Create a fixed number of threads (we don't actually expect to ever
         // run anything).
@@ -188,10 +190,11 @@ BENCHMARK_DEFINE_F(ExecutorBench, TimeoutAddCancel)(benchmark::State& state) {
 }
 
 /**
- * Benchmark fixture using Folly's CPUThreaPoolPoolExecutor &
- * IOThreadPoolExecutor.
+ * Benchmark fixture using Folly's CPUThreadPoolPoolExecutor &
+ * IOThreadPoolExecutor directly (without any higher-level GlobalTask
+ * abstraction).
  */
-class FollyExecutorBench : public benchmark::Fixture {
+class PureFollyExecutorBench : public benchmark::Fixture {
 protected:
     // Test Timeout object.
     struct TestTimeout : public folly::HHWheelTimer::Callback {
@@ -244,10 +247,10 @@ protected:
 };
 
 /**
- * Folly Executor variant of ExecutorBench::OneShotScheduleRun - see
+ * Folly Executor variant of CB3ExecutorPoolBench::OneShotScheduleRun - see
  * that benchmark for description of what is being tested.
  */
-BENCHMARK_DEFINE_F(FollyExecutorBench, OneShotScheduleRun)
+BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
 (benchmark::State& state) {
     if (state.thread_index == 0) {
         // Create one "NonIO" thread per "benchmark" thread (such that there is
@@ -278,10 +281,10 @@ BENCHMARK_DEFINE_F(FollyExecutorBench, OneShotScheduleRun)
 }
 
 /**
- * Folly Executor variant of ExecutorBench::TimeoutAddCancel - see
+ * Folly Executor variant of CB3ExecutorPoolBench::TimeoutAddCancel - see
  * that benchmark for description of what is being tested.
  */
-BENCHMARK_DEFINE_F(FollyExecutorBench, TimeoutAddCancel)
+BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
 (benchmark::State& state) {
     if (state.thread_index == 0) {
         // Create a single IO thread, giving us a single EventBase +
@@ -365,21 +368,21 @@ BENCHMARK_DEFINE_F(FollyExecutorBench, TimeoutAddCancel)
     }
 }
 
-BENCHMARK_REGISTER_F(ExecutorBench, OneShotScheduleRun)
+BENCHMARK_REGISTER_F(CB3ExecutorPoolBench, OneShotScheduleRun)
         ->ThreadRange(1, 16)
         ->UseRealTime();
 
-BENCHMARK_REGISTER_F(FollyExecutorBench, OneShotScheduleRun)
+BENCHMARK_REGISTER_F(PureFollyExecutorBench, OneShotScheduleRun)
         ->ThreadRange(1, 16)
         ->UseRealTime();
 
-BENCHMARK_REGISTER_F(ExecutorBench, TimeoutAddCancel)
+BENCHMARK_REGISTER_F(CB3ExecutorPoolBench, TimeoutAddCancel)
         ->ThreadRange(1, 16)
         ->Range(1000, 30000)
         ->ArgName("Timeouts")
         ->UseRealTime();
 
-BENCHMARK_REGISTER_F(FollyExecutorBench, TimeoutAddCancel)
+BENCHMARK_REGISTER_F(PureFollyExecutorBench, TimeoutAddCancel)
         ->ThreadRange(1, 16)
         ->Range(1000, 30000)
         ->ArgName("Timeouts")
