@@ -100,4 +100,4 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
 BENCHMARK_REGISTER_F(McbpValidatorBench, GetBench);
 BENCHMARK_REGISTER_F(McbpValidatorBench, SetBench);
 BENCHMARK_REGISTER_F(McbpValidatorBench, AddBench);
-BENCHMARK_MAIN()
+BENCHMARK_MAIN();

@@ -104,4 +104,4 @@ BENCHMARK_REGISTER_F(TopkeysBench, TopkeysDisabled)->Threads(8)->Threads(24);
 BENCHMARK_REGISTER_F(TopkeysBench, UpdateSameKey)->Threads(8)->Threads(24);
 BENCHMARK_REGISTER_F(TopkeysBench, UpdateRandomKey)->Threads(8)->Threads(24);
 
-BENCHMARK_MAIN()
+BENCHMARK_MAIN();
