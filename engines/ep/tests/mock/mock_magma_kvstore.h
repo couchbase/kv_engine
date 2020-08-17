@@ -35,6 +35,36 @@ public:
         return MagmaKVStore::saveDocs(commitData, kvctx);
     }
 
+    magma::Status addLocalDoc(Vbid vbid,
+                              std::string_view key,
+                              std::string value) {
+        WriteOps writeOps;
+        LocalDbReqs localDbReqs;
+        localDbReqs.emplace_back(MagmaLocalReq(key, std::move(value)));
+
+        addLocalDbReqs(localDbReqs, writeOps);
+        auto ret = magma->WriteDocs(
+                vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
+
+        magma->Sync(true);
+
+        return ret;
+    }
+
+    magma::Status deleteLocalDoc(Vbid vbid, std::string_view key) {
+        WriteOps writeOps;
+        LocalDbReqs localDbReqs;
+        localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
+
+        addLocalDbReqs(localDbReqs, writeOps);
+        auto ret = magma->WriteDocs(
+                vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
+
+        magma->Sync(true);
+
+        return ret;
+    }
+
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
 };
 

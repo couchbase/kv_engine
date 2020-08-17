@@ -226,6 +226,30 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
     EXPECT_FALSE(kvstore->commit(flush));
 }
 
+TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, "_vbstate").IsOK());
+
+    vbucket_state defaultState;
+    auto* vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_NE(defaultState, *vbstate);
+
+    auto res = kvstore->readVBStateFromDisk(vbid);
+    EXPECT_FALSE(res.status.IsOK());
+
+    // Recreate the kvstore and the state should equal the default constructed
+    // state (and not throw an exception)
+    kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+
+    vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_EQ(defaultState, *vbstate);
+
+    res = kvstore->readVBStateFromDisk(vbid);
+    EXPECT_FALSE(res.status.IsOK());
+    EXPECT_EQ(defaultState, res.vbstate);
+}
+
 // Check that if Magma performs an internal (implicit) compaction before
 // ep-engine has completed warmup, then any compaction callbacks into
 // MagmaKVStore are ignored - until a later compaction after warmup.

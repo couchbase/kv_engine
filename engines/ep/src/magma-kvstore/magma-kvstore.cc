@@ -1580,7 +1580,12 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
 
 magma::Status MagmaKVStore::loadVBStateCache(Vbid vbid, bool resetKVStoreRev) {
     const auto readState = readVBStateFromDisk(vbid);
-    if (!readState.status.IsOK()) {
+
+    // If the vBucket exists but does not have a vbucket_state (i.e. NotFound
+    // is returned from readVBStateFromDisk) then just use a defaulted
+    // vbucket_state (which defaults to the dead state).
+    if (!readState.status.IsOK() &&
+        readState.status.ErrorCode() != magma::Status::NotFound) {
         logger->error("MagmaKVStore::loadVBStateCache {} failed. {}",
                       vbid,
                       readState.status.String());
