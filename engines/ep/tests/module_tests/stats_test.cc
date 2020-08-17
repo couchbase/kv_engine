@@ -39,7 +39,7 @@
 #include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <statistics/stat_units.h>
+#include <statistics/units.h>
 
 #include <functional>
 #include <thread>
