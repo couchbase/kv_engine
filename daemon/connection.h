@@ -132,7 +132,9 @@ public:
      * An internal user is a user which is used by one of the components
      * in Couchbase (like ns_server, indexer etc).
      */
-    void setInternal(bool internal);
+    void setInternal(bool value) {
+        internal = value;
+    }
 
     /**
      * Update the username to reflect what the user used from the SASL
@@ -219,7 +221,7 @@ public:
         return bucketIndex.load(std::memory_order_relaxed);
     }
 
-    void setBucketIndex(int bucketIndex);
+    void setBucketIndex(int index);
 
     Bucket& getBucket() const;
 

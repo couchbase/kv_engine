@@ -377,8 +377,8 @@ void Connection::updateDescription() {
     description += " ]";
 }
 
-void Connection::setBucketIndex(int bucketIndex) {
-    Connection::bucketIndex.store(bucketIndex, std::memory_order_relaxed);
+void Connection::setBucketIndex(int index) {
+    bucketIndex.store(index, std::memory_order_release);
 
     // Update the privilege context. If a problem occurs within the RBAC
     // module we'll assign an empty privilege context to the connection.
@@ -386,10 +386,10 @@ void Connection::setBucketIndex(int bucketIndex) {
         if (authenticated) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
-            privilegeContext = cb::rbac::createContext(
-                    user, all_buckets[bucketIndex].name);
+            privilegeContext =
+                    cb::rbac::createContext(user, all_buckets[index].name);
         } else if (is_default_bucket_enabled() &&
-                   strcmp("default", all_buckets[bucketIndex].name) == 0) {
+                   strcmp("default", all_buckets[index].name) == 0) {
             // We've just connected to the _default_ bucket, _AND_ the client
             // is unknown.
             // Personally I think the "default bucket" concept is a really
@@ -397,8 +397,8 @@ void Connection::setBucketIndex(int bucketIndex) {
             // a while... lets look up a profile named "default" and
             // assign that. It should only contain access to the default
             // bucket.
-            privilegeContext = cb::rbac::createContext(
-                    {"default", user.domain}, all_buckets[bucketIndex].name);
+            privilegeContext = cb::rbac::createContext({"default", user.domain},
+                                                       all_buckets[index].name);
         } else {
             // The user has not authenticated, and this isn't for the
             // "default bucket". Assign an empty profile which won't give
@@ -409,7 +409,7 @@ void Connection::setBucketIndex(int bucketIndex) {
         privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
 
-    if (bucketIndex == 0) {
+    if (index == 0) {
         // If we're connected to the no bucket we should return
         // no bucket instead of EACCESS. Lets give the connection all
         // possible bucket privileges
@@ -883,9 +883,9 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
     Connection::rw_callback(bev, ctx);
 }
 
-void Connection::setAuthenticated(bool authenticated) {
-    Connection::authenticated = authenticated;
-    if (authenticated) {
+void Connection::setAuthenticated(bool authenticated_) {
+    Connection::authenticated = authenticated_;
+    if (authenticated_) {
         updateDescription();
         privilegeContext = cb::rbac::createContext(user, "");
     } else {
@@ -980,7 +980,7 @@ Connection::Connection(FrontEndThread& thr)
               EventPriority::Default)),
       ssl(false) {
     updateDescription();
-    cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
+    cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(peername.c_str());
     stats.conn_structs++;
 }
@@ -1001,7 +1001,7 @@ Connection::Connection(SOCKET sfd,
       ssl(ifc.isSslPort()) {
     setTcpNoDelay(true);
     updateDescription();
-    cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
+    cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(peername.c_str());
 
     const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
@@ -1069,10 +1069,6 @@ void Connection::setConnectionId(std::string_view uuid) {
     std::copy(uuid.begin(), uuid.begin() + size, connectionId.begin());
     // the uuid string shall always be zero terminated
     connectionId[size] = '\0';
-}
-
-void Connection::setInternal(bool internal) {
-    Connection::internal = internal;
 }
 
 size_t Connection::getNumberOfCookies() const {
@@ -1241,9 +1237,9 @@ bool Connection::signalIfIdle() {
     return false;
 }
 
-void Connection::setPriority(Connection::Priority priority) {
-    Connection::priority.store(priority);
-    switch (priority) {
+void Connection::setPriority(Connection::Priority priority_) {
+    priority.store(priority_);
+    switch (priority_) {
     case Priority::High:
         max_reqs_per_event =
                 Settings::instance().getRequestsPerEventNotification(
@@ -1261,7 +1257,7 @@ void Connection::setPriority(Connection::Priority priority) {
         return;
     }
     throw std::invalid_argument("Unknown priority: " +
-                                std::to_string(int(priority)));
+                                std::to_string(int(priority_)));
 }
 
 bool Connection::selectedBucketIsXattrEnabled() const {
@@ -1490,8 +1486,7 @@ ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
                                              cb::mcbp::Status status) {
     cb::mcbp::response::DcpAddStreamPayload extras;
     extras.setOpaque(dialogopaque);
-    uint8_t buffer[sizeof(cb::mcbp::Response) + sizeof(extras)];
-    cb::mcbp::ResponseBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::ResponseBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientResponse);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpAddStream);
     builder.setStatus(status);
@@ -1517,8 +1512,7 @@ ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
                                                     cb::mcbp::Status status) {
-    uint8_t buffer[sizeof(cb::mcbp::Response)];
-    cb::mcbp::ResponseBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::ResponseBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientResponse);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
     builder.setStatus(status);
@@ -1532,19 +1526,14 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
                                          uint32_t flags,
                                          cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
-    using cb::mcbp::Request;
-    using cb::mcbp::request::DcpStreamEndPayload;
-    uint8_t buffer[sizeof(Request) + sizeof(DcpStreamEndPayload) +
-                   sizeof(cb::mcbp::DcpStreamIdFrameInfo)];
-
-    Framebuilder builder({buffer, sizeof(buffer)});
+    Framebuilder builder(thread.getScratchBuffer());
     builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                          : cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
 
-    DcpStreamEndPayload payload;
+    cb::mcbp::request::DcpStreamEndPayload payload;
     payload.setFlags(flags);
 
     builder.setExtras(
@@ -1975,15 +1964,14 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
                                                 Vbid vbucket,
-                                                vbucket_state_t state) {
-    if (!is_valid_vbucket_state_t(state)) {
+                                                vbucket_state_t st) {
+    if (!is_valid_vbucket_state_t(st)) {
         return ENGINE_EINVAL;
     }
 
     cb::mcbp::request::DcpSetVBucketState extras;
-    extras.setState(static_cast<uint8_t>(state));
-    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    extras.setState(static_cast<uint8_t>(st));
+    cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
     builder.setOpaque(opaque);
@@ -1994,8 +1982,7 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
-    uint8_t buffer[sizeof(cb::mcbp::Request)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpNoop);
     builder.setOpaque(opaque);
@@ -2008,8 +1995,7 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
                                                      uint32_t buffer_bytes) {
     cb::mcbp::request::DcpBufferAckPayload extras;
     extras.setBufferBytes(buffer_bytes);
-    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
     builder.setOpaque(opaque);
@@ -2069,8 +2055,7 @@ ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
     cb::mcbp::request::GetErrmapPayload body;
     body.setVersion(version);
-    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(body)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
     builder.setOpaque(opaque);
@@ -2180,8 +2165,7 @@ ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
                                                  Vbid vbucket,
                                                  uint64_t prepared_seqno) {
     cb::mcbp::request::DcpSeqnoAcknowledgedPayload extras(prepared_seqno);
-    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
-    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
     builder.setOpaque(opaque);
