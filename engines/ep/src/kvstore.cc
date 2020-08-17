@@ -558,7 +558,7 @@ void KVStore::setSystemEvent(const queued_item item) {
         auto scopeEvent = Collections::VB::Manifest::getCreateScopeEventData(
                 {item->getData(), item->getNBytes()});
         collectionsMeta.scopes.push_back(
-                Collections::getScopeIDFromKey(item->getKey()));
+                {item->getBySeqno(), scopeEvent.metaData});
         collectionsMeta.setUid(scopeEvent.manifestUid);
         break;
     }

@@ -2188,7 +2188,7 @@ void MagmaKVStore::updateScopes(Vbid vbid, LocalDbReqs& localDbReqs) {
     std::string scopes;
     Slice keySlice(openScopesKey);
     std::tie(status, scopes) = readLocalDoc(vbid, keySlice);
-    auto buf = encodeScopes(
+    auto buf = encodeOpenScopes(
             collectionsMeta,
             {reinterpret_cast<const uint8_t*>(scopes.data()), scopes.length()});
     localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));

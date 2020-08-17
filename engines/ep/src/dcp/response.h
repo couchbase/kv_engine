@@ -976,7 +976,7 @@ public:
                                const Collections::CreateScopeEventData& data,
                                cb::mcbp::DcpStreamId sid)
         : SystemEventProducerMessage(opaque, itm, sid),
-          key(data.name),
+          key(data.metaData.name),
           eventData{data} {
     }
 

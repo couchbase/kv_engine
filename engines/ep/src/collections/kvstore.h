@@ -34,12 +34,21 @@ namespace Collections {
 namespace KVStore {
 
 /**
- * KVStore will return the start-seqno of the collection and the meta-data of
+ * KVStore will store the start-seqno of the collection and the meta-data of
  * the collection.
  */
 struct OpenCollection {
     int64_t startSeqno;
     CollectionMetaData metaData;
+};
+
+/**
+ * KVStore will store the start-seqno of the scope and the meta-data of
+ * the scope.
+ */
+struct OpenScope {
+    int64_t startSeqno;
+    ScopeMetaData metaData;
 };
 
 /**
@@ -59,12 +68,11 @@ struct Manifest {
     /**
      * Default results in the "default" manifest
      * - Default collection exists (since the beginning of time)
-     * - Default Scope exists
+     * - Default Scope exists (since the beginning of time)
      * - manifest UID of 0
      * - no dropped collections
      */
-    explicit Manifest(Default)
-        : collections{{0, {}}}, scopes{{ScopeID::Default}} {
+    explicit Manifest(Default) : collections{{0, {}}}, scopes{{0, {}}} {
     }
 
     /**
@@ -86,7 +94,7 @@ struct Manifest {
     std::vector<OpenCollection> collections;
 
     /// A vector of scopes that are available
-    std::vector<ScopeID> scopes;
+    std::vector<OpenScope> scopes;
 
     /**
      * true if KVStore has collection data belonging to dropped collections.
@@ -138,7 +146,7 @@ struct CommitMetaData {
      * of these containers if needsCommit is true.
      */
     std::vector<OpenCollection> collections;
-    std::vector<ScopeID> scopes;
+    std::vector<OpenScope> scopes;
 
     std::vector<DroppedCollection> droppedCollections;
     std::vector<ScopeID> droppedScopes;
@@ -205,7 +213,7 @@ flatbuffers::DetachedBuffer encodeDroppedCollections(
  * @param collectionsMeta manifest commit meta data
  * @param scopes open scopes list
  */
-flatbuffers::DetachedBuffer encodeScopes(
+flatbuffers::DetachedBuffer encodeOpenScopes(
         Collections::KVStore::CommitMetaData& collectionsMeta,
         cb::const_byte_buffer scopes);
 

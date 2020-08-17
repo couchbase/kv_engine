@@ -43,9 +43,16 @@ table OpenCollections {
     entries:[Collection];
 }
 
+// Metadata for a single scope
+table Scope {
+    startSeqno:long;
+    scopeId:uint;
+    name:string;
+}
+
 // All of the open scopes
 table Scopes {
-    entries:[uint];
+    entries:[Scope];
 }
 
 table Dropped {

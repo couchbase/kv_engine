@@ -126,13 +126,14 @@ public:
         return rv;
     }
 
-    static std::vector<ScopeID> getScopeIdVector(
+    static std::vector<Collections::ScopeMetaData> getScopeEventVector(
             const CollectionsManifest& cm) {
-        std::vector<ScopeID> rv;
+        std::vector<Collections::ScopeMetaData> rv;
         auto& json = cm.getJson();
         for (const auto& scope : json["scopes"]) {
             rv.push_back(
-                    Collections::makeScopeID(scope["uid"].get<std::string>()));
+                    {Collections::makeScopeID(scope["uid"].get<std::string>()),
+                     scope["name"].get<std::string>()});
         }
         return rv;
     }
@@ -169,11 +170,11 @@ public:
 
             EXPECT_EQ(expectedDropped.size(), dropped.size());
             for (const auto cid : expectedDropped) {
-                auto p = [cid](const Collections::KVStore::DroppedCollection&
-                                       dropped) {
+                auto cmp = [cid](const Collections::KVStore::DroppedCollection&
+                                         dropped) {
                     return dropped.collectionId == cid;
                 };
-                auto found = std::find_if(dropped.begin(), dropped.end(), p);
+                auto found = std::find_if(dropped.begin(), dropped.end(), cmp);
                 if (found != dropped.end()) {
                     matched++;
                     if (expectedDropped.size() == matched) {
@@ -191,13 +192,17 @@ public:
     void checkScopes(const Collections::KVStore::Manifest& md,
                      const CollectionsManifest& cm,
                      int expectedMatches) const {
-        auto expectedScopes = getScopeIdVector(cm);
+        auto expectedScopes = getScopeEventVector(cm);
         EXPECT_EQ(expectedMatches, expectedScopes.size());
         EXPECT_EQ(expectedMatches, md.scopes.size());
 
         int matched = 0;
-        for (const auto sid : expectedScopes) {
-            auto found = std::find(md.scopes.begin(), md.scopes.end(), sid);
+        for (const auto scope : expectedScopes) {
+            auto cmp =
+                    [scope](const Collections::KVStore::OpenScope& openScope) {
+                        return openScope.metaData == scope;
+                    };
+            auto found = std::find_if(md.scopes.begin(), md.scopes.end(), cmp);
             if (found != md.scopes.end()) {
                 matched++;
                 if (expectedMatches == matched) {
@@ -245,7 +250,10 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
     EXPECT_EQ(ScopeID::Default, md.collections[0].metaData.sid);
     EXPECT_FALSE(md.collections[0].metaData.maxTtl.has_value());
 
-    EXPECT_EQ(ScopeID::Default, md.scopes[0]);
+    EXPECT_EQ(0, md.scopes[0].startSeqno);
+    EXPECT_EQ(ScopeID::Default, md.scopes[0].metaData.sid);
+    EXPECT_EQ("_default", md.scopes[0].metaData.name);
+
     EXPECT_EQ(0, md.manifestUid);
 }
 

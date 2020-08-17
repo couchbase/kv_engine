@@ -107,8 +107,8 @@ std::string to_string(const DropEventData& event) {
 std::string to_string(const CreateScopeEventData& event) {
     return fmt::format(fmt("CreateScope{{uid:{:#x} scopeID:{} name:'{}'}}"),
                        event.manifestUid.load(),
-                       event.sid.to_string(),
-                       event.name);
+                       event.metaData.sid.to_string(),
+                       event.metaData.name);
 }
 
 std::string to_string(const DropScopeEventData& event) {

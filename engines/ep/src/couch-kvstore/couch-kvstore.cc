@@ -3227,8 +3227,9 @@ void CouchKVStore::updateScopes(Db& db) {
     cb::const_byte_buffer empty;
     pendingLocalReqsQ.emplace_back(
             Collections::scopesName,
-            encodeScopes(collectionsMeta,
-                         scopes.getLocalDoc() ? scopes.getBuffer() : empty));
+            encodeOpenScopes(
+                    collectionsMeta,
+                    scopes.getLocalDoc() ? scopes.getBuffer() : empty));
 }
 
 const KVStoreConfig& CouchKVStore::getConfig() const {

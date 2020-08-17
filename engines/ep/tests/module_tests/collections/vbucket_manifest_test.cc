@@ -335,8 +335,8 @@ public:
                                         {qi->getData(), qi->getNBytes()});
                         replica.wlock().replicaAddScope(vbR,
                                                         dcpData.manifestUid,
-                                                        dcpData.sid,
-                                                        dcpData.name,
+                                                        dcpData.metaData.sid,
+                                                        dcpData.metaData.name,
                                                         qi->getBySeqno());
                     }
                     break;

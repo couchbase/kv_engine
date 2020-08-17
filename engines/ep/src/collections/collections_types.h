@@ -161,6 +161,20 @@ struct CollectionMetaData {
 };
 
 /**
+ * The metadata of a single scope
+ *
+ * Default construction yields the default collection
+ */
+struct ScopeMetaData {
+    ScopeID sid{ScopeID::Default}; // The scope's ID
+    std::string name{DefaultScopeName}; // The scope's name
+
+    bool operator==(const ScopeMetaData& other) const {
+        return sid == other.sid && name == other.name;
+    }
+};
+
+/**
  * All of the data a system event needs
  */
 struct CreateEventData {
@@ -176,8 +190,7 @@ struct DropEventData {
 
 struct CreateScopeEventData {
     ManifestUid manifestUid; // The Manifest which generated the event
-    ScopeID sid; // The scope id
-    std::string name; // The scope name
+    ScopeMetaData metaData; // The data of the new scope
 };
 
 struct DropScopeEventData {
@@ -266,7 +279,7 @@ struct DropEventDcpData {
  */
 struct CreateScopeEventDcpData {
     explicit CreateScopeEventDcpData(const CreateScopeEventData& data)
-        : manifestUid(data.manifestUid), sid(data.sid) {
+        : manifestUid(data.manifestUid), sid(data.metaData.sid) {
     }
     /// The manifest uid stored in network byte order ready for sending
     ManifestUidNetworkOrder manifestUid;

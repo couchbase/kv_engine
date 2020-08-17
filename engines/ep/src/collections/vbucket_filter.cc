@@ -368,7 +368,7 @@ bool Filter::processScopeEvent(const Item& item) {
             auto dcpData = VB::Manifest::getCreateScopeEventData(
                     {item.getData(), item.getNBytes()});
             manifestUid = dcpData.manifestUid;
-            sid = dcpData.sid;
+            sid = dcpData.metaData.sid;
         } else {
             auto dcpData = VB::Manifest::getDropScopeEventData(
                     {item.getData(), item.getNBytes()});

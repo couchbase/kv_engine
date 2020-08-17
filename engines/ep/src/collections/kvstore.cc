@@ -73,12 +73,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         }
     } else {
         // Nothing on disk - the default collection is assumed
-        rv.collections.push_back(
-                {0,
-                 {ScopeID::Default,
-                  CollectionID::Default,
-                  Collections::DefaultCollectionIdentifier.data(),
-                  {}}});
+        rv.collections.push_back({0, {}});
     }
 
     if (!scopes.empty()) {
@@ -87,11 +82,14 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
                 scopes.data());
         for (const auto& entry : *fbData->entries()) {
-            rv.scopes.push_back(entry);
+            rv.scopes.push_back(
+                    {entry->startSeqno(),
+                     Collections::ScopeMetaData{entry->scopeId(),
+                                                entry->name()->str()}});
         }
     } else {
         // Nothing on disk - the default scope is assumed
-        rv.scopes.emplace_back(ScopeID::Default);
+        rv.scopes.push_back({0, {}});
     }
 
     // Do dropped collections exist?
@@ -237,35 +235,55 @@ flatbuffers::DetachedBuffer encodeDroppedCollections(
     return builder.Release();
 }
 
-flatbuffers::DetachedBuffer encodeScopes(
+flatbuffers::DetachedBuffer encodeOpenScopes(
         Collections::KVStore::CommitMetaData& collectionsMeta,
         cb::const_byte_buffer scopes) {
     flatbuffers::FlatBufferBuilder builder;
-    std::vector<ScopeIDType> openScopes;
-    for (const auto& sid : collectionsMeta.scopes) {
-        openScopes.push_back(sid);
+    std::vector<flatbuffers::Offset<Collections::KVStore::Scope>> openScopes;
+
+    // For each scope from the kvstore list, copy them into the flatbuffer
+    // output
+    for (const auto& event : collectionsMeta.scopes) {
+        const auto& meta = event.metaData;
+        auto newEntry = Collections::KVStore::CreateScope(
+                builder,
+                event.startSeqno,
+                meta.sid,
+                builder.CreateString(meta.name.data(), meta.name.size()));
+        openScopes.push_back(newEntry);
     }
 
-    // And 'merge' with the data we read (remove any dropped)
+    // And 'merge' with the scope flatbuffer data that was read.
     if (!scopes.empty()) {
-        verifyFlatbuffersData<Collections::KVStore::Scopes>(scopes,
-                                                            "encodeScopes()");
+        verifyFlatbuffersData<Collections::KVStore::Scopes>(
+                scopes, "encodeOpenScopes()");
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
                 scopes.data());
 
-        for (const auto& sid : *fbData->entries()) {
+        for (const auto& entry : *fbData->entries()) {
             auto result = std::find(collectionsMeta.droppedScopes.begin(),
                                     collectionsMeta.droppedScopes.end(),
-                                    sid);
+                                    entry->scopeId());
 
             // If not found in dropped scopes add to output
             if (result == collectionsMeta.droppedScopes.end()) {
-                openScopes.push_back(sid);
+                auto newEntry = Collections::KVStore::CreateScope(
+                        builder,
+                        entry->startSeqno(),
+                        entry->scopeId(),
+                        builder.CreateString(entry->name()));
+                openScopes.push_back(newEntry);
             }
         }
     } else {
-        // Nothing on disk, the default scope is assumed to exist
-        openScopes.push_back(ScopeID::Default);
+        // Nothing on disk - assume the default scope lives (it always does)
+        auto newEntry = Collections::KVStore::CreateScope(
+                builder,
+                0, // start-seqno
+                ScopeID::Default,
+                builder.CreateString(
+                        Collections::DefaultScopeIdentifier.data()));
+        openScopes.push_back(newEntry);
     }
 
     auto vector = builder.CreateVector(openScopes);

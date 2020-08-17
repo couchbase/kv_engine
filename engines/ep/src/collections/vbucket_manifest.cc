@@ -40,8 +40,8 @@ Manifest::Manifest() : scopes({{ScopeID::Default}}) {
 Manifest::Manifest(const KVStore::Manifest& data)
     : manifestUid(data.manifestUid),
       dropInProgress(data.droppedCollectionsExist) {
-    for (const auto sid : data.scopes) {
-        scopes.insert(sid);
+    for (const auto& scope : data.scopes) {
+        scopes.insert(scope.metaData.sid);
     }
 
     for (const auto& e : data.collections) {
@@ -703,7 +703,8 @@ CreateScopeEventData Manifest::getCreateScopeEventData(
     auto scope = flatbuffers::GetRoot<Scope>(
             reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
-    return {ManifestUid(scope->uid()), scope->scopeId(), scope->name()->str()};
+    return {ManifestUid(scope->uid()),
+            {scope->scopeId(), scope->name()->str()}};
 }
 
 DropScopeEventData Manifest::getDropScopeEventData(
