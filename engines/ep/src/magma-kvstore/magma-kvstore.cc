@@ -1291,19 +1291,35 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
 
     auto handle = makeFileHandle(vbid);
 
-    // Note: We need to initialize the seq index iterator here to keep
-    // in sync with vbstate. vbstate might change but its ok for the
-    // vbstate to be ahead of the iterator but it can't be behind.
-    auto itr = magma->NewSeqIterator(vbid.get());
+    std::unique_ptr<Magma::Snapshot> snapshot;
+    auto status = magma->GetSnapshot(vbid.get(), snapshot);
+    if (!status.IsOK()) {
+        logger->warn(
+                "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma snapshot "
+                "with status {}",
+                vbid,
+                status.String());
+        return nullptr;
+    }
+
+    if (!snapshot.get()) {
+        logger->error(
+                "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma snapshot,"
+                " no pointer returned",
+                vbid);
+        return nullptr;
+    }
+
+    auto itr = magma->NewSeqIterator(*snapshot);
     if (!itr) {
         logger->warn(
-                "MagmaKVStore::initScanContext {} Failed to get magma seq "
+                "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma seq "
                 "iterator",
                 vbid);
         return nullptr;
     }
 
-    auto readState = readVBStateFromDisk(vbid);
+    auto readState = readVBStateFromDisk(vbid, *snapshot);
     if (!readState.status.IsOK()) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} failed to read "
@@ -1590,6 +1606,58 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
 
     vbucket_state vbstate = j;
     mergeMagmaDbStatsIntoVBState(vbstate, vbid);
+    uint64_t kvstoreRev =
+            std::stoul(j.at("kvstore_revision").get<std::string>());
+
+    return {status, vbstate, kvstoreRev};
+}
+
+MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
+        Vbid vbid, magma::Magma::Snapshot& snapshot) {
+    Slice keySlice(vbstateKey);
+    std::string val;
+    bool found{false};
+    auto status = Status::OK();
+
+    // Read from the snapshot
+    status = magma->GetLocal(snapshot, keySlice, val, found);
+
+    if (!status.IsOK()) {
+        return {status, {}, {}};
+    }
+
+    nlohmann::json j;
+
+    try {
+        j = nlohmann::json::parse(val);
+    } catch (const nlohmann::json::exception& e) {
+        return {Status("MagmaKVStore::readVBStateFromDisk failed - vbucket( " +
+                       std::to_string(vbid.get()) + ") " +
+                       " Failed to parse the vbstate json doc: " + val +
+                       ". Reason: " + e.what()),
+                {},
+                {}};
+    }
+
+    vbucket_state vbstate = j;
+
+    auto userStats = magma->GetKVStoreUserStats(snapshot);
+    if (!userStats) {
+        return {Status("MagmaKVStore::readVBStateFromDisk failed - vbucket( " +
+                       std::to_string(vbid.get()) + ") " +
+                       "magma didn't return UserStats"),
+                {},
+                {}};
+    }
+
+    auto* magmaUserStats = dynamic_cast<MagmaDbStats*>(userStats.get());
+    if (!magmaUserStats) {
+        throw std::runtime_error("MagmaKVStore::readVBStateFromDisk: {} magma "
+                                 "returned invalid type of UserStats");
+    }
+    auto lockedStats = magmaUserStats->stats.rlock();
+    vbstate.purgeSeqno = lockedStats->purgeSeqno;
+
     uint64_t kvstoreRev =
             std::stoul(j.at("kvstore_revision").get<std::string>());
 

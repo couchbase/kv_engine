@@ -22,6 +22,7 @@
 #include "magma-kvstore/magma-kvstore_metadata.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
+#include "thread_gate.h"
 #include "workload.h"
 
 using namespace std::string_literals;
@@ -266,4 +267,55 @@ TEST_F(MagmaKVStoreTest, MB39669_CompactionBeforeWarmup) {
     magma::Slice meta{reinterpret_cast<char*>(&metadata), sizeof(metadata)};
     // Compaction callback should return false for anything before warmup.
     EXPECT_FALSE(newCompaction->operator()(key, meta, value));
+}
+
+TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    ThreadGate tg1(2);
+    ThreadGate tg2(2);
+    std::unique_ptr<BySeqnoScanContext> scanCtx;
+
+    kvstore->readVBStateFromDiskHook = [&tg1, &tg2]() {
+        // Wait until we modify the vbucket_state to test that we are reading
+        // the state from the snapshot
+        tg1.threadUp();
+
+        // And continue
+        tg2.threadUp();
+    };
+
+    std::thread t1 = std::thread{[this, &scanCtx]() {
+        scanCtx = kvstore->initBySeqnoScanContext(
+                std::make_unique<GetCallback>(true /*expectcompressed*/),
+                std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
+                vbid,
+                1,
+                DocumentFilter::ALL_ITEMS,
+                ValueFilter::VALUES_COMPRESSED,
+                SnapshotSource::Head);
+        EXPECT_TRUE(scanCtx.get());
+    }};
+
+    // Wait until we have grabbed the snapshot in initBySeqnoScanContext
+    tg1.threadUp();
+
+    // Change the vBucket state after grabbing the snapshot but before reading
+    // the state. If we read the state from the snapshot then it should not
+    // see the following change to the maxVisibleSeqno.
+    auto vbstate = kvstore->getVBucketState(vbid);
+    vbstate->maxVisibleSeqno = 999;
+    kvstore->snapshotVBucket(vbid, *vbstate);
+
+    // Finish creating the scanCtx and join up the other thread
+    tg2.threadUp();
+    t1.join();
+
+    ASSERT_TRUE(scanCtx.get());
+
+    // Max visible seqno should be 0 (i.e. it should not have seen the above
+    // change as it should read state from the snapshot). If we read the state
+    // again though we should see the updated value.
+    EXPECT_EQ(0, scanCtx->maxVisibleSeqno);
+    EXPECT_EQ(999, kvstore->getVBucketState(vbid)->maxVisibleSeqno);
 }

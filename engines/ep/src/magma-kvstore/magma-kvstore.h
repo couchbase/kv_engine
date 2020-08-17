@@ -527,6 +527,12 @@ public:
      */
     DiskState readVBStateFromDisk(Vbid vbid);
 
+    /**s
+     * Read the encoded vbstate from the given snapshot.
+     */
+    virtual DiskState readVBStateFromDisk(Vbid vbid,
+                                          magma::Magma::Snapshot& snapshot);
+
     /**
      * Write the encoded vbstate to localDb.
      */
