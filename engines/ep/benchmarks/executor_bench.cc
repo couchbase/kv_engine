@@ -32,6 +32,43 @@
 #include <random>
 
 /**
+ * Implementation of Taskable which does absolutely nothing. Used in the below
+ * benchmarks to provide a light(est) weight Taskable - note that MockTaskable
+ * uses GoogleMock for mocking some methods and that adds non-trivial overhead.
+ */
+class NullTaskable : public Taskable {
+public:
+    const std::string& getName() const override {
+        return name;
+    }
+    task_gid_t getGID() const override {
+        return 0;
+    }
+    bucket_priority_t getWorkloadPriority() const override {
+        return HIGH_BUCKET_PRIORITY;
+    }
+    void setWorkloadPriority(bucket_priority_t prio) override {
+    }
+    WorkLoadPolicy& getWorkLoadPolicy() override {
+        return policy;
+    }
+    void logQTime(TaskId id,
+                  const std::chrono::steady_clock::duration enqTime) override {
+    }
+    void logRunTime(
+            TaskId id,
+            const std::chrono::steady_clock::duration runTime) override {
+    }
+    bool isShutdown() override {
+        return false;
+    }
+
+private:
+    std::string name{"NullTaskable"};
+    WorkLoadPolicy policy{HIGH_BUCKET_PRIORITY, 1};
+};
+
+/**
  * Benchmark fixture using ep-engine's CB3ExecutorPool.
  */
 class CB3ExecutorPoolBench : public benchmark::Fixture {
@@ -54,7 +91,7 @@ protected:
     }
 
     std::unique_ptr<TestExecutorPool> pool;
-    MockTaskable taskable;
+    NullTaskable taskable;
 };
 
 /**
@@ -222,7 +259,7 @@ protected:
 
         // To match functionality of ep-engine ExecutorPool, register
         // a callback to record task wait/run times.
-        // TODO: Make MockTaskable actually record times in histogram
+        // TODO: Make taskable actually record times in histogram
         // as per EPEngine.
         // TODO: Record the timings on a per-Task basis. Folly adds support
         // for this as of
@@ -243,7 +280,7 @@ protected:
 
     std::unique_ptr<folly::CPUThreadPoolExecutor> pool;
     std::unique_ptr<folly::IOThreadPoolExecutor> ioPool;
-    MockTaskable taskable;
+    NullTaskable taskable;
 
     // Collection of TestTimeout tasks, shared across multiple benchmark
     // threds.
