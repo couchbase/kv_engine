@@ -20,6 +20,7 @@
 //
 
 #include "executorpool.h"
+#include "folly_executorpool.h"
 #include "tests/mock/mock_taskable.h"
 #include "tests/module_tests/executorpool_test.h"
 #include "tests/module_tests/lambda_task.h"
@@ -69,165 +70,210 @@ private:
 };
 
 /**
- * Benchmark fixture using ep-engine's CB3ExecutorPool.
+ * Benchmark fixture for subclasses of ep-engine's ExecutorPool class.
  */
-class CB3ExecutorPoolBench : public benchmark::Fixture {
-protected:
-    void makePool(int nonIOCount) {
-        // Note: Don't actually need any Reader/Writer/AuxIO threads here, but
-        // ExecutorPool cannot handle having a count of zero :(
-        pool = std::make_unique<TestExecutorPool>(
-                nonIOCount,
-                ThreadPoolConfig::ThreadCount(1),
-                ThreadPoolConfig::ThreadCount(1),
-                1,
-                nonIOCount);
-        pool->registerTaskable(taskable);
+template <typename T>
+class ExecutorPoolFixture : public benchmark::Fixture {
+public:
+    /// Setup the ExecutorPool. After this method returns, the calling
+    // thread is safe to use `pool`.
+    void setupPool(const benchmark::State& state, int nonIOCount) {
+        if (state.thread_index == 0) {
+            // Create the pool with the specified number of IO threads.
+            // Note: Don't actually need any Reader/Writer/AuxIO threads here,
+            // but ExecutorPool cannot handle having a count of zero :(
+            pool = std::make_unique<T>(nonIOCount,
+                                       ThreadPoolConfig::ThreadCount(1),
+                                       ThreadPoolConfig::ThreadCount(1),
+                                       1,
+                                       nonIOCount);
+            pool->registerTaskable(taskable);
+            poolPtr.store(pool.get());
+            poolSem.post();
+        } else {
+            // Wait for pool to be created by thread 0. Atherwise when we
+            // attempt to use the pool before the KeepRunning() loop it may not
+            // exist yet.
+            poolSem.wait();
+        }
     }
 
-    void shutdownPool() {
-        pool->unregisterTaskable(taskable, false);
-        pool.reset();
+    void shutdownPool(const benchmark::State& state) {
+        if (state.thread_index == 0) {
+            poolSem.reset();
+            poolPtr.store(nullptr);
+            pool->unregisterTaskable(taskable, false);
+            pool.reset();
+        }
     }
 
-    std::unique_ptr<TestExecutorPool> pool;
+    T* getPool() {
+        return poolPtr.load();
+    }
+
+    /**
+     * Benchmark a one-shot task (runs once then completed). Measure how long it
+     * takes to:
+     * - schedule the Task to run on a background thread (to run asap),
+     * - then run that Task and notify back to the main thread.
+     *
+     * This is the pattern of KVBucket::visitAsync() - it creates a VBCBAdapter
+     * Task wrapping the given VBucket visitor object, then runs that task
+     * immediately.
+     *
+     * This is a multithreaded benchmark - N sets of "benchmark" and NonIO
+     * threads are created. The benchmark threads repeatedly schedule a Task to
+     * be run to perform some work asynchronously, then waits on the result. The
+     * background NonIO threads pickup the Task and run it, then notifies the
+     * requesting thread via a condition variable.
+     *
+     * By creating multiple benchmark threads we can measure the performance of
+     * the ExecutorPool's scheduling implementation. By creating multiple
+     * background NonIO threads we can measure the performance of the actual
+     * dispatch of Tasks on a ThreadPool.
+     */
+    void bench_OneShotScheduleRun(benchmark::State& state) {
+        // Create one "NonIO" thread per "benchmark" thread (such that there
+        // is a pair of benchmark and NonIO threads to consume/produce).
+        setupPool(state, state.threads);
+
+        folly::Baton cv;
+        cb::RelaxedAtomic<int64_t> producerCount{0};
+        int64_t consumerCount = 0;
+
+        // Simple producer function to run in the our Task - increments
+        // producerCount and notifies the waiting thread via a condition
+        // variable.
+        auto producerFn = [&cv, &producerCount, &state](LambdaTask&) {
+            producerCount++;
+            cv.post();
+            return false;
+        };
+
+        // Benchmark loop
+        while (state.KeepRunning()) {
+            ExTask task = std::make_shared<LambdaTask>(
+                    taskable, TaskId::ItemPager, 0, true, producerFn);
+            getPool()->schedule(task);
+            consumerCount++;
+            cv.wait();
+            EXPECT_EQ(consumerCount, producerCount.load());
+            cv.reset();
+        }
+        state.SetItemsProcessed(consumerCount);
+
+        shutdownPool(state);
+    }
+
+    /**
+     * Benchmark the performance of scheduling a Task to run in the future,
+     * but it is cancelled shortly after (before running).
+     *
+     * This models the behaviour of a per-VBucket Task to handle SyncWrite
+     * timeouts
+     * - each Task is scheduled to run when the first tracked SyncWrite will
+     * timeout, however that typically never happens as the SyncWrite will
+     * complete beforehand and the Task will be re-scheduled to run later (when
+     * the next tracked SyncWrite expires.
+     *
+     * This is a multi-threaded benchmark - each benchmark thread attempts to
+     * cancel and reschedule the timeout tasks against a single thread pool.
+     *
+     * Argumment specifies how many Tasks exist (spread across all threads). As
+     * such we can measure how the same number of Tasks are handled when
+     * different number of threads are trying to schedule them.
+     */
+    void bench_TimeoutAddCancel(benchmark::State& state) {
+        // Create a fixed number of threads (we don't actually expect to
+        // ever run anything).
+        setupPool(state, 1);
+
+        const auto tasksPerThread = state.range(0) / state.threads;
+        ASSERT_NE(0, tasksPerThread) << "Must have at least 1 task per thread";
+
+        std::random_device randomDevice;
+        std::mt19937_64 generator(randomDevice());
+
+        // Create N Timeout tasks and register with ExecutorPool - runs once
+        // if/when the timeout occurs.
+        // Schedule them all to run (timeout) a pseudo-random time from 10-30
+        // seconds. Don't actually expect this to run in this configuration,
+        // given we will cancel it before the timeout.
+        std::uniform_real_distribution<> timeoutDistribution(10.0, 30.0);
+        std::vector<ExTask> tasks;
+        for (int i = 0; i < tasksPerThread; i++) {
+            ExTask task = std::make_shared<LambdaTask>(
+                    taskable,
+                    TaskId::ItemPager,
+                    std::numeric_limits<int>::max(),
+                    true,
+                    [](LambdaTask&) { return false; });
+            getPool()->schedule(task);
+            tasks.push_back(task);
+        }
+
+        // Benchmark loop - pick the next Task, cancel it's current timeout and
+        // then add a new timeout.
+        auto nextTask = tasks.begin();
+        int64_t tasksSnoozed = 0;
+        while (state.KeepRunning()) {
+            EXPECT_TRUE(getPool()->snooze((*nextTask)->getId(),
+                                          timeoutDistribution(generator)));
+            tasksSnoozed++;
+            nextTask++;
+            if (nextTask == tasks.end()) {
+                nextTask = tasks.begin();
+            }
+        }
+
+        // Cancel all tasks so they don't run during pool shutdown.
+        for (auto& t : tasks) {
+            t->cancel();
+        }
+
+        state.SetItemsProcessed(tasksSnoozed);
+
+        shutdownPool(state);
+    }
+
+private:
+    std::unique_ptr<T> pool;
+    /// Semaphore used to coordinate pool creation/usage.
+    folly::SaturatingSemaphore<true> poolSem;
+
+    /// Thread-safe pointer to pool so threads other than the one which
+    /// created the pool can correctly access it.
+    std::atomic<T*> poolPtr;
+
     NullTaskable taskable;
 };
 
-/**
- * Benchmark a one-shot task (runs once then completed). Measure how long it
- * takes to:
- * - schedule the Task to run on a background thread (to run asap),
- * - then run that Task and notify back to the main thread.
- *
- * This is the pattern of KVBucket::visitAsync() - it creates a VBCBAdapter Task
- * wrapping the given VBucket visitor object, then runs that task immediately.
- *
- * This is a multithreaded benchmark - N sets of "benchmark" and NonIO threads
- * are created. The benchmark threads repeatedly schedule a Task to be run to
- * perform some work asynchronously, then waits on the result. The background
- * NonIO threads pickup the Task and run it, then notifies the requesting
- * thread via a condition variable.
- *
- * By creating multiple benchmark threads we can measure the performance of the
- * ExecutorPool's scheduling implementation.
- * By creating multiple background NonIO threads we can measure the performance
- * of the actual dispatch of Tasks on a ThreadPool.
- */
-BENCHMARK_DEFINE_F(CB3ExecutorPoolBench, OneShotScheduleRun)
+BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
+                            OneShotScheduleRun_CB3,
+                            CB3ExecutorPool)
 (benchmark::State& state) {
-    if (state.thread_index == 0) {
-        // Create one "NonIO" thread per "benchmark" thread (such that there is
-        // a pair of benchmark and NonIO threads to consume/produce).
-        makePool(state.threads);
-    }
-    folly::Baton cv;
-    cb::RelaxedAtomic<int64_t> producerCount{0};
-    int64_t consumerCount = 0;
-
-    // Simple producer function to run in the our Task - increments
-    // producerCount and notifies the waiting thread via a condition variable.
-    auto producerFn = [&cv, &producerCount, &state](LambdaTask&) {
-        producerCount++;
-        cv.post();
-        return false;
-    };
-
-    // Benchmark loop
-    while (state.KeepRunning()) {
-        ExTask task = std::make_shared<LambdaTask>(
-                taskable, TaskId::ItemPager, 0, true, producerFn);
-        pool->schedule(task);
-        consumerCount++;
-        cv.wait();
-        EXPECT_EQ(consumerCount, producerCount.load());
-        cv.reset();
-    }
-    state.SetItemsProcessed(consumerCount);
-
-    if (state.thread_index == 0) {
-        shutdownPool();
-    }
+    bench_OneShotScheduleRun(state);
 }
 
-/**
- * Benchmark the performance of scheduling a Task to run in the future,
- * but it is cancelled shortly after (before running).
- *
- * This models the behaviour of a per-VBucket Task to handle SyncWrite timeouts
- * - each Task is scheduled to run when the first tracked SyncWrite will
- * timeout, however that typically never happens as the SyncWrite will complete
- * beforehand and the Task will be re-scheduled to run later (when the next
- * tracked SyncWrite expires.
- *
- * This is a multi-threaded benchmark - each benchmark thread attempts to
- * cancel and reschedule the timeout tasks against a single thread pool.
- *
- * Argumment specifies how many Tasks exist (spread across all threads). As
- * such we can measure how the same number of Tasks are handled when different
- * number of threads are trying to schedule them.
- */
-BENCHMARK_DEFINE_F(CB3ExecutorPoolBench, TimeoutAddCancel)
+BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
+                            OneShotScheduleRun_Folly,
+                            FollyExecutorPool)
 (benchmark::State& state) {
-    if (state.thread_index == 0) {
-        // Create a fixed number of threads (we don't actually expect to ever
-        // run anything).
-        makePool(1);
-    }
-    const auto tasksPerThread = state.range(0) / state.threads;
-    ASSERT_NE(0, tasksPerThread) << "Must have at least 1 task per thread";
+    bench_OneShotScheduleRun(state);
+}
 
-    std::random_device randomDevice;
-    std::mt19937_64 generator(randomDevice());
+BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
+                            TimeoutAddCancel_CB3,
+                            CB3ExecutorPool)
+(benchmark::State& state) {
+    bench_TimeoutAddCancel(state);
+}
 
-    // Create N Timeout tasks and register with ExecutorPool - runs once
-    // if/when the timeout occurs.
-    // Schedule them all to run (timeout) a pseudo-random time from 10-30
-    // seconds. Don't actually expect this to run in this configuration, given
-    // we will cancel it before the timeout.
-    std::uniform_real_distribution<> timeoutDistribution(10.0, 30.0);
-    std::vector<ExTask> tasks;
-    for (int i = 0; i < tasksPerThread; i++) {
-        ExTask task = std::make_shared<LambdaTask>(
-                taskable,
-                TaskId::ItemPager,
-                std::numeric_limits<int>::max(),
-                true,
-                [](LambdaTask&) {
-                    throw std::logic_error("Timeout should never be executed.");
-                    return false;
-                });
-        tasks.push_back(task);
-    }
-
-    // Benchmark loop - pick the next Task, cancel it's current timeout and
-    // then add a new timeout.
-    auto nextTask = tasks.begin();
-    int64_t tasksSnoozed = 0;
-    while (state.KeepRunning()) {
-        if ((*nextTask)->getState() == TASK_SNOOZED) {
-            // First time this task has been operated on - schedule it.
-            pool->schedule(*nextTask);
-        }
-        EXPECT_TRUE(pool->snooze((*nextTask)->getId(),
-                                 timeoutDistribution(generator)));
-        tasksSnoozed++;
-        nextTask++;
-        if (nextTask == tasks.end()) {
-            nextTask = tasks.begin();
-        }
-    }
-
-    // Cancel all tasks so they don't run during pool shutdown.
-    for (auto& t : tasks) {
-        t->cancel();
-    }
-
-    state.SetItemsProcessed(tasksSnoozed);
-
-    if (state.thread_index == 0) {
-        shutdownPool();
-    }
+BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
+                            TimeoutAddCancel_Folly,
+                            FollyExecutorPool)
+(benchmark::State& state) {
+    bench_TimeoutAddCancel(state);
 }
 
 /**
@@ -413,7 +459,10 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
     }
 }
 
-BENCHMARK_REGISTER_F(CB3ExecutorPoolBench, OneShotScheduleRun)
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, OneShotScheduleRun_CB3)
+        ->ThreadRange(1, 16)
+        ->UseRealTime();
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, OneShotScheduleRun_Folly)
         ->ThreadRange(1, 16)
         ->UseRealTime();
 
@@ -421,7 +470,12 @@ BENCHMARK_REGISTER_F(PureFollyExecutorBench, OneShotScheduleRun)
         ->ThreadRange(1, 16)
         ->UseRealTime();
 
-BENCHMARK_REGISTER_F(CB3ExecutorPoolBench, TimeoutAddCancel)
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_CB3)
+        ->ThreadRange(1, 16)
+        ->Range(1000, 30000)
+        ->ArgName("Timeouts")
+        ->UseRealTime();
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_Folly)
         ->ThreadRange(1, 16)
         ->Range(1000, 30000)
         ->ArgName("Timeouts")

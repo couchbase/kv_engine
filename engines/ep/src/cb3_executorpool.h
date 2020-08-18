@@ -86,6 +86,25 @@ using TaskQ = std::vector<TaskQueue*>;
 
 class CB3ExecutorPool : public ExecutorPool {
 public:
+    /**
+     * Construct an ExecutorPool.
+     *
+     * @param maxThreads Maximum number of threads in any given thread class
+     *                   (Reader, Writer, NonIO, AuxIO). A value of 0 means
+     *                   use number of CPU cores.
+     * @param maxReaders Number of Reader threads to create.
+     * @param maxWriters Number of Writer threads to create.
+     * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
+     * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
+     */
+    CB3ExecutorPool(size_t maxThreads,
+                    ThreadPoolConfig::ThreadCount maxReaders,
+                    ThreadPoolConfig::ThreadCount maxWriters,
+                    size_t maxAuxIO,
+                    size_t maxNonIO);
+
+    ~CB3ExecutorPool() override;
+
     void addWork(size_t newWork, task_type_t qType);
 
     void lessWork(task_type_t qType);
@@ -202,25 +221,6 @@ public:
     size_t schedule(ExTask task) override;
 
 protected:
-    /**
-     * Construct an ExecutorPool.
-     *
-     * @param maxThreads Maximum number of threads in any given thread class
-     *                   (Reader, Writer, NonIO, AuxIO). A value of 0 means
-     *                   use number of CPU cores.
-     * @param maxReaders Number of Reader threads to create.
-     * @param maxWriters Number of Writer threads to create.
-     * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
-     * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
-     */
-    CB3ExecutorPool(size_t maxThreads,
-                    ThreadPoolConfig::ThreadCount maxReaders,
-                    ThreadPoolConfig::ThreadCount maxWriters,
-                    size_t maxAuxIO,
-                    size_t maxNonIO);
-
-    ~CB3ExecutorPool() override;
-
     TaskQueue* _nextTask(CB3ExecutorThread& t, uint8_t tick);
 
     /**
