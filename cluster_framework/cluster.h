@@ -108,6 +108,17 @@ public:
      * @return a handle to the newly created cluster
      */
     static std::unique_ptr<Cluster> create(size_t nodes);
+
+    /**
+     * Get all IPv4 and IPv6 addresses configured on this machine (skipping
+     * loopback interface such as 127.0.0.1 and ::1)
+     *
+     * @return the first vector contains IPv4 addresses, the second Iv6
+     * addresses
+     * @throws std::system_error if we fail to get the interface description
+     */
+    static std::pair<std::vector<std::string>, std::vector<std::string>>
+    getIpAddresses();
 };
 
 } // namespace cb::test
