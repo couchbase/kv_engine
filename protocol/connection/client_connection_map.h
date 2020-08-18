@@ -69,7 +69,7 @@ public:
     /**
      * Iterate over all of the connections
      */
-    void iterate(std::function<void(MemcachedConnection&)> fn) {
+    void iterate(std::function<void(const MemcachedConnection&)> fn) const {
         for (auto& connection : connections) {
             fn(*connection);
         }

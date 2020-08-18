@@ -30,7 +30,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(InterfacesTest, AddRemoveInterface) {
     size_t total = 0;
-    connectionMap.iterate([&total](MemcachedConnection& c) { ++total; });
+    connectionMap.iterate([&total](const MemcachedConnection& c) { ++total; });
     auto interfaces = memcached_cfg["interfaces"];
 
     memcached_cfg["interfaces"][2] = {{"tag", "admin"},
@@ -43,7 +43,8 @@ TEST_P(InterfacesTest, AddRemoveInterface) {
 
     // Check that I have
     size_t current = 0;
-    connectionMap.iterate([&current](MemcachedConnection& c) { ++current; });
+    connectionMap.iterate(
+            [&current](const MemcachedConnection& c) { ++current; });
     EXPECT_GT(current, total);
 
     // Remove the interface!
@@ -53,6 +54,7 @@ TEST_P(InterfacesTest, AddRemoveInterface) {
 
     // Check that I have
     current = 0;
-    connectionMap.iterate([&current](MemcachedConnection& c) { ++current; });
+    connectionMap.iterate(
+            [&current](const MemcachedConnection& c) { ++current; });
     EXPECT_EQ(current, total);
 }

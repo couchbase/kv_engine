@@ -602,7 +602,7 @@ public:
      * @return a textual representation of the connection including the
      *         protocol and any special attributes
      */
-    std::string to_string();
+    std::string to_string() const;
 
     /**
      * Try to configure the ewouldblock engine

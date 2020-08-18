@@ -504,7 +504,7 @@ void TestappTest::parse_portnumber_file() {
         port = (in_port_t)-1;
         ssl_port = (in_port_t)-1;
 
-        connectionMap.iterate([](MemcachedConnection& connection) {
+        connectionMap.iterate([](const MemcachedConnection& connection) {
             if (connection.getFamily() == AF_INET) {
                 if (connection.isSsl()) {
                     ssl_port = connection.getPort();
@@ -516,7 +516,7 @@ void TestappTest::parse_portnumber_file() {
 
         if (port == in_port_t(-1)) {
             std::stringstream ss;
-            connectionMap.iterate([&ss](MemcachedConnection& connection) {
+            connectionMap.iterate([&ss](const MemcachedConnection& connection) {
                 ss << "[" << connection.to_string() << "]," << std::endl;
             });
 
@@ -528,7 +528,7 @@ void TestappTest::parse_portnumber_file() {
 
         if (ssl_port == in_port_t(-1)) {
             std::stringstream ss;
-            connectionMap.iterate([&ss](MemcachedConnection& connection) {
+            connectionMap.iterate([&ss](const MemcachedConnection& connection) {
                 ss << "[" << connection.to_string() << "]," << std::endl;
             });
 

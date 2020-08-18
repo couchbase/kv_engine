@@ -886,7 +886,7 @@ void MemcachedConnection::selectBucket(const std::string& name) {
     }
 }
 
-std::string MemcachedConnection::to_string() {
+std::string MemcachedConnection::to_string() const {
     std::string ret("Memcached connection ");
     ret.append(std::to_string(port));
     if (family == AF_INET6) {
