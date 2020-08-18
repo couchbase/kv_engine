@@ -28,8 +28,10 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "statistics/collector.h"
+#include "statistics/labelled_collector.h"
 #include "tasks.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
 #include "trace_helpers.h"
@@ -333,6 +335,80 @@ TEST_F(StatTest, UnitSuffix) {
                              units::gigabytes}) {
         EXPECT_EQ("_bytes", unit.getSuffix());
     }
+}
+
+TEST_F(StatTest, CollectorAddsLabel) {
+    // Confirm that StatCollector::withLabels(...)
+    // returns a collector which adds all given labels to every stat added.
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<MockStatCollector> collector;
+
+    auto key = "stat_key"sv;
+    auto value = 12345.0;
+
+    // helper to check that addStat was called with a particular set of labels
+    auto expectAddStatWithLabels =
+            [&collector, &key, &value](
+                    const std::unordered_map<std::string_view,
+                                             std::string_view>& labels) {
+                // explicitly specified matcher required to disabiguate the
+                // addStat method
+                EXPECT_CALL(collector,
+                            addStat(key,
+                                    Matcher<double>(value),
+                                    ContainerEq(labels)));
+            };
+
+    {
+        // create a LabelledStatCollector wrapping `collector`. Stats added
+        // to `labelled` should be forwarded on to `collector`, with
+        // labels added.
+        auto labelled =
+                collector.withLabels({{"bucket", "foo"}, {"scope", "bar"}});
+        // the labelled collector adds stats with all provided labels
+        expectAddStatWithLabels({{"bucket", "foo"}, {"scope", "bar"}});
+        labelled.addStat(key, value);
+    }
+
+    {
+        // Test calls to withLabels on an already labelled collector
+        // unions all labels.
+        auto labelled =
+                collector.withLabels({{"bucket", "foo"}, {"scope", "bar"}})
+                        .withLabels({{"collection", "baz"}});
+
+        // Stat added with all added labels from both withLabels(...) calls.
+        expectAddStatWithLabels(
+                {{"bucket", "foo"}, {"scope", "bar"}, {"collection", "baz"}});
+        labelled.addStat(key, value);
+    }
+
+    {
+        // Test setting a label value again hides the existing value
+
+        // create a collector with label bucket=foo
+        auto labelled = collector.withLabels({{"bucket", "foo"}});
+        // NOTE: withLabels called on `labelled` not the original collector
+        // create another collector which overrides the bucket label
+        auto relabelled = labelled.withLabels({{"bucket", "bar"}});
+
+        // expect `relabelled` has the new bucket label
+        expectAddStatWithLabels({{"bucket", "bar"}});
+        relabelled.addStat(key, value);
+
+        // expect `labelled` is not changed, and still has the old label
+        expectAddStatWithLabels({{"bucket", "foo"}});
+        labelled.addStat(key, value);
+    }
+
+    // Finally, confirm that the original collector has not had any labels set
+    // and was not changed by creating labelled "sub" collectors
+    expectAddStatWithLabels({});
+    collector.addStat(key, value);
 }
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {

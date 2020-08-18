@@ -28,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_map>
 
 class EventuallyPersistentEngine;
 
@@ -100,24 +101,9 @@ inline uint64_t getBucketMax(const MicrosecondHistogram::value_type& bucket) {
     return bucket->end().count();
 }
 
-class StatCollector;
-/**
- * RAII helper which removes a default label from the StatCollector when it goes
- * out of scope. Created by StatCollector.withDefaultLabel(...)
- *
- * Note, the label is _removed_ not reset to a previous value.
- */
-struct LabelGuard {
-    LabelGuard(StatCollector& collector, std::string_view label)
-        : collector(collector), label(label) {
-    }
-
-    ~LabelGuard();
-    StatCollector& collector;
-    std::string label;
-};
 
 class HdrHistogram;
+class LabelledStatCollector;
 /**
  * Interface implemented by stats backends.
  *
@@ -128,56 +114,79 @@ class HdrHistogram;
  * appropriately by the backend.
  *
  * Stats are often organised in related blocks, for example all stats for a
- * particular bucket. Rather than repeating the bucket label for every stat
- * the bucket label can be set as a default.
+ * particular bucket. Rather than repeating the bucket label for every stat,
+ * a collector can be created which adds the bucket label to every added
+ * stat.
  *
- * addDefaultLabel("bucket", "bucketName");
- * addStat("foo", 1);
- * addStat("bar", 2);
- * removeDefaultLabel("bucket");
+ *  StatCollector collector;
+ *  collector.addStat("uptime", 12345); // global, no labels
+ *  {
+ *      // every stat added through `labelled` will have a bucket label
+ *      auto labelled = collector.withLabels({{"bucket", "bucketName"}});
+ *      labelled.addStat("mem_used", 999);
+ *      labelled.addStat("disk_size", 123, {{"scope", "0x0"}});
+ *  }
  *
  * Would lead to CBStats generating:
  *
- * foo: 1
- * bar: 2
+ * uptime: 12345
+ * mem_used: 999
+ * 0x0:disk_size: 123
  *
- * But the Prometheus backend may generate:
+ * Note: cbstats collects stats for a single bucket, so does not need to
+ * distinguish between multiple.
  *
- * foo{bucket="bucketName"} 1
- * bar{bucket="bucketName"} 2
+ * In contrast, the Prometheus backend may generate:
+ *
+ * uptime 12345
+ * mem_used{bucket="bucketName"} 1
+ * disk_size{bucket="bucketName", scope="0x0"} 123
+ *
  */
 class StatCollector {
 public:
+    using Labels = std::unordered_map<std::string_view, std::string_view>;
+
     /**
-     * Add a label which will be included for all added stats until it is
-     * removed.
+     * Construct a LabelledStatCollector which wraps this collector instance.
+     * The wrapper adds all the labels in `labels` to every call to addStat,
+     * then forwards it to this StatCollector instance.
      *
-     * Adding a label with the same name will overwrite the previously set
-     * value.
+     * This instance is _not_ modified.
      *
-     * @param name label name to add to following stats
-     * @param value the value of the label
+     * For example, a bucket label can be applied to a group of stats:
+     *
+     *  {
+     *      auto labelled = collector.withLabels({{"bucket", "bucketName"}});
+     *      labelled.addStat("mem_used", 10000);
+     *      labelled.addStat("ep_kv_size", 1234);
+     *  }
+     *
+     * Setting a new value for an existing label will mask the existing value.
+     *
+     * auto scopeCollector = collector.withLabels({{"scope", "scopeName"}});
+     * auto overridden = scopeCollector.withLabels({{"scope", "NewName"}});
+     *
+     * scopeCollector.addStat(...); // labelled with "scopeName"
+     * overridden.addStat(...); // labelled with "NewName"
+     *
+     * See LabelledStatCollector.
      */
-    virtual void addDefaultLabel(std::string_view name,
-                                 std::string_view value) = 0;
-    /**
-     * Removes a previously added default label. Following stats will no longer
-     * have the named label included. See addDefaultLabel.
-     *
-     * @param name name of the label to remove
-     */
-    virtual void removeDefaultLabel(std::string_view name) = 0;
+    [[nodiscard]] virtual LabelledStatCollector withLabels(
+            const Labels& labels);
 
     /**
      * Add a textual stat to the collector.
      *
      * Try to use other type specific overloads where possible.
      */
-    virtual void addStat(std::string_view k, std::string_view v) = 0;
+    virtual void addStat(std::string_view k,
+                         std::string_view v,
+                         const Labels& labels) = 0;
     /**
      * Add a boolean stat to the collector.
      */
-    virtual void addStat(std::string_view k, bool v) = 0;
+    virtual void addStat(std::string_view k, bool v, const Labels& labels) = 0;
 
     /**
      * Add a numeric stat to the collector.
@@ -187,9 +196,15 @@ public:
      * cause narrowing, loss of precision, so backends are responsible
      * for handling each appropriately.
      */
-    virtual void addStat(std::string_view k, int64_t v) = 0;
-    virtual void addStat(std::string_view k, uint64_t v) = 0;
-    virtual void addStat(std::string_view k, double v) = 0;
+    virtual void addStat(std::string_view k,
+                         int64_t v,
+                         const Labels& labels) = 0;
+    virtual void addStat(std::string_view k,
+                         uint64_t v,
+                         const Labels& labels) = 0;
+    virtual void addStat(std::string_view k,
+                         double v,
+                         const Labels& labels) = 0;
 
     /**
      * Add a histogram stat to the collector.
@@ -197,7 +212,9 @@ public:
      * HistogramData is an intermediate type to which multiple
      * histogram types are converted.
      */
-    virtual void addStat(std::string_view k, const HistogramData& hist) = 0;
+    virtual void addStat(std::string_view k,
+                         const HistogramData& hist,
+                         const Labels& labels) = 0;
 
     /**
      * Add a textual stat. This overload is present to avoid conversion
@@ -206,19 +223,9 @@ public:
      *
      * TODO: MB-40259 - replace this with a more general solution.
      */
-    void addStat(std::string_view k, const char* v) {
-        addStat(k, std::string_view(v));
+    void addStat(std::string_view k, const char* v, const Labels& labels) {
+        addStat(k, std::string_view(v), labels);
     };
-
-    /**
-     * Add a default label and return an RAII helper which
-     * will remove the label when it goes out of scope.
-     */
-    [[nodiscard]] LabelGuard withDefaultLabel(std::string_view label,
-                                              std::string_view value) {
-        addDefaultLabel(label, value);
-        return {*this, label};
-    }
 
     /**
      * Overload with other signed/unsigned/float types.
@@ -228,16 +235,16 @@ public:
      * uint64_t,and double.
      */
     template <class T, class = std::enable_if_t<std::is_arithmetic_v<T>>>
-    void addStat(std::string_view k, T v) {
+    void addStat(std::string_view k, T v, const Labels& labels) {
         /* Converts the value to uint64_t/int64_t/double
          * based on if it is a signed/unsigned type.
          */
         if constexpr (std::is_unsigned_v<T>) {
-            addStat(k, uint64_t(v));
+            addStat(k, uint64_t(v), labels);
         } else if constexpr (std::is_signed_v<T>) {
-            addStat(k, int64_t(v));
+            addStat(k, int64_t(v), labels);
         } else {
-            addStat(k, double(v));
+            addStat(k, double(v), labels);
         }
     }
 
@@ -248,7 +255,9 @@ public:
      * Used to adapt histogram types to a single common type
      * for backends to support.
      */
-    void addStat(std::string_view k, const HdrHistogram& v);
+    void addStat(std::string_view k,
+                 const HdrHistogram& v,
+                 const Labels& labels);
 
     /**
      * Converts a Histogram<T, Limits> instance to HistogramData,
@@ -258,7 +267,9 @@ public:
      * for backends to support.
      */
     template <typename T, template <class> class Limits>
-    void addStat(std::string_view k, const Histogram<T, Limits>& hist) {
+    void addStat(std::string_view k,
+                 const Histogram<T, Limits>& hist,
+                 const Labels& labels) {
         HistogramData histData{};
         histData.sampleCount = hist.total();
         histData.buckets.reserve(hist.size());
@@ -279,7 +290,7 @@ public:
             histData.mean = std::round(double(histData.sampleSum) /
                                        histData.sampleCount);
         }
-        addStat(k, histData);
+        addStat(k, histData, labels);
     }
 
     /**
@@ -294,11 +305,23 @@ public:
      *
      */
     template <typename T>
-    auto addStat(std::string_view k, const T& v)
+    auto addStat(std::string_view k, const T& v, const Labels& labels)
             -> std::enable_if_t<std::is_arithmetic_v<decltype(v.load())>,
                                 void> {
         addStat(k, v.load());
     }
+
+    /**
+     * Overload for addStat calls with no specified labels.
+     * Avoids default args on the other addStat overloads, as they are not
+     * recommended for virtual methods.
+     */
+    template <typename T>
+    void addStat(std::string_view k, T&& v) {
+        addStat(k, std::forward<T>(v), {/* no labels */});
+    }
+
+    virtual ~StatCollector() = default;
 };
 
 /**
@@ -319,24 +342,20 @@ public:
         : addStatFn(addStatFn), cookie(cookie) {
     }
 
-    void addDefaultLabel(std::string_view name,
-                         std::string_view value) override {
-        // CMD_STAT doesn't have labelling, all labels are ignored
-    }
-    void removeDefaultLabel(std::string_view name) override {
-        // CMD_STAT doesn't have labelling, all labels are ignored
-    }
-
     // Allow usage of the "helper" methods defined in the base type.
     // They would otherwise be shadowed
     using StatCollector::addStat;
 
-    void addStat(std::string_view k, std::string_view v) override;
-    void addStat(std::string_view k, bool v) override;
-    void addStat(std::string_view k, int64_t v) override;
-    void addStat(std::string_view k, uint64_t v) override;
-    void addStat(std::string_view k, double v) override;
-    void addStat(std::string_view k, const HistogramData& hist) override;
+    void addStat(std::string_view k,
+                 std::string_view v,
+                 const Labels& labels) override;
+    void addStat(std::string_view k, bool v, const Labels& labels) override;
+    void addStat(std::string_view k, int64_t v, const Labels& labels) override;
+    void addStat(std::string_view k, uint64_t v, const Labels& labels) override;
+    void addStat(std::string_view k, double v, const Labels& labels) override;
+    void addStat(std::string_view k,
+                 const HistogramData& hist,
+                 const Labels& labels) override;
 
 private:
     const AddStatFn& addStatFn;

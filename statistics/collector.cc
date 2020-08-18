@@ -17,6 +17,7 @@
 
 #include "statistics/collector.h"
 
+#include "statistics/labelled_collector.h"
 #include <spdlog/fmt/fmt.h>
 #include <utilities/hdrhistogram.h>
 
@@ -24,11 +25,13 @@
 
 using namespace std::string_view_literals;
 
-LabelGuard::~LabelGuard() {
-    collector.removeDefaultLabel(label);
+LabelledStatCollector StatCollector::withLabels(const Labels& labels) {
+    return {*this, labels};
 }
 
-void StatCollector::addStat(std::string_view k, const HdrHistogram& v) {
+void StatCollector::addStat(std::string_view k,
+                            const HdrHistogram& v,
+                            const Labels& labels) {
     if (v.getValueCount() > 0) {
         HistogramData histData;
         histData.mean = std::round(v.getMean());
@@ -46,44 +49,57 @@ void StatCollector::addStat(std::string_view k, const HdrHistogram& v) {
             auto avgBucketValue = (lower + upper) / 2;
             histData.sampleSum += avgBucketValue * count;
         }
-        addStat(k, histData);
+        addStat(k, histData, labels);
     }
 }
 
-void CBStatCollector::addStat(std::string_view k, std::string_view v) {
+void CBStatCollector::addStat(std::string_view k,
+                              std::string_view v,
+                              const Labels&) {
+    // CBStats has no concept of labels, and so they are unused
     addStatFn(k, v, cookie);
 }
 
-void CBStatCollector::addStat(std::string_view k, bool v) {
-    addStat(k, v ? "true"sv : "false"sv);
+void CBStatCollector::addStat(std::string_view k,
+                              bool v,
+                              const Labels& labels) {
+    addStat(k, v ? "true"sv : "false"sv, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k, int64_t v) {
+void CBStatCollector::addStat(std::string_view k,
+                              int64_t v,
+                              const Labels& labels) {
     fmt::memory_buffer buf;
     format_to(buf, "{}", v);
-    addStat(k, {buf.data(), buf.size()});
+    addStat(k, {buf.data(), buf.size()}, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k, uint64_t v) {
+void CBStatCollector::addStat(std::string_view k,
+                              uint64_t v,
+                              const Labels& labels) {
     fmt::memory_buffer buf;
     format_to(buf, "{}", v);
-    addStat(k, {buf.data(), buf.size()});
+    addStat(k, {buf.data(), buf.size()}, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k, double v) {
+void CBStatCollector::addStat(std::string_view k,
+                              double v,
+                              const Labels& labels) {
     fmt::memory_buffer buf;
     format_to(buf, "{}", v);
-    addStat(k, {buf.data(), buf.size()});
+    addStat(k, {buf.data(), buf.size()}, labels);
 }
 
-void CBStatCollector::addStat(std::string_view k, const HistogramData& hist) {
+void CBStatCollector::addStat(std::string_view k,
+                              const HistogramData& hist,
+                              const Labels& labels) {
     fmt::memory_buffer buf;
     format_to(buf, "{}_mean", k);
-    addStat({buf.data(), buf.size()}, hist.mean);
+    addStat({buf.data(), buf.size()}, hist.mean, labels);
 
     for (const auto& bucket : hist.buckets) {
         buf.resize(0);
         format_to(buf, "{}_{},{}", k, bucket.lowerBound, bucket.upperBound);
-        addStat({buf.data(), buf.size()}, bucket.count);
+        addStat({buf.data(), buf.size()}, bucket.count, labels);
     }
 }

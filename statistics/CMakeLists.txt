@@ -1,7 +1,7 @@
 add_library(statistics STATIC
-        definitions.cc
         collector.cc
-        )
+        definitions.cc
+        labelled_collector.cc)
 
 SET_PROPERTY(TARGET statistics PROPERTY POSITION_INDEPENDENT_CODE 1)
 
