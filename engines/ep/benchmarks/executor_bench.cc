@@ -166,6 +166,82 @@ public:
     }
 
     /**
+     * Benchmark a long-lived task (runs once, then sleeps, then run again...).
+     * Measure how long it
+     * takes to:
+     * - wake the Task to run on a background thread (to run asap),
+     * - then run that Task and notify back to the main thread.
+     *
+     * This is the pattern of the Flusher - it creates a Flusher task per shard,
+     * then runs that task whenever there is pending items to flush for a
+     * vBucket in that shard.
+     *
+     * This is a multithreaded benchmark - N sets of "benchmark" and NonIO
+     * threads are created. The benchmark threads repeatedly wake a Task to
+     * be run to perform some work asynchronously, then waits on the result. The
+     * background NonIO threads pickup the Task and run it, then notifies the
+     * requesting thread via a condition variable.
+     *
+     * By creating multiple benchmark threads we can measure the performance of
+     * the ExecutorPool's scheduling implementation. By creating multiple
+     * background NonIO threads we can measure the performance of the actual
+     * dispatch of Tasks on a ThreadPool.
+     */
+    void bench_LongLivedScheduleRun(benchmark::State& state) {
+        // Create one "NonIO" thread per "benchmark" thread (such that there
+        // is a pair of benchmark and NonIO threads to consume/produce).
+        setupPool(state, state.threads);
+
+        folly::Baton cv;
+        cb::RelaxedAtomic<int64_t> producerCount{0};
+        int64_t consumerCount = 0;
+
+        // Simple producer function to run in the our Task - increments
+        // producerCount and notifies the waiting thread via a condition
+        // variable.
+        auto producerFn = [&cv, &producerCount, &state](LambdaTask& task) {
+            task.snooze(INT_MAX);
+            producerCount++;
+            cv.post();
+            return true;
+        };
+
+        // Create and schedule N / Nthreads tasks (initial sleep time is
+        // forever).
+        const auto tasksPerThread = state.range(0) / state.threads;
+        std::vector<ExTask> tasks;
+        for (int i = 0; i < tasksPerThread; i++) {
+            tasks.push_back(std::make_shared<LambdaTask>(
+                    taskable, TaskId::ItemPager, INT_MAX, false, producerFn));
+            getPool()->schedule(tasks.back());
+        }
+
+        // Benchmark loop - repeatedly wake one of our tasks and wait for it
+        // to run.
+        auto nextTask = tasks.begin();
+        while (state.KeepRunning()) {
+            EXPECT_TRUE(getPool()->wake((*nextTask)->getId()));
+            consumerCount++;
+            cv.wait();
+            EXPECT_EQ(consumerCount, producerCount.load());
+            cv.reset();
+            nextTask++;
+            if (nextTask == tasks.end()) {
+                nextTask = tasks.begin();
+            }
+        }
+
+        // Cancel all tasks so they don't run during pool shutdown.
+        for (auto& t : tasks) {
+            t->cancel();
+        }
+
+        state.SetItemsProcessed(consumerCount);
+
+        shutdownPool(state);
+    }
+
+    /**
      * Benchmark the performance of scheduling a Task to run in the future,
      * but it is cancelled shortly after (before running).
      *
@@ -260,6 +336,20 @@ BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
                             FollyExecutorPool)
 (benchmark::State& state) {
     bench_OneShotScheduleRun(state);
+}
+
+BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
+                            LongLivedScheduleRun_CB3,
+                            CB3ExecutorPool)
+(benchmark::State& state) {
+    bench_LongLivedScheduleRun(state);
+}
+
+BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
+                            LongLivedScheduleRun_Folly,
+                            FollyExecutorPool)
+(benchmark::State& state) {
+    bench_LongLivedScheduleRun(state);
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
@@ -468,6 +558,17 @@ BENCHMARK_REGISTER_F(ExecutorPoolFixture, OneShotScheduleRun_Folly)
 
 BENCHMARK_REGISTER_F(PureFollyExecutorBench, OneShotScheduleRun)
         ->ThreadRange(1, 16)
+        ->UseRealTime();
+
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, LongLivedScheduleRun_CB3)
+        ->ThreadRange(1, 16)
+        ->Range(16, 64)
+        ->ArgName("Tasks")
+        ->UseRealTime();
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, LongLivedScheduleRun_Folly)
+        ->ThreadRange(1, 16)
+        ->Range(16, 64)
+        ->ArgName("Tasks")
         ->UseRealTime();
 
 BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_CB3)
