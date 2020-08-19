@@ -1643,6 +1643,7 @@ void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
         writeHeader(buf, config.size(), sizeof(revision));
         append(buf, uint32_t(revision));
     }
+    buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), config.begin(), config.end());
 }
 
