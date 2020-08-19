@@ -57,7 +57,7 @@ public:
      *
      * @return A connection to the server
      */
-    MemcachedConnection& getConnection() {
+    MemcachedConnection& getConnection() const {
         return *connections.front().get();
     }
 
