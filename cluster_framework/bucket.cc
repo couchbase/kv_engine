@@ -101,7 +101,7 @@ void Bucket::setCollectionManifest(nlohmann::json next) {
         }
     }
 
-    manifest = std::move(next);
+    collectionManifest = std::move(next);
 }
 
 } // namespace cb::test

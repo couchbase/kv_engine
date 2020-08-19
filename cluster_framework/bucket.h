@@ -131,7 +131,7 @@ public:
 
     /// Get the collection manifest currently being used
     nlohmann::json getCollectionManifest() const {
-        return manifest;
+        return collectionManifest;
     }
 
 protected:
@@ -143,7 +143,7 @@ protected:
     std::unique_ptr<DcpReplicator> replicators;
     DcpPacketFilter packet_filter;
 
-    nlohmann::json manifest;
+    nlohmann::json collectionManifest;
 };
 
 } // namespace cb::test
