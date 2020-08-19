@@ -399,3 +399,66 @@ TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
     EXPECT_EQ(200, histogramOne.getValueCount());
     EXPECT_EQ(0, histogramTwo.getValueCount());
 }
+
+TEST(HdrHistogramTest, int32MaxSizeTest) {
+    // Histogram type doesn't really matter for this but we first saw this with
+    // a percentiles histogram so that's what we'll use here
+    HdrHistogram histogram{
+            0, 255, 1, HdrHistogram::Iterator::IterMode::Percentiles};
+
+    // Add int32_t max counts
+    uint64_t limit = std::numeric_limits<int32_t>::max();
+    histogram.addValueAndCount(0, limit);
+
+    // And test that returned values are correct
+    EXPECT_EQ(limit, histogram.getValueCount());
+    EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
+    EXPECT_EQ(0, histogram.getMinValue());
+
+    HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
+    auto res = histogram.getNextBucketLowHighAndCount(iter);
+    EXPECT_TRUE(res);
+    // The 3rd field [2] of the returned tuple is the count
+    EXPECT_EQ(limit, std::get<2>(*res));
+
+    // Add 1 more count (previously this would overflow the total_count field
+    // in the iterator)
+    histogram.addValue(0);
+    limit++;
+
+    // And test that returned values are correct
+    EXPECT_EQ(limit, histogram.getValueCount());
+    EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
+    EXPECT_EQ(0, histogram.getMinValue());
+
+    HdrHistogram::Iterator iter2{histogram.getHistogramsIterator()};
+    auto res2 = histogram.getNextBucketLowHighAndCount(iter2);
+    EXPECT_TRUE(res2);
+    // The 3rd field [2] of the returned tuple is the count
+    EXPECT_EQ(limit, std::get<2>(*res2));
+}
+
+TEST(HdrHistogramTest, int64MaxSizeTest) {
+    // Histogram type doesn't really matter for this but we first saw this with
+    // a percentiles histogram so that's what we'll use here
+    HdrHistogram histogram{
+            0, 255, 1, HdrHistogram::Iterator::IterMode::Percentiles};
+
+    // Add int64_t max counts
+    uint64_t limit = std::numeric_limits<int64_t>::max();
+    histogram.addValueAndCount(0, limit);
+
+    // And test that returned values are correct
+    EXPECT_EQ(limit, histogram.getValueCount());
+    EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
+    EXPECT_EQ(0, histogram.getMinValue());
+
+    HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
+    auto res = histogram.getNextBucketLowHighAndCount(iter);
+    EXPECT_TRUE(res);
+    // The 3rd field [2] of the returned tuple is the count
+    EXPECT_EQ(limit, std::get<2>(*res));
+
+    // Testing any higher than this gives us garbage results back but
+    // unfortunately with no way of knowing that they're garbage.
+}
