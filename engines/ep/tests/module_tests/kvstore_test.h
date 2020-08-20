@@ -55,6 +55,16 @@ protected:
 // of this class will use (e.g., "couchdb" and "rocksdb").
 class KVStoreParamTest : public KVStoreTest,
                          public ::testing::WithParamInterface<std::string> {
+public:
+    static auto persistentConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+#ifdef EP_USE_MAGMA
+                "magma",
+#endif
+                "couchdb");
+    }
+
 protected:
     void SetUp() override;
 

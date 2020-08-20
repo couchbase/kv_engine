@@ -310,11 +310,9 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
                    CollectionUid::defaultC});
 }
 
-static std::string kvstoreTestParams[] = {"couchdb"};
-
 INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
                          CollectionsKVStoreTest,
-                         ::testing::ValuesIn(kvstoreTestParams),
+                         KVStoreParamTest::persistentConfigValues(),
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
