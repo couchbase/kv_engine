@@ -91,22 +91,22 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
         }
 
         // Replace the CAS
-        if (containsMacro(cb::xattr::macros::CAS.name)) {
-            substituteMacro(cb::xattr::macros::CAS.name,
+        if (containsMacro(cb::xattr::macros::CAS)) {
+            substituteMacro(cb::xattr::macros::CAS,
                             macroToString(htonll(info.cas)),
                             value);
         }
 
         // Replace the Seqno
-        if (containsMacro(cb::xattr::macros::SEQNO.name)) {
-            substituteMacro(cb::xattr::macros::SEQNO.name,
+        if (containsMacro(cb::xattr::macros::SEQNO)) {
+            substituteMacro(cb::xattr::macros::SEQNO,
                             macroToString(info.seqno),
                             value);
         }
 
         // Replace the Value CRC32C
-        if (containsMacro(cb::xattr::macros::VALUE_CRC32C.name)) {
-            substituteMacro(cb::xattr::macros::VALUE_CRC32C.name,
+        if (containsMacro(cb::xattr::macros::VALUE_CRC32C)) {
+            substituteMacro(cb::xattr::macros::VALUE_CRC32C,
                             macroToString(computeValueCRC32C()),
                             value);
         }
@@ -115,15 +115,15 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
     return ENGINE_SUCCESS;
 }
 
-bool SubdocCmdContext::containsMacro(std::string_view macro) {
+bool SubdocCmdContext::containsMacro(cb::xattr::macros::macro macro) {
     return std::any_of(std::begin(paddedMacros),
                        std::end(paddedMacros),
                        [&macro](const MacroPair& m) {
-                           return m.first == macro;
+                           return m.first == macro.name;
                        });
 }
 
-void SubdocCmdContext::substituteMacro(std::string_view macroName,
+void SubdocCmdContext::substituteMacro(cb::xattr::macros::macro macroName,
                                        const std::string& macroValue,
                                        cb::char_buffer& value) {
     // Do an in-place substitution of the real macro value where we
@@ -133,7 +133,7 @@ void SubdocCmdContext::substituteMacro(std::string_view macroName,
     auto& macro = std::find_if(std::begin(paddedMacros),
                                std::end(paddedMacros),
                                [macroName](const MacroPair& m) {
-                                   return m.first == macroName;
+                                   return m.first == macroName.name;
                                })
                           ->second;
     auto* needle = macro.data();

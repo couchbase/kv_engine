@@ -375,9 +375,9 @@ private:
      * @param macro The macro we are checking for
      * @return True if the macro exists, False otherwise
      */
-    bool containsMacro(std::string_view macro);
+    bool containsMacro(cb::xattr::macros::macro macro) ;
 
-    void substituteMacro(std::string_view macroName,
+    void substituteMacro(cb::xattr::macros::macro macroName,
                          const std::string& macroValue,
                          cb::char_buffer& value);
 
