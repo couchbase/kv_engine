@@ -215,14 +215,14 @@ public:
                  void(TransactionContext&, KVStore::FlushStateDeletion&));
 };
 
-void KVStoreParamTest::SetUp() {
-    KVStoreTest::SetUp();
+void KVStoreBackend::setup(const std::string& dataDir,
+                           const std::string& backend) {
     Configuration config;
     // `GetParam` returns the string parameter representing the KVStore
     // implementation.
-    auto configStr = "dbname="s + data_dir + ";backend="s + GetParam() + ";";
+    auto configStr = "dbname="s + dataDir + ";backend="s + backend + ";";
 
-    if (GetParam() == "magma") {
+    if (backend == "magma") {
         configStr += magmaConfig;
     }
 
@@ -256,11 +256,20 @@ void KVStoreParamTest::SetUp() {
     }
 }
 
-void KVStoreParamTest::TearDown() {
+void KVStoreBackend::teardown() {
     // Under RocksDB, removing the database folder (which is equivalent to
     // calling rocksdb::DestroyDB()) for a live DB is an undefined
     // behaviour. So, close the DB before destroying it.
     kvstore.reset();
+}
+
+void KVStoreParamTest::SetUp() {
+    KVStoreTest::SetUp();
+    KVStoreBackend::setup(data_dir, GetParam());
+}
+
+void KVStoreParamTest::TearDown() {
+    KVStoreBackend::teardown();
     KVStoreTest::TearDown();
 }
 

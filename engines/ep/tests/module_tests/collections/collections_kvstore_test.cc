@@ -38,7 +38,7 @@ struct DeleteCallback {
     }
 };
 
-class CollectionsKVStoreTest : public KVStoreParamTest {
+class CollectionsKVStoreTestBase : public KVStoreBackend, public KVStoreTest {
 public:
     /// Dummy callback to replace the flusher callback so we can create VBuckets
     class DummyCB : public Callback<Vbid> {
@@ -50,7 +50,7 @@ public:
         }
     };
 
-    CollectionsKVStoreTest()
+    CollectionsKVStoreTestBase()
         : vbucket(Vbid(0),
                   vbucket_state_active,
                   global_stats,
@@ -233,6 +233,20 @@ protected:
     EPVBucket vbucket;
     WriteCallback wc;
     DeleteCallback dc;
+};
+
+class CollectionsKVStoreTest
+    : public CollectionsKVStoreTestBase,
+      public ::testing::WithParamInterface<std::string> {
+    void SetUp() override {
+        KVStoreTest::SetUp();
+        KVStoreBackend::setup(data_dir, GetParam());
+    }
+
+    void TearDown() override {
+        KVStoreBackend::teardown();
+        KVStoreTest::TearDown();
+    }
 };
 
 TEST_P(CollectionsKVStoreTest, initial_meta) {

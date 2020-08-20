@@ -49,11 +49,29 @@ protected:
     Vbid vbid = Vbid(0);
 };
 
+// class that takes the backend configuration parameter only and initialises
+// the KVStore which tests can use
+class KVStoreBackend {
+public:
+    void setup(const std::string& dataDir, const std::string& backend);
+
+    void teardown();
+
+    std::unique_ptr<KVStoreConfig> kvstoreConfig;
+    std::unique_ptr<KVStore> kvstore;
+
+    // KV-engine may have one or two instances of the KVStore. With couchstore
+    // two instances exist.
+    std::unique_ptr<KVStore> kvsReadOnly;
+    KVStore* kvstoreReadOnly;
+};
+
 // Test fixture for tests which run on all KVStore implementations (Couchstore
 // and RocksDB).
 // The string parameter represents the KVStore implementation that each test
-// of this class will use (e.g., "couchdb" and "rocksdb").
+// of this class will use (e.g., "couchdb", "magma" or "rocksdb").
 class KVStoreParamTest : public KVStoreTest,
+                         public KVStoreBackend,
                          public ::testing::WithParamInterface<std::string> {
 public:
     static auto persistentConfigValues() {
@@ -69,14 +87,6 @@ protected:
     void SetUp() override;
 
     void TearDown() override;
-
-    std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStore> kvstore;
-
-    // KV-engine may have one or two instances of the KVStore. With couchstore
-    // two instances exist.
-    std::unique_ptr<KVStore> kvsReadOnly;
-    KVStore* kvstoreReadOnly;
 };
 
 /**
