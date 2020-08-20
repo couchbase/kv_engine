@@ -441,6 +441,14 @@
                 "subdoc",
                 "invalid-input"
             ]
+        },
+        "d5": {
+            "name": "SUBDOC_XATTR_UNKNOWN_VATTR_MACRO",
+            "desc": "Subdoc: The server don't know about (or support) the specified virtual macro",
+            "attrs": [
+                "subdoc",
+                "invalid-input"
+            ]
         }
     }
 }

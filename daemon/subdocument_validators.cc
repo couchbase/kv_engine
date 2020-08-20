@@ -55,10 +55,22 @@ static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
     return !(hasAdd(a) && hasMkdoc(a));
 }
 
-static bool validate_macro(std::string_view value) {
-    return ((value == cb::xattr::macros::CAS.name) ||
-            (value == cb::xattr::macros::SEQNO.name) ||
-            (value == cb::xattr::macros::VALUE_CRC32C.name));
+static cb::mcbp::Status validate_macro(std::string_view value) {
+    using namespace cb::xattr::macros;
+    using cb::mcbp::Status;
+
+    if ((value == CAS.name) || (value == SEQNO.name) ||
+        (value == VALUE_CRC32C.name)) {
+        return Status::Success;
+    }
+
+    // is it any of our virtual macros?
+    if (value.find(R"("${$document)") == 0 &&
+        value.rfind(R"(}")") == value.size() - 2) {
+        return Status::Success;
+    }
+
+    return Status::SubdocXattrUnknownMacro;
 }
 
 /**
@@ -126,13 +138,8 @@ static inline cb::mcbp::Status validate_xattr_section(
         }
     }
 
-    if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
-        if (!validate_macro(value)) {
-            return cb::mcbp::Status::SubdocXattrUnknownMacro;
-        }
-    }
-
-    return cb::mcbp::Status::Success;
+    return (flags & SUBDOC_FLAG_EXPAND_MACROS) ? validate_macro(value)
+                                               : cb::mcbp::Status::Success;
 }
 
 static cb::mcbp::Status subdoc_validator(Cookie& cookie,

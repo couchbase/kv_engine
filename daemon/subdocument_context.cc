@@ -68,7 +68,12 @@ uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
 }
 
 template <typename T>
-std::string SubdocCmdContext::macroToString(T macroValue) {
+std::string SubdocCmdContext::macroToString(cb::xattr::macros::macro macro,
+                                            T macroValue) {
+    if (sizeof(T) != macro.expandedSize) {
+        throw std::logic_error("macroToString: Invalid size specified for " +
+                               std::string(macro.name));
+    }
     std::stringstream ss;
     ss << std::hex << std::setfill('0');
     ss << "\"0x" << std::setw(sizeof(T) * 2) << macroValue << "\"";
@@ -92,22 +97,24 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
 
         // Replace the CAS
         if (containsMacro(cb::xattr::macros::CAS)) {
-            substituteMacro(cb::xattr::macros::CAS,
-                            macroToString(htonll(info.cas)),
-                            value);
+            substituteMacro(
+                    cb::xattr::macros::CAS,
+                    macroToString(cb::xattr::macros::CAS, htonll(info.cas)),
+                    value);
         }
 
         // Replace the Seqno
         if (containsMacro(cb::xattr::macros::SEQNO)) {
             substituteMacro(cb::xattr::macros::SEQNO,
-                            macroToString(info.seqno),
+                            macroToString(cb::xattr::macros::SEQNO, info.seqno),
                             value);
         }
 
         // Replace the Value CRC32C
         if (containsMacro(cb::xattr::macros::VALUE_CRC32C)) {
             substituteMacro(cb::xattr::macros::VALUE_CRC32C,
-                            macroToString(computeValueCRC32C()),
+                            macroToString(cb::xattr::macros::VALUE_CRC32C,
+                                          computeValueCRC32C()),
                             value);
         }
     }
@@ -148,12 +155,112 @@ void SubdocCmdContext::substituteMacro(cb::xattr::macros::macro macroName,
     }
 }
 
+std::string_view SubdocCmdContext::expand_virtual_macro(
+        std::string_view macro) {
+    if (macro.find(R"("${$document)") == 0) {
+        return expand_virtual_document_macro(macro);
+    }
+
+    return {};
+}
+
+std::string_view SubdocCmdContext::expand_virtual_document_macro(
+        std::string_view macro) {
+    if (macro == R"("${$document}")") {
+        // the entire document is requested!
+        auto sv = get_document_vattr();
+        return {sv.data(), sv.size()};
+    }
+    // Skip the "${$document prefix
+    macro = {macro.data() + 12, macro.size() - 12};
+    if (macro == R"(.CAS}")") {
+        expandedVirtualMacrosBackingStore.emplace_back(
+                "\"" + cb::to_hex(input_item_info.cas) + "\"");
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.vbucket_uuid}")") {
+        expandedVirtualMacrosBackingStore.emplace_back(
+                "\"" + cb::to_hex(input_item_info.vbucket_uuid) + "\"");
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.seqno}")") {
+        expandedVirtualMacrosBackingStore.emplace_back(
+                "\"" + cb::to_hex(input_item_info.seqno) + "\"");
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.revid}")") {
+        expandedVirtualMacrosBackingStore.emplace_back(
+                std::to_string(input_item_info.revid));
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.exptime}")") {
+        expandedVirtualMacrosBackingStore.emplace_back(
+                std::to_string(uint64_t(input_item_info.exptime)));
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.flags}")") {
+        // The flags are kept internally in network byte order...
+        expandedVirtualMacrosBackingStore.emplace_back(
+                std::to_string(uint32_t(ntohl(input_item_info.flags))));
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.value_bytes}")") {
+        // Calculate value_bytes (excluding XATTR). Note we use
+        // in_datatype / in_doc here as they have already been
+        // decompressed for us (see get_document_for_searching).
+        size_t value_bytes = in_doc.size();
+        if (mcbp::datatype::is_xattr(in_datatype)) {
+            // strip off xattr
+            auto bodyoffset = cb::xattr::get_body_offset(in_doc);
+            value_bytes -= bodyoffset;
+        }
+        expandedVirtualMacrosBackingStore.emplace_back(
+                std::to_string(value_bytes));
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.datatype}")") { // Calculate datatype[]. Note we use the
+        // original datatype
+        // (input_item_info.datatype), so if the document was
+        // originally compressed we'll report it here.
+        nlohmann::json arr;
+        auto datatypes = split_string(
+                mcbp::datatype::to_string(input_item_info.datatype), ",");
+        for (const auto& d : datatypes) {
+            arr.push_back(d);
+        }
+        expandedVirtualMacrosBackingStore.emplace_back(arr.dump());
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (macro == R"(.deleted}")") {
+        expandedVirtualMacrosBackingStore.emplace_back(
+                input_item_info.document_state == DocumentState::Deleted
+                        ? "true"
+                        : "false");
+        return expandedVirtualMacrosBackingStore.back();
+    }
+    if (input_item_info.cas_is_hlc) {
+        if (macro == R"(.last_modified}")") {
+            std::chrono::nanoseconds ns(input_item_info.cas);
+            expandedVirtualMacrosBackingStore.emplace_back(std::to_string(
+                    std::chrono::duration_cast<std::chrono::seconds>(ns)
+                            .count()));
+            return expandedVirtualMacrosBackingStore.back();
+        }
+    }
+
+    return {};
+}
+
 std::string_view SubdocCmdContext::get_padded_macro(std::string_view macro) {
-    return std::find_if(
-                   std::begin(paddedMacros),
-                   std::end(paddedMacros),
-                   [macro](const MacroPair& a) { return a.first == macro; })
-            ->second;
+    auto iter = std::find_if(
+            std::begin(paddedMacros),
+            std::end(paddedMacros),
+            [macro](const MacroPair& a) { return a.first == macro; });
+    if (iter == paddedMacros.end()) {
+        return {};
+    }
+
+    return iter->second;
 }
 
 void SubdocCmdContext::generate_macro_padding(std::string_view payload,
@@ -266,11 +373,21 @@ std::string_view SubdocCmdContext::get_document_vattr() {
                             .count());
         }
 
+        // Given that the crc32c is of the _value_ (and not the xattrs)
+        // we can still include that even when we modify the document
+        // as virtual macros must be executed _BEFORE_ we start updating
+        // the payload
         doc["value_crc32c"] = cb::to_hex(computeValueCRC32C());
 
-        nlohmann::json root;
-        root["$document"] = doc;
-        document_vattr = root.dump();
+        if (traits.is_mutator) {
+            // When used from within a macro expansion we don't want
+            // to inject an extra level of "$document":
+            document_vattr = doc.dump();
+        } else {
+            nlohmann::json root;
+            root["$document"] = doc;
+            document_vattr = root.dump();
+        }
     }
 
     return std::string_view(document_vattr.data(), document_vattr.size());

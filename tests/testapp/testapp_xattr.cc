@@ -1851,3 +1851,74 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
         EXPECT_EQ(R"("value")", results[2].value);
     }
 }
+
+TEST_P(XattrTest, MB40980_InputMacroExpansion) {
+    // Verify that hello reports the feature
+    {
+        auto& conn = getConnection();
+        conn.setFeature(cb::mcbp::Feature::SubdocDocumentMacroSupport, true);
+    }
+
+    // Fetch the original $documents values
+    nlohmann::json original;
+    {
+        auto resp = subdoc_multi_lookup({{ClientOpcode::SubdocGet,
+                                          SUBDOC_FLAG_XATTR_PATH,
+                                          "$document"}});
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
+        original = nlohmann::json::parse(results[0].value);
+    }
+
+    // Insert a tnx field with the new input macro's
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS |
+                                SUBDOC_FLAG_MKDIR_P,
+                        "tnx.CAS",
+                        "\"${$document.CAS}\"");
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                        "tnx.exptime",
+                        "\"${$document.exptime}\"");
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                        "tnx.doc",
+                        "\"${$document}\"");
+        auto& conn = getConnection();
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << "Failed to update the document to expand the Input macros";
+    }
+
+    // request the $document and tnx field and verify that
+    // 1. the $document.CAS differs
+    // 2. The tnx inputs match the values in the original $document
+    nlohmann::json modified;
+    nlohmann::json tnx;
+    {
+        auto resp = subdoc_multi_lookup(
+                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document"},
+                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"}});
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
+        modified = nlohmann::json::parse(results[0].value);
+
+        ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
+        tnx = nlohmann::json::parse(results[1].value);
+    }
+
+    EXPECT_NE(cb::from_hex(original["CAS"]), cb::from_hex(modified["CAS"]));
+    EXPECT_EQ(original["exptime"].get<uint64_t>(),
+              tnx["exptime"].get<uint64_t>());
+    EXPECT_EQ(cb::from_hex(original["CAS"]), cb::from_hex(tnx["CAS"]));
+    EXPECT_EQ(original, tnx["doc"]);
+}

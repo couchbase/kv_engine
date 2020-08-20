@@ -50,6 +50,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::VAttr:
     case cb::mcbp::Feature::PiTR:
     case cb::mcbp::Feature::SubdocCreateAsDeleted:
+    case cb::mcbp::Feature::SubdocDocumentMacroSupport:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

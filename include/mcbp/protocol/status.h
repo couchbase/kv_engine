@@ -262,6 +262,9 @@ enum class Status : uint16_t {
      */
     SubdocInvalidXattrOrder = 0xd4,
 
+    /// The server don't know this virtual macro
+    SubdocXattrUnknownVattrMacro = 0xd5,
+
     /*************************************************************************/
 
     /**

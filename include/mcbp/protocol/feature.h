@@ -84,6 +84,10 @@ enum class Feature : uint16_t {
     /// Does the server support the subdoc mutation flag
     /// mcbp::subdoc::doc_flag::CreateAsDeleted ?
     SubdocCreateAsDeleted = 0x17,
+
+    /// Does the server support using the virtual $document attributes in macro
+    /// expansion ( "${document.CAS}" etc)
+    SubdocDocumentMacroSupport = 0x18,
 };
 
 } // namespace mcbp

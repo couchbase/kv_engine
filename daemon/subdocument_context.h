@@ -79,6 +79,10 @@ public:
      */
     std::string_view get_padded_macro(std::string_view macro);
 
+    /// Try to expand the virtual macro and return an empty string
+    /// if we don't know how to do that
+    std::string_view expand_virtual_macro(std::string_view macro);
+
     /**
      * Generate macro padding we may use to substitute a macro with. E.g. We
      * replace "${Mutation.CAS}" or "${Mutation.seqno}" with the generated
@@ -368,7 +372,7 @@ private:
     Phase currentPhase = Phase::XATTR;
 
     template <typename T>
-    std::string macroToString(T macroValue);
+    std::string macroToString(cb::xattr::macros::macro macro, T macroValue);
 
     /**
      * Check whether or not the SubdocCmdContext contains a given macro
@@ -387,6 +391,8 @@ private:
      */
     uint32_t computeValueCRC32C();
 
+    std::string_view expand_virtual_document_macro(std::string_view macro);
+
     // The xattr key being accessed in this command
     std::string xattr_key;
 
@@ -396,4 +402,6 @@ private:
     std::string document_vattr;
     std::string vbucket_vattr;
     std::string xtoc_vattr;
+
+    std::vector<std::string> expandedVirtualMacrosBackingStore;
 }; // class SubdocCmdContext

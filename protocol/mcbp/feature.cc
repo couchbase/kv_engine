@@ -67,6 +67,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "PiTR";
     case cb::mcbp::Feature::SubdocCreateAsDeleted:
         return "SubdocCreateAsDeleted";
+    case cb::mcbp::Feature::SubdocDocumentMacroSupport:
+        return "SubdocDocumentMacroSupport";
     }
 
     throw std::invalid_argument(

@@ -78,12 +78,15 @@ static inline bool is_vattr(std::string_view attr) {
 
 namespace macros {
 struct macro {
+    /// The textual name of the macro
     std::string_view name;
+    /// The size of the datatype to be expanded
     size_t expandedSize;
 };
-static constexpr macro CAS = {"\"${Mutation.CAS}\"", 8};
-static constexpr macro SEQNO = {"\"${Mutation.seqno}\"", 8};
-static constexpr macro VALUE_CRC32C = {"\"${Mutation.value_crc32c}\"", 4};
+static constexpr macro CAS = {R"("${Mutation.CAS}")", sizeof(uint64_t)};
+static constexpr macro SEQNO = {R"("${Mutation.seqno}")", sizeof(uint64_t)};
+static constexpr macro VALUE_CRC32C = {R"("${Mutation.value_crc32c}")",
+                                       sizeof(uint32_t)};
 }
 
 namespace vattrs {

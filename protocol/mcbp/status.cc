@@ -80,6 +80,7 @@ bool isStatusSuccess(Status status) {
     case Status::SubdocXattrUnknownVattr:
     case Status::SubdocXattrCantModifyVattr:
     case Status::SubdocInvalidXattrOrder:
+    case Status::SubdocXattrUnknownVattrMacro:
     case Status::COUNT:
     case Status::ReservedUserStart:
     case Status::ReservedUserEnd:
@@ -234,6 +235,8 @@ std::string to_string(cb::mcbp::Status status) {
                "deleted document";
     case Status::SubdocInvalidXattrOrder:
         return "Subdoc: Invalid XATTR order (xattrs should come first)";
+    case Status::SubdocXattrUnknownVattrMacro:
+        return "Subdoc: The server don't know this virtual macro";
 
     // Following are here to keep compiler happy; either handled below or
     // will throw if invalid (e.g. COUNT).

@@ -606,6 +606,12 @@ static cb::mcbp::Status subdoc_operate_one_path(
 
     if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
         auto padded_macro = context.get_padded_macro(spec.value);
+        if (padded_macro.empty()) {
+            padded_macro = context.expand_virtual_macro(spec.value);
+            if (padded_macro.empty()) {
+                return cb::mcbp::Status::SubdocXattrUnknownVattrMacro;
+            }
+        }
         op.set_value(padded_macro.data(), padded_macro.size());
     } else {
         op.set_value(spec.value.data(), spec.value.size());
@@ -1063,9 +1069,11 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     std::unique_ptr<char[]> temp_doc;
     std::string_view document{value_buf.data(), value_buf.size()};
 
-    context.generate_macro_padding(document, cb::xattr::macros::CAS);
-    context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
-    context.generate_macro_padding(document, cb::xattr::macros::VALUE_CRC32C);
+    for (const auto m : {cb::xattr::macros::CAS,
+                         cb::xattr::macros::SEQNO,
+                         cb::xattr::macros::VALUE_CRC32C}) {
+        context.generate_macro_padding(document, m);
+    }
 
     bool modified;
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
