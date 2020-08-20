@@ -20,6 +20,7 @@ endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
 add_subdirectory(dcpdrain)
 add_subdirectory(dcplatency)
+add_subdirectory(kvlite)
 add_subdirectory(mcctl)
 add_subdirectory(mclogsplit)
 add_subdirectory(mcstat)
