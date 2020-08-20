@@ -19,12 +19,12 @@
 
 // It's easier to just include the two header files we need instead of
 // trying to get the right declspec dllimport etc for windows..
+#include <event2/buffer.h>
 #include <event2/bufferevent.h>
 #include <event2/event.h>
 #include <memory>
 
-namespace cb {
-namespace libevent {
+namespace cb::libevent {
 
 struct EventBaseDeleter {
     void operator()(event_base* base) {
@@ -47,5 +47,11 @@ struct EventDeleter {
 };
 using unique_event_ptr = std::unique_ptr<event, EventDeleter>;
 
-} // namespace libevent
-} // namespace cb
+struct EvbufferDeleter {
+    void operator()(struct evbuffer* buf) {
+        evbuffer_free(buf);
+    }
+};
+using unique_evbuffer_ptr = std::unique_ptr<evbuffer, EvbufferDeleter>;
+
+} // namespace cb::libevent
