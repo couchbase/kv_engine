@@ -88,6 +88,10 @@ public:
         return vbucketmap;
     }
 
+    nlohmann::json getManifest() const {
+        return manifest;
+    }
+
     /**
      * Get a connection to the node which is responsible for the specified
      * vbucket (and type). Note that the connection needs authentication
@@ -144,6 +148,9 @@ protected:
     DcpPacketFilter packet_filter;
 
     nlohmann::json collectionManifest;
+
+    /// The full bucket manifest (CCCP payload)
+    nlohmann::json manifest;
 };
 
 } // namespace cb::test

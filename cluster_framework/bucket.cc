@@ -17,22 +17,22 @@
 #include "bucket.h"
 #include "cluster.h"
 #include "dcp_replicator.h"
+#include "node.h"
 
 #include <platform/uuid.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <iostream>
 #include <utility>
 
 namespace cb::test {
 
 Bucket::Bucket(const Cluster& cluster,
-               std::string name,
+               std::string nm,
                size_t vbuckets,
                size_t replicas,
                DcpPacketFilter packet_filter)
     : cluster(cluster),
-      name(std::move(name)),
+      name(std::move(nm)),
       uuid(::to_string(cb::uuid::random())),
       packet_filter(std::move(packet_filter)) {
     auto nodes = cluster.size();
@@ -44,6 +44,65 @@ Bucket::Bucket(const Cluster& cluster,
             vbucketmap[vb][n] = ii++ % nodes;
         }
     }
+
+    // Let's build up the bucket clustermap
+    // Start by setting the default values
+    manifest = {
+            {"rev", 1},
+            {"name", name},
+            {"uuid", uuid},
+            {"uri", "/pools/default/buckets/" + name + "?bucket_uuid=" + uuid},
+            {"streamingUri",
+             "/pools/default/bucketsStreaming/" + name +
+                     "?bucket_uuid=" + uuid},
+            {"nodeLocator", "vbucket"},
+            {"bucketCapabilitiesVer", ""},
+            {"bucketCapabilities",
+             {"collections",
+              "durableWrite",
+              "tombstonedUserXAttrs",
+              "couchapi",
+              "dcp",
+              "cbhello",
+              "touch",
+              "cccp",
+              "nodesExt",
+              "xattr"}},
+            {"collectionsManifestUid", "0"},
+            {"ddocs", {"uri", "/pools/default/buckets/" + name + "/ddocs"}},
+            {"clusterCapabilitiesVer", {1, 0}},
+            {"clusterCapabilities", nlohmann::json::object()},
+            {"vBucketServerMap",
+             {{"numReplicas", vbucketmap[0].size() - 1},
+              {"hashAlgorithm", "CRC"},
+              {"vBucketMap", vbucketmap}}}
+
+    };
+
+    auto [ipv4, ipv6] = cb::test::Cluster::getIpAddresses();
+    (void)ipv6; // currently not used
+    const auto& hostname = ipv4.front();
+    cluster.iterateNodes([this, &hostname](const cb::test::Node& node) {
+        node.getConnectionMap().iterate([this, &hostname](
+                                                const MemcachedConnection& c) {
+            if (c.getFamily() == AF_INET) {
+                manifest["vBucketServerMap"]["serverList"].emplace_back(
+                        hostname + ":" + std::to_string(c.getPort()));
+
+                nlohmann::json json = {{"couchApiBase",
+                                        "http://" + hostname + ":6666/" +
+                                                Bucket::name + "%2B" + uuid},
+                                       {"hostname", hostname + ":6666"},
+                                       {"ports", {{"direct", c.getPort()}}}};
+                manifest["nodes"].emplace_back(std::move(json));
+
+                json = {{"services",
+                         {{"mgmt", 6666}, {"capi", 6666}, {"kv", c.getPort()}}},
+                        {"hostname", hostname}};
+                manifest["nodesExt"].emplace_back(std::move(json));
+            }
+        });
+    });
 }
 
 Bucket::~Bucket() = default;

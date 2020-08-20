@@ -101,6 +101,14 @@ public:
 
     CollectionsManifest collections;
 
+    /// Get a JSON representation for the pool (whats typically returned
+    /// via rest when requesting "http://172.0.0.1:8091/pools"
+    virtual nlohmann::json to_json() const = 0;
+
+    /// Iterate over all of the nodes in the cluster
+    virtual void iterateNodes(
+            std::function<void(const Node&)> visitor) const = 0;
+
     /**
      * Factory method to create a cluster
      *
@@ -119,6 +127,12 @@ public:
      */
     static std::pair<std::vector<std::string>, std::vector<std::string>>
     getIpAddresses();
+
+    /// Get a JSON representation for the cluster before the
+    /// cluster is initialized
+    static nlohmann::json getUninitializedJson();
+
+    virtual nlohmann::json getGlobalClusterMap() = 0;
 };
 
 } // namespace cb::test

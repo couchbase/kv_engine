@@ -41,7 +41,10 @@ public:
     ~NodeImpl() override;
     void startMemcachedServer();
 
-    std::unique_ptr<MemcachedConnection> getConnection() override;
+    std::unique_ptr<MemcachedConnection> getConnection() const override;
+    const ConnectionMap& getConnectionMap() const override {
+        return connectionMap;
+    }
 
 protected:
     void parsePortnumberFile();
@@ -267,7 +270,7 @@ bool Node::isRunning() const {
 }
 #endif
 
-std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() {
+std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {
     auto ret = connectionMap.getConnection().clone();
     ret->setAutoRetryTmpfail(true);
     ret->setAgentName("cluster_testapp");

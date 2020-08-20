@@ -18,6 +18,7 @@
 
 #include <folly/portability/Unistd.h>
 #include <folly/portability/Windows.h>
+#include <protocol/connection/client_connection_map.h>
 #include <sys/types.h>
 #include <memory>
 #include <string>
@@ -36,9 +37,18 @@ public:
 
     bool isRunning() const;
 
-    virtual std::unique_ptr<MemcachedConnection> getConnection() = 0;
+    virtual std::unique_ptr<MemcachedConnection> getConnection() const = 0;
 
     const std::string directory;
+
+    /**
+     * Get the map of connections to the node. Given that the node was
+     * started with just ephemereal ports the cluster needs the ability
+     * to generate the cluster map for clients to fetch the port numbers
+     *
+     * @return A map containing all of the ports the server provides
+     */
+    virtual const ConnectionMap& getConnectionMap() const = 0;
 
     /**
      * Create a new instance

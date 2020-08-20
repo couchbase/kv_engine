@@ -31,6 +31,7 @@
 #endif
 
 #include <platform/dirutils.h>
+#include <platform/uuid.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <array>
 #include <iostream>
@@ -46,10 +47,51 @@ class ClusterImpl : public Cluster {
 public:
     ClusterImpl() = delete;
     ClusterImpl(const ClusterImpl&) = delete;
-    ClusterImpl(std::vector<std::unique_ptr<Node>>& nodes, std::string dir)
-        : nodes(std::move(nodes)),
+    ClusterImpl(std::vector<std::unique_ptr<Node>>& nod, std::string dir)
+        : nodes(std::move(nod)),
           directory(std::move(dir)),
-          authProviderService(*this) {
+          authProviderService(*this),
+          uuid(::to_string(cb::uuid::random())) {
+        manifest = {{"rev", 0},
+                    {"clusterCapabilities", nlohmann::json::object()},
+                    {"clusterCapabilitiesVer", {1, 0}}};
+        auto [ipv4, ipv6] = cb::test::Cluster::getIpAddresses();
+        (void)ipv6; // currently not used
+        const auto& hostname = ipv4.front();
+        for (const auto& n : nodes) {
+            n->getConnectionMap().iterate(
+                    [this, &hostname](const MemcachedConnection& c) {
+                        if (c.getFamily() == AF_INET) {
+                            manifest["nodesExt"].emplace_back(
+                                    nlohmann::json{{"services",
+                                                    {{"mgmt", 6666},
+                                                     {"kv", c.getPort()},
+                                                     {"capi", 6666}}},
+                                                   {"hostname", hostname}});
+                        }
+                    });
+        }
+
+        // And finally store the CCCP map on the nodes:
+        const auto globalmap = manifest.dump(2);
+        for (const auto& n : nodes) {
+            auto connection = n->getConnection();
+            connection->connect();
+            connection->authenticate("@admin", "password", "plain");
+            connection->setAgentName("cluster_testapp");
+            connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                                     cb::mcbp::Feature::XATTR,
+                                     cb::mcbp::Feature::XERROR,
+                                     cb::mcbp::Feature::SELECT_BUCKET,
+                                     cb::mcbp::Feature::JSON,
+                                     cb::mcbp::Feature::SNAPPY});
+            auto rsp = connection->execute(
+                    BinprotSetClusterConfigCommand{0, globalmap, 0, ""});
+            if (!rsp.isSuccess()) {
+                std::cerr << "Failed to set global CCCP version: "
+                          << rsp.getDataString() << std::endl;
+            }
+        }
     }
 
     ~ClusterImpl() override;
@@ -86,11 +128,21 @@ public:
         return authProviderService;
     }
 
+    nlohmann::json to_json() const override;
+
+    void iterateNodes(std::function<void(const Node&)> visitor) const override;
+
+    nlohmann::json getGlobalClusterMap() override {
+        return manifest;
+    }
+
 protected:
     std::vector<std::unique_ptr<Node>> nodes;
     std::vector<std::shared_ptr<Bucket>> buckets;
     const std::string directory;
     AuthProviderService authProviderService;
+    const std::string uuid;
+    nlohmann::json manifest;
 };
 
 std::shared_ptr<Bucket> ClusterImpl::createBucket(
@@ -200,12 +252,18 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             }
 
             // Call enable traffic
-            const auto rsp = connection->execute(BinprotGenericCommand{
+            auto rsp = connection->execute(BinprotGenericCommand{
                     cb::mcbp::ClientOpcode::EnableTraffic});
 
             if (!rsp.isSuccess()) {
                 throw ConnectionError("Failed to enable traffic",
                                       rsp.getStatus());
+            }
+
+            rsp = connection->execute(BinprotSetClusterConfigCommand{
+                    0, bucket->getManifest().dump(2), 1, name});
+            if (!rsp.isSuccess()) {
+                throw ConnectionError("Failed to push CCCP", rsp.getStatus());
             }
         }
 
@@ -303,6 +361,23 @@ ClusterImpl::~ClusterImpl() {
     }
 }
 
+nlohmann::json ClusterImpl::to_json() const {
+    auto ret = getUninitializedJson();
+    ret["uuid"] = uuid;
+    nlohmann::json pool;
+    pool["name"] = "default";
+    pool["uri"] = "/pools/default?uuid=" + uuid;
+    pool["streamingUri"] = "/poolsStreaming/default?uuid=" + uuid;
+    ret["pools"].emplace_back(std::move(pool));
+    return ret;
+}
+
+void ClusterImpl::iterateNodes(std::function<void(const Node&)> visitor) const {
+    for (const auto& n : nodes) {
+        visitor(*n);
+    }
+}
+
 std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
     const auto pattern = cb::io::sanitizePath(cb::io::getcwd() + "/cluster_");
     const auto clusterdir = cb::io::mkdtemp(pattern);
@@ -316,6 +391,18 @@ std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
     }
 
     return std::make_unique<ClusterImpl>(nodes, clusterdir);
+}
+
+nlohmann::json Cluster::getUninitializedJson() {
+    nlohmann::json ret;
+    ret["isEnterprise"] = true;
+    ret["allowedServices"].push_back("kv");
+    ret["isIPv6"] = false;
+    ret["isDeveloperPreview"] = true;
+    ret["uuid"] = "";
+    ret["pools"] = nlohmann::json::array();
+    ret["implementationVersion"] = "7.0.0-0000-enterprise";
+    return ret;
 }
 
 std::pair<std::vector<std::string>, std::vector<std::string>>

@@ -9,10 +9,10 @@ add_library(cluster_framework STATIC
 target_include_directories(cluster_framework PRIVATE SYSTEM
                            ${FOLLY_INCLUDE_DIR})
 target_link_libraries(cluster_framework PUBLIC
-					  mc_client_connection
-					  dirutils
-					  mcd_test_util
-					  platform
-					  gtest
-					  ${FOLLY_LIBRARIES})
+                      mc_client_connection
+                      dirutils
+                      mcd_test_util
+                      platform
+                      gtest
+                      ${FOLLY_LIBRARIES})
 
