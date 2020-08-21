@@ -24,6 +24,7 @@
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
+#include "ep_time.h"
 #include "ep_vb.h"
 #include "item.h"
 #include "kv_bucket.h"
@@ -4340,6 +4341,81 @@ TEST_P(DurabilityBucketTest,
     using namespace cb::durability;
     testUpgradeToMinDurabilityLevel(
             Level::PersistToMajority, Level::Majority, EngineOp::Remove);
+}
+
+TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
+    using namespace cb::durability;
+
+    // Avoid that Prepares are committed as soon as queued
+    setVBucketToActiveWithValidTopology();
+
+    auto& vb = *store->getVBucket(vbid);
+    auto& ht = vb.ht;
+    const auto key = makeStoredDocKey("key");
+    {
+        const auto res = ht.findForUpdate(key);
+        ASSERT_FALSE(res.committed);
+        ASSERT_FALSE(res.pending);
+    }
+
+    // Load a SyncWrite with exptime != 0
+    const auto item = makePendingItem(
+            key, "value", Requirements(Level::Majority, Timeout::Infinity()));
+    item->setExpTime(ep_real_time() + 3600);
+    item->setPreparedMaybeVisible();
+    uint64_t cas = 0;
+    ASSERT_EQ(ENGINE_EWOULDBLOCK,
+              engine->store(cookie,
+                            item.get(),
+                            cas,
+                            OPERATION_SET,
+                            item->getDurabilityReqs(),
+                            DocumentState::Alive,
+                            false /*preserveTTL*/));
+
+    {
+        const auto res = ht.findForRead(key);
+        ASSERT_TRUE(res.storedValue);
+        EXPECT_TRUE(res.storedValue->isPreparedMaybeVisible());
+        EXPECT_FALSE(res.storedValue->isDeleted());
+    }
+
+    // Now access the StoredValue via the expiry code path, must NOT expire has
+    // TTL not reached
+    const auto checkNotExpired = [&vb, &key]() -> void {
+        auto res = vb.fetchValidValue(WantsDeleted::No,
+                                      TrackReference::No,
+                                      QueueExpired::Yes,
+                                      vb.lockCollections(key));
+        ASSERT_TRUE(res.storedValue);
+        EXPECT_TRUE(res.storedValue->isPreparedMaybeVisible());
+        EXPECT_FALSE(res.storedValue->isDeleted());
+    };
+    checkNotExpired();
+
+    // TimeTravel to expire
+    TimeTraveller tt(3601);
+
+    // Again, must NOT expire as the still in pending Prepare state.
+    checkNotExpired();
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
+
+    // Note: The next call to VBucket::fetchValidValue needs the test engine in
+    // ObjectRegistry as it makes a call to
+    // ObjectRegistry::getCurrentEngine()->getServerApi()->doc->pre_expiry(item)
+    ObjectRegistry::onSwitchThread(engine.get());
+
+    // Item committed, TTL must kick in
+    auto res = vb.fetchValidValue(WantsDeleted::Yes,
+                                  TrackReference::No,
+                                  QueueExpired::Yes,
+                                  vb.lockCollections(key));
+    ASSERT_TRUE(res.storedValue);
+    EXPECT_TRUE(res.storedValue->isCommitted());
+    EXPECT_TRUE(res.storedValue->isDeleted());
+    EXPECT_EQ(DeleteSource::TTL, res.storedValue->getDeletionSource());
 }
 
 // Test cases which run against couchstore
