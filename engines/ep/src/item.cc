@@ -181,8 +181,15 @@ bool operator==(const Item& lhs, const Item& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Item& i) {
-    os << "Item[" << &i << "] with"
-       << " key:" << i.key << "\n";
+    os << "Item[" << &i << "] with key:";
+
+    if (i.useDocKeyDump()) {
+        os << i.key << "\n";
+    } else {
+        // Just use the raw c_str for these operation types - e.g "set_vb_state"
+        os << i.key.c_str() << "\n";
+    }
+
     if (i.value.get()) {
         os << "\tvalue:" << *i.value << "\n";
     } else {

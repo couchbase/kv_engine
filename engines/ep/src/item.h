@@ -367,6 +367,29 @@ public:
         return false;
     }
 
+    /**
+     * For debug code, how we decode the key depends on the operation.
+     * @return true if the key should be dumped via DocKey operator<<
+     */
+    bool useDocKeyDump() const {
+        switch (op) {
+        case queue_op::mutation:
+        case queue_op::commit_sync_write:
+        case queue_op::pending_sync_write:
+        case queue_op::abort_sync_write:
+        case queue_op::system_event:
+            return true;
+        case queue_op::set_vbucket_state:
+        case queue_op::flush:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+            return false;
+        }
+        // Silence GCC warning
+        return false;
+    }
+
     /// Returns true if this Item is a meta item, excluding queue_op::empty.
     bool isNonEmptyCheckpointMetaItem() const {
         return isCheckPointMetaItem() && (op != queue_op::empty);
