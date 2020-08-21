@@ -21,6 +21,7 @@
 #include <ep_engine.h>
 
 class SynchronousEPEngine;
+struct MockReplicationThrottle;
 
 struct SynchronousEPEngineDeleter {
     void operator()(SynchronousEPEngine*);
@@ -94,4 +95,6 @@ public:
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);
     }
+
+    MockReplicationThrottle& getMockReplicationThrottle();
 };

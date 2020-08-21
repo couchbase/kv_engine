@@ -257,7 +257,7 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     } else {
         eviction_policy = EvictionPolicy::Full;
     }
-    replicationThrottle = std::make_unique<ReplicationThrottle>(
+    replicationThrottle = std::make_unique<ReplicationThrottleEP>(
             engine.getConfiguration(), stats);
 
     vbMap.enablePersistence(*this);

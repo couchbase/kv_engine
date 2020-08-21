@@ -325,6 +325,7 @@ if (NOT EP_BYPASS_TESTS)
             tests/mock/mock_ephemeral_bucket.cc
             tests/mock/mock_ephemeral_vb.cc
             tests/mock/mock_executor_pool.cc
+            tests/mock/mock_replicationthrottle.cc
             tests/mock/mock_stream.cc
             tests/mock/mock_synchronous_ep_engine.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h

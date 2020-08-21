@@ -23,22 +23,20 @@ class EPStats;
 class Configuration;
 
 /**
+ * ReplicationThrottle interface.
+ *
  * Monitors various internal state to report whether we should
- * throttle incoming tap and DCP items.
+ * throttle incoming DCP items.
  */
 class ReplicationThrottle {
 public:
     /* Indicates the status of the replication throttle */
     enum class Status { Process, Pause, Disconnect };
 
-    ReplicationThrottle(const Configuration& config, EPStats& s);
-
-    virtual ~ReplicationThrottle() = default;
-
     /**
      * @ return status of the replication throttle
      */
-    virtual ReplicationThrottle::Status getStatus() const;
+    virtual Status getStatus() const = 0;
 
     /**
      * Returns if we should disconnect replication connection upon hitting
@@ -46,15 +44,49 @@ public:
      *
      * @return boolean indicating whether we should disconnect
      */
-    virtual bool doDisconnectOnNoMem() const {
-        /* Base class we do not want to disconnect */
+    virtual bool doDisconnectOnNoMem() const = 0;
+
+    /**
+     * Set the percentage of total items in write queue at which we throttle
+     * replication input.
+     */
+    virtual void setCapPercent(size_t perc) = 0;
+
+    /// Set the max size of write queue to throttle incoming replication input.
+    virtual void setQueueCap(ssize_t cap) = 0;
+
+    /**
+     * Set the writeQueueCap to the specified number of items, adjusting
+     * as appropriate based on CapPercent / QueueCap values.
+     */
+    virtual void adjustWriteQueueCap(size_t totalItems) = 0;
+
+    virtual ~ReplicationThrottle() = default;
+};
+
+/**
+ * Main concrete implementation, used for EP bucket (and inherited from for
+ * Ephemeral buckets).
+ */
+class ReplicationThrottleEP : public ReplicationThrottle {
+public:
+    ReplicationThrottleEP(const Configuration& config, EPStats& s);
+
+    Status getStatus() const override;
+
+    bool doDisconnectOnNoMem() const override {
+        /* For EP buckets we do not want to disconnect */
         return false;
     }
 
-    void setCapPercent(size_t perc) { capPercent = perc; }
-    void setQueueCap(ssize_t cap) { queueCap = cap; }
+    void setCapPercent(size_t perc) override {
+        capPercent = perc;
+    }
+    void setQueueCap(ssize_t cap) override {
+        queueCap = cap;
+    }
 
-    void adjustWriteQueueCap(size_t totalItems);
+    void adjustWriteQueueCap(size_t totalItems) override;
 
 private:
     bool persistenceQueueSmallEnough() const;
@@ -69,11 +101,11 @@ private:
  * Sub class of ReplicationThrottle which decides what should be done to
  * throttle DCP replication, that is Pause or Disconnect, in Ephemeral buckets
  */
-class ReplicationThrottleEphe : public ReplicationThrottle {
+class ReplicationThrottleEphe : public ReplicationThrottleEP {
 public:
     ReplicationThrottleEphe(const Configuration& config, EPStats& s);
 
-    ReplicationThrottle::Status getStatus() const override;
+    Status getStatus() const override;
 
     bool doDisconnectOnNoMem() const override;
 

@@ -19,14 +19,14 @@
 #include "configuration.h"
 #include "stats.h"
 
-ReplicationThrottle::ReplicationThrottle(const Configuration& config,
-                                         EPStats& s)
+ReplicationThrottleEP::ReplicationThrottleEP(const Configuration& config,
+                                             EPStats& s)
     : queueCap(config.getReplicationThrottleQueueCap()),
       capPercent(config.getReplicationThrottleCapPcnt()),
       stats(s) {
 }
 
-bool ReplicationThrottle::persistenceQueueSmallEnough() const {
+bool ReplicationThrottleEP::persistenceQueueSmallEnough() const {
     size_t queueSize = stats.diskQueueSize.load();
     if (stats.replicationThrottleWriteQueueCap == -1) {
         return true;
@@ -34,7 +34,7 @@ bool ReplicationThrottle::persistenceQueueSmallEnough() const {
     return queueSize < static_cast<size_t>(stats.replicationThrottleWriteQueueCap);
 }
 
-bool ReplicationThrottle::hasSomeMemory() const {
+bool ReplicationThrottleEP::hasSomeMemory() const {
     double memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
@@ -42,12 +42,12 @@ bool ReplicationThrottle::hasSomeMemory() const {
     return memoryUsed <= (maxSize * stats.replicationThrottleThreshold);
 }
 
-ReplicationThrottle::Status ReplicationThrottle::getStatus() const {
+ReplicationThrottleEP::Status ReplicationThrottleEP::getStatus() const {
     return (persistenceQueueSmallEnough() && hasSomeMemory()) ? Status::Process
                                                               : Status::Pause;
 }
 
-void ReplicationThrottle::adjustWriteQueueCap(size_t totalItems) {
+void ReplicationThrottleEP::adjustWriteQueueCap(size_t totalItems) {
     if (queueCap == -1) {
         stats.replicationThrottleWriteQueueCap.store(-1);
         return;
@@ -63,11 +63,11 @@ void ReplicationThrottle::adjustWriteQueueCap(size_t totalItems) {
 
 ReplicationThrottleEphe::ReplicationThrottleEphe(const Configuration& config,
                                                  EPStats& s)
-    : ReplicationThrottle(config, s), config(config) {
+    : ReplicationThrottleEP(config, s), config(config) {
 }
 
-ReplicationThrottle::Status ReplicationThrottleEphe::getStatus() const {
-    ReplicationThrottle::Status status = ReplicationThrottle::getStatus();
+ReplicationThrottleEP::Status ReplicationThrottleEphe::getStatus() const {
+    auto status = ReplicationThrottleEP::getStatus();
     if (status == Status::Pause) {
         if (config.getEphemeralFullPolicy() == "fail_new_data") {
             return Status::Disconnect;
