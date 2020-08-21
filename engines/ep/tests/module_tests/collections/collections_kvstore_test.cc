@@ -141,33 +141,23 @@ public:
     void checkCollections(
             const Collections::KVStore::Manifest& md,
             const CollectionsManifest& cm,
-            size_t expectedMatches,
             std::vector<CollectionID> expectedDropped = {}) const {
-        EXPECT_EQ(expectedMatches, md.collections.size());
         auto expected = getCreateEventVector(cm);
-
-        EXPECT_EQ(expectedMatches, expected.size());
-
-        size_t matched = 0;
-
-        // No ordering expectations from KVStore, so compare all
-        for (const auto& e : expected) {
-            for (const auto& c : md.collections) {
-                if (c.metaData == e) {
-                    matched++;
-                    if (expectedMatches == matched) {
-                        break; // done
-                    }
-                }
-            }
+        EXPECT_EQ(expected.size(), md.collections.size());
+        for (const auto& expectedCollection : expected) {
+            auto cmp = [&expectedCollection](
+                               const Collections::KVStore::OpenCollection&
+                                       openCollection) {
+                return openCollection.metaData == expectedCollection;
+            };
+            auto found = std::find_if(
+                    md.collections.begin(), md.collections.end(), cmp);
+            EXPECT_NE(found, md.collections.end());
         }
-        EXPECT_EQ(expectedMatches, matched);
 
         auto dropped = kvstore->getDroppedCollections(Vbid(0));
         if (!expectedDropped.empty()) {
             EXPECT_TRUE(md.droppedCollectionsExist);
-            matched = 0;
-
             EXPECT_EQ(expectedDropped.size(), dropped.size());
             for (const auto cid : expectedDropped) {
                 auto cmp = [cid](const Collections::KVStore::DroppedCollection&
@@ -175,14 +165,8 @@ public:
                     return dropped.collectionId == cid;
                 };
                 auto found = std::find_if(dropped.begin(), dropped.end(), cmp);
-                if (found != dropped.end()) {
-                    matched++;
-                    if (expectedDropped.size() == matched) {
-                        break; // done
-                    }
-                }
+                EXPECT_NE(found, dropped.end());
             }
-            EXPECT_EQ(expectedDropped.size(), matched);
         } else {
             EXPECT_FALSE(md.droppedCollectionsExist);
             EXPECT_TRUE(dropped.empty());
@@ -190,40 +174,35 @@ public:
     }
 
     void checkScopes(const Collections::KVStore::Manifest& md,
-                     const CollectionsManifest& cm,
-                     int expectedMatches) const {
+                     const CollectionsManifest& cm) const {
         auto expectedScopes = getScopeEventVector(cm);
-        EXPECT_EQ(expectedMatches, expectedScopes.size());
-        EXPECT_EQ(expectedMatches, md.scopes.size());
-
-        int matched = 0;
+        EXPECT_EQ(expectedScopes.size(), md.scopes.size());
         for (const auto scope : expectedScopes) {
             auto cmp =
                     [scope](const Collections::KVStore::OpenScope& openScope) {
                         return openScope.metaData == scope;
                     };
             auto found = std::find_if(md.scopes.begin(), md.scopes.end(), cmp);
-            if (found != md.scopes.end()) {
-                matched++;
-                if (expectedMatches == matched) {
-                    break; // done
-                }
-            }
+            EXPECT_NE(found, md.scopes.end());
         }
-        EXPECT_EQ(expectedMatches, matched);
     }
 
+    /**
+     * Apply all of the system events to KVStore, which will in turn generate
+     * and/or update the _local meta-data for collections. Finally check the
+     * persisted meta-data is equal to the given "CollectionsManifest" and
+     * optionally check that the persisted list of dropped collections matches
+     * the given list
+     */
     void applyAndCheck(const CollectionsManifest& cm,
-                       int expectedCollections,
-                       int expectedScopes,
                        std::vector<CollectionID> expectedDropped = {}) {
         kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
         applyEvents(cm);
         kvstore->commit(flush);
         auto md = kvstore->getCollectionsManifest(Vbid(0));
         checkUid(md, cm);
-        checkCollections(md, cm, expectedCollections, expectedDropped);
-        checkScopes(md, cm, expectedScopes);
+        checkCollections(md, cm, expectedDropped);
+        checkScopes(md, cm);
     };
 
 protected:
@@ -274,13 +253,13 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
 TEST_P(CollectionsKVStoreTest, one_update) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::vegetable);
-    applyAndCheck(cm, 2, 1);
+    applyAndCheck(cm);
 }
 
 TEST_P(CollectionsKVStoreTest, two_updates) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit);
-    applyAndCheck(cm, 3, 1);
+    applyAndCheck(cm);
 }
 
 TEST_P(CollectionsKVStoreTest, updates_with_scopes) {
@@ -288,48 +267,363 @@ TEST_P(CollectionsKVStoreTest, updates_with_scopes) {
     cm.add(ScopeEntry::shop1)
             .add(CollectionEntry::vegetable, ScopeEntry::shop1);
     cm.add(ScopeEntry::shop2).add(CollectionEntry::fruit, ScopeEntry::shop2);
-    applyAndCheck(cm, 3, 3);
+    applyAndCheck(cm);
 }
 
 TEST_P(CollectionsKVStoreTest, updates_between_commits) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1)
             .add(CollectionEntry::vegetable, ScopeEntry::shop1);
-    applyAndCheck(cm, 2, 2);
+    applyAndCheck(cm);
     cm.add(ScopeEntry::shop2).add(CollectionEntry::fruit, ScopeEntry::shop2);
-    applyAndCheck(cm, 3, 3);
+    applyAndCheck(cm);
     cm.add(CollectionEntry::meat, ScopeEntry::shop2);
-    applyAndCheck(cm, 4, 3);
+    applyAndCheck(cm);
 }
 
 TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1)
             .add(CollectionEntry::vegetable, ScopeEntry::shop1);
-    applyAndCheck(cm, 2, 2);
+    applyAndCheck(cm);
     cm.add(ScopeEntry::shop2).add(CollectionEntry::fruit, ScopeEntry::shop2);
-    applyAndCheck(cm, 3, 3);
+    applyAndCheck(cm);
     cm.add(CollectionEntry::meat, ScopeEntry::shop2);
-    applyAndCheck(cm, 4, 3);
+    applyAndCheck(cm);
     cm.remove(CollectionEntry::fruit, ScopeEntry::shop2);
-    applyAndCheck(cm, 3, 3, {CollectionUid::fruit});
+    applyAndCheck(cm, {CollectionUid::fruit});
     cm.remove(CollectionEntry::meat, ScopeEntry::shop2);
-    applyAndCheck(cm, 2, 3, {CollectionUid::fruit, CollectionUid::meat});
+    applyAndCheck(cm, {CollectionUid::fruit, CollectionUid::meat});
     cm.remove(CollectionEntry::vegetable, ScopeEntry::shop1);
     applyAndCheck(cm,
-                  1,
-                  3,
                   {CollectionUid::fruit,
                    CollectionUid::meat,
                    CollectionUid::vegetable});
     cm.remove(CollectionEntry::defaultC);
     applyAndCheck(cm,
-                  0,
-                  3,
+
                   {CollectionUid::fruit,
                    CollectionUid::meat,
                    CollectionUid::vegetable,
                    CollectionUid::defaultC});
+}
+
+// Test that KV can handle multiple system events in a single 'commit'
+// batch. Multiple events can legitimately occur if a failure occurs in the
+// cluster meaning some changes to the collection configuration were lost
+// and KV is forced to go 'backwards' or onto another 'time-line'. For
+// example collection{ID:8, name:"A1"} is created in manifest 5, but a
+// failure occurs and manifest 5 is lost, an alternative manifest 5 can
+// exist where collection{ID:8 name:"B7"} could be created. KV could end up
+// with a create, drop and create for the collection with ID:8 (but a new name
+// in the final creation). When these multiple events occur, the state of
+// the KVStore meta-data must reflect what has happened.
+//
+// In general:
+// - The open collections meta-data stores 1 entry for each open collection
+//   *and* it must be the most recent (by-seqno).
+// - The dropped collections meta-data stores 1 entry for each dropped
+//   collection, each entry must store the start/end to span the earliest
+//   create, to the most recent (by-seqno) drop.
+// - A collection can be in both open and dropped lists (create/drop/create...)
+class CollectionRessurectionKVStoreTest
+    : public CollectionsKVStoreTestBase,
+      public ::testing::WithParamInterface<
+              std::tuple<std::string, int, bool, bool, int>> {
+public:
+    std::string getBackend() const {
+        return std::get<0>(GetParam());
+    }
+
+    /// @return how many cycles the 'core' of test will run for
+    int getCycles() const {
+        return std::get<1>(GetParam());
+    }
+
+    /// @return true if the test cycle(s) should finish with the target
+    /// collection dropped
+    bool dropCollectionAtEnd() const {
+        return std::get<2>(GetParam());
+    }
+
+    /// @return true if each test cycle should resurrect the target collection
+    /// with a new name
+    bool resurectWithNewName() const {
+        return std::get<3>(GetParam());
+    }
+
+    /// @return a function (or not) to be used before the main test
+    std::function<void()> getPrologue() {
+        switch (std::get<4>(GetParam())) {
+        case 0:
+            return {};
+        case 1:
+            return std::bind(&CollectionRessurectionKVStoreTest::openCollection,
+                             this);
+        case 2:
+            return std::bind(&CollectionRessurectionKVStoreTest::dropCollection,
+                             this);
+        }
+        EXPECT_FALSE(true) << "No prologue defined for parameter:"
+                           << std::get<4>(GetParam());
+        return {};
+    }
+
+    /// @return a function (or not) to be used before the main test
+    std::function<void()> getScopesPrologue() {
+        switch (std::get<4>(GetParam())) {
+        case 0:
+            return {};
+        case 1:
+            return std::bind(
+                    &CollectionRessurectionKVStoreTest::openScopeOpenCollection,
+                    this);
+        case 2:
+            return std::bind(&CollectionRessurectionKVStoreTest::dropScope,
+                             this);
+        }
+        EXPECT_FALSE(true) << "No prologue defined for parameter:"
+                           << std::get<4>(GetParam());
+        return {};
+    }
+
+    void SetUp() override {
+        KVStoreTest::SetUp();
+        KVStoreBackend::setup(data_dir, getBackend());
+    }
+
+    void TearDown() override {
+        KVStoreBackend::teardown();
+        KVStoreTest::TearDown();
+    }
+
+    // runs a flush batch that will leave the target collection in open state
+    void openCollection() {
+        cm.add(target);
+        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+        applyEvents(cm);
+        kvstore->commit(flush);
+    }
+
+    // runs a flush batch that will leave the target collection in dropped state
+    void dropCollection() {
+        openCollection();
+        cm.remove(target);
+        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+        applyEvents(cm);
+        kvstore->commit(flush);
+    }
+
+    // runs a flush batch that will leave the target collection in open state
+    void openScopeOpenCollection() {
+        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+        cm.add(targetScope);
+        applyEvents(cm);
+        cm.add(target, targetScope);
+        applyEvents(cm);
+        kvstore->commit(flush);
+    }
+
+    // runs a flush batch that will leave the target collection in dropped state
+    void dropScope() {
+        openScopeOpenCollection();
+        cm.remove(targetScope);
+        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+        applyEvents(cm);
+        kvstore->commit(flush);
+    }
+
+    void resurectionTest();
+    void resurectionScopesTest();
+
+    CollectionEntry::Entry target = CollectionEntry::vegetable;
+    ScopeEntry::Entry targetScope = ScopeEntry::shop1;
+    CollectionsManifest cm;
+};
+
+void CollectionRessurectionKVStoreTest::resurectionTest() {
+    ASSERT_GT(getCycles(), 0) << "Require at least 1 cycle";
+
+    // A 'prologue' function can be ran, this will create meta-data that gets
+    // merged by the second commit batch
+    auto prologue = getPrologue();
+    if (prologue) {
+        prologue();
+    }
+
+    // The interesting 'test' code runs from this begin to the following commit.
+    // The test will run cycles of create/drop, so that the collection
+    // has multiple generations within a single flush batch, we can then verify
+    // that the meta-data stored by commit is correct
+    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    if (!cm.exists(target)) {
+        cm.add(target);
+        applyEvents(cm);
+    }
+
+    CollectionEntry::Entry collection = target;
+
+    // iterate cycles of remove/add
+    for (int ii = 0; ii < getCycles(); ii++) {
+        cm.remove(collection);
+        applyEvents(cm);
+
+        if (resurectWithNewName()) {
+            collection.name = target.name + "_" + std::to_string(ii);
+        }
+
+        cm.add(collection);
+        applyEvents(cm);
+    }
+
+    if (dropCollectionAtEnd()) {
+        cm.remove(collection);
+        applyEvents(cm);
+    }
+    kvstore->commit(flush);
+
+    // Now validate
+    auto md = kvstore->getCollectionsManifest(Vbid(0));
+    checkUid(md, cm);
+    checkCollections(md, cm, {target.uid});
+
+    auto seqno = vbucket.getHighSeqno();
+
+    // Finally validate the seqnos the local data stores (checkCollections
+    // only compares name/uid/ttl from cm against md )
+    for (const auto& collection : md.collections) {
+        if (collection.metaData.cid == CollectionID::Default) {
+            EXPECT_EQ(0, collection.startSeqno);
+        } else if (collection.metaData.cid == target.uid) {
+            EXPECT_EQ(2, md.collections.size());
+            EXPECT_FALSE(dropCollectionAtEnd());
+            EXPECT_EQ(seqno, collection.startSeqno);
+        }
+    }
+
+    // Vegetable was dropped during the test, thus it must be part of the
+    // drop list and it must span the very first create to the very last drop!
+    auto droppedCollections = kvstore->getDroppedCollections(Vbid(0));
+    EXPECT_TRUE(md.droppedCollectionsExist);
+    EXPECT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
+    const auto& droppedMeta = droppedCollections[0];
+    EXPECT_EQ(target.uid, droppedMeta.collectionId);
+    // vegetable is always first created at seqno 1
+    EXPECT_EQ(1, droppedMeta.startSeqno);
+    // but can of been dropped many times
+    if (dropCollectionAtEnd()) {
+        EXPECT_EQ(seqno, droppedMeta.endSeqno);
+    } else {
+        // in this case seqno was assigned after create, so go back one for the
+        // last drop of vegetable
+        EXPECT_EQ(seqno - 1, droppedMeta.endSeqno);
+    }
+}
+
+// Variant of test which uses non-default scope (and drop scope)
+void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
+    ASSERT_GT(getCycles(), 0) << "Require at least 1 cycle";
+
+    // A 'prologue' function can be ran, this will create meta-data that gets
+    // merged by the second commit batch
+    auto prologue = getScopesPrologue();
+    if (prologue) {
+        prologue();
+    }
+
+    // The interesting 'test' code runs from this begin to the following commit.
+    // The test will run cycles of create/drop, so that the collection
+    // has multiple generations within a single flush batch, we can then verify
+    // that the meta-data stored by commit is correct
+    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    if (!cm.exists(targetScope)) {
+        cm.add(targetScope);
+        applyEvents(cm);
+        cm.add(target, targetScope);
+        applyEvents(cm);
+    }
+
+    std::string expectedName = target.name;
+    ScopeEntry::Entry scope = targetScope;
+
+    // iterate cycles of remove/add
+    for (int ii = 0; ii < getCycles(); ii++) {
+        cm.remove(scope);
+        applyEvents(cm);
+
+        if (resurectWithNewName()) {
+            expectedName = target.name + "_" + std::to_string(ii);
+            scope.name = targetScope.name + "_" + std::to_string(ii);
+        }
+        cm.add(scope);
+        applyEvents(cm);
+        cm.add({expectedName, target.uid}, scope);
+        applyEvents(cm);
+    }
+
+    if (dropCollectionAtEnd()) {
+        cm.remove(scope);
+        applyEvents(cm);
+    }
+    kvstore->commit(flush);
+
+    // Now validate
+    auto md = kvstore->getCollectionsManifest(Vbid(0));
+    checkUid(md, cm);
+    checkCollections(md, cm, {target.uid});
+
+    auto seqno = vbucket.getHighSeqno();
+
+    // Finally validate the seqnos the local data stores (checkCollections
+    // only compares name/uid/ttl from cm against md )
+    for (const auto& collection : md.collections) {
+        if (collection.metaData.cid == CollectionID::Default) {
+            EXPECT_EQ(0, collection.startSeqno);
+        } else if (collection.metaData.cid == target.uid) {
+            EXPECT_EQ(2, md.collections.size());
+
+            EXPECT_FALSE(dropCollectionAtEnd());
+            EXPECT_EQ(seqno, collection.startSeqno);
+        }
+    }
+
+    // Validate scopes
+    for (const auto& scope : md.scopes) {
+        if (scope.metaData.sid == ScopeID::Default) {
+            EXPECT_EQ(0, scope.startSeqno);
+        } else if (scope.metaData.sid == targetScope.uid) {
+            EXPECT_EQ(2, md.scopes.size());
+            EXPECT_FALSE(dropCollectionAtEnd());
+            EXPECT_EQ(seqno - 1, scope.startSeqno);
+        }
+    }
+
+    // Vegetable was dropped during the test, thus it must be part of the
+    // drop list and it must span the very first create to the very last drop!
+    auto droppedCollections = kvstore->getDroppedCollections(Vbid(0));
+    EXPECT_TRUE(md.droppedCollectionsExist);
+    EXPECT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
+    const auto& droppedMeta = droppedCollections[0];
+    EXPECT_EQ(target.uid, droppedMeta.collectionId);
+    // vegetable is always first created at seqno 2 (after the scope)
+    EXPECT_EQ(2, droppedMeta.startSeqno);
+    // but can of been dropped many times
+    if (dropCollectionAtEnd()) {
+        EXPECT_EQ(seqno - 1, droppedMeta.endSeqno);
+    } else {
+        // in this case seqno was assigned after create, so go back 3 for the
+        // last drop of vegetable (as the vents before drop collection are
+        // drop scope, create scope, create collection
+        EXPECT_EQ(seqno - 3, droppedMeta.endSeqno);
+    }
+}
+
+TEST_P(CollectionRessurectionKVStoreTest, resurection) {
+    resurectionTest();
+}
+
+TEST_P(CollectionRessurectionKVStoreTest, resurectionScopes) {
+    resurectionScopesTest();
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
@@ -338,3 +632,22 @@ INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
+
+INSTANTIATE_TEST_SUITE_P(
+        CollectionRessurectionKVStoreTests,
+        CollectionRessurectionKVStoreTest,
+        ::testing::Combine(KVStoreParamTest::persistentConfigValues(),
+                           ::testing::Values(1, 3),
+                           ::testing::Bool(),
+                           ::testing::Bool(),
+                           ::testing::Values(0, 1, 2)),
+        [](const ::testing::TestParamInfo<
+                std::tuple<std::string, int, bool, bool, int>>& info) {
+            auto backend = std::get<0>(info.param);
+            auto cycles = std::to_string(std::get<1>(info.param));
+            auto dropAtEnd = std::to_string(std::get<2>(info.param));
+            auto newName = std::to_string(std::get<3>(info.param));
+            auto prologueSelection = std::to_string(std::get<4>(info.param));
+            return backend + "_with_" + cycles + "cycles_" + dropAtEnd + "_" +
+                   newName + "_" + prologueSelection;
+        });

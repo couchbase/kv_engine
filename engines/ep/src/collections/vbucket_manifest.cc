@@ -618,7 +618,7 @@ int64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
                                              OptionalSeqno seq) const {
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
-    if (!seq.has_value() && deleted) {
+    if (!seq.has_value()) {
         vb.checkpointManager->createNewCheckpoint();
     }
 

@@ -268,23 +268,8 @@ void CollectionsDcpTest::testDcpCreateDelete(
             // For the tests that compare manifests entirely, we should also
             // always have the correct uid.
             EXPECT_EQ(m1.manifestUid, m2.manifestUid);
-
-            auto compare1 = [](const Collections::KVStore::OpenCollection& a,
-                               const Collections::KVStore::OpenCollection& b) {
-                return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
-            };
-            EXPECT_TRUE(std::equal(m1.collections.begin(),
-                                   m1.collections.end(),
-                                   m2.collections.begin(),
-                                   compare1));
-            auto compare2 = [](const Collections::KVStore::OpenScope& a,
-                               const Collections::KVStore::OpenScope& b) {
-                return a.startSeqno == b.startSeqno && a.metaData == b.metaData;
-            };
-            EXPECT_TRUE(std::equal(m1.scopes.begin(),
-                                   m1.scopes.end(),
-                                   m2.scopes.begin(),
-                                   compare2));
+            EXPECT_EQ(m1.collections, m2.collections);
+            EXPECT_EQ(m1.scopes, m2.scopes);
         }
     }
 }

@@ -63,6 +63,15 @@ public:
 
     /*
      * DCP helper.
+     * Notify the given producer and ensure the checkpoint is ready for stepping
+     * @param fromMemory if false then step a backfill
+     */
+    void notifyAndRunToCheckpoint(MockDcpProducer& producer,
+                                  MockDcpMessageProducers& producers,
+                                  bool fromMemory = true);
+
+    /*
+     * DCP helper.
      * Notify and step the given producer
      * @param expectedOp once stepped we expect to see this DCP opcode produced
      * @param fromMemory if false then step a backfill

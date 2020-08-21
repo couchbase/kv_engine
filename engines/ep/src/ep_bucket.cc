@@ -614,6 +614,15 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
             //     This means we only write the highest (i.e. newest)
             //     item for a given key, and discard any duplicate,
             //     older items.
+            if (item->isSystemEvent()) {
+                // system event is not persisted, but its presence has side
+                // effects. The KVStore must be informed about the event.
+                if (item->isDeleted()) {
+                    rwUnderlying->applyDeleteSystemEvent(*item);
+                } else {
+                    rwUnderlying->applySetSystemEvent(*item);
+                }
+            }
         }
 
         // Register the item for deferred (flush success only) stats update.

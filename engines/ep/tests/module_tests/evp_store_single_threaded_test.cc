@@ -254,10 +254,9 @@ void SingleThreadedKVBucketTest::runBackfill() {
     }
 }
 
-void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+void SingleThreadedKVBucketTest::notifyAndRunToCheckpoint(
         MockDcpProducer& producer,
         MockDcpMessageProducers& producers,
-        cb::mcbp::ClientOpcode expectedOp,
         bool fromMemory) {
     auto vb = store->getVBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
@@ -269,6 +268,14 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
     } else {
         runBackfill();
     }
+}
+
+void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+        MockDcpProducer& producer,
+        MockDcpMessageProducers& producers,
+        cb::mcbp::ClientOpcode expectedOp,
+        bool fromMemory) {
+    notifyAndRunToCheckpoint(producer, producers, fromMemory);
 
     // Next step which will process a snapshot marker and then the caller
     // should now be able to step through the checkpoint

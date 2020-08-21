@@ -17,9 +17,105 @@
 
 #include "collections/kvstore.h"
 #include "collections/kvstore_generated.h"
+#include "collections/vbucket_manifest.h"
+#include "item.h"
+#include <iostream>
 #include <sstream>
+#include <unordered_set>
 
 namespace Collections::KVStore {
+
+void CommitMetaData::clear() {
+    needsCommit = false;
+    collections.clear();
+    scopes.clear();
+    droppedCollections.clear();
+    droppedScopes.clear();
+    manifestUid.reset(0);
+}
+
+void CommitMetaData::setManifestUid(ManifestUid in) {
+    manifestUid = std::max<ManifestUid>(manifestUid, in);
+}
+
+void CommitMetaData::recordCreateCollection(const Item& item) {
+    auto createEvent = Collections::VB::Manifest::getCreateEventData(
+            {item.getData(), item.getNBytes()});
+    OpenCollection collection{item.getBySeqno(), createEvent.metaData};
+    auto [itr, emplaced] = collections.try_emplace(
+            collection.metaData.cid, CollectionSpan{collection, collection});
+    if (!emplaced) {
+        // Collection already in the map, we must set this new create as the
+        // high or low (or ignore)
+        if (item.getBySeqno() > itr->second.high.startSeqno) {
+            itr->second.high = collection;
+        } else if (item.getBySeqno() < itr->second.low.startSeqno) {
+            itr->second.low = collection;
+        }
+    }
+    setManifestUid(createEvent.manifestUid);
+}
+
+void CommitMetaData::recordDropCollection(const Item& item) {
+    auto dropEvent = Collections::VB::Manifest::getDropEventData(
+            {item.getData(), item.getNBytes()});
+    // The startSeqno is unknown, so here we set to zero.
+    // The Collections::KVStore can discover the real startSeqno when
+    // processing the open collection list against the dropped collection
+    // list. A kvstore which can atomically drop a collection has no need
+    // for this, but one which will background purge dropped collection
+    // should maintain the start.
+    auto [itr, emplaced] = droppedCollections.try_emplace(
+            dropEvent.cid,
+            DroppedCollection{0, item.getBySeqno(), dropEvent.cid});
+
+    if (!emplaced) {
+        // Collection already in the map, we must set this new drop if the
+        // highest or ignore
+        if (item.getBySeqno() > itr->second.endSeqno) {
+            itr->second =
+                    DroppedCollection{0, item.getBySeqno(), dropEvent.cid};
+        }
+    }
+    setManifestUid(dropEvent.manifestUid);
+}
+
+void CommitMetaData::recordCreateScope(const Item& item) {
+    auto scopeEvent = Collections::VB::Manifest::getCreateScopeEventData(
+            {item.getData(), item.getNBytes()});
+    auto [itr, emplaced] = scopes.try_emplace(
+            scopeEvent.metaData.sid,
+            OpenScope{item.getBySeqno(), scopeEvent.metaData});
+
+    // Did we succeed?
+    if (!emplaced) {
+        // Nope, scope already in the list, the greatest seqno shall
+        // remain
+        if (item.getBySeqno() > itr->second.startSeqno) {
+            itr->second = OpenScope{item.getBySeqno(), scopeEvent.metaData};
+        }
+    }
+
+    setManifestUid(scopeEvent.manifestUid);
+}
+
+void CommitMetaData::recordDropScope(const Item& item) {
+    auto dropEvent = Collections::VB::Manifest::getDropScopeEventData(
+            {item.getData(), item.getNBytes()});
+    auto [itr, emplaced] =
+            droppedScopes.try_emplace(dropEvent.sid, item.getBySeqno());
+
+    // Did we succeed?
+    if (!emplaced) {
+        // Nope, scope already in the list, the greatest seqno shall
+        // remain
+        if (item.getBySeqno() > itr->second) {
+            itr->second = item.getBySeqno();
+        }
+    }
+
+    setManifestUid(dropEvent.manifestUid);
+}
 
 template <class T>
 static void verifyFlatbuffersData(cb::const_byte_buffer buf,
@@ -43,6 +139,11 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                                               cb::const_byte_buffer dropped) {
     Collections::KVStore::Manifest rv{Collections::KVStore::Manifest::Empty{}};
 
+    // As we build the lists of collections and scopes we want to validate that
+    // they are unique, use a set of ids for checking
+    std::unordered_set<CollectionID> openCollections;
+    std::unordered_set<ScopeID> openScopes;
+
     if (!manifest.empty()) {
         verifyFlatbuffersData<Collections::KVStore::CommittedManifest>(
                 manifest, "decodeManifest(manifest)");
@@ -64,6 +165,14 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                 maxTtl = std::chrono::seconds(entry->maxTtl());
             }
 
+            auto emplaced = openCollections.emplace(entry->collectionId());
+            // same collection exists already
+            if (!emplaced.second) {
+                throw std::invalid_argument(
+                        "decodeManifest: duplicate collection:" +
+                        CollectionID(entry->collectionId()).to_string() +
+                        " in stored data");
+            }
             rv.collections.push_back(
                     {entry->startSeqno(),
                      Collections::CollectionMetaData{entry->scopeId(),
@@ -73,7 +182,8 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         }
     } else {
         // Nothing on disk - the default collection is assumed
-        rv.collections.push_back({0, {}});
+        rv.collections.push_back(
+                OpenCollection{0, Collections::CollectionMetaData{}});
     }
 
     if (!scopes.empty()) {
@@ -82,6 +192,14 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
                 scopes.data());
         for (const auto& entry : *fbData->entries()) {
+            auto emplaced = openScopes.emplace(entry->scopeId());
+            // same scope exists many times
+            if (!emplaced.second) {
+                throw std::invalid_argument(
+                        "decodeManifest: duplicate scope:" +
+                        ScopeID(entry->scopeId()).to_string() +
+                        " in stored data");
+            }
             rv.scopes.push_back(
                     {entry->startSeqno(),
                      Collections::ScopeMetaData{entry->scopeId(),
@@ -89,7 +207,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         }
     } else {
         // Nothing on disk - the default scope is assumed
-        rv.scopes.push_back({0, {}});
+        rv.scopes.push_back(OpenScope{0, Collections::ScopeMetaData{}});
     }
 
     // Do dropped collections exist?
@@ -117,11 +235,10 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
     return rv;
 }
 
-flatbuffers::DetachedBuffer encodeManifestUid(
-        Collections::KVStore::CommitMetaData& meta) {
+flatbuffers::DetachedBuffer CommitMetaData::encodeManifestUid() {
     flatbuffers::FlatBufferBuilder builder;
-    auto toWrite = Collections::KVStore::CreateCommittedManifest(
-            builder, meta.manifestUid);
+    auto toWrite =
+            Collections::KVStore::CreateCommittedManifest(builder, manifestUid);
     builder.Finish(toWrite);
     std::string_view buffer{
             reinterpret_cast<const char*>(builder.GetBufferPointer()),
@@ -129,46 +246,59 @@ flatbuffers::DetachedBuffer encodeManifestUid(
     return builder.Release();
 }
 
-flatbuffers::DetachedBuffer encodeOpenCollections(
-        std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections,
-        Collections::KVStore::CommitMetaData& collectionsMeta,
-        cb::const_byte_buffer collections) {
+// Process the collection commit meta-data to generate the set of open
+// collections as flatbuffer data. The inputs to this function are he current
+// flatbuffer openCollection data
+flatbuffers::DetachedBuffer CommitMetaData::encodeOpenCollections(
+        cb::const_byte_buffer currentCollections) {
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Collection>>
-            openCollections;
+            finalisedOpenCollection;
 
-    for (const auto& event : collectionsMeta.collections) {
-        const auto& meta = event.metaData;
+    // For each created collection ensure that we use the most recent (by-seqno)
+    // meta-data for the output but only if there is no drop event following.
+    for (auto& [cid, span] : collections) {
+        using Collections::KVStore::OpenCollection;
+
+        if (auto itr = droppedCollections.find(cid);
+            itr != droppedCollections.end()) {
+            // Important - patch the startSeqno of the drop event so that it
+            // is set to the entire span of the collection from the flush batch.
+            // This may get 'patched' again if the collection is already open,
+            // a second check occurs in the merge loop below.
+            itr->second.startSeqno = span.low.startSeqno;
+
+            if (itr->second.endSeqno > span.high.startSeqno) {
+                // The collection has been dropped
+                continue;
+            }
+        }
+
+        // generate
+        const auto& meta = span.high.metaData;
         auto newEntry = Collections::KVStore::CreateCollection(
                 builder,
-                event.startSeqno,
+                span.high.startSeqno,
                 meta.sid,
                 meta.cid,
                 meta.maxTtl.has_value(),
                 meta.maxTtl.value_or(std::chrono::seconds::zero()).count(),
                 builder.CreateString(meta.name.data(), meta.name.size()));
-        openCollections.push_back(newEntry);
+        finalisedOpenCollection.push_back(newEntry);
     }
 
     // And 'merge' with the data we read
-    if (!collections.empty()) {
+    if (!currentCollections.empty()) {
         verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
-                collections, "encodeOpenCollections()");
-        auto fbData =
-                flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
-                        collections.data());
-        for (const auto& entry : *fbData->entries()) {
-            auto p = [entry](const Collections::KVStore::DroppedCollection& c) {
-                return c.collectionId == entry->collectionId();
-            };
-            auto result =
-                    std::find_if(collectionsMeta.droppedCollections.begin(),
-                                 collectionsMeta.droppedCollections.end(),
-                                 p);
+                currentCollections, "encodeOpenCollections()");
+        auto open = flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
+                currentCollections.data());
+        for (const auto& entry : *open->entries()) {
+            // For each currently open collection, is it in the dropped map?
+            auto result = droppedCollections.find(entry->collectionId());
 
             // If not found in dropped collections add to output
-            if (result == collectionsMeta.droppedCollections.end()) {
+            if (result == droppedCollections.end()) {
                 auto newEntry = Collections::KVStore::CreateCollection(
                         builder,
                         entry->startSeqno(),
@@ -177,10 +307,10 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
                         entry->ttlValid(),
                         entry->maxTtl(),
                         builder.CreateString(entry->name()));
-                openCollections.push_back(newEntry);
+                finalisedOpenCollection.push_back(newEntry);
             } else {
                 // Here we maintain the startSeqno of the dropped collection
-                result->startSeqno = entry->startSeqno();
+                result->second.startSeqno = entry->startSeqno();
             }
         }
     } else {
@@ -194,10 +324,10 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
                 0,
                 builder.CreateString(
                         Collections::DefaultCollectionIdentifier.data()));
-        openCollections.push_back(newEntry);
+        finalisedOpenCollection.push_back(newEntry);
     }
 
-    auto collectionsVector = builder.CreateVector(openCollections);
+    auto collectionsVector = builder.CreateVector(finalisedOpenCollection);
     auto toWrite = Collections::KVStore::CreateOpenCollections(
             builder, collectionsVector);
 
@@ -205,45 +335,70 @@ flatbuffers::DetachedBuffer encodeOpenCollections(
     return builder.Release();
 }
 
-flatbuffers::DetachedBuffer encodeDroppedCollections(
-        Collections::KVStore::CommitMetaData& collectionsMeta,
-        const std::vector<Collections::KVStore::DroppedCollection>& dropped) {
+flatbuffers::DetachedBuffer CommitMetaData::encodeDroppedCollections(
+        std::vector<Collections::KVStore::DroppedCollection>& existingDropped) {
+    // Iterate through the existing dropped collections and look each up in the
+    // commit metadata. If the collection is in both lists, we will just update
+    // the existing data (adjusting the endSeqno) and then erase the collection
+    // from the commit meta's dropped collections.
+    for (auto& collection : existingDropped) {
+        if (auto itr = droppedCollections.find(collection.collectionId);
+            itr != droppedCollections.end()) {
+            collection.endSeqno = itr->second.endSeqno;
+
+            // Now kick the collection out of collectionsMeta, its contribution
+            // to the final output is complete
+            droppedCollections.erase(itr);
+        }
+    }
+
     flatbuffers::FlatBufferBuilder builder;
-    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>>
-            droppedCollections;
-    for (const auto& dropped : collectionsMeta.droppedCollections) {
+    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
+
+    // Now merge, first the newly dropped collections
+    // Iterate  through the list collections dropped in the commit batch and
+    // and create flatbuffer versions of each one
+    for (const auto& [cid, dropped] : droppedCollections) {
+        (void)cid;
         auto newEntry =
                 Collections::KVStore::CreateDropped(builder,
                                                     dropped.startSeqno,
                                                     dropped.endSeqno,
                                                     dropped.collectionId);
-        droppedCollections.push_back(newEntry);
+        output.push_back(newEntry);
     }
 
-    for (const auto& entry : dropped) {
+    // and now copy across the existing dropped collections
+    for (const auto& entry : existingDropped) {
         auto newEntry = Collections::KVStore::CreateDropped(
                 builder, entry.startSeqno, entry.endSeqno, entry.collectionId);
-        droppedCollections.push_back(newEntry);
+        output.push_back(newEntry);
     }
 
-    auto vector = builder.CreateVector(droppedCollections);
+    auto vector = builder.CreateVector(output);
     auto final =
             Collections::KVStore::CreateDroppedCollections(builder, vector);
     builder.Finish(final);
 
-    // write back
     return builder.Release();
 }
 
-flatbuffers::DetachedBuffer encodeOpenScopes(
-        Collections::KVStore::CommitMetaData& collectionsMeta,
-        cb::const_byte_buffer scopes) {
+flatbuffers::DetachedBuffer CommitMetaData::encodeOpenScopes(
+        cb::const_byte_buffer existingScopes) {
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Scope>> openScopes;
 
     // For each scope from the kvstore list, copy them into the flatbuffer
     // output
-    for (const auto& event : collectionsMeta.scopes) {
+    for (const auto& [sid, event] : scopes) {
+        // The scope could have been dropped in the batch
+        if (auto itr = droppedScopes.find(sid); itr != droppedScopes.end()) {
+            if (itr->second > event.startSeqno) {
+                // The scope has been dropped
+                continue;
+            }
+        }
+
         const auto& meta = event.metaData;
         auto newEntry = Collections::KVStore::CreateScope(
                 builder,
@@ -254,19 +409,17 @@ flatbuffers::DetachedBuffer encodeOpenScopes(
     }
 
     // And 'merge' with the scope flatbuffer data that was read.
-    if (!scopes.empty()) {
+    if (!existingScopes.empty()) {
         verifyFlatbuffersData<Collections::KVStore::Scopes>(
-                scopes, "encodeOpenScopes()");
+                existingScopes, "encodeOpenScopes()");
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
-                scopes.data());
+                existingScopes.data());
 
         for (const auto& entry : *fbData->entries()) {
-            auto result = std::find(collectionsMeta.droppedScopes.begin(),
-                                    collectionsMeta.droppedScopes.end(),
-                                    entry->scopeId());
+            auto result = droppedScopes.find(entry->scopeId());
 
             // If not found in dropped scopes add to output
-            if (result == collectionsMeta.droppedScopes.end()) {
+            if (result == droppedScopes.end()) {
                 auto newEntry = Collections::KVStore::CreateScope(
                         builder,
                         entry->startSeqno(),
@@ -292,6 +445,14 @@ flatbuffers::DetachedBuffer encodeOpenScopes(
 
     // write back
     return builder.Release();
+}
+
+bool OpenCollection::operator==(const OpenCollection& other) const {
+    return startSeqno == other.startSeqno && metaData == other.metaData;
+}
+
+bool OpenScope::operator==(const OpenScope& other) const {
+    return startSeqno == other.startSeqno && metaData == other.metaData;
 }
 
 } // namespace Collections::KVStore

@@ -2288,7 +2288,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         pendingLocalReqsQ.emplace_back("_local/vbstate",
                                        makeJsonVBState(state));
 
-        if (collectionsMeta.needsCommit) {
+        if (collectionsMeta.isReadyForCommit()) {
             updateCollectionsMeta(*db, kvctx.commitData.collections);
         }
 
@@ -3169,23 +3169,16 @@ void CouchKVStore::updateCollectionsMeta(
         Db& db, Collections::VB::Flush& collectionsFlush) {
     updateManifestUid();
 
-    // If the updateOpenCollections reads the dropped collections, it can pass
-    // them via this optional to updateDroppedCollections, thus we only read
-    // the dropped list once per update.
-    std::optional<std::vector<Collections::KVStore::DroppedCollection>> dropped;
-
-    if (!collectionsMeta.collections.empty() ||
-        !collectionsMeta.droppedCollections.empty()) {
-        dropped = updateOpenCollections(db);
+    if (collectionsMeta.isOpenCollectionsChanged()) {
+        updateOpenCollections(db);
     }
 
-    if (!collectionsMeta.droppedCollections.empty()) {
-        updateDroppedCollections(db, dropped);
+    if (collectionsMeta.isDroppedCollectionsChanged()) {
+        updateDroppedCollections(db);
         collectionsFlush.setNeedsPurge();
     }
 
-    if (!collectionsMeta.scopes.empty() ||
-        !collectionsMeta.droppedScopes.empty()) {
+    if (collectionsMeta.isScopesChanged()) {
         updateScopes(db);
     }
 
@@ -3194,46 +3187,32 @@ void CouchKVStore::updateCollectionsMeta(
 
 void CouchKVStore::updateManifestUid() {
     // write back, no read required
-    pendingLocalReqsQ.emplace_back(
-            Collections::manifestName,
-            Collections::KVStore::encodeManifestUid(collectionsMeta));
+    pendingLocalReqsQ.emplace_back(Collections::manifestName,
+                                   collectionsMeta.encodeManifestUid());
 }
 
-std::vector<Collections::KVStore::DroppedCollection>
-CouchKVStore::updateOpenCollections(Db& db) {
-    auto droppedCollections = getDroppedCollections(db);
+void CouchKVStore::updateOpenCollections(Db& db) {
     auto collections = readLocalDoc(db, Collections::openCollectionsName);
     cb::const_byte_buffer empty;
 
     pendingLocalReqsQ.emplace_back(
             Collections::openCollectionsName,
-            Collections::KVStore::encodeOpenCollections(
-                    droppedCollections,
-                    collectionsMeta,
+            collectionsMeta.encodeOpenCollections(
                     collections.getLocalDoc() ? collections.getBuffer()
                                               : empty));
-    return droppedCollections;
 }
 
-void CouchKVStore::updateDroppedCollections(
-        Db& db,
-        std::optional<std::vector<Collections::KVStore::DroppedCollection>>
-                dropped) {
-    for (const auto& drop : collectionsMeta.droppedCollections) {
+void CouchKVStore::updateDroppedCollections(Db& db) {
+    for (const auto& [cid, event] : collectionsMeta.getDroppedCollections()) {
+        (void)event;
         // Delete the 'stats' document for the collection
-        deleteCollectionStats(drop.collectionId);
+        deleteCollectionStats(cid);
     }
 
-    // If the input 'dropped' is not initialised we must read the dropped
-    // collection data
-    if (!dropped.has_value()) {
-        dropped = getDroppedCollections(db);
-    }
-
+    auto dropped = getDroppedCollections(db);
     pendingLocalReqsQ.emplace_back(
             Collections::droppedCollectionsName,
-            Collections::KVStore::encodeDroppedCollections(collectionsMeta,
-                                                           dropped.value()));
+            collectionsMeta.encodeDroppedCollections(dropped));
 }
 
 void CouchKVStore::updateScopes(Db& db) {
@@ -3241,8 +3220,7 @@ void CouchKVStore::updateScopes(Db& db) {
     cb::const_byte_buffer empty;
     pendingLocalReqsQ.emplace_back(
             Collections::scopesName,
-            encodeOpenScopes(
-                    collectionsMeta,
+            collectionsMeta.encodeOpenScopes(
                     scopes.getLocalDoc() ? scopes.getBuffer() : empty));
 }
 

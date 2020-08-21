@@ -93,13 +93,21 @@ CollectionsManifest& CollectionsManifest::add(
 CollectionsManifest& CollectionsManifest::remove(
         const ScopeEntry::Entry& entry) {
     updateUid();
-
+    std::stringstream sid;
+    sid << std::hex << entry.uid;
+    bool removed = false;
     for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
          itr++) {
-        if ((*itr)["name"] == entry.name) {
+        if ((*itr)["name"] == entry.name && (*itr)["uid"] == sid.str()) {
             json["scopes"].erase(itr);
+            removed = true;
             break;
         }
+    }
+
+    if (!removed) {
+        throw std::invalid_argument(
+                "CollectionsManifest::remove(scope) did not remove anything");
     }
 
     return *this;
@@ -110,6 +118,10 @@ CollectionsManifest& CollectionsManifest::remove(
         const ScopeEntry::Entry& scopeEntry) {
     updateUid();
 
+    std::stringstream cid;
+    cid << std::hex << collectionEntry.uid;
+
+    bool removed = false;
     // Iterate on all scopes, find the one matching the passed scopeEntry
     for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
          itr++) {
@@ -119,13 +131,21 @@ CollectionsManifest& CollectionsManifest::remove(
             for (auto citr = (*itr)["collections"].begin();
                  citr != (*itr)["collections"].end();
                  citr++) {
-                if ((*citr)["name"] == collectionEntry.name) {
+                if ((*citr)["name"] == collectionEntry.name &&
+                    (*citr)["uid"] == cid.str()) {
                     (*itr)["collections"].erase(citr);
+                    removed = true;
                     break;
                 }
             }
             break;
         }
+    }
+
+    if (!removed) {
+        throw std::invalid_argument(
+                "CollectionsManifest::remove(collection) did not remove "
+                "anything");
     }
 
     return *this;
@@ -168,6 +188,42 @@ CollectionsManifest& CollectionsManifest::rename(
         }
     }
     return *this;
+}
+
+bool CollectionsManifest::exists(const CollectionEntry::Entry& collectionEntry,
+                                 const ScopeEntry::Entry& scopeEntry) const {
+    std::stringstream cid;
+    cid << std::hex << collectionEntry.uid;
+    std::stringstream sid;
+    sid << std::hex << scopeEntry.uid;
+
+    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
+         itr++) {
+        if ((*itr)["name"] == scopeEntry.name && (*itr)["uid"] == sid.str()) {
+            for (auto citr = (*itr)["collections"].begin();
+                 citr != (*itr)["collections"].end();
+                 citr++) {
+                if ((*citr)["name"] == collectionEntry.name &&
+                    (*citr)["uid"] == cid.str()) {
+                    return true;
+                }
+            }
+            break;
+        }
+    }
+    return false;
+}
+
+bool CollectionsManifest::exists(const ScopeEntry::Entry& scopeEntry) const {
+    std::stringstream sid;
+    sid << std::hex << scopeEntry.uid;
+    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
+         itr++) {
+        if ((*itr)["name"] == scopeEntry.name && (*itr)["uid"] == sid.str()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void CollectionsManifest::updateUid() {

@@ -662,25 +662,16 @@ protected:
      * duplicated read of the dropped collections.
      *
      * @param db The database handle to update
-     * @return the dropped collections
      */
-
-    std::vector<Collections::KVStore::DroppedCollection> updateOpenCollections(
-            Db& db);
+    void updateOpenCollections(Db& db);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
      * dropped collections.
      *
      * @param db The database handle to update
-     * @param dropped This method will only read the dropped collections from
-     *        storage if this optional is not initialised
-     * @return error code success or other (non-success is logged)
      */
-    void updateDroppedCollections(
-            Db& db,
-            std::optional<std::vector<Collections::KVStore::DroppedCollection>>
-                    dropped);
+    void updateDroppedCollections(Db& db);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of

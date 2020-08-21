@@ -184,6 +184,14 @@ public:
                                 const ScopeEntry::Entry& scopeEntry,
                                 const std::string& newName);
 
+    /// @return true if collection exists
+    bool exists(
+            const CollectionEntry::Entry& collectionEntry,
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS) const;
+
+    /// @return true if scope exists
+    bool exists(const ScopeEntry::Entry& scopeEntry) const;
+
     /// Return the manifest UID
     uint64_t getUid() const {
         return uid;

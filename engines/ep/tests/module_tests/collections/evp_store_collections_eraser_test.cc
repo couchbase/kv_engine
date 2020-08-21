@@ -85,8 +85,10 @@ public:
      * @param cid CollectionID to drop
      * @param seqnoOffset seqno to offset expectations by
      */
-    void testCollectionPurgedItemsCorrectAfterDrop(CollectionEntry::Entry cid,
-                                                   int64_t seqnoOffset = 0);
+    void testCollectionPurgedItemsCorrectAfterDrop(
+            CollectionsManifest& cm,
+            CollectionEntry::Entry collection,
+            int64_t seqnoOffset = 0);
 
     VBucketPtr vb;
 };
@@ -756,7 +758,9 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
 }
 
 void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
-        CollectionEntry::Entry collection, int64_t seqnoOffset) {
+        CollectionsManifest& cm,
+        CollectionEntry::Entry collection,
+        int64_t seqnoOffset) {
     auto key = StoredDocKey{"milk", collection};
     store_item(vbid, key, "nice");
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -764,8 +768,6 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
     store_item(vbid, key, "nice2");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // delete the collection
-    CollectionsManifest cm;
     // Need to update manifest uid so that we don't fail to flush due to going
     // backwards
     cm.updateUid(4);
@@ -813,7 +815,8 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
 }
 
 TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDropDefaultC) {
-    testCollectionPurgedItemsCorrectAfterDrop(CollectionEntry::defaultC);
+    CollectionsManifest cm;
+    testCollectionPurgedItemsCorrectAfterDrop(cm, CollectionEntry::defaultC);
 }
 
 TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDrop) {
@@ -821,8 +824,8 @@ TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDrop) {
     vb->updateFromManifest(makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    testCollectionPurgedItemsCorrectAfterDrop(CollectionEntry::dairy,
-                                              1 /*seqnoOffset*/);
+    testCollectionPurgedItemsCorrectAfterDrop(
+            cm, CollectionEntry::dairy, 1 /*seqnoOffset*/);
 }
 
 TEST_P(CollectionsEraserTest, DropEmptyCollection) {

@@ -1009,12 +1009,32 @@ public:
     void prepareToCreate(Vbid vbid);
 
     /**
+     * Apply the effects of a system-event to the KVStore (but don't persist
+     * the item). This is for 'mutations'
+     *
+     * Collection system events will be used to maintain extra meta-data before
+     * writing to disk.
+     * @param item The Item representing the event
+     */
+    void applySetSystemEvent(const Item& item);
+
+    /**
      * Set a system event into the KVStore.
      * Collection system events will be used to maintain extra meta-data before
      * writing to disk.
      * @param item The Item representing the event
      */
     void setSystemEvent(const queued_item);
+
+    /**
+     * Apply the effects of a system-event to the KVStore (but don't persist
+     * the item). This is for 'deletions'
+     *
+     * Collection system events will be used to maintain extra meta-data before
+     * writing to disk.
+     * @param item The Item representing the event
+     */
+    void applyDeleteSystemEvent(const Item& item);
 
     /**
      * delete a system event in the KVStore.

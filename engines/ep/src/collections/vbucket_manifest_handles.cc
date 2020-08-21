@@ -29,7 +29,7 @@ PersistedStats StatsReadHandle::getPersistedStats() const {
 }
 
 void ReadHandle::dump() const {
-    std::cerr << manifest << std::endl;
+    std::cerr << *manifest << std::endl;
 }
 
 void CachingReadHandle::dump() {

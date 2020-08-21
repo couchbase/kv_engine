@@ -436,25 +436,16 @@ public:
      *
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
-     * @return dropped collection list
      */
-
-    std::vector<Collections::KVStore::DroppedCollection> updateOpenCollections(
-            Vbid vbid, LocalDbReqs& localDbReqs);
+    void updateOpenCollections(Vbid vbid, LocalDbReqs& localDbReqs);
 
     /**
      * Maintain the list of dropped collections
      *
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
-     * @param dropped This method will only read the dropped collections
-     *   from storage if this optional is not initialised
      */
-    void updateDroppedCollections(
-            Vbid vbid,
-            LocalDbReqs& localDbReqs,
-            std::optional<std::vector<Collections::KVStore::DroppedCollection>>
-                    dropped);
+    void updateDroppedCollections(Vbid vbid, LocalDbReqs& localDbReqs);
 
     /**
      * Maintain the list of open scopes

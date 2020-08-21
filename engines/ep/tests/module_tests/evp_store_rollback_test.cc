@@ -448,7 +448,7 @@ protected:
             htState = getHtState();
         }
 
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::Yes),
                   getEPBucket().flushVBucket(vbid));
 
         // every key past this point will be lost from disk in a mid-point.
@@ -460,7 +460,7 @@ protected:
         auto rollback = rollbackCollectionCreate
                                 ? rollback_item.getBySeqno() - 1
                                 : item_v2.getBySeqno();
-        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::No),
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 3, WakeCkptRemover::Yes),
                   getEPBucket().flushVBucket(vbid));
 
         cm.remove(CollectionEntry::dairy);

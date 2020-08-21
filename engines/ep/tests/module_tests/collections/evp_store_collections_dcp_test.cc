@@ -238,8 +238,10 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
     ASSERT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+    EXPECT_EQ("fruit", producers->last_key);
 
     ASSERT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
@@ -577,6 +579,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
@@ -584,6 +587,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("meat", producers->last_key);
@@ -620,6 +624,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(7, replica->lockCollections().getManifestUid());
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(9, replica->lockCollections().getManifestUid());
@@ -945,6 +950,7 @@ TEST_P(CollectionsDcpParameterizedTest, collections_manifest_is_ahead) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::fruit.getId());
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
@@ -1082,15 +1088,17 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
     // Now the DCP client, we will step the creation events and one of the
     // default collection items, then disconnect and force backfill
 
-    notifyAndStepToCheckpoint(); // Record the snapshot we're processing
-    auto ss = producers->last_snap_start_seqno;
-    auto se = producers->last_snap_end_seqno;
+    notifyAndStepToCheckpoint();
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::fruit.getId());
     EXPECT_EQ(producers->last_system_event,
               mcbp::systemevent::id::CreateCollection);
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    // Record the snapshot we're processing
+    auto ss = producers->last_snap_start_seqno;
+    auto se = producers->last_snap_end_seqno;
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     EXPECT_EQ(producers->last_system_event,
@@ -1371,6 +1379,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
     // SystemEvent createCollection dairy in shop1
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
@@ -1472,6 +1481,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // SystemEvent createCollection
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
@@ -1537,6 +1547,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // SystemEvent createCollection
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
@@ -1626,11 +1637,11 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     ASSERT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // Check the collection create events are correct
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     ASSERT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     ASSERT_EQ(CollectionEntry::vegetable.getId(),
               producers->last_collection_id);
 
@@ -1922,6 +1933,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
     // SystemEvent createCollection
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
@@ -2558,6 +2570,175 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
               producer->step(producers.get()));
 }
 
+class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {
+public:
+    void resurrectionTest(bool dropAtEnd);
+};
+
+// Observed in MB-39864, the data we store in _local had a collection with
+// id x in the open collection list twice, leading to failure of warmup. The
+// issue occurred because a collection was recreated (cluster rolled back
+// manifest state), KV flushed a drop{c1}/create{c1} together and the flusher
+// de-duped the drop{c1} away so the meta-data became 'corrupt'.
+// This test re-creates the events which lead to a underflow in stats and
+// metadata corruption that lead to warmup failing.
+void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Add the fruit collection
+    CollectionEntry::Entry target = CollectionEntry::fruit;
+    CollectionsManifest cm(target);
+    store->setCollections(std::string{cm});
+    auto key = makeStoredDocKey("orange", target);
+    // Put a key in for the original 'fruit'
+    store_item(vbid, key, "yum");
+
+    // Transfer the evant and item active to replica
+    notifyAndStepToCheckpoint();
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, target.getId());
+    EXPECT_EQ(producers->last_system_event,
+              mcbp::systemevent::id::CreateCollection);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+    EXPECT_EQ(producers->last_collection_id, target.getId());
+    EXPECT_EQ(producers->last_key, "orange");
+
+    // Flush both vbuckets
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    flushVBucketToDiskIfPersistent(replicaVB, 2);
+
+    // Now in 1 flush drop and add fruit, this simulates the manifest dropping
+    // the collection, but going backwards/forwards 'resurrecting' the
+    // collection. KV needs to be robust against such events.
+    cm.remove(target);
+    store->setCollections(std::string{cm});
+    target.name += "a";
+    cm.add(target);
+    store->setCollections(std::string{cm});
+    cm.remove(target);
+    store->setCollections(std::string{cm});
+    target.name += "b";
+    cm.add(target);
+    store->setCollections(std::string{cm});
+    if (dropAtEnd) {
+        cm.remove(target);
+        store->setCollections(std::string{cm});
+    }
+
+    auto stepDelete = [this] {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                      cb::engine_errc::success);
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                      cb::engine_errc::success);
+        EXPECT_EQ(producers->last_collection_id,
+                  CollectionEntry::fruit.getId());
+        EXPECT_EQ(producers->last_system_event,
+                  mcbp::systemevent::id::DeleteCollection);
+    };
+    auto stepCreate = [this] {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                      cb::engine_errc::success);
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                      cb::engine_errc::success);
+        EXPECT_EQ(producers->last_collection_id,
+                  CollectionEntry::fruit.getId());
+        EXPECT_EQ(producers->last_system_event,
+                  mcbp::systemevent::id::CreateCollection);
+    };
+
+    notifyAndRunToCheckpoint(*producer, *producers);
+
+    stepDelete();
+    stepCreate();
+    stepDelete();
+    stepCreate();
+
+    if (dropAtEnd) {
+        stepDelete();
+    }
+
+    // Many events but only 1 is counted as flushed (because of flusher de-dup)
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    flushVBucketToDiskIfPersistent(replicaVB, 1);
+
+    // With or without the de-dup bug, we cannot read the key from the dropped
+    // collection because currently in-memory VB::Manifest has the correct
+    // view of collections - and our key isn't part of any 'new' generation of
+    // 'fruit'
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+
+    GetValue gv = store->get(key, vbid, cookie, options);
+
+    if (dropAtEnd) {
+        EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+    } else {
+        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    }
+
+    VBucketPtr rvb = store->getVBucket(replicaVB);
+    EXPECT_EQ(rvb->getHighSeqno(), vb->getHighSeqno());
+    // Now read back the persisted manifest(s) and validate that the fruit
+    // collection exists.
+    auto checkManifest = [dropAtEnd, &vb, &target](
+                                 const Collections::KVStore::Manifest& m) {
+        auto openSize = dropAtEnd ? 1 : 2;
+        EXPECT_EQ(openSize, m.collections.size());
+        EXPECT_TRUE(m.droppedCollectionsExist); // Always at least 1 drop
+
+        for (const auto& entry : m.collections) {
+            if (entry.metaData.cid == CollectionID::Default) {
+                EXPECT_EQ(0, entry.startSeqno);
+                EXPECT_EQ(ScopeID::Default, entry.metaData.sid);
+                EXPECT_EQ("_default", entry.metaData.name);
+            } else {
+                EXPECT_EQ(2, openSize);
+                EXPECT_EQ(target.getId(), entry.metaData.cid);
+                EXPECT_EQ(ScopeID::Default, entry.metaData.sid);
+                EXPECT_EQ(target.name, entry.metaData.name);
+                EXPECT_EQ(vb->getHighSeqno(), entry.startSeqno);
+            }
+        }
+    };
+    checkManifest(
+            vb->getShard()->getRWUnderlying()->getCollectionsManifest(vbid));
+    checkManifest(rvb->getShard()->getRWUnderlying()->getCollectionsManifest(
+            replicaVB));
+
+    // Now read back the persisted drop collection data and validate
+    auto checkDropped =
+            [dropAtEnd, &vb, &target](
+                    const std::vector<Collections::KVStore::DroppedCollection>&
+                            dropped) {
+                EXPECT_EQ(1, dropped.size());
+                auto& entry = dropped[0];
+                EXPECT_EQ(target.getId(), entry.collectionId);
+                // In this test the first generation of target is always seqno:1
+                EXPECT_EQ(1, entry.startSeqno);
+                if (dropAtEnd) {
+                    EXPECT_EQ(vb->getHighSeqno(), entry.endSeqno);
+
+                } else {
+                    EXPECT_EQ(vb->getHighSeqno() - 1, entry.endSeqno);
+                }
+            };
+
+    checkDropped(
+            vb->getShard()->getRWUnderlying()->getDroppedCollections(vbid));
+    checkDropped(rvb->getShard()->getRWUnderlying()->getDroppedCollections(
+            replicaVB));
+}
+TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id) {
+    resurrectionTest(false);
+}
+
+TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_end_dropped) {
+    resurrectionTest(true);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
@@ -2567,4 +2748,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpCloseAfterLosingPrivs,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
+                         CollectionsDcpPersistentOnly,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

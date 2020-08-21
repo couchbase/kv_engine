@@ -152,7 +152,7 @@ struct CollectionMetaData {
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{DefaultCollectionName}; // The collection's name
-    cb::ExpiryLimit maxTtl; // The collection's maxTTL
+    cb::ExpiryLimit maxTtl{}; // The collection's maxTTL
 
     bool operator==(const CollectionMetaData& other) const {
         return sid == other.sid && cid == other.cid && name == other.name &&
