@@ -378,19 +378,23 @@ void ClusterImpl::iterateNodes(std::function<void(const Node&)> visitor) const {
     }
 }
 
-std::unique_ptr<Cluster> Cluster::create(size_t num_nodes) {
-    const auto pattern = cb::io::sanitizePath(cb::io::getcwd() + "/cluster_");
-    const auto clusterdir = cb::io::mkdtemp(pattern);
+std::unique_ptr<Cluster> Cluster::create(size_t num_nodes,
+                                         std::optional<std::string> directory) {
+    if (!directory) {
+        const auto pattern =
+                cb::io::sanitizePath(cb::io::getcwd() + "/cluster_");
+        directory = cb::io::mkdtemp(pattern);
+    }
 
     std::vector<std::unique_ptr<Node>> nodes;
     for (size_t n = 0; n < num_nodes; ++n) {
         const std::string id = "n_" + std::to_string(n);
-        const auto nodedir = cb::io::sanitizePath(clusterdir + "/" + id);
+        const auto nodedir = cb::io::sanitizePath(*directory + "/" + id);
         cb::io::mkdirp(nodedir);
         nodes.emplace_back(Node::create(nodedir, id));
     }
 
-    return std::make_unique<ClusterImpl>(nodes, clusterdir);
+    return std::make_unique<ClusterImpl>(nodes, *directory);
 }
 
 nlohmann::json Cluster::getUninitializedJson() {

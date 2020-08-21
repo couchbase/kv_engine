@@ -22,6 +22,7 @@
 #include <memcached/vbucket.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
+#include <optional>
 
 class MemcachedConnection;
 
@@ -113,9 +114,13 @@ public:
      * Factory method to create a cluster
      *
      * @param nodes The number of nodes in the cluster
+     * @param directory an optional directory of where to create the nodes
+     *                  (by default `pwd/cluster_XXXXX` where XXXXX is a
+     *                  unique number)
      * @return a handle to the newly created cluster
      */
-    static std::unique_ptr<Cluster> create(size_t nodes);
+    static std::unique_ptr<Cluster> create(
+            size_t nodes, std::optional<std::string> directory = {});
 
     /**
      * Get all IPv4 and IPv6 addresses configured on this machine (skipping
