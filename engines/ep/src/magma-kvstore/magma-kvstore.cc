@@ -173,36 +173,36 @@ static const MetaData& getDocMeta(const Slice& metaSlice) {
     return *docMeta;
 }
 
-static const uint64_t getSeqNum(const Slice& metaSlice) {
+static uint64_t getSeqNum(const Slice& metaSlice) {
     return getDocMeta(metaSlice).bySeqno;
 }
 
-static const size_t getValueSize(const Slice& metaSlice) {
+static size_t getValueSize(const Slice& metaSlice) {
     return getDocMeta(metaSlice).valueSize;
 }
 
-static const uint32_t getExpiryTime(const Slice& metaSlice) {
+static uint32_t getExpiryTime(const Slice& metaSlice) {
     return getDocMeta(metaSlice).exptime;
 }
 
-static const bool isDeleted(const Slice& metaSlice) {
+static bool isDeleted(const Slice& metaSlice) {
     return getDocMeta(metaSlice).deleted > 0;
 }
 
-static const bool isCompressed(const Slice& metaSlice) {
+static bool isCompressed(const Slice& metaSlice) {
     return mcbp::datatype::is_snappy(getDocMeta(metaSlice).datatype);
 }
 
-static const Vbid getVbid(const Slice& metaSlice) {
+static Vbid getVbid(const Slice& metaSlice) {
     return Vbid(getDocMeta(metaSlice).vbid);
 }
 
-static const bool isPrepared(const Slice& metaSlice) {
+static bool isPrepared(const Slice& metaSlice) {
     return static_cast<MetaData::Operation>(getDocMeta(metaSlice).operation) ==
            MetaData::Operation::PreparedSyncWrite;
 }
 
-static const bool isAbort(const Slice& metaSlice) {
+static bool isAbort(const Slice& metaSlice) {
     return static_cast<MetaData::Operation>(getDocMeta(metaSlice).operation) ==
            MetaData::Operation::Abort;
 }
@@ -1551,7 +1551,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     std::tie(status, valString) = readLocalDoc(vbid, keySlice);
 
     if (!status.IsOK()) {
-        return {status, {}};
+        return {status, {}, {}};
     }
 
     nlohmann::json j;
