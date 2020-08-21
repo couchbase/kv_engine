@@ -34,6 +34,7 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_replicationthrottle.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -1964,15 +1965,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
 
     // The consumer receives snapshot-marker [seqno, seqno]
     uint32_t opaque = 0;
-    SnapshotMarker marker(opaque,
-                          vbid,
-                          seqno,
-                          seqno,
-                          snapshotMarkerFlags,
-                          hcs /*HCS*/,
-                          {} /*maxVisibleSeqno*/,
-                          {} /*streamId*/);
-    stream->processMarker(&marker);
+    makeAndProcessSnapshotMarker(opaque, seqno, snapshotMarkerFlags, hcs);
 
     queued_item qi = makePendingItem(
             key, "value", Requirements(level, Timeout::Infinity()));
@@ -1991,6 +1984,21 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
     return qi;
+}
+void DurabilityPassiveStreamTest::makeAndProcessSnapshotMarker(
+        uint32_t opaque,
+        uint64_t seqno,
+        uint64_t snapshotMarkerFlags,
+        const boost::optional<uint64_t>& hcs) {
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          seqno,
+                          seqno,
+                          snapshotMarkerFlags,
+                          hcs /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
 }
 
 void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
@@ -4010,6 +4018,69 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
                       DocKeyEncodesCollectionId::No,
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
+}
+
+// Regression test for MB-41024: check that if a Prepare is received when under
+// memory pressure and it is initially rejected and queued, that the snapshot
+// end is not notified twice to PDM.
+TEST_P(DurabilityPassiveStreamTest,
+       MB_41024_PrepareAtSnapEndWithMemoryPressure) {
+    if (ephemeralFailNewData()) {
+        // This configuration disconnects if a replication stream would
+        // go over the high watermark - so test not applicable.
+        return;
+    }
+
+    // Send initial snapshot marrker.
+    uint32_t opaque = 0;
+    auto prepareSeqno = 1;
+    // Require a disk snapshot so PassiveStream::handleSnapshotEnd() notifies
+    // the PDM even if we haven't successfully processed a Prepare.
+    makeAndProcessSnapshotMarker(
+            opaque, prepareSeqno, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+
+    // Setup - send prepare. This should initially be rejected, by virtue
+    // of it value size which would make mem_used greater than
+    // bucket quota * replicationThrottleThreshold.
+    std::string largeValue(1024 * 1024 * 10, '\0');
+    using namespace cb::durability;
+    auto prepare =
+            makePendingItem(makeStoredDocKey("key"),
+                            largeValue,
+                            Requirements(Level::Majority, Timeout::Infinity()));
+    prepare->setBySeqno(prepareSeqno);
+
+    // We *don't* want the replication throttle to kick in before we attempt
+    // to process the prepare, so configure the MockReplicationThrottle to
+    // just return "Process" when called during the messageReceived call
+    // below.
+    using namespace ::testing;
+    EXPECT_CALL(engine->getMockReplicationThrottle(), getStatus())
+            .WillOnce(Return(ReplicationThrottle::Status::Process));
+
+    // Message received by stream. Too large for current mem_used so should
+    // be buffered and return TMPFAIL
+    EXPECT_EQ(ENGINE_TMPFAIL,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      prepare,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    // Increase replicationThrottleThreshold to allow mutation to be processed.
+    engine->getConfiguration().setReplicationThrottleThreshold(100);
+
+    // Test: now process the buffered message. This would previously throw a
+    // Monotonic logic_error exception when attempting to push the same
+    // seqno to the PDM::receivedSnapshotEnds
+    uint32_t processedBytes = 0;
+    EXPECT_EQ(all_processed,
+              stream->processBufferedMessages(processedBytes, 1));
 }
 
 void DurabilityPromotionStreamTest::SetUp() {

@@ -68,7 +68,7 @@ queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value) {
 }
 
 queued_item makePendingItem(StoredDocKey key,
-                            std::string value,
+                            const std::string& value,
                             cb::durability::Requirements reqs) {
     queued_item qi{new Item(key, 0, 0, value.data(), value.size())};
     qi->setPendingSyncWrite(reqs);
