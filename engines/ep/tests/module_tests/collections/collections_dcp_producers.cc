@@ -165,7 +165,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
     return ret;
 }
 
-ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::mutation(
+ENGINE_ERROR_CODE CollectionsDcpTestProducers::mutation(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -207,7 +207,7 @@ ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::mutation(
     return ret;
 }
 
-ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::prepare(
+ENGINE_ERROR_CODE CollectionsDcpTestProducers::prepare(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -251,12 +251,11 @@ ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::prepare(
     return ret;
 }
 
-ENGINE_ERROR_CODE CollectionsSyncWriteDcpTestProducers::commit(
-        uint32_t opaque,
-        Vbid vbucket,
-        const DocKey& key,
-        uint64_t prepare_seqno,
-        uint64_t commit_seqno) {
+ENGINE_ERROR_CODE CollectionsDcpTestProducers::commit(uint32_t opaque,
+                                                      Vbid vbucket,
+                                                      const DocKey& key,
+                                                      uint64_t prepare_seqno,
+                                                      uint64_t commit_seqno) {
     auto ret = ENGINE_SUCCESS;
     if (consumer) {
         ret = consumer->commit(

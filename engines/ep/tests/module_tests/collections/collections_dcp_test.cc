@@ -108,12 +108,17 @@ void CollectionsDcpTest::createDcpObjects(
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
-    if (enableOutOfOrderSnapshots) {
-        producer->enableOutOfOrderSnapshots();
-    }
+
     // Give the producers object access to the consumer and vbid of replica
     producers->consumer = consumer.get();
     producers->replicaVB = replicaVB;
+
+    if (enableOutOfOrderSnapshots) {
+        // The CollectionsDcpProducer by default tries to pass messages to the
+        // replica which won't work with OSO. No consumer = no replication
+        producers->consumer = nullptr;
+        producer->enableOutOfOrderSnapshots();
+    }
 
     if (enableSyncRep) {
         EXPECT_EQ(ENGINE_SUCCESS,

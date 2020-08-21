@@ -48,17 +48,7 @@ public:
                              std::optional<uint64_t> timestamp,
                              cb::mcbp::DcpStreamId sid) override;
 
-    MockDcpConsumer* consumer = nullptr;
-    Vbid replicaVB;
-};
 
-class CollectionsSyncWriteDcpTestProducers
-    : public CollectionsDcpTestProducers {
-public:
-    CollectionsSyncWriteDcpTestProducers(EngineIface* engine = nullptr)
-        : CollectionsDcpTestProducers(engine) {
-    }
-    ~CollectionsSyncWriteDcpTestProducers() override = default;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                cb::unique_item_ptr itm,
@@ -84,4 +74,7 @@ public:
                              const DocKey& key,
                              uint64_t prepare_seqno,
                              uint64_t commit_seqno) override;
+
+    MockDcpConsumer* consumer = nullptr;
+    Vbid replicaVB;
 };
