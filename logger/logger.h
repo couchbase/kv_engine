@@ -158,7 +158,7 @@ void shutdown();
 /**
  * @return whether or not the logger has been initialized
  */
-LOGGER_PUBLIC_API const bool isInitialized();
+LOGGER_PUBLIC_API bool isInitialized();
 
 } // namespace logger
 } // namespace cb

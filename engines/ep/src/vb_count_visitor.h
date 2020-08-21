@@ -181,7 +181,7 @@ public:
     size_t getDatatypeCount(protocol_binary_datatype_t datatype) const {
         return datatypeCounts[datatype];
     }
-    const size_t getNumDatatypes() const {
+    size_t getNumDatatypes() const {
         return datatypeCounts.size();
     }
 

@@ -67,7 +67,9 @@ public:
 
     const std::string getName() const;
 
-    const task_type_t getQueueType() const { return queueType; }
+    task_type_t getQueueType() const {
+        return queueType;
+    }
 
     size_t getReadyQueueSize();
 

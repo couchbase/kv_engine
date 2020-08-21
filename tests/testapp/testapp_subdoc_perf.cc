@@ -296,7 +296,8 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
     for (size_t i = 0; i < iterations; i++) {
         mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDelete,
                                   SUBDOC_FLAG_NONE,
-                                  "[0]"});
+                                  "[0]",
+                                  {}});
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.

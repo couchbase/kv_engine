@@ -898,7 +898,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
             break;
         }
 
-        request.at(0) = {cmd, protocol_binary_subdoc_flag(0), "[0]"};
+        request.at(0) = {cmd, protocol_binary_subdoc_flag(0), "[0]", {}};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
                 << "Failed for cmd:" << ::to_string(cb::mcbp::ClientOpcode(ii));
     }

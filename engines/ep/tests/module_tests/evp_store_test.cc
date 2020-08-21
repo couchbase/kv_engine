@@ -49,6 +49,7 @@
 #include <xattr/utils.h>
 
 #include <thread>
+#include <utility>
 
 void EPBucketTest::SetUp() {
     STParameterizedBucketTest::SetUp();
@@ -1186,10 +1187,20 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
 
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
     struct TestData {
-        StoredDocKey key;
-        cb::StoreIfPredicate predicate;
-        cb::engine_errc expectedVEStatus;
-        cb::engine_errc expectedFEStatus;
+        TestData(StoredDocKey key,
+                 cb::StoreIfPredicate predicate,
+                 cb::engine_errc expectedVEStatus,
+                 cb::engine_errc expectedFEStatus)
+            : key(std::move(key)),
+              predicate(std::move(predicate)),
+              expectedVEStatus(expectedVEStatus),
+              expectedFEStatus(expectedFEStatus) {
+        }
+
+        const StoredDocKey key;
+        const cb::StoreIfPredicate predicate;
+        const cb::engine_errc expectedVEStatus;
+        const cb::engine_errc expectedFEStatus;
         cb::engine_errc actualStatus;
     };
 

@@ -1080,7 +1080,7 @@ void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
                                 cur_len)});
             bufcur += cur_len;
         } else {
-            results.emplace_back(MutationResult{index, cur_status});
+            results.emplace_back(MutationResult{index, cur_status, {}});
         }
     }
 }

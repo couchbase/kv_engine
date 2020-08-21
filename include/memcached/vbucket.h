@@ -64,7 +64,7 @@ public:
     explicit Vbid(id_type vbidParam) : vbid(vbidParam){};
 
     // Retrieve the vBucket ID in the form of uint16_t
-    const id_type get() const {
+    id_type get() const {
         return vbid;
     }
 

@@ -37,7 +37,7 @@ public:
      */
     explicit EventDescriptor(const nlohmann::json& root);
 
-    const uint32_t getId() const {
+    uint32_t getId() const {
         return id;
     }
 
@@ -49,15 +49,15 @@ public:
         return description;
     }
 
-    const bool isSync() const {
+    bool isSync() const {
         return sync;
     }
 
-    const bool isEnabled() const {
+    bool isEnabled() const {
         return enabled;
     }
 
-    const bool isFilteringPermitted() const {
+    bool isFilteringPermitted() const {
         return filteringPermitted;
     }
 

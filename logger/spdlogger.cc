@@ -78,7 +78,7 @@ void cb::logger::shutdown() {
 }
 
 LOGGER_PUBLIC_API
-const bool cb::logger::isInitialized() {
+bool cb::logger::isInitialized() {
     return file_logger != nullptr;
 }
 

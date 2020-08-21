@@ -381,10 +381,12 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                               "3"});
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDelete,
                               SUBDOC_FLAG_NONE,
-                              "items.1"});
+                              "items.1",
+                              {}});
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDelete,
                               SUBDOC_FLAG_NONE,
-                              "items.3"});
+                              "items.3",
+                              {}});
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocCounter,
                               SUBDOC_FLAG_NONE,
                               "count",
@@ -399,8 +401,10 @@ void test_subdoc_multi_mutation_dictadd_delete() {
 
     // 2. Delete the old 'items' dictionary and create a new one.
     mutation.specs.clear();
-    mutation.specs.push_back(
-            {cb::mcbp::ClientOpcode::SubdocDelete, SUBDOC_FLAG_NONE, "items"});
+    mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDelete,
+                              SUBDOC_FLAG_NONE,
+                              "items",
+                              {}});
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDictUpsert,
                               SUBDOC_FLAG_NONE,
                               "count",

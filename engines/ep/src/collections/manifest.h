@@ -271,7 +271,8 @@ private:
 
     bool defaultCollectionExists{true};
     scopeContainer scopes = {
-            {ScopeID::Default, {DefaultScopeName, {{CollectionID::Default}}}}};
+            {ScopeID::Default,
+             {DefaultScopeName, {{CollectionID::Default, cb::NoExpiryLimit}}}}};
     collectionContainer collections = {
             {CollectionID::Default, {ScopeID::Default, DefaultCollectionName}}};
     ManifestUid uid{0};
