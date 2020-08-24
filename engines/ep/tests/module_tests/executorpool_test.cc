@@ -24,6 +24,7 @@
 #include "lambda_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include <folly/portability/GMock.h>
+#include <folly/synchronization/Baton.h>
 #include <nlohmann/json.hpp>
 
 using namespace std::chrono_literals;
@@ -120,6 +121,44 @@ TYPED_TEST(ExecutorPoolTest, UnregisterForce) {
     this->pool->unregisterTaskable(taskable, true);
 
     EXPECT_FALSE(taskRan);
+}
+
+/// Test that after unregisterTaskable returns no more tasks of that Taskable
+/// run.
+TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesCancelsTasks) {
+    this->makePool(1);
+    // Taskable deliberately put on heap to highlight any use-after-free issues
+    // if any Tasks access it after unregister.
+    auto taskable = std::make_unique<MockTaskable>();
+    this->pool->registerTaskable(*taskable);
+
+    // Create a task which runs constantly until cancelled.
+    folly::Baton taskStart;
+
+    auto taskFn = [&taskStart, taskablePtr = taskable.get()](LambdaTask& task) {
+        // Post that this task has started.
+        taskStart.post();
+
+        // Sleep here to increase chance it is still running on CPU pool when
+        // its taskable is unregistered.
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+
+        // Access it's taskable - if this runs after unregisterTaskable() than
+        // that would be invalid.
+        taskablePtr->logRunTime(task.getTaskId(), {});
+        return true;
+    };
+    auto task = std::make_shared<LambdaTask>(
+            *taskable, TaskId::ItemPager, 0, false, taskFn);
+    this->pool->schedule(task);
+
+    // Wait for task to be running.
+    taskStart.wait();
+
+    // Test: Unregister the taskable, then delete the taskable. Taskable should
+    // not be accessed.
+    this->pool->unregisterTaskable(*taskable, false);
+    taskable.reset();
 }
 
 /// Test that tasks are run immediately when they are woken.
