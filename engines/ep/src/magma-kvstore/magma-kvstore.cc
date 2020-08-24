@@ -1906,8 +1906,8 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
             // now to maintain the document count when we erase the collections.
             deleteCollectionStats(localDbReqs, dc.collectionId);
 
-            ctx->eraserContext->processEndOfCollection(key.getDocKey(),
-                                                       SystemEvent::Collection);
+            ctx->eraserContext->processSystemEvent(key.getDocKey(),
+                                                   SystemEvent::Collection);
         }
     }
 

@@ -27,25 +27,26 @@ EraserContext::EraserContext(
     : ScanContext(droppedCollections) {
 }
 
-void EraserContext::processEndOfCollection(const DocKey& key, SystemEvent se) {
-    if (!key.isInSystemCollection() || se != SystemEvent::Collection) {
-        return;
+void EraserContext::processSystemEvent(const DocKey& key, SystemEvent se) {
+    if (se == SystemEvent::Collection) {
+        // The system event we are processing could be:
+        // 1) A deleted collection (so represents the end of dropped collection)
+        // 2) A create event which came after a drop (collection resurrection)
+        //    In this case we still need to look in the drop list so we know
+        //    that the old generation of the collection was fully visited and
+        //    can now be removed.
+        // If the ID is in the drop list, then we remove it and set the
+        // 'removed' flag.
+        auto itr = dropped.find(getCollectionIDFromKey(key));
+        if (itr != dropped.end()) {
+            dropped.erase(itr);
+            removed = true;
+        }
     }
-
-    remove(getCollectionIDFromKey(key));
 }
 
 bool EraserContext::needToUpdateCollectionsMetadata() const {
     return removed;
-}
-
-void EraserContext::remove(CollectionID id) {
-    auto itr = dropped.find(id);
-    // OK to not find the id. It could be a tombstone
-    if (itr != dropped.end()) {
-        dropped.erase(itr);
-        removed = true;
-    }
 }
 
 std::ostream& operator<<(std::ostream& os, const EraserContext& eraserContext) {

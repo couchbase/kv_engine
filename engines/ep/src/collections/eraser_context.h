@@ -39,8 +39,7 @@ public:
      * @param key The key of the deleted value (will returns if not system)
      * @param se The flags...SystemEvent of the value
      */
-    void processEndOfCollection(const DocKey& key, SystemEvent se);
-
+    void processSystemEvent(const DocKey& key, SystemEvent se);
     /**
      * @return true if the on-disk collection meta-data should be updated
      */
@@ -49,9 +48,7 @@ public:
 private:
     friend std::ostream& operator<<(std::ostream&, const EraserContext&);
 
-    /// Remove the cid from ScanContext::dropped set
-    void remove(CollectionID cid);
-
+    /// set to true if an entry was removed from the 'dropped' container
     bool removed = false;
 };
 

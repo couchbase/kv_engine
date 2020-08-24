@@ -2730,6 +2730,17 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
             vb->getShard()->getRWUnderlying()->getDroppedCollections(vbid));
     checkDropped(rvb->getShard()->getRWUnderlying()->getDroppedCollections(
             replicaVB));
+
+    runEraser();
+
+    EXPECT_TRUE(vb->getShard()
+                        ->getRWUnderlying()
+                        ->getDroppedCollections(vbid)
+                        .empty());
+    EXPECT_TRUE(rvb->getShard()
+                        ->getRWUnderlying()
+                        ->getDroppedCollections(replicaVB)
+                        .empty());
 }
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id) {
     resurrectionTest(false);

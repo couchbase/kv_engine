@@ -821,7 +821,8 @@ static int time_purge_hook(Db* d,
             // As such use the docKey (i.e. without any DurabilityPrepare
             // namespace) when checking if logically deleted;
             auto diskKey = makeDiskDocKey(info->id);
-            if (ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
+            const auto& docKey = diskKey.getDocKey();
+            if (ctx->eraserContext->isLogicallyDeleted(docKey,
                                                        int64_t(info->db_seq))) {
                 // Inform vb that the key@seqno is dropped
                 try {
@@ -844,9 +845,9 @@ static int time_purge_hook(Db* d,
                     }
                 }
                 return COUCHSTORE_COMPACT_DROP_ITEM;
-            } else if (info->deleted) {
-                ctx->eraserContext->processEndOfCollection(
-                        diskKey.getDocKey(), SystemEvent(metadata->getFlags()));
+            } else if (docKey.isInSystemCollection()) {
+                ctx->eraserContext->processSystemEvent(
+                        docKey, SystemEvent(metadata->getFlags()));
             }
         }
 
