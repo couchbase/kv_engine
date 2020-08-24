@@ -459,8 +459,9 @@ if (NOT EP_BYPASS_TESTS)
             ${EP_STORAGE_LIBS}
             ${LIBEVENT_LIBRARIES}
             ${FOLLY_LIBRARIES})
+    target_include_directories(ep_engine_benchmarks SYSTEM PRIVATE
+                               ${benchmark_SOURCE_DIR}/include)
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
-                               ${benchmark_SOURCE_DIR}/include
                                tests
                                benchmarks
                                ${Couchstore_SOURCE_DIR})

@@ -35,7 +35,7 @@ endif()
 add_executable(memcached_mcbp_bench
         mcbp_bench.cc)
 target_include_directories(memcached_mcbp_bench
-    PRIVATE
+    SYSTEM PRIVATE
     ${benchmark_SOURCE_DIR}/include)
 target_link_libraries(memcached_mcbp_bench
                       benchmark memcached_daemon)
