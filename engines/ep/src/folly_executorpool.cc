@@ -67,26 +67,6 @@ void FollyExecutorPool::setNumNonIO(uint16_t v) {
     std::abort();
 }
 
-size_t FollyExecutorPool::getMaxReaders() {
-    std::abort();
-    return 0;
-}
-
-size_t FollyExecutorPool::getMaxWriters() {
-    std::abort();
-    return 0;
-}
-
-size_t FollyExecutorPool::getMaxAuxIO() {
-    std::abort();
-    return 0;
-}
-
-size_t FollyExecutorPool::getMaxNonIO() {
-    std::abort();
-    return 0;
-}
-
 size_t FollyExecutorPool::getNumSleepers() {
     std::abort();
     return 0;

@@ -148,10 +148,6 @@ public:
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override;
     void setNumAuxIO(uint16_t v) override;
     void setNumNonIO(uint16_t v) override;
-    size_t getMaxReaders() override;
-    size_t getMaxWriters() override;
-    size_t getMaxAuxIO() override;
-    size_t getMaxNonIO() override;
     size_t getNumSleepers() override;
     size_t getNumReadyTasks() override;
 

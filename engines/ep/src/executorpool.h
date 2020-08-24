@@ -72,21 +72,6 @@ public:
     /// Set the number of Non-IO threads to the specified number.
     virtual void setNumNonIO(uint16_t v) = 0;
 
-    /*
-     * The following getMax...() methods are deprecated - the "maximum" number
-     * of threads is the same as the current number as returned by getNum...()
-     * above.
-     */
-
-    /// [Deprecated] Get the "maximum" number of Reader IO threads.
-    virtual size_t getMaxReaders() = 0;
-    /// [Deprecated] Get the "maximum" number of Writer IO threads.
-    virtual size_t getMaxWriters() = 0;
-    /// [Deprecated] Get the "maximum" number of Auxillary IO threads.
-    virtual size_t getMaxAuxIO() = 0;
-    /// [Deprecated] Get the "maximum" number of Non-IO threads.
-    virtual size_t getMaxNonIO() = 0;
-
     /// @returns the number of threads currently sleeping.
     virtual size_t getNumSleepers() = 0;
 

@@ -4232,22 +4232,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(
         checked_snprintf(statname, sizeof(statname), "ep_workload:num_nonio");
         add_casted_stat(statname, nonio, add_stat, cookie);
 
-        int max_readers = expool->getMaxReaders();
-        checked_snprintf(statname, sizeof(statname), "ep_workload:max_readers");
-        add_casted_stat(statname, max_readers, add_stat, cookie);
-
-        int max_writers = expool->getMaxWriters();
-        checked_snprintf(statname, sizeof(statname), "ep_workload:max_writers");
-        add_casted_stat(statname, max_writers, add_stat, cookie);
-
-        int max_auxio = expool->getMaxAuxIO();
-        checked_snprintf(statname, sizeof(statname), "ep_workload:max_auxio");
-        add_casted_stat(statname, max_auxio, add_stat, cookie);
-
-        int max_nonio = expool->getMaxNonIO();
-        checked_snprintf(statname, sizeof(statname), "ep_workload:max_nonio");
-        add_casted_stat(statname, max_nonio, add_stat, cookie);
-
         int shards = workload->getNumShards();
         checked_snprintf(statname, sizeof(statname), "ep_workload:num_shards");
         add_casted_stat(statname, shards, add_stat, cookie);

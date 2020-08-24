@@ -3788,25 +3788,12 @@ static enum test_result test_workload_stats(EngineIface* h) {
             get_int_stat(h, "ep_workload:num_auxio", "workload");
     int num_nonio_threads =
             get_int_stat(h, "ep_workload:num_nonio", "workload");
-    int max_read_threads =
-            get_int_stat(h, "ep_workload:max_readers", "workload");
-    int max_write_threads =
-            get_int_stat(h, "ep_workload:max_writers", "workload");
-    int max_auxio_threads =
-            get_int_stat(h, "ep_workload:max_auxio", "workload");
-    int max_nonio_threads =
-            get_int_stat(h, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     checkeq(10, num_read_threads, "Incorrect number of readers");
     checkeq(4, num_write_threads, "Incorrect number of writers");
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");
     check(num_nonio_threads > 1 && num_nonio_threads <= 8,
           "Incorrect number of nonio threads");
-    checkeq(10, max_read_threads, "Incorrect limit of readers");
-    checkeq(4, max_write_threads, "Incorrect limit of writers");
-    checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");
-    check(max_nonio_threads > 1 && max_nonio_threads <=8,
-          "Incorrect limit of nonio threads");
     checkeq(5, num_shards, "Incorrect number of shards");
     return SUCCESS;
 }
@@ -3825,24 +3812,12 @@ static enum test_result test_max_workload_stats(EngineIface* h) {
             get_int_stat(h, "ep_workload:num_auxio", "workload");
     int num_nonio_threads =
             get_int_stat(h, "ep_workload:num_nonio", "workload");
-    int max_read_threads =
-            get_int_stat(h, "ep_workload:max_readers", "workload");
-    int max_write_threads =
-            get_int_stat(h, "ep_workload:max_writers", "workload");
-    int max_auxio_threads =
-            get_int_stat(h, "ep_workload:max_auxio", "workload");
-    int max_nonio_threads =
-            get_int_stat(h, "ep_workload:max_nonio", "workload");
     int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     checkeq(14, num_read_threads, "Incorrect number of readers");
     checkeq(4, num_write_threads, "Incorrect number of writers");
 
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");// config
     checkeq(4, num_nonio_threads, "Incorrect number of nonio threads");// config
-    checkeq(14, max_read_threads, "Incorrect limit of readers"); // derived
-    checkeq(4, max_write_threads, "Incorrect limit of writers"); // derived
-    checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");// config
-    checkeq(4, max_nonio_threads, "Incorrect limit of nonio threads");// config
     checkeq(5, num_shards, "Incorrect number of shards");
     return SUCCESS;
 }
@@ -7124,10 +7099,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_workload:num_writers",
               "ep_workload:num_auxio",
               "ep_workload:num_nonio",
-              "ep_workload:max_readers",
-              "ep_workload:max_writers",
-              "ep_workload:max_auxio",
-              "ep_workload:max_nonio",
               "ep_workload:num_shards",
               "ep_workload:ready_tasks",
               "ep_workload:num_sleepers",

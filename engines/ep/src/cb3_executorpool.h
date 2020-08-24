@@ -175,22 +175,6 @@ public:
 
     size_t getNumNonIO() override;
 
-    size_t getMaxReaders() override {
-        return numWorkers[READER_TASK_IDX];
-    }
-
-    size_t getMaxWriters() override {
-        return numWorkers[WRITER_TASK_IDX];
-    }
-
-    size_t getMaxAuxIO() override {
-        return numWorkers[AUXIO_TASK_IDX];
-    }
-
-    size_t getMaxNonIO() override {
-        return numWorkers[NONIO_TASK_IDX];
-    }
-
     void setNumReaders(ThreadPoolConfig::ThreadCount v) override {
         adjustWorkers(READER_TASK_IDX, calcNumReaders(v));
     }
