@@ -83,6 +83,8 @@ public:
         return couchstoreMprotectEnabled;
     }
 
+    void setCouchstoreFileCacheMaxSize(size_t value);
+
 private:
     class ConfigChangeListener;
 

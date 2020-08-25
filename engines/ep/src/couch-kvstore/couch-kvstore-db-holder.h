@@ -36,7 +36,9 @@ public:
     // Move-construction is allowed.
     DbHolder(DbHolder&& other);
 
-    DbHolder& operator=(DbHolder&& other) = delete;
+    // Move-assignment is required for folly::EvictingCacheMap::set in the
+    // CouchKVStoreFileCache
+    DbHolder& operator=(DbHolder&& other);
 
     Db** getDbAddress() {
         return &db;
@@ -78,7 +80,7 @@ public:
     }
 
 protected:
-    CouchKVStore& kvstore;
+    std::reference_wrapper<CouchKVStore> kvstore;
     Db* db;
     uint64_t fileRev;
 };

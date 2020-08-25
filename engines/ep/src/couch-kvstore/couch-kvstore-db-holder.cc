@@ -24,8 +24,14 @@ DbHolder::DbHolder(DbHolder&& other) : DbHolder(other.kvstore) {
     fileRev = other.fileRev;
 }
 
+DbHolder& DbHolder::operator=(DbHolder&& other) {
+    db = other.releaseDb();
+    fileRev = other.fileRev;
+    return *this;
+}
+
 void DbHolder::close() {
     if (db) {
-        kvstore.closeDatabaseHandle(releaseDb());
+        kvstore.get().closeDatabaseHandle(releaseDb());
     }
 }

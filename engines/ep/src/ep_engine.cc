@@ -794,6 +794,13 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::mcbp::Status::Einval;
             }
+        } else if (key == "couchstore_file_cache_max_size") {
+            uint32_t value;
+            if (safe_strtoul(val.c_str(), value)) {
+                getConfiguration().setCouchstoreFileCacheMaxSize(value);
+            } else {
+                rv = cb::mcbp::Status::Einval;
+            }
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
