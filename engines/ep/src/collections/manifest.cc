@@ -78,13 +78,16 @@ static void throwIfWrongType(const std::string& errorKey,
 
 Manifest::Manifest(std::string_view json)
     : defaultCollectionExists(false), scopes(), collections(), uid(0) {
+    auto throwInvalid = [](const std::string& detail) {
+        throw std::invalid_argument("Manifest::Manifest: " + detail);
+    };
+
     nlohmann::json parsed;
     try {
         parsed = nlohmann::json::parse(json);
     } catch (const nlohmann::json::exception& e) {
-        throw std::invalid_argument(
-                "Manifest::Manifest nlohmann cannot parse json:" +
-                std::string(json) + ", e:" + e.what());
+        throwInvalid("nlohmann cannot parse json:" + std::string(json) +
+                     ", e:" + e.what());
     }
 
     // Read the Manifest UID e.g. "uid" : "5fa1"
@@ -103,8 +106,7 @@ Manifest::Manifest(std::string_view json)
 
         auto nameValue = name.get<std::string>();
         if (!validName(nameValue)) {
-            throw std::invalid_argument("Manifest::Manifest scope name: " +
-                                        nameValue + " is not valid.");
+            throwInvalid("scope name: " + nameValue + " is not valid.");
         }
 
         // Construction of ScopeID checks for invalid values
@@ -112,17 +114,15 @@ Manifest::Manifest(std::string_view json)
 
         // Scope uids must be unique
         if (this->scopes.count(uidValue) > 0) {
-            throw std::invalid_argument(
-                    "Manifest::Manifest duplicate scope uid:" +
-                    uidValue.to_string() + ", name:" + nameValue);
+            throwInvalid("duplicate scope uid:" + uidValue.to_string() +
+                         ", name:" + nameValue);
         }
 
         // Scope names must be unique
         for (const auto& itr : this->scopes) {
             if (itr.second.name == nameValue) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest duplicate scope name:" +
-                        uidValue.to_string() + ", name:" + nameValue);
+                throwInvalid("duplicate scope name:" + uidValue.to_string() +
+                             ", name:" + nameValue);
             }
         }
 
@@ -144,9 +144,7 @@ Manifest::Manifest(std::string_view json)
 
             auto cnameValue = cname.get<std::string>();
             if (!validName(cnameValue)) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest collection name:" + cnameValue +
-                        " is not valid");
+                throwInvalid("collection name:" + cnameValue + " is not valid");
             }
 
             // The constructor of CollectionID checks for invalid values, but
@@ -154,16 +152,14 @@ Manifest::Manifest(std::string_view json)
             // Manifest
             CollectionID cuidValue = makeCollectionID(cuid.get<std::string>());
             if (invalidCollectionID(cuidValue)) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest collection uid: " +
-                        cuidValue.to_string() + " is not valid.");
+                throwInvalid("collection uid:" + cuidValue.to_string() +
+                             " is not valid.");
             }
 
             // Collection uids must be unique
             if (this->collections.count(cuidValue) > 0) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest duplicate collection uid:" +
-                        cuidValue.to_string() + ", name: " + cnameValue);
+                throwInvalid("duplicate collection uid:" +
+                             cuidValue.to_string() + ", name: " + cnameValue);
             }
 
             // Collection names must be unique within the scope
@@ -171,20 +167,17 @@ Manifest::Manifest(std::string_view json)
                 auto existingCollection = this->collections.find(itr.id);
                 if (existingCollection != this->collections.end()) {
                     if (existingCollection->second.name == cnameValue) {
-                        throw std::invalid_argument(
-                                "Manifest::Manifest duplicate collection "
-                                "name:" +
-                                cuidValue.to_string() +
-                                ", name: " + cnameValue);
+                        throwInvalid("duplicate collection name:" +
+                                     cuidValue.to_string() +
+                                     ", name: " + cnameValue);
                     }
                 }
             }
 
             // The default collection must be within the default scope
             if (cuidValue.isDefaultCollection() && !uidValue.isDefaultScope()) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest the default collection is"
-                        " not in the default scope");
+                throwInvalid(
+                        "the default collection is not in the default scope");
             }
 
             cb::ExpiryLimit maxTtl;
@@ -209,12 +202,9 @@ Manifest::Manifest(std::string_view json)
     }
 
     if (this->scopes.empty()) {
-        throw std::invalid_argument(
-                "Manifest::Manifest no scopes were defined in the manifest");
+        throwInvalid("no scopes were defined in the manifest");
     } else if (this->scopes.count(ScopeID::Default) == 0) {
-        throw std::invalid_argument(
-                "Manifest::Manifest the default scope was"
-                " not defined");
+        throwInvalid("the default scope was not defined");
     }
 }
 
