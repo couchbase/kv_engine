@@ -16,9 +16,11 @@
  */
 
 #include "couch-kvstore/couch-kvstore.h"
+
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "couch-kvstore-config.h"
+#include "couch-kvstore-db-holder.h"
 #include "diskdockey.h"
 #include "ep_time.h"
 #include "getkeys.h"
@@ -189,6 +191,25 @@ struct AllKeysCtx {
 
     std::shared_ptr<StatusCallback<const DiskDocKey&>> cb;
     uint32_t count;
+};
+
+class CouchKVFileHandle : public ::KVFileHandle {
+public:
+    explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
+    }
+
+    ~CouchKVFileHandle() override = default;
+
+    DbHolder& getDbHolder() {
+        return db;
+    }
+
+    Db* getDb() const {
+        return db.getDb();
+    }
+
+private:
+    DbHolder db;
 };
 
 couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
@@ -1419,7 +1440,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         }
     }
 
-    const auto header = cb::couchstore::getHeader(*db.db);
+    const auto header = cb::couchstore::getHeader(*db.getDb());
     if (source == SnapshotSource::Historical) {
         timestamp = header.timestamp;
     }

@@ -39,6 +39,7 @@
 #define COUCHSTORE_NO_OPTIONS 0
 
 class CouchKVStoreConfig;
+class DbHolder;
 class EventuallyPersistentEngine;
 
 /**
@@ -395,70 +396,14 @@ public:
         return logger;
     }
 
-protected:
     /**
-     * Internal RAII class for managing a Db* and having it closed when
-     * the DbHolder goes out of scope.
+     * Close the given database (and free the memory)
+     *
+     * @param db Database
      */
-    class DbHolder {
-    public:
-        explicit DbHolder(CouchKVStore& kvs)
-            : kvstore(kvs), db(nullptr), fileRev(0) {
-        }
+    void closeDatabaseHandle(Db* db);
 
-        DbHolder(const DbHolder&) = delete;
-        DbHolder(DbHolder&&) = delete;
-        DbHolder& operator=(const DbHolder&) = delete;
-        DbHolder& operator=(DbHolder&&) = delete;
-
-        Db** getDbAddress() {
-            return &db;
-        }
-
-        Db* getDb() {
-            return db;
-        }
-
-        Db* getDb() const {
-            return db;
-        }
-
-        // Add no lint to allow implicit casting to the Db* to be used with
-        // couchstore lib.
-        // NOLINTNEXTLINE(google-explicit-constructor)
-        operator Db*() {
-            return db;
-        }
-
-        Db* releaseDb() {
-            auto* result = db;
-            db = nullptr;
-            return result;
-        }
-
-        void setFileRev(uint64_t rev) {
-            fileRev = rev;
-        }
-
-        uint64_t getFileRev() const {
-            return fileRev;
-        }
-
-        // Allow a non-RAII close, needed for some use-cases
-        void close() {
-            if (db) {
-                kvstore.closeDatabaseHandle(releaseDb());
-            }
-        }
-
-        ~DbHolder() {
-            close();
-        }
-        CouchKVStore& kvstore;
-        Db* db;
-        uint64_t fileRev;
-    };
-
+protected:
     /**
      * RAII holder for a couchstore LocalDoc object
      */
@@ -691,8 +636,6 @@ protected:
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Db& db);
 
-    void closeDatabaseHandle(Db *db);
-
     /**
      * Unlink selected couch file, which will be removed by the OS,
      * once all its references close.
@@ -907,23 +850,4 @@ protected:
      * @returns An initialised RevisionMap accessed via the shared_ptr
      */
     static std::shared_ptr<RevisionMap> makeRevisionMap(size_t vbucketCount);
-
-    class CouchKVFileHandle : public ::KVFileHandle {
-    public:
-        explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
-        }
-
-        ~CouchKVFileHandle() override = default;
-
-        DbHolder& getDbHolder() {
-            return db;
-        }
-
-        Db* getDb() const {
-            return db.getDb();
-        }
-
-    private:
-        DbHolder db;
-    };
 };
