@@ -25,4 +25,3 @@ an authentication phase):
 ## Limitations
 
 * Can't move vbuckets around (rebalance)
-* No support for CCCP bootstrapping (we should be able to do that)
