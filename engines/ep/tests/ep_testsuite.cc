@@ -9286,14 +9286,12 @@ BaseTestCase testsuite_testcases[] = {
 
         //@TODO RDB: Broken because rocksDB threads stick around after
         // bucket is destroyed and have persistent thread locals
-        // MB-36494: Address sanitizer reports a use-after-free when
-        // runnning with Magma
         TestCaseV2("multi_bucket set/get ",
                    test_multi_bucket_set_get,
                    nullptr,
                    teardown_v2,
                    nullptr,
-                   prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                   prepare_ep_bucket_skip_broken_under_rocks,
                    cleanup),
 
         TestCase("test_mb19635_upgrade_from_25x",
