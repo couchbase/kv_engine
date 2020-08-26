@@ -474,14 +474,14 @@ protected:
         entry->second.setHighSeqno(value);
     }
 
-    void setPersistedHighSeqno(const container::const_iterator entry,
+    bool setPersistedHighSeqno(const container::const_iterator entry,
                                uint64_t value) const {
         if (entry == map.end()) {
             throwException<std::invalid_argument>(__FUNCTION__,
                                                   "iterator is invalid");
         }
 
-        entry->second.setPersistedHighSeqno(value);
+        return entry->second.setPersistedHighSeqno(value);
     }
 
     void resetPersistedHighSeqno(const container::const_iterator entry,

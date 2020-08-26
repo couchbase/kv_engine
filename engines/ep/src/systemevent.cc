@@ -98,6 +98,17 @@ SystemEventFactory::getSystemEventType(const DocKey& key) {
     return {SystemEvent(type.first), type.second};
 }
 
+std::pair<SystemEvent, uint32_t> SystemEventFactory::getTypeAndID(
+        const DocKey& key) {
+    // Input key is made up of a sequence of prefixes.
+    // (1) System (system namespace of 0x01)
+    // (2) SystemEvent type (scope 0x1 or collection 0x0)
+    // (3) ScopeID or CollectionID
+    // This function skips (1) and returns (2) and (3)
+    auto [type, buffer] = getSystemEventType(key);
+    return {type, cb::mcbp::unsigned_leb128<uint32_t>::decode(buffer).first};
+}
+
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, const queued_item& item, cb::mcbp::DcpStreamId sid) {
     // Always ensure decompressed as we are about to use the value

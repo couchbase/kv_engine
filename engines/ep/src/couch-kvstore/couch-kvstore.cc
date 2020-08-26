@@ -2129,7 +2129,7 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
 }
 
 // Callback when the btree is updated which we use for tracking create/update
-// type statistics.
+// type statistics and collection stats (item counts, disk changes and seqno)
 static void saveDocsCallback(const DocInfo* oldInfo,
                              const DocInfo* newInfo,
                              void* context) {
@@ -2140,23 +2140,40 @@ static void saveDocsCallback(const DocInfo* oldInfo,
         return;
     }
     auto newKey = makeDiskDocKey(newInfo->id);
-
-    // Update keyWasOnDisk for overall (not per-collection) stats
     if (oldInfo) {
+        cbCtx->commitData.collections.updateStats(newKey.getDocKey(),
+                                                  newInfo->db_seq,
+                                                  newKey.isCommitted(),
+                                                  newInfo->deleted,
+                                                  newInfo->physical_size,
+                                                  oldInfo->db_seq,
+                                                  oldInfo->deleted,
+                                                  oldInfo->physical_size);
+
+        // Update keyWasOnDisk for overall (not per-collection) stats
         // Replacing a document
         if (!oldInfo->deleted) {
             cbCtx->keyWasOnDisk.insert(newKey);
         }
+    } else {
+        cbCtx->commitData.collections.updateStats(newKey.getDocKey(),
+                                                  newInfo->db_seq,
+                                                  newKey.isCommitted(),
+                                                  newInfo->deleted,
+                                                  newInfo->physical_size);
     }
 
     enum class DocMutationType { Insert, Update, Delete };
     DocMutationType onDiskMutationType = DocMutationType::Update;
+
     if (oldInfo) {
         if (!oldInfo->deleted) {
             if (newInfo->deleted) {
                 // New is deleted, so decrement count
                 onDiskMutationType = DocMutationType::Delete;
             }
+            // Update keyWasOnDisk for overall (not per-collection) stats
+            cbCtx->keyWasOnDisk.insert(newKey);
         } else if (!newInfo->deleted) {
             // Adding an item
             onDiskMutationType = DocMutationType::Insert;
@@ -2166,44 +2183,20 @@ static void saveDocsCallback(const DocInfo* oldInfo,
         onDiskMutationType = DocMutationType::Insert;
     }
 
-    auto docKey = newKey.getDocKey();
     switch (onDiskMutationType) {
     case DocMutationType::Delete:
-        if (newKey.isCommitted()) {
-            cbCtx->commitData.collections.decrementDiskCount(docKey);
-        } else {
+        if (newKey.isPrepared()) {
             cbCtx->onDiskPrepareDelta--;
         }
         break;
     case DocMutationType::Insert:
-        if (newKey.isCommitted()) {
-            cbCtx->commitData.collections.incrementDiskCount(docKey);
-        } else {
+        if (newKey.isPrepared()) {
             cbCtx->onDiskPrepareDelta++;
         }
         break;
     case DocMutationType::Update:
         break;
     }
-
-    // Do not need to update high seqno if we are calling this for a prepare and
-    // it will error if we do so return early.
-    // We only want committed items to be counted in the disk size stat.
-    if (!newKey.isCommitted()) {
-        return;
-    }
-
-    // Set the highest seqno that we are persisting regardless of if it
-    // is a mutation or deletion
-    cbCtx->commitData.collections.setPersistedHighSeqno(
-            docKey, newInfo->db_seq, newInfo->deleted);
-
-    size_t oldSize = oldInfo ? oldInfo->physical_size : 0;
-    size_t newSize = newInfo ? newInfo->physical_size : 0;
-
-    ssize_t delta = newSize - oldSize;
-
-    cbCtx->commitData.collections.updateDiskSize(docKey, delta);
 }
 
 /**

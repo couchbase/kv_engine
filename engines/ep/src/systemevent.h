@@ -134,6 +134,14 @@ public:
     static std::pair<SystemEvent, cb::const_byte_buffer> getSystemEventType(
             const DocKey& key);
 
+    /**
+     * Given a key from makeCollectionEventKey, makeCollectionEvent or
+     * makeScopeEvent retrieve the system event type which is embedded in the
+     * key and the ID (as a u32) which is embedded in the key. Called can
+     * switch on the event to determine if the ID is Scope or Collection
+     */
+    static std::pair<SystemEvent, uint32_t> getTypeAndID(const DocKey& key);
+
 private:
     /**
      * Make an Item representing the SystemEvent

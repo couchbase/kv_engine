@@ -64,12 +64,12 @@ public:
     }
 
     void setStartSeqno(int64_t seqno) {
-        // Enforcing that start/end are not the same, they should always be
-        // separated because they represent start/end mutations.
-        if (seqno < 0 || seqno <= startSeqno) {
+        // start can only be set to a new, greater value
+        if (seqno <= startSeqno) {
             throwException<std::invalid_argument>(
                     __FUNCTION__,
-                    "cannot set startSeqno to " + std::to_string(seqno));
+                    "cannot set startSeqno from:" + std::to_string(startSeqno) +
+                            " to:" + std::to_string(seqno));
         }
         startSeqno = seqno;
     }
@@ -138,8 +138,12 @@ public:
 
     /// set the highest persisted seqno for this collection if the new value
     /// is greater than the previous one
-    void setPersistedHighSeqno(uint64_t value) const {
-        persistedHighSeqno.store(value, std::memory_order_relaxed);
+    bool setPersistedHighSeqno(int64_t value) const {
+        if (value >= startSeqno) {
+            persistedHighSeqno.store(value, std::memory_order_relaxed);
+            return true;
+        }
+        return false;
     }
 
     /// reset the highest persisted seqno for this collection to the given value

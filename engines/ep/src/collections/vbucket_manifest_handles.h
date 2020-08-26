@@ -370,13 +370,13 @@ public:
      * set the persisted high seqno of the collection if the new value is
      * higher
      */
-    void setPersistedHighSeqno(uint64_t value) const {
-        // 1) We may be flushing keys written to a dropped collection so can
-        //    have an invalid iterator
+    bool setPersistedHighSeqno(uint64_t value) const {
+        // We may be flushing keys written to a dropped collection so can
+        // have an invalid iterator
         if (!valid()) {
-            return;
+            return false;
         }
-        manifest->setPersistedHighSeqno(itr, value);
+        return manifest->setPersistedHighSeqno(itr, value);
     }
 
     /**

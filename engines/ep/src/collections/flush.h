@@ -21,13 +21,11 @@
 #include "collections/collections_types.h"
 
 #include <unordered_set>
-#include <vector>
 
 class KVBucket;
 
 namespace Collections {
 namespace VB {
-
 class Manifest;
 
 /**
@@ -40,7 +38,7 @@ public:
     explicit Flush(Manifest& manifest) : manifest(manifest) {
     }
 
-    Manifest& getManifest() const {
+    const Manifest& getManifest() const {
         return manifest;
     }
 
@@ -52,31 +50,42 @@ public:
             std::function<void(CollectionID, PersistedStats)> cb) const;
 
     /**
-     * Increment the 'disk' count for the collection associated with the key
-     */
-    void incrementDiskCount(const DocKey& key);
-
-    /**
-     * Decrement the 'disk' count for the collection associated with the key
-     */
-    void decrementDiskCount(const DocKey& key);
-
-    /**
-     * Update the on disk size (bytes) for the collection associated with the
-     * key
-     */
-    void updateDiskSize(const DocKey& key, ssize_t delta);
-
-    /**
-     * Set the highest seqno that needs to be persisted for this collection
+     * Update collection stats from the flusher for a insert only operation.
+     * We can be inserting a delete or a live document.
      *
-     * @param key Key of the document being flushed
-     * @param value New seqno value to set
-     * @param deleted Is this document deleted? If it is, and it is a system
-     *        event, then we should not throw an exception if we cannot find
-     *        the collection we wish to update.
+     * @param key The key of the item flushed
+     * @param seqno The seqno of the item flushed
+     * @param isCommitted the prepare/commit state of the item flushed
+     * @param isDelete alive/delete state of the item flushed
+     * @param size bytes used on disk of the item flushed
      */
-    void setPersistedHighSeqno(const DocKey& key, uint64_t value, bool deleted);
+    void updateStats(const DocKey& key,
+                     uint64_t seqno,
+                     bool isCommitted,
+                     bool isDelete,
+                     size_t size);
+
+    /**
+     * Update collection stats from the flusher when an old 'version' of the
+     * item already exists. This covers updates or deletes of items
+     *
+     * @param key The key of the item flushed
+     * @param seqno The seqno of the item flushed
+     * @param isCommitted the prepare/commit state of the item flushed
+     * @param isDelete alive/delete stats of the item flushed
+     * @param size bytes used on disk of the item flushed
+     * @param oldSeqno The seqno of the old 'version' of the item
+     * @param oldIsDelete alive/delete state of the old 'version' of the item
+     * @param oldSize bytes used on disk of the old 'version' of the item
+     */
+    void updateStats(const DocKey& key,
+                     uint64_t seqno,
+                     bool isCommitted,
+                     bool isDelete,
+                     size_t size,
+                     uint64_t oldSeqno,
+                     bool oldIsDelete,
+                     size_t oldSize);
 
     /**
      * Check to see if this flush should trigger a collection purge which if
@@ -91,6 +100,9 @@ public:
     void setNeedsPurge() {
         needsPurge = true;
     }
+
+    /// Add the collection to the set of collections 'mutated' in this flush
+    void setMutated(CollectionID cid);
 
 private:
     bool needsPurge = false;
