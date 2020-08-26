@@ -825,6 +825,17 @@ TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDrop) {
                                               1 /*seqnoOffset*/);
 }
 
+TEST_P(CollectionsEraserTest, DropEmptyCollection) {
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
+
+    runEraser();
+}
+
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {
 public:
     void SetUp() override {

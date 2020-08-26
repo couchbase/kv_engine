@@ -1844,14 +1844,10 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
             auto handle = makeFileHandle(vbid);
             auto stats = getCollectionStats(*handle, dc.collectionId);
 
-            // The only case where stats shouldn't exist is if we are dropping
-            // the default collection and it has no items in it. Instead of
-            // trying to make sure those stats gets written it's easier to just
-            // do nothing as nothing should be in the default collection
+            // Stats might not exist if the collection we are dropping has no
+            // items in it.
             if (stats) {
                 collectionItemsDropped += stats->itemCount;
-            } else {
-                Expects(dc.collectionId.isDefaultCollection());
             }
 
             std::string keyString =
