@@ -2359,9 +2359,11 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
     auto backendThreads = configuration.getStorageThreads();
     if (backendThreads == 0) {
         // This is the "default" case and we can choose how many threads to run.
-        // For magma the default is 3 x number of writers with the idea that for
-        // each writer we will have 1 flusher and 2 compactors.
-        backendThreads = configuration.getNumWriterThreads() * 3;
+        // For magma the default is currently just 20.
+        // @TODO MB-41267: This default must be updated to be appropriate before
+        // magma GA as it's likely not appropriate for low spec or high spec
+        // setups.
+        backendThreads = 20;
     }
 
     auto flusherRatio =
@@ -2381,7 +2383,7 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
                 "compactors threads. Must be greater than 0");
     }
 
-    EP_LOG_INFO(
+    logger->info(
             "MagmaKVStore::calculateAndSetMagmaThreads: Flushers:{} "
             "Compactors:{}",
             flushers,

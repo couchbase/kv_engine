@@ -1114,9 +1114,9 @@
             "type": "size_t"
         },
         "magma_flusher_thread_percentage": {
-            "default": "33",
+            "default": "20",
             "dynamic": true,
-            "descr": "Percentage of storage threads that are flusher threads (i.e. with a value of 33 we will allocate 1/3 of the storage threads to flushers. The remaining 2/3rds of the threads will be compactors).",
+            "descr": "Percentage of storage threads that are flusher threads (i.e. with a value of 20 we will allocate 4 (1/5th) of the storage threads to flushers and the remaining 16 (4/5ths) threads will be compactors).",
             "type": "size_t"
         },
         "magma_commit_point_every_batch": {
