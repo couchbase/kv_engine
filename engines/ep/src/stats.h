@@ -20,8 +20,8 @@
 #include "hdrhistogram.h"
 #include "objectregistry.h"
 
-#include <folly/CachelinePadded.h>
 #include <folly/Synchronized.h>
+#include <folly/lang/Aligned.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/cb_arena_malloc.h>
@@ -46,7 +46,59 @@ constexpr bool GlobalNewDeleteIsOurs = false;
 constexpr bool GlobalNewDeleteIsOurs = true;
 #endif
 
-class CoreLocalStats;
+/**
+ * Core-local statistics
+ *
+ * For statistics which are updated frequently by multiple cores, there can be
+ * signifcant cost in maintaining a single bucket-level counter, due to cache
+ * line thrashing.
+ * This class contains core-local statistics which are signicantly cheaper
+ * to update. They are then summed into a bucket-level when read.
+ */
+class CoreLocalStats {
+public:
+    /**
+     * Map of collection id to the memory usage tracked for that collection.
+     *
+     folly::AtomicHashMap would avoid locking here but is unsuitable - it has a
+     max capacity, and erased elements still count towards that capacity. It
+     would either need to be grossly oversized, or would eventually be filled by
+     collection creation/deletions.
+     */
+    folly::Synchronized<std::unordered_map<CollectionID, size_t>, std::mutex>
+            collectionMemUsed;
+
+    // Thread-safe type for counting occurances of discrete,
+    // non-negative entities (# events, sizes).  Relaxed memory
+    // ordering (no ordering or synchronization).
+    // This is a signed variable as depending on how/when the core-local
+    // counters merge their info, this could be negative.
+    using Counter = cb::RelaxedAtomic<int64_t>;
+
+    //! Total size of stored objects.
+    Counter currentSize;
+
+    //! Total number of blob objects
+    Counter numBlob;
+
+    //! Total size of blob memory overhead
+    Counter blobOverhead;
+
+    //! Total memory overhead to store values for resident keys.
+    Counter totalValueSize;
+
+    //! The number of storedVal object
+    Counter numStoredVal;
+
+    //! Total memory for stored values
+    Counter totalStoredValSize;
+
+    //! Amount of memory used to track items and what-not.
+    Counter memOverhead;
+
+    //! Total number of Item objects
+    Counter numItem;
+};
 
 /**
  * Global engine stats container.
@@ -289,7 +341,7 @@ public:
     Counter numNotMyVBuckets;
 
     //! Core-local statistics
-    CoreStore<folly::CachelinePadded<CoreLocalStats>> coreLocal;
+    CoreStore<folly::cacheline_aligned<CoreLocalStats>> coreLocal;
 
     //! Whether or not to force engine shutdown.
     std::atomic<bool> forceShutdown;
@@ -556,60 +608,6 @@ protected:
 
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
-};
-
-/**
- * Core-local statistics
- *
- * For statistics which are updated frequently by multiple cores, there can be
- * signifcant cost in maintaining a single bucket-level counter, due to cache
- * line thrashing.
- * This class contains core-local statistics which are signicantly cheaper
- * to update. They are then summed into a bucket-level when read.
- */
-class CoreLocalStats {
-public:
-    /**
-     * Map of collection id to the memory usage tracked for that collection.
-     *
-     folly::AtomicHashMap would avoid locking here but is unsuitable - it has a
-     max capacity, and erased elements still count towards that capacity. It
-     would either need to be grossly oversized, or would eventually be filled by
-     collection creation/deletions.
-     */
-    folly::Synchronized<std::unordered_map<CollectionID, size_t>, std::mutex>
-            collectionMemUsed;
-
-    // Thread-safe type for counting occurances of discrete,
-    // non-negative entities (# events, sizes).  Relaxed memory
-    // ordering (no ordering or synchronization).
-    // This is a signed variable as depending on how/when the core-local
-    // counters merge their info, this could be negative.
-    using Counter = cb::RelaxedAtomic<int64_t>;
-
-    //! Total size of stored objects.
-    Counter currentSize;
-
-    //! Total number of blob objects
-    Counter numBlob;
-
-    //! Total size of blob memory overhead
-    Counter blobOverhead;
-
-    //! Total memory overhead to store values for resident keys.
-    Counter totalValueSize;
-
-    //! The number of storedVal object
-    Counter numStoredVal;
-
-    //! Total memory for stored values
-    Counter totalStoredValSize;
-
-    //! Amount of memory used to track items and what-not.
-    Counter memOverhead;
-
-    //! Total number of Item objects
-    Counter numItem;
 };
 
 /**

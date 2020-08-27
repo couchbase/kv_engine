@@ -28,8 +28,8 @@
 #include <include/mcbp/protocol/dcp_stream_end_status.h>
 
 #include <folly/AtomicHashMap.h>
-#include <folly/CachelinePadded.h>
 #include <folly/SharedMutex.h>
+#include <folly/lang/Aligned.h>
 
 class BackfillManager;
 class CheckpointCursor;
@@ -618,7 +618,7 @@ protected:
 
     // MB-30488: padding to keep mutex from sharing cachelines with
     // unrelated data
-    folly::CachelinePadded<CheckpointCreator> checkpointCreator;
+    folly::cacheline_aligned<CheckpointCreator> checkpointCreator;
 
     static const std::chrono::seconds defaultDcpNoopTxInterval;
 

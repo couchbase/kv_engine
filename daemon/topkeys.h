@@ -20,7 +20,7 @@
 #include <nlohmann/json_fwd.hpp>
 #include <array>
 
-#include <folly/CachelinePadded.h>
+#include <folly/lang/Aligned.h>
 #include <list>
 #include <mutex>
 #include <string>
@@ -173,5 +173,5 @@ private:
 
     // Array of topkey shards. We have one shard per core so we need to
     // cache line pad the shards to prevent any contention.
-    std::vector<folly::CachelinePadded<Shard>> shards;
+    std::vector<folly::cacheline_aligned<Shard>> shards;
 };
