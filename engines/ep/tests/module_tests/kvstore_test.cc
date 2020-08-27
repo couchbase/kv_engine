@@ -293,6 +293,51 @@ TEST_P(KVStoreParamTest, BasicTest) {
     checkGetValue(gv);
 }
 
+// A doc not found should equal a get failure for a get call (used for some
+// stats, fetching docs to expire, and rollback)
+TEST_P(KVStoreParamTest, GetMissNumGetFailure) {
+    GetValue gv = kvstore->get(DiskDocKey{makeStoredDocKey("key")}, Vbid(0));
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    auto stats = kvstore->getKVStoreStat();
+    EXPECT_EQ(1, stats.numGetFailure);
+}
+
+// A doc not found doesn't result in a get failure for a getMulti (bgfetch)
+TEST_P(KVStoreParamTest, GetMultiMissNumGetFailure) {
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.isMetaOnly = GetMetaOnly::No;
+    auto diskDocKey = makeDiskDocKey("key");
+    q[diskDocKey] = std::move(ctx);
+    kvstore->getMulti(vbid, q);
+
+    for (auto& fetched : q) {
+        EXPECT_EQ(ENGINE_KEY_ENOENT, fetched.second.value.getStatus());
+    }
+
+    auto stats = kvstore->getKVStoreStat();
+    EXPECT_EQ(0, stats.numGetFailure);
+}
+
+TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
+    std::vector<GetValue> results;
+    kvstore->getRange(
+            Vbid{0},
+            makeDiskDocKey("a"),
+            makeDiskDocKey("b"),
+            [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
+
+    for (auto& fetched : results) {
+        EXPECT_EQ(ENGINE_KEY_ENOENT, fetched.getStatus());
+    }
+
+    // It wouldn't make sense to report get failures if we don't return anything
+    // as who knows what should exist in a range.
+    auto stats = kvstore->getKVStoreStat();
+    EXPECT_EQ(0, stats.numGetFailure);
+}
+
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     // Grab a pointer to our MockTransactionContext so that we can establish
     // expectations on it throughout the test. We consume our unique_ptr to it
