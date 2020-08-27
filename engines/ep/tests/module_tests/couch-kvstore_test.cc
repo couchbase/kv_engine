@@ -334,6 +334,72 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgradeMadHatter) {
     collectionsOfflineUpgrade(true);
 }
 
+TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
+    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    config.setPitrGranularity(std::chrono::nanoseconds{1});
+
+    // Test setup, create a new file
+    auto kvstore = setup_kv_store(config);
+
+    for (int ii = 1; ii < 5; ++ii) {
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        auto key = "mykey";
+        const std::string value = std::to_string(ii);
+        std::unique_ptr<Item> item = std::make_unique<Item>(
+                DocKey(key, DocKeyEncodesCollectionId::Yes),
+                0,
+                0,
+                value.data(),
+                value.size(),
+                PROTOCOL_BINARY_RAW_BYTES,
+                0,
+                ii);
+        kvstore->set(queued_item(std::move(item)));
+        flush.proposedVBState.lastSnapEnd = ii;
+        kvstore->commit(flush);
+    }
+
+    class MyStatusCallback : public StatusCallback<GetValue> {
+    public:
+        explicit MyStatusCallback(std::vector<uint64_t>& vec) : ids(vec) {
+        }
+
+        void callback(GetValue& result) override {
+            EXPECT_EQ(ENGINE_SUCCESS, result.getStatus());
+            ids.push_back(result.item->getBySeqno());
+            const std::string val{result.item->getData(),
+                                  result.item->getNBytes()};
+            EXPECT_EQ(std::to_string(result.item->getBySeqno()), val);
+        }
+
+    protected:
+        std::vector<uint64_t>& ids;
+    };
+
+    class MyCacheLookupCallback : public StatusCallback<CacheLookup> {
+    public:
+        void callback(CacheLookup& lookup) override {
+        }
+    };
+
+    // We should have 4 different headers in the file
+    for (int ii = 1; ii < 5; ++ii) {
+        std::vector<uint64_t> byIdSeqnos;
+        auto ctx = kvstore->initBySeqnoScanContext(
+                std::make_unique<MyStatusCallback>(byIdSeqnos),
+                std::make_unique<MyCacheLookupCallback>(),
+                Vbid{0},
+                ii,
+                DocumentFilter::ALL_ITEMS,
+                ValueFilter::VALUES_DECOMPRESSED,
+                SnapshotSource::Historical);
+        ASSERT_TRUE(ctx);
+        ASSERT_EQ(scan_success, kvstore->scan(*ctx));
+        ASSERT_EQ(1, byIdSeqnos.size());
+        ASSERT_EQ(ii, byIdSeqnos.front());
+    }
+}
+
 /**
  * The CouchKVStoreErrorInjectionTest cases utilise GoogleMock to inject
  * errors into couchstore as if they come from the filesystem in order

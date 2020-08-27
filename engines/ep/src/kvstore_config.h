@@ -108,7 +108,11 @@ public:
         pitrGranularity = granularity;
     }
 
-    std::chrono::seconds getPitrGranularity() const {
+    void setPitrGranularity(std::chrono::nanoseconds granularity) {
+        pitrGranularity = granularity;
+    }
+
+    std::chrono::nanoseconds getPitrGranularity() const {
         return pitrGranularity;
     }
 
@@ -148,7 +152,9 @@ protected:
 
     std::atomic_bool pitrEnabled{false};
     std::atomic<std::chrono::seconds> pitrMaxHistoryAge;
-    std::atomic<std::chrono::seconds> pitrGranularity;
+    /// Granularity is stored in nanoseconds to allow for unit tests to execute
+    /// faster
+    std::atomic<std::chrono::nanoseconds> pitrGranularity;
 
     /**
      * Length of time for which we keep tombstones before purging to allow

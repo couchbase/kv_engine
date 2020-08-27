@@ -1054,11 +1054,10 @@ bool CouchKVStore::compactDBInternal(
         std::chrono::nanoseconds timestamp =
                 std::chrono::system_clock::now().time_since_epoch() -
                 configuration.getPitrMaxHistoryAge();
-        auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                configuration.getPitrGranularity());
-        auto seconds =
+        const auto delta = configuration.getPitrGranularity();
+        const auto seconds =
                 std::chrono::duration_cast<std::chrono::seconds>(timestamp);
-        auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
+        const auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
                 timestamp - seconds);
 
         EP_LOG_INFO(
@@ -1066,7 +1065,9 @@ bool CouchKVStore::compactDBInternal(
                 "{} sec",
                 vbid.to_string(),
                 ISOTime::generatetimestamp(seconds.count(), usec.count()),
-                configuration.getPitrGranularity().count());
+                std::chrono::duration_cast<std::chrono::seconds>(
+                        configuration.getPitrGranularity())
+                        .count());
 
         errCode = cb::couchstore::compact(
                 *compactdb,
@@ -1389,12 +1390,6 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         DocumentFilter options,
         ValueFilter valOptions,
         SnapshotSource source) {
-    if (source == SnapshotSource::Historical) {
-        throw std::runtime_error(
-                "CouchKVStore::initBySeqnoScanContext: historicalSnapshot not "
-                "implemented");
-    }
-
     auto handle = makeFileHandle(vbid);
 
     if (!handle) {
@@ -1408,7 +1403,25 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
     auto& db = couchKvHandle.getDbHolder();
 
-    const auto info = cb::couchstore::getHeader(*db.getDb());
+    std::optional<uint64_t> timestamp;
+    if (source == SnapshotSource::Historical) {
+        auto status = cb::couchstore::seekFirstHeaderContaining(
+                *db.getDb(),
+                startSeqno,
+                configuration.getPitrGranularity().count());
+        if (status != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::initBySeqnoScanContext: Failed to locate "
+                    "correct database header: {}",
+                    couchstore_strerror(status));
+            return {};
+        }
+    }
+
+    const auto header = cb::couchstore::getHeader(*db.db);
+    if (source == SnapshotSource::Historical) {
+        timestamp = header.timestamp;
+    }
     uint64_t count = 0;
     auto errorCode = couchstore_changes_count(
             db, startSeqno, std::numeric_limits<uint64_t>::max(), &count);
@@ -1439,13 +1452,14 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
                                                      vbid,
                                                      std::move(handle),
                                                      startSeqno,
-                                                     info.updateSeqNum,
-                                                     info.purgeSeqNum,
+                                                     header.updateSeqNum,
+                                                     header.purgeSeqNum,
                                                      options,
                                                      valOptions,
                                                      count,
                                                      readVbStateResult.state,
-                                                     collectionsManifest);
+                                                     collectionsManifest,
+                                                     std::move(timestamp));
     sctx->logger = &logger;
     return sctx;
 }
