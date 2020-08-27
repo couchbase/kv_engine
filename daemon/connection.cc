@@ -1761,9 +1761,11 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
 
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpDeletionV1Payload;
-    uint8_t blob[sizeof(Request) + sizeof(DcpDeletionV1Payload) +
-                 sizeof(cb::mcbp::DcpStreamIdFrameInfo)];
-    auto& req = *reinterpret_cast<Request*>(blob);
+    std::array<uint8_t,
+               sizeof(Request) + sizeof(DcpDeletionV1Payload) +
+                       sizeof(cb::mcbp::DcpStreamIdFrameInfo)>
+            blob;
+    auto& req = *reinterpret_cast<Request*>(blob.data());
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
@@ -1777,7 +1779,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-    auto* ptr = blob + sizeof(Request);
+    auto* ptr = blob.data() + sizeof(Request);
     if (sid) {
         auto buf = frameInfo.getBuf();
         std::copy(buf.begin(), buf.end(), ptr);
@@ -1787,7 +1789,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
 
     std::copy(extdata.getBuffer().begin(), extdata.getBuffer().end(), ptr);
     cb::const_byte_buffer packetBuffer{
-            blob,
+            blob.data(),
             sizeof(Request) + sizeof(DcpDeletionV1Payload) +
                     (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)};
 
@@ -1843,12 +1845,13 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     }
 
     // Make blob big enough for either delete or expiry
-    uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(extras) +
-                 sizeof(frameInfo)] = {};
+    std::array<uint8_t,
+               sizeof(cb::mcbp::Request) + sizeof(extras) + sizeof(frameInfo)>
+            blob = {};
     const size_t payloadLen = sizeof(extras);
     const size_t frameInfoLen = sid ? sizeof(frameInfo) : 0;
 
-    auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob);
+    auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob.data());
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
 
@@ -1863,7 +1866,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
     auto size = sizeof(cb::mcbp::Request);
-    auto* ptr = blob + size;
+    auto* ptr = blob.data() + size;
     if (sid) {
         auto buf = frameInfo.getBuf();
         std::copy(buf.begin(), buf.end(), ptr);
@@ -1875,7 +1878,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     std::copy(buffer.begin(), buffer.end(), ptr);
     size += buffer.size();
 
-    return deletionInner(info, {blob, size}, key);
+    return deletionInner(info, {blob.data(), size}, key);
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
@@ -1927,12 +1930,13 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     }
 
     // Make blob big enough for either delete or expiry
-    uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(extras) +
-                 sizeof(frameInfo)] = {};
+    std::array<uint8_t,
+               sizeof(cb::mcbp::Request) + sizeof(extras) + sizeof(frameInfo)>
+            blob = {};
     const size_t payloadLen = sizeof(extras);
     const size_t frameInfoLen = sid ? sizeof(frameInfo) : 0;
 
-    auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob);
+    auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob.data());
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
 
@@ -1947,7 +1951,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     req.setCas(info.cas);
     req.setDatatype(cb::mcbp::Datatype(info.datatype));
     auto size = sizeof(cb::mcbp::Request);
-    auto* ptr = blob + size;
+    auto* ptr = blob.data() + size;
     if (sid) {
         auto buf = frameInfo.getBuf();
         std::copy(buf.begin(), buf.end(), ptr);
@@ -1959,7 +1963,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     std::copy(buffer.begin(), buffer.end(), ptr);
     size += buffer.size();
 
-    return deletionInner(info, {blob, size}, key);
+    return deletionInner(info, {blob.data(), size}, key);
 }
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
