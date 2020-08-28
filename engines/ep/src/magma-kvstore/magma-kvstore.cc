@@ -1211,12 +1211,16 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                                    writeDocsCB,
                                    postWriteDocsCB);
 
+    st.saveDocsHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - begin));
     if (!status) {
         logger->critical(
                 "MagmaKVStore::saveDocs {} WriteDocs failed. Status:{}",
                 vbid,
                 status.String());
     }
+
+    begin = std::chrono::steady_clock::now();
     status = magma->Sync(doCommitEveryBatch);
     if (!status) {
         logger->critical("MagmaKVStore::saveDocs {} Sync failed. Status:{}",

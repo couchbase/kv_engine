@@ -338,6 +338,31 @@ TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
     EXPECT_EQ(0, stats.numGetFailure);
 }
 
+TEST_P(KVStoreParamTest, SaveDocsHisto) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    StoredDocKey key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(1);
+    kvstore->set(qi);
+
+    StoredDocKey key1 = makeStoredDocKey("key1");
+    auto qi1 = makeCommittedItem(key, "value");
+    qi1->setBySeqno(2);
+    kvstore->set(qi1);
+
+    EXPECT_TRUE(kvstore->commit(flush));
+
+    auto& stats = kvstore->getKVStoreStat();
+
+    auto expectedCount = 1;
+    if (GetParam() == "rocksdb") {
+        expectedCount = 2;
+    }
+
+    EXPECT_EQ(expectedCount, stats.saveDocsHisto.getValueCount());
+    EXPECT_EQ(1, stats.commitHisto.getValueCount());
+}
+
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     // Grab a pointer to our MockTransactionContext so that we can establish
     // expectations on it throughout the test. We consume our unique_ptr to it
