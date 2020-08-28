@@ -1375,7 +1375,7 @@ void CouchKVStore::pendingTasks() {
                     errno,
                     filename_str);
             if (errno != ENOENT) {
-                pendingFileDeletions->push(filename_str);
+                pendingFileDeletions.wlock()->push(filename_str);
             }
         }
         filesToDelete.pop();
@@ -3016,7 +3016,7 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
 
         if (errno != ENOENT) {
             std::string file_str = fname;
-            pendingFileDeletions->push(file_str);
+            pendingFileDeletions.wlock()->push(file_str);
         }
     }
 }
@@ -3058,7 +3058,7 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
                     filename);
 
             if (errno != ENOENT) {
-                pendingFileDeletions->push(filename);
+                pendingFileDeletions.wlock()->push(filename);
             }
         }
     }
