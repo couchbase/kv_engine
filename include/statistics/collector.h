@@ -245,12 +245,20 @@ public:
         /* Converts the value to uint64_t/int64_t/double
          * based on if it is a signed/unsigned type.
          */
-        if constexpr (std::is_unsigned_v<T>) {
+
+        static_assert(std::is_floating_point_v<T> || std::is_unsigned_v<T> ||
+                              std::is_signed_v<T>,
+                      "addStat called with unexpected type which is"
+                      "arithmetic but not signed, unsigned or floating point.");
+
+        // check floating point before is_signed
+        // as floating point types may also be signed.
+        if constexpr (std::is_floating_point_v<T>) {
+            addStat(k, double(v), labels);
+        } else if constexpr (std::is_unsigned_v<T>) {
             addStat(k, uint64_t(v), labels);
         } else if constexpr (std::is_signed_v<T>) {
             addStat(k, int64_t(v), labels);
-        } else {
-            addStat(k, double(v), labels);
         }
     }
 

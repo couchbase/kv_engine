@@ -413,6 +413,42 @@ TEST_F(StatTest, CollectorAddsLabel) {
     collector.addStat(key, value);
 }
 
+TEST_F(StatTest, CollectorMapsTypesCorrectly) {
+    // Confirm that StatCollector::addStat(...) maps arithmetic types to a
+    // supported type as expected (e.g., float -> double, uint8_t -> uint64_t).
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<MockStatCollector> collector;
+
+    InSequence s;
+
+    auto testTypes = [&collector](auto input, auto output) {
+        EXPECT_CALL(collector,
+                    addStat(_, Matcher<decltype(output)>(output), _));
+        collector.addStat("irrelevant_stat_key", input);
+    };
+
+    // check that input type is provided to the StatCollector as output type
+    // The StatCollector interface does not explicitly handle every possible
+    // input type, but implements virtual methods supporting a handful.
+    // Other types are either not supported, or are mapped to supported types
+    testTypes(uint64_t(), uint64_t());
+    testTypes(uint32_t(), uint64_t());
+    testTypes(uint16_t(), uint64_t());
+    testTypes(uint8_t(), uint64_t());
+
+    testTypes(int64_t(), int64_t());
+    testTypes(int32_t(), int64_t());
+    testTypes(int16_t(), int64_t());
+    testTypes(int8_t(), int64_t());
+
+    testTypes(double(), double());
+    testTypes(float(), double());
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);
