@@ -210,16 +210,16 @@ ENGINE_ERROR_CODE Cookie::getAiostat() const {
     return aiostat;
 }
 
-void Cookie::setAiostat(ENGINE_ERROR_CODE aiostat) {
-    Cookie::aiostat = aiostat;
+void Cookie::setAiostat(ENGINE_ERROR_CODE value) {
+    aiostat = value;
 }
 
-void Cookie::setEwouldblock(bool ewouldblock) {
-    if (ewouldblock && !connection.isDCP()) {
+void Cookie::setEwouldblock(bool value) {
+    if (value && !connection.isDCP()) {
         setAiostat(ENGINE_EWOULDBLOCK);
     }
 
-    Cookie::ewouldblock = ewouldblock;
+    ewouldblock = value;
 }
 
 void Cookie::sendNotMyVBucket() {
@@ -285,7 +285,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
                           std::string_view key,
                           std::string_view value,
                           cb::mcbp::Datatype datatype,
-                          uint64_t cas) {
+                          uint64_t casValue) {
     if (status == cb::mcbp::Status::NotMyVbucket) {
         sendNotMyVBucket();
         return;
@@ -294,7 +294,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
     const auto& error_json = getErrorJson();
 
     if (cb::mcbp::isStatusSuccess(status)) {
-        setCas(cas);
+        setCas(casValue);
     } else {
         // This is an error message.. Inject the error JSON!
         extras = {};

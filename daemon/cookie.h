@@ -31,13 +31,11 @@ class Connection;
 class CommandContext;
 struct CookieTraceContext;
 class Task;
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Header;
 class Request;
 class Response;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
@@ -310,8 +308,8 @@ public:
     /**
      * Set the CAS value to inject into the response packet
      */
-    void setCas(uint64_t cas) {
-        Cookie::cas = cas;
+    void setCas(uint64_t value) {
+        cas = value;
     }
 
     /**
@@ -419,8 +417,8 @@ public:
         return engine_storage;
     }
 
-    void setEngineStorage(void* engine_storage) {
-        Cookie::engine_storage = engine_storage;
+    void setEngineStorage(void* value) {
+        engine_storage = value;
     }
 
     void setOpenTracingContext(cb::const_byte_buffer context);
