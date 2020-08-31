@@ -1690,71 +1690,68 @@ static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
 }
 
 void subdoc_get_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<cb::mcbp::ClientOpcode::SubdocGet>());
+    subdoc_executor(cookie, get_traits<cb::mcbp::ClientOpcode::SubdocGet>());
 }
 
 void subdoc_exists_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<cb::mcbp::ClientOpcode::SubdocExists>());
+    subdoc_executor(cookie, get_traits<cb::mcbp::ClientOpcode::SubdocExists>());
 }
 
 void subdoc_dict_add_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>());
 }
 
 void subdoc_dict_upsert_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>());
 }
 
 void subdoc_delete_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<cb::mcbp::ClientOpcode::SubdocDelete>());
+    subdoc_executor(cookie, get_traits<cb::mcbp::ClientOpcode::SubdocDelete>());
 }
 
 void subdoc_replace_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<cb::mcbp::ClientOpcode::SubdocReplace>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocReplace>());
 }
 
 void subdoc_array_push_last_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>());
 }
 
 void subdoc_array_push_first_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>());
 }
 
 void subdoc_array_insert_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>());
 }
 
 void subdoc_array_add_unique_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>());
 }
 
 void subdoc_counter_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<cb::mcbp::ClientOpcode::SubdocCounter>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocCounter>());
 }
 
 void subdoc_get_count_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>());
 }
 
 void subdoc_multi_lookup_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>());
 }
 
 void subdoc_multi_mutation_executor(Cookie& cookie) {
-    return subdoc_executor(
-            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>());
+    subdoc_executor(cookie,
+                    get_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>());
 }
