@@ -24,9 +24,7 @@
  */
 class MockEphemeralBucket : public EphemeralBucket {
 public:
-    explicit MockEphemeralBucket(EventuallyPersistentEngine& theEngine)
-        : EphemeralBucket(theEngine) {
-    }
+    explicit MockEphemeralBucket(EventuallyPersistentEngine& theEngine);
 
     VBucketPtr makeVBucket(Vbid id,
                            vbucket_state_t state,

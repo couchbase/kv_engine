@@ -21,6 +21,7 @@
 #include <ep_engine.h>
 
 class SynchronousEPEngine;
+struct MockReplicationThrottle;
 
 struct SynchronousEPEngineDeleter {
     void operator()(SynchronousEPEngine*);
@@ -94,4 +95,5 @@ public:
 
     using EventuallyPersistentEngine::doCollectionStats;
     using EventuallyPersistentEngine::doConnAggStats;
+    MockReplicationThrottle& getMockReplicationThrottle();
 };
