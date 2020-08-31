@@ -219,7 +219,13 @@ public:
      * current packet.
      */
     void preserveRequest() {
-        setPacket(getHeader(), true);
+        if (!isRequestPreserved()) {
+            setPacket(getHeader(), true);
+        }
+    }
+
+    bool isRequestPreserved() {
+        return frame_copy.get() != nullptr;
     }
 
     /**

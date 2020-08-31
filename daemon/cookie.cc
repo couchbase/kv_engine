@@ -516,6 +516,7 @@ void Cookie::reset() {
     privilegeContext = connection.getPrivilegeContext();
     euid.reset();
     euidPrivilegeContext.reset();
+    frame_copy.reset();
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
