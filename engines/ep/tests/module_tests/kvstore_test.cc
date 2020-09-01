@@ -451,14 +451,12 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     // already opened in 'kvstore'
     if (kvstoreConfig->getBackend() == "rocksdb") {
         kvstore.reset();
-        // For magma, we need to delete the vbucket since
-        // we are going to reuse it.
-    } else if (kvstoreConfig->getBackend() == "magma") {
-        auto kvsRev = kvstore->prepareToDelete(Vbid(0));
-        kvstore->delVBucket(Vbid(0), kvsRev);
     }
 
     kvstore = setup_kv_store(*kvstoreConfig, vbids);
+
+    // Check our loaded vb stat
+    EXPECT_EQ(1, kvstore->getKVStoreStat().numLoadedVb);
 
     // Store an item into each VBucket
     for (auto vbid : vbids) {

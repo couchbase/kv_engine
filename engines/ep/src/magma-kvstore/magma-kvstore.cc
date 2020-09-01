@@ -520,6 +520,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     for (auto& kvid : kvstoreList) {
         // While loading the vbstate cache, set the kvstoreRev.
         status = loadVBStateCache(Vbid(kvid), true);
+        ++st.numLoadedVb;
         if (!status) {
             throw std::logic_error("MagmaKVStore vbstate vbid:" +
                                    std::to_string(kvid) +
