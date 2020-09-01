@@ -184,10 +184,9 @@ providing the following default values:
 * array: []
 * object: {}
 
-The example JSON structure below shows the definition for the 2
-pre-defined mandatory fields; *timestamp* and *real_userid*, and the 3
-pre-defined optional fields; *sessionID*, *remote* and
-*effective_userid*.
+The example JSON structure below shows the definition for the 4
+pre-defined mandatory fields; *timestamp*, *real_userid*, *remote*, *local*,
+and the 2 pre-defined optional fields; *sessionID* and *effective_userid*.
 
     {"version" : 1,
     "module" : "example",
@@ -199,11 +198,12 @@ pre-defined optional fields; *sessionID*, *remote* and
                    "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
-                                         "real_userid" : {"domain" : "", "user" : ""}
+                                         "real_userid" : {"domain" : "", "user" : ""},
+                                         "remote" : {"ip" : "", "port" : 1},
+                                         "local": {"ip" : "", "port" : 1}
                                         },
                    "optional_fields" : {
-                                        "sessionid" : ""
-                                        "remote" : {"ip" : "", "port" : 1}
+                                        "sessionid" : "",
                                         "effective_userid" : {"domain" : "", "user" : ""}
                                        }
                 }

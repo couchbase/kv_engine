@@ -468,3 +468,34 @@ TEST_P(AuditTest, MB33603_Filtering) {
     EXPECT_FALSE(found)
             << "Filtering out memcached generated events don't work";
 }
+
+TEST_P(AuditTest, MB41183_UnifiedConnectionDescription) {
+    BinprotSaslAuthCommand cmd;
+    cmd.setChallenge({"\0MB41183\0nopassword", 18});
+    cmd.setMechanism("PLAIN");
+
+    auto rsp = getConnection().execute(cmd);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::SaslAuth, rsp.getOp());
+    EXPECT_EQ(cb::mcbp::Status::AuthError, rsp.getStatus());
+
+    iterate([](const nlohmann::json& entry) {
+        if (entry.find("peername") != entry.cend() ||
+            entry.find("sockname") != entry.cend()) {
+            throw std::runtime_error(
+                    "FAIL: peername or sockname should not be present: " +
+                    entry.dump());
+        }
+
+        if (entry["id"].get<int>() != MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
+            return false;
+        }
+
+        // THe following piece of code will throw exceptions if they don't
+        // exists or is of wrong type
+        entry["remote"]["ip"].get<std::string>();
+        entry["remote"]["port"].get<int>();
+        entry["local"]["ip"].get<std::string>();
+        entry["local"]["port"].get<int>();
+        return true;
+    });
+}

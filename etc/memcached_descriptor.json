@@ -15,11 +15,11 @@
           "domain": "",
           "user": ""
         },
-        "bucket": ""
+        "bucket": "",
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -35,11 +35,11 @@
           "domain": "",
           "user": ""
         },
-        "reason": ""
+        "reason": "",
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -55,11 +55,11 @@
           "domain": "",
           "user": ""
         },
-        "bucket": ""
+        "bucket": "",
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -75,11 +75,11 @@
           "domain": "",
           "user": ""
         },
-        "bucket": ""
+        "bucket": "",
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -95,11 +95,11 @@
           "domain": "",
           "user": ""
         },
-        "bucket": ""
+        "bucket": "",
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -114,11 +114,11 @@
         "real_userid": {
           "domain": "",
           "user": ""
-        }
+        },
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -135,8 +135,8 @@
           "domain": "",
           "user": ""
         },
-        "peername": "",
-        "sockname": ""
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
       }
@@ -158,8 +158,8 @@
           "domain": "",
           "user": ""
         },
-        "peername": "",
-        "sockname": ""
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
       }
@@ -179,8 +179,8 @@
           "domain": "",
           "user": ""
         },
-        "peername": "",
-        "sockname": ""
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
       }
@@ -200,8 +200,8 @@
           "domain": "",
           "user": ""
         },
-        "peername": "",
-        "sockname": ""
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
       }
@@ -221,8 +221,8 @@
           "domain": "",
           "user": ""
         },
-        "peername": "",
-        "sockname": ""
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
       }
@@ -242,8 +242,8 @@
           "domain": "",
           "user": ""
         },
-        "peername": "",
-        "sockname": ""
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
       }
@@ -261,11 +261,11 @@
           "domain": "",
           "user": ""
         },
-        "bucket": ""
+        "bucket": "",
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     },
     {
@@ -281,11 +281,11 @@
         "real_userid": {
           "domain": "",
           "user": ""
-        }
+        },
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
       },
       "optional_fields": {
-        "peername": "",
-        "sockname": ""
       }
     }
   ]
