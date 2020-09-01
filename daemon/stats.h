@@ -162,9 +162,6 @@ struct thread_stats {
  * Global stats.
  */
 struct stats {
-    /** Number of connections used by the server itself (listen ports etc). */
-    cb::RelaxedAtomic<unsigned int> daemon_conns;
-
     /** The current number of connections to the server */
     std::atomic<unsigned int> curr_conns;
 

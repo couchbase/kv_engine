@@ -230,7 +230,6 @@ static void stats_init() {
     set_stats_reset_time();
     stats.conn_structs.reset();
     stats.total_conns.reset();
-    stats.daemon_conns.reset();
     stats.rejected_conns.reset();
     stats.curr_conns.store(0, std::memory_order_relaxed);
 }

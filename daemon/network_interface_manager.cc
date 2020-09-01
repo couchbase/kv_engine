@@ -491,7 +491,6 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
                                                      sslcert);
         listen_conn.emplace_back(std::make_unique<ServerSocket>(
                 sfd, event_get_base(event.get()), inter));
-        stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     }
 

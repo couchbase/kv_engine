@@ -41,6 +41,7 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <gsl/gsl>
 
+#include <daemon/server_socket.h>
 #include <cinttypes>
 
 using namespace std::string_view_literals;
@@ -104,8 +105,10 @@ static ENGINE_ERROR_CODE server_stats(const AddStatFn& add_stat_callback,
         add_stat(cookie, add_stat_callback, "libevent", event_get_version());
         add_stat(cookie, add_stat_callback, "pointer_size", (8 * sizeof(void*)));
 
-        add_stat(cookie, add_stat_callback, "daemon_connections",
-                 stats.daemon_conns);
+        add_stat(cookie,
+                 add_stat_callback,
+                 "daemon_connections",
+                 ServerSocket::getNumInstances());
         add_stat(cookie, add_stat_callback, "curr_connections",
                  stats.curr_conns.load(std::memory_order_relaxed));
         add_stat(cookie,

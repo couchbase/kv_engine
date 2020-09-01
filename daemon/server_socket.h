@@ -19,6 +19,7 @@
 #include <libevent/utilities.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/socket.h>
+#include <atomic>
 #include <memory>
 
 class ListeningPort;
@@ -67,6 +68,11 @@ public:
      */
     nlohmann::json toJson() const;
 
+    /// Get the number of instances of ServerSocket currently in use
+    static uint64_t getNumInstances() {
+        return numInstances.load();
+    }
+
 protected:
     /// The socket object to accept clients from
     const SOCKET sfd;
@@ -84,4 +90,7 @@ protected:
 
     /// The notification handler registered in libevent
     static void listen_event_handler(evutil_socket_t, short, void* arg);
+
+    /// The current number of instances of ServerSockets
+    static std::atomic<uint64_t> numInstances;
 };

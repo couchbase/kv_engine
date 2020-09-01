@@ -31,6 +31,8 @@
 #include <memory>
 #include <string>
 
+std::atomic<uint64_t> ServerSocket::numInstances{0};
+
 /**
  * The listen_event_handler is the callback from libevent when someone is
  * connecting to one of the server sockets. It runs in the context of the
@@ -91,6 +93,7 @@ ServerSocket::ServerSocket(SOCKET fd,
         LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
         ev.reset();
     }
+    numInstances++;
 }
 
 ServerSocket::~ServerSocket() {
@@ -110,6 +113,7 @@ ServerSocket::~ServerSocket() {
         }
     }
     safe_close(sfd);
+    numInstances--;
 }
 
 void ServerSocket::acceptNewClient() {
