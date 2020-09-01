@@ -4420,7 +4420,8 @@ TEST_F(SingleThreadedEPBucketTest,
     // Setup (phase 2): Receive a STREAM_END message - after which all of the
     // above stream-level messages should be rejected as ENOENT.
     ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->streamEnd(opaque, vbid, END_STREAM_CLOSED));
+              consumer->streamEnd(
+                      opaque, vbid, cb::mcbp::DcpStreamEndStatus::Closed));
 
     // Test (phase 2): Have the producer send all the above stream-level
     // messages to the consumer. Should all be rejected this time.
@@ -4444,7 +4445,8 @@ TEST_F(SingleThreadedEPBucketTest,
 
     // Test: Have the producer send a StreamEnd with the "old" opaque.
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->streamEnd(opaque1, vbid, END_STREAM_CLOSED));
+              consumer->streamEnd(
+                      opaque1, vbid, cb::mcbp::DcpStreamEndStatus::Closed));
 }
 
 TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {

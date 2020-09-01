@@ -58,7 +58,7 @@ public:
 
     ENGINE_ERROR_CODE stream_end(uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags,
+                                 cb::mcbp::DcpStreamEndStatus status,
                                  cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE marker(uint32_t opaque,
@@ -202,6 +202,8 @@ public:
     uint64_t last_commit_seqno;
     uint64_t last_abort_seqno;
     uint32_t last_oso_snapshot_flags;
+    cb::mcbp::DcpStreamEndStatus last_end_status =
+            cb::mcbp::DcpStreamEndStatus::Ok;
 
     bool isCollectionsSupported = false;
 

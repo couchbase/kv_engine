@@ -767,7 +767,7 @@ public:
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags) override;
+                                 cb::mcbp::DcpStreamEndStatus status) override;
 
     ENGINE_ERROR_CODE snapshot_marker(
             gsl::not_null<const void*> cookie,
@@ -1496,11 +1496,11 @@ ENGINE_ERROR_CODE EWB_Engine::get_failover_log(
 ENGINE_ERROR_CODE EWB_Engine::stream_end(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags) {
+                                         cb::mcbp::DcpStreamEndStatus status) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->stream_end(cookie, opaque, vbucket, flags);
+        return real_engine_dcp->stream_end(cookie, opaque, vbucket, status);
     }
 }
 

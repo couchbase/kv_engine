@@ -114,13 +114,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
 ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(
         uint32_t opaque,
         Vbid vbucket,
-        uint32_t flags,
+        cb::mcbp::DcpStreamEndStatus status,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpStreamEnd;
     last_opaque = opaque;
     last_vbucket = vbucket;
-    last_flags = flags;
+    last_end_status = status;
     last_packet_size = sizeof(cb::mcbp::Request) +
                        sizeof(cb::mcbp::request::DcpStreamEndPayload);
     if (sid) {
@@ -583,4 +583,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_high_completed_seqno = 0;
     last_commit_seqno = 0;
     last_abort_seqno = 0;
+    last_end_status = cb::mcbp::DcpStreamEndStatus::Ok;
 }

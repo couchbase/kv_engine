@@ -25,6 +25,8 @@
 #include "monotonic.h"
 #include "vb_ready_queue.h"
 
+#include <include/mcbp/protocol/dcp_stream_end_status.h>
+
 #include <folly/AtomicHashMap.h>
 #include <folly/CachelinePadded.h>
 #include <folly/SharedMutex.h>
@@ -420,15 +422,16 @@ protected:
     size_t getItemsRemaining() const;
 
     /**
-     * Map the end_stream_status_t to one the client can understand.
-     * Maps END_STREAM_FILTER_EMPTY to END_STREAM_OK if the client does not
-     * understands collections
+     * Map the cb::mcbp::DcpStreamEndStatus to one the client can understand.
+     * Maps cb::mcbp::DcpStreamEndStatus::FilterEmpty to
+     * cb::mcbp::DcpStreamEndStatus::Ok if the client does not understands
+     * collections
      * @param cookie client cookie
      * @param status the status to map
      * @param a status safe for the client
      */
-    end_stream_status_t mapEndStreamStatus(const void* cookie,
-                                           end_stream_status_t status) const;
+    cb::mcbp::DcpStreamEndStatus mapEndStreamStatus(
+            const void* cookie, cb::mcbp::DcpStreamEndStatus status) const;
 
     /*
      * deletionV1OrV2 unifies the code where a choice is made between triggering
@@ -454,7 +457,7 @@ protected:
     bool setStreamDeadStatus(
             Vbid vbid,
             cb::mcbp::DcpStreamId sid,
-            end_stream_status_t status,
+            cb::mcbp::DcpStreamEndStatus status,
             folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
 
     /**

@@ -5166,7 +5166,6 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
     Vbid vbucket = Vbid(0);
-    uint32_t end_flag = 0;
     const char *name = "unittest";
 
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
@@ -5192,7 +5191,10 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->stream_end(cookie, stream_opaque, vbucket, end_flag),
+            dcp->stream_end(cookie,
+                            stream_opaque,
+                            vbucket,
+                            cb::mcbp::DcpStreamEndStatus::Ok),
             "Expected success");
 
     testHarness->destroy_cookie(cookie);
@@ -7609,11 +7611,11 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
     // Expect DcpTestConsumer to close
     cb_assert(cb_join_thread(dcp_thread) == 0);
 
-    // Expect producers->last_flags to carry END_STREAM_STATE as reason
+    // Expect producers->last_end_status to carry StateChanged as reason
     // for stream closure
-    checkeq(static_cast<uint32_t>(2),
-            cdc.dcpConsumer->producers.last_flags,
-            "Last DCP flag not END_STREAM_STATE");
+    check(cb::mcbp::DcpStreamEndStatus::StateChanged ==
+                  cdc.dcpConsumer->producers.last_end_status,
+          "Last DCP flag not StateChanged");
 
     testHarness->destroy_cookie(cookie);
 

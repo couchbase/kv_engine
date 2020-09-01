@@ -1847,7 +1847,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
     engine->getKVBucket()->deleteVBucket(vbid);
     // Normally done by DcpConnMap::vBucketStateChanged(), but the producer
     // isn't tracked in DcpConnMap here.
-    stream->setDead(END_STREAM_STATE);
+    stream->setDead(cb::mcbp::DcpStreamEndStatus::StateChanged);
 
     // Test: run backfillMgr again to actually attempt to read items from disk.
     // Given vBucket has been deleted this should result in the backfill
@@ -2469,7 +2469,9 @@ TEST_P(SingleThreadedPassiveStreamTest,
 
     // end the second stream
     EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->streamEnd(stream->getOpaque(), vbid, /* flags */ 0));
+              consumer->streamEnd(stream->getOpaque(),
+                                  vbid,
+                                  cb::mcbp::DcpStreamEndStatus::Ok));
 
     // expect the consumer is no longer in vbconns
     EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, streamName));
@@ -2530,7 +2532,7 @@ void SingleThreadedPassiveStreamTest::
     ASSERT_TRUE(stream->isActive());
 
     // set stream to dead - modelling stream being unexpectedly "disconnected"
-    stream->setDead(END_STREAM_DISCONNECTED);
+    stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
     ASSERT_FALSE(stream->isActive());
 
     // flag not cleared yet, the replica might reconnect to the active, don't

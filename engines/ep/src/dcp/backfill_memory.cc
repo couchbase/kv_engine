@@ -149,7 +149,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                 getVBucketId(),
                 startSeqno,
                 evb->getPurgeSeqno());
-        stream->setDead(END_STREAM_ROLLBACK);
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
         return backfill_finished;
     }
 

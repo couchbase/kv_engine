@@ -20,6 +20,7 @@
 #include "cursor.h"
 #include "dcp/dcp-types.h"
 
+#include <mcbp/protocol/dcp_stream_end_status.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
 
@@ -83,7 +84,7 @@ public:
 
     virtual std::unique_ptr<DcpResponse> next() = 0;
 
-    virtual uint32_t setDead(end_stream_status_t status) = 0;
+    virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 
     virtual void notifySeqnoAvailable(uint64_t seqno) {}
 

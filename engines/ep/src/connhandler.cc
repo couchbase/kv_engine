@@ -84,7 +84,7 @@ ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque,
 
 ENGINE_ERROR_CODE ConnHandler::streamEnd(uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags) {
+                                         cb::mcbp::DcpStreamEndStatus status) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream end API");

@@ -657,7 +657,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     EXPECT_EQ(0, vb->getNumItems());
 
     // Disconnect the ActiveStream
-    stream->setDead(END_STREAM_DISCONNECTED);
+    stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
 
     // Attempt to ack the seqno again. The stream is dead so we should not
     // process the ack although we return SUCCESS to avoid tearing down any
@@ -693,7 +693,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
     simulateStreamSeqnoAck(producer->getConsumerName(), 1);
 
     // Disconnect the ActiveStream. Should remove the queued seqno ack
-    stream->setDead(END_STREAM_DISCONNECTED);
+    stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
 
     // remove the stream and the checkpoint to force a backfill
     stream.reset();

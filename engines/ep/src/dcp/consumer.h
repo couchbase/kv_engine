@@ -124,7 +124,7 @@ public:
 
     ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
                                 Vbid vbucket,
-                                uint32_t flags) override;
+                                cb::mcbp::DcpStreamEndStatus status) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                const DocKey& key,

@@ -65,7 +65,7 @@ public:
 
     std::unique_ptr<DcpResponse> next() override;
 
-    uint32_t setDead(end_stream_status_t status) override;
+    uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     std::string getStreamTypeName() const override;
 
@@ -216,8 +216,6 @@ protected:
     void processSetVBucketState(SetVBucketState* state);
 
     uint32_t clearBuffer_UNLOCKED();
-
-    std::string getEndStreamStatusStr(end_stream_status_t status);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised

@@ -56,7 +56,7 @@ public:
 
     ENGINE_ERROR_CODE stream_end(uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags,
+                                 cb::mcbp::DcpStreamEndStatus status,
                                  cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE marker(uint32_t opaque,

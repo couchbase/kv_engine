@@ -127,7 +127,7 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
         stream_req_value.empty() ? "none" : stream_req_value);
 }
 
-uint32_t PassiveStream::setDead(end_stream_status_t status) {
+uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     /* Hold buffer lock so that we clear out all items before we set the stream
        to dead state. We do not want to add any new message to the buffer or
        process any items in the buffer once we set the stream state to dead. */
@@ -142,7 +142,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
 
     if (killed) {
         auto severity = spdlog::level::level_enum::info;
-        if (END_STREAM_DISCONNECTED == status) {
+        if (cb::mcbp::DcpStreamEndStatus::Disconnected == status) {
             severity = spdlog::level::level_enum::warn;
         }
         log(severity,
@@ -151,7 +151,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
             vb_,
             last_seqno.load(),
             unackedBytes,
-            getEndStreamStatusStr(status).c_str());
+            cb::mcbp::to_string(status));
     }
     return unackedBytes;
 }
@@ -1198,23 +1198,6 @@ bool PassiveStream::transitionState(StreamState newState) {
 
     state_ = newState;
     return true;
-}
-
-std::string PassiveStream::getEndStreamStatusStr(end_stream_status_t status) {
-    switch (status) {
-    case END_STREAM_OK:
-        return "The stream closed as part of normal operation";
-    case END_STREAM_CLOSED:
-        return "The stream closed due to a close stream message";
-    case END_STREAM_DISCONNECTED:
-        return "The stream closed early because the conn was disconnected";
-    case END_STREAM_STATE:
-        return "The stream closed early because the vbucket state changed";
-    default:
-        break;
-    }
-    return std::string{"Status unknown: " + std::to_string(status) +
-                       "; this should not have happened!"};
 }
 
 void PassiveStream::notifyStreamReady() {

@@ -367,7 +367,8 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
         return ENGINE_KEY_ENOENT;
     }
 
-    uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
+    uint32_t bytesCleared =
+            stream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
     flowControl.incrFreedBytes(bytesCleared);
     // Note the stream is not yet removed from the `streams` map; as we need to
     // handle (but ignore) any in-flight messages from the Producer until
@@ -379,9 +380,13 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
 
 ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags) {
-    TRACE_EVENT2(
-            "DcpConsumer", "streamEnd", "vbid", vbucket.get(), "flags", flags);
+                                         cb::mcbp::DcpStreamEndStatus status) {
+    TRACE_EVENT2("DcpConsumer",
+                 "streamEnd",
+                 "vbid",
+                 vbucket.get(),
+                 "status",
+                 uint32_t(status));
 
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, StreamEndResponse::baseMsgBytes);
@@ -411,13 +416,12 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
         return ENGINE_SUCCESS;
     }
 
-    logger->info("({}) End stream received with reason {}", vbucket, flags);
+    logger->info("({}) End stream received with reason {}",
+                 vbucket,
+                 cb::mcbp::to_string(status));
 
     auto msg = std::make_unique<StreamEndResponse>(
-            opaque,
-            static_cast<end_stream_status_t>(flags),
-            vbucket,
-            cb::mcbp::DcpStreamId{});
+            opaque, status, vbucket, cb::mcbp::DcpStreamId{});
     auto res = lookupStreamAndDispatchMessage(
             ufc, vbucket, opaque, std::move(msg));
 
@@ -1384,7 +1388,7 @@ void DcpConsumer::closeAllStreams() {
         streams.for_each(
                 [&vbvector](PassiveStreamMap::value_type& iter) {
                     auto* stream = iter.second.get();
-                    stream->setDead(END_STREAM_DISCONNECTED);
+                    stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
                     vbvector.push_back(stream->getVBucket());
                 },
                 guard);
@@ -1405,7 +1409,8 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
         logger->debug("({}) State changed to {}, closing passive stream!",
                       vbucket,
                       VBucket::toString(state));
-        uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
+        uint32_t bytesCleared =
+                stream->setDead(cb::mcbp::DcpStreamEndStatus::StateChanged);
         flowControl.incrFreedBytes(bytesCleared);
         scheduleNotifyIfNecessary();
     }

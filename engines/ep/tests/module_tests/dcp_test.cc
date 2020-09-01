@@ -1231,7 +1231,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     MockDcpMessageProducers producers(handle);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
-    EXPECT_EQ(END_STREAM_CLOSED, producers.last_flags);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers.last_end_status);
 
     /* Re-open stream for the same vbucket on the conn */
     EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
@@ -1337,7 +1337,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for closeStream";
     consumer->setLastMessageTime(1234);
-    consumer->streamEnd(/*opaque*/ 0, vbid, /*flags*/ 0);
+    consumer->streamEnd(/*opaque*/ 0, vbid, cb::mcbp::DcpStreamEndStatus::Ok);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for streamEnd";
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
@@ -2353,7 +2353,8 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
             static_cast<MockDcpConsumer*>(consumer)->getStreamOpaque(0xbeef);
     ASSERT_TRUE(streamOpaque);
     ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->streamEnd(*streamOpaque, vbid, /* flags */ 0));
+              consumer->streamEnd(
+                      *streamOpaque, vbid, cb::mcbp::DcpStreamEndStatus::Ok));
 
     // expect neither ConnHandler remains in vbConns
     EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));

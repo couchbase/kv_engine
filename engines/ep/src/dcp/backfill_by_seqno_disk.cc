@@ -21,6 +21,8 @@
 #include "kv_bucket.h"
 #include "kvstore.h"
 
+#include <mcbp/protocol/dcp_stream_end_status.h>
+
 // Here we must force call the baseclass (DCPBackfill(s) )because of the use of
 // multiple inheritance (and virtual inheritance), otherwise stream will be null
 // as DCPBackfill() would be used.
@@ -93,11 +95,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         std::stringstream log;
         log << "DCPBackfillBySeqnoDisk::create(): (" << getVBucketId()
             << ") cannot be scanned. Associated stream is set to dead state.";
-        end_stream_status_t status = END_STREAM_BACKFILL_FAIL;
+        auto status = cb::mcbp::DcpStreamEndStatus::BackfillFail;
         if (scanCtx) {
             log << " startSeqno:" << startSeqno
                 << " < purgeSeqno:" << scanCtx->purgeSeqno;
-            status = END_STREAM_ROLLBACK;
+            status = cb::mcbp::DcpStreamEndStatus::Rollback;
         } else {
             log << " failed to create scan";
         }

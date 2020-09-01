@@ -10,6 +10,7 @@ add_library(mcbp STATIC
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/status.h
             datatype.cc
             dcp_snapshot_marker_codec.cc
+            dcp_stream_end_status.cc
             dump.cc
             ewb_encode.cc
             feature.cc

@@ -1382,7 +1382,7 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
                     sid);
             ret = ENGINE_KEY_ENOENT;
         } else {
-            rv.first->setDead(END_STREAM_CLOSED);
+            rv.first->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
             ret = ENGINE_SUCCESS;
         }
         if (!sendStreamEndOnClientStreamClose) {
@@ -1592,7 +1592,10 @@ void DcpProducer::closeStreamDueToVbStateChange(
         Vbid vbucket,
         vbucket_state_t state,
         folly::SharedMutex::WriteHolder* vbstateLock) {
-    if (setStreamDeadStatus(vbucket, {}, END_STREAM_STATE, vbstateLock)) {
+    if (setStreamDeadStatus(vbucket,
+                            {},
+                            cb::mcbp::DcpStreamEndStatus::StateChanged,
+                            vbstateLock)) {
         logger->debug("({}) State changed to {}, closing active stream!",
                       vbucket,
                       VBucket::toString(state));
@@ -1600,7 +1603,8 @@ void DcpProducer::closeStreamDueToVbStateChange(
 }
 
 void DcpProducer::closeStreamDueToRollback(Vbid vbucket) {
-    if (setStreamDeadStatus(vbucket, {}, END_STREAM_ROLLBACK)) {
+    if (setStreamDeadStatus(
+                vbucket, {}, cb::mcbp::DcpStreamEndStatus::Rollback)) {
         logger->debug(
                 "({}) Rollback occurred,"
                 "closing stream (downstream must rollback too)",
@@ -1628,7 +1632,7 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
 bool DcpProducer::setStreamDeadStatus(
         Vbid vbid,
         cb::mcbp::DcpStreamId sid,
-        end_stream_status_t status,
+        cb::mcbp::DcpStreamEndStatus status,
         folly::SharedMutex::WriteHolder* vbstateLock) {
     auto rv = streams.find(vbid.get());
     if (rv != streams.end()) {
@@ -1693,7 +1697,8 @@ void DcpProducer::closeAllStreams() {
                           }
 
                           for (const auto& streamPtr : streamPtrs) {
-                              streamPtr->setDead(END_STREAM_DISCONNECTED);
+                              streamPtr->setDead(cb::mcbp::DcpStreamEndStatus::
+                                                         Disconnected);
                           }
                       });
     }
@@ -1813,7 +1818,7 @@ void DcpProducer::setDisconnect() {
                     streamPtrs.push_back(itr.get());
                 }
                 for (auto stream : streamPtrs) {
-                    stream->setDead(END_STREAM_DISCONNECTED);
+                    stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
                 }
             });
 }
@@ -2027,21 +2032,21 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
     }
 }
 
-end_stream_status_t DcpProducer::mapEndStreamStatus(
-        const void* cookie, end_stream_status_t status) const {
+cb::mcbp::DcpStreamEndStatus DcpProducer::mapEndStreamStatus(
+        const void* cookie, cb::mcbp::DcpStreamEndStatus status) const {
     if (!engine_.isCollectionsSupported(cookie)) {
         switch (status) {
-        case END_STREAM_OK:
-        case END_STREAM_CLOSED:
-        case END_STREAM_STATE:
-        case END_STREAM_DISCONNECTED:
-        case END_STREAM_SLOW:
-        case END_STREAM_BACKFILL_FAIL:
-        case END_STREAM_ROLLBACK:
+        case cb::mcbp::DcpStreamEndStatus::Ok:
+        case cb::mcbp::DcpStreamEndStatus::Closed:
+        case cb::mcbp::DcpStreamEndStatus::StateChanged:
+        case cb::mcbp::DcpStreamEndStatus::Disconnected:
+        case cb::mcbp::DcpStreamEndStatus::Slow:
+        case cb::mcbp::DcpStreamEndStatus::BackfillFail:
+        case cb::mcbp::DcpStreamEndStatus::Rollback:
             break;
-        case END_STREAM_FILTER_EMPTY:
-        case END_STREAM_LOST_PRIVILEGES:
-            status = END_STREAM_OK;
+        case cb::mcbp::DcpStreamEndStatus::FilterEmpty:
+        case cb::mcbp::DcpStreamEndStatus::LostPrivileges:
+            status = cb::mcbp::DcpStreamEndStatus::Ok;
         }
     }
     return status;

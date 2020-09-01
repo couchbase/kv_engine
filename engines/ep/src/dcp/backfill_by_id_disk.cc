@@ -92,7 +92,7 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         }
 
         stream->log(spdlog::level::level_enum::warn, "{}", log.str());
-        stream->setDead(END_STREAM_BACKFILL_FAIL);
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         transitionState(backfill_state_done);
     } else {
         bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);

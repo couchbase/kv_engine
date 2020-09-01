@@ -680,10 +680,10 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
 ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
                                uint32_t opaque,
                                Vbid vbucket,
-                               uint32_t flags) {
+                               cb::mcbp::DcpStreamEndStatus status) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->stream_end(&cookie, opaque, vbucket, flags);
+    auto ret = dcp->stream_end(&cookie, opaque, vbucket, status);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.stream_end returned ENGINE_DISCONNECT",
                     connection.getId(),

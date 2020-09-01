@@ -33,7 +33,7 @@ void dcp_stream_end_executor(Cookie& cookie) {
         ret = dcpStreamEnd(cookie,
                            request.getOpaque(),
                            request.getVBucket(),
-                           payload->getFlags());
+                           payload->getStatus());
     }
 
     if (ret != ENGINE_SUCCESS) {

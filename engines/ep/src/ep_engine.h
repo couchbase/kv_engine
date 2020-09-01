@@ -275,7 +275,7 @@ public:
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags) override;
+                                 cb::mcbp::DcpStreamEndStatus status) override;
 
     ENGINE_ERROR_CODE snapshot_marker(
             gsl::not_null<const void*> cookie,

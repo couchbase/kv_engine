@@ -53,7 +53,10 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
     VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
         pushToReadyQ(std::make_unique<StreamEndResponse>(
-                opaque_, END_STREAM_OK, vb_, cb::mcbp::DcpStreamId{}));
+                opaque_,
+                cb::mcbp::DcpStreamEndStatus::Ok,
+                vb_,
+                cb::mcbp::DcpStreamId{}));
         transitionState(StreamState::Dead);
         itemsReady.store(true);
     }
@@ -65,11 +68,11 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                        en_seqno);
 }
 
-uint32_t NotifierStream::setDead(end_stream_status_t status) {
+uint32_t NotifierStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isActive()) {
         transitionState(StreamState::Dead);
-        if (status != END_STREAM_DISCONNECTED) {
+        if (status != cb::mcbp::DcpStreamEndStatus::Disconnected) {
             pushToReadyQ(std::make_unique<StreamEndResponse>(
                     opaque_, status, vb_, cb::mcbp::DcpStreamId{}));
             lh.unlock();
@@ -87,7 +90,10 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isActive() && start_seqno_ < seqno) {
         pushToReadyQ(std::make_unique<StreamEndResponse>(
-                opaque_, END_STREAM_OK, vb_, cb::mcbp::DcpStreamId{}));
+                opaque_,
+                cb::mcbp::DcpStreamEndStatus::Ok,
+                vb_,
+                cb::mcbp::DcpStreamId{}));
         transitionState(StreamState::Dead);
         lh.unlock();
         notifyStreamReady();

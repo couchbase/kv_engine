@@ -1463,11 +1463,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_end(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         Vbid vbucket,
-        uint32_t flags) {
+        cb::mcbp::DcpStreamEndStatus status) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->streamEnd(opaque, vbucket, flags);
+        return conn->streamEnd(opaque, vbucket, status);
     }
     return ENGINE_DISCONNECT;
 }

@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <mcbp/protocol/dcp_stream_end_status.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_error.h>
@@ -81,10 +82,10 @@ struct dcp_message_producers {
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
-     * @param flags the reason for the stream end.
+     * @param status the reason for the stream end.
      *              0 = success
-     *              1 = Something happened on the vbucket causing
-     *                  us to abort it.
+     *              1+ = Something happened on the vbucket causing
+     *                   us to abort it.
      * @param sid The stream-ID the end applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
@@ -93,7 +94,7 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE stream_end(uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags,
+                                         cb::mcbp::DcpStreamEndStatus status,
                                          cb::mcbp::DcpStreamId sid) = 0;
 
     /**
@@ -481,10 +482,11 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a stream end message was received
      */
-    virtual ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint32_t flags) = 0;
+    virtual ENGINE_ERROR_CODE stream_end(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpStreamEndStatus status) = 0;
 
     /**
      * Callback to the engine that a snapshot marker message was received

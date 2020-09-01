@@ -507,8 +507,8 @@ ENGINE_ERROR_CODE MockEngine::get_failover_log(
 ENGINE_ERROR_CODE MockEngine::stream_end(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags) {
-    return the_engine_dcp->stream_end(cookie, opaque, vbucket, flags);
+                                         cb::mcbp::DcpStreamEndStatus status) {
+    return the_engine_dcp->stream_end(cookie, opaque, vbucket, status);
 }
 
 ENGINE_ERROR_CODE MockEngine::snapshot_marker(

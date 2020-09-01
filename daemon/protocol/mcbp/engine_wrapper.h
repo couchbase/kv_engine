@@ -395,13 +395,13 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
  * @param cookie The cookie representing the connection
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
- * @param flags
+ * @param status The stream end status code
  * @return ENGINE_ERROR_CODE
  */
 ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
                                uint32_t opaque,
                                Vbid vbid,
-                               uint32_t flags);
+                               cb::mcbp::DcpStreamEndStatus status);
 
 /**
  * Calls the underlying engine DCP stream-req

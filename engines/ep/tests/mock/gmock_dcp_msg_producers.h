@@ -56,7 +56,7 @@ public:
     MOCK_METHOD4(stream_end,
                  ENGINE_ERROR_CODE(uint32_t opaque,
                                    Vbid vbucket,
-                                   uint32_t flags,
+                                   cb::mcbp::DcpStreamEndStatus status,
                                    cb::mcbp::DcpStreamId sid));
 
     MOCK_METHOD9(marker,

@@ -23,6 +23,7 @@
 #include "item.h"
 #include "systemevent.h"
 
+#include <mcbp/protocol/dcp_stream_end_status.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
@@ -285,7 +286,7 @@ private:
 class StreamEndResponse : public DcpResponse {
 public:
     StreamEndResponse(uint32_t opaque,
-                      end_stream_status_t flags,
+                      cb::mcbp::DcpStreamEndStatus flags,
                       Vbid vbucket,
                       cb::mcbp::DcpStreamId sid)
         : DcpResponse(Event::StreamEnd, opaque, sid),
@@ -293,14 +294,15 @@ public:
           vbucket_(vbucket) {
     }
 
-    static end_stream_status_t statusToFlags(end_stream_status_t status) {
-        if (status == END_STREAM_ROLLBACK) {
-            return END_STREAM_STATE;
+    static cb::mcbp::DcpStreamEndStatus statusToFlags(
+            cb::mcbp::DcpStreamEndStatus status) {
+        if (status == cb::mcbp::DcpStreamEndStatus::Rollback) {
+            return cb::mcbp::DcpStreamEndStatus::StateChanged;
         }
         return status;
     }
 
-    end_stream_status_t getFlags() const {
+    cb::mcbp::DcpStreamEndStatus getFlags() const {
         return flags_;
     }
 
@@ -315,7 +317,7 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    end_stream_status_t flags_;
+    cb::mcbp::DcpStreamEndStatus flags_;
     Vbid vbucket_;
 };
 

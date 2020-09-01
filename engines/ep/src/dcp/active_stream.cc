@@ -137,7 +137,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
          * potentially makes call to pushToReadyQueue.
          */
         LockHolder lh(streamMutex);
-        endStream(END_STREAM_OK);
+        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
         itemsReady.store(true);
         // lock is released on leaving the scope
     }
@@ -252,7 +252,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
             "{} Failed to register cursor: {}",
             logPrefix,
             error.what());
-        endStream(END_STREAM_STATE);
+        endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
     }
 }
 
@@ -607,7 +607,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
                     "{} Receive ack for set vbucket state to "
                     "active message",
                     logPrefix);
-                endStream(END_STREAM_OK);
+                endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             }
         } else {
             log(spdlog::level::level_enum::warn,
@@ -683,11 +683,11 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
             }
         } else {
             if (lastReadSeqno.load() >= end_seqno_) {
-                endStream(END_STREAM_OK);
+                endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             } else if (isTakeoverStream()) {
                 transitionState(StreamState::TakeoverSend);
             } else if (isDiskOnly()) {
-                endStream(END_STREAM_OK);
+                endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             } else {
                 if (backfillRemaining && *backfillRemaining != 0) {
                     /* No more items will be received from the backfill at this
@@ -718,7 +718,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
 
 std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
     if (lastSentSeqno.load() >= end_seqno_) {
-        endStream(END_STREAM_OK);
+        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
     } else if (readyQ.empty()) {
         if (pendingBackfill) {
             // Moving the state from InMemory to Backfilling will result in a
@@ -1036,9 +1036,9 @@ void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
         }
     } else {
         /* The entity deleting the vbucket must set stream to dead,
-           calling setDead(END_STREAM_STATE) will cause deadlock because
-           it will try to grab streamMutex which is already acquired at this
-           point here */
+           calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
+           cause deadlock because it will try to grab streamMutex which is
+           already acquired at this point here */
         return;
     }
 }
@@ -1344,7 +1344,7 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
     // a stream with an empty filter does nothing but self close
     if (filter.empty()) {
         // Filter is now empty empty, so endStream
-        endStream(END_STREAM_FILTER_EMPTY);
+        endStream(cb::mcbp::DcpStreamEndStatus::FilterEmpty);
     }
 
     // Completed item processing - clear guard flag and notify producer.
@@ -1472,24 +1472,24 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
     }
 }
 
-void ActiveStream::setDeadInner(end_stream_status_t status) {
+void ActiveStream::setDeadInner(cb::mcbp::DcpStreamEndStatus status) {
     {
         LockHolder lh(streamMutex);
         endStream(status);
     }
 
-    if (status != END_STREAM_DISCONNECTED) {
+    if (status != cb::mcbp::DcpStreamEndStatus::Disconnected) {
         notifyStreamReady();
     }
 }
 
-uint32_t ActiveStream::setDead(end_stream_status_t status) {
+uint32_t ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     setDeadInner(status);
     removeAcksFromDM();
     return 0;
 }
 
-void ActiveStream::setDead(end_stream_status_t status,
+void ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status,
                            folly::SharedMutex::WriteHolder& vbstateLock) {
     setDeadInner(status);
     removeAcksFromDM(&vbstateLock);
@@ -1544,7 +1544,7 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
     }
 }
 
-void ActiveStream::endStream(end_stream_status_t reason) {
+void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
     if (isActive()) {
         pendingBackfill = false;
         if (isBackfilling()) {
@@ -1560,22 +1560,23 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             bufferedBackfill.items = 0;
         }
         transitionState(StreamState::Dead);
-        if (reason != END_STREAM_DISCONNECTED) {
+        if (reason != cb::mcbp::DcpStreamEndStatus::Disconnected) {
             pushToReadyQ(std::make_unique<StreamEndResponse>(
                     opaque_, reason, vb_, sid));
         }
 
         // If we ended normally then print at info level to prevent views
         // from spamming our logs
-        auto level = reason == END_STREAM_OK ? spdlog::level::level_enum::info
-                                             : spdlog::level::level_enum::warn;
+        auto level = reason == cb::mcbp::DcpStreamEndStatus::Ok
+                             ? spdlog::level::level_enum::info
+                             : spdlog::level::level_enum::warn;
         log(level,
             "{} Stream closing, sent until seqno {} remaining items "
             "{}, reason: {}",
             logPrefix,
             lastSentSeqno.load(),
             readyQ_non_meta_items.load(),
-            getEndStreamStatusStr(reason).c_str());
+            cb::mcbp::to_string(reason));
     }
 }
 
@@ -1653,7 +1654,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                 "cursor: {}",
                 logPrefix,
                 error.what());
-            endStream(END_STREAM_STATE);
+            endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
             return;
         }
 
@@ -1714,7 +1715,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     } else {
         // backfill not needed
         if (isDiskOnly()) {
-            endStream(END_STREAM_OK);
+            endStream(cb::mcbp::DcpStreamEndStatus::Ok);
         } else if (isTakeoverStream()) {
             transitionState(StreamState::TakeoverSend);
         } else {
@@ -1796,7 +1797,7 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
                 "cursor: {}",
                 logPrefix,
                 error.what());
-            endStream(END_STREAM_STATE);
+            endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
         }
     }
 }
@@ -1857,32 +1858,6 @@ std::string ActiveStream::getStreamTypeName() const {
 
 std::string ActiveStream::getStateName() const {
     return to_string(state_);
-}
-
-std::string ActiveStream::getEndStreamStatusStr(end_stream_status_t status) {
-    switch (status) {
-    case END_STREAM_OK:
-        return "The stream ended due to all items being streamed";
-    case END_STREAM_CLOSED:
-        return "The stream closed early due to a close stream message";
-    case END_STREAM_STATE:
-        return "The stream closed early because the vbucket state changed";
-    case END_STREAM_DISCONNECTED:
-        return "The stream closed early because the conn was disconnected";
-    case END_STREAM_SLOW:
-        return "The stream was closed early because it was too slow";
-    case END_STREAM_BACKFILL_FAIL:
-        return "The stream closed early due to backfill failure";
-    case END_STREAM_ROLLBACK:
-        return "The stream closed early because the vbucket rollback'ed";
-    case END_STREAM_FILTER_EMPTY:
-        return "The stream closed because all of the filtered collections "
-               "were deleted";
-    case END_STREAM_LOST_PRIVILEGES:
-        return "The stream closed because required privileges were lost";
-    }
-    return std::string{"Status unknown: " + std::to_string(status) +
-                       "; this should not have happened!"};
 }
 
 void ActiveStream::transitionState(StreamState newState) {
@@ -1963,7 +1938,7 @@ void ActiveStream::transitionState(StreamState newState) {
         // the ready queue.
         if (lastSentSeqno.load() >= end_seqno_) {
             // Stream transitioning to DEAD state
-            endStream(END_STREAM_OK);
+            endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             notifyStreamReady();
         } else {
             // Starting a new in-memory snapshot which could contain duplicate
@@ -2037,7 +2012,7 @@ bool ActiveStream::isCurrentSnapshotCompleted() const {
 bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
-        endStream(END_STREAM_STATE);
+        endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
         notifyStreamReady();
     }
     return removeCheckpointCursor();
@@ -2146,7 +2121,7 @@ void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
     std::unique_lock lh(streamMutex);
     // Does this stream still have the appropriate privileges to operate?
     if (filter.checkPrivileges(cookie, *engine) != cb::engine_errc::success) {
-        endStream(END_STREAM_LOST_PRIVILEGES);
+        endStream(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
         lh.unlock();
         notifyStreamReady();
     }

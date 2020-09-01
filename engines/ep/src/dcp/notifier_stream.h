@@ -41,7 +41,7 @@ public:
 
     std::unique_ptr<DcpResponse> next() override;
 
-    uint32_t setDead(end_stream_status_t status) override;
+    uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     /// @returns true if state_ is not Dead
     bool isActive() const override;

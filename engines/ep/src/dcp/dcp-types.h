@@ -51,31 +51,6 @@ enum process_items_error_t {
     stop_processing
 };
 
-enum end_stream_status_t {
-    //! The stream ended due to all items being streamed
-    END_STREAM_OK = 0,
-    //! The stream closed early due to a close stream message
-    END_STREAM_CLOSED = 1,
-    //! The stream closed early because the vbucket state changed
-    END_STREAM_STATE = 2,
-    //! The stream closed early because the connection was disconnected
-    END_STREAM_DISCONNECTED = 3,
-    //! The stream was closed early because it was too slow (currently unused,
-    //! but not deleted because it is part of the externally-visible API)
-    END_STREAM_SLOW = 4,
-    //! The stream closed early due to backfill failure
-    END_STREAM_BACKFILL_FAIL = 5,
-    //! The stream closed early because the vbucket is rolling back and
-    //! downstream needs to reopen the stream and rollback too
-    END_STREAM_ROLLBACK = 6,
-
-    //! All filtered collections have been removed so no more data can be sent.
-    END_STREAM_FILTER_EMPTY = 7,
-
-    //! Lost privileges that were present when stream was created
-    END_STREAM_LOST_PRIVILEGES = 8
-};
-
 enum dcp_marker_flag_t {
     MARKER_FLAG_MEMORY = 0x01,
     MARKER_FLAG_DISK = 0x02,

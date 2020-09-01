@@ -1523,7 +1523,7 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags,
+                                         cb::mcbp::DcpStreamEndStatus status,
                                          cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     Framebuilder builder(thread.getScratchBuffer());
@@ -1534,7 +1534,7 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
     builder.setVBucket(vbucket);
 
     cb::mcbp::request::DcpStreamEndPayload payload;
-    payload.setFlags(flags);
+    payload.setStatus(status);
 
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});

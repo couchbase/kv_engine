@@ -1967,8 +1967,8 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
-    EXPECT_EQ(end_stream_status_t::END_STREAM_FILTER_EMPTY,
-              producers->last_flags);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::FilterEmpty,
+              producers->last_end_status);
 
     // And no more
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
@@ -2038,7 +2038,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 
     // Expect a stream end marker
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    EXPECT_EQ(END_STREAM_OK, producers->last_flags);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 
     // Done... collection deletion of default has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());
@@ -2156,8 +2156,8 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
-    EXPECT_EQ(end_stream_status_t::END_STREAM_LOST_PRIVILEGES,
-              producers->last_flags);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
+              producers->last_end_status);
 
     // And no more
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
@@ -2190,8 +2190,8 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream_from_backfill) {
               producer->stepAndExpect(producers.get(),
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
 
-    EXPECT_EQ(end_stream_status_t::END_STREAM_LOST_PRIVILEGES,
-              producers->last_flags);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
+              producers->last_end_status);
 }
 
 TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
@@ -2221,7 +2221,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
-    EXPECT_EQ(END_STREAM_OK, producers->last_flags);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 
     // Done... collection deletion of default has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());

@@ -135,7 +135,7 @@ public:
     /// @Returns true if state_ is TakeoverWait
     bool isTakeoverWait() const;
 
-    uint32_t setDead(end_stream_status_t status) override;
+    uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     /**
      * Ends the stream.
@@ -143,7 +143,7 @@ public:
      * @param status The stream end status
      * @param vbstateLock Exclusive lock to vbstate
      */
-    void setDead(end_stream_status_t status,
+    void setDead(cb::mcbp::DcpStreamEndStatus status,
                  folly::SharedMutex::WriteHolder& vbstateLock);
 
     StreamState getState() const {
@@ -530,7 +530,7 @@ private:
                   uint64_t maxVisibleSeqno,
                   std::optional<uint64_t> highNonVisibleSeqno);
 
-    void endStream(end_stream_status_t reason);
+    void endStream(cb::mcbp::DcpStreamEndStatus reason);
 
     /* reschedule = FALSE ==> First backfill on the stream
      * reschedule = TRUE ==> Schedules another backfill on the stream that has
@@ -540,8 +540,6 @@ private:
      * Note: Expects the streamMutex to be acquired when called
      */
     void scheduleBackfill_UNLOCKED(bool reschedule);
-
-    static std::string getEndStreamStatusStr(end_stream_status_t status);
 
     bool isCurrentSnapshotCompleted() const;
 
@@ -589,7 +587,7 @@ private:
      *
      * @param status The end stream status
      */
-    void setDeadInner(end_stream_status_t status);
+    void setDeadInner(cb::mcbp::DcpStreamEndStatus status);
 
     /**
      * Remove the acks from the ActiveDurabilityMonitor for this stream.

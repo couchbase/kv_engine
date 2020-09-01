@@ -66,6 +66,7 @@ enum class Level : uint8_t;
  */
 
 #include <mcbp/protocol/datatype.h>
+#include <mcbp/protocol/dcp_stream_end_status.h>
 #include <mcbp/protocol/feature.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
@@ -740,19 +741,19 @@ static_assert(sizeof(DcpStreamReqPayload) == 48, "Unexpected struct size");
 
 class DcpStreamEndPayload {
 public:
-    uint32_t getFlags() const {
-        return ntohl(flags);
+    DcpStreamEndStatus getStatus() const {
+        return DcpStreamEndStatus(ntohl(status));
     }
-    void setFlags(uint32_t flags) {
-        DcpStreamEndPayload::flags = htonl(flags);
+    void setStatus(DcpStreamEndStatus status) {
+        DcpStreamEndPayload::status = htonl(uint32_t(status));
     }
 
 protected:
     /**
-     * All flags set to 0 == OK,
-     * 1: state changed
+     * Note the following is maintained in network/big endian
+     * see protocol/dcp_stream_end_status.h for values
      */
-    uint32_t flags = 0;
+    uint32_t status = 0;
 };
 static_assert(sizeof(DcpStreamEndPayload) == 4, "Unexpected struct size");
 

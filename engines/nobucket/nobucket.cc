@@ -246,7 +246,7 @@ public:
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*>,
                                  uint32_t,
                                  Vbid,
-                                 uint32_t) override {
+                                 cb::mcbp::DcpStreamEndStatus) override {
         return ENGINE_NO_BUCKET;
     }
 

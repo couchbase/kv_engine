@@ -71,10 +71,10 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::set_vbucket_state_rsp(
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_end(
         uint32_t opaque,
         Vbid vbucket,
-        uint32_t flags,
+        cb::mcbp::DcpStreamEndStatus status,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.stream_end(opaque, vbucket, flags, sid);
+    return guarded.stream_end(opaque, vbucket, status, sid);
 }
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
         uint32_t opaque,
