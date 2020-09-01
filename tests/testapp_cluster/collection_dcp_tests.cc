@@ -204,13 +204,13 @@ TEST_F(CollectionsRbacScope, ScopeAccessCollection2Success) {
             Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
 }
 
-// Setup will add a user that can do collection:0 streams
+// Setup will add a user that can do collection:9 dcp streams
 class CollectionsRbacCollection : public CollectionsDcpTests {
 public:
     void SetUp() override {
         CollectionsDcpTests::SetUp();
 
-        // Load a user that has DcpProducer/Stream privs for the collection:0
+        // Load a user that has DcpProducer/Stream privs for the collection:0xa
         cluster->getAuthProviderService().upsertUser({username, password, R"({
   "buckets": {
     "default": {
@@ -220,16 +220,16 @@ public:
       "scopes": {
         "0": {
           "collections": {
-            "0": {
+            "a": {
               "privileges": [
-                "DcpStream"
+                "DcpStream", "Upsert"
               ]
             }
           }
         },
         "8": {
           "collections": {
-            "10": {
+            "b": {
               "privileges": [
                 "Upsert"
               ]
@@ -247,6 +247,10 @@ public:
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacCollection");
         conn->dcpControl("enable_noop", "true");
+
+        connNoStream = getConnection();
+        connNoStream->authenticate(username, password);
+        connNoStream->selectBucket("default");
     }
 
     void TearDown() override {
@@ -255,6 +259,7 @@ public:
     }
 
     std::unique_ptr<MemcachedConnection> conn;
+    std::unique_ptr<MemcachedConnection> connNoStream;
     const std::string username{"CollectionsRbacCollection"};
     const std::string password{"CollectionsRbacCollection"};
 };
@@ -278,7 +283,75 @@ TEST_F(CollectionsRbacCollection, CollectionAccessScopeEaccess) {
 
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionSuccess) {
     conn->dcpStreamRequest(
-            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
+            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["a"]})"_json);
+}
+
+// Test checks that we can create a DCP stream, yet it closes if we lose
+// the DcpStream privilege. Note prior to the fix for MB-41095 this would
+// reproduce the un-handled exception seen in the MB.
+TEST_F(CollectionsRbacCollection, CollectionStreamPrivsLost) {
+    conn->dcpStreamRequest(
+            Vbid(0), 0, 0, ~0, 0, 0, 0, R"({"collections":["a"]})"_json);
+
+    // Now take away DcpStream from collection:a
+    cluster->getAuthProviderService().upsertUser({username, password, R"({
+  "buckets": {
+    "default": {
+      "privileges": [
+        "DcpProducer"
+      ],
+      "scopes": {
+        "0": {
+          "collections": {
+            "a": {
+              "privileges": [
+                "Upsert"
+              ]
+            }
+          }
+        },
+        "8": {
+          "collections": {
+            "b": {
+              "privileges": [
+                "Upsert"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "privileges": [],
+  "domain": "external"
+})"_json});
+
+    // Poke a mutation in, second snapshot will be created that triggers the end
+    connNoStream->store(
+            createKey(CollectionEntry::vegetable, "k1"), Vbid(0), "v1");
+
+    Frame frame;
+    auto expect = [&frame, this](cb::mcbp::ClientOpcode op) {
+        conn->recvFrame(frame);
+        EXPECT_EQ(cb::mcbp::Magic::ClientRequest, frame.getMagic());
+        const auto* request = frame.getRequest();
+        EXPECT_EQ(op, request->getClientOpcode());
+        return request;
+    };
+
+    // Will receive the collection creation info, then the data snapshot and
+    // the end-stream gets queued after the mutation
+    expect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    expect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    expect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    expect(cb::mcbp::ClientOpcode::DcpMutation);
+    auto* request = expect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(sizeof(uint32_t), request->getExtdata().size());
+    const auto* payload =
+            reinterpret_cast<const cb::mcbp::request::DcpStreamEndPayload*>(
+                    request->getExtdata().data());
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
+              payload->getStatus());
 }
 
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
