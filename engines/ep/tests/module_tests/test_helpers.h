@@ -36,8 +36,6 @@
 // 3145728 * 4 / 0.1 = 125829120
 static std::string magmaConfig =
         "max_size=125829120;"
-        "magma_num_flushers=2;"
-        "magma_num_compactors=2;"
         "magma_flusher_thread_percentage=50;"
         "num_writer_threads=2";
 

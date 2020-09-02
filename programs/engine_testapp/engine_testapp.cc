@@ -334,8 +334,6 @@ static test_result execute_test(engine_test_t test,
             if (!cfg.empty() && cfg.back() != ';') {
                 cfg.append(";");
             }
-            cfg.append("magma_num_flushers=2;");
-            cfg.append("magma_num_compactors=2;");
             // The way magma set its memory quota is to use 10% of the
             // max_size per shard. Set this to allow for 3MB per shard assuming
             // there are 4 shards.
