@@ -54,10 +54,11 @@ protected:
     std::vector<uint8_t> getFrame(bufferevent* bev);
 
     void read_callback(bufferevent* bev);
+    void read_callback_passthrough(bufferevent* bev);
     void event_callback(bufferevent* bev, short event);
 
     static void read_callback(bufferevent* bev, void* ctx);
-
+    static void read_callback_passthrough(bufferevent* bev, void* ctx);
     static void event_callback(bufferevent* bev, short event, void* ctx);
 
     struct EventDeleter {

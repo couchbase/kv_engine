@@ -154,6 +154,28 @@ void DcpPipe::read_callback(bufferevent* bev) {
             --awaiting;
             if (awaiting == 0 && replication_running_callback) {
                 replication_running_callback();
+
+                // Setup / AddStream phase done, switch to an alternative
+                // callback that just moves the stream from one socket to
+                // another. That minimizes the runtime overhead of the proxy.
+                // Note that by doing that we will skip any packet-filtering,
+                // so we enable the alternative callback only if there is no
+                // filtering set.
+                if (!packet_filter) {
+                    bufferevent_setcb(producer.get(),
+                                      DcpPipe::read_callback_passthrough,
+                                      nullptr,
+                                      DcpPipe::event_callback,
+                                      static_cast<void*>(this));
+                    bufferevent_setcb(consumer.get(),
+                                      DcpPipe::read_callback_passthrough,
+                                      nullptr,
+                                      DcpPipe::event_callback,
+                                      static_cast<void*>(this));
+                    // Switch to the new callback immediately
+                    read_callback_passthrough(bev);
+                    return;
+                }
             }
         } else {
             if (bev == producer.get()) {
@@ -164,6 +186,19 @@ void DcpPipe::read_callback(bufferevent* bev) {
                 bufferevent_write(producer.get(), frame.data(), frame.size());
             }
         }
+    }
+}
+
+void DcpPipe::read_callback_passthrough(bufferevent* bev) {
+    auto* in = bufferevent_get_input(bev);
+    if (bev == producer.get()) {
+        // From producer to consumer
+        auto* out = bufferevent_get_output(consumer.get());
+        evbuffer_add_buffer(out, in);
+    } else {
+        // From consumer to producer
+        auto* out = bufferevent_get_output(producer.get());
+        evbuffer_add_buffer(out, in);
     }
 }
 
@@ -180,6 +215,11 @@ void DcpPipe::event_callback(bufferevent* bev, short event) {
 void DcpPipe::read_callback(bufferevent* bev, void* ctx) {
     auto* instance = reinterpret_cast<DcpPipe*>(ctx);
     instance->read_callback(bev);
+}
+
+void DcpPipe::read_callback_passthrough(bufferevent* bev, void* ctx) {
+    auto* instance = reinterpret_cast<DcpPipe*>(ctx);
+    instance->read_callback_passthrough(bev);
 }
 
 void DcpPipe::event_callback(bufferevent* bev, short event, void* ctx) {
