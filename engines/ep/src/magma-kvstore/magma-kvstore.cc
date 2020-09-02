@@ -1233,6 +1233,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             std::chrono::steady_clock::now() - begin));
 
     st.batchSize.add(pendingReqs->size());
+    st.docsCommitted = pendingReqs->size();
 
     return status.ErrorCode();
 }

@@ -383,6 +383,19 @@ TEST_P(KVStoreParamTest, BatchSizeHisto) {
     EXPECT_EQ(2, stats.batchSize.getMaxValue());
 }
 
+TEST_P(KVStoreParamTest, DocsCommittedStat) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    StoredDocKey key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(1);
+    kvstore->set(qi);
+
+    EXPECT_TRUE(kvstore->commit(flush));
+
+    auto& stats = kvstore->getKVStoreStat();
+    EXPECT_EQ(1, stats.docsCommitted);
+}
+
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     // Grab a pointer to our MockTransactionContext so that we can establish
     // expectations on it throughout the test. We consume our unique_ptr to it
