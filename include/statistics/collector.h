@@ -229,7 +229,9 @@ public:
      *
      * TODO: MB-40259 - replace this with a more general solution.
      */
-    void addStat(std::string_view k, const char* v, const Labels& labels) {
+    void addStat(const cb::stats::StatDef& k,
+                 const char* v,
+                 const Labels& labels) {
         addStat(k, std::string_view(v), labels);
     };
 
