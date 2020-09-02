@@ -87,6 +87,22 @@ protected:
     void SetUp() override;
 
     void TearDown() override;
+
+    /**
+     * Test that the io_bg_fetch_docs_read stat is tracked correctly for gets
+     *
+     * @param deleted run the test for a deleted doc?
+     */
+    void testBgFetchDocsReadGet(bool deleted);
+
+    /**
+     * Test that the io_bg_fetch_docs_read stat is tracked correctly for
+     * getMulti
+     *
+     * @param deleted run the test for a deleted doc?
+     * @param getMeta run the fetch with the getMeta setting
+     */
+    void testBgFetchDocsReadGetMulti(bool deleted, GetMetaOnly getMeta);
 };
 
 /**

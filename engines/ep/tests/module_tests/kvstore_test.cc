@@ -301,6 +301,7 @@ TEST_P(KVStoreParamTest, GetMissNumGetFailure) {
 
     auto stats = kvstore->getKVStoreStat();
     EXPECT_EQ(1, stats.numGetFailure);
+    EXPECT_EQ(0, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
 }
 
 // A doc not found doesn't result in a get failure for a getMulti (bgfetch)
@@ -318,6 +319,7 @@ TEST_P(KVStoreParamTest, GetMultiMissNumGetFailure) {
 
     auto stats = kvstore->getKVStoreStat();
     EXPECT_EQ(0, stats.numGetFailure);
+    EXPECT_EQ(0, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
 }
 
 TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
@@ -394,6 +396,80 @@ TEST_P(KVStoreParamTest, DocsCommittedStat) {
 
     auto& stats = kvstore->getKVStoreStat();
     EXPECT_EQ(1, stats.docsCommitted);
+}
+
+void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    StoredDocKey key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(1);
+
+    if (deleted) {
+        qi->setDeleted();
+    }
+
+    kvstore->set(qi);
+
+    EXPECT_TRUE(kvstore->commit(flush));
+
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
+    checkGetValue(gv);
+    EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGet) {
+    SCOPED_TRACE("");
+    testBgFetchDocsReadGet(false /*deleted*/);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetDeleted) {
+    SCOPED_TRACE("");
+    testBgFetchDocsReadGet(true /*deleted*/);
+}
+
+void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
+                                                   GetMetaOnly getMeta) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    StoredDocKey key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(1);
+
+    if (deleted) {
+        qi->setDeleted();
+    }
+
+    kvstore->set(qi);
+
+    EXPECT_TRUE(kvstore->commit(flush));
+
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.isMetaOnly = getMeta;
+    auto diskDocKey = makeDiskDocKey("key");
+    q[diskDocKey] = std::move(ctx);
+    kvstore->getMulti(vbid, q);
+
+    for (auto& fetched : q) {
+        EXPECT_EQ(ENGINE_SUCCESS, fetched.second.value.getStatus());
+    }
+
+    EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMulti) {
+    testBgFetchDocsReadGetMulti(false /*deleted*/, GetMetaOnly::No);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeleted) {
+    testBgFetchDocsReadGetMulti(true /*deleted*/, GetMetaOnly::No);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiMetaOnly) {
+    testBgFetchDocsReadGetMulti(false /*deleted*/, GetMetaOnly::Yes);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeletedMetaOnly) {
+    testBgFetchDocsReadGetMulti(true /*deleted*/, GetMetaOnly::Yes);
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
