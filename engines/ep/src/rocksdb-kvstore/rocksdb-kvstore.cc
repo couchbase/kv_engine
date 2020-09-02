@@ -696,6 +696,7 @@ GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
     }
 
     ++st.io_bg_fetch_docs_read;
+    st.io_bgfetch_doc_bytes += keySlice.size() + value.size();
     return makeGetValue(vb, key, value, getMetaOnly);
 }
 
@@ -718,6 +719,7 @@ void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
                 fetch->value = rv;
             }
             ++st.io_bg_fetch_docs_read;
+            st.io_bgfetch_doc_bytes += keySlice.size() + value.size();
         } else {
             for (auto& fetch : it.second.bgfetched_list) {
                 fetch->value->setStatus(ENGINE_KEY_ENOENT);

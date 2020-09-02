@@ -302,6 +302,7 @@ TEST_P(KVStoreParamTest, GetMissNumGetFailure) {
     auto stats = kvstore->getKVStoreStat();
     EXPECT_EQ(1, stats.numGetFailure);
     EXPECT_EQ(0, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+    EXPECT_EQ(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
 }
 
 // A doc not found doesn't result in a get failure for a getMulti (bgfetch)
@@ -320,6 +321,7 @@ TEST_P(KVStoreParamTest, GetMultiMissNumGetFailure) {
     auto stats = kvstore->getKVStoreStat();
     EXPECT_EQ(0, stats.numGetFailure);
     EXPECT_EQ(0, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+    EXPECT_EQ(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
 }
 
 TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
@@ -415,6 +417,7 @@ void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv);
     EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+    EXPECT_NE(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
 }
 
 TEST_P(KVStoreParamTest, BgFetchDocsReadGet) {
@@ -454,6 +457,7 @@ void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
     }
 
     EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+    EXPECT_NE(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
 }
 
 TEST_P(KVStoreParamTest, BgFetchDocsReadGetMulti) {

@@ -755,6 +755,8 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     st.readSizeHisto.add(keySlice.Len() + metaSlice.Len() + valueSlice.Len());
 
     ++st.io_bg_fetch_docs_read;
+    st.io_bgfetch_doc_bytes +=
+            keySlice.Len() + metaSlice.Len() + valueSlice.Len();
 
     return makeGetValue(vbid, keySlice, metaSlice, valueSlice, getMetaOnly);
 }
@@ -812,6 +814,8 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
                                      bg_itm_ctx->value.item->getNBytes());
             }
             ++st.io_bg_fetch_docs_read;
+            st.io_bgfetch_doc_bytes +=
+                    op.Key.Len() + metaSlice.Len() + valueSlice.Len();
         } else {
             if (!status) {
                 logger->critical(
