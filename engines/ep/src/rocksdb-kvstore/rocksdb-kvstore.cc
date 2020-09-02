@@ -812,6 +812,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
         rocksdb::WriteBatch batch;
         auto status = saveVBStateToBatch(*vbh, vbstate, batch);
         if (!status.ok()) {
+            ++st.numVbSetFailure;
             logger.warn(
                     "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
                     "failed state:{} {} :{}",
@@ -822,6 +823,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
         }
         status = rdb->Write(writeOptions, &batch);
         if (!status.ok()) {
+            ++st.numVbSetFailure;
             logger.warn(
                     "RocksDBKVStore::snapshotVBucket: Write() "
                     "failed state:{} {} :{}",
@@ -1312,6 +1314,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 
     status = saveVBStateToBatch(*vbh, commitData.proposedVBState, batch);
     if (!status.ok()) {
+        ++st.numVbSetFailure;
         logger.warn("RocksDBKVStore::saveDocs: saveVBStateToBatch error:{}",
                     status.code());
         return status;
@@ -1319,6 +1322,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 
     status = writeAndTimeBatch(batch);
     if (!status.ok()) {
+        ++st.numVbSetFailure;
         logger.warn(
                 "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:{}, "
                 "{}",

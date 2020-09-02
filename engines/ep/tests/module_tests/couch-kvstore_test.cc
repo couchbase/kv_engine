@@ -562,6 +562,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     // Make sure the vBucket does not exist before this test
     ASSERT_FALSE(kvstore->getVBucketState(vbid));
     ASSERT_THROW(kvstore->readVBState(vbid), std::logic_error);
+    ASSERT_EQ(0, kvstore->getKVStoreStat().numVbSetFailure);
 
     {
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -590,6 +591,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     // instead of a non-success status or exception...
     vbucket_state defaultState;
     ASSERT_EQ(defaultState, kvstore->readVBState(vbid));
+    EXPECT_EQ(1, kvstore->getKVStoreStat().numVbSetFailure);
 
     // Recreate the kvstore and the state should equal the default constructed
     // state (and not throw an exception)

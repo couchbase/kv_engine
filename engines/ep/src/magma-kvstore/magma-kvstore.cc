@@ -2306,6 +2306,7 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
     auto status =
             magma->WriteDocs(vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
     if (!status) {
+        ++st.numVbSetFailure;
         logger->critical(
                 "MagmaKVStore::writeVBStateToDisk failed creating "
                 "commitBatch for "
@@ -2316,6 +2317,7 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
     }
     status = magma->Sync(doCommitEveryBatch);
     if (!status) {
+        ++st.numVbSetFailure;
         logger->critical(
                 "MagmaKVStore::writeVBStateToDisk: "
                 "magma::SyncCommitBatches {} "
