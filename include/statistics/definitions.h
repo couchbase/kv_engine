@@ -59,28 +59,6 @@ struct StatDef {
 
     /**
      * Constructs a stat specification including the information needed to
-     * expose a stat through either CBStats or Prometheus. Supports only
-     * a single label to allow usage from stats.def.h X-macro stat list.
-     *
-     * @param uniqueKey name of stat which is unique within a bucket. Used by
-     *                  CBStats.
-     * @param unit the quantity this stat represents (bytes, seconds etc.) and
-     *             the scale prefix (kilo, micro etc.). Used by
-     *             PrometheusStatCollector to normalise stats into the correct
-     *             base unit, and suffix them correctly.
-     * @param metricFamilyKey name which may be shared by multiple stats with
-     *                        distinguishing labels. Used to group stats.
-     * @param labelKey label used by Prometheus to filter/aggregate stats
-     * @param labelValue value for label `labelKey`
-     */
-    StatDef(std::string_view uniqueKey,
-            cb::stats::Unit unit = cb::stats::units::none,
-            std::string_view metricFamilyKey = "",
-            std::string_view labelKey = "",
-            std::string_view labelValue = "");
-
-    /**
-     * Constructs a stat specification including the information needed to
      * expose a stat through either CBStats or Prometheus.
      *
      * @param uniqueKey name of stat which is unique within a bucket. Used by
@@ -94,9 +72,9 @@ struct StatDef {
      * stats
      */
     StatDef(std::string_view uniqueKey,
-            cb::stats::Unit unit,
-            std::string_view metricFamilyKey,
-            Labels&& labels);
+            cb::stats::Unit unit = cb::stats::units::none,
+            std::string_view metricFamilyKey = "",
+            Labels&& labels = {});
 
     // Key which is unique per bucket. Used by CBStats
     std::string_view uniqueKey;
@@ -111,6 +89,8 @@ struct StatDef {
     Labels labels;
 };
 
+// don't need labels for the enum
+#define LABEL(...)
 #define STAT(statName, ...) statName,
 enum class Key {
 #include "stats.def.h"
@@ -118,6 +98,7 @@ enum class Key {
     enum_max
 };
 #undef STAT
+#undef LABEL
 
 using namespace units;
 

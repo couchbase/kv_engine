@@ -23,23 +23,15 @@
 
 namespace cb::stats {
 
-#define STAT(statName, unit, prometheusName, labelKey, labelValue) \
-    StatDef(#statName, unit, #prometheusName, #labelKey, #labelValue),
+#define LABEL(key, value) \
+    { #key, #value }
+#define STAT(statName, unit, prometheusName, ...) \
+    StatDef(#statName, unit, #prometheusName, {__VA_ARGS__}),
 const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{
 #include <statistics/stats.def.h>
 }};
 #undef STAT
-
-StatDef::StatDef(std::string_view uniqueKey,
-                 cb::stats::Unit unit,
-                 std::string_view metricFamilyKey,
-                 std::string_view labelKey,
-                 std::string_view labelValue)
-    : StatDef(uniqueKey,
-              unit,
-              metricFamilyKey,
-              labelKey.empty() ? Labels() : Labels{{labelKey, labelValue}}) {
-}
+#undef LABEL
 
 StatDef::StatDef(std::string_view uniqueKey,
                  cb::stats::Unit unit,

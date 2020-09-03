@@ -322,8 +322,7 @@ void Configuration::addStats(StatCollector& collector) const {
                    attribute->value);
     };
 
-#define STAT(name, unit, family, label, labelValue) \
-    addStat(Key::name, lookupAttr(#name));
+#define STAT(name, unit, family, ...) addStat(Key::name, lookupAttr(#name));
 #include <stats_config.def.h>
 #undef STAT
 }
