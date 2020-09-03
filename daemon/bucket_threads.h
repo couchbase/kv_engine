@@ -42,14 +42,14 @@ public:
      * @throws std::illegal_arguments if bucket name contains illegal
      *                                characters
      */
-    CreateBucketThread(const std::string& name_,
-                       const std::string& config_,
+    CreateBucketThread(std::string name_,
+                       std::string config_,
                        const BucketType type_,
                        Connection& connection_,
                        Task* task_)
         : Couchbase::Thread("mc:bucket_add"),
-          name(name_),
-          config(config_),
+          name(std::move(name_)),
+          config(std::move(config_)),
           type(type_),
           connection(connection_),
           task(task_),
@@ -82,8 +82,8 @@ private:
      */
     void create();
 
-    std::string name;
-    std::string config;
+    const std::string name;
+    const std::string config;
     BucketType type;
     Connection& connection;
     Task* task;
@@ -140,8 +140,8 @@ private:
      */
     void destroy();
 
-    std::string name;
-    bool force;
+    const std::string name;
+    const bool force;
     Cookie* cookie;
     Task* task;
     ENGINE_ERROR_CODE result;
