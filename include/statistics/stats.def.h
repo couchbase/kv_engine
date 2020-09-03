@@ -333,7 +333,8 @@ STAT(curr_connections, count, , )
 STAT(system_connections, count, , )
 STAT(total_connections, count, , ) // total since start/reset
 STAT(connection_structures, count, , )
-STAT(cmd_get, count, operations, LABEL(op, get))
+CBSTAT(cmd_get, count) // this is not exposed to Prometheus as it duplicates
+                       // the information provided by get_hits+get_misses
 STAT(cmd_set, count, ops, LABEL(op, set))
 STAT(cmd_flush, count, operations, LABEL(op, flush))
 STAT(cmd_lock, count, operations, LABEL(op, lock))
