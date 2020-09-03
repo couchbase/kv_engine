@@ -4380,6 +4380,82 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_TRUE(producer->getReadyQueue().empty());
 }
 
+// Version of MB_41255 from back-ported fix, original test was added to
+// dcp_reflection_test.cc but used a significantly different version of that
+// test code.
+// Test ensures that a DCP deletion of an evicted mutation with xattr value
+// does not error (ewouldblock seen in MB-41255)
+TEST_F(SingleThreadedEPBucketTest, MB_41255) {
+    // Make vbucket replica so can add passive stream
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const void* cookie = create_mock_cookie();
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    // Add passive stream
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             /*vbucket*/ vbid,
+                             /*start_seqno*/ 1,
+                             /*end_seqno*/ 1,
+                             /*flags set to MARKER_FLAG_MEMORY*/ 0x5);
+
+    // Store value with an xattr
+    StoredDocKey key{"k1", DocNamespace::DefaultCollection};
+    auto data = createXattrValue(R"({"json":"yes"})");
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
+                                data.size()};
+    consumer->mutation(1, // opaque
+                       key,
+                       value,
+                       0, // priv bytes
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       1, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    // flush and evict
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto replicaVB = engine->getKVBucket()->getVBucket(vbid);
+
+    const char* msg;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+
+              replicaVB->evictKey(key, &msg));
+
+    // now delete the key
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             /*vbucket*/ vbid,
+                             /*start_seqno*/ 2,
+                             /*end_seqno*/ 2,
+                             /*flags*/ 5);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(/*opaque*/ 1,
+                                 /*key*/ key,
+                                 /*value*/ {},
+                                 /*priv_bytes*/ 0,
+                                 /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
+                                 /*cas*/ 1,
+                                 /*vbucket*/ vbid,
+                                 /*bySeqno*/ 2,
+                                 /*revSeqno*/ 0,
+                                 /*meta*/ {}));
+    // Close stream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    destroy_mock_cookie(cookie);
+}
+
 INSTANTIATE_TEST_CASE_P(AllBucketTypes,
                         SingleThreadedActiveStreamTest,
                         allConfigValues, );
