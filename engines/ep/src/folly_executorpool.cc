@@ -56,7 +56,7 @@ public:
 struct FollyExecutorPool::TaskProxy
     : public folly::HHWheelTimer::Callback,
       public std::enable_shared_from_this<TaskProxy> {
-    TaskProxy(FollyExecutorPool* executor,
+    TaskProxy(FollyExecutorPool& executor,
               folly::CPUThreadPoolExecutor& pool,
               ExTask task)
         : task(std::move(task)), executor(executor), cpuPool(pool) {
@@ -164,10 +164,10 @@ struct FollyExecutorPool::TaskProxy
 
             // Note: All logic needs to be performed in EventBase so scheduling
             // checks are serialised, to avoid lost wakeup / double-running etc.
-            proxy->executor->futurePool->getEventBase()->runInEventBaseThread(
+            proxy->executor.futurePool->getEventBase()->runInEventBaseThread(
                     [proxy = std::move(proxy)] {
-                        auto* executor = proxy->executor;
-                        executor->rescheduleTaskAfterRun(std::move(proxy));
+                        auto& executor = proxy->executor;
+                        executor.rescheduleTaskAfterRun(std::move(proxy));
                     });
         });
     }
@@ -176,7 +176,7 @@ struct FollyExecutorPool::TaskProxy
      * Updates the timeout to the value of the GlobalTasks' wakeTime
      */
     void updateTimeoutFromWakeTime() {
-        auto* eventBase = executor->futurePool->getEventBase();
+        auto* eventBase = executor.futurePool->getEventBase();
 
         // Should only be called from within EventBase thread.
         Expects(eventBase->inRunningEventBaseThread());
@@ -204,7 +204,7 @@ struct FollyExecutorPool::TaskProxy
 
     void wake() {
         // Should only be called from within EventBase thread.
-        Expects(executor->futurePool->getEventBase()
+        Expects(executor.futurePool->getEventBase()
                         ->inRunningEventBaseThread());
 
         // Cancel any previously set future execution of the
@@ -233,7 +233,7 @@ struct FollyExecutorPool::TaskProxy
 private:
     // Associated FollyExecutorPool (needed for re-scheduling / cancelling
     // dead tasks).
-    FollyExecutorPool* executor;
+    FollyExecutorPool& executor;
 
     // TaskPool to be run on.
     folly::CPUThreadPoolExecutor& cpuPool;
@@ -282,7 +282,7 @@ struct FollyExecutorPool::State {
      * @param executor FollyExecutorPool owning the task.
      * @param task The Task to schedule.
      */
-    void scheduleTask(FollyExecutorPool* executor,
+    void scheduleTask(FollyExecutorPool& executor,
                       folly::CPUThreadPoolExecutor& pool,
                       ExTask task) {
         auto& tasksForOwner = taskOwners.at(&task->getTaskable());
@@ -651,7 +651,7 @@ size_t FollyExecutorPool::schedule(ExTask task) {
     auto* pool = getPoolForTaskType(GlobalTask::getTaskType(task->getTaskId()));
     Expects(pool);
     eventBase->runInEventBaseThreadAndWait([eventBase, this, pool, &task] {
-        state->scheduleTask(this, *pool, task);
+        state->scheduleTask(*this, *pool, task);
     });
 
     return task->getId();
