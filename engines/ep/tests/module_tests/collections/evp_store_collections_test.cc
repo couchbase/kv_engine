@@ -2811,7 +2811,7 @@ TEST_P(CollectionsParameterizedTest, ScopeIDIsValid) {
     store->setCollections(std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    auto manager = getCollectionsManager();
+    auto& manager = getCollectionsManager();
 
     auto result = manager.isScopeIDValid(ScopeEntry::defaultS.getId());
     EXPECT_EQ(cb::engine_errc::success, result.result);
@@ -2835,7 +2835,7 @@ TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
     store->setCollections(std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    auto manager = getCollectionsManager();
+    auto& manager = getCollectionsManager();
     auto kv = engine->getKVBucket();
     auto result =
             manager.doScopeStats(*kv, cookie, append_stat, "scopes-byid 0x0");
