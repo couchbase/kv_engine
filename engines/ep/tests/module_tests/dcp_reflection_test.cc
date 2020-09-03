@@ -143,6 +143,9 @@ protected:
         void transferMutation(const StoredDocKey& expectedKey,
                               uint64_t expectedSeqno);
 
+        void transferDeletion(const StoredDocKey& expectedKey,
+                              uint64_t expectedSeqno);
+
         void transferSnapshotMarker(uint64_t expectedStart,
                                     uint64_t expectedEnd,
                                     uint32_t expectedFlags);
@@ -249,8 +252,18 @@ protected:
         return store->set(*makeCommittedItem(docKey, {}), cookie);
     }
 
-    ENGINE_ERROR_CODE storeSet(const DocKey& docKey) {
-        return store->set(*makeCommittedItem(docKey, {}), cookie);
+    ENGINE_ERROR_CODE storeSet(const DocKey& docKey, bool xattrBody = false) {
+        return store->set(
+                *makeCompressibleItem(vbid, docKey, {}, 0, false, xattrBody),
+                cookie);
+    }
+
+    ENGINE_ERROR_CODE del(const DocKey& docKey) {
+        uint64_t cas = 0;
+        using namespace cb::durability;
+        mutation_descr_t delInfo;
+        return store->deleteItem(
+                docKey, cas, vbid, cookie, {}, nullptr, delInfo);
     }
 
     /**
@@ -419,6 +432,19 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
     auto msg = getNextProducerMsg(streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
+    ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
+    EXPECT_EQ(expectedSeqno, msg->getBySeqno().get());
+    auto* mutation = static_cast<MutationResponse*>(msg.get());
+    EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
+    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+}
+
+void DCPLoopbackStreamTest::DcpRoute::transferDeletion(
+        const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::Deletion, msg->getEvent());
     ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
     EXPECT_EQ(expectedSeqno, msg->getBySeqno().get());
     auto* mutation = static_cast<MutationResponse*>(msg.get());
@@ -967,6 +993,34 @@ TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
     EXPECT_EQ(3,
               replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
     EXPECT_EQ(2, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+}
+
+TEST_F(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
+    auto k1 = makeStoredDocKey("k1");
+    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k1, true /*xattr*/));
+
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(0, 1, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferMutation(k1, 1);
+
+    flushNodeIfPersistent(Node1);
+    flushNodeIfPersistent(Node0);
+
+    // Evict our key in the replica VB, we go direct to the vbucket to avoid
+    // the !replica check in KVBucket
+    {
+        const char* msg;
+        auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+        auto cHandle = replicaVB->lockCollections(k1);
+        EXPECT_EQ(cb::mcbp::Status::Success,
+                  replicaVB->evictKey(&msg, cHandle));
+    }
+
+    EXPECT_EQ(ENGINE_SUCCESS, del(k1));
+    route0_1.transferSnapshotMarker(2, 2, MARKER_FLAG_MEMORY);
+    // Must not fail, with MB-41255 this would error with 'would block'
+    route0_1.transferDeletion(k1, 2);
 }
 
 class DCPLoopbackSnapshots : public DCPLoopbackStreamTest,
