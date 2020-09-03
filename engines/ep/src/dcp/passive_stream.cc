@@ -237,26 +237,27 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
         info.range.setStart(info.start);
     }
 
-    snap_start_seqno_ = info.range.getStart();
-    start_seqno_ = info.start;
-    snap_end_seqno_ = info.range.getEnd();
-
     auto stream_req_value = createStreamReqValue();
 
-    log(spdlog::level::level_enum::info,
-        "({}) Attempting to reconnect stream with opaque {}, start seq "
-        "no {}, end seq no {}, snap start seqno {}, snap end seqno {}, and vb"
-        " manifest uid {}",
-        vb_,
-        new_opaque,
-        start_seqno,
-        end_seqno_,
-        snap_start_seqno_,
-        snap_end_seqno_,
-        stream_req_value.empty() ? "none" : stream_req_value);
     {
         LockHolder lh(streamMutex);
+
+        snap_start_seqno_ = info.range.getStart();
+        start_seqno_ = info.start;
+        snap_end_seqno_ = info.range.getEnd();
         last_seqno.store(start_seqno);
+
+        log(spdlog::level::level_enum::info,
+            "({}) Attempting to reconnect stream with opaque {}, start seq "
+            "no {}, end seq no {}, snap start seqno {}, snap end seqno {}, and "
+            "vb manifest uid {}",
+            vb_,
+            new_opaque,
+            start_seqno,
+            end_seqno_,
+            snap_start_seqno_,
+            snap_end_seqno_,
+            stream_req_value.empty() ? "none" : stream_req_value);
 
         pushToReadyQ(std::make_unique<StreamRequest>(vb_,
                                                      new_opaque,
