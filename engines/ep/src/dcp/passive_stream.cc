@@ -302,7 +302,6 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 last_seqno.load());
             return ENGINE_ERANGE;
         }
-        last_seqno.store(*seqno);
     } else if (dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
         auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
         uint64_t snapStart = s->getStartSeqno();
@@ -395,7 +394,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                     return ENGINE_DISCONNECT;
                 }
             }
-
+            if (ret == ENGINE_SUCCESS && seqno) {
+                last_seqno.store(*seqno);
+            }
             if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
                 return ret;
             }
@@ -451,6 +452,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
         }
 
         message_bytes = response->getMessageSize();
+        auto seqno = response->getBySeqno();
 
         switch (response->getEvent()) {
         case DcpResponse::Event::Mutation:
@@ -539,6 +541,9 @@ process_items_error_t PassiveStream::processBufferedMessages(
         count++;
         if (ret != ENGINE_ERANGE) {
             total_bytes_processed += message_bytes;
+        }
+        if (ret == ENGINE_SUCCESS && seqno) {
+            last_seqno.store(*seqno);
         }
     }
 
