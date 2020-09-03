@@ -76,27 +76,52 @@ struct StatDef {
             std::string_view metricFamilyKey = "",
             Labels&& labels = {});
 
+    /**
+     * Tag struct used to explicitly identify stats which should not be exposed
+     * to Prometheus.
+     */
+    struct CBStatsOnlyTag {};
+
+    /**
+     * Constructs a stat specification including the information needed to
+     * expose a stat only through CBStats. The stat will _not_ be exposed over
+     * Prometheus.
+     *
+     * @param uniqueKey name of stat which is unique within a bucket.
+     */
+    StatDef(std::string_view uniqueKey, CBStatsOnlyTag);
+
+    bool isPrometheusStat() const {
+        return !cbStatsOnly;
+    }
+
     // Key which is unique per bucket. Used by CBStats
     std::string_view uniqueKey;
     // The unit this stat represents, e.g., microseconds.
     // Used to scale to base units and name the stat correctly for Prometheus,
-    cb::stats::Unit unit;
+    cb::stats::Unit unit = cb::stats::units::none;
     // Metric name used by Prometheus. Used to "group"
     // stats in combination with distinguishing labels.
     std::string metricFamily;
     // Labels for this metric. Labels set here will
     // override defaults labels set in the StatCollector
     Labels labels;
+
+    // flag indicating if this stat is only suitable for CBStat export,
+    // and should not be included in output for other stat backends (Prometheus)
+    const bool cbStatsOnly = false;
 };
 
 // don't need labels for the enum
 #define LABEL(...)
 #define STAT(statName, ...) statName,
+#define CBSTAT(statName, ...) statName,
 enum class Key {
 #include "stats.def.h"
 
     enum_max
 };
+#undef CBSTAT
 #undef STAT
 #undef LABEL
 

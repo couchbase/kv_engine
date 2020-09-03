@@ -20,6 +20,9 @@
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       const HistogramData& hist,
                                       const Labels& additionalLabels) {
+    if (!spec.isPrometheusStat()) {
+        return;
+    }
     prometheus::ClientMetric metric;
 
     metric.histogram.sample_count = hist.sampleCount;
@@ -43,6 +46,9 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       double v,
                                       const Labels& additionalLabels) {
+    if (!spec.isPrometheusStat()) {
+        return;
+    }
     prometheus::ClientMetric metric;
     metric.untyped.value = spec.unit.toBaseUnit(v);
     addClientMetric(spec,

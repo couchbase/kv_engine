@@ -27,9 +27,12 @@ namespace cb::stats {
     { #key, #value }
 #define STAT(statName, unit, prometheusName, ...) \
     StatDef(#statName, unit, #prometheusName, {__VA_ARGS__}),
+#define CBSTAT(statName, ...) \
+    StatDef(#statName, cb::stats::StatDef::CBStatsOnlyTag{}),
 const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{
 #include <statistics/stats.def.h>
 }};
+#undef CBSTAT
 #undef STAT
 #undef LABEL
 
@@ -45,6 +48,10 @@ StatDef::StatDef(std::string_view uniqueKey,
         metricFamily = uniqueKey;
     }
     metricFamily += unit.getSuffix();
+}
+
+StatDef::StatDef(std::string_view uniqueKey, CBStatsOnlyTag)
+    : uniqueKey(uniqueKey), cbStatsOnly(true) {
 }
 
 } // end namespace cb::stats

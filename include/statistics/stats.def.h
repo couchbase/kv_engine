@@ -18,14 +18,15 @@
 /**
  * Static definitions for statistics.
  *
- * Requires STAT and LABEL macros be defined before including this file.
- * LABEL wraps a key and a value. A common definition for LABEL would be
+ * Requires STAT, CBSTAT, and LABEL macros be defined before including this
+ * file. LABEL wraps a key and a value. A common definition for LABEL would be
  *
  * LABEL(key, value) {#key, #value}
  *
  * to stringify for insertion into a map.
  *
  * STAT(uniqueName, unit, familyName, ...)
+ * CBSTAT(uniqueName, [unit])
  *
  * where:
  *  * uniqueName - a key which identifies the stat (used as the enum value
@@ -64,6 +65,15 @@
  * For stats with unspecified units and no labels. In this case, the uniqueName
  * will also be used as the familyName.
  *
+ * For stats which should _not_ be exposed to Prometheus, the CBSTAT macro
+ * can be used instead. Only a unique name is required.
+ *
+ *  CBSTAT(uniqueName)
+ *
+ * Units are optional, and only informative - CBStats does not use units.
+ *
+ *  CBSTAT(uptime, milliseconds)
+ *
  */
 
 #ifndef STAT
@@ -72,6 +82,11 @@
 // definitions.h, there will not be a STAT definition.
 // Define an empty STAT macro to avoid unnecessary warnings.
 #define STAT(...)
+#endif
+
+#ifndef CBSTAT
+#warning A CBSTAT macro must be defined before including stats.def.h
+#define CBSTAT(...)
 #endif
 
 #ifndef LABEL
