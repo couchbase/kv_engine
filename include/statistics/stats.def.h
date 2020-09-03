@@ -376,7 +376,11 @@ STAT(total_resp_errors, count, , )
          familyName,                             \
          LABEL(state, replica),                  \
          ##__VA_ARGS__)                          \
-    STAT(vb_pending_##name, unit, name, LABEL(state, pending), ##__VA_ARGS__)
+    STAT(vb_pending_##name,                      \
+         unit,                                   \
+         familyName,                             \
+         LABEL(state, pending),                  \
+         ##__VA_ARGS__)
 
 VB_AGG_STAT(num, count, num_vbuckets, )
 VB_AGG_STAT(curr_items, count, , )
