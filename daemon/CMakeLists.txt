@@ -270,6 +270,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     add_executable(memcached_unit_tests
                    connection_unit_tests.cc
+                   datatype_filter_test.cc
                    function_chain_test.cc
                    mc_time_test.cc)
     add_sanitizers(memcached_unit_tests)
