@@ -524,6 +524,33 @@ TEST_F(StatTest, ConfigStatDefinitions) {
     config.addStats(collector);
 }
 
+TEST_F(StatTest, StringStats) {
+    // Confirm that the string values are correctly added to StatCollectors.
+    // This test checks that "ep_access_scanner_task_time" is added as part of
+    // engine->doEngineStats(...).
+    // This does not exhaustively test the formatted values of the stat,
+    // just that it is correctly received as a string_view.
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    // create a collector to which stats will be added
+    NiceMock<MockStatCollector> collector;
+
+    // ignore the rest of the calls that we are not specifically interested in.
+    // A representative stat will be checked for each config type
+    EXPECT_CALL(collector, addStat(_, Matcher<std::string_view>(_), _))
+            .Times(AnyNumber());
+
+    // test a string stat
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ep_access_scanner_task_time"),
+                        Matcher<std::string_view>("NOT_SCHEDULED"),
+                        _));
+
+    engine->doEngineStats(collector);
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);
