@@ -96,8 +96,11 @@ struct index_entry {
      * The mutation_id is generally the bySeqno of the item. However, if this is
      * a SyncWrite expelled from the open checkpoint then the mutation_id is set
      * to 0 so that we can make our de-dupe checks
+     * This value is initialised to -1 as it should always be assigned a
+     * non-negative number. Thus, buy setting its default value to -1 we should
+     * be able to detect when this assignment has not occurred.
      */
-    int64_t mutation_id;
+    int64_t mutation_id = -1;
 };
 
 /**
@@ -539,6 +542,10 @@ public:
         checkpointType = type;
     }
 
+    void forceUseOfKeyIndex() {
+        alwaysUseOfKeyIndex = true;
+    }
+
     void setHighCompletedSeqno(boost::optional<uint64_t> seqno) {
         highCompletedSeqno = seqno;
     }
@@ -630,6 +637,11 @@ public:
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
         return checkpointType == CheckpointType::Disk;
+    }
+
+    /// @return true if the keyIndexs should be used for deduplication
+    bool IsKeyIndexEnabled() const {
+        return !isDiskCheckpoint() || alwaysUseOfKeyIndex;
     }
 
     CheckpointType getCheckpointType() const {
@@ -734,6 +746,10 @@ private:
 
     // Is this a checkpoint created by a replica from a received disk snapshot?
     CheckpointType checkpointType;
+
+    // Used to state if we should ensure the use keyIndexes for the rest of the
+    // life time of this checkpoint.
+    bool alwaysUseOfKeyIndex = false;
 
     // The SyncRep HCS for this checkpoint. Used to ensure that we flush a
     // correct HCS at the end of a snapshot to disk. This is optional as it is

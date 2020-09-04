@@ -1859,8 +1859,8 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadHeapAllocatedKeyTest) {
  * add keys to the indexes of Disk Checkpoints by measuring memory usage.
  */
 TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadDiskCheckpointTest) {
-    // Set checkpoint type to Disk
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    // Create checkpoint of type Disk
+    this->manager->createSnapshot(0, 1000, 1000, CheckpointType::Disk, 1001);
 
     // Get the intial size of the checkpoint overhead.
     const auto initialOverhead = this->manager->getMemoryOverhead();
@@ -2825,6 +2825,110 @@ TEST_P(CheckpointTest,
     pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
     EXPECT_EQ(queue_op::mutation, pos->getOperation());
     EXPECT_EQ(1003, pos->getBySeqno());
+}
+
+/**
+ * Test to ensure we don't hit a GSL precondition in Checkpoint::expelItems() of
+ * a replica vbucket. When have the following sequence of events occur:
+ * 1. Memory checkpoint created for a snapshot from 1001 -> 1002
+ * 2. Keys k1001 & k1002 are added
+ * 3. Disk snapshot is received updating the current from 1001 -> 1003
+ * 4. As part of the snapshot of 3. a mutation for k1001 is added to the
+ *    checkpoint. Before MB-41283 this would cause us to remove k1001 from the
+ *    committedKeyIndex
+ * 5. Update the checkpoint to be an memory one and add an item.
+ * 6. Move the cursor past checkpoint_start item so we can expel it
+ * 7. Move the cursor past item for seqno 1001 so we can try and expel it, with
+ *    code before MB-41283 we would expect to hit a GSL precondition.
+ */
+TEST_P(CheckpointTest, MB_41283_TestNoExpellingException) {
+    vbucket->setState(vbucket_state_replica);
+
+    this->manager->createSnapshot(
+            1001, 1002, 1002, CheckpointType::Memory, 1003);
+    EXPECT_TRUE(this->queueNewItem("k1001"));
+    EXPECT_TRUE(this->queueNewItem("k1002"));
+
+    manager->updateCurrentSnapshot(1004, 1005, CheckpointType::Disk);
+    ASSERT_EQ(manager->getOpenCheckpointType(), CheckpointType::Disk);
+    // Add more items
+    EXPECT_TRUE(queueReplicatedItem("k1003", 1003));
+    EXPECT_FALSE(queueReplicatedItem("k1001", 1004));
+
+    manager->updateCurrentSnapshot(1005, 1006, CheckpointType::Memory);
+    EXPECT_TRUE(queueReplicatedItem("k1005", 1005));
+
+    EXPECT_TRUE(manager->incrCursor(*cursor));
+    EXPECT_TRUE(manager->incrCursor(*cursor));
+    CheckpointManager::ExpelResult result;
+    EXPECT_NO_THROW(result = manager->expelUnreferencedCheckpointItems());
+    EXPECT_GT(result.expelCount, 0);
+
+    EXPECT_TRUE(manager->incrCursor(*cursor));
+    EXPECT_NO_THROW(result = manager->expelUnreferencedCheckpointItems());
+    EXPECT_GT(result.expelCount, 0);
+}
+
+/**
+ * Ensure we don't crash due to a seg fault due to accessing freed memory of an item
+ * when dereferencing a queued_item in Checkpoint::canDedup().
+ * The following steps will try and recreate the crash seen by MB-41283:
+ * 1. Create a snapshot 1001 to 1002
+ * 2. Add two items for seqnos key: k1001 & k1002
+ * 3. Move the persistence cursor past them so their no longer referenced by it.
+ * 4. Update the checkpoint as if a disk snapshot has been received from 1003 to
+ *    1003 without MARKER_FLAG_CHK flag.
+ * 5. Add item in the snapshot of 4. for key k1001 at senqo 1003 this should
+ *    free the queued_item in the toWrite. Leaving the committedKeyIndex
+ *    pointing to a freed value. However, with this patch we should update the
+ *    committedKeyIndex to point to the new queued_item.
+ * 6. Update the checkpoint to range 1001 to 1004 as if another disk snapshot
+ *    has been received. Without MARKER_FLAG_CHK flag set.
+ * 7. Add item for seqno 1004 with key k1001, when this is processed by
+ *    Checkpoint::queueDirty(). It will find the stale key in the
+ *    committedKeyIndex and try and dereference the value causing a seg fault.
+ *    However, with this patch this should not happen as a valid value should be
+ *    found.
+ *
+ *
+ */
+TEST_P(CheckpointTest, MB_41283_TestNoCrashInCanDedup) {
+    vbucket->setState(vbucket_state_replica);
+
+    this->manager->createSnapshot(
+            1001, 1002, 1002, CheckpointType::Memory, 1003);
+    EXPECT_TRUE(this->queueNewItem("k1001"));
+    std::vector<queued_item> items;
+    manager->getNextItemsForPersistence(items);
+
+    EXPECT_TRUE(this->queueNewItem("k1002"));
+
+    manager->updateCurrentSnapshot(1003, 1003, CheckpointType::Disk);
+    ASSERT_EQ(manager->getOpenCheckpointType(), CheckpointType::Disk);
+
+    if (persistent()) {
+        EXPECT_TRUE(queueReplicatedItem("k1001", 1003));
+    } else {
+        EXPECT_FALSE(queueReplicatedItem("k1001", 1003));
+    }
+
+    manager->updateCurrentSnapshot(1004, 1004, CheckpointType::Disk);
+    EXPECT_FALSE(queueReplicatedItem("k1001", 1004));
+}
+
+/**
+ * Test to ensure that we don't see a seg fault or ASAN failure due to accessing
+ * freed memory. When a two items for the same key are in the same disk
+ * checkpoint.
+ */
+TEST_P(CheckpointTest, MB_41283_TestNoCrashForDuplicateKeysInDiskCheckpoint) {
+    vbucket->setState(vbucket_state_replica);
+
+    this->manager->createSnapshot(
+            1001, 1001, 1001, CheckpointType::Memory, 1001);
+    EXPECT_TRUE(this->queueNewItem("k1001"));
+    manager->updateCurrentSnapshot(1003, 1003, CheckpointType::Disk);
+    EXPECT_FALSE(queueReplicatedItem("k1001", 1002));
 }
 
 INSTANTIATE_TEST_CASE_P(
