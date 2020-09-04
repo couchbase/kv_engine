@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-#include <daemon/settings.h>
-#include <daemon/ssl_utils.h>
+#include "settings.h"
+#include "ssl_utils.h"
 #include <folly/portability/GTest.h>
 #include <getopt.h>
 #include <logger/logger.h>
@@ -844,8 +844,8 @@ TEST_F(SettingsTest, SslMinimumProtocol) {
     nonStringValuesShouldFail("ssl_minimum_protocol");
 
     nlohmann::json obj;
-    const std::vector<std::string> protocol = {"tlsv1", "tlsv1.1", "tlsv1_1",
-                                               "tlsv1.2", "tlsv1_2"};
+    const std::vector<std::string> protocol = {
+            "tlsv1", "tlsv1.1", "tlsv1_1", "tlsv1.2", "tlsv1_2"};
     for (const auto& p : protocol) {
         // Ensure that we accept a string
         obj["ssl_minimum_protocol"] = p;
@@ -1373,8 +1373,7 @@ TEST(SettingsUpdateTest, LowPriReqIsDynamic) {
     EXPECT_EQ(ii - 1000,
               settings.getRequestsPerEventNotification(EventPriority::Low));
     EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(ii,
-              settings.getRequestsPerEventNotification(EventPriority::Low));
+    EXPECT_EQ(ii, settings.getRequestsPerEventNotification(EventPriority::Low));
 }
 
 TEST(SettingsUpdateTest, VerbosityIsDynamic) {
@@ -1429,13 +1428,11 @@ TEST(SettingsUpdateTest, DatatypeSnappyIsDynamic) {
     Settings settings;
     // setting it to the same value should work
     settings.setDatatypeSnappyEnabled(true);
-    updated.setDatatypeSnappyEnabled(
-            settings.isDatatypeSnappyEnabled());
+    updated.setDatatypeSnappyEnabled(settings.isDatatypeSnappyEnabled());
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 
     // changing it should work
-    updated.setDatatypeSnappyEnabled(
-            !settings.isDatatypeSnappyEnabled());
+    updated.setDatatypeSnappyEnabled(!settings.isDatatypeSnappyEnabled());
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 }
 
@@ -1530,8 +1527,7 @@ TEST(SettingsUpdateTest, MaxPacketSizeIsDynamic) {
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
     EXPECT_EQ(old, settings.getMaxPacketSize());
     EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(updated.getMaxPacketSize(),
-              settings.getMaxPacketSize());
+    EXPECT_EQ(updated.getMaxPacketSize(), settings.getMaxPacketSize());
 }
 
 TEST(SettingsUpdateTest, SaslMechanismsIsDynamic) {

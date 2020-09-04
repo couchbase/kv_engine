@@ -1,6 +1,5 @@
 add_compile_options_disable_optimization()
 
-ADD_SUBDIRECTORY(config_parse_test)
 ADD_SUBDIRECTORY(doc_server_api)
 ADD_SUBDIRECTORY(dockey)
 ADD_SUBDIRECTORY(engine_error)

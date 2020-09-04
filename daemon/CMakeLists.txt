@@ -272,7 +272,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    connection_unit_tests.cc
                    datatype_filter_test.cc
                    function_chain_test.cc
-                   mc_time_test.cc)
+                   mc_time_test.cc
+                   settings_test.cc)
     add_sanitizers(memcached_unit_tests)
     target_link_libraries(memcached_unit_tests
                           memcached_daemon
