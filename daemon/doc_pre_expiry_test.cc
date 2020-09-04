@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <daemon/doc_pre_expiry.h>
+#include "doc_pre_expiry.h"
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>

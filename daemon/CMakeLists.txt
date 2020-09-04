@@ -271,6 +271,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached_unit_tests
                    connection_unit_tests.cc
                    datatype_filter_test.cc
+                   doc_pre_expiry_test.cc
                    function_chain_test.cc
                    mc_time_test.cc
                    settings_test.cc)
