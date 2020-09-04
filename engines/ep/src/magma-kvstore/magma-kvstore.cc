@@ -443,8 +443,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.WALSyncTime = 0ms;
     configuration.magmaCfg.ExpiryFragThreshold =
             configuration.getMagmaExpiryFragThreshold();
-    configuration.magmaCfg.TombstoneFragThreshold =
-            configuration.getMagmaTombstoneFragThreshold();
+    configuration.magmaCfg.KVStorePurgerInterval =
+            configuration.getMagmaExpiryPurgerInterval();
     configuration.magmaCfg.GetSeqNum = magmakv::getSeqNum;
     configuration.magmaCfg.GetExpiryTime = magmakv::getExpiryTime;
     configuration.magmaCfg.GetValueSize = magmakv::getValueSize;

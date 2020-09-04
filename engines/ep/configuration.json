@@ -1125,16 +1125,16 @@
             "descr": "When true, the kv_engine will utilize Magma's upsert capabiltiy but accurate document counts for the data store or collections can not be maintained.",
             "type": "bool"
         },
+        "magma_expiry_purger_interval": {
+            "default": "3600",
+            "dynamic":false,
+            "descr": "Magma maintains statistics about expired documents to run compaction based on magma_expiry_frag_threshold. This config determines the the expiry purger polling interval in seconds to trigger compaction on eligible sstables",
+            "type": "size_t"
+        },
         "magma_expiry_frag_threshold": {
             "default": "0.25",
             "dynamic": false,
             "descr": "All compactions perform expiry but not all sstables are visited by compaction. Magma maintains an expiry histogram across the kvstore to help determine which range of sstables need to have compaction run on them because there are a significant number of expired items. The frag threshold is the number of expired keys vs keys in the data store.",
-            "type": "float"
-        },
-        "magma_tombstone_frag_threshold": {
-            "default": "0.25",
-            "dynamic": false,
-            "descr": "All compactions perform tombstone removal but not all sstables are visited by compaction. Magma tracks tombstone counts and will perform compaction on the range of sstables which have a significant number of tombstones. The frag threshold is the number of tombstones vs keys in the data store.",
             "type": "float"
         },
         "magma_enable_block_cache": {

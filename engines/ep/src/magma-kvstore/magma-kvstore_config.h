@@ -76,8 +76,8 @@ public:
     float getMagmaExpiryFragThreshold() const {
         return magmaExpiryFragThreshold;
     }
-    float getMagmaTombstoneFragThreshold() const {
-        return magmaTombstoneFragThreshold;
+    std::chrono::seconds getMagmaExpiryPurgerInterval() const {
+        return magmaExpiryPurgerInterval;
     }
     bool getMagmaEnableBlockCache() const {
         return magmaEnableBlockCache;
@@ -137,10 +137,8 @@ private:
     // visited.
     float magmaExpiryFragThreshold;
 
-    // Magma keeps track of tombstone count to determine when a tombstone
-    // compaction should be run. The fragmentation threshold applies across
-    // all the kvstore but only specific sstables will be visited.
-    float magmaTombstoneFragThreshold;
+    // Intervals at which magma expiry purger is executed
+    std::chrono::seconds magmaExpiryPurgerInterval;
 
     // Max commit points that can be rolled back to
     int magmaMaxCommitPoints;

@@ -60,7 +60,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaCommitPointEveryBatch = config.isMagmaCommitPointEveryBatch();
     magmaEnableUpsert = config.isMagmaEnableUpsert();
     magmaExpiryFragThreshold = config.getMagmaExpiryFragThreshold();
-    magmaTombstoneFragThreshold = config.getMagmaTombstoneFragThreshold();
+    magmaExpiryPurgerInterval =
+            std::chrono::seconds(config.getMagmaExpiryPurgerInterval());
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
     magmaFragmentationPercentage = config.getMagmaFragmentationPercentage();
     magmaFlusherPercentage = config.getMagmaFlusherThreadPercentage();
