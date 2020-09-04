@@ -330,28 +330,39 @@ TEST_F(CollectionsRbacCollection, CollectionStreamPrivsLost) {
     connNoStream->store(
             createKey(CollectionEntry::vegetable, "k1"), Vbid(0), "v1");
 
+    // run DCP until we get the stream-end, don't attempt to validate the
+    // exact message in-between as we can't guarantee how the checkpoints
+    // line up (mutation can land in first snapshot or second)
     Frame frame;
-    auto expect = [&frame, this](cb::mcbp::ClientOpcode op) {
+    auto stepDcp = [&frame, this]() {
         conn->recvFrame(frame);
         EXPECT_EQ(cb::mcbp::Magic::ClientRequest, frame.getMagic());
-        const auto* request = frame.getRequest();
-        EXPECT_EQ(op, request->getClientOpcode());
-        return request;
+        return frame.getRequest();
     };
 
-    // Will receive the collection creation info, then the data snapshot and
-    // the end-stream gets queued after the mutation
-    expect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    expect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    expect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    expect(cb::mcbp::ClientOpcode::DcpMutation);
-    auto* request = expect(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    EXPECT_EQ(sizeof(uint32_t), request->getExtdata().size());
-    const auto* payload =
-            reinterpret_cast<const cb::mcbp::request::DcpStreamEndPayload*>(
+    bool streamEndReceived = false;
+
+    // manually calculated steps as being each event/mutation in a single
+    // snapshot (snapshot_marker + event/mutation)
+    // snapshot + create vegetable
+    // snapshot + mutation
+    // stream-end
+    const int steps = 5;
+    for (int ii = 0; ii < steps; ii++) {
+        auto* request = stepDcp();
+        if (request->getClientOpcode() ==
+            cb::mcbp::ClientOpcode::DcpStreamEnd) {
+            EXPECT_EQ(sizeof(uint32_t), request->getExtdata().size());
+            const auto* payload = reinterpret_cast<
+                    const cb::mcbp::request::DcpStreamEndPayload*>(
                     request->getExtdata().data());
-    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
-              payload->getStatus());
+            EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
+                      payload->getStatus());
+            streamEndReceived = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(streamEndReceived);
 }
 
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
