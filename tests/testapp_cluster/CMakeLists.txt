@@ -8,7 +8,9 @@ add_executable(cluster_test
                main.cc
                misc_tests.cc
                out_of_order_tests.cc
-               rbac_tests.cc)
+               rbac_tests.cc
+               upgrade_test.cc
+               upgrade_test.h)
 target_link_libraries(cluster_test cluster_framework)
 add_dependencies(cluster_test memcached ep default_engine)
 add_sanitizers(cluster_test)

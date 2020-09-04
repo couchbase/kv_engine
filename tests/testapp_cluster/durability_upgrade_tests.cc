@@ -15,6 +15,7 @@
  */
 
 #include "clustertest.h"
+#include "upgrade_test.h"
 
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
