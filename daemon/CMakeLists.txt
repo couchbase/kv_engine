@@ -269,7 +269,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_sanitizers(client_cert_config_test)
 
     add_executable(memcached_unit_tests
-                   connection_unit_tests.cc)
+                   connection_unit_tests.cc
+                   mc_time_test.cc)
     add_sanitizers(memcached_unit_tests)
     target_link_libraries(memcached_unit_tests
                           memcached_daemon

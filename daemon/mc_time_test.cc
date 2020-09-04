@@ -14,10 +14,10 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <daemon/executor.h>
-#include <daemon/executorpool.h>
-#include <daemon/mc_time.h>
-#include <daemon/memcached.h>
+#include "executor.h"
+#include "executorpool.h"
+#include "mc_time.h"
+#include "memcached.h"
 #include <folly/portability/GTest.h>
 #include <gsl/gsl>
 #include <memory>
