@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <daemon/function_chain.h>
+#include "function_chain.h"
 #include <folly/portability/GTest.h>
 
 static int doubleInput(int input) {
@@ -67,7 +67,7 @@ TEST(FunctionChainTest, SingleChain) {
     chain.push_unique(makeFunction<int, getSuccessValue, int>(doubleInput));
     // check return val is double input
     int input = 102;
-    ASSERT_EQ(input*2, chain.invoke(input));
+    ASSERT_EQ(input * 2, chain.invoke(input));
 }
 
 /*
@@ -76,12 +76,12 @@ TEST(FunctionChainTest, SingleChain) {
 TEST(FunctionChainTest, Uniqueness) {
     FunctionChain<int, getSuccessValue> chain;
 
-    for(int ii = 0; ii < 6; ii++) {
+    for (int ii = 0; ii < 6; ii++) {
         chain.push_unique(makeFunction<int, getSuccessValue>(iCountMyCalls));
     }
 
     ASSERT_EQ(1, iCountMyCalls()); // manually invoke returns 1
-    ASSERT_EQ(2, chain.invoke());  // should now be 2
+    ASSERT_EQ(2, chain.invoke()); // should now be 2
     ASSERT_EQ(3, iCountMyCalls()); // manually invoke now returns 3
 }
 
