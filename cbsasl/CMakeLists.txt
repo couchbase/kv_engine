@@ -43,13 +43,12 @@ install(TARGETS cbsasl
 
 # Unit tests
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(cbsasl_strcmp_test strcmp_test.cc
-                   strcmp.cc
-                   util.h)
-    target_link_libraries(cbsasl_strcmp_test gtest gtest_main)
-    add_test(NAME cbsasl-strcmp
+    add_executable(cbsasl_utils_test strcmp_test.cc
+                   scram-sha/saslprep_test.cc)
+    target_link_libraries(cbsasl_utils_test cbsasl gtest gtest_main)
+    add_test(NAME cbsasl_utils_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_strcmp_test)
+             COMMAND cbsasl_utils_test)
 
     add_executable(cbsasl_pwconv_test
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
