@@ -22,6 +22,7 @@
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "failover-table.h"
+#include "kvstore.h"
 #include "mock_checkpoint_manager.h"
 #include "mock_item_freq_decayer.h"
 #include "mock_replicationthrottle.h"
@@ -45,6 +46,12 @@ MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
 
 void MockEPBucket::initializeMockBucket() {
     initializeShards();
+}
+
+void MockEPBucket::removeMakeCompactionContextCallback() {
+    vbMap.forEachShard([this](KVShard& shard) {
+        shard.getRWUnderlying()->setMakeCompactionContextCallback(nullptr);
+    });
 }
 
 void MockEPBucket::createItemFreqDecayerTask() {

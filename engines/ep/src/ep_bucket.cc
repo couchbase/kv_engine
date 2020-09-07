@@ -1999,7 +1999,7 @@ void EPBucket::warmupCompleted() {
     // Now warmup is completed, reconfigure each KVStore to use the "proper"
     // makeCompactionContext which allows expiry via compaction, purging
     // collections etc..
-    void initializeShards();
+    initializeShards();
 }
 
 void EPBucket::stopWarmup() {

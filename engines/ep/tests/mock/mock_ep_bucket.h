@@ -71,4 +71,6 @@ public:
 
     void setCollectionsManagerPreSetStateAtWarmupHook(
             std::function<void()> hook);
+
+    void removeMakeCompactionContextCallback();
 };

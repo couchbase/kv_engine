@@ -24,6 +24,7 @@
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_global_task.h"
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
@@ -5589,6 +5590,33 @@ TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_TRUE(gv.item);
     EXPECT_TRUE(gv.item->isDeleted());
+}
+
+TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
+    // Need a vBucket state to make sure we can call makeCompactionContext
+    // without throwing
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Reset so that we can warmup
+    resetEngineAndEnableWarmup();
+
+    // Remove the makeCompactionContextCallback function from the KVStore via
+    // a mock to test that we set it correctly (as we always set it manually
+    // in construction of the SynchronousEpEngine).
+    auto mockBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    mockBucket->removeMakeCompactionContextCallback();
+
+    // Grab the KVStore and assert that the makeCompactionContextCallback isn't
+    // currently set
+    auto magmaKVStore =
+            dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(magmaKVStore);
+    ASSERT_THROW(magmaKVStore->makeCompactionContext(vbid), std::runtime_error);
+
+    // Run warmup, and we should set the makeCompactionContextCallback in the
+    // final stage
+    runReadersUntilWarmedUp();
+    EXPECT_NO_THROW(magmaKVStore->makeCompactionContext(vbid));
 }
 #endif
 
