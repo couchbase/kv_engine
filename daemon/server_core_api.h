@@ -20,6 +20,7 @@
 #include "mc_time.h"
 #include "settings.h"
 
+#include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
 
 struct ServerCoreApi : public ServerCoreIface {

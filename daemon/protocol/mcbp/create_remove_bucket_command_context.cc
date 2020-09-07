@@ -19,6 +19,7 @@
 #include <daemon/enginemap.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcbpdestroybuckettask.h>
+#include <memcached/config_parser.h>
 
 /**
  * Override the CreateBucketTask so that we can have our own notification

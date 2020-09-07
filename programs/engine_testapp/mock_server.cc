@@ -19,6 +19,7 @@
 #include "daemon/doc_pre_expiry.h"
 #include "mock_cookie.h"
 #include <logger/logger.h>
+#include <memcached/config_parser.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/server_cookie_iface.h>

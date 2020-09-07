@@ -28,6 +28,7 @@
 #endif
 #include "statistics/collector.h"
 
+#include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
 
 // Used to get a name from a type to use in logging

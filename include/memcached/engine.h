@@ -3,24 +3,18 @@
 #define MEMCACHED_ENGINE_H
 
 #include <sys/types.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
 #include <functional>
 #include <memory>
-#include <stdexcept>
-#include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 
 #include <gsl/gsl>
 #include <optional>
 
-#include <mcbp/protocol/datatype.h>
 #include <memcached/visibility.h>
 
 #include "memcached/collections.h"
-#include "memcached/config_parser.h"
 #include "memcached/engine_common.h"
 #include "memcached/thread_pool_config.h"
 #include "memcached/types.h"
@@ -135,7 +129,7 @@ enum class Feature : uint16_t {
     Collections = 1,
 };
 
-typedef std::unordered_set<Feature> FeatureSet;
+using FeatureSet = std::unordered_set<Feature>;
 } // namespace cb::engine
 
 namespace std {
