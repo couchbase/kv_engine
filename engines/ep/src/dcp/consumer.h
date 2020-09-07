@@ -512,8 +512,11 @@ protected:
 
         ~UpdateFlowControl() {
             if (bytes) {
-                consumer.flowControl.incrFreedBytes(bytes);
-                consumer.scheduleNotifyIfNecessary();
+                auto& ctl = consumer.flowControl;
+                if (ctl.isEnabled()) {
+                    ctl.incrFreedBytes(bytes);
+                    consumer.scheduleNotifyIfNecessary();
+                }
             }
         }
 

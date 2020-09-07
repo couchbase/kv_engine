@@ -119,3 +119,11 @@ protected:
     // function fakeDcpAddFailoverLog.
     static int callbackCount;
 };
+
+class FlowControlTest : public KVBucketTest,
+                        public ::testing::WithParamInterface<bool> {
+protected:
+    void SetUp() override;
+
+    bool flowControlEnabled;
+};

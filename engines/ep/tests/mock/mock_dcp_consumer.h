@@ -161,4 +161,8 @@ public:
     void public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs value) {
         includeDeletedUserXattrs = value;
     }
+
+    FlowControl& public_flowControl() {
+        return flowControl;
+    }
 };

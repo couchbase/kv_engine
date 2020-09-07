@@ -23,16 +23,15 @@
 #include "ep_time.h"
 #include "objectregistry.h"
 
-FlowControl::FlowControl(EventuallyPersistentEngine &engine,
-                         DcpConsumer* consumer) :
-    consumerConn(consumer),
-    engine_(engine),
-    pendingControl(true),
-    lastBufferAck(ep_current_time()),
-    ackedBytes(0),
-    freedBytes(0)
-{
-    enabled = engine.getDcpFlowControlManager().isEnabled();
+FlowControl::FlowControl(EventuallyPersistentEngine& engine,
+                         DcpConsumer* consumer)
+    : consumerConn(consumer),
+      engine_(engine),
+      enabled(engine.getDcpFlowControlManager().isEnabled()),
+      pendingControl(true),
+      lastBufferAck(ep_current_time()),
+      ackedBytes(0),
+      freedBytes(0) {
     if (enabled) {
         bufferSize =
                     engine.getDcpFlowControlManager().newConsumerConn(consumer);

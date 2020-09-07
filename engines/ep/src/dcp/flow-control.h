@@ -53,6 +53,10 @@ public:
         return freedBytes.load();
     }
 
+    bool isEnabled() const {
+        return enabled;
+    }
+
 private:
     void setBufSizeWithinBounds(size_t &bufSize);
 
@@ -65,7 +69,7 @@ private:
     EventuallyPersistentEngine &engine_;
 
     /* Indicates if flow control is enabled for this connection */
-    bool enabled;
+    const bool enabled;
 
     /* Indicates whether control msg regarding flow control has been sent to
        the producer */

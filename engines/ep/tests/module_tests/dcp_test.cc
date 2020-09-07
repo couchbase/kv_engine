@@ -3521,6 +3521,80 @@ TEST_F(SingleThreadedKVBucketTest, ProducerIdleTimeoutUpdatedOnConfigChange) {
     connMap.removeConn(cookie);
 }
 
+void FlowControlTest::SetUp() {
+    flowControlEnabled = GetParam();
+    const std::string policy = flowControlEnabled ? "aggressive" : "none";
+    config_string = "dcp_flow_control_policy=" + policy;
+    KVBucketTest::SetUp();
+}
+
+TEST_P(FlowControlTest, NotifyConsumerOnlyIfFlowControlEnabled) {
+    uint32_t opaque = 0;
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
+
+    const auto connName = "test_consumer";
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, connName);
+    ASSERT_EQ(flowControlEnabled, consumer->public_flowControl().isEnabled());
+
+    // Add to consumer to ConnMap so that we can test whether the connection
+    // is scheduled for notifying by checking if it is added to the 'pending
+    // notifications' in the ConnMap itself
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, consumer);
+    ASSERT_TRUE(connMap.findByName(connName));
+
+    // If FlowControl is enabled, connection are added for notification only if
+    // the buffer is sufficiently drained. Setting the buffer size to 0 makes
+    // the buffer sufficiently drained at any received DCP message.
+    if (flowControlEnabled) {
+        consumer->public_flowControl().setFlowControlBufSize(0);
+    }
+
+    // Setup the stream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, 0 /*flags*/));
+    opaque += 1;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1,
+                                       10,
+                                       0x1 /* in-memory snapshot */,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeq*/));
+    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+
+    // Receive a mutation
+    // Note: Only paused connections are added to the pending notifications
+    consumer->pause();
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 {"key", DocKeyEncodesCollectionId::No},
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 1, // bySeqno
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    // Before the fix the consumer would appear in pending notifications even
+    // when Flow Control is disabled.
+    const auto expected = flowControlEnabled ? 1 : 0;
+    EXPECT_EQ(expected, connMap.getPendingNotifications().size());
+
+    connMap.removeConn(cookie);
+}
+
+INSTANTIATE_TEST_SUITE_P(FlowControl,
+                         FlowControlTest,
+                         ::testing::ValuesIn({false, true}));
+
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
