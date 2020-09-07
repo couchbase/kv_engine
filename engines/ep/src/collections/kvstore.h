@@ -99,6 +99,15 @@ struct Manifest {
 
     ~Manifest(){};
 
+    /**
+     * compare Manifest - note that there is no sorting applied to the vectors
+     * so may compare all elements
+     */
+    bool operator==(const Manifest& other) const;
+    bool operator!=(const Manifest& other) const {
+        return !(*this == other);
+    }
+
     /// The uid of the last manifest to change the collection state
     ManifestUid manifestUid{0};
 
@@ -123,6 +132,10 @@ struct DroppedCollection {
     int64_t startSeqno;
     int64_t endSeqno;
     CollectionID collectionId;
+    bool operator==(const DroppedCollection& other) const;
+    bool operator!=(const DroppedCollection& other) const {
+        return !(*this == other);
+    }
 };
 
 /**

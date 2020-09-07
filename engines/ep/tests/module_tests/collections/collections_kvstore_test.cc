@@ -228,6 +228,51 @@ class CollectionsKVStoreTest
     }
 };
 
+// validate some ==operators work as expected
+TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
+    using namespace Collections::KVStore;
+    Manifest empty{Manifest::Empty{}};
+    EXPECT_EQ(empty, empty);
+    Manifest m1{Manifest::Default{}};
+    EXPECT_EQ(m1, m1);
+    EXPECT_NE(empty, m1);
+
+    Manifest m2{Manifest::Default{}};
+    EXPECT_EQ(m1, m2);
+    m2.manifestUid = 1;
+    EXPECT_NE(m1, m2);
+    m1.manifestUid = m2.manifestUid;
+
+    EXPECT_EQ(m1, m2);
+    m2.droppedCollectionsExist = true;
+    EXPECT_NE(m1, m2);
+    m1.droppedCollectionsExist = m2.droppedCollectionsExist;
+
+    EXPECT_EQ(m1, m2);
+    m2.collections.push_back(
+            OpenCollection{0, Collections::CollectionMetaData{}});
+    EXPECT_NE(m1, m2);
+    m2.collections = m1.collections;
+
+    EXPECT_EQ(m1, m2);
+    m2.collections.push_back(OpenCollection{
+            0,
+            Collections::CollectionMetaData{
+                    ScopeID{88}, CollectionID{101}, "c101", {}}});
+    EXPECT_NE(m1, m2);
+    m2.collections = m1.collections;
+
+    EXPECT_EQ(m1, m2);
+    m2.scopes.push_back(OpenScope{0, Collections::ScopeMetaData{}});
+    EXPECT_NE(m1, m2);
+    m2.scopes = m1.scopes;
+
+    EXPECT_EQ(m1, m2);
+    m2.scopes.push_back(
+            OpenScope{0, Collections::ScopeMetaData{ScopeID{91}, "s91"}});
+    EXPECT_NE(m1, m2);
+}
+
 TEST_P(CollectionsKVStoreTest, initial_meta) {
     // Ask the kvstore for the initial meta
     auto md = kvstore->getCollectionsManifest(Vbid(0));

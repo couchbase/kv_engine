@@ -1054,6 +1054,51 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
             {}, {CollectionEntry::fruit}, 0, false, {}, {ScopeEntry::shop1});
 }
 
+// Drop the default collection, replicate it and expect it gone in all relevant
+// locations.
+TEST_P(CollectionsDcpParameterizedTest, test_dcp_drop_default) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    cm.remove(CollectionEntry::defaultC);
+    vb->updateFromManifest(makeManifest(cm));
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionID::Default));
+    EXPECT_FALSE(store->getVBucket(replicaVB)->lockCollections().exists(
+            CollectionID::Default));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    flushVBucketToDiskIfPersistent(replicaVB, 1);
+
+    if (persistent()) {
+        auto manifestA =
+                vb->getShard()->getRWUnderlying()->getCollectionsManifest(vbid);
+        VBucketPtr vbr = store->getVBucket(replicaVB);
+        auto manifestR =
+                vbr->getShard()->getRWUnderlying()->getCollectionsManifest(
+                        replicaVB);
+
+        EXPECT_EQ(0, manifestA.collections.size());
+        EXPECT_EQ(1, manifestA.scopes.size());
+        EXPECT_TRUE(manifestA.droppedCollectionsExist);
+        EXPECT_EQ(manifestA, manifestR);
+
+        auto droppedA =
+                vb->getShard()->getRWUnderlying()->getDroppedCollections(vbid);
+        auto droppedR =
+                vbr->getShard()->getRWUnderlying()->getDroppedCollections(
+                        replicaVB);
+        EXPECT_EQ(droppedA, droppedR);
+    }
+}
+
 // Test that backfilled streams, which drop logically deleted items returns
 // a snapshot that is consistent with the dropped collection.
 // We need to be sure that in the case we are dropping items the client isn't

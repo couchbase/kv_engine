@@ -313,8 +313,8 @@ flatbuffers::DetachedBuffer CommitMetaData::encodeOpenCollections(
                 result->second.startSeqno = entry->startSeqno();
             }
         }
-    } else {
-        // Nothing on disk - assume the default collection lives
+    } else if (droppedCollections.count(CollectionID::Default) == 0) {
+        // Nothing on disk - and not dropped assume the default collection lives
         auto newEntry = Collections::KVStore::CreateCollection(
                 builder,
                 0,
@@ -453,6 +453,37 @@ bool OpenCollection::operator==(const OpenCollection& other) const {
 
 bool OpenScope::operator==(const OpenScope& other) const {
     return startSeqno == other.startSeqno && metaData == other.metaData;
+}
+
+bool Manifest::operator==(const Manifest& other) const {
+    if ((manifestUid == other.manifestUid) &&
+        (droppedCollectionsExist == other.droppedCollectionsExist) &&
+        (collections.size() == other.collections.size()) &&
+        (scopes.size() == other.scopes.size())) {
+        for (const auto& collection : collections) {
+            if (std::count(other.collections.begin(),
+                           other.collections.end(),
+                           collection) == 0) {
+                return false;
+            }
+        }
+
+        for (const auto& scope : scopes) {
+            if (std::count(other.scopes.begin(), other.scopes.end(), scope) ==
+                0) {
+                return false;
+            }
+        }
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+bool DroppedCollection::operator==(const DroppedCollection& other) const {
+    return startSeqno == other.startSeqno && endSeqno == other.endSeqno &&
+           collectionId == other.collectionId;
 }
 
 } // namespace Collections::KVStore
