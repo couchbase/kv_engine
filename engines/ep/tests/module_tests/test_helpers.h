@@ -59,7 +59,7 @@ Item make_item(
 
 /// Make a queued_item representing a pending SyncWrite.
 queued_item makePendingItem(StoredDocKey key,
-                            std::string value,
+                            const std::string& value,
                             cb::durability::Requirements reqs = {
                                     cb::durability::Level::Majority,
                                     cb::durability::Timeout()});

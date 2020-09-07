@@ -688,15 +688,17 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                 std::string("PassiveStream::processMessage: "
                             "Message type not supported"));
     }
-    // ENOMEM logging is handled by maybeLogMemoryState
-    if (ret != ENGINE_SUCCESS && ret != ENGINE_ENOMEM) {
-        log(spdlog::level::level_enum::warn,
-            "{} Got error '{}' while trying to process "
-            "{} with seqno:{}",
-            vb_,
-            cb::to_string(cb::to_engine_errc(ret)),
-            taskToString[messageType],
-            message->getItem()->getBySeqno());
+    if (ret != ENGINE_SUCCESS) {
+        // ENOMEM logging is handled by maybeLogMemoryState
+        if (ret != ENGINE_ENOMEM) {
+            log(spdlog::level::level_enum::warn,
+                "{} Got error '{}' while trying to process "
+                "{} with seqno:{}",
+                vb_,
+                cb::to_string(cb::to_engine_errc(ret)),
+                taskToString[messageType],
+                message->getItem()->getBySeqno());
+        }
     } else {
         handleSnapshotEnd(vb, *message->getBySeqno());
     }

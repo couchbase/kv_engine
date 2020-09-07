@@ -103,6 +103,16 @@ public:
 
 protected:
     /**
+     * Creates a SNAPSHOT_MARKER message with range [seqno,seqno] and
+     * processes it on the DCP stream.
+     */
+    void makeAndProcessSnapshotMarker(
+            uint32_t opaque,
+            uint64_t seqno,
+            uint64_t snapshotMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            const std::optional<uint64_t>& hcs = 0);
+
+    /**
      * Creates a DCP_PREPARE message (with a preceeding SNAPSHOT_MARKER), and
      * processes it on the DCP stream.
      * Returns the SyncWrite prepare item.

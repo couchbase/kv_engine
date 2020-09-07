@@ -394,6 +394,10 @@ public:
         return std::get<0>(GetParam()).find("ephemeral") != std::string::npos;
     }
 
+    bool ephemeralFailNewData() const {
+        return ephemeral() && std::get<1>(GetParam()) == "fail_new_data";
+    }
+
     bool fullEviction() const {
         return persistent() && std::get<1>(GetParam()) == "full_eviction";
     }
