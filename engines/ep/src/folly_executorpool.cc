@@ -21,11 +21,6 @@
 #include "globaltask.h"
 #include "taskable.h"
 
-// Folly executor code includes GoogleLog headers which on Windows conflict
-// with Windows' ERROR macro. Tell Google Log to not define abbreviated logging
-// level 'ERROR' macro.
-#define GLOG_NO_ABBREVIATED_SEVERITIES
-
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
