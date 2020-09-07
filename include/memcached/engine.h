@@ -26,17 +26,13 @@
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
 
-namespace cb {
-namespace durability {
+namespace cb::durability {
 class Requirements;
-}
-} // namespace cb
+} // namespace cb::durability
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Request;
-}
-} // namespace cb
+} // namespace cb::mcbp
 
 /*! \mainpage memcached public API
  *
@@ -131,8 +127,7 @@ static const float default_min_compression_ratio = 1.2f;
 /* The default maximum size for a value */
 static const size_t default_max_item_size = 20 * 1024 * 1024;
 
-namespace cb {
-namespace engine {
+namespace cb::engine {
 /**
  * Definition of the features that an engine can support
  */
@@ -141,8 +136,7 @@ enum class Feature : uint16_t {
 };
 
 typedef std::unordered_set<Feature> FeatureSet;
-} // namespace engine
-} // namespace cb
+} // namespace cb::engine
 
 namespace std {
 template <>
