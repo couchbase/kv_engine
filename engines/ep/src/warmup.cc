@@ -1153,8 +1153,11 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             continue;
         }
 
-        auto wh = itr->second->getManifest().wlock();
+        // Take the KVFileHandle before we lock the manifest to prevent lock
+        // order inversions.
         auto kvstoreContext = kvstore->makeFileHandle(vbid);
+
+        auto wh = itr->second->getManifest().wlock();
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
             // start tracking in-memory stats before items are warmed up.
