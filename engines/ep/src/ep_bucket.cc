@@ -34,7 +34,6 @@
 #include "persistence_callback.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
-#include "statistics/collector.h"
 #include "tasks.h"
 #include "vb_commit.h"
 #include "vb_visitors.h"
@@ -42,6 +41,8 @@
 #include "warmup.h"
 
 #include <platform/timeutils.h>
+#include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 
@@ -1265,7 +1266,7 @@ std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::getFileStats(StatCollector& collector) {
+ENGINE_ERROR_CODE EPBucket::getFileStats(BucketStatCollector& collector) {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 

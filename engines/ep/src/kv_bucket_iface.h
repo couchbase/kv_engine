@@ -49,6 +49,7 @@ class PersistenceCallback;
 class VBucketMap;
 class VBucketVisitor;
 class PausableVBucketVisitor;
+class BucketStatCollector;
 class StatCollector;
 class StorageProperties;
 class Warmup;
@@ -372,7 +373,7 @@ public:
      * Get summarized vBucket stats for this bucket - total for all
      * active,replica buckets.
      */
-    virtual void getAggregatedVBucketStats(StatCollector& collector) = 0;
+    virtual void getAggregatedVBucketStats(BucketStatCollector& collector) = 0;
 
     /**
      * Get file statistics
@@ -383,7 +384,7 @@ public:
      *         ENGINE_KEY_ENOENT if file stats are not available
      *         from the store.
      */
-    virtual ENGINE_ERROR_CODE getFileStats(StatCollector& collector) = 0;
+    virtual ENGINE_ERROR_CODE getFileStats(BucketStatCollector& collector) = 0;
 
     /**
      * Get detailed (per-vbucket) disk stats.

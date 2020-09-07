@@ -202,6 +202,7 @@ extern stats stats;
 class Connection;
 struct thread_stats* get_thread_stats(Connection* c);
 
+class BucketStatCollector;
 class StatCollector;
 class Bucket;
 ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket);

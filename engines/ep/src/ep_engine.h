@@ -187,7 +187,7 @@ public:
                                 const AddStatFn& add_stat) override;
 
     ENGINE_ERROR_CODE get_prometheus_stats(
-            StatCollector& collector,
+            BucketStatCollector& collector,
             cb::prometheus::Cardinality cardinality) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
@@ -913,7 +913,7 @@ protected:
 
     bool enableTraffic(bool enable);
 
-    ENGINE_ERROR_CODE doEngineStats(StatCollector& collector);
+    ENGINE_ERROR_CODE doEngineStats(BucketStatCollector& collector);
     ENGINE_ERROR_CODE doMemoryStats(const void* cookie,
                                     const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void* cookie,
@@ -948,7 +948,7 @@ protected:
     ENGINE_ERROR_CODE doConnAggStats(const void* cookie,
                                      const AddStatFn& add_stat,
                                      std::string_view sep);
-    void doTimingStats(StatCollector& collector);
+    void doTimingStats(BucketStatCollector& collector);
     ENGINE_ERROR_CODE doSchedulerStats(const void* cookie,
                                        const AddStatFn& add_stat);
     ENGINE_ERROR_CODE doRunTimeStats(const void* cookie,

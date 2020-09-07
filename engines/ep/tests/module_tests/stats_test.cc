@@ -337,9 +337,10 @@ TEST_F(StatTest, UnitSuffix) {
     }
 }
 
-TEST_F(StatTest, CollectorAddsLabel) {
-    // Confirm that StatCollector::withLabels(...)
-    // returns a collector which adds all given labels to every stat added.
+TEST_F(StatTest, CollectorForBucketScopeCollection) {
+    // Confirm that StatCollector::for{Bucket,Scope,Collection}(...)
+    // returns a collector which adds the corresponding labels to every
+    // stat added.
 
     using namespace std::string_view_literals;
     using namespace testing;
@@ -365,52 +366,29 @@ TEST_F(StatTest, CollectorAddsLabel) {
                                     ContainerEq(labels)));
             };
 
-    {
-        // create a LabelledStatCollector wrapping `collector`. Stats added
-        // to `labelled` should be forwarded on to `collector`, with
-        // labels added.
-        auto labelled =
-                collector.withLabels({{"bucket", "foo"}, {"scope", "bar"}});
-        // the labelled collector adds stats with all provided labels
-        expectAddStatWithLabels({{"bucket", "foo"}, {"scope", "bar"}});
-        labelled.addStat(key, value);
-    }
+    // Create a collector for a bucket
+    auto bucket = collector.forBucket("foo");
+    auto scope = bucket.forScope(ScopeID(0x0));
+    auto collection = scope.forCollection(CollectionID(0x8));
 
-    {
-        // Test calls to withLabels on an already labelled collector
-        // unions all labels.
-        auto labelled =
-                collector.withLabels({{"bucket", "foo"}, {"scope", "bar"}})
-                        .withLabels({{"collection", "baz"}});
+    InSequence s;
 
-        // Stat added with all added labels from both withLabels(...) calls.
-        expectAddStatWithLabels(
-                {{"bucket", "foo"}, {"scope", "bar"}, {"collection", "baz"}});
-        labelled.addStat(key, value);
-    }
-
-    {
-        // Test setting a label value again hides the existing value
-
-        // create a collector with label bucket=foo
-        auto labelled = collector.withLabels({{"bucket", "foo"}});
-        // NOTE: withLabels called on `labelled` not the original collector
-        // create another collector which overrides the bucket label
-        auto relabelled = labelled.withLabels({{"bucket", "bar"}});
-
-        // expect `relabelled` has the new bucket label
-        expectAddStatWithLabels({{"bucket", "bar"}});
-        relabelled.addStat(key, value);
-
-        // expect `labelled` is not changed, and still has the old label
-        expectAddStatWithLabels({{"bucket", "foo"}});
-        labelled.addStat(key, value);
-    }
-
-    // Finally, confirm that the original collector has not had any labels set
-    // and was not changed by creating labelled "sub" collectors
+    // base collector has not been modified, adds no labels
     expectAddStatWithLabels({});
     collector.addStat(key, value);
+
+    // adds bucket label
+    expectAddStatWithLabels({{"bucket", "foo"}});
+    bucket.addStat(key, value);
+
+    // adds scope label
+    expectAddStatWithLabels({{"bucket", "foo"}, {"scope", "0x0"}});
+    scope.addStat(key, value);
+
+    // adds collection label
+    expectAddStatWithLabels(
+            {{"bucket", "foo"}, {"scope", "0x0"}, {"collection", "0x8"}});
+    collection.addStat(key, value);
 }
 
 TEST_F(StatTest, CollectorMapsTypesCorrectly) {
@@ -521,7 +499,9 @@ TEST_F(StatTest, ConfigStatDefinitions) {
                         Matcher<std::string_view>(policy),
                         _));
 
-    config.addStats(collector);
+    // config stats are per-bucket, wrap the collector up with a bucket label
+    auto bucketC = collector.forBucket("bucket-name");
+    config.addStats(bucketC);
 }
 
 TEST_F(StatTest, StringStats) {
@@ -548,7 +528,9 @@ TEST_F(StatTest, StringStats) {
                         Matcher<std::string_view>("NOT_SCHEDULED"),
                         _));
 
-    engine->doEngineStats(collector);
+    // config stats are per-bucket, wrap the collector up with a bucket label
+    auto bucketC = collector.forBucket("bucket-name");
+    engine->doEngineStats(bucketC);
 }
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {

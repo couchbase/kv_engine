@@ -27,6 +27,7 @@ namespace VB {
 class Commit;
 }
 enum class ValueFilter;
+class BucketStatCollector;
 struct CompactionContext;
 
 /**
@@ -132,7 +133,7 @@ public:
 
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
 
-    ENGINE_ERROR_CODE getFileStats(StatCollector& collector) override;
+    ENGINE_ERROR_CODE getFileStats(BucketStatCollector& collector) override;
 
     ENGINE_ERROR_CODE getPerVBucketDiskStats(
             const void* cookie, const AddStatFn& add_stat) override;

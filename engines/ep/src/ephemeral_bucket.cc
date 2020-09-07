@@ -28,7 +28,9 @@
 #include "failover-table.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
-#include "statistics/collector.h"
+
+#include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
 
 /**
  * A configuration value changed listener that responds to Ephemeral bucket
@@ -286,11 +288,12 @@ std::unique_ptr<VBucketCountVisitor> EphemeralBucket::makeVBCountVisitor(
     return std::make_unique<EphemeralVBucket::CountVisitor>(state);
 }
 
-void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
-                                                   VBucketCountVisitor& replica,
-                                                   VBucketCountVisitor& pending,
-                                                   VBucketCountVisitor& dead,
-                                                   StatCollector& collector) {
+void EphemeralBucket::appendAggregatedVBucketStats(
+        VBucketCountVisitor& active,
+        VBucketCountVisitor& replica,
+        VBucketCountVisitor& pending,
+        VBucketCountVisitor& dead,
+        BucketStatCollector& collector) {
     // The CountVisitors passed in are expected to all be Ephemeral subclasses.
     auto& ephActive = dynamic_cast<EphemeralVBucket::CountVisitor&>(active);
     auto& ephReplica = dynamic_cast<EphemeralVBucket::CountVisitor&>(replica);

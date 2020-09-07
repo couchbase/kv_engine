@@ -32,6 +32,7 @@ namespace cb::prometheus {
 enum class Cardinality;
 } // namespace cb::prometheus
 
+class BucketStatCollector;
 class StatCollector;
 
 /*! \mainpage memcached public API
@@ -529,7 +530,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return ENGINE_SUCCESS if all goes well
      */
     virtual ENGINE_ERROR_CODE get_prometheus_stats(
-            StatCollector& collector, cb::prometheus::Cardinality cardinality) {
+            BucketStatCollector& collector,
+            cb::prometheus::Cardinality cardinality) {
         return ENGINE_ENOTSUP;
     }
 

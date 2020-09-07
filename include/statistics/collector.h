@@ -102,9 +102,12 @@ inline uint64_t getBucketMax(const MicrosecondHistogram::value_type& bucket) {
     return bucket->end().count();
 }
 
-
+class CollectionID;
 class HdrHistogram;
 class LabelledStatCollector;
+class ScopeID;
+
+class BucketStatCollector;
 /**
  * Interface implemented by stats backends.
  *
@@ -151,33 +154,12 @@ class StatCollector {
 public:
     using Labels = std::unordered_map<std::string_view, std::string_view>;
 
-    /**
-     * Construct a LabelledStatCollector which wraps this collector instance.
-     * The wrapper adds all the labels in `labels` to every call to addStat,
-     * then forwards it to this StatCollector instance.
+    /*
+     * Create a collector tracking stats for a specific bucket.
      *
-     * This instance is _not_ modified.
-     *
-     * For example, a bucket label can be applied to a group of stats:
-     *
-     *  {
-     *      auto labelled = collector.withLabels({{"bucket", "bucketName"}});
-     *      labelled.addStat("mem_used", 10000);
-     *      labelled.addStat("ep_kv_size", 1234);
-     *  }
-     *
-     * Setting a new value for an existing label will mask the existing value.
-     *
-     * auto scopeCollector = collector.withLabels({{"scope", "scopeName"}});
-     * auto overridden = scopeCollector.withLabels({{"scope", "NewName"}});
-     *
-     * scopeCollector.addStat(...); // labelled with "scopeName"
-     * overridden.addStat(...); // labelled with "NewName"
-     *
-     * See LabelledStatCollector.
+     * This instance is unchanged.
      */
-    [[nodiscard]] virtual LabelledStatCollector withLabels(
-            const Labels& labels);
+    [[nodiscard]] BucketStatCollector forBucket(std::string_view bucket);
 
     /**
      * Add a textual stat to the collector.

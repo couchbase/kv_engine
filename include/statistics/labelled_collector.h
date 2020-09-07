@@ -26,9 +26,9 @@
  * LabelledCollector forwards all calls to addStat(...) to the wrapped
  * instance with added labels.
  *
- * Should only be constructed through StatCollector::withLabel(...);
+ * Should only be used through the derived Bucket/Scope/Collection collectors
  *
- * For example, rather than
+ * For example,
  *
  *  StatCollector c;
  *  ...
@@ -37,23 +37,18 @@
  *  c.addStat("stat_key3", value3, {{"bucket", "someBucketName"},
  *                                  {"scope", "scopeFoo"}});
  *
- * This class simplifies this to
+ * May be replaced with
  *
  *  StatCollector c;
  *  ...
- *  auto labelled = c.withLabels({{"bucket", "someBucketName"}});
- *  labelled.addStat("stat_key1", value1);
- *  labelled.addStat("stat_key2", value2);
- *  labelled.addStat("stat_key3", value3, {{"scope", "scopeFoo"}});
+ *  auto bucketC = c.forBucket("someBucketName");
+ *  bucketC.addStat("stat_key1", value1);
+ *  bucketC.addStat("stat_key2", value2);
+ *  auto scopeC = bucketC.forScope(ScopeID(0x8));
+ *  scopeC.addStat("stat_key3", value3);
  *
- * LabelledStatCollector implements the StatCollector interface,
- * and so may be used transparently by methods requiring a StatCollector;
- *
- *  void addCollectionStats(StatCollector&);
- *  ....
- *  StatCollector c;
- *  auto labelled = c.withLabels({{"bucket", "someBucketName"}});
- *  addCollectionStats(labelled);
+ * LabelledStatCollector implements the StatCollector interface, simply
+ * adding additional labels to every addStat call.
  *
  */
 class LabelledStatCollector : public StatCollector {
@@ -61,36 +56,6 @@ public:
     // Allow usage of the "helper" methods defined in the base type.
     // They would otherwise be shadowed
     using StatCollector::addStat;
-
-    /**
-     * Override the default LabelStatCollector creation. Creating a wrapper
-     * around _this_ LabelledStatCollector would work fine, but would be
-     * inefficient if the nesting gets deeper.
-     *
-     * Instead, construct a LabelledStatCollector wrapping the same `parent`
-     * as this instance, with all of the labels of this instance, plus
-     * those provided as arguments. With this, the cost of addStat remains the
-     * same, and does not require an additional call for each "intermediate"
-     * LabelledStatCollector
-     *
-     * e.g., given
-     *
-     *  StatCollector collector;
-     *  auto a = collector.withLabels({{"bucket", "bucketName"}});
-     *  auto b = a.withLabels({{"scope", "scopeName"}});
-     *
-     * calling
-     *  b.addStat("mem_used", 9999);
-     * expands directly to
-     *  collector.addStat("mem_used", 9999, {{"bucket, "bucketName"},
-     *                                       {"scope", "scopeName"}});
-     * _without_ an intermediate call to a.addStat.
-     *
-     * This may also add clarity when debugging, as it avoids stepping down
-     * through several wrappers before the real StatCollector is reached.
-     */
-    [[nodiscard]] LabelledStatCollector withLabels(
-            const Labels& labels) override;
     void addStat(const cb::stats::StatDef& k,
                  std::string_view v,
                  const Labels& labels) override;
@@ -113,23 +78,27 @@ public:
                  const HistogramData& hist,
                  const Labels& labels) override;
 
-private:
+    /**
+     * Create a new LabelledStatCollector with all the labels of the current
+     * instance, plus the _additional_ labels provided as arguments.
+     */
+    [[nodiscard]] LabelledStatCollector withLabels(Labels&& labels);
+
+protected:
     /**
      * Construct a labelled stat collector, which forwards addStat calls
      * to the provided parent collector, and adds the provided labels to every
      * call.
      *
-     * Not to be constructed directly, instead use the `withLabels()` method
-     * of an existing StatCollector.
-     *
-     *  CBStatCollector cbstat;
-     *  auto labelled = cbstat.withLabels({{"bucket", "bucketName"}});
-     *  labelled.addStat("statName", statValue);
+     * Not to be constructed directly, instead use the derived
+     * Bucket/Scope/Collection types.
      *
      * @param parent collector to pass stats to
      * @param labels labels to add to each stat forwarded to parent
      */
     LabelledStatCollector(StatCollector& parent, const Labels& labels);
+
+    LabelledStatCollector(LabelledStatCollector&& other) = default;
 
     /**
      * Pass the provided stat to the stat collector this instance wraps,
@@ -152,7 +121,46 @@ private:
 
     StatCollector& parent;
     std::unordered_map<std::string, std::string> defaultLabels;
+};
 
-    // allow StatCollector to construct this type, in withLabels(...)
-    friend class StatCollector;
+class ScopeStatCollector;
+class ColStatCollector;
+
+/**
+ * A collector for stats for a single bucket.
+ *
+ * Methods expecting to add stats for a specific bucket should take this
+ * as a parameter, e.g.,
+ *
+ * addBucketStats(BucketStatCollector& collector);
+ *
+ * This guarantees the collector has all required information (i.e., a bucket
+ * label) to add stats for a single bucket, regardless of stat backend
+ * implementation.
+ */
+class BucketStatCollector : public LabelledStatCollector {
+public:
+    BucketStatCollector(StatCollector& parent, std::string_view bucket);
+    [[nodiscard]] ScopeStatCollector forScope(ScopeID scope);
+};
+
+/**
+ * A collector for stats for a single scope.
+ *
+ * See BucketStatCollector.
+ */
+class ScopeStatCollector : public LabelledStatCollector {
+public:
+    ScopeStatCollector(BucketStatCollector& parent, ScopeID scope);
+    [[nodiscard]] ColStatCollector forCollection(CollectionID collection);
+};
+
+/**
+ * A collector for stats for a single collection.
+ *
+ * See BucketStatCollector.
+ */
+class ColStatCollector : public LabelledStatCollector {
+public:
+    ColStatCollector(ScopeStatCollector& parent, CollectionID collection);
 };

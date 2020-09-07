@@ -29,6 +29,8 @@
 #include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
 #include <utilities/logtags.h>
 
 #include "access_scanner.h"
@@ -60,7 +62,6 @@
 #include "mutation_log.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
-#include "statistics/collector.h"
 #include "tasks.h"
 #include "trace_helpers.h"
 #include "vb_count_visitor.h"
@@ -1172,7 +1173,7 @@ void KVBucket::snapshotStats() {
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
-void KVBucket::getAggregatedVBucketStats(StatCollector& collector) {
+void KVBucket::getAggregatedVBucketStats(BucketStatCollector& collector) {
     // Create visitors for each of the four vBucket states, and collect
     // stats for each.
     auto active = makeVBCountVisitor(vbucket_state_active);
@@ -1206,7 +1207,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                                             VBucketCountVisitor& replica,
                                             VBucketCountVisitor& pending,
                                             VBucketCountVisitor& dead,
-                                            StatCollector& collector) {
+                                            BucketStatCollector& collector) {
     using namespace cb::stats;
     // Top-level stats:
     collector.addStat(Key::curr_items, active.getNumItems());

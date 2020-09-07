@@ -21,12 +21,11 @@
 #include "locks.h"
 
 #include <platform/cb_malloc.h>
-
+#include <statistics/labelled_collector.h>
 
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
 #endif
-#include "statistics/collector.h"
 
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
@@ -304,7 +303,7 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
     }
 }
 
-void Configuration::addStats(StatCollector& collector) const {
+void Configuration::addStats(BucketStatCollector& collector) const {
     LockHolder lh(mutex);
 
     const auto lookupAttr = [this](const std::string& keyStr) {

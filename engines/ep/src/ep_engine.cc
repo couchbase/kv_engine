@@ -46,7 +46,6 @@
 #include "kvstore.h"
 #include "replicationthrottle.h"
 #include "server_document_iface_border_guard.h"
-#include "statistics/collector.h"
 #include "stats-info.h"
 #include "string_utils.h"
 #include "trace_helpers.h"
@@ -73,6 +72,8 @@
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/hdrhistogram.h>
@@ -405,7 +406,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_prometheus_stats(
-        StatCollector& collector, cb::prometheus::Cardinality cardinality) {
+        BucketStatCollector& collector,
+        cb::prometheus::Cardinality cardinality) {
     try {
         if (cardinality == cb::prometheus::Cardinality::High) {
             doTimingStats(collector);
@@ -2743,7 +2745,7 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
-        StatCollector& collector) {
+        BucketStatCollector& collector) {
     configuration.addStats(collector);
 
     EPStats &epstats = getEpStats();
@@ -3982,7 +3984,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     return rv;
 }
 
-void EventuallyPersistentEngine::doTimingStats(StatCollector& collector) {
+void EventuallyPersistentEngine::doTimingStats(BucketStatCollector& collector) {
     using namespace cb::stats;
     collector.addStat(Key::bg_wait, stats.bgWaitHisto);
     collector.addStat(Key::bg_load, stats.bgLoadHisto);
@@ -4498,7 +4500,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
     const std::string statKey(key.data(), key.size());
     if (key.size() == 8) {
         CBStatCollector collector{add_stat, cookie};
-        return kvBucket->getFileStats(collector);
+        auto bucketC = collector.forBucket(getName());
+        return kvBucket->getFileStats(bucketC);
     }
     if ((key.size() == 15) &&
         (statKey.compare(std::string("diskinfo").length() + 1,
@@ -4555,9 +4558,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         EP_LOG_DEBUG("stats {}", key);
     }
 
+    // Some stats have been moved to using the stat collector interface,
+    // while others have not. Depending on the key, this collector _may_
+    // not be used, but creating it here reduces duplication (and it's not
+    // expensive to create)
+    CBStatCollector collector{add_stat, cookie};
+    auto bucketCollector = collector.forBucket(getName());
+
     if (key.empty()) {
-        CBStatCollector collector{add_stat, cookie};
-        return doEngineStats(collector);
+        return doEngineStats(bucketCollector);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
         return doConnAggStats(cookie, add_stat, key.substr(7));
@@ -4610,8 +4619,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
                 cookie, add_stat, key.data(), key.size());
     }
     if (key == "timings"sv) {
-        CBStatCollector collector{add_stat, cookie};
-        doTimingStats(collector);
+        doTimingStats(bucketCollector);
         return ENGINE_SUCCESS;
     }
     if (key == "dispatcher"sv) {
@@ -4661,8 +4669,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return ENGINE_SUCCESS;
     }
     if (key == "config"sv) {
-        CBStatCollector collector(add_stat, cookie);
-        configuration.addStats(collector);
+        configuration.addStats(bucketCollector);
         return ENGINE_SUCCESS;
     }
     if (key.size() > 15 && cb_isPrefix(key, "dcp-vbtakeover")) {

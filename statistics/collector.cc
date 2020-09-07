@@ -18,15 +18,15 @@
 #include "statistics/collector.h"
 
 #include "statistics/labelled_collector.h"
+#include <memcached/dockey.h>
 #include <spdlog/fmt/fmt.h>
 #include <utilities/hdrhistogram.h>
 
 #include <string_view>
 
 using namespace std::string_view_literals;
-
-LabelledStatCollector StatCollector::withLabels(const Labels& labels) {
-    return {*this, labels};
+BucketStatCollector StatCollector::forBucket(std::string_view bucket) {
+    return {*this, bucket};
 }
 
 const cb::stats::StatDef& StatCollector::lookup(cb::stats::Key key) {

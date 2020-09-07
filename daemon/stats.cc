@@ -77,7 +77,7 @@ static void server_agg_stats(StatCollector& collector) {
 }
 
 /// add stats related to a single bucket
-static void server_bucket_stats(StatCollector& collector,
+static void server_bucket_stats(BucketStatCollector& collector,
                                 const Bucket& bucket) {
     struct thread_stats thread_stats;
     thread_stats.aggregate(bucket.stats);
@@ -144,7 +144,8 @@ ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket) {
     try {
         server_global_stats(collector);
         server_agg_stats(collector);
-        server_bucket_stats(collector, bucket);
+        auto bucketC = collector.forBucket(bucket.name);
+        server_bucket_stats(bucketC, bucket);
     } catch (const std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
@@ -163,17 +164,16 @@ ENGINE_ERROR_CODE server_prometheus_stats(
                         // skip the initial bucket with aggregated stats
                         return true;
                     }
-                    auto labelledCollector =
-                            collector.withLabels({{"bucket", bucket.name}});
+                    auto bucketC = collector.forBucket(bucket.name);
 
                     // do engine stats
-                    bucket.getEngine().get_prometheus_stats(labelledCollector,
+                    bucket.getEngine().get_prometheus_stats(bucketC,
                                                             cardinality);
 
                     if (cardinality == cb::prometheus::Cardinality::Low) {
                         // do memcached per-bucket stats
-                        server_bucket_stats(labelledCollector, bucket);
-                        stats_audit(labelledCollector);
+                        server_bucket_stats(bucketC, bucket);
+                        stats_audit(bucketC);
                     }
 
                     // continue checking buckets

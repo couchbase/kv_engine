@@ -50,7 +50,7 @@ public:
     }
 
     /// File stats not supported for Ephemeral buckets.
-    ENGINE_ERROR_CODE getFileStats(StatCollector& collector) override {
+    ENGINE_ERROR_CODE getFileStats(BucketStatCollector& collector) override {
         return ENGINE_KEY_ENOENT;
     }
 
@@ -154,7 +154,7 @@ protected:
                                       VBucketCountVisitor& replica,
                                       VBucketCountVisitor& pending,
                                       VBucketCountVisitor& dead,
-                                      StatCollector& collector) override;
+                                      BucketStatCollector& collector) override;
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

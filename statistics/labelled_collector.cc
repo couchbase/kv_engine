@@ -17,12 +17,14 @@
 
 #include <statistics/labelled_collector.h>
 
+#include <memcached/dockey.h>
+
 LabelledStatCollector::LabelledStatCollector(StatCollector& parent,
                                              const Labels& labels)
     : parent(parent), defaultLabels(labels.begin(), labels.end()) {
 }
 
-LabelledStatCollector LabelledStatCollector::withLabels(const Labels& labels) {
+LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) {
     // take the specific labels passed as parameters
     Labels mergedLabels{labels.begin(), labels.end()};
     // add in the labels stored in this collector
@@ -67,4 +69,26 @@ void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     const HistogramData& v,
                                     const Labels& labels) {
     forwardToParent(k, v, labels);
+}
+
+BucketStatCollector::BucketStatCollector(StatCollector& parent,
+                                         std::string_view bucket)
+    : LabelledStatCollector(parent, {{"bucket", bucket}}) {
+}
+ScopeStatCollector BucketStatCollector::forScope(ScopeID scope) {
+    return {*this, scope};
+}
+
+ScopeStatCollector::ScopeStatCollector(BucketStatCollector& parent,
+                                       ScopeID scope)
+    : LabelledStatCollector(parent.withLabels({{"scope", scope.to_string()}})) {
+}
+ColStatCollector ScopeStatCollector::forCollection(CollectionID collection) {
+    return {*this, collection};
+}
+
+ColStatCollector::ColStatCollector(ScopeStatCollector& parent,
+                                   CollectionID collection)
+    : LabelledStatCollector(
+              parent.withLabels({{"collection", collection.to_string()}})) {
 }

@@ -197,7 +197,7 @@ public:
      * Add all of the configuration variables as stats
      * @param collector where to store collected statistics
      */
-    void addStats(StatCollector& collector) const;
+    void addStats(BucketStatCollector& collector) const;
 
     using Visitor = std::function<void(
             const std::string& key, bool isDynamic, std::string value)>;
