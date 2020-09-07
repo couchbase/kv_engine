@@ -47,6 +47,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
             last_system_event_data.begin(), eventData.begin(), eventData.end());
     last_system_event_version = version;
     last_stream_id = sid;
+    last_vbucket = vbucket;
 
     switch (event) {
     case mcbp::systemevent::id::CreateCollection: {

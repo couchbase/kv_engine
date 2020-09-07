@@ -2116,39 +2116,56 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     store->setCollections(std::string{cm.add(CollectionEntry::meat)});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    if (persistent()) {
-        // collection purger runs (was scheduled by the drop of default)
-        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
-                    "Compact DB file 0");
+    TimeTraveller bill(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+    runEraser(vbid);
 
-        TimeTraveller alex(
-                engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-        runCompaction(3);
-    } else {
-        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
-        evb->purgeStaleItems();
-    }
-
-    // Clear everything from CP manager so DCP backfills
+    // Clear everything from CP manager so DCP backfills - here we are streaming
+    // the active VB which we have just ran tombstone purging on.
     vb->checkpointManager->clear(vbucket_state_active);
 
     createDcpObjects(std::make_optional(std::string_view{}));
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*from-memory... false backfill*/);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
-                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::defaultC.getId(), producers->last_collection_id);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
-                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+
+    flushVBucketToDiskIfPersistent(replicaVB, 2);
+
+    TimeTraveller ted(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+    // Now purge on the replica and validate that the default drop marker is not
+    // purged.
+    runEraser(replicaVB);
+
+    // Clear everything from CP manager so DCP backfills
+    store->getVBucket(replicaVB)->checkpointManager->clear(
+            vbucket_state_replica);
+    producers->consumer = nullptr; // effectively stops faux 'replication'
+    createDcpStream({std::string{}}, replicaVB, cb::engine_errc::success, 0);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpNoop);
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*from-memory... false backfill*/);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::defaultC.getId(), producers->last_collection_id);
+    EXPECT_EQ(producers->last_vbucket, replicaVB);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+    EXPECT_EQ(producers->last_vbucket, replicaVB);
 }
 
 class CollectionsDcpCloseAfterLosingPrivs

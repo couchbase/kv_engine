@@ -628,7 +628,7 @@ int64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
     // We can never purge the drop of the default collection because it has an
     // implied creation event. If we did allow the default collection tombstone
     // to be purged a client would wrongly assume it exists.
-    if (!seq.has_value() && deleted && cid.isDefaultCollection()) {
+    if (deleted && cid.isDefaultCollection()) {
         item->setExpTime(~0);
     }
 
