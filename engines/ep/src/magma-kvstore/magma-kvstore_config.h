@@ -67,12 +67,6 @@ public:
     size_t getMagmaInitialWalBufferSize() const {
         return magmaInitialWalBufferSize;
     }
-    size_t getMagmaNumFlushers() const {
-        return magmaNumFlushers;
-    }
-    size_t getMagmaNumCompactors() const {
-        return magmaNumCompactors;
-    }
     bool getMagmaCommitPointEveryBatch() const {
         return magmaCommitPointEveryBatch;
     }
@@ -108,6 +102,10 @@ public:
         return numWriterThreads.load();
     }
     void setNumWriterThreads(size_t value);
+
+    size_t getMagmaMaxDefaultStorageThreads() const {
+        return magmaMaxDefaultStorageThreads;
+    }
 
     magma::Magma::Config magmaCfg;
 
@@ -169,12 +167,6 @@ private:
     // of items.
     size_t magmaInitialWalBufferSize;
 
-    // Number of background threads to flush filled memtables to disk
-    size_t magmaNumFlushers;
-
-    // Number of background compactor threads
-    size_t magmaNumCompactors;
-
     // Used in testing to make sure each batch is flushed to disk to simulate
     // how couchstore flushes each batch to disk.
     bool magmaCommitPointEveryBatch;
@@ -215,4 +207,12 @@ private:
      * config, so we have to default the value here for unit tests.
      */
     std::atomic<size_t> storageThreads{0};
+
+    /**
+     * If the number of storage threads = 0, then we set the number
+     * of storage threads based on the number of writer threads up to a
+     * maximum of 20 threads and use magma_flusher_thread_percentage to
+     * determine the ratio of flusher and compactor threads.
+     */
+    size_t magmaMaxDefaultStorageThreads{20};
 };

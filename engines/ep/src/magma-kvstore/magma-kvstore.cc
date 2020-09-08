@@ -2368,12 +2368,9 @@ void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
 void MagmaKVStore::calculateAndSetMagmaThreads() {
     auto backendThreads = configuration.getStorageThreads();
     if (backendThreads == 0) {
-        // This is the "default" case and we can choose how many threads to run.
-        // For magma the default is currently just 20.
-        // @TODO MB-41267: This default must be updated to be appropriate before
-        // magma GA as it's likely not appropriate for low spec or high spec
-        // setups.
-        backendThreads = 20;
+        backendThreads =
+                std::min(configuration.getNumWriterThreads(),
+                         configuration.getMagmaMaxDefaultStorageThreads());
     }
 
     auto flusherRatio =
@@ -2382,15 +2379,27 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
     auto compactors = backendThreads - flushers;
 
     if (flushers <= 0) {
-        throw std::runtime_error(
-                "MagmaKVStore::calculateAndSetMagmaThreads: Invalid number of "
-                "flusher threads. Must be greater than 0");
+        logger->warn(
+                "MagmaKVStore::calculateAndSetMagmaThreads "
+                "flushers <= 0. "
+                "StorageThreads:{} "
+                "WriterThreads:{} "
+                "Setting flushers=1",
+                configuration.getStorageThreads(),
+                configuration.getNumWriterThreads());
+        flushers = 1;
     }
 
     if (compactors <= 0) {
-        throw std::runtime_error(
-                "MagmaKVStore::calculateAndSetMagmaThreads: Invalid number of "
-                "compactors threads. Must be greater than 0");
+        logger->warn(
+                "MagmaKVStore::calculateAndSetMagmaThreads "
+                "compactors <= 0. "
+                "StorageThreads:{} "
+                "WriterThreads:{} "
+                "Setting compactors=1",
+                configuration.getStorageThreads(),
+                configuration.getNumWriterThreads());
+        compactors = 1;
     }
 
     logger->info(

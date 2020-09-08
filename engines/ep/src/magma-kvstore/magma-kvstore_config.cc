@@ -64,6 +64,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
     magmaFragmentationPercentage = config.getMagmaFragmentationPercentage();
     magmaFlusherPercentage = config.getMagmaFlusherThreadPercentage();
+    magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
     numWriterThreads = config.getNumWriterThreads();
 
     config.addValueChangedListener(
