@@ -152,5 +152,4 @@ struct FrontEndThread {
 };
 
 void notify_thread(FrontEndThread& thread);
-void notify_dispatcher();
 void drain_notification_channel(evutil_socket_t fd);

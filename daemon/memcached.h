@@ -21,7 +21,6 @@
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
-#define DATA_BUFFER_SIZE 2048
 #define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
 
 /* Maximum length of config which can be validated */
@@ -94,7 +93,6 @@ void disassociate_bucket(Connection& connection);
 
 void disable_listen();
 bool is_listen_disabled();
-uint64_t get_listen_disabled_num();
 
 /**
  * The executor pool used to pick up the result for requests spawn by the
