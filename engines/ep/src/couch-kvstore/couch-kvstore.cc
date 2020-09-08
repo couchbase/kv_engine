@@ -853,41 +853,39 @@ static int time_purge_hook(Db* d,
         auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
         uint32_t exptime = metadata->getExptime();
 
-        if (ctx->droppedKeyCb) {
-            // We need to check both committed and prepared documents - if the
-            // collection has been logically deleted then we need to discard
-            // both types of keys.
-            // As such use the docKey (i.e. without any DurabilityPrepare
-            // namespace) when checking if logically deleted;
-            auto diskKey = makeDiskDocKey(info->id);
-            const auto& docKey = diskKey.getDocKey();
-            if (ctx->eraserContext->isLogicallyDeleted(docKey,
-                                                       int64_t(info->db_seq))) {
-                // Inform vb that the key@seqno is dropped
-                try {
-                    ctx->droppedKeyCb(diskKey,
-                                      int64_t(info->db_seq),
-                                      metadata->isAbort(),
-                                      ctx->highCompletedSeqno);
-                } catch (const std::exception& e) {
-                    EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
-                                e.what());
-                    return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
-                }
-                if (metadata->isPrepare()) {
-                    ctx->stats.preparesPurged++;
-                } else {
-                    if (!info->deleted) {
-                        ctx->stats.collectionsItemsPurged++;
-                    } else {
-                        ctx->stats.collectionsDeletedItemsPurged++;
-                    }
-                }
-                return COUCHSTORE_COMPACT_DROP_ITEM;
-            } else if (docKey.isInSystemCollection()) {
-                ctx->eraserContext->processSystemEvent(
-                        docKey, SystemEvent(metadata->getFlags()));
+        // We need to check both committed and prepared documents - if the
+        // collection has been logically deleted then we need to discard
+        // both types of keys.
+        // As such use the docKey (i.e. without any DurabilityPrepare
+        // namespace) when checking if logically deleted;
+        auto diskKey = makeDiskDocKey(info->id);
+        const auto& docKey = diskKey.getDocKey();
+        if (ctx->eraserContext->isLogicallyDeleted(docKey,
+                                                   int64_t(info->db_seq))) {
+            // Inform vb that the key@seqno is dropped
+            try {
+                ctx->droppedKeyCb(diskKey,
+                                  int64_t(info->db_seq),
+                                  metadata->isAbort(),
+                                  ctx->highCompletedSeqno);
+            } catch (const std::exception& e) {
+                EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
+                            e.what());
+                return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
             }
+            if (metadata->isPrepare()) {
+                ctx->stats.preparesPurged++;
+            } else {
+                if (!info->deleted) {
+                    ctx->stats.collectionsItemsPurged++;
+                } else {
+                    ctx->stats.collectionsDeletedItemsPurged++;
+                }
+            }
+            return COUCHSTORE_COMPACT_DROP_ITEM;
+        } else if (docKey.isInSystemCollection()) {
+            ctx->eraserContext->processSystemEvent(
+                    docKey, SystemEvent(metadata->getFlags()));
         }
 
         if (info->deleted) {
@@ -1017,6 +1015,12 @@ bool CouchKVStore::compactDBInternal(
                 "CouchKVStore::compactDB: Cannot perform "
                 "on a read-only instance.");
     }
+
+    if (!hook_ctx->droppedKeyCb) {
+        throw std::runtime_error(
+                "CouchKVStore::compactDB: droppedKeyCb must be set ");
+    }
+
     auto* def_iops = statCollectingFileOpsCompaction.get();
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();

@@ -124,7 +124,8 @@ struct compaction_ctx {
     struct CompactionStats stats;
     /// pointer as context cannot be constructed until deeper inside storage
     std::unique_ptr<Collections::VB::EraserContext> eraserContext;
-    Collections::KVStore::DroppedCb droppedKeyCb;
+    Collections::KVStore::DroppedCb droppedKeyCb =
+            [](const DiskDocKey&, int64_t, bool, int64_t) {};
 
     /**
      * A function to call on completion of compaction (before we swap our files)
