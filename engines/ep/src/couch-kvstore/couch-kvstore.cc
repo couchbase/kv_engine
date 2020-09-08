@@ -1100,6 +1100,17 @@ bool CouchKVStore::compactDBInternal(
                 },
                 std::move(docinfo_hook),
                 def_iops,
+                [hook_ctx, this](Db& compacted) {
+                    // we don't try to delete the dropped collection document
+                    // as it'll come back in the next database header anyway
+                    PendingLocalDocRequestQueue localDocQueue;
+                    auto ret = maybePatchOnDiskPrepares(
+                            compacted, *hook_ctx, localDocQueue);
+                    if (ret == COUCHSTORE_SUCCESS) {
+                        updateLocalDocuments(compacted, localDocQueue);
+                    }
+                    return ret;
+                },
                 timestamp.count(),
                 delta.count());
     } else {
@@ -1111,7 +1122,36 @@ bool CouchKVStore::compactDBInternal(
                     return time_purge_hook(&db, docInfo, value, hook_ctx);
                 },
                 std::move(docinfo_hook),
-                def_iops);
+                def_iops,
+                [hook_ctx, this](Db& compacted) {
+                    if (mb40415_regression_hook) {
+                        return COUCHSTORE_ERROR_CANCEL;
+                    }
+
+                    PendingLocalDocRequestQueue localDocQueue;
+                    if (hook_ctx->eraserContext
+                                ->needToUpdateCollectionsMetadata()) {
+                        if (!hook_ctx->eraserContext->empty()) {
+                            std::stringstream ss;
+                            ss << "CouchKVStore::compactDB finalising dropped "
+                                  "collections, "
+                               << "container should be empty"
+                               << *hook_ctx->eraserContext << std::endl;
+                            throw std::logic_error(ss.str());
+                        }
+                        // Need to ensure the 'dropped' list on disk is now gone
+                        localDocQueue.emplace_back(
+                                Collections::droppedCollectionsName,
+                                CouchLocalDocRequest::IsDeleted{});
+                    }
+                    auto ret = maybePatchOnDiskPrepares(
+                            compacted, *hook_ctx, localDocQueue);
+                    if (ret == COUCHSTORE_SUCCESS) {
+                        updateLocalDocuments(compacted, localDocQueue);
+                    }
+
+                    return ret;
+                });
     }
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
@@ -1141,10 +1181,10 @@ bool CouchKVStore::compactDBInternal(
         return false;
     }
 
-    // Open the newly compacted VBucket database file in write mode, we will be
-    // updating vbstate
+    // Open the newly compacted VBucket database to update the cached vbstate
     DbHolder targetDb(*this);
-    errCode = openSpecificDB(vbid, new_rev, targetDb, 0);
+    errCode = openSpecificDB(
+            vbid, new_rev, targetDb, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::compactDB: openDB#2 error:{}, file:{}, "
@@ -1160,47 +1200,20 @@ bool CouchKVStore::compactDBInternal(
         return false;
     }
 
-    PendingLocalDocRequestQueue localDocQueue;
-    if (hook_ctx->eraserContext->needToUpdateCollectionsMetadata()) {
-        if (!hook_ctx->eraserContext->empty()) {
-            std::stringstream ss;
-            ss << "CouchKVStore::compactDB finalising dropped collections, "
-               << "container should be empty" << *hook_ctx->eraserContext
-               << std::endl;
-            throw std::logic_error(ss.str());
-        }
-        // Need to ensure the 'dropped' list on disk is now gone
-        localDocQueue.emplace_back(Collections::droppedCollectionsName,
-                                   CouchLocalDocRequest::IsDeleted{});
-    }
-
     auto info = cb::couchstore::getHeader(*targetDb.getDb());
     hook_ctx->stats.post = toFileInfo(info);
 
     cachedFileSize[vbid.get()] = info.fileSize;
     cachedSpaceUsed[vbid.get()] = info.spaceUsed;
 
-    // also update cached state with dbinfo
-    vbucket_state* state = getVBucketState(vbid);
+    // also update cached state with dbinfo (the disk entry is already updated)
+    auto* state = getVBucketState(vbid);
     if (state) {
         state->highSeqno = info.updateSeqNum;
         state->purgeSeqno = info.purgeSeqNum;
         cachedDeleteCount[vbid.get()] = info.deletedCount;
         cachedDocCount[vbid.get()] = info.docCount;
         state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
-        // Must sync the modified state back
-        localDocQueue.emplace_back("_local/vbstate", makeJsonVBState(*state));
-    }
-
-    if (!localDocQueue.empty()) {
-        updateLocalDocuments(*targetDb.getDb(), localDocQueue);
-        errCode = couchstore_commit(targetDb.getDb());
-        if (errCode != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::compactDB: failed to commit vbstate "
-                    "errCode:{}",
-                    couchstore_strerror(errCode));
-        }
     }
 
     logger.debug("INFO: created new couch db file, name:{} rev:{}",
@@ -1225,6 +1238,54 @@ bool CouchKVStore::compactDBInternal(
             std::chrono::steady_clock::now() - start));
 
     return true;
+}
+
+couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
+        Db& db,
+        compaction_ctx& ctx,
+        PendingLocalDocRequestQueue& localDocQueue) {
+    // Must sync the modified state back
+    // we need to update the _local/vbstate to update the number of
+    // on_disk_prepared to match whatever we purged
+    if (ctx.stats.preparesPurged != 0) {
+        LocalDoc* ldoc = nullptr;
+        sized_buf id{(char*)"_local/vbstate", sizeof("_local/vbstate") - 1};
+        auto err = couchstore_open_local_document(
+                &db, (void*)id.buf, id.size, &ldoc);
+        if (err != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::compactPrecommitCallback: Failed to "
+                    "load _local/vbstate: {}",
+                    couchstore_strerror(err));
+            return err;
+        }
+
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(
+                    std::string{ldoc->json.buf, ldoc->json.size});
+        } catch (const nlohmann::json::exception& e) {
+            couchstore_free_local_document(ldoc);
+            logger.warn(
+                    "CouchKVStore::compactPrecommitCallback: Failed to "
+                    "parse the vbstat json: {}",
+                    std::string{ldoc->json.buf, ldoc->json.size});
+            return COUCHSTORE_ERROR_CANCEL;
+        }
+        couchstore_free_local_document(ldoc);
+
+        auto iter = json.find("on_disk_prepares");
+        // only update if it's there..
+        if (iter != json.end()) {
+            auto onDiskPrepares = std::stoull(iter->get<std::string>()) -
+                                  ctx.stats.preparesPurged;
+            json["on_disk_prepares"] = std::to_string(onDiskPrepares);
+            const auto doc = json.dump();
+            localDocQueue.emplace_back("_local/vbstate", json.dump());
+        }
+    }
+
+    return COUCHSTORE_SUCCESS;
 }
 
 vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
