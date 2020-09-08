@@ -661,6 +661,17 @@ protected:
     bool compactDBInternal(compaction_ctx* hook_ctx,
                            cb::couchstore::CompactRewriteDocInfoCallback dhook);
 
+    /// try to load _local/vbstate and patch the num_on_disk_prepares
+    /// and subtract the number of prepares pruned
+    couchstore_error_t maybePatchOnDiskPrepares(
+            Db& db,
+            compaction_ctx& ctx,
+            PendingLocalDocRequestQueue& localDocQueue);
+
+    void setMb40415RegressionHook(bool value) {
+        mb40415_regression_hook = value;
+    }
+
     enum class ReadVBStateStatus {
         Success,
         JsonInvalid,
@@ -850,4 +861,7 @@ protected:
      * @returns An initialised RevisionMap accessed via the shared_ptr
      */
     static std::shared_ptr<RevisionMap> makeRevisionMap(size_t vbucketCount);
+
+    /// Allow the unit tests to add a hook into compaction
+    bool mb40415_regression_hook{false};
 };

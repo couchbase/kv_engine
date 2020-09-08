@@ -65,6 +65,7 @@ public:
     }
 
     using CouchKVStore::compactDBInternal;
+    using CouchKVStore::setMb40415RegressionHook;
 
     /**
      * Mocks original code but returns the IORequest for fuzzing.

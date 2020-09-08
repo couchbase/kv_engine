@@ -1556,6 +1556,19 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     gc.callback(gv);
 }
 
+// Verify that if the precommit hook fails (we didn't update the
+// _local/vbstate) the compaction would fail (so that during restart
+// we wouldn't potentially get a database header without the _local/document
+TEST_F(CouchstoreTest, MB40415_regression_test) {
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
+
+    // Verify that if we would "fail" the precommit hook for some reason
+    // the entire compaction would fail...
+    kvstore->setMb40415RegressionHook(true);
+    EXPECT_FALSE(kvstore->compactDBInternal(&cctx, {}));
+}
+
 class CouchKVStoreMetaData : public ::testing::Test {};
 
 TEST_F(CouchKVStoreMetaData, basic) {
