@@ -2312,13 +2312,15 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     MutationStatus delrv;
     std::optional<VBNotifyCtx> notifyCtx;
     bool metaBgFetch = true;
+    const auto state = getState(); // read state once
     if (!v) {
         if (eviction == EvictionPolicy::Full) {
             delrv = MutationStatus::NeedBgFetch;
         } else {
             delrv = MutationStatus::NotFound;
         }
-    } else if (mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
+    } else if (state == vbucket_state_active &&
+               mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
         // MB-36087: Any non-resident value
@@ -2337,7 +2339,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    {} /*overwritingPrepareSeqno*/};
 
         std::unique_ptr<Item> itm;
-        if (getState() == vbucket_state_active &&
+        if (state == vbucket_state_active &&
             mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
             // A new item has been generated and must be given a new seqno
