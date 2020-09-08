@@ -1036,9 +1036,6 @@ bool CouchKVStore::compactDBInternal(
         return false;
     }
 
-    hook_ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
-            getDroppedCollections(*compactdb));
-
     uint64_t new_rev = compactdb.getFileRev() + 1;
 
     // Build the temporary vbucket.compact file name
@@ -1078,7 +1075,6 @@ bool CouchKVStore::compactDBInternal(
                 vbid);
         return false;
     }
-    hook_ctx->highCompletedSeqno = vbState->persistedCompletedSeqno;
 
     // Remove the destination file (in the case there is a leftover somewhere
     // IF one exist compact would start writing into the file, but if the
@@ -1109,6 +1105,10 @@ bool CouchKVStore::compactDBInternal(
                         configuration.getPitrGranularity())
                         .count());
 
+        // @todo I'm not sure if updating the bloom filter as part of
+        //       traversing historical data is what we want to do :S
+        hook_ctx->bloomFilterCallback = {};
+
         errCode = cb::couchstore::compact(
                 *compactdb,
                 compact_file.c_str(),
@@ -1130,8 +1130,24 @@ bool CouchKVStore::compactDBInternal(
                     return ret;
                 },
                 timestamp.count(),
-                delta.count());
+                delta.count(),
+                [this, &vbid, hook_ctx](Db& db) {
+                    auto [status, state] = readVBState(&db, vbid);
+                    if (status != ReadVBStateStatus::Success) {
+                        return COUCHSTORE_ERROR_CANCEL;
+                    }
+                    hook_ctx->highCompletedSeqno =
+                            state.persistedCompletedSeqno;
+                    hook_ctx->eraserContext =
+                            std::make_unique<Collections::VB::EraserContext>(
+                                    getDroppedCollections(db));
+                    return COUCHSTORE_SUCCESS;
+                });
     } else {
+        hook_ctx->highCompletedSeqno = vbState->persistedCompletedSeqno;
+        hook_ctx->eraserContext =
+                std::make_unique<Collections::VB::EraserContext>(
+                        getDroppedCollections(*compactdb));
         errCode = cb::couchstore::compact(
                 *compactdb,
                 compact_file.c_str(),
