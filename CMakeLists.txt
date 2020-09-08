@@ -76,15 +76,6 @@ if(HAVE_MALLOC_USABLE_SIZE)
 endif()
 
 if (WIN32)
-   # by "default" trying to include <Windows.h> includes a ton of other
-   # header files (for instance winsock.h, which conflicts with winsock2.h)
-   # In order to work around that we may define WIN32_LEAN_AND_MEAN which
-   # cause windows.h to not include all of these extra files.
-   # Given that we want this behavior for all of the files in kv_engine
-   # we add it as a global flag. Ideally it should have been set in tlm,
-   # but that cause forestdb to fail.
-   add_definitions(-DWIN32_LEAN_AND_MEAN)
-
    # 'conversion' conversion from 'type1' to 'type2', possible loss of data
    add_definitions(/wd4244)
    # 'var' : conversion from 'size_t' to 'type', possible loss of data
