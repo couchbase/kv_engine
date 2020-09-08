@@ -60,9 +60,10 @@ void StatCollector::addStat(const cb::stats::StatDef& k,
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               std::string_view v,
-                              const Labels&) {
-    // CBStats has no concept of labels, and so they are unused
-    addStatFn(k.uniqueKey, v, cookie);
+                              const Labels& labels) {
+    // CBStats has no concept of labels, but needs to distinguish scope and
+    // collection stats through a prefix.
+    addStatFn(addCollectionsPrefix(k.uniqueKey, labels), v, cookie);
 }
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
@@ -113,4 +114,20 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                 bucket.count,
                 labels);
     }
+}
+
+std::string CBStatCollector::addCollectionsPrefix(std::string_view uniqueKey,
+                                                  const Labels& labels) {
+    fmt::memory_buffer buf;
+
+    if (labels.count("scope")) {
+        fmt::format_to(buf, "{}:", labels.at("scope"));
+        if (labels.count("collection")) {
+            fmt::format_to(buf, "{}:", labels.at("collection"));
+        }
+    }
+
+    fmt::format_to(buf, "{}", uniqueKey);
+
+    return {buf.data(), buf.size()};
 }

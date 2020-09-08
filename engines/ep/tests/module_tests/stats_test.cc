@@ -533,6 +533,48 @@ TEST_F(StatTest, StringStats) {
     engine->doEngineStats(bucketC);
 }
 
+TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
+    // Confirm that CBStatCollector correctly prepends a
+    //  scopeID:
+    // or
+    //  scopeID:collectionID:
+    // prefix for scope and collection stats, respectively.
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    auto cookie = create_mock_cookie(engine.get());
+
+    // mock addStatFn
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+    // create a collector to which stats will be added
+    CBStatCollector collector(cbFunc, cookie);
+
+    auto bucket = collector.forBucket("BucketName");
+    auto scope = bucket.forScope(ScopeID(0x0));
+    auto collection = scope.forCollection(CollectionID(0x8));
+
+    cb::stats::StatDef statDef("foo");
+
+    InSequence s;
+
+    // test a string stat
+    EXPECT_CALL(cb, Call("foo"sv, _, _));
+    bucket.addStat(statDef, "value");
+
+    EXPECT_CALL(cb, Call("0x0:foo"sv, _, _));
+    scope.addStat(statDef, "value");
+
+    EXPECT_CALL(cb, Call("0x0:0x8:foo"sv, _, _));
+    collection.addStat(statDef, "value");
+
+    destroy_mock_cookie(cookie);
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);

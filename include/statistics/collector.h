@@ -390,6 +390,26 @@ public:
     }
 
 private:
+    /**
+     * Formats a CBStats-suitable stat key by adding a
+     *  scopeID:
+     * or
+     *  scopeID:collectionID:
+     *
+     *  prefix to the unique key. E.g.,
+     *
+     *  0x0:disk_size
+     *  0x0:0x8:disk_size
+     *
+     * The scopeID and collectionID values are looked up from the provided
+     * @p labels map, with keys "scope" and "collection" respectively.
+     * @param uniqueKey base key to add prefix to
+     * @param labels labels to
+     * @return
+     */
+    static std::string addCollectionsPrefix(std::string_view uniqueKey,
+                                            const Labels& labels);
+
     const AddStatFn& addStatFn;
     const void* cookie;
 };
