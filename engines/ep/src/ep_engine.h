@@ -665,7 +665,7 @@ public:
         return *checkpointConfig;
     }
 
-    SERVER_HANDLE_V1* getServerApi() {
+    ServerApi* getServerApi() {
         return serverApi;
     }
 
@@ -1209,7 +1209,7 @@ private:
                     std::string_view statKey);
 
 protected:
-    SERVER_HANDLE_V1 *serverApi;
+    ServerApi* serverApi;
 
     // Engine statistics. First concrete member as a number of other members
     // refer to it so needs to be constructed first (and destructed last).

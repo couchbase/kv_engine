@@ -64,17 +64,16 @@ struct ServerCookieIface;
 struct ServerDocumentIface;
 union protocol_binary_request_header;
 
-/* This is typedefed in types.h */
-struct server_handle_v1_t {
-    ServerCoreIface* core;
-    ServerCallbackIface* callback;
-    ServerLogIface* log;
-    ServerCookieIface* cookie;
-    ServerDocumentIface* document;
-    ServerBucketIface* bucket;
+struct ServerApi {
+    ServerCoreIface* core = nullptr;
+    ServerCallbackIface* callback = nullptr;
+    ServerLogIface* log = nullptr;
+    ServerCookieIface* cookie = nullptr;
+    ServerDocumentIface* document = nullptr;
+    ServerBucketIface* bucket = nullptr;
 };
 
-typedef SERVER_HANDLE_V1* (*GET_SERVER_API)();
+using GET_SERVER_API = ServerApi* (*)();
 
 namespace cb {
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;

@@ -344,8 +344,7 @@ private:
     char *holder;
 };
 
-bool Configuration::parseConfiguration(const char *str,
-                                       SERVER_HANDLE_V1* sapi) {
+bool Configuration::parseConfiguration(const char* str, ServerApi* sapi) {
     std::vector<std::unique_ptr<ConfigItem> > config;
 
     for (const auto& attribute : attributes) {

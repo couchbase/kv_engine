@@ -1785,7 +1785,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::abort(
  */
 ENGINE_ERROR_CODE create_ep_engine_instance(GET_SERVER_API get_server_api,
                                             EngineIface** handle) {
-    SERVER_HANDLE_V1* api = get_server_api();
+    ServerApi* api = get_server_api();
     if (api == nullptr) {
         return ENGINE_ENOTSUP;
     }

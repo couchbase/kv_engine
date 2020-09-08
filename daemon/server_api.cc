@@ -47,7 +47,7 @@ static Cookie& getCookie(gsl::not_null<const void*> void_cookie) {
 struct ServerBucketApi : public ServerBucketIface {
     unique_engine_ptr createBucket(
             const std::string& module,
-            SERVER_HANDLE_V1* (*get_server_api)()) const override {
+            ServerApi* (*get_server_api)()) const override {
         auto type = module_to_bucket_type(module);
         if (type == BucketType::Unknown) {
             return {};
@@ -344,9 +344,9 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 };
 
-class ServerApi : public SERVER_HANDLE_V1 {
+class ServerApiImpl : public ServerApi {
 public:
-    ServerApi() : server_handle_v1_t() {
+    ServerApiImpl() : ServerApi() {
         core = &core_api;
         log = &server_log_api;
         cookie = &server_cookie_api;
@@ -367,7 +367,7 @@ protected:
  * @return pointer to a structure containing the interface. The client should
  *         know the layout and perform the proper casts.
  */
-SERVER_HANDLE_V1* get_server_api() {
-    static ServerApi rv;
+ServerApi* get_server_api() {
+    static ServerApiImpl rv;
     return &rv;
 }

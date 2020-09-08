@@ -418,11 +418,11 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 };
 
-SERVER_HANDLE_V1* get_mock_server_api() {
+ServerApi* get_mock_server_api() {
     static MockServerCoreApi core_api;
     static MockServerCookieApi server_cookie_api;
     static MockServerLogApi log_api;
-    static SERVER_HANDLE_V1 rv;
+    static ServerApi rv;
     static MockServerDocumentApi document_api;
     static int init;
     if (!init) {

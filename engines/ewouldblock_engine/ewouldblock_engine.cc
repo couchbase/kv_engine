@@ -896,7 +896,7 @@ public:
                             uint64_t abort_seqno) override;
 
     GET_SERVER_API gsa;
-    SERVER_HANDLE_V1* real_api;
+    ServerApi* real_api;
 
     // Actual engine we are proxying requests to.
     unique_engine_ptr real_engine;
@@ -1841,7 +1841,7 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
 }
 
 void EWB_Engine::process_notifications() {
-    SERVER_HANDLE_V1* server = gsa();
+    ServerApi* server = gsa();
     LOG_DEBUG("EWB_Engine: notification thread running for engine {}",
               (void*)this);
     std::unique_lock<std::mutex> lk(mutex);

@@ -85,7 +85,8 @@ bool is_memcached_shutting_down();
  */
 void update_topkeys(const Cookie& cookie);
 
-SERVER_HANDLE_V1* get_server_api();
+struct ServerApi;
+ServerApi* get_server_api();
 
 void shutdown_server();
 bool associate_bucket(Connection& connection, const char* name);

@@ -814,7 +814,7 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
         itm_info =
                 itm->toItemInfo(failovers->getLatestUUID(), getHLCEpochSeqno());
 
-        SERVER_HANDLE_V1* sapi = engine->getServerApi();
+        ServerApi* sapi = engine->getServerApi();
         /* TODO: In order to minimize allocations, the callback needs to
          * allocate an item whose value size will be exactly the size of the
          * value after pre-expiry is performed.

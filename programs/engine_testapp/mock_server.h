@@ -5,7 +5,7 @@
 
 void mock_init_alloc_hooks();
 
-SERVER_HANDLE_V1* get_mock_server_api();
+ServerApi* get_mock_server_api();
 
 void init_mock_server();
 

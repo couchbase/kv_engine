@@ -221,7 +221,7 @@ struct default_engine : public EngineIface {
 
     void generate_unknown_collection_response(const void* cookie) const;
 
-    SERVER_HANDLE_V1 server;
+    ServerApi server;
     GET_SERVER_API get_server_api;
 
     /**

@@ -89,7 +89,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
 
 ENGINE_ERROR_CODE create_memcache_instance(GET_SERVER_API get_server_api,
                                            EngineIface** handle) {
-    SERVER_HANDLE_V1* api = get_server_api();
+    ServerApi* api = get_server_api();
     struct default_engine* engine;
 
     if (api == nullptr) {

@@ -191,7 +191,7 @@ public:
      * @param sapi pointer to the server API
      * @return true if success, false otherwise
      */
-    bool parseConfiguration(const char *str, SERVER_HANDLE_V1* sapi);
+    bool parseConfiguration(const char* str, ServerApi* sapi);
 
     /**
      * Add all of the configuration variables as stats
