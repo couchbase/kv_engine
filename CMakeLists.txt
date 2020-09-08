@@ -11,15 +11,6 @@ include(HeaderObjectLibrary)
 
 check_unit_test_enabled(kv_engine COUCHBASE_KV_BUILD_UNIT_TESTS)
 
-cmake_dependent_option(KV_USE_OPENTRACING
-                       "Enable support for OpenTracing" ON
-                       "OPENTRACING_INCLUDE_DIR;OPENTRACING_LIBRARIES" OFF)
-if (KV_USE_OPENTRACING)
-    add_definitions(-DENABLE_OPENTRACING)
-    message(STATUS "Adding support for OpenTracing")
-    message(STATUS "OpenTracing support is currently a proof of concept and should not be used in production")
-endif()
-
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
 # let's continue to find them there until it's all done

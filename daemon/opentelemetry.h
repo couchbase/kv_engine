@@ -18,30 +18,26 @@
 #include <atomic>
 #include <memory>
 
-#ifdef ENABLE_OPENTRACING
-#include <opentracing/dynamic_load.h>
-#endif
-
 struct CookieTraceContext;
-class OpenTracingConfig;
+class OpenTelemetryConfig;
 
 /**
- * The OpenTracing class is used to provide access to OpenTracing in the
+ * The OpenTelemetry class is used to provide access to OpenTelemetry in the
  * prototype. We don't offer a lot of flexibility right now, but allow the
  * user to dynamically enable / disable the functionality (note that we
  * will only load the library the first time, and if you try to change the
  * library after it's been loaded that is ignored).
  */
-class OpenTracing {
+class OpenTelemetry {
 public:
-    virtual ~OpenTracing() = default;
+    virtual ~OpenTelemetry() = default;
 
     /**
-     * Update the OpenTracing instance with the provided configuration.
+     * Update the OpenTelemetry instance with the provided configuration.
      *
      * This _might_ load libraries and create a tracer
      */
-    static void updateConfig(const OpenTracingConfig& config);
+    static void updateConfig(const OpenTelemetryConfig& config);
 
     /**
      * Shut down the tracer and release all allocated resources.
@@ -50,23 +46,18 @@ public:
     static void shutdown();
 
     /**
-     * Push the trace to the OpenTracing module
+     * Push the trace to the OpenTelemetry module
      */
     static void pushTraceLog(CookieTraceContext&& context);
 
     /**
-     * Is OpenTracing configured (and enabled). If built without
-     * support for OpenTracing this method always returns false.
+     * Is OpenTelemetry configured (and enabled). If built without
+     * support for OpenTelemetry this method always returns false.
      *
-     * @return true if OpenTracing is loaded and enabled, false otherwise
+     * @return true if OpenTelemetry is loaded and enabled, false otherwise
      */
     static bool isEnabled() {
-#ifdef ENABLE_OPENTRACING
-        return enabled.load(std::memory_order_acquire);
-
-#else
         return false;
-#endif
     }
 
     /**
@@ -77,15 +68,9 @@ public:
      *
      * @throws std::runtime_error if something goes wrong
      */
-    explicit OpenTracing(const OpenTracingConfig& config);
+    explicit OpenTelemetry(const OpenTelemetryConfig& config);
 
 protected:
-    static std::unique_ptr<OpenTracing> instance;
+    static std::unique_ptr<OpenTelemetry> instance;
     virtual void push(CookieTraceContext& context) = 0;
-
-#ifdef ENABLE_OPENTRACING
-    static std::atomic_bool enabled;
-    opentracing::expected<opentracing::DynamicTracingLibraryHandle> handle;
-    std::shared_ptr<opentracing::Tracer> tracer;
-#endif
 };

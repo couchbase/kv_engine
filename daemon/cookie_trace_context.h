@@ -27,7 +27,7 @@ enum class Magic : uint8_t;
 
 /**
  * The CookieTraceContext contains the information we need to keep around
- * to generate an OpenTracing dump for a given cookie (command)
+ * to generate an OpenTelemetry dump for a given cookie (command)
  */
 struct CookieTraceContext {
     CookieTraceContext(cb::mcbp::Magic magic,

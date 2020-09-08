@@ -577,9 +577,9 @@ protected:
             std::optional<CollectionID> cid);
 
     /**
-     * Is OpenTracing enabled for this cookie or not. By querying the
+     * Is OpenTelemetry enabled for this cookie or not. By querying the
      * cookie we don't have to read the atomic on/off switch unless
-     * people try to set the OpenTracing context in the command.
+     * people try to set the OpenTelemetry context in the command.
      */
     bool isOpenTracingEnabled() const {
         return !openTracingContext.empty();
@@ -587,9 +587,9 @@ protected:
 
     /**
      * Extract the trace context.
-     * This method moves the tracer, OpenTracing context into
+     * This method moves the tracer, OpenTelemetry context into
      * a newly created TraceContext object which may be passed to the
-     * OpenTracing module and handled asynchronously
+     * OpenTelemetry module and handled asynchronously
      */
     CookieTraceContext extractTraceContext();
 

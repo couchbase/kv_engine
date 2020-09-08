@@ -350,7 +350,7 @@ nlohmann::json Request::toJSON(bool validated) const {
                             *reinterpret_cast<const uint16_t*>(buffer.data()));
                     break;
                 case request::FrameInfoId::OpenTracingContext:
-                    frameid["OpenTracing context"] = printableString(buffer);
+                    frameid["OpenTelemetry context"] = printableString(buffer);
                     break;
                 case request::FrameInfoId::Impersonate:
                     if (buffer[0] == '@') {

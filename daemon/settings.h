@@ -20,7 +20,6 @@
 #include "client_cert_config.h"
 #include "logger/logger_config.h"
 #include "network_interface.h"
-#include "opentracing_config.h"
 
 #include <memcached/engine.h>
 #include <platform/dynamic.h>
@@ -775,29 +774,6 @@ public:
         notify_changed("active_external_users_push_interval");
     }
 
-    /**
-     * Get the (optional) OpenTracing configuration.
-     *
-     * Given that this setting contains multiple settings which is closely
-     * related it is put in a struct and we'll use a shared_ptr to allow
-     * replacing all of them at the same time (without having to deal with
-     * locking if we read one or change another etc)
-     */
-    std::shared_ptr<OpenTracingConfig> getOpenTracingConfig() const {
-        return opentracing_config;
-    }
-
-    /**
-     * Replace the OpenTracing configuration with the new setting and fire
-     * the listener. Shared_ptr is being used to avoid having to deal with
-     * locking of the individual members.
-     */
-    void setOpenTracingConfig(std::shared_ptr<OpenTracingConfig> config) {
-        opentracing_config = config;
-        has.opentracing_config = true;
-        notify_changed("opentracing_config");
-    }
-
     std::string getPortnumberFile() const {
         return portnumber_file;
     }
@@ -1027,9 +1003,6 @@ protected:
 
     /// The pool of connections reserved for system usage
     std::atomic<size_t> system_connections{5000};
-
-    /// The configuration used by OpenTracing
-    std::shared_ptr<OpenTracingConfig> opentracing_config;
 
     /// The maximum number of commands each connection may have before
     /// blocking execution

@@ -156,7 +156,7 @@ the stream.
 The 2nd and 3rd byte contain a network byte order (uint16) storing the stream
 ID value which was specified in the DCP stream-request that created the stream.
 
-##### ID:3 - OpenTracing context
+##### ID:3 - OpenTelemetry context
 
 Request the server to submit trace information by using the supplied context
 information as the parent span. The context must be present (length > 0)
@@ -1817,7 +1817,7 @@ The following features is defined:
 | 0x0010 | AltRequest support |
 | 0x0011 | SyncReplication support |
 | 0x0012 | Collections |
-| 0x0013 | OpenTracing |
+| 0x0013 | OpenTelemetry |
 | 0x0014 | PreserveTtl |
 | 0x0015 | VAttr |
 | 0x0016 | PiTR |
@@ -1884,9 +1884,9 @@ The following features is defined:
                     anything on the server). It may be used from the client to
                     know if it may use synchronous replication tags in the
                     mutation requests.
-* `OpenTracing` This is purely informational (it does not enable / disable
+* `OpenTelemetry` This is purely informational (it does not enable / disable
                 anything on the server). It may be used from the client to
-                figure out if the server supports OpenTracing or not.)
+                figure out if the server supports OpenTelemetry or not.)
 * `PreserveTtl` This is purely informational (it does not enable / disable
                 anything on the server). It may be used from the client to
                 know if it may use PreserveTtl in the operations who carries

@@ -28,7 +28,6 @@
 #include <system_error>
 
 #include "log_macros.h"
-#include "opentracing_config.h"
 #include "settings.h"
 #include "ssl_utils.h"
 
@@ -672,10 +671,6 @@ static void handle_breakpad(Settings& s, const nlohmann::json& obj) {
     s.setBreakpadSettings(breakpad);
 }
 
-static void handle_opentracing(Settings& s, const nlohmann::json& obj) {
-    s.setOpenTracingConfig(std::make_shared<OpenTracingConfig>(obj));
-}
-
 static void handle_prometheus(Settings& s, const nlohmann::json& obj) {
     if (!obj.is_object()) {
         cb::throwJsonTypeError(R"("prometheus" must be an object)");
@@ -775,7 +770,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
              handle_active_external_users_push_interval},
             {"max_concurrent_commands_per_connection",
              handle_max_concurrent_commands_per_connection},
-            {"opentracing", handle_opentracing},
             {"prometheus", handle_prometheus},
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier}};
@@ -1232,34 +1226,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                             .count());
             setActiveExternalUsersPushInterval(
                     other.getActiveExternalUsersPushInterval());
-        }
-    }
-
-    if (other.has.opentracing_config) {
-        auto o = other.getOpenTracingConfig();
-        auto m = getOpenTracingConfig();
-        bool update = false;
-
-        if (o->enabled != m->enabled) {
-            LOG_INFO(R"({} OpenTracing)", o->enabled ? "Enable" : "Disable");
-            update = true;
-        }
-
-        if (o->module != m->module) {
-            LOG_INFO(R"(Change OpenTracing module from: "{}" to "{}")",
-                     m->module,
-                     o->module);
-            update = true;
-        }
-        if (o->config != m->config) {
-            LOG_INFO(R"(Change OpenTracing config from: "{}" to "{}")",
-                     m->config,
-                     o->config);
-            update = true;
-        }
-
-        if (update) {
-            setOpenTracingConfig(o);
         }
     }
 

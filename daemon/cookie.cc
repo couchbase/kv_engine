@@ -26,7 +26,7 @@
 #include "mcaudit.h"
 #include "mcbp_executors.h"
 #include "memcached.h"
-#include "opentracing.h"
+#include "opentelemetry.h"
 #include "settings.h"
 
 #include <logger/logger.h>
@@ -576,7 +576,7 @@ void Cookie::collectTimings() {
     maybeLogSlowCommand(elapsed);
 
     if (isOpenTracingEnabled()) {
-        OpenTracing::pushTraceLog(extractTraceContext());
+        OpenTelemetry::pushTraceLog(extractTraceContext());
     }
 }
 

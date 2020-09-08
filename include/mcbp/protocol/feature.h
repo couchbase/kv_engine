@@ -66,7 +66,7 @@ enum class Feature : uint16_t {
 
     Collections = 0x12,
 
-    /// Do the server support OpenTracing
+    /// Do the server support OpenTelemetry
     OpenTracing = 0x13,
 
     /// Do the server support preserving document expiry time

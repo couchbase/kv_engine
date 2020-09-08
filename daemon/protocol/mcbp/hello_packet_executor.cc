@@ -24,7 +24,7 @@
 #include <nlohmann/json.hpp>
 
 #include <daemon/buckets.h>
-#include <daemon/opentracing.h>
+#include <daemon/opentelemetry.h>
 #include <mcbp/protocol/status.h>
 #include <set>
 
@@ -298,7 +298,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case cb::mcbp::Feature::OpenTracing:
-            if (OpenTracing::isEnabled()) {
+            if (OpenTelemetry::isEnabled()) {
                 added = true;
             }
             break;

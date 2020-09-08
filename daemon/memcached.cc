@@ -35,7 +35,7 @@
 #include "mcbpdestroybuckettask.h"
 #include "network_interface.h"
 #include "network_interface_manager.h"
-#include "opentracing.h"
+#include "opentelemetry.h"
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
@@ -431,14 +431,6 @@ static void settings_init() {
                 if (externalAuthManager) {
                     externalAuthManager->setPushActiveUsersInterval(
                             s.getActiveExternalUsersPushInterval());
-                }
-            });
-
-    settings.addChangeListener(
-            "opentracing_config", [](const std::string&, Settings& s) -> void {
-                auto config = s.getOpenTracingConfig();
-                if (config) {
-                    OpenTracing::updateConfig(*config);
                 }
             });
 
@@ -1349,11 +1341,6 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 
-    auto opentracingconfig = Settings::instance().getOpenTracingConfig();
-    if (opentracingconfig) {
-        OpenTracing::updateConfig(*opentracingconfig);
-    }
-
     if (Settings::instance().isStdinListenerEnabled()) {
         LOG_INFO("Enable standard input listener");
         start_stdin_listener(shutdown_server);
@@ -1532,8 +1519,8 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO("Shutting down libevent");
     event_base_free(main_base);
 
-    if (OpenTracing::isEnabled()) {
-        OpenTracing::shutdown();
+    if (OpenTelemetry::isEnabled()) {
+        OpenTelemetry::shutdown();
     }
 
     LOG_INFO("Shutting down logger extension");
