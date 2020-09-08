@@ -155,6 +155,19 @@ protected:
         // Ensure items are flushed to disk (so we can evict them).
         flushDirectlyIfPersistent(vbid);
 
+#ifdef EP_USE_MAGMA
+        // Magma... we need to run explicit compaction to make sure no
+        // implicit compactions run that might use memory.
+        if (isMagma()) {
+            auto kvstore = store->getROUnderlyingByShard(0);
+            // Force a compaction here to make sure there are no implicit
+            // compactions to consume any memory
+            CompactionConfig compactionConfig;
+            compactionConfig.db_file_id = vbid;
+            auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
+            EXPECT_TRUE(kvstore->compactDB(cctx));
+        }
+#endif
         return count;
     }
 
@@ -328,11 +341,6 @@ protected:
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
-    if (isMagma()) {
-        // MB-39453: Skip for magma for now as we fail to drop below LWM
-        GTEST_SKIP();
-    }
-
     size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
 
