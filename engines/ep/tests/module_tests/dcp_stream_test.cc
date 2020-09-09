@@ -3833,11 +3833,6 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
                      1 /*HCS*/,
                      2 /*maxDelRevSeqno*/);
     }
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 /**

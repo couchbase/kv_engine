@@ -79,10 +79,6 @@ public:
         close();
     }
 
-    CouchKVStore& getKVStore() const {
-        return kvstore.get();
-    }
-
 protected:
     std::reference_wrapper<CouchKVStore> kvstore;
     Db* db;

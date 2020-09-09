@@ -68,7 +68,7 @@ protected:
         // magma to flush with every batch. This will release memory
         // being held by streaming sstables (~600KB). Otherwise, we would
         // have to bump up the quota for magma.
-        increaseQuota(800 * 1024);
+        increaseQuota(700 * 1024);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
@@ -895,7 +895,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // greater than the gap between high and low watermarks. With the default
     // quota, there's not enough "headroom" left after base memory usage to
     // populate vbs as desired.
-    increaseQuota(2100000);
+    increaseQuota(1100000);
 
     auto& stats = engine->getEpStats();
 
@@ -1006,7 +1006,9 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     // We need total evictable data to comfortably exceed the gap between
     // high and low watermarks. With the default quota, there's not enough
     // "headroom" left after base memory usage to populate vbs as desired.
-    increaseQuota(1200000);
+    // rather than bump the quota up, raise the low water mark to reduce the
+    // gap. This avoids bloating the test duration and memory footprint.
+
     auto quota = engine->getConfiguration().getMaxSize();
 
     // Set the water marks to 80% and 85%

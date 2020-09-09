@@ -4827,11 +4827,6 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     EXPECT_EQ(ENGINE_SUCCESS, docB.getStatus());
     EXPECT_EQ(0, docB.item->getNBytes());
     EXPECT_TRUE(docB.item->isDeleted());
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 TEST_P(STParamCouchstoreBucketTest,
@@ -4932,11 +4927,6 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
         SCOPED_TRACE("");
         checkPersistedVBState(vbucket_state_replica);
     }
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 TEST_P(STParamCouchstoreBucketTest,
@@ -5049,15 +5039,12 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     EXPECT_TRUE(vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved());
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
-
-    { // HT state
-        const auto res = vb.ht.findForUpdate(storedKey);
-        ASSERT_FALSE(res.pending);
-        ASSERT_TRUE(res.committed);
-        ASSERT_FALSE(res.committed->isDeleted());
-        ASSERT_FALSE(res.committed->isDirty());
-    }
-
+    // HT state
+    const auto res = vb.ht.findForUpdate(storedKey);
+    ASSERT_FALSE(res.pending);
+    ASSERT_TRUE(res.committed);
+    ASSERT_FALSE(res.committed->isDeleted());
+    ASSERT_FALSE(res.committed->isDirty());
     // doc persisted
     doc = kvstore->get(diskKey, vbid);
     EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
@@ -5071,11 +5058,6 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     //  TearDown, the ExecutorPool will be already gone at that point and the
     //  test will SegFault
     vb.setDeferredDeletion(false);
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 TEST_P(STParamCouchstoreBucketTest,
@@ -5133,11 +5115,6 @@ TEST_P(STParamCouchstoreBucketTest,
               epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb->dirtyQueueSize);
     EXPECT_FALSE(vb->isBucketCreation());
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 /**
@@ -5188,11 +5165,6 @@ TEST_P(STParamCouchstoreBucketTest,
               epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb->dirtyQueueSize);
     EXPECT_FALSE(vb->isBucketCreation());
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
@@ -5345,11 +5317,6 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
               epBucket.flushVBucket(vbid));
 
     vb.setDeferredDeletion(false);
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_ErrorWrite) {
@@ -5368,10 +5335,7 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    auto& couchKVStoreConfig =
-            dynamic_cast<CouchKVStoreConfig&>(nonConstConfig);
-    couchKVStoreConfig.setBuffered(false);
-    replaceCouchKVStore(couchKVStoreConfig, ops);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -5430,11 +5394,6 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
             EXPECT_EQ(1, c.startSeqno);
         }
     }
-
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
 }
 
 #ifdef EP_USE_MAGMA
