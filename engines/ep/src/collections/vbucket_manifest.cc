@@ -51,7 +51,7 @@ Manifest::Manifest(const KVStore::Manifest& data)
 }
 
 std::optional<CollectionID> Manifest::applyDeletions(
-        const WriteHandle& wHandle,
+        WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<CollectionID>& changes) {
     std::optional<CollectionID> rv;
@@ -296,7 +296,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
     return (*inserted.first).second;
 }
 
-void Manifest::dropCollection(const WriteHandle& wHandle,
+void Manifest::dropCollection(WriteHandle& wHandle,
                               ::VBucket& vb,
                               ManifestUid manifestUid,
                               CollectionID cid,
@@ -335,6 +335,8 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
                                             true /*delete*/,
                                             optionalSeqno);
 
+    vb.saveDroppedCollection(cid, wHandle, itr->second, seqno);
+
     EP_LOG_INFO(
             "collections: {} drop of collection:{} from scope:{:#x}"
             ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}",
@@ -347,6 +349,11 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
             processingTombstone);
 
     map.erase(itr);
+}
+
+// Method is cleaning up for insertions made in Manifest::dropCollection
+void Manifest::collectionDropPersisted(CollectionID cid, uint64_t seqno) {
+    droppedCollections.wlock()->remove(cid, seqno);
 }
 
 const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
@@ -652,6 +659,38 @@ size_t Manifest::getSystemEventItemCount() const {
     return rv;
 }
 
+void Manifest::saveDroppedCollection(CollectionID cid,
+                                     const ManifestEntry& droppedEntry,
+                                     uint64_t droppedSeqno) {
+    // Copy enough data about the collection that any items currently
+    // flushing to this collection can calculate statistic updates.
+    // Updates need to be compare against these values and not any 'open'
+    // version of the collection.
+    droppedCollections.wlock()->insert(
+            cid,
+            DroppedCollectionInfo{droppedEntry.getStartSeqno(),
+                                  droppedSeqno,
+                                  droppedEntry.getItemCount(),
+                                  droppedEntry.getDiskSize()});
+}
+
+StatsForFlush Manifest::getStatsForFlush(CollectionID cid,
+                                         uint64_t seqno) const {
+    auto mapItr = map.find(cid);
+    if (mapItr != map.end()) {
+        // Collection (id) exists, is it the correct 'generation'. If the given
+        // seqno is equal or greater than the start, then it is a match
+        if (seqno >= mapItr->second.getStartSeqno()) {
+            return StatsForFlush{mapItr->second.getItemCount(),
+                                 mapItr->second.getDiskSize()};
+        }
+    }
+
+    // Not open or open is not the correct generation
+    // It has to be in this droppedCollections
+    return droppedCollections.rlock()->get(cid, seqno);
+}
+
 template <class T>
 static void verifyFlatbuffersData(std::string_view buf,
                                   const std::string& caller) {
@@ -831,7 +870,8 @@ bool Manifest::addCollectionStats(Vbid vbid,
             return false;
         }
     }
-    return true;
+
+    return droppedCollections.rlock()->addStats(vbid, cookie, add_stat);
 }
 
 bool Manifest::addScopeStats(Vbid vbid,
@@ -943,6 +983,172 @@ bool Manifest::operator!=(const Manifest& rhs) const {
     return !(*this == rhs);
 }
 
+void Manifest::DroppedCollections::insert(CollectionID cid,
+                                          const DroppedCollectionInfo& info) {
+    auto [dropped, emplaced] = droppedCollections.try_emplace(
+            cid, std::vector<DroppedCollectionInfo>{/*empty vector*/});
+    (void)emplaced;
+    dropped->second.emplace_back(info);
+}
+
+void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
+    auto dropItr = droppedCollections.find(cid);
+    if (dropItr == droppedCollections.end()) {
+        // bad time - every call of get should be from a flush which
+        // had items we created for a collection which is open or was open.
+        // to not find the collection at all means we have flushed an item
+        // to a collection that never existed.
+        throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
+                               " The collection cannot be found collection:" +
+                               cid.to_string() +
+                               " seqno:" + std::to_string(seqno));
+    }
+
+    auto& [key, vector] = *dropItr;
+    (void)key;
+    bool erased = false;
+    for (auto itr = vector.begin(); itr != vector.end(); itr++) {
+        if (seqno == itr->end) {
+            vector.erase(itr);
+            erased = true;
+            break;
+        }
+    }
+
+    if (erased) {
+        // clear the map?
+        if (vector.empty()) {
+            droppedCollections.erase(dropItr);
+        }
+        return;
+    }
+
+    throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
+                           " The collection seqno cannot be found collection:" +
+                           cid.to_string() + " seqno:" + std::to_string(seqno));
+}
+
+StatsForFlush Manifest::DroppedCollections::get(CollectionID cid,
+                                                uint64_t seqno) const {
+    auto dropItr = droppedCollections.find(cid);
+
+    if (dropItr == droppedCollections.end()) {
+        // bad time - every call of get should be from a flush which
+        // had items we created for a collection which is open or was open.
+        // to not find the collection at all means we have flushed an item
+        // to a collection that never existed.
+        throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
+                               " The collection cannot be found collection:" +
+                               cid.to_string() +
+                               " seqno:" + std::to_string(seqno));
+    }
+
+    // loop - the length of this list in reality would be short it would
+    // each 'depth' requires the collection to be dropped once, so length of
+    // n means collection was drop/re-created n times.
+    for (const auto& droppedInfo : dropItr->second) {
+        // If the seqno is of the range of this dropped generation, this is
+        // a match.
+        if (seqno >= droppedInfo.start && seqno <= droppedInfo.end) {
+            return StatsForFlush{droppedInfo.itemCount, droppedInfo.diskSize};
+        }
+    }
+
+    // Similar to above, we should find something
+    throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
+                           " The collection seqno cannot be found cid:" +
+                           cid.to_string() + " seqno:" + std::to_string(seqno));
+}
+
+size_t Manifest::DroppedCollections::size() const {
+    return droppedCollections.size();
+}
+
+std::optional<size_t> Manifest::DroppedCollections::size(
+        CollectionID cid) const {
+    auto dropItr = droppedCollections.find(cid);
+    if (dropItr != droppedCollections.end()) {
+        return dropItr->second.size();
+    }
+
+    return {};
+}
+
+bool Manifest::DroppedCollections::addStats(Vbid vbid,
+                                            const void* cookie,
+                                            const AddStatFn& add_stat) const {
+    for (const auto& [cid, list] : droppedCollections) {
+        for (const auto& entry : list) {
+            if (!entry.addStats(vbid, cid, cookie, add_stat)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool Manifest::DroppedCollectionInfo::addStats(
+        Vbid vbid,
+        CollectionID cid,
+        const void* cookie,
+        const AddStatFn& add_stat) const {
+    try {
+        std::array<char, 512> buffer;
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d_%x:start",
+                         vbid.get(),
+                         uint32_t(cid));
+        add_casted_stat(buffer.data(), start, add_stat, cookie);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d_%x:end",
+                         vbid.get(),
+                         uint32_t(cid));
+        add_casted_stat(buffer.data(), end, add_stat, cookie);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d_%x:items",
+                         vbid.get(),
+                         uint32_t(cid));
+        add_casted_stat(buffer.data(), itemCount, add_stat, cookie);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d_%x:disk",
+                         vbid.get(),
+                         uint32_t(cid));
+        add_casted_stat(buffer.data(), diskSize, add_stat, cookie);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN(
+                "VB::Manifest::DroppedCollectionInfo::addStats {}, failed to "
+                "build stats "
+                "exception:{}",
+                vbid,
+                e.what());
+        return false;
+    }
+    return true;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const Manifest::DroppedCollectionInfo& info) {
+    os << "DroppedCollectionInfo s:" << info.start << ", e:" << info.end
+       << ", items:" << info.itemCount << " disk:" << info.diskSize;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const Manifest::DroppedCollections& dc) {
+    for (const auto& [cid, list] : dc.droppedCollections) {
+        os << "DroppedCollections: cid:" << cid.to_string()
+           << ", entries:" << list.size() << std::endl;
+        for (const auto& info : list) {
+            os << "  " << info << std::endl;
+        }
+    }
+    return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest: "
        << "uid:" << manifest.manifestUid
@@ -955,6 +1161,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     for (auto s : manifest.scopes) {
         os << "scope:" << s.to_string() << std::endl;
     }
+
+    os << *manifest.droppedCollections.rlock() << std::endl;
 
     return os;
 }

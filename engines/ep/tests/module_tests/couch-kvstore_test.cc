@@ -189,9 +189,12 @@ public:
             DocKey dk = result.item->getKey();
             EXPECT_EQ(500, dk.getCollectionID());
             auto noCollection = dk.makeDocKeyWithoutCollectionID();
-            EXPECT_EQ(2, noCollection.size());
-            std::string str(reinterpret_cast<const char*>(noCollection.data()),
-                            noCollection.size());
+            EXPECT_EQ(3, noCollection.size());
+            // create a string from the logical-key, i.e. +1 and skip the
+            // collection-ID
+            std::string str(
+                    reinterpret_cast<const char*>(noCollection.data() + 1),
+                    noCollection.size());
             auto index = std::stoi(str);
             EXPECT_GE(index, deletedRange.first);
             EXPECT_LE(index, deletedRange.second);
@@ -236,20 +239,13 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     const int deletedKeys = 14;
 
     for (int i = 0; i < keys; i++) {
-        auto key = std::to_string(i);
-        // create Item and use a raw key, but say it has a cid encoded so that
+        // key needs to look like it's in the default collection so we can flush
+        // it
+        auto key = makeStoredDocKey(std::to_string(i));
+        // create Item and use the raw key, but say it has a cid encoded so that
         // the constructor doesn't push this key into the default collection.
-        // If we don't do this, the source file won't be representative of real
-        // source files when the upgrade is deployed
         std::unique_ptr<Item> item = std::make_unique<Item>(
-                DocKey(key, DocKeyEncodesCollectionId::Yes),
-                0,
-                0,
-                "valuable",
-                8,
-                PROTOCOL_BINARY_RAW_BYTES,
-                0,
-                i + 1);
+                key, 0, 0, "valuable", 8, PROTOCOL_BINARY_RAW_BYTES, 0, i + 1);
         kvstore->set(queued_item(std::move(item)));
     }
 
@@ -260,26 +256,20 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     // Delete some keys. With and without a value (like xattr)
     for (int i = 18, j = 1; i < 18 + deletedKeys; ++i, ++j) {
         std::unique_ptr<Item> item;
-        auto key = std::to_string(i);
+        auto key = makeStoredDocKey(std::to_string(i));
         if (i & 1) {
             item.reset(Item::makeDeletedItem(
-                    DeleteSource::Explicit,
-                    DocKey(key, DocKeyEncodesCollectionId::Yes),
-                    0,
-                    0,
-                    nullptr,
-                    0));
+                    DeleteSource::Explicit, key, 0, 0, nullptr, 0));
         } else {
             // Note: this is not really xattr, just checking the datatype is
             // preserved on upgrade
-            item.reset(Item::makeDeletedItem(
-                    DeleteSource::Explicit,
-                    DocKey(key, DocKeyEncodesCollectionId::Yes),
-                    0,
-                    0,
-                    "valuable",
-                    8,
-                    PROTOCOL_BINARY_DATATYPE_XATTR));
+            item.reset(Item::makeDeletedItem(DeleteSource::Explicit,
+                                             key,
+                                             0,
+                                             0,
+                                             "valuable",
+                                             8,
+                                             PROTOCOL_BINARY_DATATYPE_XATTR));
         }
         item->setBySeqno(keys + j);
         kvstore->del(queued_item(std::move(item)));
@@ -325,10 +315,9 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     // Check item count
     auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
     auto stats = kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
-    ASSERT_TRUE(stats);
-    EXPECT_EQ(keys - deletedKeys, stats->itemCount);
-    EXPECT_EQ(keys + deletedKeys, stats->highSeqno);
-    EXPECT_NE(0, stats->diskSize);
+    EXPECT_EQ(keys - deletedKeys, stats.itemCount);
+    EXPECT_EQ(keys + deletedKeys, stats.highSeqno);
+    EXPECT_NE(0, stats.diskSize);
 }
 
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
@@ -382,17 +371,17 @@ TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
 
     for (int ii = 1; ii < 5; ++ii) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
-        auto key = "mykey";
+        auto key = makeStoredDocKey("mykey");
         const std::string value = std::to_string(ii);
-        std::unique_ptr<Item> item = std::make_unique<Item>(
-                DocKey(key, DocKeyEncodesCollectionId::Yes),
-                0,
-                0,
-                value.data(),
-                value.size(),
-                PROTOCOL_BINARY_RAW_BYTES,
-                0,
-                ii);
+        std::unique_ptr<Item> item =
+                std::make_unique<Item>(key,
+                                       0,
+                                       0,
+                                       value.data(),
+                                       value.size(),
+                                       PROTOCOL_BINARY_RAW_BYTES,
+                                       0,
+                                       ii);
         kvstore->set(queued_item(std::move(item)));
         flush.proposedVBState.lastSnapEnd = ii;
         kvstore->commit(flush);
@@ -1230,7 +1219,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
                     .WillOnce(Return(COUCHSTORE_ERROR_READ))
                     .RetiresOnSaturation();
             EXPECT_CALL(ops, pread(_, _, _, _, _))
-                    .Times(4)
+                    .Times(5)
                     .RetiresOnSaturation();
 
             kvstore->commit(flush);

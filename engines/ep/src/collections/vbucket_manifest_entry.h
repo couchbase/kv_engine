@@ -91,6 +91,11 @@ public:
         itemCount--;
     }
 
+    /// update how many items are stored on disk for this collection
+    void updateItemCount(ssize_t delta) const {
+        itemCount += delta;
+    }
+
     /// set how many items this collection has stored
     void setItemCount(uint64_t value) {
         itemCount = value;
@@ -101,7 +106,7 @@ public:
         return itemCount;
     }
 
-    /// decrement the tracked total size (bytes) on disk for this collection
+    /// update the tracked total size (bytes) on disk for this collection
     void updateDiskSize(ssize_t delta) const {
         diskSize += delta;
     }

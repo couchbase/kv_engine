@@ -124,6 +124,19 @@ public:
         return getCollectionsForScope(identifier);
     }
 
+    size_t getDroppedCollectionsSize() const {
+        return droppedCollections.rlock()->size();
+    }
+
+    std::optional<size_t> getDroppedCollectionsSize(CollectionID cid) const {
+        return droppedCollections.rlock()->size(cid);
+    }
+
+    Collections::VB::StatsForFlush public_getStatsForFlush(
+            CollectionID collection, uint64_t seqno) const {
+        return getStatsForFlush(collection, seqno);
+    }
+
 protected:
     bool exists_UNLOCKED(CollectionID identifier) const {
         auto itr = map.find(identifier);
@@ -249,12 +262,31 @@ public:
         return active.size() == s && replica.size() == s;
     }
 
+    bool checkDroppedSize(size_t s) const {
+        return active.getDroppedCollectionsSize() == s &&
+               replica.getDroppedCollectionsSize() == s;
+    }
+
+    bool checkDroppedSize(size_t s, CollectionID cid) {
+        return active.getDroppedCollectionsSize(cid) == s &&
+               replica.getDroppedCollectionsSize(cid) == s;
+    }
+
+    void collectionDropPersisted(CollectionID cid, uint64_t seqno) {
+        active.collectionDropPersisted(cid, seqno);
+        replica.collectionDropPersisted(cid, seqno);
+    }
+
     VBucket& getActiveVB() {
         return vbA;
     }
 
     MockVBManifest& getActiveManifest() {
         return active;
+    }
+
+    MockVBManifest& getReplicaManifest() {
+        return replica;
     }
 
     int64_t getLastSeqno() const {
@@ -486,6 +518,75 @@ TEST_F(VBucketManifestTest, drop_scope) {
     EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
     EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
 }
+
+TEST_F(VBucketManifestTest, drop_collections) {
+    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.update(
+            cm.add(CollectionEntry::fruit, ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                    .add(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.update(
+            cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.update(
+            cm.remove(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.update(
+            cm.remove(CollectionEntry::fruit, ScopeEntry::shop1)));
+
+    EXPECT_FALSE(manifest.exists(CollectionEntry::fruit));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::dairy));
+    EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
+
+    // DroppedCollection management testing
+    EXPECT_TRUE(manifest.checkDroppedSize(3));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::meat));
+
+    // The fruit collection was created at seqno 3 and dropped at 8, we should
+    // be able to get stats for every seqno in that span
+    for (uint64_t seq = 3; seq <= 8; seq++) {
+        // Note we don't have the flusher in these tests so the stats are 0,
+        // just check we don't get a throw (which is what happens for not found)
+        EXPECT_NO_THROW(manifest.getActiveManifest().public_getStatsForFlush(
+                CollectionEntry::fruit, seq))
+                << manifest.getActiveManifest();
+        EXPECT_NO_THROW(manifest.getReplicaManifest().public_getStatsForFlush(
+                CollectionEntry::fruit, seq))
+                << manifest.getActiveManifest();
+    }
+    EXPECT_THROW(manifest.getReplicaManifest().public_getStatsForFlush(
+                         CollectionEntry::fruit, 2),
+                 std::logic_error);
+    EXPECT_THROW(manifest.getReplicaManifest().public_getStatsForFlush(
+                         CollectionEntry::fruit, 9),
+                 std::logic_error);
+
+    // Must be the drop event seqno
+    EXPECT_THROW(manifest.collectionDropPersisted(CollectionEntry::fruit, 2),
+                 std::logic_error);
+    EXPECT_THROW(manifest.collectionDropPersisted(CollectionEntry::fruit, 5),
+                 std::logic_error);
+    EXPECT_NO_THROW(manifest.collectionDropPersisted(CollectionEntry::fruit, 8))
+            << manifest.getActiveManifest();
+
+    EXPECT_TRUE(manifest.checkDroppedSize(2));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::meat));
+
+    EXPECT_NO_THROW(manifest.collectionDropPersisted(CollectionEntry::meat, 7))
+            << manifest.getActiveManifest() << " replica\n"
+            << manifest.getReplicaManifest();
+    EXPECT_NO_THROW(manifest.collectionDropPersisted(CollectionEntry::dairy, 6))
+            << manifest.getActiveManifest() << " replica\n"
+            << manifest.getReplicaManifest();
+    EXPECT_TRUE(manifest.checkDroppedSize(0))
+            << manifest.getActiveManifest() << " replica\n"
+            << manifest.getReplicaManifest();
+}
+
 /**
  * Test that we can drop a scope (simulate this by dropping all the
  * collections within it) then add it back.
@@ -621,6 +722,63 @@ TEST_F(VBucketManifestTest, updates3) {
             StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
+}
+
+TEST_F(VBucketManifestTest, resurection) {
+    EXPECT_TRUE(manifest.update(cm));
+
+    const int cycles = 3;
+
+    for (int ii = 0; ii < cycles; ii++) {
+        cm.add(CollectionEntry::dairy);
+        EXPECT_TRUE(manifest.update(cm));
+
+        // increment the item count for each generation - more items for
+        // each generation - then we know later we get the correct stats back
+        // post drop
+        manifest.getActiveManifest().lock().incrementItemCount(
+                CollectionEntry::dairy);
+        for (int zz = 0; zz < ii; zz++) {
+            manifest.getActiveManifest().lock().incrementItemCount(
+                    CollectionEntry::dairy);
+        }
+
+        cm.remove(CollectionEntry::dairy);
+        EXPECT_TRUE(manifest.update(cm));
+    }
+
+    // map is 1, but will have 3 entries
+    EXPECT_TRUE(manifest.checkDroppedSize(1));
+    EXPECT_TRUE(manifest.checkDroppedSize(3, CollectionEntry::dairy));
+
+    auto expects = [this](uint64_t seqno, uint64_t items) {
+        auto stats = manifest.getActiveManifest().public_getStatsForFlush(
+                CollectionEntry::dairy, seqno);
+        EXPECT_EQ(items, stats.itemCount);
+    };
+
+    // dairy generations span at seqnos 2/3, 4/5, 6/7 - item count increased
+    // for each new generation of dairy
+    expects(2, 1);
+    expects(3, 1);
+    expects(4, 2);
+    expects(5, 2);
+    expects(6, 3);
+    expects(7, 3);
+
+    EXPECT_NO_THROW(
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 5));
+    EXPECT_TRUE(manifest.checkDroppedSize(1));
+    EXPECT_TRUE(manifest.checkDroppedSize(2, CollectionEntry::dairy));
+
+    EXPECT_NO_THROW(
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 3));
+    EXPECT_TRUE(manifest.checkDroppedSize(1));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::dairy));
+
+    EXPECT_NO_THROW(
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 7));
+    EXPECT_TRUE(manifest.checkDroppedSize(0));
 }
 
 TEST_F(VBucketManifestTest, add_delete_add) {

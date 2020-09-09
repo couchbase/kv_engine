@@ -984,13 +984,15 @@ public:
     virtual std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) = 0;
 
     /**
-     * Retrieve the stored item count for the given collection, does not error
-     * for collection not found as that's a legitimate state (and returns 0)
+     * Retrieve the stored stats for the given collection, does not error
+     * for collection not found as that's a legitimate state (and returns 0 for
+     * all stats).
      * @param kvFileHandle a handle into a KV data file
      * @param collection the id of the collection to lookup
-     * @return optional persisted stats, initialised if the collection was found
+     * @return persisted stats initialised if the collection stats have been
+     *         written or default initialised stats otherwise.
      */
-    virtual std::optional<Collections::VB::PersistedStats> getCollectionStats(
+    virtual Collections::VB::PersistedStats getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) = 0;
 
     /**

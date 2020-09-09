@@ -23,12 +23,11 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <unordered_map>
-#include <unordered_set>
 
 class KVBucket;
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
+
 class Manifest;
 
 /**
@@ -46,11 +45,23 @@ public:
     }
 
     /**
-     * Run the specified callback against the set of collections which have
-     * changed their item count during the run of the flusher.
+     * KVStore implementations call this function and specific a callback.
+     * This object will call cb for all collections that were flushed in the
+     * run of the flusher and pass a PersistedStats object which the KVStore
+     * should persist.
+     *
+     * @param a function to callback
      */
     void saveCollectionStats(
-            std::function<void(CollectionID, PersistedStats)> cb) const;
+            std::function<void(CollectionID, const PersistedStats&)> cb) const;
+
+    /**
+     * KVStore implementations must call this function once they have
+     * successfully committed all of the PersistedStats provided by the
+     * saveCollectionStats call. This function will make the persisted changes
+     * visible (i.e. cmd_stats will be able to return the new statistics).
+     */
+    void postCommitMakeStatsVisible();
 
     /**
      * Update collection stats from the flusher for a insert only operation.
@@ -91,21 +102,28 @@ public:
                      size_t oldSize);
 
     /**
-     * Check to see if this flush should trigger a collection purge which if
-     * true schedules a task which will iterate the vbucket's documents removing
-     * those of any dropped collections. The actual task currently scheduled is
-     * compaction.
+     * Method for KVStore implementation to call before flushing a batch of
+     * items - tells this Flush object about the collections that have been
+     * dropped (and to be purged). Note if a KVStore knows there are no dropped
+     * collections in storage, they can omit the call.
      */
-    void checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const;
+    void setDroppedCollectionsForStore(
+            const std::vector<Collections::KVStore::DroppedCollection>& v);
 
+    /**
+     * Called after a flush was successful so that purging can be triggered and
+     * statistic changes applied.
+     */
+    void flushSuccess(Vbid vbid, KVBucket& bucket);
+
+    /**
+     * Trigger a purge of the given vbucket/bucket
+     */
     static void triggerPurge(Vbid vbid, KVBucket& bucket);
 
     void setNeedsPurge() {
         needsPurge = true;
     }
-
-    /// Add the collection to the set of collections 'mutated' in this flush
-    void setMutated(CollectionID cid);
 
     /**
      * Set that the KVStore needs to commit the data held in this object.
@@ -204,11 +222,144 @@ private:
     void setManifestUid(ManifestUid in);
 
     /**
-     * Keep track of only the collections that have had a insert/delete in
-     * this run of the flusher so we can flush only those collections whose
-     * item count may have changed.
+     * Function determines if the collection @ seqno is dropped, but only
+     * in the current uncommitted flush batch. E.g. if cid:0, seqno:100 and
+     * the function returns true it means that this flush batch contains a
+     * collection drop event for collection 0 with a seqno greater than 100.
+     *
+     * @param cid Collection to look-up.
+     * @param seqno A seqno which was affected by the cid.
      */
-    std::unordered_set<CollectionID> mutated;
+    bool isLogicallyDeleted(CollectionID cid, uint64_t seqno) const;
+
+    /**
+     * Function determines if the collection @ seqno is dropped, but only
+     * in the current store we are flushing too, i.e. the committed data.
+     * E.g. if cid=0, seqno=100 and this function returns true it means that the
+     * committed store has a collection drop event for collection 0 with a
+     * seqno greater than 100.
+     *
+     * @param cid Collection to look-up.
+     * @param seqno A seqno which was affected by the cid.
+     */
+    bool isLogicallyDeletedInStore(CollectionID cid, uint64_t seqno) const;
+
+    // Helper class for doing collection stat updates
+    class StatisticsUpdate {
+    public:
+        explicit StatisticsUpdate(uint64_t highSeqno)
+            : persistedHighSeqno(highSeqno) {
+        }
+
+        /**
+         * Set the persistedHighSeqno only if seqno is > than
+         * this->persistedHighSeqno
+         * @param seqno to use if it's greater than current value
+         */
+        void maybeSetPersistedHighSeqno(uint64_t seqno);
+
+        /**
+         * Process an insert into the collection
+         * @param isSystem true if a system event is inserted
+         * @param isCommitted true if a committed item is inserted, false for
+         **       prepare/abort
+         * @param isDelete true if a deleted item is inserted (tombstone
+         *        creation)
+         * @param diskSize size in bytes 'inserted' into disk. Should be
+         *        representative of the bytes used by each document, but does
+         *        not need to be exact.
+         */
+        void insert(bool isSystem,
+                    bool isCommitted,
+                    bool isDelete,
+                    ssize_t diskSize);
+
+        /**
+         * Process an update into the collection
+         * @param isSystem true if a system event is updated
+         * @param isCommitted true if a committed item is updated, false for
+         **       prepare/abort
+         * @param diskSizeDelta size in bytes difference. Should be
+         *        representative of the difference between existing and new
+         *        documents, but does not need to be exact.
+         */
+        void update(bool isSystem, bool isCommitted, ssize_t diskSizeDelta);
+
+        /**
+         * Process a remove from the collection (store of a delete)
+         * @param isSystem true if a system event is removed
+         * @param isCommitted true if a committed item is removed, false for
+         **       prepare/abort
+         * @param diskSizeDelta size in bytes difference. Should be
+         *        representative of the difference between existing and new
+         *        documents, but does not need to be exact.
+         */
+        void remove(bool isSystem, bool isCommitted, ssize_t diskSizeDelta);
+
+        /// @returns the highest persisted seqno recorded by the Flush object
+        uint64_t getPersistedHighSeqno() const {
+            return persistedHighSeqno;
+        }
+
+        /// @returns the items flushed (can be negative due to deletes)
+        ssize_t getItemCount() const {
+            return itemCount;
+        }
+
+        /// @returns the size of disk changes flushed (can be negative due to
+        ///          deletes or replacements shrinking documents)
+        ssize_t getDiskSize() const {
+            return diskSize;
+        }
+
+    private:
+        void incrementItemCount();
+
+        void decrementItemCount();
+
+        void updateDiskSize(ssize_t delta);
+
+        uint64_t persistedHighSeqno{0};
+        ssize_t itemCount{0};
+        ssize_t diskSize{0};
+    };
+
+    /**
+     * Obtain a Stats reference so insert/update/remove can be tracked.
+     * The function may also update the persisted high-seqno of the collection
+     * if the given seqno is greater than the currently recorded one.
+     */
+    StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
+                                                            uint64_t seqno);
+
+    /**
+     * Iterate through the 'droppedCollections' container and call a function
+     * on the VB:Manifest to let it know the drop/seqno was persisted. This is
+     * only done from flushSuccess.
+     */
+    void notifyManifestOfAnyDroppedCollections();
+
+    /**
+     * Called from the path of a successful flush.
+     * Check to see if a collection purge is needed, if so schedules a task
+     * which will iterate the vbucket's documents removing those of any dropped
+     * collections. The actual task scheduled is compaction
+     */
+    void checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const;
+
+    /**
+     * A map of collections that have had items flushed and the statistics
+     * gathered. E.g. the delta of disk and item count changes and the high
+     * seqno.
+     */
+    std::unordered_map<CollectionID, StatisticsUpdate> stats;
+
+    /**
+     * A map of collections that are currently dropped (and persisted) in the
+     * vbucket we are flushing to. As documents are flushed as 'updates' we need
+     * to know if the old document is logically deleted.
+     */
+    std::unordered_map<CollectionID, KVStore::DroppedCollection> droppedInStore;
 
     /**
      * For each collection created in the batch, we record meta data of the
@@ -265,5 +416,4 @@ private:
     bool needsMetaCommit{false};
 };
 
-} // end namespace VB
-} // end namespace Collections
+} // end namespace Collections::VB

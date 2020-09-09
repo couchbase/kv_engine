@@ -24,6 +24,7 @@
 #include "storeddockey_fwd.h"
 
 #include <folly/SharedMutex.h>
+#include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
 
 #include <optional>
@@ -179,6 +180,15 @@ public:
                                 const Collections::Manifest& manifest);
 
     /**
+     * Callback from flusher that the drop of collection with the given seqno
+     * was successfully persisted. This method does not need the wlock/rlock
+     * as a separate lock manages the dropped collection structures
+     * @param cid Collection ID of the collection event
+     * @param seqno The seqno of the event that was successfully stored
+     */
+    void collectionDropPersisted(CollectionID cid, uint64_t seqno);
+
+    /**
      * Get the system event collection create data from a SystemEvent
      * Item's value.
      *
@@ -306,7 +316,7 @@ protected:
             std::vector<CollectionAddition>& changes);
 
     std::optional<CollectionID> applyDeletions(
-            const WriteHandle& wHandle,
+            WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<CollectionID>& changes);
 
@@ -353,7 +363,7 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
-    void dropCollection(const WriteHandle& wHandle,
+    void dropCollection(WriteHandle& wHandle,
                         ::VBucket& vb,
                         ManifestUid manifestUid,
                         CollectionID cid,
@@ -452,6 +462,16 @@ protected:
         }
 
         entry->second.decrementItemCount();
+    }
+
+    void updateItemCount(const container::const_iterator entry,
+                         ssize_t delta) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.updateItemCount(delta);
     }
 
     void updateDiskSize(const container::const_iterator entry,
@@ -715,6 +735,25 @@ protected:
     size_t getSystemEventItemCount() const;
 
     /**
+     * For the collection save the droppedEntry and droppedSeqno into the
+     * droppedCollections container. This allows the flusher to find out about
+     * the collection whilst the drop event is still in-flight.
+     * @param cid ID of dropped collection
+     * @param droppedEntry reference to entry which is going away
+     * @param droppedSeqno seqno of drop event
+     */
+    void saveDroppedCollection(CollectionID cid,
+                               const ManifestEntry& droppedEntry,
+                               uint64_t droppedSeqno);
+
+    /**
+     * Return statistics about the collection for the seqno
+     * @param cid ID to lookup
+     * @param seqno The seqno to use in lookup
+     */
+    StatsForFlush getStatsForFlush(CollectionID cid, uint64_t seqno) const;
+
+    /**
      * Return a string for use in throwException, returns:
      *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
      *
@@ -749,18 +788,68 @@ protected:
      */
     std::unordered_set<ScopeID> scopes;
 
-    /// The manifest UID which updated this vb::manifest
-    ManifestUid manifestUid{0};
+    // Information we need to retain for a collection that is dropped but the
+    // drop event has not been persisted by the flusher.
+    struct DroppedCollectionInfo {
+        DroppedCollectionInfo(uint64_t start,
+                              uint64_t end,
+                              uint64_t itemCount,
+                              uint64_t diskSize)
+            : start(start), end(end), itemCount(itemCount), diskSize(diskSize) {
+        }
+        bool addStats(Vbid vbid,
+                      CollectionID cid,
+                      const void* cookie,
+                      const AddStatFn& add_stat) const;
 
-    /// Does this vbucket need collection purging triggering
-    bool dropInProgress{false};
+        uint64_t start{0};
+        uint64_t end{0};
+        uint64_t itemCount{0};
+        uint64_t diskSize{0};
+    };
+
+    // collections move from the Manifest::map to this "container" when they
+    // are dropped and are removed from this container once the drop system
+    // event is persisted.
+    class DroppedCollections {
+    public:
+        void insert(CollectionID cid, const DroppedCollectionInfo& info);
+        void remove(CollectionID cid, uint64_t seqno);
+        StatsForFlush get(CollectionID cid, uint64_t seqno) const;
+        bool addStats(Vbid vbid,
+                      const void* cookie,
+                      const AddStatFn& add_stat) const;
+
+        /// @return size of the map
+        size_t size() const;
+        /// @return size of the mapped value
+        std::optional<size_t> size(CollectionID cid) const;
+
+    private:
+        std::unordered_map<CollectionID, std::vector<DroppedCollectionInfo>>
+                droppedCollections;
+        friend std::ostream& operator<<(std::ostream&,
+                                        const DroppedCollections&);
+    };
+    // droppedCollections is managed separately, we don't want to exclusively
+    // lock the entire 'map' when removing elements
+    folly::Synchronized<DroppedCollections> droppedCollections;
 
     /**
      * shared lock to allow concurrent readers and safe updates
      */
     mutable mutex_type rwlock;
 
+    /// The manifest UID which updated this vb::manifest
+    ManifestUid manifestUid{0};
+
+    /// Does this vbucket need collection purging triggering
+    bool dropInProgress{false};
+
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
+    friend std::ostream& operator<<(std::ostream&,
+                                    const DroppedCollectionInfo&);
+    friend std::ostream& operator<<(std::ostream&, const DroppedCollections&);
 
     static constexpr char const* UidKey = "uid";
 };
@@ -772,6 +861,10 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
 /// This is the locked version for printing the manifest
 std::ostream& operator<<(std::ostream& os, const ReadHandle& readHandle);
+
+std::ostream& operator<<(std::ostream&, const Manifest::DroppedCollectionInfo&);
+
+std::ostream& operator<<(std::ostream&, const Manifest::DroppedCollections&);
 
 } // end namespace VB
 } // end namespace Collections

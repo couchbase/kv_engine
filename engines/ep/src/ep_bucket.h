@@ -309,7 +309,7 @@ protected:
             const std::chrono::steady_clock::time_point flushStart,
             size_t itemsFlushed,
             const VBucket::AggregatedFlushStats& aggStats,
-            const Collections::VB::Flush& collectionFlush);
+            Collections::VB::Flush& collectionFlush);
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

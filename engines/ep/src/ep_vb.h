@@ -239,6 +239,17 @@ public:
             std::optional<CollectionID> cid,
             const Collections::VB::WriteHandle& wHandle) override;
 
+    /**
+     * Persistent vbuckets need to save dropped collections so that statistic
+     * updates can be made to disk whilst the drop event is still only in
+     * memory
+     */
+    void saveDroppedCollection(
+            CollectionID cid,
+            Collections::VB::WriteHandle& writeHandle,
+            const Collections::VB::ManifestEntry& droppedEntry,
+            uint64_t droppedSeqno) override;
+
 protected:
     /**
      * queue a background fetch of the specified item.

@@ -185,6 +185,12 @@ public:
         return manifest->isDropInProgress();
     }
 
+    // @returns all of the statistics that need to be updated during flushing
+    StatsForFlush getStatsForFlush(CollectionID collection,
+                                   uint64_t seqno) const {
+        return manifest->getStatsForFlush(collection, seqno);
+    }
+
     /**
      * Dump this VB::Manifest to std::cerr
      */
@@ -486,6 +492,25 @@ public:
         return itr != manifest->end();
     }
 
+    bool isLogicallyDeleted(uint64_t seqno) const {
+        if (!valid()) {
+            return true;
+        }
+        return manifest->isLogicallyDeleted(itr, seqno);
+    }
+
+    void updateItemCount(ssize_t delta) const {
+        manifest->updateItemCount(itr, delta);
+    }
+
+    void setPersistedHighSeqno(uint64_t highSeqno) const {
+        manifest->setPersistedHighSeqno(itr, highSeqno);
+    }
+
+    void updateDiskSize(ssize_t delta) const {
+        manifest->updateDiskSize(itr, delta);
+    }
+
     void dump();
 
 protected:
@@ -623,6 +648,12 @@ public:
     /// @return iterator to the end of the underlying collection map
     Manifest::container::iterator end() {
         return manifest.end();
+    }
+
+    void saveDroppedCollection(CollectionID cid,
+                               const ManifestEntry& droppedEntry,
+                               uint64_t droppedSeqno) {
+        manifest.saveDroppedCollection(cid, droppedEntry, droppedSeqno);
     }
 
     /**

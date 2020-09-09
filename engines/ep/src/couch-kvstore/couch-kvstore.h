@@ -641,11 +641,11 @@ protected:
      * Save stats for collection cid into the file referenced by db
      * @param db The Db to write to
      * @param cid The collection to update
-     * @param stats The stats that should be persisted
+     * @param stats Stats an object of stats collected by the flush
      */
     void saveCollectionStats(Db& db,
                              CollectionID cid,
-                             Collections::VB::PersistedStats stats);
+                             const Collections::VB::PersistedStats& stats);
 
     /**
      * Delete the count for collection cid
@@ -653,8 +653,13 @@ protected:
      */
     void deleteCollectionStats(CollectionID cid);
 
-    std::optional<Collections::VB::PersistedStats> getCollectionStats(
+    /// Get the collection stats for the given collection
+    Collections::VB::PersistedStats getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
+
+    /// Get the collection stats from the local doc named statDocName
+    Collections::VB::PersistedStats getCollectionStats(
+            Db& db, const std::string& statDocName);
 
     /**
      * Read a document from the local docs index

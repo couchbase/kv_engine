@@ -72,6 +72,7 @@ class Manifest;
 namespace Collections::VB {
 class CachingReadHandle;
 class Manifest;
+class ManifestEntry;
 class ReadHandle;
 class WriteHandle;
 } // namespace Collections::VB
@@ -1670,6 +1671,12 @@ public:
      * @return the maximum visible seqno for the vbucket
      */
     uint64_t getMaxVisibleSeqno() const;
+
+    virtual void saveDroppedCollection(
+            CollectionID cid,
+            Collections::VB::WriteHandle& writeHandle,
+            const Collections::VB::ManifestEntry& droppedEntry,
+            uint64_t droppedSeqno) = 0;
 
     std::unique_ptr<FailoverTable> failovers;
 

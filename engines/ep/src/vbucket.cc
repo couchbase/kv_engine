@@ -3072,13 +3072,11 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
     for (auto& collection : wh) {
         auto stats =
                 kvstore.getCollectionStats(*kvstoreContext, collection.first);
-        if (stats) {
-            collection.second.setItemCount(stats->itemCount);
-            collection.second.setDiskSize(stats->diskSize);
-            collection.second.resetPersistedHighSeqno(stats->highSeqno);
-            collection.second.resetHighSeqno(
-                    collection.second.getPersistedHighSeqno());
-        } // else collection was never written so has no further state to load
+        collection.second.setItemCount(stats.itemCount);
+        collection.second.setDiskSize(stats.diskSize);
+        collection.second.resetPersistedHighSeqno(stats.highSeqno);
+        collection.second.resetHighSeqno(
+                collection.second.getPersistedHighSeqno());
     }
 }
 

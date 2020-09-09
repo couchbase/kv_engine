@@ -108,7 +108,32 @@ TEST_P(CollectionsEraserTest, basic) {
                StoredDocKey{"dairy:butter", CollectionEntry::dairy},
                "lovely");
 
+    // Additional checks relating to stat fixes for MB-41321. Prior to flushing,
+    // the getStatsForFlush function shall find the collection, it is has no
+    // items (no flush yet), it does have some disk size as the system event was
+    // flushed. Note ephemeral can also make this call because the dairy
+    // collection is open (in KV only the flusher thread calls this)
+    auto stats =
+            vb->lockCollections().getStatsForFlush(CollectionEntry::dairy, 1);
+    if (persistent()) {
+        EXPECT_EQ(0, stats.itemCount);
+        EXPECT_NE(0, stats.diskSize);
+    } else {
+        EXPECT_EQ(2, stats.itemCount);
+        EXPECT_EQ(0, stats.diskSize);
+    }
+    size_t diskSize = stats.diskSize;
+
     flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+
+    if (persistent()) {
+        // Now the flusher will have calculated the items/diskSize
+        auto stats = vb->lockCollections().getStatsForFlush(
+                CollectionEntry::dairy, 1);
+        EXPECT_EQ(2, stats.itemCount);
+        EXPECT_GT(stats.diskSize, diskSize);
+        diskSize = stats.diskSize;
+    }
 
     EXPECT_EQ(2, vb->getNumItems());
 
@@ -119,12 +144,27 @@ TEST_P(CollectionsEraserTest, basic) {
     // delete the collection
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
 
-    // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
         EXPECT_EQ(1, vb->getNumSystemItems());
     }
 
+    if (persistent()) {
+        // Now the collection is dropped, we should still be able to obtain the
+        // stats the flusher can continue flushing any items the proceed the
+        // drop and still make correct updates
+        auto stats = vb->lockCollections().getStatsForFlush(
+                CollectionEntry::dairy, 1);
+        EXPECT_EQ(2, stats.itemCount);
+        EXPECT_EQ(diskSize, stats.diskSize);
+    }
+
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+
+    // Now the drop is persisted the stats have gone
+
+    EXPECT_THROW(
+            vb->lockCollections().getStatsForFlush(CollectionEntry::dairy, 1),
+            std::logic_error);
 
     // Deleted
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));

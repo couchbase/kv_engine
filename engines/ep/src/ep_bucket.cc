@@ -820,7 +820,7 @@ void EPBucket::flushSuccessEpilogue(
         const std::chrono::steady_clock::time_point flushStart,
         size_t itemsFlushed,
         const VBucket::AggregatedFlushStats& aggStats,
-        const Collections::VB::Flush& collectionFlush) {
+        Collections::VB::Flush& collectionFlush) {
     // Clear the flag if set (ie, only at vbucket creation)
     if (vb.setBucketCreation(false)) {
         EP_LOG_DEBUG("EPBucket::flushSuccessEpilogue: {} created", vb.getId());
@@ -843,7 +843,7 @@ void EPBucket::flushSuccessEpilogue(
 
     // By definition, does not need to be called if no flush performed or
     // if flush failed.
-    collectionFlush.checkAndTriggerPurge(vb.getId(), *this);
+    collectionFlush.flushSuccess(vb.getId(), *this);
 
     // By definition, this function is called after persisting a batch of
     // data, so it can be safely skipped if no flush performed or if flush
@@ -1564,6 +1564,8 @@ public:
             // Irrespective of if the in-memory delete succeeded; the document
             // doesn't exist on disk; so decrement the item count.
             vb.decrNumTotalItems();
+            // @todo: investigate if this is needed. Once rollback is done we
+            // reset all collections stats from the rollback point
             vb.getManifest().lock(item.getKey()).decrementItemCount();
         }
     }

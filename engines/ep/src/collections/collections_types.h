@@ -354,6 +354,13 @@ using IsVisibleFunction =
 namespace VB {
 enum class ManifestUpdateStatus { Success, Behind, EqualUidWithDifferences };
 std::string to_string(ManifestUpdateStatus);
+
+/// values required by the flusher to calculate new collection statistics
+struct StatsForFlush {
+    uint64_t itemCount;
+    size_t diskSize;
+};
+
 } // namespace VB
 
 } // end namespace Collections

@@ -267,6 +267,14 @@ public:
 
     uint64_t getMaxVisibleSeqno() const;
 
+    /// Ephemeral doesn't need to save dropped collections, just do nothing.
+    void saveDroppedCollection(
+            CollectionID cid,
+            Collections::VB::WriteHandle& writeHandle,
+            const Collections::VB::ManifestEntry& droppedEntry,
+            uint64_t droppedSeqno) override {
+    }
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

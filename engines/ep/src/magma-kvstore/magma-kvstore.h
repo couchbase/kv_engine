@@ -376,7 +376,7 @@ public:
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 
-    std::optional<Collections::VB::PersistedStats> getCollectionStats(
+    Collections::VB::PersistedStats getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     /**
@@ -478,7 +478,7 @@ public:
      *
      * @param localDbReqs vector of localDb updates
      * @param cid Collection ID
-     * @param stats The stats that should be persisted
+     * @param stats The stats that should be applied and persisted
      */
     void saveCollectionStats(LocalDbReqs& localDbReqs,
                              CollectionID cid,

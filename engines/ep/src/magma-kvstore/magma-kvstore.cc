@@ -1213,6 +1213,9 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 &req));
     }
 
+    commitData.collections.setDroppedCollectionsForStore(
+            getDroppedCollections(vbid));
+
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[vbid.get()],
@@ -1234,6 +1237,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         logger->critical("MagmaKVStore::saveDocs {} Sync failed. Status:{}",
                          vbid,
                          status.String());
+    } else {
+        kvctx.commitData.collections.postCommitMakeStatsVisible();
     }
 
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1927,13 +1932,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
             // count.
             auto handle = makeFileHandle(vbid);
             auto stats = getCollectionStats(*handle, dc.collectionId);
-
-            // Stats might not exist if the collection we are dropping has no
-            // items in it.
-            if (stats) {
-                collectionItemsDropped += stats->itemCount;
-            }
-
+            collectionItemsDropped += stats.itemCount;
             std::string keyString =
                     Collections::makeCollectionIdIntoString(dc.collectionId);
             Slice keySlice{keyString};
@@ -2227,7 +2226,7 @@ void MagmaKVStore::saveCollectionStats(
     localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
 }
 
-std::optional<Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
+Collections::VB::PersistedStats MagmaKVStore::getCollectionStats(
         const KVFileHandle& kvFileHandle, CollectionID cid) {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
@@ -2237,14 +2236,13 @@ std::optional<Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
     std::string stats;
     std::tie(status, stats) = readLocalDoc(vbid, keySlice);
     if (!status.IsOK()) {
-        logger->warn("MagmaKVStore::getCollectionStats(): {}",
-                     status.Message());
         if (status.ErrorCode() == Status::Code::NotFound) {
-            // Return Collections::VB::PersistedStats() with everything set to
-            // 0 as the collection might have not been persisted to disk yet.
-            return {Collections::VB::PersistedStats()};
+            logger->warn("MagmaKVStore::getCollectionStats(): {}",
+                         status.Message());
         }
-        return {};
+        // Return Collections::VB::PersistedStats() with everything set to
+        // 0 as the collection might have not been persisted to disk yet.
+        return Collections::VB::PersistedStats();
     }
     return Collections::VB::PersistedStats(stats.c_str(), stats.size());
 }

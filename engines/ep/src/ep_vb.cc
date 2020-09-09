@@ -1025,3 +1025,11 @@ void EPVBucket::processImplicitlyCompletedPrepare(
 BgFetcher& EPVBucket::getBgFetcher() {
     return epBucket->getBgFetcher(getId());
 }
+
+void EPVBucket::saveDroppedCollection(
+        CollectionID cid,
+        Collections::VB::WriteHandle& writeHandle,
+        const Collections::VB::ManifestEntry& droppedEntry,
+        uint64_t droppedSeqno) {
+    writeHandle.saveDroppedCollection(cid, droppedEntry, droppedSeqno);
+}

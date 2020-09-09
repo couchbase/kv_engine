@@ -5536,6 +5536,77 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
                         *couchstore_get_default_file_ops());
 }
 
+TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+    auto pending = makeCommittedItem(key, "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*pending, cookie)); // items=1
+    auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(1, res.numFlushed);
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    auto stats =
+            vb->getManifest().lock(CollectionID::Default).getPersistedStats();
+    EXPECT_EQ(1, stats.itemCount);
+    EXPECT_EQ(1, stats.highSeqno);
+    EXPECT_NE(0, stats.diskSize);
+
+    // Replace RW kvstore and use a gmocked ops so we can inject failure
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+
+    // Inject fsync error when so we fail the delete
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillRepeatedly(testing::Return(COUCHSTORE_ERROR_WRITE));
+
+    // Delete our key
+    uint64_t cas = 0;
+    mutation_descr_t delInfo;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+
+    // Expect the flush of our delete to fail twice. This would see an underflow
+    // exception before the fix for MB-41321 as we would decrement the item
+    // count from 1 to 0 and then try for -1
+    auto flushAndExpectFailure = [this](int expectedCommitFailed) {
+        auto flushResult = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+        EXPECT_EQ(EPBucket::MoreAvailable::Yes, flushResult.moreAvailable);
+        EXPECT_EQ(0, flushResult.numFlushed);
+        EXPECT_EQ(EPBucket::WakeCkptRemover::No, flushResult.wakeupCkptRemover);
+        EXPECT_EQ(expectedCommitFailed, engine->getEpStats().commitFailed);
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+        // validate the default collection hasn't changed
+        auto stats = vb->getManifest()
+                             .lock(CollectionID::Default)
+                             .getPersistedStats();
+        EXPECT_EQ(1, stats.itemCount);
+        EXPECT_EQ(1, stats.highSeqno);
+        EXPECT_NE(0, stats.diskSize);
+    };
+
+    flushAndExpectFailure(1);
+    flushAndExpectFailure(2);
+
+    // Replace the CouchKVStore as we need a valid FileOps to finish
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
+                        *couchstore_get_default_file_ops());
+
+    // Now a successful flush which will update the stats
+    res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, res.numFlushed);
+    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
+    EXPECT_EQ(2, engine->getEpStats().commitFailed);
+    stats = vb->getManifest().lock(CollectionID::Default).getPersistedStats();
+    EXPECT_EQ(0, stats.itemCount);
+    EXPECT_EQ(2, stats.highSeqno);
+    EXPECT_EQ(0, stats.diskSize);
+}
+
 #ifdef EP_USE_MAGMA
 class STParamMagmaBucketTest : public STParamPersistentBucketTest {};
 

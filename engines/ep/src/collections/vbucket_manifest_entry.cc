@@ -85,6 +85,18 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
         checked_snprintf(
                 buffer, bsize, "vb_%d:%s:items", vbid.get(), cid.c_str());
         add_casted_stat(buffer, getItemCount(), add_stat, cookie);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:disk_size", vbid.get(), cid.c_str());
+        add_casted_stat(buffer, getDiskSize(), add_stat, cookie);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:ops_get", vbid.get(), cid.c_str());
+        add_casted_stat(buffer, getOpsGet(), add_stat, cookie);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:ops_store", vbid.get(), cid.c_str());
+        add_casted_stat(buffer, getOpsStore(), add_stat, cookie);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:%s:ops_delete", vbid.get(), cid.c_str());
+        add_casted_stat(buffer, getOpsDelete(), add_stat, cookie);
 
         if (getMaxTtl()) {
             checked_snprintf(
@@ -109,7 +121,10 @@ std::ostream& Collections::VB::operator<<(
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
-       << ", itemCount:" << manifestEntry.getItemCount();
+       << ", itemCount:" << manifestEntry.getItemCount()
+       << ", diskSize:" << manifestEntry.getDiskSize()
+       << ", r/w/d:" << manifestEntry.getOpsGet() << "/"
+       << manifestEntry.getOpsStore() << "/" << manifestEntry.getOpsDelete();
 
     if (manifestEntry.getMaxTtl()) {
         os << ", maxTtl:" << manifestEntry.getMaxTtl().value().count();
