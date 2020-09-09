@@ -308,8 +308,6 @@ STAT(stat_reset,
 STAT(time, seconds, , , )
 STAT(version, none, , , ) // version string
 STAT(memcached_version, none, , , ) // version string
-STAT(libevent, none, , , ) // version string
-STAT(pointer_size, none, , , ) // constant
 STAT(daemon_connections, count, , , )
 STAT(curr_connections, count, , , )
 STAT(system_connections, count, , , )

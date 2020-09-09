@@ -35,8 +35,6 @@ static void server_global_stats(StatCollector& collector) {
     collector.addStat(Key::time, mc_time_convert_to_abs_time(now));
     collector.addStat(Key::version, get_server_version());
     collector.addStat(Key::memcached_version, MEMCACHED_VERSION);
-    collector.addStat(Key::libevent, event_get_version());
-    collector.addStat(Key::pointer_size, (8 * sizeof(void*)));
 
     collector.addStat(Key::daemon_connections, ServerSocket::getNumInstances());
     collector.addStat(Key::curr_connections,
