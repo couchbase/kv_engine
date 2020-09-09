@@ -112,17 +112,11 @@ public:
     }
 
 protected:
-
     // Synchronises notifying and releasing connections.
-    // Guards modifications to std::shared_ptr<ConnHandler> objects in {map_}.
-    // See also: {connLock}
-    std::mutex                                    releaseLock;
-
-    // Synchonises access to the {map_} members, i.e. adding
-    // removing connections.
-    // Actual modification of the underlying
-    // ConnHandler objects is guarded by {releaseLock}.
-    std::mutex                                    connsLock;
+    // When we call Connection::release() memcached can free up the connection
+    // at any time, so we need to ensure that we notify only valid connections
+    // when we call back into memcached by notify_io_complete(cookie).
+    std::mutex releaseLock;
 
     /* Handle to the engine who owns us */
     EventuallyPersistentEngine &engine;
@@ -133,6 +127,4 @@ protected:
     // ConnStore is pretty big (the header) so use PIMPL to avoid including it
     // wherever ConnMap is included
     const std::unique_ptr<ConnStore> connStore;
-
-    static size_t vbConnLockNum;
 };

@@ -163,6 +163,15 @@ public:
     void each(Fun&& f);
 
 protected:
+    // @todo: Review usage and description, it seems that this mutex
+    //  synchronizes only deadConnections after we introduced ConnStore
+    //
+    // Synchonises access to the {map_} members, i.e. adding
+    // removing connections.
+    // Actual modification of the underlying
+    // ConnHandler objects is guarded by {releaseLock}.
+    std::mutex connsLock;
+
     /*
      * deadConnections is protected (as opposed to private) because
      * of the module test ep-engine_dead_connections_test
