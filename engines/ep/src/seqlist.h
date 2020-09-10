@@ -180,7 +180,7 @@ public:
             return *this;
         }
 
-        RangeIterator(RangeIterator& other) = delete;
+        RangeIterator(const RangeIterator& other) = delete;
 
         /**
          * Returns the stored item at iterator's position

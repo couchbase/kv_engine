@@ -439,6 +439,7 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/vbucket_bench.cc
                    benchmarks/probabilistic_counter_bench.cc
                    benchmarks/tracing_bench.cc
+                   $<TARGET_OBJECTS:mock_dcp>
                    $<TARGET_OBJECTS:ep_objs>
                    $<TARGET_OBJECTS:ep_mocks>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
