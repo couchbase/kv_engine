@@ -83,19 +83,24 @@ public:
                 << "getEventsFromCheckpoint: no events in " << vbucket.getId();
     }
 
-    void applyEvents(const CollectionsManifest& cm) {
+    void applyEvents(VB::Commit& commitData, const CollectionsManifest& cm) {
         manifest.update(vbucket, makeManifest(cm));
 
         std::vector<queued_item> events;
         getEventsFromCheckpoint(events);
 
         for (auto& ev : events) {
+            commitData.collections.recordSystemEvent(*ev);
             if (ev->isDeleted()) {
                 kvstore->delSystemEvent(ev);
             } else {
                 kvstore->setSystemEvent(ev);
             }
         }
+    }
+
+    void applyEvents(const CollectionsManifest& cm) {
+        applyEvents(flush, cm);
     }
 
     void checkUid(const Collections::KVStore::Manifest& md,
@@ -196,9 +201,10 @@ public:
      */
     void applyAndCheck(const CollectionsManifest& cm,
                        std::vector<CollectionID> expectedDropped = {}) {
+        VB::Commit commitData(manifest);
         kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
-        applyEvents(cm);
-        kvstore->commit(flush);
+        applyEvents(commitData, cm);
+        kvstore->commit(commitData);
         auto md = kvstore->getCollectionsManifest(Vbid(0));
         checkUid(md, cm);
         checkCollections(md, cm, expectedDropped);

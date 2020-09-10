@@ -27,7 +27,7 @@ namespace Collections.KVStore;
 
 // Metadata for a single collection
 table Collection {
-    startSeqno:long;
+    startSeqno:ulong;
     scopeId:uint;
     collectionId:uint;
     // The TTL is optional, ttlValid determines if the value of ttl should be
@@ -45,7 +45,7 @@ table OpenCollections {
 
 // Metadata for a single scope
 table Scope {
-    startSeqno:long;
+    startSeqno:ulong;
     scopeId:uint;
     name:string;
 }
@@ -56,8 +56,8 @@ table Scopes {
 }
 
 table Dropped {
-    startSeqno:long;
-    endSeqno:long;
+    startSeqno:ulong;
+    endSeqno:ulong;
     collectionId:uint;
 }
 

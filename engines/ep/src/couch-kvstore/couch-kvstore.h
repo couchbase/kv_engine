@@ -597,8 +597,9 @@ protected:
     /**
      * Called from updateCollectionsMeta this function maintains the current
      * uid committed by creating a pending write to the local document index.
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateManifestUid();
+    void updateManifestUid(Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of open
@@ -609,25 +610,30 @@ protected:
      * duplicated read of the dropped collections.
      *
      * @param db The database handle to update
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateOpenCollections(Db& db);
+    void updateOpenCollections(Db& db,
+                               Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
      * dropped collections.
      *
      * @param db The database handle to update
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateDroppedCollections(Db& db);
+    void updateDroppedCollections(Db& db,
+                                  Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
      * open scopes.
      *
      * @param db The database handle to update
+     * @param collectionsFlush flush object for a single 'flush/commit'
      * @return error code success or other (non-success is logged)
      */
-    void updateScopes(Db& db);
+    void updateScopes(Db& db, Collections::VB::Flush& collectionsFlush);
 
     /**
      * read local document to get the vector of dropped collections from an

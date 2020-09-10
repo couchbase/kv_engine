@@ -1185,7 +1185,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         addVBStateUpdateToLocalDbReqs(
                 localDbReqs, vbstate, kvstoreRevList[vbid.get()]);
 
-        if (collectionsMeta.isReadyForCommit()) {
+        if (commitData.collections.isReadyForCommit()) {
             updateCollectionsMeta(vbid, localDbReqs, commitData.collections);
         }
         addLocalDbReqs(localDbReqs, postWriteOps);
@@ -2157,48 +2157,52 @@ void MagmaKVStore::updateCollectionsMeta(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
-    updateManifestUid(localDbReqs);
+    updateManifestUid(localDbReqs, collectionsFlush);
 
     // If the updateOpenCollections reads the dropped collections, it can pass
     // them via this optional to updateDroppedCollections, thus we only read
     // the dropped list once per update.
     std::optional<std::vector<Collections::KVStore::DroppedCollection>> dropped;
 
-    if (collectionsMeta.isOpenCollectionsChanged()) {
-        updateOpenCollections(vbid, localDbReqs);
+    if (collectionsFlush.isOpenCollectionsChanged()) {
+        updateOpenCollections(vbid, localDbReqs, collectionsFlush);
     }
 
-    if (collectionsMeta.isDroppedCollectionsChanged()) {
-        updateDroppedCollections(vbid, localDbReqs);
+    if (collectionsFlush.isDroppedCollectionsChanged()) {
+        updateDroppedCollections(vbid, localDbReqs, collectionsFlush);
         collectionsFlush.setNeedsPurge();
     }
 
-    if (collectionsMeta.isScopesChanged()) {
-        updateScopes(vbid, localDbReqs);
+    if (collectionsFlush.isScopesChanged()) {
+        updateScopes(vbid, localDbReqs, collectionsFlush);
     }
-
-    collectionsMeta.clear();
 }
 
-void MagmaKVStore::updateManifestUid(LocalDbReqs& localDbReqs) {
-    auto buf = collectionsMeta.encodeManifestUid();
+void MagmaKVStore::updateManifestUid(LocalDbReqs& localDbReqs,
+                                     Collections::VB::Flush& collectionsFlush) {
+    auto buf = collectionsFlush.encodeManifestUid();
     localDbReqs.emplace_back(MagmaLocalReq(manifestKey, buf));
 }
 
-void MagmaKVStore::updateOpenCollections(Vbid vbid, LocalDbReqs& localDbReqs) {
+void MagmaKVStore::updateOpenCollections(
+        Vbid vbid,
+        LocalDbReqs& localDbReqs,
+        Collections::VB::Flush& collectionsFlush) {
     Status status;
     std::string collections;
     Slice keySlice(openCollectionsKey);
     std::tie(status, collections) = readLocalDoc(vbid, keySlice);
-    auto buf = collectionsMeta.encodeOpenCollections(
+    auto buf = collectionsFlush.encodeOpenCollections(
             {reinterpret_cast<const uint8_t*>(collections.data()),
              collections.length()});
 
     localDbReqs.emplace_back(MagmaLocalReq(openCollectionsKey, buf));
 }
 
-void MagmaKVStore::updateDroppedCollections(Vbid vbid,
-                                            LocalDbReqs& localDbReqs) {
+void MagmaKVStore::updateDroppedCollections(
+        Vbid vbid,
+        LocalDbReqs& localDbReqs,
+        Collections::VB::Flush& collectionsFlush) {
     // Normally we would drop the collections stats local doc here but magma
     // can visit old keys (during the collection erasure compaction) and we
     // can't work out if they are the latest or not. To track the document
@@ -2206,7 +2210,7 @@ void MagmaKVStore::updateDroppedCollections(Vbid vbid,
     // erasure compaction runs which will then delete the doc when it has
     // processed the collection.
     auto dropped = getDroppedCollections(vbid);
-    auto buf = collectionsMeta.encodeDroppedCollections(dropped);
+    auto buf = collectionsFlush.encodeDroppedCollections(dropped);
     localDbReqs.emplace_back(MagmaLocalReq(droppedCollectionsKey, buf));
 }
 
@@ -2251,12 +2255,14 @@ void MagmaKVStore::deleteCollectionStats(LocalDbReqs& localDbReqs,
     localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
 }
 
-void MagmaKVStore::updateScopes(Vbid vbid, LocalDbReqs& localDbReqs) {
+void MagmaKVStore::updateScopes(Vbid vbid,
+                                LocalDbReqs& localDbReqs,
+                                Collections::VB::Flush& collectionsFlush) {
     Status status;
     std::string scopes;
     Slice keySlice(openScopesKey);
     std::tie(status, scopes) = readLocalDoc(vbid, keySlice);
-    auto buf = collectionsMeta.encodeOpenScopes(
+    auto buf = collectionsFlush.encodeOpenScopes(
             {reinterpret_cast<const uint8_t*>(scopes.data()), scopes.length()});
     localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));
 }

@@ -415,7 +415,7 @@ public:
      *
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
-     * @param collectionsFlush
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
     void updateCollectionsMeta(Vbid vbid,
                                LocalDbReqs& localDbReqs,
@@ -425,8 +425,10 @@ public:
      * Maintain the current uid committed
      *
      * @param localDbReqs vector of localDb updates
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateManifestUid(LocalDbReqs& localDbReqs);
+    void updateManifestUid(LocalDbReqs& localDbReqs,
+                           Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the list of open collections. The maintenance requires
@@ -435,24 +437,33 @@ public:
      *
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateOpenCollections(Vbid vbid, LocalDbReqs& localDbReqs);
+    void updateOpenCollections(Vbid vbid,
+                               LocalDbReqs& localDbReqs,
+                               Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the list of dropped collections
      *
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateDroppedCollections(Vbid vbid, LocalDbReqs& localDbReqs);
+    void updateDroppedCollections(Vbid vbid,
+                                  LocalDbReqs& localDbReqs,
+                                  Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the list of open scopes
      *
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
+     * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateScopes(Vbid vbid, LocalDbReqs& localDbReqs);
+    void updateScopes(Vbid vbid,
+                      LocalDbReqs& localDbReqs,
+                      Collections::VB::Flush& collectionsFlush);
 
     /**
      * Given a collection id, return the key used to maintain the

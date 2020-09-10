@@ -544,49 +544,11 @@ void KVStore::resetCachedVBState(Vbid vbid) {
     }
 }
 
-void KVStore::applySetSystemEvent(const Item& item) {
-    switch (SystemEvent(item.getFlags())) {
-    case SystemEvent::Collection: {
-        collectionsMeta.recordCreateCollection(item);
-        break;
-    }
-    case SystemEvent::Scope: {
-        collectionsMeta.recordCreateScope(item);
-        break;
-    }
-    default:
-        throw std::invalid_argument(
-                "KVStore::applySetSystemEvent: unknown event:" +
-                std::to_string(item.getFlags()));
-    }
-    collectionsMeta.setReadyForCommit();
-}
-
 void KVStore::setSystemEvent(const queued_item item) {
-    applySetSystemEvent(*item);
     set(item);
 }
 
-void KVStore::applyDeleteSystemEvent(const Item& item) {
-    switch (SystemEvent(item.getFlags())) {
-    case SystemEvent::Collection: {
-        collectionsMeta.recordDropCollection(item);
-        break;
-    }
-    case SystemEvent::Scope: {
-        collectionsMeta.recordDropScope(item);
-        break;
-    }
-    default:
-        throw std::invalid_argument(
-                "KVStore::applyDeleteSystemEvent: unknown event:" +
-                std::to_string(item.getFlags()));
-    }
-    collectionsMeta.setReadyForCommit();
-}
-
 void KVStore::delSystemEvent(const queued_item item) {
-    applyDeleteSystemEvent(*item);
     del(item);
 }
 
@@ -598,7 +560,6 @@ bool KVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
         throw std::logic_error(
                 "KVStore::begin: Not valid on a read-only object.");
     }
-    collectionsMeta.clear();
     inTransaction = true;
     transactionCtx = std::move(txCtx);
     return inTransaction;
