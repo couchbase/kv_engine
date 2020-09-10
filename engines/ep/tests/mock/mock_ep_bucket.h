@@ -30,8 +30,10 @@ class MockEPBucket : public EPBucket {
 public:
     explicit MockEPBucket(EventuallyPersistentEngine& theEngine);
 
-    MOCK_METHOD5(dropKey,
-                 void(Vbid, const DiskDocKey&, int64_t, bool, int64_t));
+    MOCK_METHOD(void,
+                dropKey,
+                (Vbid, const DiskDocKey&, int64_t, bool, int64_t),
+                (override));
 
     /**
      * Mock specific initialization. Does not override initialize function as

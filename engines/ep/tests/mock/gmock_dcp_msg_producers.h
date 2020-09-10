@@ -28,155 +28,186 @@ class Item;
  */
 class GMockDcpMsgProducers : public dcp_message_producers {
 public:
-    MOCK_METHOD2(get_failover_log,
-                 ENGINE_ERROR_CODE(uint32_t opaque, Vbid vbucket));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                get_failover_log,
+                (uint32_t opaque, Vbid vbucket),
+                (override));
 
-    MOCK_METHOD9(stream_req,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint32_t flags,
-                                   uint64_t start_seqno,
-                                   uint64_t end_seqno,
-                                   uint64_t vbucket_uuid,
-                                   uint64_t snap_start_seqno,
-                                   uint64_t snap_end_seqno,
-                                   const std::string& request_value));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                stream_req,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 uint32_t flags,
+                 uint64_t start_seqno,
+                 uint64_t end_seqno,
+                 uint64_t vbucket_uuid,
+                 uint64_t snap_start_seqno,
+                 uint64_t snap_end_seqno,
+                 const std::string& request_value),
+                (override));
 
-    MOCK_METHOD3(add_stream_rsp,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   uint32_t stream_opaque,
-                                   cb::mcbp::Status status));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                add_stream_rsp,
+                (uint32_t opaque,
+                 uint32_t stream_opaque,
+                 cb::mcbp::Status status),
+                (override));
 
-    MOCK_METHOD2(marker_rsp,
-                 ENGINE_ERROR_CODE(uint32_t opaque, cb::mcbp::Status status));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                marker_rsp,
+                (uint32_t opaque, cb::mcbp::Status status),
+                (override));
 
-    MOCK_METHOD2(set_vbucket_state_rsp,
-                 ENGINE_ERROR_CODE(uint32_t opaque, cb::mcbp::Status status));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                set_vbucket_state_rsp,
+                (uint32_t opaque, cb::mcbp::Status status),
+                (override));
 
-    MOCK_METHOD4(stream_end,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   cb::mcbp::DcpStreamEndStatus status,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                stream_end,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 cb::mcbp::DcpStreamEndStatus status,
+                 cb::mcbp::DcpStreamId sid),
+                (override));
 
-    MOCK_METHOD9(marker,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint64_t start_seqno,
-                                   uint64_t end_seqno,
-                                   uint32_t flags,
-                                   std::optional<uint64_t> high_completed_seqno,
-                                   std::optional<uint64_t> maxVisibleSeqno,
-                                   std::optional<uint64_t> timestamp,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                marker,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 uint64_t start_seqno,
+                 uint64_t end_seqno,
+                 uint32_t flags,
+                 std::optional<uint64_t> high_completed_seqno,
+                 std::optional<uint64_t> maxVisibleSeqno,
+                 std::optional<uint64_t> timestamp,
+                 cb::mcbp::DcpStreamId sid),
+                (override));
 
-    MOCK_METHOD8(mutation,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Item* itm,
-                                   Vbid vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   uint32_t lock_time,
-                                   uint8_t nru,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                mutation,
+                (uint32_t opaque,
+                 Item* itm,
+                 Vbid vbucket,
+                 uint64_t by_seqno,
+                 uint64_t rev_seqno,
+                 uint32_t lock_time,
+                 uint8_t nru,
+                 cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD6(deletion,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Item* itm,
-                                   Vbid vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                deletion,
+                (uint32_t opaque,
+                 Item* itm,
+                 Vbid vbucket,
+                 uint64_t by_seqno,
+                 uint64_t rev_seqno,
+                 cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD7(deletionV2,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Item* itm,
-                                   Vbid vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   uint32_t delete_time,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                deletionV2,
+                (uint32_t opaque,
+                 Item* itm,
+                 Vbid vbucket,
+                 uint64_t by_seqno,
+                 uint64_t rev_seqno,
+                 uint32_t delete_time,
+                 cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD7(expiration,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Item* itm,
-                                   Vbid vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   uint32_t delete_time,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                expiration,
+                (uint32_t opaque,
+                 Item* itm,
+                 Vbid vbucket,
+                 uint64_t by_seqno,
+                 uint64_t rev_seqno,
+                 uint32_t delete_time,
+                 cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD3(set_vbucket_state,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   vbucket_state_t state));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                set_vbucket_state,
+                (uint32_t opaque, Vbid vbucket, vbucket_state_t state),
+                (override));
 
-    MOCK_METHOD1(noop, ENGINE_ERROR_CODE(uint32_t opaque));
+    MOCK_METHOD(ENGINE_ERROR_CODE, noop, (uint32_t opaque), (override));
 
-    MOCK_METHOD3(buffer_acknowledgement,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint32_t buffer_bytes));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                buffer_acknowledgement,
+                (uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes),
+                (override));
 
-    MOCK_METHOD3(control,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   std::string_view key,
-                                   std::string_view value));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                control,
+                (uint32_t opaque, std::string_view key, std::string_view value),
+                (override));
 
-    MOCK_METHOD8(system_event,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   mcbp::systemevent::id event,
-                                   uint64_t bySeqno,
-                                   mcbp::systemevent::version version,
-                                   cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                system_event,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 mcbp::systemevent::id event,
+                 uint64_t bySeqno,
+                 mcbp::systemevent::version version,
+                 cb::const_byte_buffer key,
+                 cb::const_byte_buffer eventData,
+                 cb::mcbp::DcpStreamId sid),
+                (override));
 
-    MOCK_METHOD2(get_error_map,
-                 ENGINE_ERROR_CODE(uint32_t opaque, uint16_t version));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                get_error_map,
+                (uint32_t opaque, uint16_t version),
+                (override));
 
-    MOCK_METHOD9(prepare,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Item* itm,
-                                   Vbid vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   uint32_t lock_time,
-                                   uint8_t nru,
-                                   DocumentState document_state,
-                                   cb::durability::Level level));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                prepare,
+                (uint32_t opaque,
+                 Item* itm,
+                 Vbid vbucket,
+                 uint64_t by_seqno,
+                 uint64_t rev_seqno,
+                 uint32_t lock_time,
+                 uint8_t nru,
+                 DocumentState document_state,
+                 cb::durability::Level level));
 
-    MOCK_METHOD3(seqno_acknowledged,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint64_t prepared_seqno));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                seqno_acknowledged,
+                (uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno),
+                (override));
 
-    MOCK_METHOD5(commit,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   const DocKey& key,
-                                   uint64_t prepare_seqno,
-                                   uint64_t commit_seqno));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                commit,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 const DocKey& key,
+                 uint64_t prepare_seqno,
+                 uint64_t commit_seqno),
+                (override));
 
-    MOCK_METHOD5(abort,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   const DocKey& key,
-                                   uint64_t prepared_seqno,
-                                   uint64_t abort_seqno));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                abort,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 const DocKey& key,
+                 uint64_t prepared_seqno,
+                 uint64_t abort_seqno),
+                (override));
 
-    MOCK_METHOD4(oso_snapshot,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint32_t flags,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                oso_snapshot,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 uint32_t flags,
+                 cb::mcbp::DcpStreamId sid),
+                (override));
 
-    MOCK_METHOD4(seqno_advanced,
-                 ENGINE_ERROR_CODE(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint64_t prepared_seqno,
-                                   cb::mcbp::DcpStreamId sid));
+    MOCK_METHOD(ENGINE_ERROR_CODE,
+                seqno_advanced,
+                (uint32_t opaque,
+                 Vbid vbucket,
+                 uint64_t prepared_seqno,
+                 cb::mcbp::DcpStreamId sid),
+                (override));
 
     // Current version of GMock doesn't support move-only types (e.g.
     // std::unique_ptr) for mocked function arguments. Workaround directly
