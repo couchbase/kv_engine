@@ -31,6 +31,7 @@
 #include <atomic>
 #include <cstdarg>
 #include <deque>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -664,12 +665,12 @@ public:
      * Note that it is not safe to add new listeners after we've spun up
      * new threads as we don't try to lock the object.
      *
-     * the usecase for this is to be able to have logic elsewhere to update
+     * the use case for this is to be able to have logic elsewhere to update
      * state if a settings change.
      */
-    void addChangeListener(const std::string& key,
-                           void (* listener)(const std::string& key,
-                                             Settings& obj)) {
+    void addChangeListener(
+            const std::string& key,
+            std::function<void(const std::string&, Settings&)> listener) {
         change_listeners[key].push_back(listener);
     }
 
@@ -1024,7 +1025,7 @@ protected:
      * state if a settings change.
      */
     std::map<std::string,
-             std::deque<void (*)(const std::string& key, Settings& obj)>>
+             std::deque<std::function<void(const std::string&, Settings&)>>>
             change_listeners;
 
     void notify_changed(const std::string& key);
