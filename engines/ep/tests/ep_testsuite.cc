@@ -1610,7 +1610,6 @@ struct comp_thread_ctx {
     Vbid db_file_id;
 };
 
-void makeCouchstoreFileInaccessible(const std::string& dbname);
 extern "C" {
     static void compaction_thread(void *arg) {
         auto *ctx = static_cast<comp_thread_ctx *>(arg);
@@ -7855,6 +7854,9 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
 }
 
 static enum test_result test_mb20697(EngineIface* h) {
+// This test won't work under Windows as it requires exclusive access to a file
+// when we warmup (required to nuke our cached file descriptors).
+#ifndef WIN32
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
@@ -7864,36 +7866,35 @@ static enum test_result test_mb20697(EngineIface* h) {
     // Make the couchstore files in the db directory unwritable.
     CouchstoreFileAccessGuard makeCouchstoreFileReadOnly(dbname);
 
+    // Restart, so couchstore files are (attempted to be) re-opened.
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
+    wait_for_warmup_complete(h);
+
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key", "somevalue"),
             "store should have succeeded");
 
     /* Ensure that this results in commit failure and the stat gets incremented */
     wait_for_stat_change(h, "ep_item_commit_failed", 0);
+#endif
 
     return SUCCESS;
 }
 
 /* Check if vbucket reject ops are incremented on persistence failure */
 static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
+// This test won't work under Windows as it requires exclusive access to a file
+// when we warmup (required to nuke our cached file descriptors).
+#ifndef WIN32
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
-    std::string filename = dbname + cb::io::DirectorySeparator + "0.couch.1";
 
-    /* corrupt the couchstore file */
-    FILE *fp = fopen(filename.c_str(), "wb");
-
-    if (fp == nullptr) {
-        return FAIL;
-    }
-
-    char buf[2048];
-    memset(buf, 'x', sizeof(buf));
-
-    size_t numBytes = fwrite(buf, sizeof(char), sizeof(buf), fp);
-
-    fflush(fp);
-
-    checkeq(size_t{2048}, numBytes, "Bytes written should be equal to 2048");
+    // Make the couchstore files in the db directory unwritable.
+    CouchstoreFileAccessGuard makeCouchstoreFileReadOnly(dbname);
+    // Restart, so couchstore files are (attempted to be) re-opened.
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
+    wait_for_warmup_complete(h);
 
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key", "somevalue"),
@@ -7904,12 +7905,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
     checkne(0,
             get_int_stat(h, "vb_0:ops_reject", "vbucket-details 0"),
             "Expected rejected ops to not be 0");
-
-    fclose(fp);
-
-    rmdb(filename.c_str());
-
-    cb::io::mkdirp(dbname);
+#endif
 
     return SUCCESS;
 }

@@ -2827,6 +2827,11 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
             *store->getRWUnderlying(vbid)->getVBucketState(vbid);
     EXPECT_NE(vbs, newState);
     EXPECT_EQ(1, newState.persistedPreparedSeqno);
+
+    // Replace the CouchKVStore as we need a valid FileOps to tear down the
+    // engine
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
+                        *couchstore_get_default_file_ops());
 }
 
 template <typename F>

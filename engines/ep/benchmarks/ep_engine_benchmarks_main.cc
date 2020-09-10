@@ -19,6 +19,7 @@
 
 #include <benchmark/benchmark.h>
 #include <engines/ep/src/bucket_logger.h>
+#include <engines/ep/src/environment.h>
 #include <logger/logger.h>
 #include <platform/cbassert.h>
 
@@ -42,6 +43,18 @@ int main(int argc, char** argv) {
     initialize_time_functions(get_mock_server_api()->core);
 
     ::benchmark::Initialize(&argc, argv);
+
+    // Need to set engine file descriptors as tests using CouchKVStore will use
+    // a file cache that requires a fixed limit
+    {
+        // Set to 2 x the number of reserved file descriptors (i.e. the minimum
+        // number of file descriptors required). This number will then be split
+        // between all the backends compiled in (couchstore/rocks/magma). This
+        // number won't be particularly high, but should be fine for unit
+        // testing.
+        auto& env = Environment::get();
+        env.engineFileDescriptors = env.reservedFileDescriptors * 2;
+    }
 
     // Don't set the logger API until after we call initialize. If we attempt to
     // call this with --help then ::benchmark::Initialize calls exit(0) which

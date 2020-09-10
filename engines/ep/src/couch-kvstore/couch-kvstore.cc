@@ -445,6 +445,29 @@ void CouchKVStore::initialize(
 
 CouchKVStore::~CouchKVStore() {
     close();
+
+    // ReadOnly KVStore won't cache files so don't bother iterating the file
+    // cache to erase them
+    if (isReadOnly()) {
+        return;
+    }
+
+    // Iterate the CouchKVStoreFileCache and pull out a list of files that
+    // "belong" to this KVStore as we need to close them all now to reclaim our
+    // memory and file descriptors.
+    auto& fc = CouchKVStoreFileCache::get();
+    const auto& fcHandle = fc.getHandle();
+    std::list<std::string> filesToClose;
+    for (const auto& itr : *fcHandle) {
+        auto lh = itr.second.lock();
+        if (&lh->getKVStore() == this) {
+            filesToClose.push_back(itr.first);
+        }
+    }
+
+    for (const auto& file : filesToClose) {
+        fcHandle->erase(file);
+    }
 }
 
 void CouchKVStore::reset(Vbid vbucketId) {
@@ -735,6 +758,11 @@ void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
     }
 
     unlinkCouchFile(vbucket, fileRev);
+
+    auto& fc = CouchKVStoreFileCache::get();
+    const auto& fcHandle = fc.getHandle();
+    auto name = dbname + std::to_string(vbucket.get());
+    fcHandle->erase(name);
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
@@ -1489,11 +1517,9 @@ vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
 
 bool CouchKVStore::writeVBucketState(Vbid vbucketId,
                                      const vbucket_state& vbstate) {
-    std::map<Vbid, uint64_t>::iterator mapItr;
-    couchstore_error_t errorCode;
+    auto openResult = openDbForWrite(vbucketId);
+    auto errorCode = openResult.status;
 
-    DbHolder db(*this);
-    errorCode = openDB(vbucketId, db, (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE);
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
         logger.warn(
@@ -1501,10 +1527,11 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
                 "{}, fileRev:{}",
                 couchstore_strerror(errorCode),
                 vbucketId,
-                db.getFileRev());
+                openResult.fileRev);
         return false;
     }
 
+    auto& db = *openResult.db;
     errorCode = updateLocalDocument(
             *db, "_local/vbstate", makeJsonVBState(vbstate));
     if (errorCode != COUCHSTORE_SUCCESS) {
@@ -1964,6 +1991,94 @@ couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
     return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
 
+CouchKVStore::OpenResult CouchKVStore::openDbForWrite(Vbid vbucketId) {
+    // MB-27963: obtain read access whilst we open the file, updateDbFileMap
+    // serialises on this mutex so we can be sure the fileRev we read should
+    // still be a valid file once we hit sys_open
+    std::shared_lock<folly::SharedMutex> lg(openDbMutex);
+    uint64_t fileRev = (*(*dbFileRevMap).rlock())[vbucketId.get()];
+
+    // Check our file cache first for a DB
+    auto fc = CouchKVStoreFileCache::get().getHandle();
+
+    auto name = dbname + std::to_string(vbucketId.get());
+    const auto& itr = fc->find(name);
+
+    // If buffering is disabled also disable keeping Db open across calls.
+    const bool closeOnUnlock = !configuration.getBuffered();
+
+    if (itr == fc->end()) {
+        // No Db in the cache, need to open a new one and add it
+        logger.debug(
+                "CouchKVStore::openDbForWrite: {} rev:{} - cache miss, not in "
+                "cache, opening",
+                vbucketId,
+                fileRev);
+
+        // Put the DbHolder in the cache
+        DbHolder holder(*this);
+        auto res = fc->insert(name, std::move(holder));
+        Expects(res.second);
+        auto locked = res.first->second.lock();
+
+        // Then open the Db
+        auto result = openSpecificDB(
+                vbucketId, fileRev, *locked, COUCHSTORE_OPEN_FLAG_CREATE);
+        if (result != COUCHSTORE_SUCCESS) {
+            return {result, {}, fileRev, false};
+        }
+
+        return {COUCHSTORE_SUCCESS, std::move(locked), fileRev, closeOnUnlock};
+    }
+
+    auto dbHolder = itr->second.lock();
+
+    if (dbHolder->getFileRev() != fileRev) {
+        // Mismatch in revision - close and re-open, adding to cache
+        logger.debug(
+                "CouchKVStore::openDbForWrite: {} rev given:{} rev found:{} - "
+                "cache miss, different revision, opening",
+                vbucketId,
+                fileRev,
+                dbHolder->getFileRev());
+
+        dbHolder->close();
+        auto result = openSpecificDB(
+                vbucketId, fileRev, *dbHolder, COUCHSTORE_OPEN_FLAG_CREATE);
+        if (result != COUCHSTORE_SUCCESS) {
+            return {result, {}, fileRev, false};
+        }
+
+        return {COUCHSTORE_SUCCESS,
+                std::move(dbHolder),
+                fileRev,
+                closeOnUnlock};
+    }
+
+    if (!dbHolder->getDb()) {
+        // DbHolder is in the cache but db is closed
+        // (configuration.buffered == false) so just re-open
+        logger.debug(
+                "CouchKVStore::openDbForWrite: {} rev:{} - cache hit but db is "
+                "closed, opening",
+                vbucketId,
+                fileRev);
+
+        auto result = openSpecificDB(
+                vbucketId, fileRev, *dbHolder, COUCHSTORE_OPEN_FLAG_CREATE);
+        if (result != COUCHSTORE_SUCCESS) {
+            return {result, {}, fileRev, false};
+        }
+
+        return {COUCHSTORE_SUCCESS,
+                std::move(dbHolder),
+                fileRev,
+                closeOnUnlock};
+    }
+
+    return {COUCHSTORE_SUCCESS, std::move(dbHolder), closeOnUnlock};
+}
+
 couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
                                                 uint64_t fileRev,
                                                 DbHolder& db,
@@ -2031,7 +2146,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
     if (errorCode) {
         st.numOpenFailure++;
         logger.warn(
-                "CouchKVStore::openDB: error:{} [{}],"
+                "CouchKVStore::openSpecificDB: error:{} [{}],"
                 " name:{}, option:{}, fileRev:{}",
                 couchstore_strerror(errorCode),
                 cb_strerror(),
@@ -2047,7 +2162,8 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
             }
             auto files = cb::io::findFilesWithPrefix(filename);
             logger.warn(
-                    "CouchKVStore::openDB: No such file, found:{} alternative "
+                    "CouchKVStore::openSpecificDB: No such file, found:{} "
+                    "alternative "
                     "files for {}",
                     files.size(),
                     dbFileName);
@@ -2510,19 +2626,18 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                                           const std::vector<Doc*>& docs,
                                           std::vector<DocInfo*>& docinfos,
                                           kvstats_ctx& kvctx) {
-    couchstore_error_t errCode;
-    DbHolder db(*this);
-    errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_CREATE);
+    auto openResult = openDbForWrite(vbid);
+    auto errCode = openResult.status;
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::saveDocs: openDB error:{}, {}, rev:{}, "
+                "CouchKVStore::saveDocs: openDB error:{}, {}, "
                 "numdocs:{}",
                 couchstore_strerror(errCode),
                 vbid,
-                db.getFileRev(),
                 uint64_t(docs.size()));
         return errCode;
     } else {
+        auto& db = *openResult.db;
         uint64_t maxDBSeqno = 0;
 
         // Count of logical bytes written (key + ep-engine meta + value),

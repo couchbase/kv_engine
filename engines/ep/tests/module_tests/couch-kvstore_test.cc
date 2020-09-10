@@ -603,6 +603,35 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     EXPECT_EQ(defaultState, kvstore->readVBState(vbid));
 }
 
+// Test that if we fail to open the db we don't segfault by accessing a bad
+// ptr when we log the fileRev
+TEST_F(CouchKVStoreErrorInjectionTest, abc) {
+    vbid = Vbid(10);
+
+    // Make sure the vBucket does not exist before this test
+    ASSERT_FALSE(kvstore->getVBucketState(vbid));
+    ASSERT_THROW(kvstore->readVBState(vbid), std::logic_error);
+    ASSERT_EQ(0, kvstore->getKVStoreStat().numVbSetFailure);
+
+    {
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_OPEN_FILE)))
+                .Times(1)
+                .RetiresOnSaturation();
+
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, open(_, _, _, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
+                .RetiresOnSaturation();
+
+        vbucket_state state;
+        kvstore->snapshotVBucket(vbid, state);
+    }
+}
+
 /**
  * Injects error during CouchKVStore::openDB_retry/couchstore_open_db_ex
  */
@@ -2017,4 +2046,10 @@ TEST_F(CouchstoreTest, DISABLED_ConcurrentCompactionAndFlushing) {
     ASSERT_LT(ii, 12) << "There should be up to 10 catch up without holding "
                          "the lock, and one with the lock";
     EXPECT_EQ(5 + ii, kvstore->getItemCount(Vbid{0}));
+}
+
+TEST_F(CouchstoreTest, delVBucketRemovesFileFromCache) {
+    EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->numFiles());
+    kvstore->delVBucket(Vbid(0), 0);
+    EXPECT_EQ(0, CouchKVStoreFileCache::get().getHandle()->numFiles());
 }
