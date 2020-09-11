@@ -327,7 +327,7 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
     cachedDocCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
-    cachedDeleteCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(-1));
+    cachedDeleteCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
     cachedFileSize.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedSpaceUsed.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedVBStates.resize(numDbFiles);
@@ -401,6 +401,10 @@ void CouchKVStore::initialize(
             if (readStatus == ReadVBStateStatus::Success) {
                 /* update stat */
                 ++st.numLoadedVb;
+
+                // Populate cache delete count
+                cachedDeleteCount[vbid.get()] =
+                        cb::couchstore::getHeader(*db.getDb()).deletedCount;
             } else if (readStatus != ReadVBStateStatus::CorruptSnapshot) {
                 logger.warn(
                         "CouchKVStore::initialize: readVBState"
@@ -3015,35 +3019,7 @@ size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
     // on write so we can't read the stat from it.
     Expects(!readOnly);
 
-    size_t delCount = cachedDeleteCount[vbid.get()];
-    if (delCount != (size_t) -1) {
-        return delCount;
-    }
-
-    DbHolder db(*this);
-    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errCode == COUCHSTORE_SUCCESS) {
-        const auto info = cb::couchstore::getHeader(*db.getDb());
-        cachedDeleteCount[vbid.get()] = info.deletedCount;
-        return info.deletedCount;
-    } else {
-        // open failed - map couchstore error code to exception.
-        std::errc ec;
-        switch (errCode) {
-            case COUCHSTORE_ERROR_OPEN_FILE:
-                ec = std::errc::no_such_file_or_directory; break;
-            default:
-                ec = std::errc::io_error; break;
-        }
-        throw std::system_error(
-                std::make_error_code(ec),
-                "CouchKVStore::getNumPersistedDeletes:"
-                "Failed to open database file for " +
-                        vbid.to_string() +
-                        " rev = " + std::to_string(db.getFileRev()) +
-                        " with error:" + couchstore_strerror(errCode));
-    }
-    return 0;
+    return cachedDeleteCount[vbid.get()];
 }
 
 DBFileInfo CouchKVStore::getDbFileInfo(Vbid vbid) {
