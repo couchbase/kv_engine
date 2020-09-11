@@ -3841,7 +3841,11 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
  */
 TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // Set vbucket active on disk
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Note: TransferVB::Yes is just to prevent that the existing passive stream
+    // is released. We sporadically segfault when we access this->stream below
+    // otherwise.
+    setVBucketStateAndRunPersistTask(
+            vbid, vbucket_state_active, {}, TransferVB::Yes);
 
     // VBucket state changes to replica.
     // Note: The new state is not persisted yet.
