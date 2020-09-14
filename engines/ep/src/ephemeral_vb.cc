@@ -959,7 +959,7 @@ void EphemeralVBucket::dropKey(int64_t bySeqno,
     return;
 }
 
-int64_t EphemeralVBucket::addSystemEventItem(
+uint64_t EphemeralVBucket::addSystemEventItem(
         Item* i,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
@@ -1003,7 +1003,8 @@ int64_t EphemeralVBucket::addSystemEventItem(
             stats.trackCollectionStats(*cid);
         }
     }
-    return v->getBySeqno();
+    Expects(v->getBySeqno() >= 0);
+    return uint64_t(v->getBySeqno());
 }
 
 bool EphemeralVBucket::isValidDurabilityLevel(cb::durability::Level level) {

@@ -609,13 +609,13 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     return item;
 }
 
-int64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
-                                             ::VBucket& vb,
-                                             CollectionID cid,
-                                             std::string_view collectionName,
-                                             const ManifestEntry& entry,
-                                             bool deleted,
-                                             OptionalSeqno seq) const {
+uint64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
+                                              ::VBucket& vb,
+                                              CollectionID cid,
+                                              std::string_view collectionName,
+                                              const ManifestEntry& entry,
+                                              bool deleted,
+                                              OptionalSeqno seq) const {
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
     if (!seq.has_value()) {

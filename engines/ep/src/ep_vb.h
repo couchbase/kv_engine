@@ -229,7 +229,7 @@ public:
      * @param wHandle Collections write handle under which this operation is
      *        locked.
      */
-    int64_t addSystemEventItem(
+    uint64_t addSystemEventItem(
             Item* item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,

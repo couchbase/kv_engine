@@ -950,7 +950,7 @@ void EPVBucket::dropKey(int64_t bySeqno,
  * Queue the item to the checkpoint and return the seqno the item was
  * allocated.
  */
-int64_t EPVBucket::addSystemEventItem(
+uint64_t EPVBucket::addSystemEventItem(
         Item* item,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
@@ -992,7 +992,8 @@ int64_t EPVBucket::addSystemEventItem(
             stats.trackCollectionStats(*cid);
         }
     }
-    return qi->getBySeqno();
+    Expects(qi->getBySeqno() >= 0);
+    return uint64_t(qi->getBySeqno());
 }
 
 bool EPVBucket::isValidDurabilityLevel(cb::durability::Level level) {
