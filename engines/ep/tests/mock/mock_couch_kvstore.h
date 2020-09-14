@@ -64,6 +64,7 @@ public:
                        dbFileRevMap) {
     }
 
+    using CouchKVStore::setConcurrentCompactionUnitTestHook;
     using CouchKVStore::setMb40415RegressionHook;
 
     /**

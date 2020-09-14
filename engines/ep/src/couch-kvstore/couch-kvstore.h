@@ -529,6 +529,17 @@ protected:
                                       couchstore_open_flags options,
                                       FileOpsInterface* ops = nullptr);
 
+    /// Open a specific database file identified with dbFileName and store
+    /// it in the provided DbHolder. (openSpecificDB will try to determine
+    /// the database filename so it cannot be used to open a temporary
+    /// database file (currently used in compaction)
+    couchstore_error_t openSpecificDBFile(Vbid vbucketId,
+                                          uint64_t rev,
+                                          DbHolder& db,
+                                          couchstore_open_flags options,
+                                          const std::string& dbFileName,
+                                          FileOpsInterface* ops = nullptr);
+
     /**
      * save the Documents held in docs to the file associated with vbid/rev
      *
@@ -653,24 +664,55 @@ protected:
 
     void removeCompactFile(const std::string &filename);
 
+    /** Try to move all modifications from the source Db over to the
+     * destination database.
+     *
+     * @param source The database to start from
+     * @param destination The destination database
+     * @param lock The write lock for the destination database (must be held
+     *             when calling the method (and will be locked when the method
+     *             returns)
+     * @param copyWithoutLock Should data be copied while holding the lock (
+     *                        prevents other threads to write to the
+     *                        source database)
+     * @param preparesPurged The number of prepares purged (which needs to be
+     *                       patched in the _local/vbstate document)
+     * @param vbid the vbucket (used for logging)
+     * @return true if the destination database is caught up with the source
+     *              database
+     */
+    bool tryToCatchUpDbFile(Db& source,
+                            Db& destination,
+                            std::unique_lock<std::mutex>& lock,
+                            bool copyWithoutLock,
+                            uint64_t preparesPurged,
+                            Vbid vbid);
+
     /**
      * Perform compaction using the context and dhook call back.
+     *
+     * @param vbLock the lock to acquire exclusive write access to the bucket
      * @param hook_ctx a context with information for the compaction process
      * @param dhook a docinfo hook which will be called with each compacted key
      * @return true indicating the compaction was successful.
      */
-    bool compactDBInternal(compaction_ctx* hook_ctx,
+    bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
+                           compaction_ctx* hook_ctx,
                            cb::couchstore::CompactRewriteDocInfoCallback dhook);
 
     /// try to load _local/vbstate and patch the num_on_disk_prepares
     /// and subtract the number of prepares pruned
     couchstore_error_t maybePatchOnDiskPrepares(
             Db& db,
-            compaction_ctx& ctx,
+            uint64_t preparesPurged,
             PendingLocalDocRequestQueue& localDocQueue);
 
     void setMb40415RegressionHook(bool value) {
         mb40415_regression_hook = value;
+    }
+
+    void setConcurrentCompactionUnitTestHook(std::function<void()> hook) {
+        concurrentCompactionUnitTestHook = std::move(hook);
     }
 
     enum class ReadVBStateStatus {
@@ -787,6 +829,10 @@ protected:
     /* pending file deletions */
     folly::Synchronized<std::queue<std::string>> pendingFileDeletions;
 
+    // We need to make sure that multiple threads won't start compaction
+    // on the same vbucket while compaction for that vbucket is running.
+    std::vector<std::atomic_bool> vbCompactionRunning;
+
     BucketLogger& logger;
 
     /**
@@ -865,4 +911,10 @@ protected:
 
     /// Allow the unit tests to add a hook into compaction
     bool mb40415_regression_hook{false};
+
+    /// Hook to allow for unit testing of compaction and flushing happening
+    /// in parallel.
+    /// The hook gets called after the initial compaction runs, and then
+    /// after each step in the catch-up-phase
+    std::function<void()> concurrentCompactionUnitTestHook = []() {};
 };

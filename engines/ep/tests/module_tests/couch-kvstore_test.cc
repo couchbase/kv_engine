@@ -1970,3 +1970,49 @@ TEST_F(CouchstoreTest, CouchKVStore_construct_and_cleanup) {
                 << "File should exist filename:" << filename;
     }
 }
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
+    int64_t seqno = 1;
+    for (int ii = 0; ii < 5; ++ii) {
+        StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->set(
+                queued_item{std::make_unique<Item>(key,
+                                                   0,
+                                                   0,
+                                                   "value",
+                                                   5,
+                                                   PROTOCOL_BINARY_RAW_BYTES,
+                                                   uint64_t(ii),
+                                                   seqno++)});
+        kvstore->commit(flush);
+    }
+    ASSERT_EQ(5, kvstore->getItemCount(Vbid{0}));
+
+    int ii = 0;
+    kvstore->setConcurrentCompactionUnitTestHook([&ii, &seqno, this]() {
+        StoredDocKey key = makeStoredDocKey("concurrent-" + std::to_string(ii));
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->set(
+                queued_item{std::make_unique<Item>(key,
+                                                   0,
+                                                   0,
+                                                   "concurrent",
+                                                   10,
+                                                   PROTOCOL_BINARY_RAW_BYTES,
+                                                   uint64_t(ii + 5),
+                                                   seqno++)});
+        kvstore->commit(flush);
+        ++ii;
+    });
+
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    CompactionConfig config;
+    auto ctx = std::make_shared<compaction_ctx>(config, 0);
+    kvstore->compactDB(lock, ctx);
+    ASSERT_GT(ii, 1) << "There should at least be two callbacks";
+    ASSERT_LT(ii, 12) << "There should be up to 10 catch up without holding "
+                         "the lock, and one with the lock";
+    EXPECT_EQ(5 + ii, kvstore->getItemCount(Vbid{0}));
+}

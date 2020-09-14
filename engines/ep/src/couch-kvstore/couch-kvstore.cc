@@ -313,6 +313,10 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
       base_ops(ops) {
+    if (!readOnly) {
+        vbCompactionRunning =
+                std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
+    }
     statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
     statCollectingFileOpsCompaction = getCouchstoreStatsOps(
         st.fsStatsCompaction, base_ops);
@@ -967,10 +971,29 @@ static int time_purge_hook(Db* d,
 
 bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<compaction_ctx> hook_ctx) {
-    bool result = false;
+    if (isReadOnly()) {
+        throw std::logic_error(
+                "CouchKVStore::compactDB() can't be called on read only "
+                "instance");
+    }
 
+    auto vbid = hook_ctx->compactConfig.db_file_id.get();
+    // Note that this isn't racy as we'll hold the vbucket lock when we're
+    // calling the method for doing the check and when we'll set it to
+    // true
+    if (vbCompactionRunning[vbid]) {
+        EP_LOG_INFO(
+                "CouchKVStore::compactDB: compaction already running for {}",
+                vbid);
+        // The API don't let me tell the caller that a compaction is
+        // already running so I just have to fail it..
+        return false;
+    }
+    vbCompactionRunning[vbid] = true;
+
+    bool result = true;
     try {
-        result = compactDBInternal(hook_ctx.get(), {});
+        result = compactDBInternal(vbLock, hook_ctx.get(), {});
     } catch (const std::exception& le) {
         EP_LOG_WARN(
                 "CouchKVStore::compactDB: exception while performing "
@@ -978,7 +1001,11 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 " - Details: {}",
                 hook_ctx->compactConfig.db_file_id,
                 le.what());
+        result = false;
     }
+
+    vbCompactionRunning[vbid] = false;
+
     if (!result) {
         ++st.numCompactionFailure;
     }
@@ -991,6 +1018,7 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
 }
 
 bool CouchKVStore::compactDBInternal(
+        std::unique_lock<std::mutex>& vbLock,
         compaction_ctx* hook_ctx,
         cb::couchstore::CompactRewriteDocInfoCallback docinfo_hook) {
     if (isReadOnly()) {
@@ -1003,6 +1031,9 @@ bool CouchKVStore::compactDBInternal(
         throw std::runtime_error(
                 "CouchKVStore::compactDB: droppedKeyCb must be set ");
     }
+
+    // we may run the first part of the compaction without exclusive access
+    vbLock.unlock();
 
     auto* def_iops = statCollectingFileOpsCompaction.get();
     std::chrono::steady_clock::time_point start =
@@ -1048,19 +1079,6 @@ bool CouchKVStore::compactDBInternal(
     const auto periodicSyncBytes = configuration.getPeriodicSyncBytes();
     if (periodicSyncBytes != 0) {
         flags |= couchstore_encode_periodic_sync_flags(periodicSyncBytes);
-    }
-
-    // It would seem logical to grab the state from disk her (readVBState(...))
-    // but we cannot do that. If we do, we may race with a concurrent scan as
-    // readVBState will overwrite the cached vbucket_state. As such, just use
-    // the cached vbucket_state.
-    vbucket_state* vbState = getVBucketState(vbid);
-    if (!vbState) {
-        EP_LOG_WARN(
-                "CouchKVStore::compactDBInternal ({}) Failed to obtain vbState "
-                "for the highCompletedSeqno",
-                vbid);
-        return false;
     }
 
     // Remove the destination file (in the case there is a leftover somewhere
@@ -1110,7 +1128,9 @@ bool CouchKVStore::compactDBInternal(
                     // as it'll come back in the next database header anyway
                     PendingLocalDocRequestQueue localDocQueue;
                     auto ret = maybePatchOnDiskPrepares(
-                            compacted, *hook_ctx, localDocQueue);
+                            compacted,
+                            hook_ctx->stats.preparesPurged,
+                            localDocQueue);
                     if (ret == COUCHSTORE_SUCCESS) {
                         updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1131,7 +1151,16 @@ bool CouchKVStore::compactDBInternal(
                     return COUCHSTORE_SUCCESS;
                 });
     } else {
-        hook_ctx->highCompletedSeqno = vbState->persistedCompletedSeqno;
+        auto [status, state] = readVBState(compactdb.getDb(), vbid);
+        if (status == ReadVBStateStatus::Success) {
+            hook_ctx->highCompletedSeqno = state.persistedCompletedSeqno;
+        } else {
+            EP_LOG_WARN(
+                    "CouchKVStore::compactDBInternal ({}) Failed to obtain "
+                    "vbState for the highCompletedSeqno. Won't prune prepares",
+                    vbid);
+            hook_ctx->highCompletedSeqno = 0;
+        }
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
                         getDroppedCollections(*compactdb));
@@ -1166,7 +1195,9 @@ bool CouchKVStore::compactDBInternal(
                                 CouchLocalDocRequest::IsDeleted{});
                     }
                     auto ret = maybePatchOnDiskPrepares(
-                            compacted, *hook_ctx, localDocQueue);
+                            compacted,
+                            hook_ctx->stats.preparesPurged,
+                            localDocQueue);
                     if (ret == COUCHSTORE_SUCCESS) {
                         updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1187,8 +1218,65 @@ bool CouchKVStore::compactDBInternal(
         return false;
     }
 
+    // We're done with the "normal" compaction... Unfortunately we're still
+    // not "up to speed" so we need to "replay" all of the mutations which
+    // happened while we rewrote the entire file.
+    // Given that full compaction may take some time let's try a few times
+    // without holding the lock to catch up (and allow the flusher to keep
+    // on writing), but we don't want to end up in an "endless" loop if
+    // the flusher got tons of data for the current vbucket. After 10
+    // attempts to do catch up without the lock we run the final catch up
+    // with the lock held.
+
+    DbHolder targetDb(*this);
+    errCode = openSpecificDBFile(vbid, new_rev, targetDb, 0, compact_file);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::compactDB: openDB#2 error:{}, file:{}, "
+                "fileRev:{}",
+                couchstore_strerror(errCode),
+                compact_file,
+                targetDb.getFileRev());
+        if (remove(compact_file.c_str()) != 0) {
+            logger.warn("CouchKVStore::compactDB: remove error:{}, path:{}",
+                        cb_strerror(),
+                        compact_file);
+        }
+        return false;
+    }
+
+    // We'll do catch-up in two phases. First we'll try to catch up with
+    // the flusher by releasing the lock every time copy the data,
+    // but to avoid doing that "forever" we'll give up after 10 times
+    // and then hold the lock (and block the flusher) to make sure we catch
+    // up.
+    vbLock.lock();
+    for (int ii = 0; ii < 10; ++ii) {
+        concurrentCompactionUnitTestHook();
+        if (tryToCatchUpDbFile(*compactdb,
+                               *targetDb,
+                               vbLock,
+                               true, // copy without lock
+                               hook_ctx->stats.preparesPurged,
+                               vbid)) {
+            // I'm at the tip
+            break;
+        }
+    }
+
+    concurrentCompactionUnitTestHook();
+
+    // Block any writers, do the final catch up and swap the file
+    tryToCatchUpDbFile(*compactdb,
+                       *targetDb,
+                       vbLock,
+                       false, // copy with lock
+                       hook_ctx->stats.preparesPurged,
+                       vbid);
     // Close the source Database File once compaction is done
     compactdb.close();
+    // Close the destination file so we may rename it
+    targetDb.close();
 
     // Rename the .compact file to one with the next revision number
     const auto new_file = getDBFileName(dbname, vbid, new_rev);
@@ -1203,7 +1291,6 @@ bool CouchKVStore::compactDBInternal(
     }
 
     // Open the newly compacted VBucket database to update the cached vbstate
-    DbHolder targetDb(*this);
     errCode = openSpecificDB(
             vbid, new_rev, targetDb, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -1263,12 +1350,12 @@ bool CouchKVStore::compactDBInternal(
 
 couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         Db& db,
-        compaction_ctx& ctx,
+        uint64_t preparesPurged,
         PendingLocalDocRequestQueue& localDocQueue) {
     // Must sync the modified state back
     // we need to update the _local/vbstate to update the number of
     // on_disk_prepared to match whatever we purged
-    if (ctx.stats.preparesPurged != 0) {
+    if (preparesPurged != 0) {
         LocalDoc* ldoc = nullptr;
         sized_buf id{(char*)"_local/vbstate", sizeof("_local/vbstate") - 1};
         auto err = couchstore_open_local_document(
@@ -1298,8 +1385,8 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         auto iter = json.find("on_disk_prepares");
         // only update if it's there..
         if (iter != json.end()) {
-            auto onDiskPrepares = std::stoull(iter->get<std::string>()) -
-                                  ctx.stats.preparesPurged;
+            auto onDiskPrepares =
+                    std::stoull(iter->get<std::string>()) - preparesPurged;
             json["on_disk_prepares"] = std::to_string(onDiskPrepares);
             const auto doc = json.dump();
             localDocQueue.emplace_back("_local/vbstate", json.dump());
@@ -1307,6 +1394,86 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
     }
 
     return COUCHSTORE_SUCCESS;
+}
+
+bool CouchKVStore::tryToCatchUpDbFile(Db& source,
+                                      Db& destination,
+                                      std::unique_lock<std::mutex>& lock,
+                                      bool copyWithoutLock,
+                                      uint64_t preparesPurged,
+                                      Vbid vbid) {
+    if (!lock.owns_lock()) {
+        throw std::logic_error(
+                "CouchKVStore::tryToCatchUpDbFile: lock must be held");
+    }
+
+    auto start = cb::couchstore::getHeader(source);
+
+    couchstore_error_t err;
+    while ((err = cb::couchstore::seek(source,
+                                       cb::couchstore::Direction::Forward)) ==
+           COUCHSTORE_SUCCESS) {
+        // nothing (I should probably add one seek END and SEEK_START)
+    }
+
+    if (err != COUCHSTORE_ERROR_NO_HEADER) {
+        // seek failed - deal with it
+        throw std::runtime_error("Failed to seek in the database file: " +
+                                 couchkvstore_strerrno(&source, err));
+    }
+
+    auto end = cb::couchstore::getHeader(source);
+    if (end.headerPosition == start.headerPosition) {
+        // at the end!
+        return true;
+    }
+
+    if (cb::couchstore::seek(source, start.headerPosition) !=
+        COUCHSTORE_SUCCESS) {
+        throw std::runtime_error("Failed to move back to the current position");
+    }
+
+    if (copyWithoutLock) {
+        lock.unlock();
+    }
+
+    uint64_t delta = std::numeric_limits<uint64_t>::max();
+    if (configuration.isPitrEnabled()) {
+        delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        configuration.getPitrGranularity())
+                        .count();
+    }
+
+    EP_LOG_INFO("Try to catch up {}: from {} to {}",
+                vbid,
+                start.updateSeqNum,
+                end.updateSeqNum);
+    err = cb::couchstore::replay(
+            source,
+            destination,
+            delta,
+            end.headerPosition,
+            [&preparesPurged, this](Db& compacted) {
+                PendingLocalDocRequestQueue localDocQueue;
+                auto ret = maybePatchOnDiskPrepares(
+                        compacted, preparesPurged, localDocQueue);
+                if (ret == COUCHSTORE_SUCCESS) {
+                    updateLocalDocuments(compacted, localDocQueue);
+                }
+                return ret;
+            });
+    if (err != COUCHSTORE_SUCCESS) {
+        throw std::runtime_error("Failed to replay data!");
+    }
+
+    if (copyWithoutLock) {
+        lock.lock();
+        // the database may have changed.. just return false and let the
+        // caller call us again to check..
+        return false;
+    }
+
+    return true;
 }
 
 vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
@@ -1403,7 +1570,7 @@ StorageProperties CouchKVStore::getStorageProperties() {
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::Yes,
                          StorageProperties::EfficientGet::Yes,
-                         StorageProperties::ConcurrentWriteCompact::No,
+                         StorageProperties::ConcurrentWriteCompact::Yes,
                          StorageProperties::ByIdScan::Yes);
     return rv;
 }
@@ -1791,7 +1958,21 @@ couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
                                                 DbHolder& db,
                                                 couchstore_open_flags options,
                                                 FileOpsInterface* ops) {
-    std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
+    return openSpecificDBFile(vbucketId,
+                              fileRev,
+                              db,
+                              options,
+                              getDBFileName(dbname, vbucketId, fileRev),
+                              ops);
+}
+
+couchstore_error_t CouchKVStore::openSpecificDBFile(
+        Vbid vbucketId,
+        uint64_t fileRev,
+        DbHolder& db,
+        couchstore_open_flags options,
+        const std::string& dbFileName,
+        FileOpsInterface* ops) {
     db.setFileRev(fileRev); // save the rev so the caller can log it
 
     if(ops == nullptr) {
@@ -1848,11 +2029,12 @@ couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
                 fileRev);
 
         if (errorCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
-            auto dotPos = dbFileName.find_last_of(".");
+            std::string filename = dbFileName;
+            auto dotPos = filename.find_last_of(".");
             if (dotPos != std::string::npos) {
-                dbFileName = dbFileName.substr(0, dotPos);
+                filename = filename.substr(0, dotPos);
             }
-            auto files = cb::io::findFilesWithPrefix(dbFileName);
+            auto files = cb::io::findFilesWithPrefix(filename);
             logger.warn(
                     "CouchKVStore::openDB: No such file, found:{} alternative "
                     "files for {}",
