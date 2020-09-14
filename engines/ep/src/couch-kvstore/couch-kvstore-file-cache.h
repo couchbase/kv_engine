@@ -66,6 +66,7 @@ public:
         void erase(const std::string& key);
 
         size_t numFiles() const;
+        size_t capacity() const;
 
     protected:
         CacheMap cache;

@@ -121,3 +121,7 @@ void CouchKVStoreFileCache::Handle::erase(const std::string& key) {
 size_t CouchKVStoreFileCache::Handle::numFiles() const {
     return cache.size();
 }
+
+size_t CouchKVStoreFileCache::Handle::capacity() const {
+    return cache.getMaxSize();
+}

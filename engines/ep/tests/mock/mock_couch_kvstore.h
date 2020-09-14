@@ -117,5 +117,10 @@ public:
         return std::make_unique<MockCouchKVStore>(configuration, dbFileRevMap);
     }
 
+    OpenForReadResult public_openDbForRead(Vbid vbid,
+                                           FileOpsInterface* ops = nullptr) {
+        return openDbForRead(vbid, ops);
+    }
+
     std::function<void()> preCommitHook = [] {};
 };

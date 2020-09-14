@@ -43,6 +43,7 @@
 class CouchKVStoreTest : public KVStoreTest {
 public:
     CouchKVStoreTest() : KVStoreTest() {
+        CouchKVStoreFileCache::get().getHandle()->resize(1024);
     }
 
     void collectionsOfflineUpgrade(bool writeAsMadHatter);
@@ -337,6 +338,40 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgradeMadHatter) {
     collectionsOfflineUpgrade(true);
 }
 
+TEST_F(CouchKVStoreTest, CacheMakeFileHandle) {
+    CouchKVStoreFileCache::get().getHandle()->resize(2);
+    ASSERT_EQ(2, CouchKVStoreFileCache::get().getHandle()->capacity());
+
+    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    auto kvstore = setup_kv_store(config);
+
+    {
+        auto handle = kvstore->makeFileHandle(Vbid(0));
+        ASSERT_TRUE(handle);
+
+        EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
+    }
+
+    EXPECT_EQ(2, CouchKVStoreFileCache::get().getHandle()->capacity());
+}
+
+TEST_F(CouchKVStoreTest, CacheLimitMakeFileHandleFailure) {
+    CouchKVStoreFileCache::get().getHandle()->resize(1);
+    ASSERT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
+
+    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    auto kvstore = setup_kv_store(config);
+
+    {
+        auto handle = kvstore->makeFileHandle(Vbid(0));
+        EXPECT_FALSE(handle);
+
+        EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
+    }
+
+    EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
+}
+
 TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     config.setPitrGranularity(std::chrono::nanoseconds{1});
@@ -495,6 +530,7 @@ public:
           logger("couchKVStoreTest"),
           config(1024, 4, data_dir, "couchdb", 0),
           flush(manifest) {
+        CouchKVStoreFileCache::get().getHandle()->resize(1024);
         config.setLogger(logger);
         config.setBuffered(false);
         try {
@@ -1349,6 +1385,7 @@ public:
           vbid(0),
           config(1024, 4, data_dir, "couchdb", 0),
           flush(manifest) {
+        CouchKVStoreFileCache::get().getHandle()->resize(1024);
         config.setBuffered(false);
         try {
             cb::io::rmrf(data_dir.c_str());
@@ -2052,4 +2089,18 @@ TEST_F(CouchstoreTest, delVBucketRemovesFileFromCache) {
     EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->numFiles());
     kvstore->delVBucket(Vbid(0), 0);
     EXPECT_EQ(0, CouchKVStoreFileCache::get().getHandle()->numFiles());
+}
+
+TEST_F(CouchstoreTest, CacheLimitOpenDbForReadFailure) {
+    CouchKVStoreFileCache::get().getHandle()->resize(1);
+    ASSERT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
+
+    {
+        auto openResult = kvstore->public_openDbForRead(Vbid(0));
+        EXPECT_EQ(COUCHSTORE_ERROR_OPEN_FILE, openResult.status);
+
+        EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
+    }
+
+    EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->capacity());
 }

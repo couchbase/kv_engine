@@ -43,6 +43,8 @@ class CouchKVStoreConfig;
 class DbHolder;
 class EventuallyPersistentEngine;
 
+class CouchKVFileHandle;
+
 /**
  * Class representing a document to be persisted in couchstore.
  */
@@ -118,6 +120,30 @@ protected:
 };
 
 struct kvstats_ctx;
+
+class CouchKVFileHandle : public ::KVFileHandle {
+public:
+    explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
+    }
+
+    ~CouchKVFileHandle() override {
+        if (getDb()) {
+            auto fc = CouchKVStoreFileCache::get().getHandle();
+            fc->resize(fc->capacity() + 1);
+        }
+    };
+
+    DbHolder& getDbHolder() {
+        return db;
+    }
+
+    Db* getDb() const {
+        return db.getDb();
+    }
+
+private:
+    DbHolder db;
+};
 
 /**
  * KVStore with couchstore as the underlying storage system
@@ -513,6 +539,27 @@ protected:
                               DbHolder& db,
                               couchstore_open_flags options,
                               FileOpsInterface* ops = nullptr);
+
+    /**
+     * The result of calling openDbForRead.
+     * If the open was successful then status is COUCHSTORE_SUCCSS and the
+     * fileHandle should be valid. If the open failed then status contains the
+     * reason and fileHandle should have a valid revision value but the
+     * underlying Db shouldn't be used.
+     */
+    struct OpenForReadResult {
+        couchstore_error_t status;
+        std::unique_ptr<CouchKVFileHandle> fileHandle;
+
+        ~OpenForReadResult() = default;
+
+        // Declaring the dtor disables auto-generation of the various ctors,
+        // so need to explicitly re-enable move.
+        OpenForReadResult(OpenForReadResult&&) = default;
+    };
+
+    OpenForReadResult openDbForRead(Vbid vbucketId,
+                                    FileOpsInterface* ops = nullptr);
 
     /**
      * The result of calling openDbForWrite.
