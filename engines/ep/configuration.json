@@ -382,7 +382,7 @@
             "type": "bool"
         },
         "exp_pager_stime": {
-            "default": "3600",
+            "default": "600",
             "descr": "Number of seconds between expiry pager runs.",
             "type": "size_t"
         },

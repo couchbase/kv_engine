@@ -620,7 +620,7 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
 
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
-    checkeq(3600, get_int_stat(h, h1, "ep_exp_pager_stime"),
+    checkeq(600, get_int_stat(h, h1, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
     set_param(h, h1, protocol_binary_engine_param_flush,
               "exp_pager_stime", "1");
