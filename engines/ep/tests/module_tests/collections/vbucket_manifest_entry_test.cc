@@ -41,7 +41,6 @@ TEST(ManifestEntry, exceptions) {
     // Check we cannot change start to be...
     EXPECT_THROW(m.setStartSeqno(999), std::invalid_argument); // ... smaller
     EXPECT_THROW(m.setStartSeqno(1000), std::invalid_argument); // ... the same
-    EXPECT_THROW(m.setStartSeqno(-1), std::invalid_argument); // ... negative
 
     EXPECT_NO_THROW(m.setStartSeqno(3000));
 }

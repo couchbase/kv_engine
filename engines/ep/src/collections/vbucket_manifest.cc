@@ -544,7 +544,7 @@ bool Manifest::isLogicallyDeleted(const container::const_iterator entry,
 
     // seqno >= 0 (so temp items etc... are ok) AND the seqno is below the
     // collection start (start is set on creation and moves with flush)
-    return seqno >= 0 && seqno < entry->second.getStartSeqno();
+    return seqno >= 0 && (uint64_t(seqno) < entry->second.getStartSeqno());
 }
 
 void Manifest::processExpiryTime(const container::const_iterator entry,
