@@ -23,19 +23,18 @@ namespace Collections::VB {
 
 ScanContext::ScanContext(
         const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections)
-    : startSeqno(std::numeric_limits<int64_t>::max()), endSeqno(0) {
+                droppedCollections) {
     for (const auto& droppedCollection : droppedCollections) {
         dropped.insert(droppedCollection.collectionId);
         // Find the full extent of dropped collections, we will only map lookup
         // for keys inside the range.
         startSeqno =
-                std::min<int64_t>(startSeqno, droppedCollection.startSeqno);
-        endSeqno = std::max<int64_t>(endSeqno, droppedCollection.endSeqno);
+                std::min<uint64_t>(startSeqno, droppedCollection.startSeqno);
+        endSeqno = std::max<uint64_t>(endSeqno, droppedCollection.endSeqno);
     }
 }
 
-bool ScanContext::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
+bool ScanContext::isLogicallyDeleted(const DocKey& key, uint64_t seqno) const {
     if (dropped.empty() || key.isInSystemCollection()) {
         return false;
     }

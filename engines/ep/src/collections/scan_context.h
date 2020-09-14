@@ -42,7 +42,8 @@ public:
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections);
 
-    bool isLogicallyDeleted(const DocKey& key, int64_t seqno) const;
+    /// @return true if the key@seqno belongs to a dropped collection
+    bool isLogicallyDeleted(const DocKey& key, uint64_t seqno) const;
 
     /// @return if true dropped set is empty
     bool empty() const {
@@ -53,8 +54,8 @@ protected:
     friend std::ostream& operator<<(std::ostream&, const ScanContext&);
 
     std::unordered_set<CollectionID> dropped;
-    int64_t startSeqno = 0;
-    int64_t endSeqno = 0;
+    uint64_t startSeqno = 0;
+    uint64_t endSeqno = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext);
