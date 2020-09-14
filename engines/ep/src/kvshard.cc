@@ -131,10 +131,18 @@ void KVShard::setBucket(VBucketPtr vb) {
 }
 
 void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie) {
-    auto vb = getElement(id);
-    auto vbPtr = vb.get();
+    VBucketPtr vbPtr;
+
+    {
+        // Rely on the underlying VBucketPtr type being a shared_ptr and grab a
+        // copy of the ptr before we reset the one in the map. We need to do
+        // this to prevent a lock order inversion with the dbFileRevMap lock
+        auto vb = getElement(id);
+        vbPtr = vb.get();
+        vb.reset();
+    }
+
     vbPtr->setupDeferredDeletion(cookie);
-    vb.reset();
 }
 
 std::vector<Vbid> KVShard::getVBucketsSortedByState() {
